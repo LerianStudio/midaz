@@ -902,6 +902,73 @@ func TestIntegration_AccountRepository_Update_UpdatesName(t *testing.T) {
 	assert.Equal(t, "Updated Name", found.Name)
 }
 
+// TestIntegration_AccountRepository_Update_PreservesHolderLink proves the holder link is
+// IMMUTABLE through Update: neither holder_id nor holder_check_skipped appears in the
+// squirrel SET list (nor in applyNullableFields' NullFields set), so an update cannot
+// write or clear them.
+//
+// This is the guard that keeps the /v1 account contract honest. A /v1 PATCH answers with
+// the projection that WITHHOLDS both keys, so if a later change added holder_id to the SET
+// list, a /v1 update would silently clear a holder established on /v2 — and the response
+// that hides the field could not show the damage. The update input carries no holderId by
+// design (mmodel.UpdateAccountInput has no such field, and unknown body fields are a 400),
+// so the domain account reaching Update always has a nil HolderID: exactly the value that
+// must NOT be persisted.
+func TestIntegration_AccountRepository_Update_PreservesHolderLink(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	ctx := context.Background()
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+	holderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	alias := fmt.Sprintf("@holder-immutable-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+
+	created, err := repo.Create(ctx, &mmodel.Account{
+		Name:               "Holder Owned",
+		AssetCode:          "USD",
+		OrganizationID:     orgID.String(),
+		LedgerID:           ledgerID.String(),
+		Status:             mmodel.Status{Code: "ACTIVE"},
+		Alias:              &alias,
+		Type:               "deposit",
+		Blocked:            &blocked,
+		HolderID:           &holderID,
+		HolderCheckSkipped: true,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created.HolderID)
+
+	accountID, err := uuid.Parse(created.ID)
+	require.NoError(t, err)
+
+	// Act: the shape the update use case builds — a nil HolderID and a false
+	// HolderCheckSkipped alongside the fields the caller actually changed.
+	updated, err := repo.Update(ctx, orgID, ledgerID, nil, accountID, &mmodel.Account{
+		Name:   "Renamed",
+		Status: mmodel.Status{Code: "INACTIVE"},
+	})
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	require.NoError(t, err)
+
+	assert.Equal(t, "Renamed", found.Name, "the requested change must land")
+	require.NotNil(t, found.HolderID, "Update must not clear holder_id")
+	assert.Equal(t, holderID, *found.HolderID, "Update must not rewrite holder_id")
+	assert.True(t, found.HolderCheckSkipped, "Update must not clear the holder_check_skipped audit flag")
+}
+
 func TestIntegration_AccountRepository_Update_UpdatesStatus(t *testing.T) {
 	// Arrange
 	container := pgtestutil.SetupMigratedContainer(t, "onboarding")

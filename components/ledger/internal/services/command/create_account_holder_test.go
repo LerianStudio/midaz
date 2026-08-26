@@ -175,7 +175,7 @@ func TestCreateAccountSelfHolderDefault(t *testing.T) {
 			var captured *mmodel.Account
 			uc, _, _ := setupHolderAccountTest(ctrl, &captured)
 
-			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, "Bearer test")
+			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, "Bearer test", HolderOnV2)
 			require.NoError(t, err)
 			require.NotNil(t, acc)
 			require.NotNil(t, captured)
@@ -253,7 +253,7 @@ func TestCreateAccountRequireHolderGate(t *testing.T) {
 			settingsReader.requireHolder = tt.requireHolder
 			holderReader.exists = tt.holderExists
 
-			_, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, "Bearer test")
+			_, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, "Bearer test", HolderOnV2)
 
 			switch {
 			case tt.expectHolderNotFound:
@@ -304,7 +304,7 @@ func TestCreateAccountRequireHolderReaderError(t *testing.T) {
 
 	_, err := uc.CreateAccount(ctx, organizationID, ledgerID,
 		&mmodel.CreateAccountInput{Name: "A", Type: "deposit", AssetCode: "USD", HolderID: &explicitHolder},
-		"Bearer test")
+		"Bearer test", HolderOnV2)
 
 	require.Error(t, err)
 	assert.Equal(t, 1, holderReader.calls)
@@ -329,7 +329,7 @@ func TestCreateAccountSettingsReadErrorFailsClosed(t *testing.T) {
 
 	acc, err := uc.CreateAccount(ctx, organizationID, ledgerID,
 		&mmodel.CreateAccountInput{Name: "A", Type: "deposit", AssetCode: "USD"},
-		"Bearer test")
+		"Bearer test", HolderOnV2)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, readErr)
@@ -425,7 +425,7 @@ func TestCreateAccountHolderSkip(t *testing.T) {
 			settingsReader.allowHolderSkip = tt.allowHolderSkip
 			holderReader.exists = tt.holderExists
 
-			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, "Bearer test")
+			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, "Bearer test", HolderOnV2)
 
 			if tt.expectSkipDenied {
 				require.Error(t, err)

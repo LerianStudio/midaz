@@ -160,12 +160,42 @@ const transactionPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/i
 const mtransactionPkgPath = "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 
 // ledgerHTTPInPkgPath is the import path of the ledger's inbound HTTP adapter, which
-// declares the per-version response projections. Its TransactionV1 publishes under the
-// canonical component name "Transaction": the Go type carries a version suffix so it
-// reads as the sibling of TransactionV2, while the published name stays what the
-// generated SDKs already bind to. Matched as a STRING for the same layering reason as
-// the adapter paths above.
+// declares the per-version response projections. Matched as a STRING for the same
+// layering reason as the adapter paths above.
 const ledgerHTTPInPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+
+// v1ProjectionNames maps a /v1 response projection declared in the inbound HTTP adapter
+// to the CANONICAL component name it publishes under. The Go types carry a version
+// suffix so each reads as the sibling of its newer twin, while the published name stays
+// what the generated v1 SDKs already bind to — renaming a v1 component would churn every
+// v1 SDK, which is the opposite of what a backward-compatibility projection is for.
+//
+// The consequence is that the projection, not the domain type, owns the canonical name:
+// see mmodelV2Names for the newer shape each domain type is pushed onto.
+var v1ProjectionNames = map[string]string{
+	"TransactionV1": "Transaction",
+	"AccountV1":     "Account",
+}
+
+// mmodelPkgPath is the import path of the shared domain-model package. Matched as a
+// STRING for symmetry with the paths above (mtransaction is imported here only for its
+// TransactionDate type alias).
+const mmodelPkgPath = "github.com/LerianStudio/midaz/v4/pkg/mmodel"
+
+// mmodelV2Names remaps a domain type whose /v1 projection took over its canonical
+// component name (see v1ProjectionNames) onto the versioned name of the NEWER wire
+// shape it actually describes.
+//
+// mmodel.Account is the account WITH the holder seam — holderId and holderCheckSkipped —
+// which is the /v2 account contract; the /v1 ops answer with in.AccountV1, which
+// withholds both keys and publishes as "Account". The two shapes are distinct, so they
+// must carry distinct names or huma.Register panics on the shared registry. Only the
+// exact name "Account" is remapped: every sibling mmodel type (Accounts, AccountType,
+// CreateAccountInput, …) keeps its bare name, which is what the published contract
+// already binds to.
+var mmodelV2Names = map[string]string{
+	"Account": "AccountV2",
+}
 
 // feePkgPathPrefix roots the Wave-3 fee/billing packages whose response-body types
 // register on the shared ledger Huma registry: feeshared/model (Pagination,
@@ -212,8 +242,16 @@ func ledgerSchemaNamer(t reflect.Type, hint string) string {
 		return "TransactionInput"
 	}
 
-	if dt.PkgPath() == ledgerHTTPInPkgPath && name == "TransactionV1" {
-		return "Transaction"
+	if dt.PkgPath() == ledgerHTTPInPkgPath {
+		if canonical, ok := v1ProjectionNames[name]; ok {
+			return canonical
+		}
+	}
+
+	if dt.PkgPath() == mmodelPkgPath {
+		if versioned, ok := mmodelV2Names[name]; ok {
+			return versioned
+		}
 	}
 
 	if feePkgPaths[dt.PkgPath()] {

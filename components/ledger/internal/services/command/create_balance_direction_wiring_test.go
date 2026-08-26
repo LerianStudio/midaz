@@ -205,7 +205,7 @@ func TestCreateAccountBalanceDirectionWiring(t *testing.T) {
 				}).
 				Times(1)
 
-			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, "Bearer test-token")
+			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, "Bearer test-token", HolderOnV2)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, acc)

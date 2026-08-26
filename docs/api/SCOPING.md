@@ -162,6 +162,54 @@ the reservation stays RESERVED until the TTL reaper releases it, and the committ
 counted against the usage limit. Commit and cancel a transaction on the same contract that created
 it. Closing this needs create-time reservation state persisted on the transaction row for the gate
 to read instead of the route version.
+## The holder seam is `/v2`-only
+
+The same contract-versus-scope split applies to accounts. The **holder seam** on account create —
+the `accounting.requireHolder` gate, the two-key `skip.holder` control, and the deterministic
+self-holder default that materialises `account.holder_id` — is **`/v2`-only**.
+
+The signal is `command.RouteHolderPolicy` (`HolderOffV1` / `HolderOnV2`), threaded from the transport
+shell for the same reason the transaction cores thread `routeVersionPolicy`: the use case is
+transport-agnostic and cannot read the request path. The two are siblings at different layers, not
+duplicates — the fee and tracer seams sit in the transaction handler, the holder seam in the account
+and organization use cases, and a `command` type cannot be the unexported `in` one without inverting
+the dependency direction.
+
+A `/v1` account create never reaches it. It links no holder (the row persists `holder_id = NULL`
+and `holder_check_skipped = false`), performs no holder settings read, and can be rejected by
+neither the requireHolder gate (`ErrHolderRequired` / `ErrHolderNotFound`) nor an unpermitted skip
+(`ErrSkipNotPermitted`). `holderId` and `skip.holder` in a `/v1` body are inert. `/v1` shipped
+before the seam existed, and a client integrated against it must not acquire a holder link — or a
+new rejection class — from a version upgrade it never asked for.
+
+The withholding reaches the response too. Every `/v1` account response — create, list, get-by-id,
+get-by-alias, get-external-by-code, update — answers with the projection that omits `holderId` and
+`holderCheckSkipped`; the `/v2` twins answer with the full account. Both contracts publish the
+projection they serve as a distinct component, and the `/v1` one keeps the canonical **`Account`**
+name so generated v1 SDKs bind to the type they already have, which puts the holder-bearing shape
+on **`AccountV2`**.
+
+The same gate covers the **organization self-holder**. Creating an organization eagerly provisions
+its deterministic self-holder — the `LEGAL_PERSON` CRM holder whose ID is derived from the org ID,
+and the default owner an account create resolves to. A `POST /v1/organizations` provisions **no**
+such record: the self-holder exists to own accounts, and a `/v1` account create links no holder, so
+writing it would leave an orphan in the org's CRM collections that nothing on `/v1` can reach. The
+organization itself is created either way — the gate suppresses the side effect, not the resource —
+and the idempotent backfill runner remains how an organization acquires its self-holder before it
+starts using the `/v2` surface. Nothing about the organization response is versioned: the
+organization wire shape carries no holder field, so both contracts publish one schema.
+
+The **CRM holder surface itself** (`/v2/organizations/{organization_id}/holders...`) and the
+holder-account **composition** route (`POST /v2/.../ledgers/{ledger_id}/holders/{id}/accounts`) are
+served on `/v2` only and are unaffected: composition exists to link a holder, so it contracts the
+seam in full.
+
+Two account-adjacent write paths are **outside** the seam on both contracts, and stay that way. The
+implicit **external account** that asset creation opens is built and persisted directly through
+`AccountRepo`, bypassing the account-create use case, so it carries no holder — which is also what
+the seam would resolve for an external account. And the account **update** path cannot touch
+ownership: `holderId` is immutable (it is not a field on the update input, and an unknown body field
+is a `400`), and neither holder column appears in the update statement.
 
 ## Summary
 
@@ -175,6 +223,7 @@ ledger-scoped on `/v2` — the deeper scope is expressed by a deeper path, not b
 query parameter. The convention does not change; only how much of the hierarchy the path names.
 
 Scope and contract are separate questions. The fee admin surface answers the first (two scopes,
-both live); the transaction fee seam and the tracer reservation lifecycle answer the second (`/v2`
-only, both driven by the same `routeVersionPolicy`). A surface being reachable at a scope says
-nothing about which transaction contract applies it.
+both live); the transaction fee seam, the tracer reservation lifecycle and the account/organization
+holder seam answer the second (`/v2` only — the first two driven by `routeVersionPolicy` in the
+transaction handler, the third by `command.RouteHolderPolicy` in the use cases). A surface being
+reachable at a scope says nothing about which contract applies it.

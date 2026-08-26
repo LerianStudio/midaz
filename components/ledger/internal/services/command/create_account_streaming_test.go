@@ -123,7 +123,7 @@ func TestCreateAccount_EmitsAccountCreatedEvent(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(ctx, orgID, ledgerID, input, "Bearer test")
+	acc, err := uc.CreateAccount(ctx, orgID, ledgerID, input, "Bearer test", HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 
@@ -167,7 +167,7 @@ func TestCreateAccount_NoopEmitterDoesNotPanic(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test")
+	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test", HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 }
@@ -188,7 +188,7 @@ func TestCreateAccount_EmitFailureDoesNotFailRequest(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test")
+	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test", HolderOnV2)
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, acc)
 }
@@ -208,7 +208,7 @@ func TestCreateAccount_NilStreamingDoesNotPanic(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test")
+	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test", HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 }

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -28,7 +29,7 @@ type stubAccountCreator struct {
 	err       error
 }
 
-func (s *stubAccountCreator) CreateAccount(_ context.Context, organizationID, ledgerID uuid.UUID, in *mmodel.CreateAccountInput, token string) (*mmodel.Account, error) {
+func (s *stubAccountCreator) CreateAccount(_ context.Context, organizationID, ledgerID uuid.UUID, in *mmodel.CreateAccountInput, token string, holderPolicy command.RouteHolderPolicy) (*mmodel.Account, error) {
 	s.called = true
 	s.gotOrg = organizationID
 	s.gotLedger = ledgerID
@@ -68,6 +69,27 @@ func bankingInput() *mmodel.CreateHolderAccountInput {
 			Branch: ptr("0001"),
 		},
 	}
+}
+
+// TestCreateHolderAccount_CanceledContext proves the ctx guard is the FIRST statement:
+// an already-canceled context returns context.Canceled and NEITHER composed use case is
+// reached. The account create is the expensive, side-effecting leg — it opens a real
+// ledger account — so entering it on a context the caller has already abandoned buys a
+// write nobody is waiting for.
+func TestCreateHolderAccount_CanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	acc := &stubAccountCreator{account: &mmodel.Account{ID: uuid.NewString()}}
+	inst := &stubInstrumentCreator{}
+	svc := NewService(acc, inst)
+
+	resp, err := svc.CreateHolderAccount(ctx, uuid.New(), uuid.New(), uuid.New(), bankingInput(), "token")
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, resp)
+	assert.False(t, acc.called, "account creator must NOT be called on a canceled context")
+	assert.False(t, inst.called, "instrument creator must NOT be called on a canceled context")
 }
 
 // TestCreateHolderAccount_AccountError proves an account-create error is

@@ -5,6 +5,7 @@
 package in
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
@@ -15,19 +16,40 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// RegisterOrganizationRoutes registers the six organization operations on
-// the shared Huma API. It is the per-file seam RegisterOrganizationRoutesToApp calls;
-// the auth + tenant + ParseUUIDPathParameters middleware chain for these routes is
-// attached in RegisterOrganizationRoutesToApp (Fiber-level) BEFORE the Huma terminal,
-// not here.
+// organizationCreateTerminal is the version-specific organization CREATE handler. Both
+// shells share the request and response envelopes — the organization wire shape carries
+// no holder field, so only the self-holder BEHAVIOUR is versioned — which is what lets
+// the create terminal travel as a parameter instead of forcing a duplicate registrar.
+type organizationCreateTerminal = func(context.Context, *CreateOrganizationRequest) (*CreateOrganizationResponse, error)
+
+// RegisterOrganizationRoutes registers the six /v1 organization operations on the shared
+// Huma API. It is the per-file seam RegisterOrganizationRoutesToApp calls; the auth +
+// tenant + ParseUUIDPathParameters middleware chain for these routes is attached in
+// RegisterOrganizationRoutesToApp (Fiber-level) BEFORE the Huma terminal, not here.
+//
+// opSuffix distinguishes the operation IDs one version group publishes from another's —
+// see v1OpSuffix.
+func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix string) {
+	registerOrganizationRoutes(api, h, opSuffix, h.CreateOrganization)
+}
+
+// RegisterOrganizationV2Routes registers the same six operations on the /v2 contract.
+// The ONLY difference is the create terminal: CreateOrganizationV2 provisions the
+// organization's self-holder, which the /v1 shell does not. Paths, authz tuples, tenant
+// chain, summaries and every response schema are identical, so the five non-create ops
+// bind the same handler methods.
+func RegisterOrganizationV2Routes(api huma.API, h *OrganizationHandler, opSuffix string) {
+	registerOrganizationRoutes(api, h, opSuffix, h.CreateOrganizationV2)
+}
+
+// registerOrganizationRoutes is the single description of the organization terminal set,
+// shared by every versioned contract that serves it. Only the create terminal varies (see
+// organizationCreateTerminal); everything else is byte-identical across contracts, so a
+// change to the surface reaches every version it is mounted on.
 //
 // Paths are GROUP-RELATIVE: the Huma API is bound to a versioned Fiber group, so the
 // humafiber adapter registers on that group and Fiber prepends the version prefix.
-//
-// opSuffix distinguishes the operation IDs one version group publishes from another's —
-// see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
-// same input/output types, so only the operation IDs differ between the twins.
-func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix string) {
+func registerOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix string, create organizationCreateTerminal) {
 	const (
 		listPath  = "/organizations"
 		idPath    = listPath + "/{id}"
@@ -45,7 +67,7 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 		// Body validated imperatively (http.DecodeAndValidate) — see file header.
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
-	}, h.CreateOrganization)
+	}, create)
 	attachTypedRequestBody[mmodel.CreateOrganizationInput](api, "createOrganization"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -104,15 +126,16 @@ func RegisterOrganizationRoutes(api huma.API, h *OrganizationHandler, opSuffix s
 // RegisterOrganizationRoutesToApp wires the organization surface onto the
 // /v1 contract. See registerOrganizationRoutesToApp for what it attaches.
 func RegisterOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerOrganizationRoutesToApp(group, api, auth, h, routeOptions, v1OpSuffix)
+	registerOrganizationRoutesToApp(group, api, auth, h, routeOptions, v1OpSuffix, h.CreateOrganization)
 }
 
 // RegisterOrganizationV2RoutesToApp wires the same organization surface onto the /v2
-// contract: same paths, same handlers, same authz tuples and tenant chain, differing only
-// in the operation IDs the contract publishes. It is additive — /v1 keeps serving
-// organizations in parallel — and introduces no new policy surface.
+// contract: same paths, same authz tuples and tenant chain, differing in the operation IDs
+// the contract publishes and in the create terminal's self-holder provisioning. It is
+// additive — /v1 keeps serving organizations in parallel — and introduces no new policy
+// surface.
 func RegisterOrganizationV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerOrganizationRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
+	registerOrganizationRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix, h.CreateOrganizationV2)
 }
 
 // registerOrganizationRoutesToApp is the single description of the organization route
@@ -131,7 +154,7 @@ func RegisterOrganizationV2RoutesToApp(group fiber.Router, api huma.API, auth *m
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
 // see v1OpSuffix. Nothing else varies between contracts, so a change to the surface
 // reaches every version it is mounted on.
-func registerOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
+func registerOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *OrganizationHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string, create organizationCreateTerminal) {
 	const (
 		listPath  = "/organizations"
 		idPath    = listPath + "/:id"
@@ -147,5 +170,5 @@ func registerOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *mid
 	routeDelete(group, idPath, protectedMidaz(auth, "organizations", "delete", routeOptions, parse))
 	routeHead(group, countPath, protectedMidaz(auth, "organizations", "head", routeOptions))
 
-	RegisterOrganizationRoutes(api, h, opSuffix)
+	registerOrganizationRoutes(api, h, opSuffix, create)
 }
