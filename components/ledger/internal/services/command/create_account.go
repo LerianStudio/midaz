@@ -33,8 +33,12 @@ import (
 // CreateAccount creates an account and metadata, then synchronously creates the default balance.
 // The balance is created via the BalancePort interface.
 //
+// holderPolicy is the caller's route-version holder contract, carried explicitly from
+// the transport shell down to the holder seam: the /v1 shell passes HolderOffV1, the
+// /v2 shell and the composition service pass HolderOnV2.
+//
 //nolint:gocyclo // Validation + creation + metadata + balance orchestration; refactor candidate.
-func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string) (_ *mmodel.Account, err error) {
+func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, token string, holderPolicy RouteHolderPolicy) (_ *mmodel.Account, err error) {
 	logger, tracer, requestID, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_account")
@@ -60,33 +64,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	requireHolder, allowHolderSkip, err := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+	holder, err := uc.resolveAccountHolder(ctx, span, logger, organizationID, ledgerID, cai, holderPolicy)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to resolve holder requirement", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to resolve holder requirement", libLog.Err(err))
-
-		return nil, err
-	}
-
-	honoredHolderSkip, err := skip.ResolveSkipFor("holder", cai.Skip != nil && cai.Skip.Holder, allowHolderSkip)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder skip not permitted", err)
-		logger.Log(ctx, libLog.LevelWarn, "Holder skip not permitted", libLog.Err(err))
-
-		return nil, err
-	}
-
-	requireHolder = requireHolder && !honoredHolderSkip
-
-	// Record the honored skip as a system observation (not a request input): it
-	// reflects what the two-key holder gate actually honored, and it is persisted
-	// to the account row below for the durable audit trail.
-	span.SetAttributes(attribute.Bool("app.account.holder_check_skipped", honoredHolderSkip))
-
-	if err := uc.applyHolderValidation(ctx, organizationID, requireHolder, cai); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder validation failed", err)
-		logger.Log(ctx, libLog.LevelWarn, "Holder validation failed", libLog.Err(err))
-
 		return nil, err
 	}
 
@@ -177,8 +156,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	blocked := cai.Blocked != nil && *cai.Blocked
 
-	holderID := uc.resolveHolderID(organizationID, cai)
-
 	now := time.Now()
 
 	account := &mmodel.Account{
@@ -194,9 +171,9 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		PortfolioID:        cai.PortfolioID,
 		LedgerID:           ledgerID.String(),
 		EntityID:           cai.EntityID,
-		HolderID:           holderID,
+		HolderID:           holder.ID,
 		Status:             status,
-		HolderCheckSkipped: honoredHolderSkip,
+		HolderCheckSkipped: holder.CheckSkipped,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
@@ -411,6 +388,65 @@ func (uc *UseCase) applyHolderValidation(ctx context.Context, organizationID uui
 	}
 
 	return nil
+}
+
+// accountHolder is what the holder seam resolved for an account being created:
+// the holder_id to persist and the honored-skip audit flag. Both are zero values
+// under HolderOffV1.
+type accountHolder struct {
+	ID           *string
+	CheckSkipped bool
+}
+
+// resolveAccountHolder runs the account holder seam: it reads the two holder gate
+// keys, resolves the per-call skip, enforces the requireHolder validation, and
+// materialises the holder_id to persist.
+//
+// On holderPolicy=HolderOffV1 this is a no-op returning the zero accountHolder, and
+// it is the FIRST gate: the /v1 account contract has no holder seam, so a /v1 create
+// never reads the ledger settings, never resolves a skip (so a skip.holder in the
+// body cannot raise ErrSkipNotPermitted), never enforces requireHolder (so it cannot
+// raise ErrHolderRequired / ErrHolderNotFound), and never derives the org's
+// self-holder. The account persists with a NULL holder_id, exactly as it did before
+// the seam existed.
+//
+// Error classes are preserved from the callee: a settings read failure is technical
+// (fails closed, span red), a rejected skip and a failed holder validation are
+// business (span green).
+func (uc *UseCase) resolveAccountHolder(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput, holderPolicy RouteHolderPolicy) (accountHolder, error) {
+	if holderPolicy == HolderOffV1 {
+		return accountHolder{}, nil
+	}
+
+	requireHolder, allowHolderSkip, err := uc.resolveHolderRequirement(ctx, organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to resolve holder requirement", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to resolve holder requirement", libLog.Err(err))
+
+		return accountHolder{}, err
+	}
+
+	honoredHolderSkip, err := skip.ResolveSkipFor("holder", cai.Skip != nil && cai.Skip.Holder, allowHolderSkip)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder skip not permitted", err)
+		logger.Log(ctx, libLog.LevelWarn, "Holder skip not permitted", libLog.Err(err))
+
+		return accountHolder{}, err
+	}
+
+	// Record the honored skip as a system observation (not a request input): it
+	// reflects what the two-key holder gate actually honored, and it is persisted
+	// to the account row for the durable audit trail.
+	span.SetAttributes(attribute.Bool("app.account.holder_check_skipped", honoredHolderSkip))
+
+	if err := uc.applyHolderValidation(ctx, organizationID, requireHolder && !honoredHolderSkip, cai); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder validation failed", err)
+		logger.Log(ctx, libLog.LevelWarn, "Holder validation failed", libLog.Err(err))
+
+		return accountHolder{}, err
+	}
+
+	return accountHolder{ID: uc.resolveHolderID(organizationID, cai), CheckSkipped: honoredHolderSkip}, nil
 }
 
 // resolveHolderID materialises the account's holder_id on the create path.
