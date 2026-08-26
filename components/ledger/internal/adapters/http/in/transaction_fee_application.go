@@ -35,21 +35,6 @@ type FeeApplier interface {
 	CalculateFee(ctx context.Context, cf *model.FeeCalculate, organizationID uuid.UUID) error
 }
 
-// routeFeesPolicy states whether the route version that received the request
-// contracts the fee engine. It is a distinct type so it cannot be transposed
-// with applyFees' other boolean gates at the call site.
-type routeFeesPolicy bool
-
-const (
-	// feesOffV1 is the /v1 transaction contract: it shipped before the fee engine
-	// existed, and clients integrated against it must not acquire fee legs — nor a
-	// tenant fee-DB resolution failure — from a version upgrade.
-	feesOffV1 routeFeesPolicy = false
-
-	// feesOnV2 is the /v2 transaction contract, which includes fees.
-	feesOnV2 routeFeesPolicy = true
-)
-
 // applyFees drives the fee engine on the validated transaction and folds the
 // resulting fee legs back into transactionInput. It mirrors the shape of
 // enrichOverdraftOperations: a single seam that loads packages, runs the
@@ -63,7 +48,7 @@ const (
 // the persistence path (BuildOperations / ProcessBalanceOperations /
 // WriteTransaction) through a single reassigned validate pointer.
 //
-// On feesPolicy=feesOffV1 this is a no-op, and it is the FIRST gate: the /v1
+// On policy=routeV1 this is a no-op, and it is the FIRST gate: the /v1
 // transaction contract does not include fees, so a /v1 create posts exactly as
 // authored and never reaches the package lookup or the tenant fee-DB resolution.
 //
@@ -88,10 +73,10 @@ func (handler *TransactionHandler) applyFees(
 	ctx context.Context,
 	transactionInput *mtransaction.Transaction,
 	organizationID, ledgerID uuid.UUID,
-	feesPolicy routeFeesPolicy,
+	policy routeVersionPolicy,
 	isRevert, isAnnotation, honoredFeeSkip bool,
 ) error {
-	if feesPolicy == feesOffV1 {
+	if policy == routeV1 {
 		return nil
 	}
 
