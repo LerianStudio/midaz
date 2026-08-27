@@ -5,7 +5,7 @@ go 1.26.4
 toolchain go1.26.6
 
 require (
-	github.com/LerianStudio/lib-auth/v3 v3.4.0
+	github.com/LerianStudio/lib-auth/v3 v3.5.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/go-playground/locales v0.14.1
@@ -123,6 +123,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/LerianStudio/lib-observability v1.1.0 // indirect
 	github.com/LerianStudio/lib-observability/v3 v3.1.0 // indirect
+	github.com/MicahParks/jwkset v0.11.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/XSAM/otelsql v0.43.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect

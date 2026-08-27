@@ -259,7 +259,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 // short-circuit (which skips the tx), so a no-op update emits nothing.
 // IMPORTANT posture: emit failures never fail the request.
 func (c *UpdateLimitCommand) emitLimitUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
-	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.LimitUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewLimitUpdated(limit).ToEmitRequest(tenantID, limit.UpdatedAt)
 		})

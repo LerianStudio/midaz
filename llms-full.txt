@@ -817,7 +817,7 @@ before that check, so omission passes it; an enabled producer must still set the
 | STREAMING_SASL_USERNAME | — | SASL username |
 | STREAMING_SASL_PASSWORD | — | SASL password |
 | STREAMING_ALLOW_PLAINTEXT_SASL | — | Allow SASL over plaintext |
-| STREAMING_IMPORTANT_EMIT_TIMEOUT_MS | 5000 | Bound on direct IMPORTANT-event emit latency |
+| STREAMING_IMPORTANT_EMIT_TIMEOUT_MS | 5000 | Bound on best-effort broker-publication latency |
 
 #### Service Discovery (opt-in; no-op when SD_ENABLED=false)
 Consul-backed registration + host resolution. Read by `libsd.ConfigFromEnv()`.

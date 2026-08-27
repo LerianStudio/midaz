@@ -40,7 +40,7 @@ const activeAccountMetric = "active_account"
 // Fire-and-forget: a nil emitter or nil serializer means billing is disabled and
 // the call is a clean no-op, and serialize/emit failures are span-recorded,
 // warn-logged and swallowed — this MUST NOT fail the parent transaction. Billing
-// does not use pkgStreaming.EmitImportant/ToEmitRequest (the JSON path); it emits
+// does not use pkgStreaming.EmitBrokerBestEffort/ToEmitRequest (the JSON path); it emits
 // the raw Protobuf bytes directly through the Emitter seam.
 func (uc *UseCase) SendActiveAccountBillingEvents(ctx context.Context, tran *transaction.Transaction, phase string) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)

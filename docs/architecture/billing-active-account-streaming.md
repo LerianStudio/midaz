@@ -45,14 +45,14 @@ Each payload is a `billing.BillablePayload` with these fields:
 
 The payload is **not JSON**. The billing serializer encodes it as **Confluent-framed Protobuf** — a
 leading `0x00` magic byte plus the schema ID, then the Protobuf body. Billing does **not** use the
-`ToEmitRequest` / `EmitImportant` JSON path that the domain events use; it emits raw Protobuf bytes
+`ToEmitRequest` / `EmitBrokerBestEffort` JSON path that the domain events use; it emits raw Protobuf bytes
 directly through the `Emitter` seam.
 
-> **Approved exception to the "IMPORTANT direct-emits go through `EmitImportant`" convention.**
+> **Approved exception to the `EmitBrokerBestEffort` broker-publication convention.**
 > Billing intentionally calls `Emitter.Emit` directly with a raw Confluent-Protobuf `Payload` rather
-> than routing through `pkgStreaming.EmitImportant` / `ToEmitRequest` (the JSON CloudEvents path),
+> than routing through `pkgStreaming.EmitBrokerBestEffort` / `ToEmitRequest` (the JSON CloudEvents path),
 > because billable events are raw Protobuf and cannot use the JSON payload builder. The IMPORTANT-posture
-> mechanics that `EmitImportant` normally provides — a bounded per-emit context, span-error recording,
+> mechanics that `EmitBrokerBestEffort` normally provides — a bounded per-emit context, span-error recording,
 > warn-and-swallow on failure, and the nil-emitter/nil-serializer guard — are provided **inline at the
 > emit site** in `SendActiveAccountBillingEvents` / `emitActiveAccountBillingEvent`
 > (`billing_active_account.go`). This is a reviewed, deliberate exception, not an oversight.

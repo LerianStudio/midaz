@@ -6,7 +6,7 @@
 
 // This smoke test exercises the REAL ledger fee-streaming path end-to-end: it
 // builds the producer via BuildStreamingEmitter, emits all 7 fee events through
-// pkgStreaming.EmitImportant with the real event constructors, then consumes
+// pkgStreaming.EmitBrokerBestEffort with the real event constructors, then consumes
 // them back off Kafka with a franz-go consumer and asserts the CloudEvents
 // binary-mode headers (ce-type, ce-source, ce-subject, ce-tenantid) plus the
 // absence of fee-detail / PII keys on every body.
@@ -113,7 +113,7 @@ type streamingITExpectation struct {
 }
 
 // TestStreamingEmitter_Integration_AllSevenFeeEvents emits every fee event
-// through the real BuildStreamingEmitter + EmitImportant path and asserts the
+// through the real BuildStreamingEmitter + EmitBrokerBestEffort path and asserts the
 // wire contract (ce-type / ce-source / ce-subject / ce-tenantid + fee-detail
 // absence) per event.
 func TestStreamingEmitter_Integration_AllSevenFeeEvents(t *testing.T) {
@@ -155,7 +155,7 @@ func TestStreamingEmitter_Integration_AllSevenFeeEvents(t *testing.T) {
 	// cases make). IMPORTANT never propagates errors, so failures surface via
 	// the consumer timing out on a missing record below.
 	for _, e := range expectations {
-		pkgStreaming.EmitImportant(ctx, nil, libLog.NewNop(), emitter, e.ceType, e.emitReq)
+		pkgStreaming.EmitBrokerBestEffort(ctx, nil, libLog.NewNop(), emitter, e.ceType, e.emitReq)
 	}
 
 	// Consume the one application topic and assert the wire contract per event.

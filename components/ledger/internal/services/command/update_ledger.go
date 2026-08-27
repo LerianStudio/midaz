@@ -79,7 +79,7 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 // successfully persisted update. IMPORTANT posture: build and emit failures
 // are span-recorded and logged at Warn, never returned.
 func (uc *UseCase) emitLedgerUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, led *mmodel.Ledger) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.LedgerUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.LedgerUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewLedgerUpdated(led).ToEmitRequest(tenantID, led.UpdatedAt)
 		})

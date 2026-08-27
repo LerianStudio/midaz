@@ -20,8 +20,7 @@ import (
 // immediately after AccountRepo.Update succeeds (post-commit) and
 // before UpdateOnboardingMetadata runs (pre-metadata-write), so a
 // downstream Mongo failure cannot mask the event. IMPORTANT posture:
-// emit failures MUST NOT fail the request; durability is owned by PG +
-// (follow-up task) the outbox subsystem.
+// emit failures MUST NOT fail the request; durability is owned by the persisted database mutation.
 //
 // External-type accounts cannot be updated and never reach this anchor.
 var AccountUpdatedDefinition = Definition{

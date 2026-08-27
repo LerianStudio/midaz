@@ -275,7 +275,7 @@ func (s *DeactivateRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (
 // emitRuleDeactivatedEvent publishes the rule.deactivated event post-commit.
 // IMPORTANT posture: emit failures never fail the request.
 func (s *DeactivateRuleService) emitRuleDeactivatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, rule *model.Rule) {
-	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.RuleDeactivatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, s.Streaming, events.RuleDeactivatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewRuleDeactivated(rule).ToEmitRequest(tenantID, rule.UpdatedAt)
 		})

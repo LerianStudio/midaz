@@ -214,7 +214,7 @@ func (c *DeleteLimitCommand) Execute(ctx context.Context, id uuid.UUID) (retErr 
 // emitLimitDeletedEvent publishes the limit.deleted event post-commit.
 // IMPORTANT posture: emit failures never fail the request.
 func (c *DeleteLimitCommand) emitLimitDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
-	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.LimitDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewLimitDeleted(limit).ToEmitRequest(tenantID, limit.UpdatedAt)
 		})

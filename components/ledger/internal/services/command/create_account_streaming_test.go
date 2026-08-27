@@ -174,8 +174,7 @@ func TestCreateAccount_NoopEmitterDoesNotPanic(t *testing.T) {
 
 // TestCreateAccount_EmitFailureDoesNotFailRequest verifies the IMPORTANT
 // posture: when Emit returns an error, CreateAccount must still return the
-// successfully-persisted account because durability is owned by PG +
-// future DLQ/outbox, not by the synchronous Emit call.
+// successfully-persisted account because the persisted database mutation is durable; this helper does not make broker delivery transactional.
 func TestCreateAccount_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

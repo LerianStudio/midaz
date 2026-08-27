@@ -226,7 +226,7 @@ func (c *DraftLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *model
 // not called on the idempotent already-draft no-op (which skips the tx).
 // IMPORTANT posture: emit failures never fail the request.
 func (c *DraftLimitCommand) emitLimitDraftedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
-	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitDraftedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.LimitDraftedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewLimitDrafted(limit).ToEmitRequest(tenantID, limit.UpdatedAt)
 		})
