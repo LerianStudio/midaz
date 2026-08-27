@@ -462,7 +462,7 @@ func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, or
 
 // emitBillingPackageCreatedEvent publishes fee-billing-packages.created. IMPORTANT posture.
 func (s *BillingPackageService) emitBillingPackageCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, bp *model.BillingPackage) {
-	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, s.Streaming, events.FeesBillingPackageCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			ts, err := time.Parse(time.RFC3339, bp.CreatedAt)
 			if err != nil {
@@ -479,7 +479,7 @@ func (s *BillingPackageService) emitBillingPackageCreatedEvent(ctx context.Conte
 
 // emitBillingPackageUpdatedEvent publishes fee-billing-packages.updated. IMPORTANT posture.
 func (s *BillingPackageService) emitBillingPackageUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, bp *model.BillingPackage) {
-	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, s.Streaming, events.FeesBillingPackageUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			ts, err := time.Parse(time.RFC3339, bp.UpdatedAt)
 			if err != nil {
@@ -496,7 +496,7 @@ func (s *BillingPackageService) emitBillingPackageUpdatedEvent(ctx context.Conte
 
 // emitBillingPackageDeletedEvent publishes fee-billing-packages.deleted. IMPORTANT posture.
 func (s *BillingPackageService) emitBillingPackageDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID, ledgerID string, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, s.Streaming, events.FeesBillingPackageDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewFeesBillingPackageDeleted(id, organizationID, ledgerID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

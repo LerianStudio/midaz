@@ -333,10 +333,10 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 }
 
 // emitLimitCreatedEvent publishes the limit.created event post-commit. IMPORTANT
-// posture: EmitImportant nil-guards the emitter, bounds the emit, and never
+// posture: EmitBrokerBestEffort nil-guards the emitter, bounds the emit, and never
 // propagates build/emit failures — so this never fails the request.
 func (c *CreateLimitCommand) emitLimitCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
-	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.LimitCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewLimitCreated(limit).ToEmitRequest(tenantID, limit.CreatedAt)
 		})

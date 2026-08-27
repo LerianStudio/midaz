@@ -107,7 +107,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 // successfully persisted update. IMPORTANT posture: build and emit failures are
 // span-recorded and logged at Warn, never returned.
 func (uc *UseCase) emitOrganizationUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, org *mmodel.Organization) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.OrganizationUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.OrganizationUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewOrganizationUpdated(org).ToEmitRequest(tenantID, org.UpdatedAt)
 		})

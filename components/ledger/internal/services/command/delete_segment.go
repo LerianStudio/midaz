@@ -63,8 +63,7 @@ func (uc *UseCase) DeleteSegmentByID(ctx context.Context, organizationID, ledger
 // emitSegmentDeletedEvent publishes the segment.deleted event for a
 // successfully soft-deleted segment. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after SegmentRepo.Delete succeeds.
 // SegmentRepo.Delete does not return the post-delete record, so the
@@ -77,7 +76,7 @@ func (uc *UseCase) DeleteSegmentByID(ctx context.Context, organizationID, ledger
 // Wire-format mapping lives in pkg/streaming/events/segment_deleted.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitSegmentDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID, ledgerID string, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.SegmentDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.SegmentDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewSegmentDeleted(id, organizationID, ledgerID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

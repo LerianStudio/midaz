@@ -54,7 +54,7 @@ func (uc *UseCase) DeleteInstrumentByID(ctx context.Context, organizationID stri
 }
 
 func (uc *UseCase) emitInstrumentDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, holderID, organizationID string, hardDelete bool, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.InstrumentDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.InstrumentDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewInstrumentDeleted(id, holderID, organizationID, hardDelete, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

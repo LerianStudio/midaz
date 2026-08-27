@@ -32,11 +32,9 @@ import (
 // (create_bulk_transaction_operations_async.go) all reach
 // SendTransactionEvents, so this anchor covers every code path.
 //
-// Posture note: the catalog marks this event CRITICAL (outbox: always,
-// direct: skip). The outbox subsystem is NOT yet wired in midaz, so
-// emission today goes through pkgStreaming.EmitImportant (direct emit,
-// no atomic guarantee). When the outbox lands the call site is the only
-// place that needs to switch helpers; the Definition stays unchanged.
+// Delivery policy is resolved by lib-streaming when this wire definition is
+// emitted. This definition only declares the event contract; Midaz does not add
+// a product-local transactional outbox or relay at this layer.
 var TransactionPostedDefinition = Definition{
 	ResourceType:  "transaction",
 	EventType:     "posted",
@@ -54,7 +52,7 @@ var TransactionPostedDefinition = Definition{
 // CreateOrUpdateTransaction's return value: phase=="updated" + status
 // APPROVED → committed; phase=="created" + status APPROVED → posted.
 //
-// Same posture caveats as TransactionPostedDefinition.
+// Same delivery policy as TransactionPostedDefinition.
 var TransactionCommittedDefinition = Definition{
 	ResourceType:  "transaction",
 	EventType:     "committed",
@@ -70,7 +68,7 @@ var TransactionCommittedDefinition = Definition{
 // Same anchor as transaction.committed but distinguished by the
 // terminal status code.
 //
-// Same posture caveats as TransactionPostedDefinition.
+// Same delivery policy as TransactionPostedDefinition.
 var TransactionCanceledDefinition = Definition{
 	ResourceType:  "transaction",
 	EventType:     "canceled",
@@ -91,7 +89,7 @@ var TransactionCanceledDefinition = Definition{
 // The new child transaction id is the idempotency key; consumers
 // correlate to the original via parentTransactionId.
 //
-// Same posture caveats as TransactionPostedDefinition.
+// Same delivery policy as TransactionPostedDefinition.
 var TransactionRevertedDefinition = Definition{
 	ResourceType:  "transaction",
 	EventType:     "reverted",

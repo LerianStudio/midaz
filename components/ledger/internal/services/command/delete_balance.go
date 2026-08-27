@@ -122,7 +122,7 @@ func (uc *UseCase) emitBalanceDeletedEvent(ctx context.Context, span trace.Span,
 		return
 	}
 
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.BalanceDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.BalanceDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewBalanceDeleted(b.ID, b.OrganizationID, b.LedgerID, b.AccountID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

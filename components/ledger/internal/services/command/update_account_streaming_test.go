@@ -147,7 +147,7 @@ func TestUpdateAccount_NoopEmitterDoesNotPanic(t *testing.T) {
 // TestUpdateAccount_EmitFailureDoesNotFailRequest verifies the IMPORTANT
 // posture: when Emit returns an error, UpdateAccount must still return
 // the successfully-persisted account because durability is owned by PG
-// + future DLQ/outbox, not by the synchronous Emit call.
+// + the configured lib-streaming policy, not by the synchronous Emit call.
 func TestUpdateAccount_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

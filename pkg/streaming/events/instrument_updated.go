@@ -16,7 +16,7 @@ import (
 
 // InstrumentUpdatedDefinition is the routing contract for instrument.updated.
 // IMPORTANT posture: emit failures MUST NOT fail the request; durability is
-// owned by PG + (follow-up task) the outbox subsystem.
+// owned by the persisted database mutation.
 var InstrumentUpdatedDefinition = Definition{
 	ResourceType:  "instrument",
 	EventType:     "updated",

@@ -96,8 +96,7 @@ func TestDeletePortfolioByID_NoopEmitterDoesNotPanic(t *testing.T) {
 
 // TestDeletePortfolioByID_EmitFailureDoesNotFailRequest verifies the
 // IMPORTANT posture: when Emit returns an error, DeletePortfolioByID
-// must still complete successfully because durability is owned by PG +
-// future DLQ/outbox, not by the synchronous Emit call.
+// must still complete successfully because the persisted database mutation is durable; this helper does not make broker delivery transactional.
 func TestDeletePortfolioByID_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

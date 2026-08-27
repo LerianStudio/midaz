@@ -16,7 +16,7 @@ import (
 
 // InstrumentCreatedDefinition is the routing contract for instrument.created.
 // IMPORTANT posture: emit failures MUST NOT fail the request; durability is
-// owned by PG + (follow-up task) the outbox subsystem.
+// owned by the persisted database mutation.
 var InstrumentCreatedDefinition = Definition{
 	ResourceType:  "instrument",
 	EventType:     "created",

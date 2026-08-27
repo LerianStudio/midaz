@@ -95,8 +95,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 // emitPortfolioCreatedEvent publishes the portfolio.created event for a
 // successfully persisted portfolio. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after PortfolioRepo.Create succeeds and
 // before CreateOnboardingMetadata runs, so a downstream Mongo failure
@@ -105,7 +104,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 // Wire-format mapping lives in pkg/streaming/events/portfolio_created.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitPortfolioCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, p *mmodel.Portfolio) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.PortfolioCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.PortfolioCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewPortfolioCreated(p).ToEmitRequest(tenantID, p.CreatedAt)
 		})

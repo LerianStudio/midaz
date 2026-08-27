@@ -131,8 +131,7 @@ func TestCreateAsset_NoopEmitterDoesNotPanic(t *testing.T) {
 
 // TestCreateAsset_EmitFailureDoesNotFailRequest verifies the IMPORTANT
 // posture: when Emit returns an error, CreateAsset must still return
-// the successfully-persisted asset because durability is owned by PG +
-// future DLQ/outbox, not by the synchronous Emit call.
+// the successfully-persisted asset because the persisted database mutation is durable; this helper does not make broker delivery transactional.
 func TestCreateAsset_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

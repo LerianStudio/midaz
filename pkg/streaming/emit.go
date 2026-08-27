@@ -31,16 +31,17 @@ const (
 // tenant ID.
 type EmitRequestBuilder func(tenantID string) (libStreaming.EmitRequest, error)
 
-// EmitImportant centralizes IMPORTANT-posture direct emission mechanics.
-// Build and emit failures are recorded on the provided span and logged at
-// Warn, but never returned to the caller — durability of IMPORTANT events
-// is owned by PG + (follow-up task) the outbox subsystem, not by the
-// synchronous Emit call.
+// EmitBrokerBestEffort centralizes best-effort broker publication mechanics.
+// It delegates delivery-policy handling, including any configured library
+// fallback, to lib-streaming. Midaz does not provide an outbox writer or relay,
+// so this helper does not create a product-local transactional fallback.
+// Build and emit failures are recorded on the provided span and logged at Warn,
+// but never returned to the caller.
 //
 // eventKey is the catalog DefinitionKey (e.g. "account.created"); it is
 // used purely as a log/span attribution string so operators can correlate
 // emit-site logs with the underlying lib-streaming request.
-func EmitImportant(ctx context.Context, span trace.Span, logger libLog.Logger, emitter libStreaming.Emitter, eventKey string, build EmitRequestBuilder) {
+func EmitBrokerBestEffort(ctx context.Context, span trace.Span, logger libLog.Logger, emitter libStreaming.Emitter, eventKey string, build EmitRequestBuilder) {
 	if emitter == nil {
 		return
 	}
@@ -60,6 +61,14 @@ func EmitImportant(ctx context.Context, span trace.Span, logger libLog.Logger, e
 		libOpentelemetry.HandleSpanError(span, "Failed to emit "+eventKey, emitErr)
 		logger.Log(ctx, libLog.LevelWarn, "Streaming emit failed for "+eventKey, libLog.Err(emitErr))
 	}
+}
+
+// EmitImportant preserves the former exported API while callers migrate to
+// EmitBrokerBestEffort. The old name implied durability Midaz does not provide.
+//
+// Deprecated: use EmitBrokerBestEffort.
+func EmitImportant(ctx context.Context, span trace.Span, logger libLog.Logger, emitter libStreaming.Emitter, eventKey string, build EmitRequestBuilder) {
+	EmitBrokerBestEffort(ctx, span, logger, emitter, eventKey, build)
 }
 
 func importantEmitTimeout() time.Duration {

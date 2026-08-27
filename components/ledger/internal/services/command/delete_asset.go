@@ -102,8 +102,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 // emitAssetDeletedEvent publishes the asset.deleted event for a
 // successfully soft-deleted asset. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after AssetRepo.Delete succeeds.
 // AssetRepo.Delete does not return the post-delete record, so the
@@ -118,7 +117,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 // Wire-format mapping lives in pkg/streaming/events/asset_deleted.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitAssetDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, a *mmodel.Asset, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AssetDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.AssetDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewAssetDeleted(a.ID, a.OrganizationID, a.LedgerID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})
