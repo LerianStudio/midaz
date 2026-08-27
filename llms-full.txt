@@ -719,8 +719,6 @@ are set programmatically by `applyConfigDefaults()`.
 | RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE | — | Balance operation queue name |
 | RABBITMQ_TRANSACTION_ASYNC | false | Enable async transaction processing |
 | RABBITMQ_OPERATION_TIMEOUT | — | Operation timeout (e.g., "30s") |
-| RABBITMQ_TRANSACTION_EVENTS_ENABLED | false | Enable transaction event exchange |
-| RABBITMQ_TRANSACTION_EVENTS_EXCHANGE | — | Events exchange name |
 | RABBITMQ_OVERDRAFT_EVENTS_ENABLED | false | Enable overdraft event publishing |
 | RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE | transaction.overdraft_events.exchange | Overdraft events exchange name |
 | AUDIT_LOG_ENABLED | false | Enable audit log publishing |

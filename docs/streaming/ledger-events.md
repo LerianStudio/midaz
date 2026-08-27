@@ -623,10 +623,6 @@ status discriminator selects the Definition:
 | `updated` | — | CANCELED | `transaction.canceled` |
 | `updated` | — | other | skipped |
 
-> Coexists with the legacy `transaction.transaction_events` rabbit publish
-> during cutover (`RABBITMQ_TRANSACTION_EVENTS_ENABLED`); the flag short-circuits
-> BOTH transports together.
-
 | Key | Type | Notes |
 |-----|------|-------|
 | `id` | string | Transaction ID. |
@@ -642,7 +638,7 @@ status discriminator selects the Definition:
 | `destination` | []string | `omitempty`. |
 | `route` | string | `omitempty`. Legacy field (`//nolint:staticcheck`; `routeId` is canonical). |
 | `routeId` | string \| null | `omitempty`. |
-| `operations` | array | Each operation marshalled verbatim by the caller so the events package stays decoupled from the internal `operation.Operation` type. Wire bytes match the legacy rabbit publish. Always present (no omitempty). |
+| `operations` | array | Each operation marshalled verbatim by the caller so the events package stays decoupled from the internal `operation.Operation` type. Always present (no omitempty). |
 | `metadata` | object | `omitempty`. |
 | `createdAt` | string | RFC3339. |
 | `updatedAt` | string | RFC3339. |
