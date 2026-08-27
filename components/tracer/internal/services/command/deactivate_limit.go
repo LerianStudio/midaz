@@ -224,7 +224,7 @@ func (c *DeactivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *
 // It is not called on the idempotent already-inactive no-op (which skips the
 // tx). IMPORTANT posture: emit failures never fail the request.
 func (c *DeactivateLimitCommand) emitLimitDeactivatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
-	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitDeactivatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.LimitDeactivatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewLimitDeactivated(limit).ToEmitRequest(tenantID, limit.UpdatedAt)
 		})

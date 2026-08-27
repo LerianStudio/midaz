@@ -85,7 +85,7 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 //
 // Wire-format mapping lives in pkg/streaming/events/transaction_route_deleted.go.
 func (uc *UseCase) emitTransactionRouteDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID, ledgerID string, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.TransactionRouteDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.TransactionRouteDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewTransactionRouteDeleted(id, organizationID, ledgerID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

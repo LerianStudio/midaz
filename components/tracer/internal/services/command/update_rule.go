@@ -277,7 +277,7 @@ func (c *UpdateRuleCommand) Execute(ctx context.Context, id uuid.UUID, input *Up
 // emitRuleUpdatedEvent publishes the rule.updated event post-commit. IMPORTANT
 // posture: emit failures never fail the request.
 func (c *UpdateRuleCommand) emitRuleUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, rule *model.Rule) {
-	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.RuleUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.RuleUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewRuleUpdated(rule).ToEmitRequest(tenantID, rule.UpdatedAt)
 		})

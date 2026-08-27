@@ -38,7 +38,7 @@ type UseCase struct {
 	MetricsFactory *metrics.MetricsFactory
 
 	// Streaming emits IMPORTANT-posture CRM business events (holder.*,
-	// instrument.*) via pkgStreaming.EmitImportant at the post-commit,
+	// instrument.*) via pkgStreaming.EmitBrokerBestEffort at the post-commit,
 	// pre-metadata slot. A nil value disables emission (mirroring the
 	// idempotency nil-guard); bootstrap injects libStreaming.NewNoopEmitter()
 	// when STREAMING_ENABLED=false.

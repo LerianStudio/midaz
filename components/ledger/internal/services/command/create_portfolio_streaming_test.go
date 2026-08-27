@@ -112,7 +112,7 @@ func TestCreatePortfolio_NoopEmitterDoesNotPanic(t *testing.T) {
 // TestCreatePortfolio_EmitFailureDoesNotFailRequest verifies the IMPORTANT
 // posture: when Emit returns an error, CreatePortfolio must still return
 // the successfully-persisted portfolio because durability is owned by
-// PG + future DLQ/outbox, not by the synchronous Emit call.
+// PG + the configured lib-streaming policy, not by the synchronous Emit call.
 func TestCreatePortfolio_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

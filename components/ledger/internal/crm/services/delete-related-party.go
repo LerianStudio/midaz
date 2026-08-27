@@ -54,7 +54,7 @@ func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID st
 }
 
 func (uc *UseCase) emitInstrumentRelatedPartyDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, instrumentID, holderID, organizationID, relatedPartyID string, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.InstrumentRelatedPartyDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.InstrumentRelatedPartyDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewInstrumentRelatedPartyDeleted(instrumentID, holderID, organizationID, relatedPartyID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

@@ -43,11 +43,9 @@ import (
 // disabled flag RABBITMQ_TRANSACTION_EVENTS_ENABLED=false short-circuits
 // BOTH transports during cutover.
 //
-// Posture note: the catalog marks this event CRITICAL (outbox: always,
-// direct: skip). The outbox subsystem is NOT yet wired in midaz, so
-// emission today goes through pkgStreaming.EmitImportant (direct emit,
-// no atomic guarantee). When the outbox lands the call site is the only
-// place that needs to switch helpers; the Definition stays unchanged.
+// Delivery policy is resolved by lib-streaming when this wire definition is
+// emitted. This definition only declares the event contract; Midaz does not add
+// a product-local transactional outbox or relay at this layer.
 var TransactionPostedDefinition = Definition{
 	ResourceType:  "transaction",
 	EventType:     "posted",

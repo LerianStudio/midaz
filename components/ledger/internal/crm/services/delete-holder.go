@@ -85,7 +85,7 @@ func (uc *UseCase) DeleteHolderByID(ctx context.Context, organizationID string, 
 }
 
 func (uc *UseCase) emitHolderDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID string, hardDelete bool, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.HolderDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.HolderDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewHolderDeleted(id, organizationID, hardDelete, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

@@ -231,8 +231,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 // emitAccountCreatedEvent publishes the account.created event for a
 // successfully persisted account. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked between the default-balance success branch and the
 // metadata-write call in CreateAccount, so a downstream Mongo failure
@@ -242,7 +241,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 // changes to the payload contract belong there, not here. This function
 // stays a thin emit-and-log adapter.
 func (uc *UseCase) emitAccountCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AccountCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.AccountCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewAccountCreated(acc).ToEmitRequest(tenantID, acc.CreatedAt)
 		})

@@ -134,10 +134,9 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 // based on the (phase, status, parent) discriminator triple.
 //
 // IMPORTANT posture (catalog says CRITICAL with outbox: always, but the
-// outbox subsystem is not yet wired in midaz — see handoff). Build and
+// Midaz has no local outbox writer or relay). Build and
 // emit failures are span-recorded and logged at Warn, never returned to
-// the caller; durability of these events is owned by PG + (follow-up
-// task) the outbox subsystem, not by this synchronous Emit call.
+// the caller; the persisted database mutation is durable, while this helper does not make broker delivery transactional.
 //
 // Discriminator table:
 //
@@ -238,7 +237,7 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 		return
 	}
 
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
 
 	// fee-charge.applied rides alongside transaction.posted only. Commit/cancel/
 	// revert do NOT re-emit it (the fee charge happened once, at post).
@@ -252,7 +251,7 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 // packageAppliedID are present in metadata (charged-only, set by the fee
 // engine on the real-charge branch); pure exemptions still carry
 // packageAppliedID but omit feeApplied=true, so the feeApplied guard suppresses
-// the emit. IMPORTANT posture: EmitImportant swallows build/emit failures.
+// the emit. IMPORTANT posture: EmitBrokerBestEffort swallows build/emit failures.
 func (uc *UseCase) emitFeesAppliedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, tran *transaction.Transaction) {
 	if applied, _ := tran.Metadata["feeApplied"].(string); applied != "true" {
 		return
@@ -265,7 +264,7 @@ func (uc *UseCase) emitFeesAppliedEvent(ctx context.Context, span trace.Span, lo
 
 	appliedAt := tran.CreatedAt
 
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesAppliedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.FeesAppliedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewFeesApplied(tran.ID, tran.OrganizationID, tran.LedgerID, packageID, appliedAt).
 				ToEmitRequest(tenantID, appliedAt)

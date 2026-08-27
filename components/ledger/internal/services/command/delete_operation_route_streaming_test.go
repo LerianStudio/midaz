@@ -103,7 +103,7 @@ func TestDeleteOperationRouteByID_NoopEmitterDoesNotPanic(t *testing.T) {
 // TestDeleteOperationRouteByID_EmitFailureDoesNotFailRequest verifies
 // the IMPORTANT posture: when Emit returns an error,
 // DeleteOperationRouteByID must still complete successfully because
-// durability is owned by PG + future DLQ/outbox, not by the
+// durability is owned by PG + the configured lib-streaming policy, not by the
 // synchronous Emit call.
 func TestDeleteOperationRouteByID_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)

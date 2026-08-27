@@ -307,7 +307,7 @@ func (uc *UseCase) emitBalanceOverdraftEvent(ctx context.Context, span trace.Spa
 		return
 	}
 
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
 }
 
 // classifyOverdraftOperation determines the event action for a companion

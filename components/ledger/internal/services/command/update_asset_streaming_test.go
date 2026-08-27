@@ -140,7 +140,7 @@ func TestUpdateAssetByID_NoopEmitterDoesNotPanic(t *testing.T) {
 // TestUpdateAssetByID_EmitFailureDoesNotFailRequest verifies the
 // IMPORTANT posture: when Emit returns an error, UpdateAssetByID must
 // still return the successfully-persisted asset because durability is
-// owned by PG + future DLQ/outbox, not by the synchronous Emit call.
+// owned by PG + the configured lib-streaming policy, not by the synchronous Emit call.
 func TestUpdateAssetByID_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

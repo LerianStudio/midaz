@@ -264,10 +264,10 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 }
 
 // emitRuleCreatedEvent publishes the rule.created event post-commit. IMPORTANT
-// posture: EmitImportant nil-guards the emitter, bounds the emit, and never
+// posture: EmitBrokerBestEffort nil-guards the emitter, bounds the emit, and never
 // propagates build/emit failures — so this never fails the request.
 func (c *CreateRuleCommand) emitRuleCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, rule *model.Rule) {
-	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.RuleCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.RuleCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewRuleCreated(rule).ToEmitRequest(tenantID, rule.CreatedAt)
 		})

@@ -287,8 +287,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 // event for a successfully persisted balance configuration mutation.
 // IMPORTANT posture: build and emit failures are span-recorded and
 // logged at Warn, never returned. Durability of the event is owned by
-// PG and (follow-up task) the outbox subsystem + DLQ, not by the
-// synchronous Emit call.
+// the persisted database mutation; this helper does not make broker delivery transactional.
 //
 // Anchor (two callers):
 //   - UseCase.Update at the post-Update success branch, with the
@@ -304,7 +303,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 // Wire-format mapping lives in pkg/streaming/events/balance_config_changed.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitBalanceConfigChangedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, b *mmodel.Balance, changeType string) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.BalanceConfigChangedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.BalanceConfigChangedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewBalanceConfigChanged(b, changeType).ToEmitRequest(tenantID, b.UpdatedAt)
 		})

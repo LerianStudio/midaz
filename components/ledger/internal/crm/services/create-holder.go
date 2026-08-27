@@ -74,7 +74,7 @@ func (uc *UseCase) CreateHolder(ctx context.Context, organizationID string, chi 
 }
 
 func (uc *UseCase) emitHolderCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, h *mmodel.Holder, organizationID string) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.HolderCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.HolderCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewHolderCreated(h, organizationID).ToEmitRequest(tenantID, h.CreatedAt)
 		})

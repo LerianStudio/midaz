@@ -26,14 +26,14 @@ producer conventions in `CLAUDE.md` (Streaming section) and
   `fee` topic, no per-event topic, and no `.v<major>` topic suffix:
   `ce-schemaversion` is the only version carrier on the wire. Consumers subscribe to
   the application and dispatch on the event key.
-- **Posture:** all 7 events are **IMPORTANT** — direct-emit, synchronous, via
-  `pkgStreaming.EmitImportant`. Emit is best-effort at the post-commit slot in
-  the command use case: a build/emit failure logs a Warn and is recorded on the
-  span, but **never fails the HTTP request**. Durability of the mutation itself
-  is owned by the database write, not by the emit.
-- **No outbox.** Emission is direct-emit only, identical to the rest of the
-  ledger streaming surface. When an outbox lands, only the emit call sites
-  change; the Definitions and payload contracts below stay put.
+- **Posture:** all 7 events invoke `pkgStreaming.EmitBrokerBestEffort` at the
+  post-commit slot. It bounds the synchronous `Emitter.Emit` call, span-records
+  and Warn-logs build/emit failures, and **never fails the HTTP request**. The
+  library resolves delivery policy and any configured fallback behavior.
+- **No Midaz transactional outbox.** Bootstrap passes neither an outbox writer nor
+  repository, and registers no relay. The helper does not persist a local fallback record or
+  make the database mutation and broker delivery atomic; definitions and payload
+  contracts stay unchanged.
 - **HTTP event-manifest endpoint.** The ledger binary serves
   `GET /v1/streaming/manifest` (auth `streaming-manifest`/`get`) — a catalog-only
   view of the registered event Definitions, including the `fee_*` events, at
@@ -75,7 +75,7 @@ Catalog (`buildCatalog`) and the manifest:
   One catch-all route carries every fact; nothing fans out per event.
 - **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
-  `pkgStreaming.ResolveTenantID(ctx)` inside `EmitImportant` (see
+  `pkgStreaming.ResolveTenantID(ctx)` inside `EmitBrokerBestEffort` (see
   [ce-tenantid](#ce-tenantid)).
 
 ## Event summary
