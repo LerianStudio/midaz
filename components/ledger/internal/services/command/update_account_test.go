@@ -56,7 +56,7 @@ func TestUpdateAccount(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Account{ID: "123", Type: "internal"}, nil)
 				mockAccountRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -86,7 +86,7 @@ func TestUpdateAccount(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr: true,
@@ -107,7 +107,7 @@ func TestUpdateAccount(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Account{ID: "123", Type: "internal"}, nil)
 				mockAccountRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -163,7 +163,7 @@ func TestUpdateAccount_BlockedProvidedTrue(t *testing.T) {
 
 	// Expectations
 	mockAccountRepo.EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&mmodel.Account{ID: accountID.String(), Type: "internal"}, nil)
 
 	mockAccountRepo.EXPECT().
@@ -218,7 +218,7 @@ func TestUpdateAccount_BlockedOmitted(t *testing.T) {
 	accountID := uuid.New()
 
 	mockAccountRepo.EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&mmodel.Account{ID: accountID.String(), Type: "internal"}, nil)
 
 	mockAccountRepo.EXPECT().
@@ -268,7 +268,7 @@ func TestUpdateAccount_ExternalForbidden(t *testing.T) {
 	accountID := uuid.New()
 
 	mockAccountRepo.EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&mmodel.Account{ID: accountID.String(), Type: "external"}, nil)
 
 	inp := &mmodel.UpdateAccountInput{Name: "Updated"}

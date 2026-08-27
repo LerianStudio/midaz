@@ -182,6 +182,19 @@ neither the requireHolder gate (`ErrHolderRequired` / `ErrHolderNotFound`) nor a
 before the seam existed, and a client integrated against it must not acquire a holder link — or a
 new rejection class — from a version upgrade it never asked for.
 
+The independence is **physical, not only semantic**: the policy reaches the SQL, so a `/v1`
+statement never NAMES `holder_id` or `holder_check_skipped`. A create omits both columns — an
+account without a holder writes what they default to, so the row is identical either way — and a
+`/v1` read projects `NULL::uuid AS holder_id` and `FALSE AS holder_check_skipped`, which keeps the
+projection's arity and column order intact for the positional scans. `/v1` therefore stays servable
+against a database that has not reached migrations 000017 and 000019, which matters because the
+schema is applied out of band and the runner is tenant-agnostic: a tenant database can sit behind
+the binary. `/v2` names the real columns and, on such a database, answers `0501`
+`ErrSchemaMigrationPending` / **503** — retryable, because the same request succeeds once the
+migration runner reaches that database. The three `ListAccounts*` reads that serve the transaction
+and asset paths read no holder at all, so they always project the constants and are immune on both
+contracts.
+
 The withholding reaches the response too. Every `/v1` account response — create, list, get-by-id,
 get-by-alias, get-external-by-code, update — answers with the projection that omits `holderId` and
 `holderCheckSkipped`; the `/v2` twins answer with the full account. Both contracts publish the

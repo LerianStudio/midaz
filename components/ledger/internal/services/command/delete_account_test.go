@@ -50,7 +50,7 @@ func TestDeleteAccountByID(t *testing.T) {
 			portfolioID: &portfolioID,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), organizationID, ledgerID, nil, accountID).
+					Find(gomock.Any(), organizationID, ledgerID, nil, accountID, gomock.Any()).
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
 					Times(1)
 
@@ -72,7 +72,7 @@ func TestDeleteAccountByID(t *testing.T) {
 			portfolioID: nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), organizationID, ledgerID, nil, accountID).
+					Find(gomock.Any(), organizationID, ledgerID, nil, accountID, gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
@@ -83,7 +83,7 @@ func TestDeleteAccountByID(t *testing.T) {
 			portfolioID: nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), organizationID, ledgerID, nil, accountID).
+					Find(gomock.Any(), organizationID, ledgerID, nil, accountID, gomock.Any()).
 					Return(&mmodel.Account{ID: accountID.String(), Type: "external"}, nil).
 					Times(1)
 			},
@@ -94,7 +94,7 @@ func TestDeleteAccountByID(t *testing.T) {
 			portfolioID: &portfolioID,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), organizationID, ledgerID, nil, accountID).
+					Find(gomock.Any(), organizationID, ledgerID, nil, accountID, gomock.Any()).
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
 					Times(1)
 

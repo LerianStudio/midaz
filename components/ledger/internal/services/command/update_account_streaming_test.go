@@ -39,8 +39,8 @@ func newUpdateStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitte
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	mockAccountRepo.EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, orgID, ledgerID uuid.UUID, _ *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, orgID, ledgerID uuid.UUID, _ *uuid.UUID, id uuid.UUID, _ mmodel.HolderPolicy) (*mmodel.Account, error) {
 			return &mmodel.Account{
 				ID:             id.String(),
 				OrganizationID: orgID.String(),

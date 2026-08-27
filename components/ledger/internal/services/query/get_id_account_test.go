@@ -52,7 +52,7 @@ func TestGetAccountByID(t *testing.T) {
 			mockSetup: func() {
 				b := true
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Account{ID: successAccountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}, Blocked: &b}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -75,7 +75,7 @@ func TestGetAccountByID(t *testing.T) {
 			accountID:      uuid.New(),
 			mockSetup: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:      true,
@@ -90,7 +90,7 @@ func TestGetAccountByID(t *testing.T) {
 			mockSetup: func() {
 				accountID := uuid.New()
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -106,7 +106,7 @@ func TestGetAccountByID(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAccountByID(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.accountID)
+			result, err := uc.GetAccountByID(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.accountID, mmodel.HolderOnV2)
 
 			if tt.expectErr {
 				assert.Error(t, err)

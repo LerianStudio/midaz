@@ -47,7 +47,9 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		attribute.String("app.request.account_id", id.String()),
 	)
 
-	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
+	// HolderOffV1: holderId is immutable and absent from the update SET list, and
+	// account.updated carries no holder field, so the projected value is unused.
+	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id, mmodel.HolderOffV1)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to find account by id", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to find account by id", libLog.Err(err))
