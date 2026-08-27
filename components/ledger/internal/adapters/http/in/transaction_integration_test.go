@@ -79,7 +79,6 @@ func setupTestInfra(t *testing.T) *testInfra {
 	t.Helper()
 
 	// Disable async RabbitMQ features (no RabbitMQ container in this test)
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 
 	infra := &testInfra{}
@@ -651,7 +650,6 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	t.Setenv("RABBITMQ_HEALTH_CHECK_URL", rabbitHealthCheckURL)
 
 	// Disable other async features we don't need for this test
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 
 	// Setup RabbitMQ exchange and queue
