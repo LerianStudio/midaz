@@ -1575,11 +1575,11 @@ func luaBalanceSettingKey(m map[string]any, primary string, aliases ...string) {
 }
 
 // balanceCacheSettingsTTL matches the TTL the balance atomic Lua script applies
-// to each cached balance key (`local ttl = 3600 -- 1 hour` in
+// to each cached balance key (`local ttl = 86400 -- 1 day` in
 // scripts/balance_atomic_operation.lua). Keeping the two in lock-step ensures
 // a settings-only rewrite does not silently extend or shrink the lifetime of
 // an entry relative to the transactional refreshes driven by Lua.
-const balanceCacheSettingsTTL = 3600 * time.Second
+const balanceCacheSettingsTTL = 86400 * time.Second
 
 // UpdateBalanceCacheSettings rewrites the settings fields of a cached balance
 // JSON blob in-place, preserving the live transactional state (Available,
