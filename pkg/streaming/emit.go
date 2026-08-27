@@ -63,6 +63,14 @@ func EmitBrokerBestEffort(ctx context.Context, span trace.Span, logger libLog.Lo
 	}
 }
 
+// EmitImportant preserves the former exported API while callers migrate to
+// EmitBrokerBestEffort. The old name implied durability Midaz does not provide.
+//
+// Deprecated: use EmitBrokerBestEffort.
+func EmitImportant(ctx context.Context, span trace.Span, logger libLog.Logger, emitter libStreaming.Emitter, eventKey string, build EmitRequestBuilder) {
+	EmitBrokerBestEffort(ctx, span, logger, emitter, eventKey, build)
+}
+
 func importantEmitTimeout() time.Duration {
 	value := os.Getenv(importantEmitTimeoutEnv)
 	if value == "" {

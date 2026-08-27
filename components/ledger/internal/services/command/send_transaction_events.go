@@ -133,8 +133,8 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 // transaction.{posted,committed,canceled,reverted} lib-streaming events
 // based on the (phase, status, parent) discriminator triple.
 //
-// IMPORTANT posture (catalog says CRITICAL with outbox: always, but the
-// Midaz has no local outbox writer or relay). Build and
+// Best-effort broker publication (catalog says CRITICAL with outbox: always, but
+// Midaz has no local outbox writer or relay. Build and
 // emit failures are span-recorded and logged at Warn, never returned to
 // the caller; the persisted database mutation is durable, while this helper does not make broker delivery transactional.
 //
