@@ -14,7 +14,6 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -61,10 +60,9 @@ func transactionLifecycleFixture(parentID *string, status string) *transaction.T
 }
 
 // newSendTransactionEventsTestUseCase wires a UseCase whose Streaming is
-// the injected emitter. The legacy transaction-events RabbitMQ publish has
-// been retired, so no producer repository is wired and no legacy publish is
-// possible by construction.
-func newSendTransactionEventsTestUseCase(t *testing.T, _ *gomock.Controller, emitter libStreaming.Emitter) *UseCase {
+// the injected emitter. Streaming is the only transport SendTransactionEvents
+// uses, so the emitter is the sole observable side effect.
+func newSendTransactionEventsTestUseCase(t *testing.T, emitter libStreaming.Emitter) *UseCase {
 	t.Helper()
 
 	return &UseCase{
@@ -76,11 +74,8 @@ func newSendTransactionEventsTestUseCase(t *testing.T, _ *gomock.Controller, emi
 // posted-vs-reverted discrimination: phase=created + nil parent must
 // fire transaction.posted, never transaction.reverted.
 func TestSendTransactionEvents_PhaseCreatedNoParentEmitsPosted(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	tran := transactionLifecycleFixture(nil, constant.APPROVED)
 	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseCreated)
@@ -99,11 +94,8 @@ func TestSendTransactionEvents_PhaseCreatedNoParentEmitsPosted(t *testing.T) {
 // TestSendTransactionEvents_PhaseCreatedWithParentEmitsReverted locks
 // the inverse: phase=created + non-nil parent fires transaction.reverted.
 func TestSendTransactionEvents_PhaseCreatedWithParentEmitsReverted(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	parentID := uuid.New().String()
 	tran := transactionLifecycleFixture(&parentID, constant.APPROVED)
@@ -124,11 +116,8 @@ func TestSendTransactionEvents_PhaseCreatedWithParentEmitsReverted(t *testing.T)
 // phase=updated + APPROVED → transaction.committed (idempotency-branch
 // commit path).
 func TestSendTransactionEvents_PhaseUpdatedApprovedEmitsCommitted(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	tran := transactionLifecycleFixture(nil, constant.APPROVED)
 	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseUpdated)
@@ -142,11 +131,8 @@ func TestSendTransactionEvents_PhaseUpdatedApprovedEmitsCommitted(t *testing.T) 
 // TestSendTransactionEvents_PhaseUpdatedCanceledEmitsCanceled locks
 // phase=updated + CANCELED → transaction.canceled.
 func TestSendTransactionEvents_PhaseUpdatedCanceledEmitsCanceled(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	tran := transactionLifecycleFixture(nil, constant.CANCELED)
 	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseUpdated)
@@ -163,11 +149,8 @@ func TestSendTransactionEvents_PhaseUpdatedCanceledEmitsCanceled(t *testing.T) {
 // the broadcast happens later via transaction.committed or
 // transaction.canceled.
 func TestSendTransactionEvents_PhaseCreatedPendingSkipsLibStreaming(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	tran := transactionLifecycleFixture(nil, constant.PENDING)
 	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseCreated)
@@ -183,11 +166,8 @@ func TestSendTransactionEvents_PhaseCreatedPendingSkipsLibStreaming(t *testing.T
 // business fact. The fresh-insert path must skip emission entirely for
 // NOTED status.
 func TestSendTransactionEvents_PhaseCreatedNotedSkipsLibStreaming(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	tran := transactionLifecycleFixture(nil, constant.NOTED)
 	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseCreated)
@@ -200,14 +180,10 @@ func TestSendTransactionEvents_PhaseCreatedNotedSkipsLibStreaming(t *testing.T) 
 // TestSendTransactionEvents_PhaseNoopSkipsLibStreaming locks the
 // noop-phase contract: when CreateOrUpdateTransaction observed no state
 // change (e.g. ineligible unique violation), lib-streaming emits
-// nothing. Phase gating alone suppresses the event; there is no legacy
-// rabbit transport left to fire.
+// nothing. Phase gating alone suppresses the event.
 func TestSendTransactionEvents_PhaseNoopSkipsLibStreaming(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	tran := transactionLifecycleFixture(nil, constant.APPROVED)
 	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseNoop)
@@ -215,11 +191,10 @@ func TestSendTransactionEvents_PhaseNoopSkipsLibStreaming(t *testing.T) {
 	assert.Empty(t, mockEmitter.Events(), "noop phase must not emit any lib-streaming event")
 }
 
-// TestSendTransactionEvents_AlwaysEmitsStreamingEvent locks the new
-// contract after the legacy gate + rabbit transport are removed: the
-// streaming lifecycle event fires unconditionally. The UseCase carries no
-// producer repository, so the legacy transaction-events exchange can never
-// be produced to.
+// TestSendTransactionEvents_AlwaysEmitsStreamingEvent locks the contract
+// that a persisted transaction on the fresh-insert path unconditionally
+// fires its streaming lifecycle event. Streaming is the only transport,
+// so the mock emitter is the sole observable side effect.
 func TestSendTransactionEvents_AlwaysEmitsStreamingEvent(t *testing.T) {
 	mockEmitter := pkgStreaming.NewMockEmitter()
 
@@ -243,13 +218,10 @@ func TestSendTransactionEvents_AlwaysEmitsStreamingEvent(t *testing.T) {
 
 // TestSendTransactionEvents_EmitFailureDoesNotCrash exercises the
 // IMPORTANT-posture safety: a failing lib-streaming emitter must not
-// fail the request. The fixture transitions through the helper without
-// panicking; the legacy rabbit publish still runs.
+// panic or fail the request. Streaming is the only transport, so a build
+// or emit failure is swallowed and the fixture completes cleanly.
 func TestSendTransactionEvents_EmitFailureDoesNotCrash(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, streamingFailingEmitter{})
+	uc := newSendTransactionEventsTestUseCase(t, streamingFailingEmitter{})
 
 	// Should complete without panicking.
 	uc.SendTransactionEvents(context.Background(),
@@ -257,18 +229,16 @@ func TestSendTransactionEvents_EmitFailureDoesNotCrash(t *testing.T) {
 		TransactionLifecyclePhaseCreated)
 }
 
-// TestSendTransactionEvents_NilStreamingIsAllowed asserts the new
+// TestSendTransactionEvents_NilStreamingIsAllowed asserts the
 // nil-emitter contract: a UseCase with no Streaming wired (nil emitter)
-// completes without panicking, emits nothing, and — with the legacy
-// transaction-events publish retired — never produces to rabbit either.
-// The IMPORTANT-posture contract treats nil as "streaming disabled".
+// completes without panicking and emits nothing. The IMPORTANT-posture
+// contract treats nil as "streaming disabled".
 func TestSendTransactionEvents_NilStreamingIsAllowed(t *testing.T) {
 	uc := &UseCase{
 		Streaming: nil,
 	}
 
-	// Must not panic with a nil emitter; no emit and no legacy publish
-	// happen because nothing is wired to observe them.
+	// Must not panic with a nil emitter; nothing is wired to emit to.
 	uc.SendTransactionEvents(context.Background(),
 		transactionLifecycleFixture(nil, constant.APPROVED),
 		TransactionLifecyclePhaseCreated)
@@ -280,11 +250,8 @@ func TestSendTransactionEvents_NilStreamingIsAllowed(t *testing.T) {
 // happens inside buildTransactionEventSource — this test locks the
 // wire shape.
 func TestSendTransactionEvents_PayloadCarriesOperations(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	tran := transactionLifecycleFixture(nil, constant.APPROVED)
 	uc.SendTransactionEvents(context.Background(), tran, TransactionLifecyclePhaseCreated)

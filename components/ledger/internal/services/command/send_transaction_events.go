@@ -24,8 +24,7 @@ import (
 )
 
 const (
-	Source    string = "midaz"
-	EventType string = "transaction"
+	Source string = "midaz"
 
 	// TransactionLifecyclePhaseCreated marks a freshly persisted
 	// transaction (TransactionRepo.Create returned success). Emits
@@ -213,10 +212,7 @@ func (uc *UseCase) emitFeesAppliedEvent(ctx context.Context, span trace.Span, lo
 // constructors. The mapping does the one heavy lift the events package
 // cannot do for itself: marshaling each *operation.Operation into
 // json.RawMessage so the events package stays decoupled from the
-// internal/ domain operation type. The on-the-wire bytes match what the
-// legacy transaction.transaction_events rabbit publish produces for the
-// `operations` array — consumers migrating off the rabbit topic see no
-// payload shape drift.
+// internal/ domain operation type.
 //
 // Returns the assembled source plus a build error if any operation
 // fails to marshal. The caller (emitTransactionLifecycleEvent) treats
@@ -260,7 +256,7 @@ func buildTransactionEventSource(tran *transaction.Transaction) (events.Transact
 		Description:              tran.Description,
 		Source:                   tran.Source,
 		Destination:              tran.Destination,
-		Route:                    tran.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
+		Route:                    tran.Route, //nolint:staticcheck // deprecated field kept for backward compatibility; RouteID is canonical
 		RouteID:                  tran.RouteID,
 		Operations:               operationsRaw,
 		Metadata:                 tran.Metadata,
