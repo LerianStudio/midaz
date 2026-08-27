@@ -68,7 +68,6 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 
 	// Sync mode: no RabbitMQ container, no async features.
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 
 	infra := &blockUnblockInfra{}

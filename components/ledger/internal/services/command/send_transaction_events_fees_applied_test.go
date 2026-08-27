@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
@@ -26,11 +25,8 @@ import (
 // parent) transaction carrying feeApplied=true and packageAppliedID emits both
 // transaction.posted AND fee_charge.applied.
 func TestSendTransactionEvents_FeesAppliedEmittedOnPostedCharge(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	tran := transactionLifecycleFixture(nil, constant.APPROVED)
 	tran.CreatedAt = time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)
@@ -69,11 +65,8 @@ func TestSendTransactionEvents_FeesAppliedEmittedOnPostedCharge(t *testing.T) {
 // charged-only fence: a POSTED transaction with packageAppliedID but WITHOUT
 // feeApplied (exemption-only) emits transaction.posted but NOT fee_charge.applied.
 func TestSendTransactionEvents_FeesAppliedSkippedWhenExemptionOnly(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	tran := transactionLifecycleFixture(nil, constant.APPROVED)
 	tran.Metadata = map[string]any{
@@ -94,11 +87,8 @@ func TestSendTransactionEvents_FeesAppliedSkippedWhenExemptionOnly(t *testing.T)
 // second emit guard: a POSTED transaction with feeApplied=true but an empty
 // packageAppliedID emits transaction.posted but NOT fee_charge.applied.
 func TestSendTransactionEvents_FeesAppliedSkippedWhenPackageIDEmpty(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	tran := transactionLifecycleFixture(nil, constant.APPROVED)
 	tran.Metadata = map[string]any{
@@ -120,11 +110,8 @@ func TestSendTransactionEvents_FeesAppliedSkippedWhenPackageIDEmpty(t *testing.T
 // posted-only fence: a charged transaction on the updated (committed) phase
 // does NOT re-emit fee_charge.applied.
 func TestSendTransactionEvents_FeesAppliedSkippedOnNonPostedPhase(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockEmitter := pkgStreaming.NewMockEmitter()
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, mockEmitter)
+	uc := newSendTransactionEventsTestUseCase(t, mockEmitter)
 
 	tran := transactionLifecycleFixture(nil, constant.APPROVED)
 	tran.Metadata = map[string]any{
@@ -146,10 +133,7 @@ func TestSendTransactionEvents_FeesAppliedSkippedOnNonPostedPhase(t *testing.T) 
 // IMPORTANT-posture nil-emitter contract: a charged POSTED transaction with a
 // NoopEmitter completes without panicking.
 func TestSendTransactionEvents_FeesAppliedNilStreamingDoesNotPanic(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	uc := newSendTransactionEventsTestUseCase(t, ctrl, streamingFailingEmitter{})
+	uc := newSendTransactionEventsTestUseCase(t, streamingFailingEmitter{})
 
 	tran := transactionLifecycleFixture(nil, constant.APPROVED)
 	tran.Metadata = map[string]any{
