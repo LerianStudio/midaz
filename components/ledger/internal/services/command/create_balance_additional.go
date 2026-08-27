@@ -210,7 +210,7 @@ func isPostgresUniqueViolation(err error) bool {
 // balance materialized via CreateAdditionalBalance. IMPORTANT posture:
 // build and emit failures are span-recorded and logged at Warn, never
 // returned. Durability of the event is owned by PG and (follow-up task)
-// the outbox subsystem + DLQ, not by the synchronous Emit call.
+// the configured lib-streaming delivery policy; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after BalanceRepo.Create succeeds on the
 // public POST .../accounts/:account_id/balances endpoint. The other
@@ -223,7 +223,7 @@ func isPostgresUniqueViolation(err error) bool {
 // Wire-format mapping lives in pkg/streaming/events/balance_created.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitBalanceCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, b *mmodel.Balance) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.BalanceCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.BalanceCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewBalanceCreated(b).ToEmitRequest(tenantID, b.CreatedAt)
 		})

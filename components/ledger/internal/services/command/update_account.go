@@ -158,8 +158,7 @@ func mergePatchAccount(pre, in *mmodel.Account, updatedAt time.Time) *mmodel.Acc
 // emitAccountUpdatedEvent publishes the account.updated event for a
 // successfully persisted update. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked between the AccountRepo.Update success branch and the
 // metadata-write call in UpdateAccount, so a downstream Mongo failure
@@ -169,7 +168,7 @@ func mergePatchAccount(pre, in *mmodel.Account, updatedAt time.Time) *mmodel.Acc
 // changes to the payload contract belong there, not here. This function
 // stays a thin emit-and-log adapter.
 func (uc *UseCase) emitAccountUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AccountUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.AccountUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewAccountUpdated(acc).ToEmitRequest(tenantID, acc.UpdatedAt)
 		})

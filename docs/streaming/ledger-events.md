@@ -29,17 +29,16 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
   on the event key. (The one destination the binary writes outside this pair is the
   billing event's fixed topic — see
   [`docs/architecture/billing-active-account-streaming.md`](../architecture/billing-active-account-streaming.md).)
-- **Posture:** all 35 events are **IMPORTANT** — direct-emit, synchronous, via
-  `pkgStreaming.EmitImportant`. Emit is best-effort at the post-commit slot in
-  the command use case: a build/emit failure logs a Warn and is recorded on the
-  span, but **never fails the HTTP request**. Durability of the mutation itself
-  is owned by the database write, not by the emit.
-- **No outbox.** Emission is direct-emit only. The `transaction.*`,
-  `balance.changed`, and `balance.overdraft_*` docstrings mark their catalog
-  posture as CRITICAL (outbox: always, direct: skip), but the outbox is not
-  wired today (`WithOutboxRepository` is not passed at build). When an outbox
-  lands, only the emit call sites change; the Definitions and payload contracts
-  below stay put.
+- **Posture:** all 35 events invoke `pkgStreaming.EmitBrokerBestEffort` at the
+  post-commit slot. The helper bounds the synchronous `Emitter.Emit` call, records
+  build/emit failures on the span, logs a Warn, and **never fails the HTTP request**.
+  The library, not the wrapper, resolves the delivery policy and any configured
+  fallback behavior.
+- **No Midaz transactional outbox.** Bootstrap passes neither an outbox writer nor
+  repository, and registers no relay. The helper does not persist a local fallback record or
+  make the database mutation and broker delivery atomic; do not infer a delivery
+  guarantee beyond the configured lib-streaming policy. Definitions and payload
+  contracts remain unchanged.
 - **HTTP event-manifest endpoint.** The ledger binary serves
   `GET /v1/streaming/manifest` (auth `streaming-manifest`/`get`) — a catalog-only
   view of the registered event Definitions, at manifest wire version `1.0.0`. The

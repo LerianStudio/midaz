@@ -111,8 +111,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 // emitAccountDeletedEvent publishes the account.deleted event for a
 // successfully soft-deleted account. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after AccountRepo.Delete succeeds.
 // AccountRepo.Delete does not return the post-delete record, so the
@@ -125,7 +124,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 // Wire-format mapping lives in pkg/streaming/events/account_deleted.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitAccountDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AccountDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.AccountDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewAccountDeleted(acc, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

@@ -27,14 +27,14 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
   `crm` topic, no per-event topic, and no `.v<major>` topic suffix:
   `ce-schemaversion` is the only version carrier on the wire. Consumers subscribe to
   the application and dispatch on the event key.
-- **Posture:** all 7 events are **IMPORTANT** — direct-emit, synchronous, via
-  `pkgStreaming.EmitImportant`. Emit is best-effort at the post-commit slot in
-  the command use case: a build/emit failure logs a Warn and is recorded on the
-  span, but **never fails the HTTP request**. Durability of the mutation itself
-  is owned by the database write, not by the emit.
-- **No outbox.** Emission is direct-emit only, identical to the current ledger
-  state. When an outbox lands, only the emit call sites change; the Definitions
-  and payload contracts below stay put.
+- **Posture:** all 7 events invoke `pkgStreaming.EmitBrokerBestEffort` at the
+  post-commit slot. It bounds the synchronous `Emitter.Emit` call, span-records
+  and Warn-logs build/emit failures, and **never fails the HTTP request**. The
+  library resolves delivery policy and any configured fallback behavior.
+- **No Midaz transactional outbox.** Bootstrap passes neither an outbox writer nor
+  repository, and registers no relay. The helper does not persist a local fallback record or
+  make the database mutation and broker delivery atomic; definitions and payload
+  contracts stay unchanged.
 - **HTTP event-manifest endpoint.** The ledger binary serves
   `GET /v1/streaming/manifest` (auth `streaming-manifest`/`get`) — a catalog-only
   view of the registered event Definitions, including the CRM `holder.*` /
@@ -238,7 +238,7 @@ To exercise the real emit path against a broker, run the build-tagged
   `STREAMING_BROKERS` set it starts a self-contained Redpanda testcontainer
   (needs Docker); set `STREAMING_BROKERS` to an already-running broker to reuse
   it instead. The test emits all 7 events through `BuildStreamingEmitter` +
-  `EmitImportant` and asserts `ce-type`, `ce-subject`, `ce-tenantid`, and PII
+  `EmitBrokerBestEffort` and asserts `ce-type`, `ce-subject`, `ce-tenantid`, and PII
   absence per event.
 
 For a longer-lived local broker (e.g. to point a running CRM service at it),

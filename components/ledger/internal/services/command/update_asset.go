@@ -81,8 +81,7 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 // emitAssetUpdatedEvent publishes the asset.updated event for a
 // successfully persisted update. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked between the AssetRepo.Update success branch and the
 // metadata-write call in UpdateAssetByID, so a downstream Mongo failure
@@ -97,7 +96,7 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 // Wire-format mapping lives in pkg/streaming/events/asset_updated.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitAssetUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, a *mmodel.Asset) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AssetUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.AssetUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewAssetUpdated(a).ToEmitRequest(tenantID, a.UpdatedAt)
 		})
