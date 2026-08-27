@@ -16,9 +16,28 @@ import (
 // ErrDatabaseItemNotFound is thrown when an item informed was not found
 var ErrDatabaseItemNotFound = errors.New("errDatabaseItemNotFound")
 
+// pgCodeUndefinedColumn is the PostgreSQL SQLSTATE for a reference to a column
+// that does not exist on the relation.
+const pgCodeUndefinedColumn = "42703"
+
+// IsSchemaDrift reports whether err is a PostgreSQL undefined-column failure,
+// i.e. the statement named a column the applied migrations have not created.
+func IsSchemaDrift(err error) bool {
+	var pgErr *pgconn.PgError
+
+	return errors.As(err, &pgErr) && pgErr.Code == pgCodeUndefinedColumn
+}
+
 // ValidatePGError validates pgError and returns the appropriate business error.
 // It handles constraint violations from both onboarding and transaction entities.
 func ValidatePGError(pgErr *pgconn.PgError, entityType string, args ...any) error {
+	// A named column the database does not have means the binary is ahead of the
+	// applied migrations. It carries no constraint name, so it has to be matched
+	// on SQLSTATE before the constraint switch.
+	if pgErr.Code == pgCodeUndefinedColumn {
+		return pkg.ValidateBusinessError(constant.ErrSchemaMigrationPending, entityType)
+	}
+
 	// Onboarding constraint violations
 	switch pgErr.ConstraintName {
 	case "organization_parent_organization_id_fkey":

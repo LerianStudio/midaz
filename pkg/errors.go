@@ -1164,6 +1164,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Account Type Direction",
 			Message:    "The field 'defaultDirection' has an invalid value. Use one of the allowed values: credit or debit.",
 		},
+		constant.ErrSchemaMigrationPending: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrSchemaMigrationPending.Error(),
+			Title:      "Schema Migration Pending",
+			Message:    "The request could not be completed because a pending database migration has not been applied to this database yet. Please retry shortly.",
+		},
 		constant.ErrDuplicateAccountTypeKeyValue: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrDuplicateAccountTypeKeyValue.Error(),
