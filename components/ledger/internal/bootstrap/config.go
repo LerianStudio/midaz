@@ -1478,6 +1478,11 @@ type unifiedRouteSetup struct {
 	crmRouteOptions         *midazhttp.ProtectedRouteOptions
 	feesRouteOptions        *midazhttp.ProtectedRouteOptions
 	compositionRouteOptions *midazhttp.ProtectedRouteOptions
+
+	// feesTenantMiddleware is the fee-route tenant middleware instance, exposed so
+	// its configured module managers stay pinnable by a same-package regression
+	// test. Nil in single-tenant mode, where no tenant middleware is built.
+	feesTenantMiddleware *tmmiddleware.TenantMiddleware
 }
 
 func buildUnifiedRouteSetup(
@@ -1556,27 +1561,38 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
-	// Fees tenant middleware is its own SEPARATE instance carrying ONLY the
-	// fees Mongo manager, for the same isolation reason as CRM: mounting
-	// the fee WithTenantDB on the onboarding/transaction middleware (or globally)
-	// would overwrite the tenant Mongo that ledger handlers resolve. It is
-	// attached only to fee routes via feesRouteOptions below.
+	// Fees tenant middleware is its own SEPARATE instance, attached only to fee
+	// routes via feesRouteOptions below (never global, never on ledger routes),
+	// for the same isolation reason as CRM: mounting a generic-key WithTenantDB
+	// globally would overwrite the tenant Mongo that ledger handlers resolve.
+	// Route scoping keeps every key this instance writes off ledger routes, so
+	// the generic-key fees MB write cannot collide with the module-keyed
+	// onboarding/transaction injection ledger routes carry.
 	//
-	// WithMB is called WITHOUT a module name (single-manager mode) on purpose:
-	// the fee pack/billing_package repos read tmcore.GetMBContext(ctx) on the
-	// GENERIC key (the standalone fees service ran single-module — it registered
-	// its manager under the SERVICE name with no WithModule). A module-keyed
-	// WithMB would write the fee module key while the repos read the generic
-	// key, so MT fee requests would fail DB resolution. Route scoping keeps the
-	// generic-key write from colliding with the module-keyed onboarding/
-	// transaction injection on ledger routes. (The manager itself still carries
-	// WithModule(ModuleFees) for tenant-manager DB resolution; that is a separate
-	// concern from the request-context key.) Same cache/loader are reused.
+	// WithMB(feesMongoManager) stays WITHOUT a module name (generic key): the fee
+	// pack/billing_package repos read tmcore.GetMBContext(ctx) on the GENERIC key,
+	// so a module-keyed fees MB would fail their DB resolution.
+	//
+	// The module-keyed injections cover the stores the fee paths reach beyond the
+	// fee Mongo: fee package create/update and estimate validate account aliases
+	// through the onboarding account repo (onboarding PG); billing/calculate
+	// counts transactions through the transaction repo (transaction PG, volume
+	// branch); account enrichment reads the onboarding metadata repo (onboarding
+	// MB). These module keys are distinct from the generic key, so they coexist
+	// with the fees MB on this instance without collision.
+	//
+	// Fee routes therefore hard-depend on the tenant having both onboarding and
+	// transaction PG provisioning, because this middleware eagerly resolves every
+	// registered manager on each fee request.
 	feesTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithPG(transactionPGManager, constant.ModuleTransaction),
+		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
 		tmmiddleware.WithMB(feesMongoManager),
 		tmmiddleware.WithTenantCache(tenantCache),
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
+	setup.feesTenantMiddleware = feesTenantMiddleware
 
 	// Composition tenant middleware is its own SEPARATE instance spanning BOTH
 	// stores the holder-account composition touches: the onboarding PostgreSQL
