@@ -74,7 +74,6 @@ func (c *asyncFeeConsumer) handle(ctx context.Context, body []byte) error {
 // FEE-INCLUSIVE transaction (not the pre-fee payload).
 func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
 	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test.fee.exchange")
 	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test.fee.key")

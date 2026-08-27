@@ -105,7 +105,6 @@ type feeHarness struct {
 func setupFeeHarness(t *testing.T) *feeHarness {
 	t.Helper()
 
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
