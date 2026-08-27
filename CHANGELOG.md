@@ -1,5 +1,15 @@
 # Midaz Changelog
 
+## [3.8.3](https://github.com/LerianStudio/midaz/releases/tag/v3.8.3)
+
+Fixes:
+
+- Increased the balance cache TTL to 1 day to improve performance and reliability. (@Ygohr)
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.8.2...v3.8.3)
+
+---
+
 ## [3.8.0](https://github.com/LerianStudio/midaz/releases/tag/v3.8.0)
 
 Features:
