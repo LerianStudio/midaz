@@ -4,16 +4,20 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status:** P0-P3 and every finding from the final independent review are implemented together on the source branch; delivery is split into four sequential review layers, of which only the first (reusable integration gate platform) has landed so far. The measurements below describe the complete cumulative result. The current signal contains 1,735 exact integration tests; P1 reduces datastore starts by 92.9%, P2 reduces the like-for-like base critical path by 70.4%, and P3 removes redundant restarts, waits, cleanup, and history scans. A required capability lane additionally executes all 76 chaos scenarios that the base matrix classifies as skips, making the complete required critical path 478 seconds. Repository ruleset enforcement remains deliberately last.
+**Status (corrected 2026-08-28): delivery abandoned after layer 1.** P0-P3 and every finding from the final independent review were implemented together on the source branch, and delivery was split into four sequential review layers. Only layer 1 (reusable integration gate platform, PR #2341) merged. Layers 2-4 (PRs #2342/#2348, #2343, #2344) and the parent PR #2337 were **closed without merge**, their branches have not moved since 19-20/08, and no open PR replaces them. The test-infrastructure side of P0-P3 did land inside layer 1; **the money-path product work reopened in P0.6 below did not, so both money-path defects remain open on `develop`** — see "Money-path defects OPEN" below. The measurements in this document were taken on the source branch, so any figure that depends on the money-path layers describes code that is not in the product. The current signal contains 1,735 exact integration tests; P1 reduces datastore starts by 92.9%, P2 reduces the like-for-like base critical path by 70.4%, and P3 removes redundant restarts, waits, cleanup, and history scans. A required capability lane additionally executes all 76 chaos scenarios that the base matrix classifies as skips, making the complete required critical path 478 seconds. Repository ruleset enforcement remains deliberately last.
 
 ## Phase overview
 
 | Phase | Outcome | Status |
 |---|---|---|
-| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | Complete — final review findings and consolidated gates green |
+| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | Gates and discovery complete and on `develop` via PR #2341; **the P0.6 product items reopened below are OPEN** — their layers were closed without merge |
 | P1 | Ledger datastore startup and migrations are reused without sharing mutable test state | Complete — consolidated randomized and serial gates green |
 | P2 | Independent families run concurrently within an explicit resource budget | Complete — five base shards plus the required chaos capability green within budget |
 | P3 | Tracer restarts, fixed waits, polling, cleanup, and streaming history scans are reduced | Complete — implemented, measured, and revalidated |
+
+Evidence for the split: PR #2341 carried 100 files, including the shard contract in
+`ci/integration-shards.tsv`, the skip allowlist, and the reusable PostgreSQL/MongoDB fixtures under
+`tests/utils/` — all present on `develop`. The P0.6 product work reopened below is not.
 
 ### Execution order — 2026-08-17
 
@@ -88,24 +92,56 @@ Root skip classification: 76 chaos-only scenarios, 2 streaming smokes covered by
 - [x] Reject a reused reservation tuple when the amount differs or the persisted hold is already terminal.
 - [x] Keep reservation TTL separate from the financial counter's period-retention expiry.
 - [x] Prove `reserve -> confirm -> cleanup` cannot erase valid daily, weekly, monthly, or custom usage.
-- [x] Support V1 `remaining` end to end: every resolved leg moves balances, persists an operation, and preserves double-entry across direct, pending, commit, cancel, revert, and fee paths.
-- [x] Scope revert idempotency by the origin transaction without opening a rolling-deploy window that can double-revert.
-- [x] Add Tracer's durable outcome receiver: serialize Reserve versus outcome, persist an idempotent terminal receipt, apply every reservation/counter/audit atomically, and keep V2 reservations out of autonomous expiry and cleanup.
-- [x] Record the Ledger outcome in the same Redis/Lua commit that moves balances, then deliver and retry it until Tracer's durable acknowledgement.
-- [x] Replace the incorrect "reaper is a durability backstop" assumption for a lost post-commit confirmation with a durable transaction-outcome mechanism.
+- [ ] Support V1 `remaining` end to end: every resolved leg moves balances, persists an operation, and preserves double-entry across direct, pending, commit, cancel, revert, and fee paths.
+- [ ] Scope revert idempotency by the origin transaction without opening a rolling-deploy window that can double-revert.
+- [ ] Add Tracer's durable outcome receiver: serialize Reserve versus outcome, persist an idempotent terminal receipt, apply every reservation/counter/audit atomically, and keep V2 reservations out of autonomous expiry and cleanup.
+- [ ] Record the Ledger outcome in the same Redis/Lua commit that moves balances, then deliver and retry it until Tracer's durable acknowledgement.
+- [ ] Replace the incorrect "reaper is a durability backstop" assumption for a lost post-commit confirmation with a durable transaction-outcome mechanism.
 - [x] Make tests, logs, and architecture docs expose lost-confirm undercounting as a known defect instead of describing it as successful reconciliation.
-- [x] Replace the pinned lost-confirm undercount with the chosen durable money-path invariant.
+- [ ] Replace the pinned lost-confirm undercount with the chosen durable money-path invariant.
 
-**Money-path defects closed:**
+**Money-path defects OPEN — delivery abandoned (state corrected 2026-08-28):**
 
-1. Revert identity is now scoped to the origin transaction and protected by a durable PostgreSQL claim plus an executable old-to-bridge-to-final rollout. Ambiguous Redis/Lua outcomes fail closed and cannot authorize a second movement.
-2. Ledger now records the economic outcome in the same Redis/Lua operation that moves balances. A dedicated dispatcher retries the immutable outcome until Tracer commits its receipt; V2 reservations never expire autonomously while delivery is unknown.
+Both defects were implemented on the source branch and **neither reached `develop`**. The delivery was
+split into four sequential review layers; only layer 1 landed, layers 2-4 and the parent PR were
+**closed without merge**, and nothing open replaces them. The paragraphs below describe the *designed*
+contract, not shipped behavior.
 
-Chosen revert rollout contract: first deploy a freeze-capable legacy phase without changing revert identity; after every pod honors one shared rollout marker, activate the marker so updates to APPROVED transactions fail closed. Only then roll bridge and final idempotency phases. Final removes the freeze after old pods and in-flight requests are drained. Bridge readiness must reject activation without the shared freeze, so the safety condition is executable rather than a runbook promise.
+| PR | branch | state | branch tip | content |
+|---|---|---|---|---|
+| #2341 | `agent/pr2337-layer1-platform` | **MERGED** 2026-08-19 | — | reusable integration gate platform (1/4) |
+| #2342 | `agent/pr2337-layer2-money` | **CLOSED**, no merge | `984bb0884` (2026-08-19) | make transaction economics and recovery durable |
+| #2348 | `agent/pr2337-layer2-develop` | **CLOSED**, no merge | `e5ee68382` (2026-08-20) | same layer, rebased onto `develop` |
+| #2343 | `agent/pr2337-layer3-fees` | **CLOSED**, no merge | `1ebb09b88` (2026-08-19) | preserve v1 `remaining` legs and fee economics |
+| #2344 | `agent/pr2337-layer4-tracer` | **CLOSED**, no merge | `11309b994` (2026-08-19) | deliver durable Ledger outcome protocol |
+| #2337 | `agent/midaz-clean-e2e-streaming` | **CLOSED**, no merge | `a8ce2cfe9` (2026-08-19) | parent PR, P0-P3 |
 
-V1 `remaining` closure: every resolved leg and balance identity survives direct execution, pending commit, pending cancel, revert, Redis replay, fees, zero-fee no-ops, persistence, and balance synchronization. Fee packages expose additive `operationRouteFromId` and `operationRouteToId` UUIDs while the existing free-form route labels remain passive; omission preserves an existing UUID, `null` clears only that UUID, and multi-fee partial updates preserve stored priorities atomically. The full low-resource lane passed with 1,620 selected tests, 1,540 passes, 80 classified skips, 1,320 container starts, zero restarts, and 2,972 seconds of wall time.
+Verified against `develop` at `2707cbdc0` (2026-08-28): a bounded `git grep` for
+`originClaim`, `operationRouteFromId`, and `operationRouteToId` under `components/ledger` and
+`components/tracer` returns no matches, and listing those trees finds no path whose name contains
+`outcome`. These checks did not find the planned identifiers or outcome-named artifacts; they do not
+rule out a semantically equivalent implementation under other names. Together with the corresponding
+layers having closed without merge, they support recording the designed durable outcome protocol,
+PostgreSQL revert claim, and additive fee route UUIDs as not shipped by that delivery. The only revert
+artifacts found by a bounded path search on `develop` are three test files
+(`transaction_fee_revert_integration_test.go`, `transaction_revert_no_refund_test.go`,
+`transaction_revert_replayed_test.go`), and `components/tracer/tests/integration/19_reservation_crash_convergence_test.go`
+still pins the lost-confirm undercount as expected behavior. All five closed branches survive in
+`origin` and are additionally preserved in the `midaz-agent-branches-2026-08-28.bundle` git bundle held
+by the consignado program workspace. This entry records state only; the delivery is not being replanned
+here.
 
-Final review closure: decimal balance arithmetic is exact beyond IEEE-754 precision; Ledger discovers multi-tenant outcome backlog from durable state instead of an expiring process cache; outcome, active index, schedule, and tenant discovery share one Redis Cluster slot and one atomic prepare; V2 admission requires non-evicting AOF-backed Valkey; Ledger-to-Tracer REST uses a dedicated always-on API key with mTLS and tenant identity; and rolling Tracer deployments fail before the money path unless the selected pod explicitly accepts the V2 protocol. Async persistence publishes terminal status and the complete operation multiset in one PostgreSQL commit, so no reader can observe an approved half-entry. Required integration artifacts distinguish base skips from executed coverage, and the required E2E proves the complete Ledger-to-Tracer flow, receipt persistence, exact audit context, and replay after an acknowledgement is lost from a clean generated environment.
+1. **Revert identity — OPEN.** The design scopes revert identity to the origin transaction, protected by a durable PostgreSQL claim plus an executable old-to-bridge-to-final rollout, so that ambiguous Redis/Lua outcomes fail closed and cannot authorize a second movement. None of it is on `develop`.
+2. **Durable Ledger outcome — OPEN.** The design records the economic outcome in the same Redis/Lua operation that moves balances, with a dedicated dispatcher retrying the immutable outcome until Tracer commits its receipt and V2 reservations never expiring autonomously while delivery is unknown. None of it is on `develop`; the reaper remains the de-facto backstop the plan set out to replace.
+
+Designed revert rollout contract (not deployed): first deploy a freeze-capable legacy phase without changing revert identity; after every pod honors one shared rollout marker, activate the marker so updates to APPROVED transactions fail closed. Only then roll bridge and final idempotency phases. Final removes the freeze after old pods and in-flight requests are drained. Bridge readiness must reject activation without the shared freeze, so the safety condition is executable rather than a runbook promise.
+
+V1 `remaining` — OPEN, and `develop` moved the other way. The layer-3 design had every resolved leg and balance identity survive direct execution, pending commit, pending cancel, revert, Redis replay, fees, zero-fee no-ops, persistence, and balance synchronization, with fee packages exposing additive `operationRouteFromId` and `operationRouteToId` UUIDs beside passive free-form route labels. That work is in closed PR #2343. Since then the merged direction has been the opposite: **#2407** gated the fee engine off `/v1` transaction routes, **#2408** gated the holder seam off `/v1` routes, **#2409** gated the tracer reservation off `/v1` transaction routes, and **#2412** kept the `/v1` account contract servable on a pre-holder schema. `/v1` on `develop` is now a legacy compatibility surface with those features deliberately switched off — it is not, and is no longer intended to be, the surface where `remaining` works end to end. The measurement once quoted as this item's closure (1,620 selected tests, 1,540 passes, 80 classified skips, 1,320 container starts, 2,972 seconds) was taken on the source branch, not on `develop`.
+
+Final review closure claims — asserted on the source branch. For claims that depend on the durable
+outcome protocol, the bounded searches above did not find the planned identifiers or outcome-named
+artifacts on `develop`; treat those claims, and the rest, as unverified against `develop` rather than
+as shipped: decimal balance arithmetic exact beyond IEEE-754 precision; Ledger discovering multi-tenant outcome backlog from durable state instead of an expiring process cache; outcome, active index, schedule, and tenant discovery sharing one Redis Cluster slot and one atomic prepare; V2 admission requiring non-evicting AOF-backed Valkey; Ledger-to-Tracer REST on a dedicated always-on API key with mTLS and tenant identity; rolling Tracer deployments failing before the money path unless the selected pod explicitly accepts the V2 protocol; async persistence publishing terminal status and the complete operation multiset in one PostgreSQL commit so no reader observes an approved half-entry; and the required E2E proving the complete Ledger-to-Tracer flow, receipt persistence, exact audit context, and replay after a lost acknowledgement.
 
 ### P0 exit gate
 
