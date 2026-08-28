@@ -644,11 +644,11 @@ status discriminator selects the Definition:
 
 > **`scale` is intentionally omitted** (asset-level) — test asserts ABSENT.
 
-> **`operations[].accountType`** — the type of the account the operation moved
-> (`deposit`, `external`, …), taken from the balance the operation was built
-> from, so nothing extra is read or joined. Built by `operationEventPayload` in
-> `send_transaction_events.go`: the inner shape of the `operations` array belongs
-> to the caller, for the same reason the array is `[]json.RawMessage`.
+**`operations[].accountType`** — the type of the account the operation moved
+(`deposit`, `external`, …), taken from the balance the operation was built from,
+so nothing extra is read or joined. Built by `operationEventPayload` in
+`send_transaction_events.go`: the inner shape of the `operations` array belongs
+to the caller, for the same reason the array is `[]json.RawMessage`.
 
 - Present on **every** operation, external accounts included. Filtering external
   legs out at the source would take with them the evidence that the leg existed,

@@ -62,6 +62,10 @@ func accountTypeAfter() mtransaction.Balance {
 	}
 }
 
+// accountTypeDate is the fixed transaction date every fixture below is built
+// with — nothing here depends on the wall clock.
+var accountTypeDate = time.Date(2026, time.August, 28, 12, 0, 0, 0, time.UTC)
+
 func accountTypeInput() mtransaction.Transaction {
 	return mtransaction.Transaction{
 		Description: "account type fixture",
@@ -83,7 +87,7 @@ func TestBuildStandardOp_CarriesAccountTypeFromBalance(t *testing.T) {
 
 			op, err := handler.buildStandardOp(
 				accountTypeBalance(accountType), ft, amt, accountTypeAfter(),
-				transaction.Transaction{ID: "txn-1"}, accountTypeInput(), time.Now(), false,
+				transaction.Transaction{ID: "txn-1"}, accountTypeInput(), accountTypeDate, false,
 			)
 
 			require.NoError(t, err)
@@ -104,7 +108,7 @@ func TestBuildStandardOp_AccountTypeIsNotTheOperationType(t *testing.T) {
 
 	op, err := handler.buildStandardOp(
 		accountTypeBalance(constant.ExternalAccountType), ft, amt, accountTypeAfter(),
-		transaction.Transaction{ID: "txn-1"}, accountTypeInput(), time.Now(), false,
+		transaction.Transaction{ID: "txn-1"}, accountTypeInput(), accountTypeDate, false,
 	)
 
 	require.NoError(t, err)
@@ -131,7 +135,7 @@ func TestBuildDoubleEntryOps_CarryAccountTypeFromBalance(t *testing.T) {
 			build: func(blc *mmodel.Balance, ft mtransaction.FromTo, amt mtransaction.Amount) ([]*operation.Operation, error) {
 				return handler.buildDoubleEntryPendingOps(
 					ctx, blc, ft, amt, accountTypeAfter(),
-					transaction.Transaction{ID: "txn-1"}, accountTypeInput(), time.Now(), false,
+					transaction.Transaction{ID: "txn-1"}, accountTypeInput(), accountTypeDate, false,
 				)
 			},
 		},
@@ -140,7 +144,7 @@ func TestBuildDoubleEntryOps_CarryAccountTypeFromBalance(t *testing.T) {
 			build: func(blc *mmodel.Balance, ft mtransaction.FromTo, amt mtransaction.Amount) ([]*operation.Operation, error) {
 				return handler.buildDoubleEntryCanceledOps(
 					ctx, blc, ft, amt, accountTypeAfter(),
-					transaction.Transaction{ID: "txn-1"}, accountTypeInput(), time.Now(), false,
+					transaction.Transaction{ID: "txn-1"}, accountTypeInput(), accountTypeDate, false,
 				)
 			},
 		},
