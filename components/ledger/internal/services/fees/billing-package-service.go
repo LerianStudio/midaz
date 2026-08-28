@@ -85,8 +85,11 @@ func (s *BillingPackageService) resolveAccountExists(ctx context.Context, organi
 	return s.resolver.AccountExistsByAlias(ctx, orgUUID, ledgerUUID, alias)
 }
 
-// CreateBillingPackage validates and creates a new billing package.
-func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, bp *model.BillingPackage) (_ *model.BillingPackage, err error) {
+// CreateBillingPackage validates and creates a new billing package within the given
+// ledger. The ledger is the request's authority — the caller resolves it from the path
+// and passes it here — so it is stamped onto the package before validation and persistence,
+// and every scoped check below reads that stamped value.
+func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, ledgerID uuid.UUID, bp *model.BillingPackage) (_ *model.BillingPackage, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.create")
@@ -102,9 +105,12 @@ func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, bp *mo
 		return nil, errors.New("billing package cannot be nil")
 	}
 
+	bp.LedgerID = ledgerID.String()
+
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", bp.OrganizationID),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.billing_package_type", bp.Type),
 	)
 

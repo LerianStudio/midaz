@@ -57,6 +57,7 @@ type stubBillingPackageService struct {
 
 	// captured args
 	gotCreate        *model.BillingPackage
+	gotCreateLedger  uuid.UUID
 	gotGetByIDID     uuid.UUID
 	gotGetByIDOrg    uuid.UUID
 	gotGetAllOrg     uuid.UUID
@@ -80,9 +81,10 @@ type stubBillingPackageService struct {
 	gotDeleteLedger  uuid.UUID
 }
 
-func (s *stubBillingPackageService) CreateBillingPackage(_ context.Context, bp *model.BillingPackage) (*model.BillingPackage, error) {
+func (s *stubBillingPackageService) CreateBillingPackage(_ context.Context, ledgerID uuid.UUID, bp *model.BillingPackage) (*model.BillingPackage, error) {
 	s.createCalled = true
 	s.gotCreate = bp
+	s.gotCreateLedger = ledgerID
 
 	return s.createResult, s.createErr
 }

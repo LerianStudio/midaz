@@ -107,20 +107,20 @@ func billingCalcV2URL(orgID, ledgerID string) string {
 }
 
 // validBillingPackageJSON is a decode-valid create-billing-package body: label + type
-// + ledgerId are the fields the create path stamps/forwards. DecodeValidateBody runs
-// ValidateStruct (no struct tags on BillingPackage → no-op) + unknown-field check;
-// business Validate() runs in the service layer (stubbed), so this clears decode. The
-// ledger is validLedgerUUID(), so the ledger-scoped create guard admits it when the
-// path names the same ledger.
+// are the client fields the create path forwards. The ledger is NOT in the body — the
+// path (ledger_id) is the sole authority and the handler stamps it. DecodeValidateBody
+// runs ValidateStruct (no struct tags on CreateBillingPackageInput → no-op) +
+// unknown-field check; business Validate() runs in the service layer (stubbed), so this
+// clears decode.
 func validBillingPackageJSON() string {
-	return `{"label":"Monthly Volume","type":"volume","ledgerId":"` + validLedgerUUID() + `"}`
+	return `{"label":"Monthly Volume","type":"volume"}`
 }
 
 func TestCreateBillingPackage_Success(t *testing.T) {
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubBillingPackageService{
-		createResult: &model.BillingPackage{ID: uuid.NewString(), Label: "Monthly Volume", Type: "volume"},
+		createResult: &model.BillingPackage{ID: uuid.NewString(), Label: "Monthly Volume", Type: "volume", LedgerID: validLedgerUUID()},
 	}
 	handler := &BillingPackageHandler{Service: stub}
 
@@ -137,11 +137,14 @@ func TestCreateBillingPackage_Success(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, resp.StatusCode, "body: %s", string(respBody))
 	assert.True(t, stub.createCalled, "service.CreateBillingPackage must be invoked")
 	assert.Equal(t, orgID.String(), stub.gotCreate.OrganizationID, "handler must stamp path org onto the payload")
+	assert.Equal(t, validLedgerUUID(), stub.gotCreate.LedgerID, "handler must stamp the path ledger onto the payload")
+	assert.Equal(t, uuid.MustParse(validLedgerUUID()), stub.gotCreateLedger, "the create service must receive the path ledger as a parameter")
 	assert.NotContains(t, string(respBody), "$schema")
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, "Monthly Volume", got["label"])
+	assert.Equal(t, validLedgerUUID(), got["ledgerId"], "the response must still expose ledgerId")
 }
 
 func TestCreateBillingPackage_AuthPreserved(t *testing.T) {
@@ -180,6 +183,46 @@ func TestCreateBillingPackage_MalformedBody_Canonical400(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "malformed-body code preserved (0094)")
+}
+
+// TestCreateBillingPackage_BodyLedgerId_Rejected400 pins the hard-cutover contract:
+// ledgerId was removed from the create-billing-package request DTO, and the path is the
+// sole authority on the ledger. A body still carrying ledgerId is an unknown field, so
+// the fee decoder (decodeFeeBodyInSpan -> findUnknownFields -> ValidateBadRequestFieldsError)
+// rejects it with 0053 "Unexpected Fields in the Request" and never reaches the service.
+func TestCreateBillingPackage_BodyLedgerId_Rejected400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingPackageService{
+		createResult: &model.BillingPackage{ID: uuid.NewString()},
+	}
+	handler := &BillingPackageHandler{Service: stub}
+
+	// A decode-valid body with one extra, now-forbidden ledgerId key spliced in.
+	body := `{"label":"Monthly Volume","type":"volume","ledgerId":"` + validLedgerUUID() + `"}`
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodPost,
+		billingPkgV2URL(orgID.String(), validLedgerUUID()), body)
+
+	assert.Equal(t, http.StatusBadRequest, status, "ledgerId in the body is an unknown field: body: %s", string(raw))
+	assert.Equal(t, constant.ErrUnexpectedFieldsInTheRequest.Error(), got["code"],
+		"unknown-field code (0053) must be preserved")
+
+	// The RFC 9457 v2 envelope names the unknown key in the errors array
+	// ({message,location,value}), not in a fields map.
+	errs, ok := got["errors"].([]any)
+	require.True(t, ok, "problem must carry an errors array naming the unknown key: body: %s", string(raw))
+
+	var sawLedgerID bool
+	for _, e := range errs {
+		if detail, ok := e.(map[string]any); ok && detail["location"] == "ledgerId" {
+			sawLedgerID = true
+			break
+		}
+	}
+	assert.True(t, sawLedgerID, "the rejected field must be named as ledgerId: body: %s", string(raw))
+
+	assert.False(t, stub.createCalled, "an unknown field must short-circuit before the service")
 }
 
 func TestGetBillingPackageByID_Success(t *testing.T) {
