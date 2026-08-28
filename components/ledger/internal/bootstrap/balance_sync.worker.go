@@ -350,14 +350,16 @@ func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context, collectors 
 	}
 }
 
-// startTenantCollector resolves the tenant's PostgreSQL connection, creates a
-// BalanceSyncCollector with tenant-scoped fetch/flush functions, and launches it
+// startTenantCollector checks that the tenant's PostgreSQL is resolvable, creates
+// a BalanceSyncCollector with tenant-scoped fetch/flush functions, and launches it
 // as a goroutine. Returns nil if the tenant's PG connection cannot be established.
+// The collector context carries only the tenant ID; the PG handle is resolved per
+// flush (see resolveTenantPG).
 func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tenantID string) *tenantCollector {
 	tenantCtx := tmcore.ContextWithTenantID(parentCtx, tenantID)
 
-	db, err := w.pgResolver.GetDB(tenantCtx, tenantID)
-	if err != nil {
+	// Preflight: a tenant whose PG cannot be resolved gets no collector at all.
+	if _, err := w.pgResolver.GetDB(tenantCtx, tenantID); err != nil {
 		w.logger.Log(parentCtx, libLog.LevelError, "BalanceSyncWorker: failed to get PG connection for tenant",
 			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
@@ -365,11 +367,6 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 
 		return nil
 	}
-
-	// Set the PG connection for the transaction module. The worker only operates
-	// on the transaction database — the generic (no-module) context entry is not
-	// needed because getDB always finds the module-specific one first.
-	tenantCtx = tmcore.ContextWithPG(tenantCtx, db, constant.ModuleTransaction)
 
 	collectorCtx, cancel := context.WithCancel(tenantCtx)
 
@@ -397,9 +394,20 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 
 		collector.Run(
 			collectorCtx,
-			// FlushFunc: batch flush grouped by org/ledger
+			// FlushFunc: resolve this tenant's PG handle, then batch flush grouped by org/ledger
 			func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
-				return w.flushBatch(flushCtx, keys)
+				pgCtx, err := w.resolveTenantPG(flushCtx, tenantID)
+				if err != nil {
+					w.logger.Log(flushCtx, libLog.LevelWarn,
+						"BalanceSyncWorker: failed to resolve tenant PG for flush, skipping batch",
+						libLog.String("tenant_id", tenantID), libLog.Err(err))
+
+					w.emitTenantSkip(flushCtx, tenantID)
+
+					return false
+				}
+
+				return w.flushBatch(pgCtx, keys)
 			},
 			// FetchKeysFunc: tenant context enables Redis key namespacing via tmvalkey.GetKeyContext
 			func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
@@ -420,6 +428,20 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 		cancel:   cancel,
 		done:     done,
 	}
+}
+
+// resolveTenantPG returns ctx carrying a freshly resolved transaction-module PG
+// handle for tenantID. Resolution is per call: the tenant manager may close or
+// swap a tenant's pool at any time, so a handle captured once would dangle.
+// The worker only touches the transaction database, so only the module-specific
+// context entry is set — getDB looks that one up first.
+func (w *BalanceSyncWorker) resolveTenantPG(ctx context.Context, tenantID string) (context.Context, error) {
+	db, err := w.pgResolver.GetDB(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	return tmcore.ContextWithPG(ctx, db, constant.ModuleTransaction), nil
 }
 
 // stopAllCollectors cancels all running tenant collectors and waits for them to finish.

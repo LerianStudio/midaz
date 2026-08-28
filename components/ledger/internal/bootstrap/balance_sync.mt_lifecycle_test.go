@@ -24,6 +24,7 @@ import (
 
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // --------------------------------------------------------------------
@@ -661,4 +662,40 @@ func TestStopAllCollectors_CancelsBeforeWaiting(t *testing.T) {
 		"stop should be fast since cancels happen before waits")
 
 	assert.Empty(t, collectors, "map should be cleared")
+}
+
+// --------------------------------------------------------------------
+// Tests for resolveTenantPG
+// --------------------------------------------------------------------
+
+func TestResolveTenantPG_InjectsModuleTransactionHandle(t *testing.T) {
+	t.Parallel()
+
+	stub := newStubDB()
+	resolver := &fakePGResolver{db: stub}
+	w := newTestWorkerWithResolver(t, tenantcache.NewTenantCache(), resolver)
+
+	pgCtx, err := w.resolveTenantPG(context.Background(), "tenant-1")
+
+	require.NoError(t, err)
+	require.NotNil(t, pgCtx)
+	assert.Equal(t, stub, tmcore.GetPGContext(pgCtx, constant.ModuleTransaction),
+		"the module-specific entry must carry the resolved handle")
+	assert.Nil(t, tmcore.GetPGContext(pgCtx),
+		"the generic entry must stay unset; getDB looks up the module one first")
+	assert.Equal(t, int32(1), resolver.calls.Load(),
+		"resolveTenantPG must resolve exactly once per call")
+}
+
+func TestResolveTenantPG_Error(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("pool gone")
+	resolver := &fakePGResolver{err: wantErr}
+	w := newTestWorkerWithResolver(t, tenantcache.NewTenantCache(), resolver)
+
+	pgCtx, err := w.resolveTenantPG(context.Background(), "tenant-1")
+
+	require.ErrorIs(t, err, wantErr, "the resolver error must surface unwrapped")
+	assert.Nil(t, pgCtx, "no context must be returned when resolution fails")
 }
