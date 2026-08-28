@@ -297,7 +297,6 @@ var (
 	ErrMissingSegmentContext                = errors.New("0231")
 	ErrMidazRouteNotFound                   = errors.New("0232")
 	ErrDeductibleFeeExceedsAmount           = errors.New("0233")
-	ErrLedgerIDMismatch                     = errors.New("0234")
 	ErrLedgerScopedQueryParameter           = errors.New("0235")
 )
 

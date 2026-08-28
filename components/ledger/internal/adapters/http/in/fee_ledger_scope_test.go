@@ -136,65 +136,6 @@ func driveFeeV2Probe(t *testing.T, app *fiber.App, method, template string) {
 	driveFeeV2(t, app, method, url, body)
 }
 
-// TestFeesV2_BodyLedgerMustMatchPath pins the body-versus-path decision on the
-// operations whose body carries a ledger. The field stays required — the models are
-// shared with the organization-scoped surface and with the in-process fee seam — so
-// what the ledger-scoped surface adds is the refusal of a value that names a different
-// ledger than the path. A matching value is accepted and reaches the service; a
-// different one is refused before the service is touched.
-func TestFeesV2_BodyLedgerMustMatchPath(t *testing.T) {
-	orgID := uuid.New()
-	pathLedger := uuid.MustParse("11111111-1111-4111-8111-111111111111")
-	otherLedger := uuid.MustParse("22222222-2222-4222-8222-222222222222")
-
-	tests := []struct {
-		name     string
-		method   string
-		template string
-		body     func(ledger string) string
-		called   func(s *feesV2Stubs) bool
-		okStatus int
-	}{
-		{
-			name:     "calculate_billing",
-			method:   http.MethodPost,
-			template: feesV2Scope + "/billing/calculate",
-			body:     validBillingCalculateJSON,
-			called:   func(s *feesV2Stubs) bool { return s.calcSvc.called },
-			okStatus: http.StatusOK,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name+"_matching_body_ledger_is_accepted", func(t *testing.T) {
-			// NOT parallel: huma registration mutates process-global state.
-			app, stubs := buildFeesV2App(t)
-			seedFeesV2Results(stubs)
-
-			url := feeV2Path(tt.template, orgID, pathLedger, uuid.Nil)
-			status, body := driveFeeV2(t, app, tt.method, url, tt.body(pathLedger.String()))
-
-			assert.Equalf(t, tt.okStatus, status, "body: %v", body)
-			assert.True(t, tt.called(stubs), "the service must be reached when the body agrees with the path")
-		})
-
-		t.Run(tt.name+"_conflicting_body_ledger_is_refused", func(t *testing.T) {
-			// NOT parallel: huma registration mutates process-global state.
-			app, stubs := buildFeesV2App(t)
-			seedFeesV2Results(stubs)
-
-			url := feeV2Path(tt.template, orgID, pathLedger, uuid.Nil)
-			status, body := driveFeeV2(t, app, tt.method, url, tt.body(otherLedger.String()))
-
-			assert.Equal(t, http.StatusBadRequest, status)
-			assert.Equal(t, constant.ErrLedgerIDMismatch.Error(), body["code"],
-				"a body naming another ledger must be refused with the mismatch code, got: %v", body)
-			assert.False(t, tt.called(stubs),
-				"MONEY-PATH: the service must not be reached when the body names another ledger")
-		})
-	}
-}
-
 // seedFeesV2Results gives every stub a non-nil success result, so an operation that is
 // supposed to succeed is not turned into a 500 by a nil return.
 func seedFeesV2Results(s *feesV2Stubs) {

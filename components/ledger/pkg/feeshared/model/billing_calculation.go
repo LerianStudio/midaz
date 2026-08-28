@@ -106,14 +106,14 @@ func ParseWeeklyPeriod(period string) (time.Time, time.Time, bool) {
 }
 
 // BillingCalculateRequest carries the parameters required to trigger a billing
-// calculation for a given organisation, ledger, and period.
+// calculation for a given organisation and period. The organisation and the ledger
+// are taken from the URL path, not the body.
 //
 // Period must be in "YYYY-MM" (monthly), "YYYY-Www" (weekly), or "YYYY-MM-DD" (daily) format (e.g. "2026-01", "2026-W13", or "2026-01-15").
 // Type is optional; when provided it restricts the calculation to "volume" or
 // "maintenance" packages only. When omitted both types are calculated.
 type BillingCalculateRequest struct {
 	OrganizationID string `json:"-"`
-	LedgerID       string `json:"ledgerId"       validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 	Period         string `json:"period"         validate:"required" example:"2026-01"` // YYYY-MM, YYYY-Www, or YYYY-MM-DD format
 	Type           string `json:"type,omitempty" example:"volume"`                      // "volume", "maintenance", or empty for both
 }

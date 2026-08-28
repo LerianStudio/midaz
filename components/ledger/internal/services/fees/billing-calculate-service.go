@@ -91,6 +91,7 @@ func NewBillingCalculateService(
 // identifying the failed package by ID and label.
 func (s *BillingCalculateService) Calculate(
 	ctx context.Context,
+	ledgerID uuid.UUID,
 	req model.BillingCalculateRequest,
 ) (_ *model.BillingCalculateResponse, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
@@ -107,12 +108,14 @@ func (s *BillingCalculateService) Calculate(
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", req.OrganizationID),
-		attribute.String("app.request.ledger_id", req.LedgerID),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.period", req.Period),
 		attribute.String("app.request.type", req.Type),
 	)
 
-	// Step 1: Validate UUIDs before any database calls to fail fast on invalid input.
+	// Step 1: Validate the organization UUID before any database calls to fail fast on
+	// invalid input. The ledger comes from the URL path, already validated as a UUID by
+	// the route middleware.
 	orgUUID, errOrg := uuid.Parse(req.OrganizationID)
 	if errOrg != nil {
 		bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", "invalid organizationID UUID")
@@ -121,13 +124,7 @@ func (s *BillingCalculateService) Calculate(
 		return nil, bizErr
 	}
 
-	ledgerUUID, errLedger := uuid.Parse(req.LedgerID)
-	if errLedger != nil {
-		bizErr := pkg.ValidateBusinessError(constant.ErrBillingCalculationFailed, "BillingCalculation", "invalid ledgerID UUID")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ledger UUID", bizErr)
-
-		return nil, bizErr
-	}
+	ledgerUUID := ledgerID
 
 	// Step 2: Parse and validate the period.
 	periodStart, periodEnd, err := parsePeriod(req.Period)
@@ -138,7 +135,7 @@ func (s *BillingCalculateService) Calculate(
 	}
 
 	// Step 3: Fetch active packages by type.
-	volumePackages, maintenancePackages, err := s.fetchPackagesByType(ctx, req)
+	volumePackages, maintenancePackages, err := s.fetchPackagesByType(ctx, ledgerUUID, req)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +242,7 @@ func parsePeriod(period string) (time.Time, time.Time, error) {
 // When type is empty, both volume and maintenance packages are fetched.
 func (s *BillingCalculateService) fetchPackagesByType(
 	ctx context.Context,
+	ledgerID uuid.UUID,
 	req model.BillingCalculateRequest,
 ) ([]*model.BillingPackage, []*model.BillingPackage, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -252,13 +250,15 @@ func (s *BillingCalculateService) fetchPackagesByType(
 	ctx, span := tracer.Start(ctx, "service.billing_calculate.fetch_packages")
 	defer span.End()
 
+	ledgerFilter := ledgerID.String()
+
 	var volumePackages []*model.BillingPackage
 
 	var maintenancePackages []*model.BillingPackage
 
 	switch req.Type {
 	case model.BillingPackageTypeVolume:
-		pkgs, err := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, req.LedgerID, model.BillingPackageTypeVolume)
+		pkgs, err := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, ledgerFilter, model.BillingPackageTypeVolume)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to fetch volume packages", err)
 
@@ -268,7 +268,7 @@ func (s *BillingCalculateService) fetchPackagesByType(
 		volumePackages = pkgs
 
 	case model.BillingPackageTypeMaintenance:
-		pkgs, err := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, req.LedgerID, model.BillingPackageTypeMaintenance)
+		pkgs, err := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, ledgerFilter, model.BillingPackageTypeMaintenance)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to fetch maintenance packages", err)
 
@@ -279,14 +279,14 @@ func (s *BillingCalculateService) fetchPackagesByType(
 
 	default:
 		// Fetch both types.
-		volPkgs, errVol := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, req.LedgerID, model.BillingPackageTypeVolume)
+		volPkgs, errVol := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, ledgerFilter, model.BillingPackageTypeVolume)
 		if errVol != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to fetch volume packages", errVol)
 
 			return nil, nil, errVol
 		}
 
-		maintPkgs, errMaint := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, req.LedgerID, model.BillingPackageTypeMaintenance)
+		maintPkgs, errMaint := s.billingPackageRepo.FindActiveByType(ctx, req.OrganizationID, ledgerFilter, model.BillingPackageTypeMaintenance)
 		if errMaint != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to fetch maintenance packages", errMaint)
 

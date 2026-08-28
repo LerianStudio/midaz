@@ -1850,10 +1850,6 @@ components:
     FeeBillingCalculateRequest:
       additionalProperties: false
       properties:
-        ledgerId:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          type: string
         period:
           examples:
             - 2026-01
@@ -1863,7 +1859,6 @@ components:
             - volume
           type: string
       required:
-        - ledgerId
         - period
       type: object
     FeeBillingCalculateResponse:

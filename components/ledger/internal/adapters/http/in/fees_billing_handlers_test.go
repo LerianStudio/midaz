@@ -134,13 +134,15 @@ type stubBillingCalculateService struct {
 	result *model.BillingCalculateResponse
 	err    error
 
-	got    model.BillingCalculateRequest
-	called bool
+	got       model.BillingCalculateRequest
+	gotLedger uuid.UUID
+	called    bool
 }
 
-func (s *stubBillingCalculateService) Calculate(_ context.Context, request model.BillingCalculateRequest) (*model.BillingCalculateResponse, error) {
+func (s *stubBillingCalculateService) Calculate(_ context.Context, ledgerID uuid.UUID, request model.BillingCalculateRequest) (*model.BillingCalculateResponse, error) {
 	s.called = true
 	s.got = request
+	s.gotLedger = ledgerID
 
 	return s.result, s.err
 }
