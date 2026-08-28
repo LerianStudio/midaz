@@ -637,12 +637,37 @@ status discriminator selects the Definition:
 | `destination` | []string | `omitempty`. |
 | `route` | string | `omitempty`. Legacy field (`//nolint:staticcheck`; `routeId` is canonical). |
 | `routeId` | string \| null | `omitempty`. |
-| `operations` | array | Each operation marshalled verbatim by the caller so the events package stays decoupled from the internal `operation.Operation` type. Always present (no omitempty). |
+| `operations` | array | Each operation marshalled verbatim by the caller so the events package stays decoupled from the internal `operation.Operation` type, plus `accountType` (see below). Always present (no omitempty). |
 | `metadata` | object | `omitempty`. |
 | `createdAt` | string | RFC3339. |
 | `updatedAt` | string | RFC3339. |
 
 > **`scale` is intentionally omitted** (asset-level) — test asserts ABSENT.
+
+**`operations[].accountType`** — the type of the account the operation moved
+(`deposit`, `external`, …), taken from the balance the operation was built from,
+so nothing extra is read or joined. Built by `operationEventPayload` in
+`send_transaction_events.go`: the inner shape of the `operations` array belongs
+to the caller, for the same reason the array is `[]json.RawMessage`.
+
+- Present on **every** operation, external accounts included. Filtering external
+  legs out at the source would take with them the evidence that the leg existed,
+  and a consumer could no longer reconcile the transaction.
+- Not part of the public `operation` shape on the REST API: there is no
+  `account_type` column, so an operation read back from Postgres could not carry
+  it and the public shape would disagree between a create and a later read.
+- Distinct from `operations[].type`, which stays the DEBIT/CREDIT ledger movement
+  and says nothing about the account.
+- No `omitempty`. An empty value means the operation reached the emit without a
+  type — an in-flight queue payload produced before this field existed — which a
+  consumer can tell apart from any real type.
+
+A consumer classifying accounts should read `accountType` rather than matching
+`accountAlias` against `@external/`. `mmodel.Account.Alias` is validated with
+`prohibitedexternalaccountprefix`, so a client cannot supply that prefix: a
+client-created external account (`type: "external"`, canonicalised in
+`CreateAccount`) has the type and not the prefix, and only the per-asset account
+Midaz creates for itself has both.
 
 ## Excluded by design
 
