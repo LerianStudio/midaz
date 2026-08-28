@@ -570,9 +570,19 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 	ctx, span := tracer.Start(ctx, "balance.worker.process_batch")
 	defer span.End()
 
+	// Empty in single-tenant. Prometheus treats an empty label as absent, so the
+	// existing single-tenant series keep their identity.
+	tenantID := tmcore.GetTenantIDContext(ctx)
+
 	result, err := w.useCase.SyncBalancesBatch(ctx, organizationID, ledgerID, keys)
 	if err != nil {
-		w.logger.Log(ctx, libLog.LevelError, "BalanceSyncWorker: batch sync failed", libLog.Err(err))
+		// The worker's span carries no scope IDs, so a stuck tenant is not
+		// locatable from the log line without them.
+		w.logger.Log(ctx, libLog.LevelError, "BalanceSyncWorker: batch sync failed",
+			libLog.String("tenant_id", tenantID),
+			libLog.String("organization_id", organizationID.String()),
+			libLog.String("ledger_id", ledgerID.String()),
+			libLog.Err(err))
 
 		// Emit failure metric for monitoring
 		counter, counterErr := metricFactory.Counter(utils.BalanceSyncBatchFailures)
@@ -582,6 +592,7 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 			if metricErr := counter.WithLabels(map[string]string{
 				"organization_id": organizationID.String(),
 				"ledger_id":       ledgerID.String(),
+				"tenant_id":       tenantID,
 			}).AddOne(ctx); metricErr != nil {
 				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit failure counter", libLog.Err(metricErr))
 			}
