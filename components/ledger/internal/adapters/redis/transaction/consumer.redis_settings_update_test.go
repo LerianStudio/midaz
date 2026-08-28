@@ -150,7 +150,7 @@ func TestUpdateBalanceCacheSettings_PreservesLiveTransactionalState(t *testing.T
 	assert.Equal(t, expectedKey, stub.getCalls[0])
 	assert.Equal(t, expectedKey, stub.setCalls[0].Key)
 	assert.Equal(t, balanceCacheSettingsTTL, stub.setCalls[0].TTL,
-		"TTL must match the Lua script's 1-hour canonical value to avoid silent lifetime drift")
+		"TTL must match the Lua script's 1-day canonical value to avoid silent lifetime drift")
 
 	// Decode the written payload and pin every invariant.
 	raw, ok := stub.setCalls[0].Value.(string)
