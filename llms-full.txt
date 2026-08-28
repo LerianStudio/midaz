@@ -137,6 +137,7 @@ All models live in `pkg/mmodel/`. Key entities:
 - Optimistic concurrency via Version field (lock version)
 - Supports additional balances per account (e.g., multi-currency)
 - Balance history queries via timestamp
+- POST additional balance with `settings.allowOverdraft=true` provisions the system-managed `overdraft` companion balance (key=`overdraft`, direction=`debit`, scope=`internal`)
 
 ### 3.7 Operation Route / Transaction Route
 - Operation routes define per-operation rules (source/destination/bidirectional)
