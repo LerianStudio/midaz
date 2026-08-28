@@ -21,9 +21,10 @@ import (
 )
 
 // BillingCalculateUseCase defines the billing-calculation operation consumed by
-// the billing-calculate handler.
+// the billing-calculate handler. The ledger is taken from the URL path and threaded
+// as an explicit parameter, mirroring organizationID on the sibling fee operations.
 type BillingCalculateUseCase interface {
-	Calculate(ctx context.Context, request model.BillingCalculateRequest) (*model.BillingCalculateResponse, error)
+	Calculate(ctx context.Context, ledgerID uuid.UUID, request model.BillingCalculateRequest) (*model.BillingCalculateResponse, error)
 }
 
 // BillingCalculateHandler exposes the billing-calculation endpoint over HTTP.
@@ -32,11 +33,11 @@ type BillingCalculateHandler struct {
 }
 
 // calculateBilling is the transport-agnostic core of the calculate op, shared by the
-// Fiber wrapper (CalculateBilling) and the Huma shell. It owns the span, stamps the
-// path org onto the request, runs the handler-level validateBillingCalculateRequest,
-// and calls the service; the caller resolves the org id, decodes the payload, and
-// renders the response/error.
-func (handler *BillingCalculateHandler) calculateBilling(ctx context.Context, organizationID uuid.UUID, payload *model.BillingCalculateRequest) (*model.BillingCalculateResponse, error) {
+// Huma shell. It owns the span, stamps the path org onto the request, runs the
+// handler-level validateBillingCalculateRequest, and calls the service with the path
+// ledger; the caller resolves the org and ledger ids, decodes the payload, and renders
+// the response/error.
+func (handler *BillingCalculateHandler) calculateBilling(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *model.BillingCalculateRequest) (*model.BillingCalculateResponse, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.calculate_billing")
@@ -49,19 +50,8 @@ func (handler *BillingCalculateHandler) calculateBilling(ctx context.Context, or
 
 	payload.OrganizationID = organizationID.String()
 
-	// Same canonicalization createBillingPackage applies, for the same reason: the
-	// ledger-scoped guard admits the body ledger on parsed-UUID equality, so every
-	// spelling uuid.Parse accepts reaches here, and the billing repositories match the
-	// stored ledger string against the canonical lowercase-hyphenated form a path
-	// ledger resolves to. Any other spelling would select nothing and report an empty
-	// calculation as success. Only a value that already parses is rewritten;
-	// validateBillingCalculateRequest below is what rejects one that does not.
-	if parsedLedgerID, errParse := uuid.Parse(payload.LedgerID); errParse == nil {
-		payload.LedgerID = parsedLedgerID.String()
-	}
-
 	span.SetAttributes(
-		attribute.String("app.request.ledger_id", payload.LedgerID),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.period", payload.Period),
 		attribute.String("app.request.type", payload.Type),
 	)
@@ -72,7 +62,7 @@ func (handler *BillingCalculateHandler) calculateBilling(ctx context.Context, or
 		return nil, errValidation
 	}
 
-	result, errCalc := handler.Service.Calculate(ctx, *payload)
+	result, errCalc := handler.Service.Calculate(ctx, ledgerID, *payload)
 	if errCalc != nil {
 		handleSpanByErrorClass(span, "Failed to calculate billing", errCalc)
 
@@ -90,14 +80,6 @@ func (handler *BillingCalculateHandler) calculateBilling(ctx context.Context, or
 func validateBillingCalculateRequest(req *model.BillingCalculateRequest) error {
 	if req.OrganizationID == "" {
 		return feeerrors.ValidateBusinessError(feeconstant.ErrFeeInvalidHeaderParameter, "BillingCalculation", "organizationId")
-	}
-
-	if req.LedgerID == "" {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, "BillingCalculation", "ledgerId")
-	}
-
-	if _, err := uuid.Parse(req.LedgerID); err != nil {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, "BillingCalculation", "ledgerId")
 	}
 
 	if err := validateBillingPeriod(req.Period); err != nil {

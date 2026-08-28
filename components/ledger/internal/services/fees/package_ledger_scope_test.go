@@ -277,8 +277,7 @@ func TestEstimateFeeCalculation_ResolvesPackageOrganizationWide(t *testing.T) {
 
 	_, err := svc.EstimateFeeCalculation(context.Background(), &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  uuid.New(),
-	}, orgID)
+	}, orgID, uuid.New())
 	require.Error(t, err)
 
 	assertPackageAbsent(t, err, constant.EntityPackage)

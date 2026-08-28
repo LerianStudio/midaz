@@ -57,6 +57,7 @@ type stubBillingPackageService struct {
 
 	// captured args
 	gotCreate        *model.BillingPackage
+	gotCreateLedger  uuid.UUID
 	gotGetByIDID     uuid.UUID
 	gotGetByIDOrg    uuid.UUID
 	gotGetAllOrg     uuid.UUID
@@ -80,9 +81,10 @@ type stubBillingPackageService struct {
 	gotDeleteLedger  uuid.UUID
 }
 
-func (s *stubBillingPackageService) CreateBillingPackage(_ context.Context, bp *model.BillingPackage) (*model.BillingPackage, error) {
+func (s *stubBillingPackageService) CreateBillingPackage(_ context.Context, ledgerID uuid.UUID, bp *model.BillingPackage) (*model.BillingPackage, error) {
 	s.createCalled = true
 	s.gotCreate = bp
+	s.gotCreateLedger = ledgerID
 
 	return s.createResult, s.createErr
 }
@@ -132,13 +134,15 @@ type stubBillingCalculateService struct {
 	result *model.BillingCalculateResponse
 	err    error
 
-	got    model.BillingCalculateRequest
-	called bool
+	got       model.BillingCalculateRequest
+	gotLedger uuid.UUID
+	called    bool
 }
 
-func (s *stubBillingCalculateService) Calculate(_ context.Context, request model.BillingCalculateRequest) (*model.BillingCalculateResponse, error) {
+func (s *stubBillingCalculateService) Calculate(_ context.Context, ledgerID uuid.UUID, request model.BillingCalculateRequest) (*model.BillingCalculateResponse, error) {
 	s.called = true
 	s.got = request
+	s.gotLedger = ledgerID
 
 	return s.result, s.err
 }
@@ -153,13 +157,15 @@ type stubFeeService struct {
 
 	gotEstimate *model.FeeEstimate
 	gotOrg      uuid.UUID
+	gotLedger   uuid.UUID
 	called      bool
 }
 
-func (s *stubFeeService) EstimateFeeCalculation(_ context.Context, cf *model.FeeEstimate, organizationID uuid.UUID) (*model.FeeEstimateResult, error) {
+func (s *stubFeeService) EstimateFeeCalculation(_ context.Context, cf *model.FeeEstimate, organizationID, ledgerID uuid.UUID) (*model.FeeEstimateResult, error) {
 	s.called = true
 	s.gotEstimate = cf
 	s.gotOrg = organizationID
+	s.gotLedger = ledgerID
 
 	return s.result, s.err
 }

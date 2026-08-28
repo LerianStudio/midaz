@@ -49,37 +49,6 @@ func rejectLedgerQueryParameter(queries map[string]string) error {
 	return nil
 }
 
-// requireBodyLedgerMatchesPath refuses a request body that names a different ledger
-// than the path.
-//
-// The ledger field is required on the shared request models: it is the only ledger
-// the organization-scoped surface has, and the in-process fee seam reads the same
-// types, so a ledger-scoped surface cannot drop it from the wire. It can refuse to
-// let it disagree, which is what keeps the path authoritative — the alternative
-// leaves a caller's mistake indistinguishable from success on the request that
-// decides which package prices a transaction.
-//
-// An unparseable value yields the same invalid-ledger error the organization-scoped
-// surface already returns for it, so only the disagreement is new.
-func requireBodyLedgerMatchesPath(bodyLedgerID string, pathLedgerID uuid.UUID) error {
-	parsed, err := uuid.Parse(bodyLedgerID)
-	if err != nil {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, "")
-	}
-
-	return requireLedgerMatchesPath(parsed, pathLedgerID)
-}
-
-// requireLedgerMatchesPath is requireBodyLedgerMatchesPath for a body that already
-// carries its ledger as a parsed identifier.
-func requireLedgerMatchesPath(bodyLedgerID, pathLedgerID uuid.UUID) error {
-	if bodyLedgerID != pathLedgerID {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrLedgerIDMismatch, "")
-	}
-
-	return nil
-}
-
 // feeLedgerScopeAttributes describes the scope a fee or billing request is acting
 // within. The ledger id is attached only when one was requested, so an
 // organization-scoped call is not reported as one targeting the nil ledger — the

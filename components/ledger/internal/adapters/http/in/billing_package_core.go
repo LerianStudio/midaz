@@ -28,7 +28,7 @@ import (
 // the HTTP surface cannot express it: every v2 fee and billing path names the ledger,
 // and the guards in fee_ledger_scope.go refuse any other way of widening the scope.
 type BillingPackageUseCase interface {
-	CreateBillingPackage(ctx context.Context, bp *model.BillingPackage) (*model.BillingPackage, error)
+	CreateBillingPackage(ctx context.Context, ledgerID uuid.UUID, bp *model.BillingPackage) (*model.BillingPackage, error)
 	GetBillingPackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID) (*model.BillingPackage, error)
 	GetAllBillingPackages(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, billingType string, limit, page int) ([]*model.BillingPackage, int64, error)
 	UpdateBillingPackage(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updates map[string]any) (*model.BillingPackage, error)
@@ -41,9 +41,11 @@ type BillingPackageHandler struct {
 }
 
 // createBillingPackage is the transport-agnostic core of the create op. It owns the
-// span, stamps the path org onto the payload, and calls the service; the handler
-// resolves the org id, decodes the payload, and renders the created package/error.
-func (handler *BillingPackageHandler) createBillingPackage(ctx context.Context, organizationID uuid.UUID, payload *model.BillingPackage) (*model.BillingPackage, error) {
+// span, maps the request DTO to the domain model, stamps the path org+ledger onto it,
+// and calls the service; the handler resolves the org+ledger ids, decodes the DTO, and
+// renders the created package/error. The ledger is named by the path only — the DTO
+// carries no ledgerId — so the path is the sole authority on the ledger a create acts within.
+func (handler *BillingPackageHandler) createBillingPackage(ctx context.Context, organizationID, ledgerID uuid.UUID, input *model.CreateBillingPackageInput) (*model.BillingPackage, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_billing_package")
@@ -52,30 +54,21 @@ func (handler *BillingPackageHandler) createBillingPackage(ctx context.Context, 
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
+	payload := input.ToBillingPackage()
 	payload.OrganizationID = organizationID.String()
-
-	// The ledger is stored as the string the body carried, and every scoped read,
-	// listing and billing calculation matches it against the canonical
-	// lowercase-hyphenated form a path ledger resolves to. Any other spelling
-	// uuid.Parse accepts would persist a value none of them can match, so the
-	// package would be created and then be unreachable. Only a value that already
-	// parses is rewritten: this surface accepts free-form ledger strings and
-	// rejecting them here would turn a create that works today into a 400.
-	if parsedLedgerID, errParse := uuid.Parse(payload.LedgerID); errParse == nil {
-		payload.LedgerID = parsedLedgerID.String()
-	}
+	payload.LedgerID = ledgerID.String()
 
 	span.SetAttributes(
 		attribute.String("app.request.payload.type", payload.Type),
 		attribute.Bool("app.request.payload.has_label", payload.Label != ""),
-		attribute.String("app.request.payload.ledger_id", payload.LedgerID),
 		attribute.Bool("app.request.payload.has_enable", payload.Enable != nil),
 		attribute.Bool("app.request.payload.enable", payload.Enable != nil && *payload.Enable),
 	)
 
-	result, errCreate := handler.Service.CreateBillingPackage(ctx, payload)
+	result, errCreate := handler.Service.CreateBillingPackage(ctx, ledgerID, payload)
 	if errCreate != nil {
 		handleSpanByErrorClass(span, "Failed to create billing package", errCreate)
 

@@ -130,7 +130,6 @@ func TestBillingCalculateService_VolumeHappyPath(t *testing.T) {
 			name: "Success - Volume calculation with tiered pricing, free quota, and discount",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeVolume,
 			},
@@ -153,7 +152,7 @@ func TestBillingCalculateService_VolumeHappyPath(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, resp)
@@ -205,7 +204,6 @@ func TestBillingCalculateService_MaintenanceHappyPath(t *testing.T) {
 			name: "Success - Maintenance calculation with 3 accounts",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeMaintenance,
 			},
@@ -230,7 +228,7 @@ func TestBillingCalculateService_MaintenanceHappyPath(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, resp)
@@ -284,7 +282,6 @@ func TestBillingCalculateService_MixedBothTypes(t *testing.T) {
 			name: "Success - Both volume and maintenance packages",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           "", // Both types
 			},
@@ -315,7 +312,7 @@ func TestBillingCalculateService_MixedBothTypes(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, resp)
@@ -346,7 +343,6 @@ func TestBillingCalculateService_NoActivePackages(t *testing.T) {
 			name: "Success - No active packages returns empty results, not error",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeVolume,
 			},
@@ -363,7 +359,7 @@ func TestBillingCalculateService_NoActivePackages(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, resp)
@@ -393,7 +389,6 @@ func TestBillingCalculateService_TransactionCounterError(t *testing.T) {
 			name: "Error - TransactionCounter fails with package context",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeVolume,
 			},
@@ -415,7 +410,7 @@ func TestBillingCalculateService_TransactionCounterError(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.Error(t, err)
 			assert.Nil(t, resp)
@@ -445,7 +440,6 @@ func TestBillingCalculateService_AccountResolverError(t *testing.T) {
 			name: "Error - AccountResolver fails with package context",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeMaintenance,
 			},
@@ -467,7 +461,7 @@ func TestBillingCalculateService_AccountResolverError(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.Error(t, err)
 			assert.Nil(t, resp)
@@ -707,7 +701,6 @@ func TestFetchPackagesByType_MaintenanceFetchError(t *testing.T) {
 			name: "Error - Maintenance type fetch fails",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeMaintenance,
 			},
@@ -725,7 +718,7 @@ func TestFetchPackagesByType_MaintenanceFetchError(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.Error(t, err)
 			assert.Nil(t, resp)
@@ -752,7 +745,6 @@ func TestFetchPackagesByType_DefaultMaintenanceFetchError(t *testing.T) {
 			name: "Error - Default case: volume succeeds but maintenance fetch fails",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           "", // default: fetch both
 			},
@@ -774,7 +766,7 @@ func TestFetchPackagesByType_DefaultMaintenanceFetchError(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.Error(t, err)
 			assert.Nil(t, resp)
@@ -822,7 +814,6 @@ func TestCalculateVolume_NilEventFilter(t *testing.T) {
 			name: "Error - Volume package with nil EventFilter",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeVolume,
 			},
@@ -840,7 +831,7 @@ func TestCalculateVolume_NilEventFilter(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.Error(t, err)
 			assert.Nil(t, resp)
@@ -895,7 +886,6 @@ func TestCalculateVolume_FixedPricingHappyPath(t *testing.T) {
 			name: "Success - Fixed pricing: 50 events * 2.00 = 100.00",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeVolume,
 			},
@@ -917,7 +907,7 @@ func TestCalculateVolume_FixedPricingHappyPath(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, resp)
@@ -952,7 +942,6 @@ func TestCalculateVolume_TransactionCountError(t *testing.T) {
 			name: "Error - CountByRoute returns error",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeVolume,
 			},
@@ -974,7 +963,7 @@ func TestCalculateVolume_TransactionCountError(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.Error(t, err)
 			assert.Nil(t, resp)
@@ -1018,7 +1007,6 @@ func TestCalculateMaintenance_NilAccountTarget(t *testing.T) {
 			name: "Error - Maintenance package with nil AccountTarget",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeMaintenance,
 			},
@@ -1036,7 +1024,7 @@ func TestCalculateMaintenance_NilAccountTarget(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.Error(t, err)
 			assert.Nil(t, resp)
@@ -1085,7 +1073,6 @@ func TestCalculateMaintenance_NilFeeAmount(t *testing.T) {
 			name: "Success - Nil FeeAmount defaults to zero, net amount is zero",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeMaintenance,
 			},
@@ -1109,7 +1096,7 @@ func TestCalculateMaintenance_NilFeeAmount(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, resp)
@@ -1145,7 +1132,6 @@ func TestCalculateMaintenance_ZeroResolvedAccounts(t *testing.T) {
 			name: "Success - Zero resolved accounts returns empty payload",
 			request: model.BillingCalculateRequest{
 				OrganizationID: orgID,
-				LedgerID:       ledgerID,
 				Period:         "2026-01",
 				Type:           model.BillingPackageTypeMaintenance,
 			},
@@ -1166,7 +1152,7 @@ func TestCalculateMaintenance_ZeroResolvedAccounts(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, resp)
@@ -1187,6 +1173,8 @@ func TestBillingCalculateService_InvalidPeriod(t *testing.T) {
 
 	svc, _, _, _ := newTestBillingCalculateService(t)
 
+	ledgerID := uuid.New().String()
+
 	tests := []struct {
 		name        string
 		request     model.BillingCalculateRequest
@@ -1196,7 +1184,6 @@ func TestBillingCalculateService_InvalidPeriod(t *testing.T) {
 			name: "Error - Invalid period format",
 			request: model.BillingCalculateRequest{
 				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
 				Period:         "invalid-period",
 			},
 			errContains: "0224",
@@ -1205,7 +1192,6 @@ func TestBillingCalculateService_InvalidPeriod(t *testing.T) {
 			name: "Error - Empty period",
 			request: model.BillingCalculateRequest{
 				OrganizationID: uuid.New().String(),
-				LedgerID:       uuid.New().String(),
 				Period:         "",
 			},
 			errContains: "0224",
@@ -1215,7 +1201,7 @@ func TestBillingCalculateService_InvalidPeriod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			resp, err := svc.Calculate(ctx, tt.request)
+			resp, err := svc.Calculate(ctx, uuid.MustParse(ledgerID), tt.request)
 
 			assert.Error(t, err)
 			assert.Nil(t, resp)

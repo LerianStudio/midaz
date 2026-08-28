@@ -67,7 +67,7 @@ func TestCreateBillingPackage_EmitsCreatedEvent(t *testing.T) {
 			return in, nil
 		})
 
-	result, err := svc.CreateBillingPackage(context.Background(), bp)
+	result, err := svc.CreateBillingPackage(context.Background(), uuid.MustParse(ledgerID), bp)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 

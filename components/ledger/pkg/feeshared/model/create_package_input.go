@@ -16,7 +16,6 @@ type CreatePackageInput struct {
 	FeeGroupLabel    string         `json:"feeGroupLabel" validate:"required" example:"Pacote Padrão"`
 	Description      *string        `json:"description,omitempty" example:"Pacote de taxas administrativas padrão"`
 	SegmentID        *string        `json:"segmentId" example:"00000000-0000-0000-0000-000000000000"`
-	LedgerID         string         `json:"ledgerId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 	TransactionRoute *string        `json:"transactionRoute,omitempty" example:"debitoted"`
 	MinAmount        string         `json:"minimumAmount" validate:"required" example:"100.00" minimum:"0"`
 	MaxAmount        string         `json:"maximumAmount" validate:"required" example:"1000.20" minimum:"0"`

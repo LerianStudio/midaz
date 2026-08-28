@@ -102,7 +102,6 @@ func TestCreateFeeEstimate(t *testing.T) {
 
 	createFeeInput := &model.FeeEstimate{
 		PackageID:   packID,
-		LedgerID:    ledgerID,
 		Transaction: transactionModel,
 	}
 
@@ -277,7 +276,7 @@ func TestCreateFeeEstimate(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := feeSvc.EstimateFeeCalculation(ctx, createFeeInput, tt.orgID)
+			result, err := feeSvc.EstimateFeeCalculation(ctx, createFeeInput, tt.orgID, ledgerID)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -341,7 +340,6 @@ func TestEstimateFeeCalculation_PackageNotFound_MongoErrNoDocuments(t *testing.T
 
 	feeEstimate := &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
 			Send: transaction.Send{
 				Asset: "BRL",
@@ -365,7 +363,7 @@ func TestEstimateFeeCalculation_PackageNotFound_MongoErrNoDocuments(t *testing.T
 		Return(nil, mongo.ErrNoDocuments)
 
 	ctx := context.Background()
-	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
+	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID, ledgerID)
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	// Verify if the error contains "0007" or the entity not found message
@@ -394,7 +392,6 @@ func TestEstimateFeeCalculation_PackageNotFound_OtherError(t *testing.T) {
 
 	feeEstimate := &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
 			Send: transaction.Send{
 				Asset: "BRL",
@@ -419,7 +416,7 @@ func TestEstimateFeeCalculation_PackageNotFound_OtherError(t *testing.T) {
 		Return(nil, otherError)
 
 	ctx := context.Background()
-	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
+	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID, ledgerID)
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, otherError, err)
@@ -446,7 +443,6 @@ func TestEstimateFeeCalculation_PropagatesValidatorTypedError(t *testing.T) {
 
 	feeEstimate := &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
 			Send: transaction.Send{
 				Asset: "BRL",
@@ -473,7 +469,7 @@ func TestEstimateFeeCalculation_PropagatesValidatorTypedError(t *testing.T) {
 		Return(packEntity, nil)
 
 	ctx := context.Background()
-	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
+	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID, ledgerID)
 	require.Error(t, err)
 	assert.Nil(t, result)
 
@@ -502,7 +498,6 @@ func TestEstimateFeeCalculation_ValueBelowMinimum(t *testing.T) {
 
 	feeEstimate := &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
 			Send: transaction.Send{
 				Asset: "BRL",
@@ -533,10 +528,10 @@ func TestEstimateFeeCalculation_ValueBelowMinimum(t *testing.T) {
 		Return(packEntity, nil)
 
 	ctx := context.Background()
-	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
+	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID, ledgerID)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, feeEstimate.LedgerID, result.LedgerID)
+	assert.Equal(t, ledgerID, result.LedgerID)
 	assert.Nil(t, result.Transaction.Metadata)
 }
 
@@ -558,7 +553,6 @@ func TestEstimateFeeCalculation_ValueAboveMaximum(t *testing.T) {
 
 	feeEstimate := &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
 			Send: transaction.Send{
 				Asset: "BRL",
@@ -589,10 +583,10 @@ func TestEstimateFeeCalculation_ValueAboveMaximum(t *testing.T) {
 		Return(packEntity, nil)
 
 	ctx := context.Background()
-	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
+	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID, ledgerID)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, feeEstimate.LedgerID, result.LedgerID)
+	assert.Equal(t, ledgerID, result.LedgerID)
 	assert.Nil(t, result.Transaction.Metadata)
 }
 
@@ -628,7 +622,6 @@ func TestEstimateFeeCalculation_CalculateFeeError(t *testing.T) {
 
 	feeEstimate := &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
 			Send: transaction.Send{
 				Asset: "BRL",
@@ -671,7 +664,7 @@ func TestEstimateFeeCalculation_CalculateFeeError(t *testing.T) {
 		Return(packEntity, nil)
 
 	ctx := context.Background()
-	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
+	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID, ledgerID)
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "0206")
@@ -709,7 +702,6 @@ func TestEstimateFeeCalculation_NoFeeApplied(t *testing.T) {
 
 	feeEstimate := &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
 			Send: transaction.Send{
 				Asset: "BRL",
@@ -738,7 +730,7 @@ func TestEstimateFeeCalculation_NoFeeApplied(t *testing.T) {
 		Return(packEntity, nil)
 
 	ctx := context.Background()
-	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
+	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID, ledgerID)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	// When there are no fees, the From/To arrays don't change, so metadata is not created
@@ -778,7 +770,6 @@ func TestEstimateFeeCalculation_Success_WithMetadata(t *testing.T) {
 
 	feeEstimate := &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
 			Metadata: nil,
 			Send: transaction.Send{
@@ -822,7 +813,7 @@ func TestEstimateFeeCalculation_Success_WithMetadata(t *testing.T) {
 		Return(packEntity, nil)
 
 	ctx := context.Background()
-	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
+	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID, ledgerID)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.NotNil(t, result.Transaction.Metadata)
@@ -862,7 +853,6 @@ func TestEstimateFeeCalculation_Success_WithExistingMetadata(t *testing.T) {
 
 	feeEstimate := &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
 			Metadata: map[string]any{
 				"existingKey": "existingValue",
@@ -908,7 +898,7 @@ func TestEstimateFeeCalculation_Success_WithExistingMetadata(t *testing.T) {
 		Return(packEntity, nil)
 
 	ctx := context.Background()
-	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
+	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID, ledgerID)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.NotNil(t, result.Transaction.Metadata)
@@ -949,7 +939,6 @@ func TestEstimateFeeCalculation_ValueAtMinimum(t *testing.T) {
 
 	feeEstimate := &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
 			Send: transaction.Send{
 				Asset: "BRL",
@@ -992,7 +981,7 @@ func TestEstimateFeeCalculation_ValueAtMinimum(t *testing.T) {
 		Return(packEntity, nil)
 
 	ctx := context.Background()
-	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
+	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID, ledgerID)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.NotNil(t, result.Transaction.Metadata)
@@ -1032,7 +1021,6 @@ func TestEstimateFeeCalculation_ValueAtMaximum(t *testing.T) {
 
 	feeEstimate := &model.FeeEstimate{
 		PackageID: packID,
-		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
 			Send: transaction.Send{
 				Asset: "BRL",
@@ -1075,7 +1063,7 @@ func TestEstimateFeeCalculation_ValueAtMaximum(t *testing.T) {
 		Return(packEntity, nil)
 
 	ctx := context.Background()
-	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID)
+	result, err := feeSvc.EstimateFeeCalculation(ctx, feeEstimate, orgID, ledgerID)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.NotNil(t, result.Transaction.Metadata)

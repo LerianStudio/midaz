@@ -22,7 +22,6 @@ import (
 // be flagged by the decoder's unknown-field round-trip and never reach the validator.
 func estimateBody(sendAsset string) string {
 	return `{"packageId":"11111111-1111-1111-1111-111111111111",` +
-		`"ledgerId":"22222222-2222-2222-2222-222222222222",` +
 		`"transaction":{"send":{` + sendAsset + `"value":"100",` +
 		`"source":{"from":[{"accountAlias":"@src","amount":{"asset":"USD","value":"100"}}]},` +
 		`"distribute":{"to":[{"accountAlias":"@dst","amount":{"asset":"USD","value":"100"}}]}}}}`
