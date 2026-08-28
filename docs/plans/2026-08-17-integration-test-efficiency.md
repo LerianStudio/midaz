@@ -116,11 +116,14 @@ contract, not shipped behavior.
 | #2344 | `agent/pr2337-layer4-tracer` | **CLOSED**, no merge | `11309b994` (2026-08-19) | deliver durable Ledger outcome protocol |
 | #2337 | `agent/midaz-clean-e2e-streaming` | **CLOSED**, no merge | `a8ce2cfe9` (2026-08-19) | parent PR, P0-P3 |
 
-Verified against `develop` at `2707cbdc0` (2026-08-28): `git ls-files 'components/**' | grep -i outcome`
-returns zero files under both `components/ledger` and `components/tracer`; `originClaim`, `durable
-revert` and `operationRouteFromId` appear only inside this plan file. The durable
-outcome protocol, the durable PostgreSQL revert claim and the additive fee route UUIDs do not exist in
-the product. The only revert artifacts on `develop` are three test files
+Verified against `develop` at `2707cbdc0` (2026-08-28): a bounded `git grep` for
+`originClaim`, `operationRouteFromId`, and `operationRouteToId` under `components/ledger` and
+`components/tracer` returns no matches, and listing those trees finds no path whose name contains
+`outcome`. These checks did not find the planned identifiers or outcome-named artifacts; they do not
+rule out a semantically equivalent implementation under other names. Together with the corresponding
+layers having closed without merge, they support recording the designed durable outcome protocol,
+PostgreSQL revert claim, and additive fee route UUIDs as not shipped by that delivery. The only revert
+artifacts found by a bounded path search on `develop` are three test files
 (`transaction_fee_revert_integration_test.go`, `transaction_revert_no_refund_test.go`,
 `transaction_revert_replayed_test.go`), and `components/tracer/tests/integration/19_reservation_crash_convergence_test.go`
 still pins the lost-confirm undercount as expected behavior. All five closed branches survive in
@@ -135,7 +138,10 @@ Designed revert rollout contract (not deployed): first deploy a freeze-capable l
 
 V1 `remaining` — OPEN, and `develop` moved the other way. The layer-3 design had every resolved leg and balance identity survive direct execution, pending commit, pending cancel, revert, Redis replay, fees, zero-fee no-ops, persistence, and balance synchronization, with fee packages exposing additive `operationRouteFromId` and `operationRouteToId` UUIDs beside passive free-form route labels. That work is in closed PR #2343. Since then the merged direction has been the opposite: **#2407** gated the fee engine off `/v1` transaction routes, **#2408** gated the holder seam off `/v1` routes, **#2409** gated the tracer reservation off `/v1` transaction routes, and **#2412** kept the `/v1` account contract servable on a pre-holder schema. `/v1` on `develop` is now a legacy compatibility surface with those features deliberately switched off — it is not, and is no longer intended to be, the surface where `remaining` works end to end. The measurement once quoted as this item's closure (1,620 selected tests, 1,540 passes, 80 classified skips, 1,320 container starts, 2,972 seconds) was taken on the source branch, not on `develop`.
 
-Final review closure claims — asserted on the source branch, and every one of them that depends on the durable outcome protocol is provably absent from `develop` (zero `outcome` files under `components/`); treat the rest as unverified against `develop` rather than as shipped: decimal balance arithmetic exact beyond IEEE-754 precision; Ledger discovering multi-tenant outcome backlog from durable state instead of an expiring process cache; outcome, active index, schedule, and tenant discovery sharing one Redis Cluster slot and one atomic prepare; V2 admission requiring non-evicting AOF-backed Valkey; Ledger-to-Tracer REST on a dedicated always-on API key with mTLS and tenant identity; rolling Tracer deployments failing before the money path unless the selected pod explicitly accepts the V2 protocol; async persistence publishing terminal status and the complete operation multiset in one PostgreSQL commit so no reader observes an approved half-entry; and the required E2E proving the complete Ledger-to-Tracer flow, receipt persistence, exact audit context, and replay after a lost acknowledgement.
+Final review closure claims — asserted on the source branch. For claims that depend on the durable
+outcome protocol, the bounded searches above did not find the planned identifiers or outcome-named
+artifacts on `develop`; treat those claims, and the rest, as unverified against `develop` rather than
+as shipped: decimal balance arithmetic exact beyond IEEE-754 precision; Ledger discovering multi-tenant outcome backlog from durable state instead of an expiring process cache; outcome, active index, schedule, and tenant discovery sharing one Redis Cluster slot and one atomic prepare; V2 admission requiring non-evicting AOF-backed Valkey; Ledger-to-Tracer REST on a dedicated always-on API key with mTLS and tenant identity; rolling Tracer deployments failing before the money path unless the selected pod explicitly accepts the V2 protocol; async persistence publishing terminal status and the complete operation multiset in one PostgreSQL commit so no reader observes an approved half-entry; and the required E2E proving the complete Ledger-to-Tracer flow, receipt persistence, exact audit context, and replay after a lost acknowledgement.
 
 ### P0 exit gate
 
