@@ -470,24 +470,35 @@ committed transaction (3-goroutine post-commit cascade), gated by
 
 #### `balance.config-changed` — no pinned count (11 in fixture)
 
-Source: `pkg/streaming/events/balance_config_changed.go`. Trigger: `UseCase.Update`
-(`update_balance.go`), with **two emission branches**:
+Source: `pkg/streaming/events/balance_config_changed.go`. Emitted from two use
+cases with **two emission branches**:
 
-1. **`changeType = settings_updated`** — ordinary settings PATCH
-   (`AllowSending`, `AllowReceiving`, `Settings.*`). `id` = the updated parent
-   balance.
-2. **`changeType = overdraft_enabled`** — emitted exactly once on the
-   false→true overdraft transition, from `ensureOverdraftBalance`. `id` = the
-   **newly-materialized companion overdraft balance** (the companion's identity
-   becoming known IS the "config changed" signal). This event substitutes for a
-   `balance.created` on the companion (suppressed because companions are
-   system-managed).
+1. **`changeType = settings_updated`** — ordinary settings PATCH via
+   `UseCase.Update` (`update_balance.go`): `AllowSending`, `AllowReceiving`,
+   `Settings.*`. `id` = the updated parent balance.
+2. **`changeType = overdraft_enabled`** — emitted exactly once per
+   materialization of the companion overdraft balance, from
+   `ensureOverdraftBalance`. Two verbs reach that path: a PATCH flipping
+   `AllowOverdraft` false→true, and a POST additional balance carrying
+   `settings.allowOverdraft=true`. `id` = the **newly-materialized companion
+   overdraft balance** (the companion's identity becoming known IS the "config
+   changed" signal). This event substitutes for a `balance.created` on the
+   companion (suppressed because companions are system-managed). Idempotent
+   reuse of an existing companion and race-loser paths do not emit.
 
 > A single PATCH flipping `AllowOverdraft` false→true produces **TWO**
 > `config-changed` events: `overdraft_enabled` (companion) then
 > `settings_updated` (parent). Ordering enforced by the use case
 > (`ensureOverdraftBalance` runs before `BalanceRepo.Update`). Internal-scope
 > balances cannot be updated via the public API (rejected by the scope guard).
+
+> On the create path, a POST additional balance with
+> `settings.allowOverdraft=true` provisions the companion before persisting the
+> parent, then emits in parent→companion order: `balance.created` (parent)
+> followed by `config-changed` with `changeType=overdraft_enabled` (companion).
+> This inverts the PATCH ordering: on create, `balance.created` is the
+> aggregate's birth event, so consumers observe the parent before the
+> companion's config signal.
 
 | Key | Type | Notes |
 |-----|------|-------|

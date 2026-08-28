@@ -328,6 +328,8 @@ type CreateAdditionalBalance struct {
 
 	// Settings is the optional per-balance configuration (overdraft,
 	// balance scope). When omitted, platform defaults are applied.
+	// Setting allowOverdraft=true provisions the system-managed "overdraft"
+	// companion balance for this account.
 	// required: false
 	Settings *BalanceSettings `json:"settings,omitempty"`
 } // @name CreateAdditionalBalance
