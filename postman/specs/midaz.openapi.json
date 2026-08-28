@@ -20702,13 +20702,9 @@
           }
         },
         "required": [
-          "id",
-          "organizationId",
           "label",
           "type",
-          "enable",
-          "createdAt",
-          "updatedAt"
+          "enable"
         ],
         "type": "object"
       },

@@ -16,8 +16,8 @@ import (
 // server-managed id/organizationId/timestamps — so a body carrying them stays tolerated
 // as before (the create path overwrites/sets them); only ledgerId leaves the wire.
 type CreateBillingPackageInput struct {
-	ID             string  `json:"id" example:"00000000-0000-0000-0000-000000000000"`
-	OrganizationID string  `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
+	ID             string  `json:"id,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	OrganizationID string  `json:"organizationId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
 	Label          string  `json:"label" example:"Monthly Volume Billing"`
 	Description    *string `json:"description,omitempty" example:"Charges per completed transaction route"`
 	Type           string  `json:"type" example:"volume" enums:"volume,maintenance"`
@@ -40,8 +40,8 @@ type CreateBillingPackageInput struct {
 	AccountTarget            *AccountTarget   `json:"accountTarget,omitempty"`
 
 	// Timestamps.
-	CreatedAt string  `json:"createdAt" example:"2026-01-01T00:00:00Z"`
-	UpdatedAt string  `json:"updatedAt" example:"2026-01-01T00:00:00Z"`
+	CreatedAt string  `json:"createdAt,omitempty" example:"2026-01-01T00:00:00Z"`
+	UpdatedAt string  `json:"updatedAt,omitempty" example:"2026-01-01T00:00:00Z"`
 	DeletedAt *string `json:"deletedAt,omitempty" example:"2026-06-01T00:00:00Z"`
 }
 
