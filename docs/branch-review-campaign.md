@@ -1,5 +1,14 @@
 # LEDGER.md — Branch Review Audit & Remediation Campaign
 
+> **HISTORICAL — DEAD PANEL. Do not read the marks below as current state.**
+> Stamped 2026-08-28. This doc tracks remediation on `feat/monorepo-consolidation`, a branch that
+> **no longer exists**: `git ls-remote --heads origin | grep monorepo-consolidation` returns zero
+> matches, as does `git branch -r`. The campaign was never formally closed, so its ⬜/🔄/✅ marks
+> froze at the last edit (`41db7bce1`, 2026-07-01) and have not tracked the code since. The
+> consolidated monorepo it audited is what `develop` ships today; any finding still worth acting on
+> has to be re-verified against `develop`, not inherited from this table. Kept for the audit trail
+> — the 68-finding classification and its reasoning — not as a work list.
+
 Tracking doc for the `feat/monorepo-consolidation` code-review remediation. This is the
 **filtered** version of a 41-reviewer Gate-8 review (68 raw findings) after a skeptical
 per-finding audit (11 cluster auditors reading real code) classified each as REAL,
