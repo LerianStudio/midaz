@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -67,6 +68,11 @@ type BalanceSyncWorker struct {
 	tenantCache    *tenantcache.TenantCache
 	pgResolver     tenantPGResolver
 	serviceName    string
+	// collectorsMu guards collectors. The reconcile loop, the tenant-eviction
+	// callback and the ownership checker all reach the map from different
+	// goroutines.
+	collectorsMu sync.Mutex
+	collectors   map[string]*tenantCollector
 	// flushBatchFn is the flush body the collectors call. It defaults to
 	// flushBatch; tests replace it to observe the context a flush receives.
 	flushBatchFn func(ctx context.Context, keys []redisTransaction.SyncKey) bool
@@ -122,6 +128,7 @@ func NewBalanceSyncWorker(logger libLog.Logger, useCase *command.UseCase, syncCf
 		idleWait:   idleWait,
 		syncConfig: syncCfg,
 		useCase:    useCase,
+		collectors: make(map[string]*tenantCollector),
 	}
 	w.flushBatchFn = w.flushBatch
 
@@ -266,13 +273,12 @@ func (w *BalanceSyncWorker) runWorkerMT() error {
 		libLog.String("reconcile_interval", tenantReconcileInterval.String()),
 	)
 
-	collectors := make(map[string]*tenantCollector)
-	defer w.stopAllCollectors(ctx, collectors)
+	defer w.stopAllCollectors(ctx)
 
 	// Reconcile immediately on startup so collectors start without waiting for the
 	// first tick (10s). On the first call the map is empty, so phases 1-2 are no-ops
 	// and phase 3 launches a collector for every tenant in the cache.
-	w.reconcileCollectors(ctx, collectors)
+	w.reconcileCollectors(ctx)
 
 	ticker := time.NewTicker(tenantReconcileInterval)
 	defer ticker.Stop()
@@ -284,7 +290,7 @@ func (w *BalanceSyncWorker) runWorkerMT() error {
 
 			return nil
 		case <-ticker.C:
-			w.reconcileCollectors(ctx, collectors)
+			w.reconcileCollectors(ctx)
 		}
 	}
 }
@@ -294,7 +300,7 @@ func (w *BalanceSyncWorker) runWorkerMT() error {
 //  1. Reap: detect collectors whose goroutines exited unexpectedly (e.g., panic)
 //  2. Stop: cancel collectors for tenants no longer in the cache
 //  3. Start: launch collectors for newly discovered tenants
-func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context, collectors map[string]*tenantCollector) {
+func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context) {
 	tenantIDs := w.tenantCache.TenantIDs()
 
 	activeSet := make(map[string]struct{}, len(tenantIDs))
@@ -302,23 +308,28 @@ func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context, collectors 
 		activeSet[id] = struct{}{}
 	}
 
+	var (
+		removed []*tenantCollector
+		missing []string
+	)
+
+	w.collectorsMu.Lock()
+
 	// Phase 1: Reap dead collectors (goroutine exited unexpectedly).
 	// Removing them from the map allows Phase 3 to restart them if the tenant is still active.
-	for id, tc := range collectors {
+	for id, tc := range w.collectors {
 		select {
 		case <-tc.done:
 			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: collector exited unexpectedly, will restart",
 				libLog.String("tenant_id", id))
 
-			delete(collectors, id)
+			delete(w.collectors, id)
 		default:
 		}
 	}
 
 	// Phase 2: Cancel collectors for removed tenants (non-blocking cancel, deferred wait).
-	var removed []*tenantCollector
-
-	for id, tc := range collectors {
+	for id, tc := range w.collectors {
 		if _, ok := activeSet[id]; !ok {
 			w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: tenant removed from cache, stopping collector",
 				libLog.String("tenant_id", id))
@@ -327,20 +338,44 @@ func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context, collectors 
 
 			removed = append(removed, tc)
 
-			delete(collectors, id)
+			delete(w.collectors, id)
 		}
 	}
 
-	// Phase 3: Start collectors for new tenants.
 	for _, id := range tenantIDs {
-		if _, ok := collectors[id]; ok {
-			continue // already running
+		if _, ok := w.collectors[id]; !ok {
+			missing = append(missing, id)
+		}
+	}
+
+	w.collectorsMu.Unlock()
+
+	// Phase 3: Start collectors for new tenants. Spawning happens outside the lock
+	// because the PG preflight reaches the network, and StopTenantCollector runs on
+	// the tenant-event goroutine.
+	for _, id := range missing {
+		tc := w.startTenantCollector(ctx, id)
+		if tc == nil {
+			continue
 		}
 
-		tc := w.startTenantCollector(ctx, id)
-		if tc != nil {
-			collectors[id] = tc
+		w.collectorsMu.Lock()
+
+		if _, taken := w.collectors[id]; taken {
+			w.collectorsMu.Unlock()
+
+			// Another goroutine registered a collector for this tenant while we were
+			// spawning. Drop ours; its buffer is still empty, so the final flush is
+			// a no-op.
+			tc.cancel()
+			<-tc.done
+
+			continue
 		}
+
+		w.collectors[id] = tc
+
+		w.collectorsMu.Unlock()
 	}
 
 	// Phase 4: Wait for removed collectors to finish (all cancellations already sent in Phase 2).
@@ -450,29 +485,93 @@ func (w *BalanceSyncWorker) resolveTenantPG(ctx context.Context, tenantID string
 	return tmcore.ContextWithPG(ctx, db, constant.ModuleTransaction), nil
 }
 
+// StopTenantCollector cancels the collector for tenantID, waits for its final flush
+// to drain, and forgets it. Call it BEFORE closing the tenant's PostgreSQL pool so
+// that flush lands in a live pool. A tenant with no collector is a no-op. The next
+// reconcile restarts the collector when the tenant is still in the TenantCache.
+func (w *BalanceSyncWorker) StopTenantCollector(tenantID string) {
+	w.collectorsMu.Lock()
+
+	tc, ok := w.collectors[tenantID]
+	if ok {
+		delete(w.collectors, tenantID)
+	}
+
+	w.collectorsMu.Unlock()
+
+	if !ok {
+		return
+	}
+
+	ctx := context.Background()
+
+	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: tenant evicted, stopping collector",
+		libLog.String("tenant_id", tenantID))
+
+	tc.cancel()
+
+	// Bound the wait by the collector's own drain deadline: giving up earlier would
+	// guarantee the truncated final flush this ordering exists to avoid, and waiting
+	// longer would hold the tenant-event goroutine past the point the collector
+	// itself has given up.
+	timer := time.NewTimer(shutdownFlushTimeout)
+	defer timer.Stop()
+
+	select {
+	case <-tc.done:
+		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: collector stopped",
+			libLog.String("tenant_id", tenantID))
+	case <-timer.C:
+		w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: collector did not drain before deadline",
+			libLog.String("tenant_id", tenantID),
+			libLog.String("deadline", shutdownFlushTimeout.String()))
+	}
+}
+
+// HasCollector reports whether a collector is running for tenantID. The tenant
+// ownership checker reads it so an eviction still sees midaz as owning a tenant
+// whose cache entry has TTL-expired while its collector runs.
+func (w *BalanceSyncWorker) HasCollector(tenantID string) bool {
+	w.collectorsMu.Lock()
+	defer w.collectorsMu.Unlock()
+
+	_, ok := w.collectors[tenantID]
+
+	return ok
+}
+
 // stopAllCollectors cancels all running tenant collectors and waits for them to finish.
 // Each collector's deferred flushRemaining runs on cancellation, draining any buffered keys.
-func (w *BalanceSyncWorker) stopAllCollectors(ctx context.Context, collectors map[string]*tenantCollector) {
-	if len(collectors) == 0 {
+func (w *BalanceSyncWorker) stopAllCollectors(ctx context.Context) {
+	w.collectorsMu.Lock()
+
+	running := make(map[string]*tenantCollector, len(w.collectors))
+	for id, tc := range w.collectors {
+		running[id] = tc
+
+		delete(w.collectors, id)
+	}
+
+	w.collectorsMu.Unlock()
+
+	if len(running) == 0 {
 		return
 	}
 
 	w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: stopping all tenant collectors",
-		libLog.Int("count", len(collectors)))
+		libLog.Int("count", len(running)))
 
 	// Cancel all collectors concurrently
-	for _, tc := range collectors {
+	for _, tc := range running {
 		tc.cancel()
 	}
 
 	// Wait for all to finish (each flushes its remaining buffer)
-	for id, tc := range collectors {
+	for id, tc := range running {
 		<-tc.done
 
 		w.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncWorker: collector stopped",
 			libLog.String("tenant_id", id))
-
-		delete(collectors, id)
 	}
 }
 

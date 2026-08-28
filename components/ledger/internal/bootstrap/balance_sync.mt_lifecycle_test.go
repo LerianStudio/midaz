@@ -79,6 +79,21 @@ func newTestWorkerWithCache(t *testing.T, cache *tenantcache.TenantCache) *Balan
 	)
 }
 
+// collectorTenantIDs returns the tenants with a running collector. It lives here
+// because only assertions need to enumerate the map; production reads one tenant
+// at a time through HasCollector.
+func (w *BalanceSyncWorker) collectorTenantIDs() []string {
+	w.collectorsMu.Lock()
+	defer w.collectorsMu.Unlock()
+
+	ids := make([]string, 0, len(w.collectors))
+	for id := range w.collectors {
+		ids = append(ids, id)
+	}
+
+	return ids
+}
+
 // newTestWorkerWithResolver creates an MT-ready BalanceSyncWorker whose tenant PG
 // resolution is driven by resolver, so a test can both control what a flush sees
 // and count how often the handle is resolved.
@@ -156,16 +171,16 @@ func TestReconcileCollectors_ReapsDeadCollector(t *testing.T) {
 	w := newTestWorkerWithCache(t, cache)
 
 	// Pre-populate with a dead collector (goroutine already exited)
-	collectors := map[string]*tenantCollector{
+	w.collectors = map[string]*tenantCollector{
 		"tenant-1": newDeadTenantCollector("tenant-1"),
 	}
 
 	ctx := context.Background()
-	w.reconcileCollectors(ctx, collectors)
+	w.reconcileCollectors(ctx)
 
 	// Dead collector should be reaped. PG failure prevents restart,
 	// so the map should be empty.
-	assert.Empty(t, collectors, "dead collector should be reaped; PG failure prevents restart")
+	assert.Empty(t, w.collectorTenantIDs(), "dead collector should be reaped; PG failure prevents restart")
 }
 
 func TestReconcileCollectors_StopsRemovedTenant(t *testing.T) {
@@ -177,12 +192,12 @@ func TestReconcileCollectors_StopsRemovedTenant(t *testing.T) {
 	w := newTestWorkerWithCache(t, cache)
 
 	tc := newFakeTenantCollector("tenant-1")
-	collectors := map[string]*tenantCollector{
+	w.collectors = map[string]*tenantCollector{
 		"tenant-1": tc,
 	}
 
 	ctx := context.Background()
-	w.reconcileCollectors(ctx, collectors)
+	w.reconcileCollectors(ctx)
 
 	// Collector should have been cancelled and awaited
 	select {
@@ -192,7 +207,7 @@ func TestReconcileCollectors_StopsRemovedTenant(t *testing.T) {
 		t.Fatal("collector goroutine should have exited after cancel")
 	}
 
-	assert.Empty(t, collectors, "removed tenant's collector should be deleted from map")
+	assert.Empty(t, w.collectorTenantIDs(), "removed tenant's collector should be deleted from map")
 }
 
 func TestReconcileCollectors_StopsMultipleRemovedTenants(t *testing.T) {
@@ -208,14 +223,14 @@ func TestReconcileCollectors_StopsMultipleRemovedTenants(t *testing.T) {
 	tc3 := newFakeTenantCollector("tenant-3")
 	tc2 := newFakeTenantCollector("tenant-2")
 
-	collectors := map[string]*tenantCollector{
+	w.collectors = map[string]*tenantCollector{
 		"tenant-1": tc1,
 		"tenant-2": tc2,
 		"tenant-3": tc3,
 	}
 
 	ctx := context.Background()
-	w.reconcileCollectors(ctx, collectors)
+	w.reconcileCollectors(ctx)
 
 	// tenant-1 and tenant-3 should be stopped
 	select {
@@ -237,8 +252,8 @@ func TestReconcileCollectors_StopsMultipleRemovedTenants(t *testing.T) {
 	default:
 	}
 
-	assert.Len(t, collectors, 1, "only tenant-2 should remain")
-	assert.Contains(t, collectors, "tenant-2")
+	assert.Len(t, w.collectorTenantIDs(), 1, "only tenant-2 should remain")
+	assert.Contains(t, w.collectorTenantIDs(), "tenant-2")
 
 	// Cleanup
 	tc2.cancel()
@@ -254,16 +269,16 @@ func TestReconcileCollectors_NoOpWhenCollectorsMatchCache(t *testing.T) {
 	w := newTestWorkerWithCache(t, cache)
 
 	tc := newFakeTenantCollector("tenant-1")
-	collectors := map[string]*tenantCollector{
+	w.collectors = map[string]*tenantCollector{
 		"tenant-1": tc,
 	}
 
 	ctx := context.Background()
-	w.reconcileCollectors(ctx, collectors)
+	w.reconcileCollectors(ctx)
 
 	// Collector should still be running, map unchanged
-	assert.Len(t, collectors, 1)
-	assert.Contains(t, collectors, "tenant-1")
+	assert.Len(t, w.collectorTenantIDs(), 1)
+	assert.Contains(t, w.collectorTenantIDs(), "tenant-1")
 
 	select {
 	case <-tc.done:
@@ -284,12 +299,10 @@ func TestReconcileCollectors_EmptyCache(t *testing.T) {
 
 	w := newTestWorkerWithCache(t, cache)
 
-	collectors := make(map[string]*tenantCollector)
-
 	ctx := context.Background()
-	w.reconcileCollectors(ctx, collectors)
+	w.reconcileCollectors(ctx)
 
-	assert.Empty(t, collectors, "no tenants = no collectors")
+	assert.Empty(t, w.collectorTenantIDs(), "no tenants = no collectors")
 }
 
 func TestReconcileCollectors_NewTenantPGFails(t *testing.T) {
@@ -300,13 +313,11 @@ func TestReconcileCollectors_NewTenantPGFails(t *testing.T) {
 
 	w := newTestWorkerWithCache(t, cache) // unreachable pgManager
 
-	collectors := make(map[string]*tenantCollector)
-
 	ctx := context.Background()
-	w.reconcileCollectors(ctx, collectors)
+	w.reconcileCollectors(ctx)
 
 	// startTenantCollector should have failed (PG unreachable) — not added to map
-	assert.Empty(t, collectors, "PG failure should prevent collector from starting")
+	assert.Empty(t, w.collectorTenantIDs(), "PG failure should prevent collector from starting")
 }
 
 func TestReconcileCollectors_DeadCollectorRestartedButPGFails(t *testing.T) {
@@ -318,15 +329,15 @@ func TestReconcileCollectors_DeadCollectorRestartedButPGFails(t *testing.T) {
 	w := newTestWorkerWithCache(t, cache)
 
 	// Dead collector
-	collectors := map[string]*tenantCollector{
+	w.collectors = map[string]*tenantCollector{
 		"tenant-1": newDeadTenantCollector("tenant-1"),
 	}
 
 	ctx := context.Background()
-	w.reconcileCollectors(ctx, collectors)
+	w.reconcileCollectors(ctx)
 
 	// Dead collector reaped (Phase 1), restart attempted (Phase 3) but PG fails
-	assert.Empty(t, collectors, "restart should fail due to PG, leaving map empty")
+	assert.Empty(t, w.collectorTenantIDs(), "restart should fail due to PG, leaving map empty")
 }
 
 // --------------------------------------------------------------------
@@ -342,14 +353,14 @@ func TestStopAllCollectors_CancelsAndWaitsForAll(t *testing.T) {
 	tc2 := newFakeTenantCollector("tenant-2")
 	tc3 := newFakeTenantCollector("tenant-3")
 
-	collectors := map[string]*tenantCollector{
+	w.collectors = map[string]*tenantCollector{
 		"tenant-1": tc1,
 		"tenant-2": tc2,
 		"tenant-3": tc3,
 	}
 
 	ctx := context.Background()
-	w.stopAllCollectors(ctx, collectors)
+	w.stopAllCollectors(ctx)
 
 	// All should be stopped
 	for name, tc := range map[string]*tenantCollector{
@@ -364,7 +375,7 @@ func TestStopAllCollectors_CancelsAndWaitsForAll(t *testing.T) {
 		}
 	}
 
-	assert.Empty(t, collectors, "map should be cleared")
+	assert.Empty(t, w.collectorTenantIDs(), "map should be cleared")
 }
 
 func TestStopAllCollectors_EmptyMap(t *testing.T) {
@@ -372,12 +383,10 @@ func TestStopAllCollectors_EmptyMap(t *testing.T) {
 
 	w := &BalanceSyncWorker{logger: newTestLogger()}
 
-	collectors := make(map[string]*tenantCollector)
-
 	// Should not panic or block
-	w.stopAllCollectors(context.Background(), collectors)
+	w.stopAllCollectors(context.Background())
 
-	assert.Empty(t, collectors)
+	assert.Empty(t, w.collectorTenantIDs())
 }
 
 // --------------------------------------------------------------------
@@ -531,33 +540,32 @@ func TestReconcileCollectors_FullLifecycle(t *testing.T) {
 	cache := tenantcache.NewTenantCache()
 	w := newTestWorkerWithCache(t, cache)
 	ctx := context.Background()
-	collectors := make(map[string]*tenantCollector)
 
 	// Round 1: Empty cache → nothing happens
-	w.reconcileCollectors(ctx, collectors)
-	assert.Empty(t, collectors)
+	w.reconcileCollectors(ctx)
+	assert.Empty(t, w.collectorTenantIDs())
 
 	// Round 2: Add tenant-1 (PG fails, so won't start, but no crash)
 	cache.Set("tenant-1", &tmcore.TenantConfig{ID: "tenant-1"}, 1*time.Hour)
-	w.reconcileCollectors(ctx, collectors)
-	assert.Empty(t, collectors, "PG failure prevents start")
+	w.reconcileCollectors(ctx)
+	assert.Empty(t, w.collectorTenantIDs(), "PG failure prevents start")
 
 	// Round 3: Manually inject a running collector (simulating successful PG)
 	tc1 := newFakeTenantCollector("tenant-1")
-	collectors["tenant-1"] = tc1
-	w.reconcileCollectors(ctx, collectors)
-	assert.Len(t, collectors, 1, "existing collector left running")
+	w.collectors["tenant-1"] = tc1
+	w.reconcileCollectors(ctx)
+	assert.Len(t, w.collectorTenantIDs(), 1, "existing collector left running")
 
 	// Round 4: Add tenant-2 (PG fails), tenant-1 still running
 	cache.Set("tenant-2", &tmcore.TenantConfig{ID: "tenant-2"}, 1*time.Hour)
-	w.reconcileCollectors(ctx, collectors)
-	assert.Len(t, collectors, 1, "tenant-1 still running, tenant-2 failed to start")
-	assert.Contains(t, collectors, "tenant-1")
+	w.reconcileCollectors(ctx)
+	assert.Len(t, w.collectorTenantIDs(), 1, "tenant-1 still running, tenant-2 failed to start")
+	assert.Contains(t, w.collectorTenantIDs(), "tenant-1")
 
 	// Round 5: Remove tenant-1 from cache → collector stopped
 	cache.Delete("tenant-1")
-	w.reconcileCollectors(ctx, collectors)
-	assert.Empty(t, collectors, "tenant-1 removed, tenant-2 PG still failing")
+	w.reconcileCollectors(ctx)
+	assert.Empty(t, w.collectorTenantIDs(), "tenant-1 removed, tenant-2 PG still failing")
 
 	select {
 	case <-tc1.done:
@@ -578,8 +586,6 @@ func TestReconcileCollectors_ConcurrentSafety(t *testing.T) {
 	w := newTestWorkerWithCache(t, cache)
 	ctx := context.Background()
 
-	collectors := make(map[string]*tenantCollector)
-
 	// Simulates a collector that crashes/exits on its own
 	shortLived := func() *tenantCollector {
 		done := make(chan struct{})
@@ -593,16 +599,16 @@ func TestReconcileCollectors_ConcurrentSafety(t *testing.T) {
 		return &tenantCollector{tenantID: "tenant-1", cancel: func() {}, done: done}
 	}
 
-	collectors["tenant-1"] = shortLived()
+	w.collectors["tenant-1"] = shortLived()
 
 	// Wait for the collector to die
-	<-collectors["tenant-1"].done
+	<-w.collectors["tenant-1"].done
 
 	// Reconcile should detect the dead collector and attempt restart
-	w.reconcileCollectors(ctx, collectors)
+	w.reconcileCollectors(ctx)
 
 	// Should be empty (reap + PG failure on restart)
-	assert.Empty(t, collectors)
+	assert.Empty(t, w.collectorTenantIDs())
 }
 
 // --------------------------------------------------------------------
@@ -641,14 +647,14 @@ func TestStopAllCollectors_CancelsBeforeWaiting(t *testing.T) {
 		return &tenantCollector{tenantID: id, cancel: wrappedCancel, done: done}
 	}
 
-	collectors := map[string]*tenantCollector{
+	w.collectors = map[string]*tenantCollector{
 		"t1": makeCollector("t1"),
 		"t2": makeCollector("t2"),
 		"t3": makeCollector("t3"),
 	}
 
 	start := time.Now()
-	w.stopAllCollectors(context.Background(), collectors)
+	w.stopAllCollectors(context.Background())
 	elapsed := time.Since(start)
 
 	// All three should have been cancelled
@@ -661,7 +667,7 @@ func TestStopAllCollectors_CancelsBeforeWaiting(t *testing.T) {
 	assert.Less(t, elapsed, 200*time.Millisecond,
 		"stop should be fast since cancels happen before waits")
 
-	assert.Empty(t, collectors, "map should be cleared")
+	assert.Empty(t, w.collectorTenantIDs(), "map should be cleared")
 }
 
 // --------------------------------------------------------------------
