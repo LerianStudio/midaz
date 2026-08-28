@@ -79,11 +79,10 @@ func TestBuildStreamingManifestHandler_AdvertisesApplicationTopic(t *testing.T) 
 
 	defs := midazEventDefinitions()
 
-	// The manifest advertises exactly the midaz definitions — no billing entry,
-	// which rides a fixed literal topic owned by lib-streaming's billing package
-	// rather than the ledger's application topic.
+	// The manifest advertises exactly the midaz definitions, which is the whole
+	// catalog: every event the ledger emits rides its one application topic.
 	require.Len(t, doc.Events, len(defs),
-		"manifest must advertise exactly the midaz definitions (billing excluded)")
+		"manifest must advertise exactly the midaz definitions")
 
 	byKey := make(map[string]string, len(doc.Events))
 	for _, ev := range doc.Events {
