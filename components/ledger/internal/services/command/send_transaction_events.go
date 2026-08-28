@@ -16,6 +16,7 @@ import (
 	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -206,6 +207,29 @@ func (uc *UseCase) emitFeesAppliedEvent(ctx context.Context, span trace.Span, lo
 		})
 }
 
+// operationEventPayload is the wire shape of one entry in the lifecycle
+// payload's operations array: the operation marshalled verbatim, plus the
+// type of the account it moved.
+//
+// The operation is embedded, so every key it already emitted keeps its name,
+// type and value — the view only adds accountType, and a consumer that ignores
+// the new key reads an unchanged document.
+//
+// This lives here rather than in pkg/streaming/events for the same reason the
+// operations array is []json.RawMessage: operation.Operation sits behind an
+// internal/ boundary the events package cannot import, so the inner shape of
+// that array is the caller's to assemble.
+//
+// AccountType carries no omitempty. The account's type is required on every
+// account, so the key is always meaningful; an empty value means the operation
+// reached the emit without one — an in-flight queue payload produced before
+// this field existed — which a consumer can tell apart from any real type.
+type operationEventPayload struct {
+	*operation.Operation
+
+	AccountType string `json:"accountType"`
+}
+
 // buildTransactionEventSource maps a persisted Transaction into the
 // wire-decoupled TransactionSource consumed by the events package
 // constructors. The mapping does the one heavy lift the events package
@@ -225,7 +249,11 @@ func buildTransactionEventSource(tran *transaction.Transaction) (events.Transact
 			continue
 		}
 
-		raw, err := json.Marshal(op)
+		// Every operation is decorated, external accounts included. Dropping
+		// the external legs here would take with them the evidence that the
+		// leg existed at all, and a consumer could no longer reconcile the
+		// transaction against the ledger.
+		raw, err := json.Marshal(operationEventPayload{Operation: op, AccountType: op.AccountType})
 		if err != nil {
 			return events.TransactionSource{}, fmt.Errorf("marshal operation[%d]: %w", i, err)
 		}
