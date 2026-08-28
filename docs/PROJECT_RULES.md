@@ -1057,6 +1057,42 @@ type BalanceSyncConfig struct {
 **Naming convention:** Multi-tenant code uses the `MT` suffix (`NewBalanceSyncWorkerMT`,
 `isMTReady`, `mtEnabled`, `runWorkerMT`). Default (single-tenant) code uses no qualifier.
 
+**Rule — a long-lived MT worker resolves its tenant connection per cycle, never at spawn.**
+A tenant manager may close or swap a tenant's pool at any time (credentials rotation,
+`tenant.cache.invalidate`, `tenant.removed`), so a handle captured once into a
+goroutine's context dangles for the rest of the process's life. Resolve it inside the
+unit of work and inject it into that call's context only:
+
+```go
+// balance_sync.worker.go — resolved per flush, injected into the flush context
+pgCtx, err := w.resolveTenantPG(flushCtx, tenantID)
+if err != nil {
+    // degraded but recoverable: skip this batch, keep the collector running
+    return false
+}
+
+return w.flushBatchFn(pgCtx, keys)
+```
+
+`tmpostgres.Manager.GetConnection` pings the cached pool and rebuilds it when the ping
+fails, so per-call resolution is self-healing with no extra logic. The cost is one ping
+per call. A resolution failure is a `Warn`, not an `Error` (T7): the next cycle retries,
+and claimed keys return to the ZSET when their claim TTL expires.
+
+The same rule holds across the monorepo: `RedisQueueConsumer` resolves per cycle,
+the MT RabbitMQ consumer per message, and the tracer's workers per cycle through
+`workers/pool_resolver.go`.
+
+**Rule — a tenant eviction stops the tenant's worker goroutine before its pool closes.**
+A worker owning per-tenant goroutines exposes a per-tenant stop, and the eviction
+callback calls it ahead of `CloseConnection` so the final flush drains into a live
+pool (`BalanceSyncWorker.StopTenantCollector`, wired in `WithOnTenantRemoved`;
+the tracer does the same through `supervisor.StopWorkers`). Stopping is not removal —
+a tenant still in the `TenantCache` gets its goroutine back on the next reconcile.
+Such a worker also answers `WithTenantOwnershipChecker`: a live per-tenant goroutine
+means midaz owns the tenant even when the cache entry has TTL-expired, and without
+that the reload which restarts the goroutine is skipped.
+
 ### Redis Queue Consumer (Transaction Component)
 
 Backup/retry queue for transaction operations when async processing via RabbitMQ fails:

@@ -225,7 +225,7 @@ func (c *BalanceSyncCollector) handleIdleMode(ctx context.Context, timer *time.T
 }
 
 // flushRemaining drains any leftover buffer on shutdown.
-// ctx carries context values (tenant ID, PG connection) needed by the flush callback.
+// ctx carries the context values (e.g. tenant ID) the flush callback needs.
 // The cancellation signal is stripped via context.WithoutCancel so the final flush
 // can complete even after the parent context has been cancelled.
 const shutdownFlushTimeout = 30 * time.Second
@@ -237,8 +237,8 @@ func (c *BalanceSyncCollector) flushRemaining(ctx context.Context) {
 	c.mu.Unlock()
 
 	if len(remaining) > 0 && c.flushFn != nil {
-		// Use WithoutCancel to preserve context values (tenant ID, PG connection)
-		// while removing the cancellation signal that already fired.
+		// Use WithoutCancel to preserve context values (e.g. tenant ID) while
+		// removing the cancellation signal that already fired.
 		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownFlushTimeout)
 		defer cancel()
 

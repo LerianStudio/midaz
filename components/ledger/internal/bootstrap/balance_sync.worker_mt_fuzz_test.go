@@ -65,10 +65,10 @@ func FuzzNewBalanceSyncWorkerMT(f *testing.F) {
 		}
 
 		// Property: isMTReady() equals the conjunction of all three conditions.
-		expectedReady := mtEnabled && worker.pgManager != nil && worker.tenantCache != nil
+		expectedReady := mtEnabled && worker.pgResolver != nil && worker.tenantCache != nil
 		if worker.isMTReady() != expectedReady {
-			t.Fatalf("isMTReady() = %v, want %v (mtEnabled=%v, pgManager=%v, tenantCache=%v)",
-				worker.isMTReady(), expectedReady, mtEnabled, worker.pgManager != nil, worker.tenantCache != nil)
+			t.Fatalf("isMTReady() = %v, want %v (mtEnabled=%v, pgResolver=%v, tenantCache=%v)",
+				worker.isMTReady(), expectedReady, mtEnabled, worker.pgResolver != nil, worker.tenantCache != nil)
 		}
 	})
 }
