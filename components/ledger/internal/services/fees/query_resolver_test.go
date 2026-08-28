@@ -29,11 +29,11 @@ type fakeQueryPort struct {
 	getAllCalls []libHTTP.QueryHeader
 }
 
-func (f *fakeQueryPort) GetAccountByAlias(ctx context.Context, org, ledger uuid.UUID, portfolio *uuid.UUID, alias string) (*mmodel.Account, error) {
+func (f *fakeQueryPort) GetAccountByAlias(ctx context.Context, org, ledger uuid.UUID, portfolio *uuid.UUID, alias string, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error) {
 	return f.getByAliasFn(ctx, org, ledger, portfolio, alias)
 }
 
-func (f *fakeQueryPort) GetAllAccount(ctx context.Context, org, ledger uuid.UUID, portfolio, segment *uuid.UUID, filter libHTTP.QueryHeader) ([]*mmodel.Account, error) {
+func (f *fakeQueryPort) GetAllAccount(ctx context.Context, org, ledger uuid.UUID, portfolio, segment *uuid.UUID, filter libHTTP.QueryHeader, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
 	f.getAllCalls = append(f.getAllCalls, filter)
 	return f.getAllFn(ctx, org, ledger, portfolio, segment, filter)
 }

@@ -302,7 +302,7 @@ func TestIntegration_CompositionHappyPath(t *testing.T) {
 	accountID, err := uuid.Parse(resp.Account.ID)
 	require.NoError(t, err)
 
-	persisted, err := infra.accountRepo.Find(context.Background(), orgID, ledgerID, nil, accountID)
+	persisted, err := infra.accountRepo.Find(context.Background(), orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "account must be queryable in PG")
 	require.NotNil(t, persisted.HolderID)
 	assert.Equal(t, holderID.String(), *persisted.HolderID, "persisted PG account holder_id must be the path holder")
@@ -398,7 +398,7 @@ func TestIntegration_CompositionPartialFailureNoCompensation(t *testing.T) {
 
 	// (a)+(b) The account row SURVIVES in PG and is queryable: no compensating
 	// delete fired. Deleting a balance-bearing ledger account is unacceptable.
-	persisted, err := infra.accountRepo.Find(context.Background(), orgID, ledgerID, nil, accountID)
+	persisted, err := infra.accountRepo.Find(context.Background(), orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "account must SURVIVE and be queryable in PG (no compensating delete)")
 	require.NotNil(t, persisted.HolderID)
 	assert.Equal(t, holderID.String(), *persisted.HolderID)

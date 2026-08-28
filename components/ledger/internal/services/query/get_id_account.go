@@ -22,7 +22,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 )
 
-func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (_ *mmodel.Account, err error) {
+func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, holderPolicy mmodel.HolderPolicy) (_ *mmodel.Account, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_account_by_id")
@@ -34,7 +34,7 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "get_account", start, err)
 	}()
 
-	account, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, portfolioID, id)
+	account, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, portfolioID, id, holderPolicy)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error getting account on repo by id", libLog.Err(err))
 

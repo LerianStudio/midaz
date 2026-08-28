@@ -23,7 +23,7 @@ import (
 )
 
 // GetAllAccount fetches all accounts from the repository.
-func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) (_ []*mmodel.Account, err error) {
+func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader, holderPolicy mmodel.HolderPolicy) (_ []*mmodel.Account, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_account")
@@ -35,7 +35,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "list_accounts", start, err)
 	}()
 
-	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, segmentID, filter)
+	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, segmentID, filter, holderPolicy)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error getting accounts on repo", libLog.Err(err))
 

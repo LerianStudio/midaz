@@ -80,7 +80,7 @@ func (handler *AccountHandler) createAccount(ctx context.Context, organizationID
 // validates the account-specific status enum, resolves the optional
 // portfolio_id/segment_id UUID filters, then branches on metadata. A bad query or
 // status yields the canonical 400.
-func (handler *AccountHandler) getAllAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string) (http.Pagination, error) {
+func (handler *AccountHandler) getAllAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, queries map[string]string, holderPolicy command.RouteHolderPolicy) (http.Pagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_accounts")
@@ -129,7 +129,7 @@ func (handler *AccountHandler) getAllAccounts(ctx context.Context, organizationI
 	}
 
 	if headerParams.Metadata != nil {
-		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
+		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams, holderPolicy)
 		if err != nil {
 			handleSpanByErrorClass(span, "Failed to retrieve all Accounts on query", err)
 
@@ -143,7 +143,7 @@ func (handler *AccountHandler) getAllAccounts(ctx context.Context, organizationI
 
 	headerParams.Metadata = &bson.M{}
 
-	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams)
+	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, segmentID, *headerParams, holderPolicy)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve all Accounts on query", err)
 
@@ -156,13 +156,13 @@ func (handler *AccountHandler) getAllAccounts(ctx context.Context, organizationI
 }
 
 // getAccountByID retrieves a single account by its UUID.
-func (handler *AccountHandler) getAccountByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Account, error) {
+func (handler *AccountHandler) getAccountByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, holderPolicy command.RouteHolderPolicy) (*mmodel.Account, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
 	defer span.End()
 
-	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
+	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id, holderPolicy)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
@@ -176,13 +176,13 @@ func (handler *AccountHandler) getAccountByID(ctx context.Context, organizationI
 // path resolves the alias (DefaultExternalAccountAliasPrefix + code) BEFORE this
 // core, so both the alias and external-code ops share one implementation. The span
 // name carries the caller so the two callers stay distinguishable in traces.
-func (handler *AccountHandler) getAccountByAlias(ctx context.Context, spanName string, organizationID, ledgerID uuid.UUID, alias string) (*mmodel.Account, error) {
+func (handler *AccountHandler) getAccountByAlias(ctx context.Context, spanName string, organizationID, ledgerID uuid.UUID, alias string, holderPolicy command.RouteHolderPolicy) (*mmodel.Account, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, spanName)
 	defer span.End()
 
-	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
+	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias, holderPolicy)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 
@@ -195,7 +195,7 @@ func (handler *AccountHandler) getAccountByAlias(ctx context.Context, spanName s
 // updateAccount owns the span + update-then-get flow for an already-decoded
 // payload. It updates, then re-reads so the caller receives the freshly persisted
 // account.
-func (handler *AccountHandler) updateAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
+func (handler *AccountHandler) updateAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID, payload *mmodel.UpdateAccountInput, holderPolicy command.RouteHolderPolicy) (*mmodel.Account, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_account")
@@ -203,13 +203,13 @@ func (handler *AccountHandler) updateAccount(ctx context.Context, organizationID
 
 	recordSafePayloadAttributes(span, payload)
 
-	if _, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload); err != nil {
+	if _, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload, holderPolicy); err != nil {
 		handleSpanByErrorClass(span, "Failed to update Account on command", err)
 
 		return nil, err
 	}
 
-	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
+	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id, holderPolicy)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to retrieve Account on query", err)
 

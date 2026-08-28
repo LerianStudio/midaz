@@ -46,7 +46,9 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		attribute.String("app.request.account_id", id.String()),
 	)
 
-	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
+	// HolderOffV1: the account is read to guard the delete; nothing downstream
+	// reads or rewrites its holder, and account.deleted carries no holder field.
+	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id, mmodel.HolderOffV1)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to find account by id", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to find account by id", libLog.Err(err))
