@@ -75,5 +75,7 @@ func (a holderAccountsReaderAdapter) ListAccountsByHolder(ctx context.Context, o
 		return nil, pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, constant.EntityLedger)
 	}
 
-	return a.query.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter)
+	// HolderOnV2: the holder-accounts route is served on /v2 only, so the
+	// accounts it answers with carry the holder keys.
+	return a.query.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 }

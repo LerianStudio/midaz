@@ -20,13 +20,13 @@ import (
 )
 
 // GetAccountByAlias gets an account from the repository by alias, including soft-deleted ones.
-func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string) (*mmodel.Account, error) {
+func (uc *UseCase) GetAccountByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_account_by_alias")
 	defer span.End()
 
-	account, err := uc.AccountRepo.FindAlias(ctx, organizationID, ledgerID, portfolioID, alias)
+	account, err := uc.AccountRepo.FindAlias(ctx, organizationID, ledgerID, portfolioID, alias, holderPolicy)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error getting account on repo by alias", libLog.Err(err))
 

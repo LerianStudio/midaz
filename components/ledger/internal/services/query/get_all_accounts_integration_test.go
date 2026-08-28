@@ -14,6 +14,7 @@ import (
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	"github.com/stretchr/testify/assert"
@@ -73,7 +74,7 @@ func TestIntegration_GetAllAccount_PaginationUnion(t *testing.T) {
 			EndDate:   time.Now().Add(24 * time.Hour),
 		}
 
-		accounts, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter)
+		accounts, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 		require.NoError(t, err, "GetAllAccount page %d should succeed", page)
 
 		for _, acc := range accounts {
@@ -142,11 +143,11 @@ func TestIntegration_GetAllAccount_PaginationStableOrder(t *testing.T) {
 	}
 
 	// First read
-	accounts1, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts1, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 	require.NoError(t, err, "first GetAllAccount should succeed")
 
 	// Second read
-	accounts2, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts2, err := uc.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 	require.NoError(t, err, "second GetAllAccount should succeed")
 
 	// Assert: same length

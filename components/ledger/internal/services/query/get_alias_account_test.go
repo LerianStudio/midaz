@@ -52,7 +52,7 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 			mockSetup: func() {
 				b := true
 				mockAccountRepo.EXPECT().
-					FindAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOnV2).
 					Return(&mmodel.Account{ID: successAccountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}, Blocked: &b}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -75,7 +75,7 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 			alias:          "case02",
 			mockSetup: func() {
 				mockAccountRepo.EXPECT().
-					FindAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOnV2).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:      true,
@@ -90,7 +90,7 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 			mockSetup: func() {
 				accountID := uuid.New()
 				mockAccountRepo.EXPECT().
-					FindAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOnV2).
 					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -106,7 +106,7 @@ func TestUseCase_GetAccountByAlias(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAccountByAlias(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.alias)
+			result, err := uc.GetAccountByAlias(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.alias, mmodel.HolderOnV2)
 
 			if tt.expectErr {
 				assert.Error(t, err)

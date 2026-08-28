@@ -22,8 +22,8 @@ import (
 // resolution depends on. It exists so the resolver can be unit-tested with a
 // fake; *query.UseCase satisfies it directly.
 type feeQueryPort interface {
-	GetAccountByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string) (*mmodel.Account, error)
-	GetAllAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter libHTTP.QueryHeader) ([]*mmodel.Account, error)
+	GetAccountByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error)
+	GetAllAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter libHTTP.QueryHeader, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error)
 	CountTransactionsByFilters(ctx context.Context, organizationID, ledgerID uuid.UUID, filter transaction.CountFilter) (int64, error)
 }
 
@@ -57,7 +57,7 @@ func NewQueryResolver(q *query.UseCase) (feeshared.MidazResolver, error) {
 }
 
 func (r *queryResolver) AccountExistsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) error {
-	if _, err := r.query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias); err != nil {
+	if _, err := r.query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias, mmodel.HolderOffV1); err != nil {
 		return err
 	}
 
@@ -65,7 +65,7 @@ func (r *queryResolver) AccountExistsByAlias(ctx context.Context, organizationID
 }
 
 func (r *queryResolver) GetAccountByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (*feeshared.Account, error) {
-	account, err := r.query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
+	account, err := r.query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias, mmodel.HolderOffV1)
 	if err != nil {
 		// A missing alias is not a resolution failure for callers that treat a
 		// non-existent account as "not exempt"; collapse it to (nil, nil).
@@ -97,7 +97,7 @@ func (r *queryResolver) ListAccounts(ctx context.Context, organizationID, ledger
 			EndDate:   resolverFarFutureEndDate,
 		}
 
-		batch, err := r.query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, segmentID, filter)
+		batch, err := r.query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, segmentID, filter, mmodel.HolderOffV1)
 		if err != nil {
 			// An empty segment/portfolio surfaces as a not-found business error
 			// from the query layer; treat it as an empty result set, not failure.

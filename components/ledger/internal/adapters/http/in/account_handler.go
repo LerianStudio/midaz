@@ -148,7 +148,7 @@ func (handler *AccountHandler) ListAccounts(ctx context.Context, in *ListAccount
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	pagination, err := handler.getAllAccounts(ctx, orgID, ledgerID, in.queries())
+	pagination, err := handler.getAllAccounts(ctx, orgID, ledgerID, in.queries(), command.HolderOffV1)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -184,7 +184,7 @@ func (handler *AccountHandler) GetAccountByID(ctx context.Context, in *GetAccoun
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	account, err := handler.getAccountByID(ctx, orgID, ledgerID, id)
+	account, err := handler.getAccountByID(ctx, orgID, ledgerID, id, command.HolderOffV1)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -210,7 +210,7 @@ func (handler *AccountHandler) GetAccountByAlias(ctx context.Context, in *GetAcc
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	account, err := handler.getAccountByAlias(ctx, "handler.get_account_by_alias", orgID, ledgerID, in.Alias)
+	account, err := handler.getAccountByAlias(ctx, "handler.get_account_by_alias", orgID, ledgerID, in.Alias, command.HolderOffV1)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -238,7 +238,7 @@ func (handler *AccountHandler) GetAccountExternalByCode(ctx context.Context, in 
 
 	alias := constant.DefaultExternalAccountAliasPrefix + in.Code
 
-	account, err := handler.getAccountByAlias(ctx, "handler.get_account_external_by_code", orgID, ledgerID, alias)
+	account, err := handler.getAccountByAlias(ctx, "handler.get_account_external_by_code", orgID, ledgerID, alias, command.HolderOffV1)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -281,7 +281,7 @@ func (handler *AccountHandler) UpdateAccount(ctx context.Context, in *UpdateAcco
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	account, err := handler.updateAccount(ctx, orgID, ledgerID, id, payload)
+	account, err := handler.updateAccount(ctx, orgID, ledgerID, id, payload, command.HolderOffV1)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

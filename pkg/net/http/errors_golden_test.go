@@ -273,6 +273,7 @@ func allSentinels() map[string]error {
 		"ErrAccountingAccountTypeValidationFailed":    constant.ErrAccountingAccountTypeValidationFailed,
 		"ErrInvalidAccountTypeKeyValue":               constant.ErrInvalidAccountTypeKeyValue,
 		"ErrInvalidAccountTypeDirection":              constant.ErrInvalidAccountTypeDirection,
+		"ErrSchemaMigrationPending":                   constant.ErrSchemaMigrationPending,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
 		"ErrDuplicatedAliasKeyValue":                  constant.ErrDuplicatedAliasKeyValue,
@@ -802,6 +803,21 @@ func TestGolden_BusinessErrorCodeStatus(t *testing.T) {
 // fallthroughs; it never builds the typed error the helper produces, so this is the
 // only place the constructors' own (code, status) tuple is pinned. Plus the two
 // named-case checks (FailedPreconditionError->500, fallthrough->500/0046).
+// Schema drift must reach the wire as 503, not 500: the schema is applied out of
+// band, so the same request succeeds once the migration runner reaches the
+// database. A 5xx that reads as permanent would send clients to support instead
+// of to a retry.
+func TestGolden_SchemaMigrationPendingIsRetryable(t *testing.T) {
+	t.Parallel()
+
+	err := pkg.ValidateBusinessError(constant.ErrSchemaMigrationPending, "GoldenEntity")
+
+	status, code := driveWithError(t, err)
+
+	assert.Equal(t, fiber.StatusServiceUnavailable, status)
+	assert.Equal(t, constant.ErrSchemaMigrationPending.Error(), code)
+}
+
 func TestGolden_HelperPathCodeStatus(t *testing.T) {
 	t.Parallel()
 
