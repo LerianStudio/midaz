@@ -39,8 +39,8 @@ func newUpdateStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitte
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	mockAccountRepo.EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, orgID, ledgerID uuid.UUID, _ *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOffV1).
+		DoAndReturn(func(_ context.Context, orgID, ledgerID uuid.UUID, _ *uuid.UUID, id uuid.UUID, _ mmodel.HolderPolicy) (*mmodel.Account, error) {
 			return &mmodel.Account{
 				ID:             id.String(),
 				OrganizationID: orgID.String(),
@@ -93,7 +93,7 @@ func TestUpdateAccount_EmitsAccountUpdatedEvent(t *testing.T) {
 		Status: mmodel.Status{Code: "ACTIVE"},
 	}
 
-	acc, err := uc.UpdateAccount(ctx, orgID, ledgerID, nil, accountID, input)
+	acc, err := uc.UpdateAccount(ctx, orgID, ledgerID, nil, accountID, input, mmodel.HolderOffV1)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 
@@ -139,7 +139,7 @@ func TestUpdateAccount_NoopEmitterDoesNotPanic(t *testing.T) {
 		Status: mmodel.Status{Code: "ACTIVE"},
 	}
 
-	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input)
+	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input, mmodel.HolderOffV1)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 }
@@ -160,7 +160,7 @@ func TestUpdateAccount_EmitFailureDoesNotFailRequest(t *testing.T) {
 		Status: mmodel.Status{Code: "ACTIVE"},
 	}
 
-	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input)
+	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input, mmodel.HolderOffV1)
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, acc)
 }
@@ -180,7 +180,7 @@ func TestUpdateAccount_NilStreamingDoesNotPanic(t *testing.T) {
 		Status: mmodel.Status{Code: "ACTIVE"},
 	}
 
-	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input)
+	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input, mmodel.HolderOffV1)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 }

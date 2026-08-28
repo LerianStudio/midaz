@@ -243,7 +243,7 @@ func TestGetAccountByID_Success(t *testing.T) {
 	accountRepo := account.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
-	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
 		Return(&mmodel.Account{
 			ID:             accountID.String(),
 			OrganizationID: orgID.String(),
@@ -317,7 +317,7 @@ func TestGetAccountByAlias_Success(t *testing.T) {
 	accountRepo := account.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
-	accountRepo.EXPECT().FindAlias(gomock.Any(), orgID, ledgerID, gomock.Nil(), "@person1").
+	accountRepo.EXPECT().FindAlias(gomock.Any(), orgID, ledgerID, gomock.Nil(), "@person1", gomock.Any()).
 		Return(&mmodel.Account{
 			ID:             accountID,
 			OrganizationID: orgID.String(),
@@ -362,7 +362,7 @@ func TestGetAccountExternalByCode_Success(t *testing.T) {
 	accountRepo := account.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
-	accountRepo.EXPECT().FindAlias(gomock.Any(), orgID, ledgerID, gomock.Nil(), externalAlias).
+	accountRepo.EXPECT().FindAlias(gomock.Any(), orgID, ledgerID, gomock.Nil(), externalAlias, gomock.Any()).
 		Return(&mmodel.Account{
 			ID:             accountID,
 			OrganizationID: orgID.String(),
@@ -402,7 +402,7 @@ func TestGetAllAccounts_Success(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountRepo := account.NewMockRepository(ctrl)
-	accountRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
+	accountRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any(), gomock.Any()).
 		Return([]*mmodel.Account{}, nil).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo}}
@@ -491,7 +491,7 @@ func TestDeleteAccount_204Empty(t *testing.T) {
 
 	// Delete flow: Find the (non-external) account, delete its balances (none), then
 	// delete the account. The account.deleted event no-ops on a nil Streaming emitter.
-	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
 		Return(&mmodel.Account{ID: accountID.String(), Type: "deposit"}, nil).Times(1)
 	balanceRepo.EXPECT().ListByAccountID(gomock.Any(), orgID, ledgerID, accountID).Return([]*mmodel.Balance{}, nil).Times(1)
 	accountRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).Return(nil).Times(1)
@@ -565,14 +565,14 @@ func TestUpdateAccount_Success(t *testing.T) {
 	}
 
 	// Command.UpdateAccount: find (external check) -> update -> metadata upsert.
-	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
 		Return(&mmodel.Account{ID: accountID.String(), Type: "deposit", Name: "Original"}, nil).Times(1)
 	accountRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
 		Return(updated, nil).Times(1)
 	metadataRepo.EXPECT().Update(gomock.Any(), cn.EntityAccount, accountID.String(), gomock.Any()).Return(nil).AnyTimes()
 	// updateAccount re-reads through Query.GetAccountByID so the caller gets the
 	// freshly persisted account.
-	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).Return(updated, nil).Times(1)
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).Return(updated, nil).Times(1)
 	// FindByEntity is hit twice: once by the command's metadata upsert, once by the re-read.
 	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, accountID.String()).Return(nil, nil).AnyTimes()
 
@@ -612,7 +612,7 @@ func TestUpdateAccount_NotFound_Canonical404(t *testing.T) {
 	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountRepo := account.NewMockRepository(ctrl)
-	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
 		Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).Times(1)
 
 	handler := &AccountHandler{
@@ -651,13 +651,13 @@ func TestUpdateAccount_RetrievalError_Canonical404(t *testing.T) {
 	accountRepo := account.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
-	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
 		Return(&mmodel.Account{ID: accountID.String(), Type: "deposit"}, nil).Times(1)
 	accountRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
 		Return(&mmodel.Account{ID: accountID.String(), Type: "deposit"}, nil).Times(1)
 	metadataRepo.EXPECT().Update(gomock.Any(), cn.EntityAccount, accountID.String(), gomock.Any()).Return(nil).AnyTimes()
 	metadataRepo.EXPECT().FindByEntity(gomock.Any(), cn.EntityAccount, accountID.String()).Return(nil, nil).AnyTimes()
-	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
 		Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).Times(1)
 
 	handler := &AccountHandler{
@@ -737,7 +737,7 @@ func TestGetAllAccounts_MetadataFilter(t *testing.T) {
 
 	metadataRepo.EXPECT().FindList(gomock.Any(), cn.EntityAccount, gomock.Any()).
 		Return([]*mongodb.Metadata{{EntityID: acc1, Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
-	accountRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
+	accountRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any(), gomock.Any()).
 		Return([]*mmodel.Account{{ID: acc1, Name: "Premium One", AssetCode: "USD", Type: "deposit"}}, nil).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo, OnboardingMetadataRepo: metadataRepo}}
@@ -773,7 +773,7 @@ func TestGetAllAccounts_PortfolioAndSegmentFilters(t *testing.T) {
 
 	accountRepo := account.NewMockRepository(ctrl)
 	accountRepo.EXPECT().
-		FindAll(gomock.Any(), orgID, ledgerID, gomock.Eq(&portfolioID), gomock.Eq(&segmentID), gomock.Any()).
+		FindAll(gomock.Any(), orgID, ledgerID, gomock.Eq(&portfolioID), gomock.Eq(&segmentID), gomock.Any(), gomock.Any()).
 		Return([]*mmodel.Account{}, nil).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo}}
@@ -799,7 +799,7 @@ func TestGetAllAccounts_ServiceError_Canonical404(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountRepo := account.NewMockRepository(ctrl)
-	accountRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any()).
+	accountRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any(), gomock.Any()).
 		Return(nil, pkg.ValidateBusinessError(cn.ErrNoAccountsFound, cn.EntityAccount)).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo}}
@@ -829,7 +829,7 @@ func TestGetAccountByID_ServiceError_Canonical404(t *testing.T) {
 	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountRepo := account.NewMockRepository(ctrl)
-	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
 		Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo}}
@@ -859,7 +859,7 @@ func TestGetAccountByAlias_ServiceError_Canonical404(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountRepo := account.NewMockRepository(ctrl)
-	accountRepo.EXPECT().FindAlias(gomock.Any(), orgID, ledgerID, gomock.Nil(), "@missing").
+	accountRepo.EXPECT().FindAlias(gomock.Any(), orgID, ledgerID, gomock.Nil(), "@missing", gomock.Any()).
 		Return(nil, pkg.ValidateBusinessError(cn.ErrAccountAliasNotFound, cn.EntityAccount)).Times(1)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo}}
@@ -889,7 +889,7 @@ func TestDeleteAccount_ServiceError_Canonical404(t *testing.T) {
 	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	accountRepo := account.NewMockRepository(ctrl)
-	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
 		Return(nil, pkg.ValidateBusinessError(cn.ErrAccountIDNotFound, cn.EntityAccount)).Times(1)
 
 	handler := &AccountHandler{Command: &command.UseCase{AccountRepo: accountRepo}}

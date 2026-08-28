@@ -182,6 +182,33 @@ neither the requireHolder gate (`ErrHolderRequired` / `ErrHolderNotFound`) nor a
 before the seam existed, and a client integrated against it must not acquire a holder link — or a
 new rejection class — from a version upgrade it never asked for.
 
+The independence is **physical, not only semantic**: the policy reaches the SQL, so a `/v1`
+statement does not NAME `holder_id` or `holder_check_skipped` — with one exception, the holder
+filter below. A create omits both columns — an account without a holder writes what they default
+to, so the row is identical either way — and a `/v1` read projects `NULL::uuid AS holder_id` and
+`FALSE AS holder_check_skipped`, which keeps the projection's arity and column order intact for the
+positional scans. `/v1` therefore stays servable against a database that has not reached migrations
+000017 and 000019, which matters because the schema is applied out of band and the runner is
+tenant-agnostic: a tenant database can sit behind the binary. `/v2` names the real columns and, on
+such a database, answers `0501` `ErrSchemaMigrationPending` / **503** — retryable, because the same
+request succeeds once the migration runner reaches that database. The three `ListAccounts*` reads
+that serve the transaction and asset paths read no holder at all, so they always project the
+constants and are immune on both contracts.
+
+The **exception is `GET /v1/.../accounts?holder_id=…`**. The list filter is applied on both
+contracts whenever the parameter is present, so that one `/v1` statement does add a
+`holder_id = ?` predicate and does fail on a pre-000017 database. This is a deliberate gap, not an
+oversight: filtering by holder on a contract whose responses withhold `holderId` is already an
+anomaly, and rejecting the parameter would hand `/v1` a new rejection class — the very thing this
+seam exists to prevent. Holder filtering on `/v1` is therefore not expected to work before
+migrations 000017 and 000019. Every other `/v1` read, and every `/v1` create, is unaffected.
+
+Ordering matters on the write paths. A `/v1` update completes on such a database: both its
+pre-update lookup and the update statement name no holder column. A `/v2` update fails at the
+lookup, before the row is mutated and `account.updated` is emitted — the update statement itself
+names no holder column, so a lookup that ignored the route version would let the mutation land and
+answer 503 over a write that actually happened.
+
 The withholding reaches the response too. Every `/v1` account response — create, list, get-by-id,
 get-by-alias, get-external-by-code, update — answers with the projection that omits `holderId` and
 `holderCheckSkipped`; the `/v2` twins answer with the full account. Both contracts publish the

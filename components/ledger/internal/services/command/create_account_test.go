@@ -697,7 +697,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(true, nil).AnyTimes()
 
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Account{
 						ID:        parentAccountIDStr,
 						AssetCode: "USD",
@@ -749,7 +749,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(true, nil).AnyTimes()
 
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("parent account not found")).AnyTimes()
 			},
 			expectError:  true,
@@ -774,7 +774,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(true, nil).AnyTimes()
 
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Account{
 						ID:        parentAccountIDStr,
 						AssetCode: "EUR", // Different from the input's USD

@@ -124,7 +124,9 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 			return nil, err
 		}
 
-		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, parentID)
+		// HolderOffV1: the parent is read to validate it, and the new account's
+		// holder comes from resolveAccountHolder, never inherited from the parent.
+		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, parentID, mmodel.HolderOffV1)
 		if err != nil {
 			err := pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, constant.EntityAccount)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find parent account", err)

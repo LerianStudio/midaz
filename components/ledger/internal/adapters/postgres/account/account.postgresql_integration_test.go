@@ -66,7 +66,7 @@ func TestIntegration_AccountRepository_Find_ReturnsAccount(t *testing.T) {
 	ctx := context.Background()
 
 	// Act
-	account, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	account, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err, "Find should not return error for existing account")
@@ -120,7 +120,7 @@ func TestIntegration_AccountRepository_Find_ReturnsEntityNotFoundError(t *testin
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Act
-			account, err := repo.Find(context.Background(), orgID, ledgerID, nil, tt.accountID)
+			account, err := repo.Find(context.Background(), orgID, ledgerID, nil, tt.accountID, mmodel.HolderOnV2)
 
 			// Assert
 			require.Error(t, err, "Find should return error")
@@ -166,17 +166,17 @@ func TestIntegration_AccountRepository_Find_FiltersCorrectlyByOrgAndLedger(t *te
 	ctx := context.Background()
 
 	// Act & Assert: should find with correct org/ledger
-	account, err := repo.Find(ctx, org1ID, ledger1ID, nil, accountID)
+	account, err := repo.Find(ctx, org1ID, ledger1ID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "should find account with correct org/ledger")
 	assert.NotNil(t, account)
 
 	// Act & Assert: should NOT find with wrong organization
-	account, err = repo.Find(ctx, org2ID, ledger1ID, nil, accountID)
+	account, err = repo.Find(ctx, org2ID, ledger1ID, nil, accountID, mmodel.HolderOnV2)
 	require.Error(t, err, "should not find account with wrong organization")
 	assert.Nil(t, account)
 
 	// Act & Assert: should NOT find with wrong ledger
-	account, err = repo.Find(ctx, org1ID, ledger2ID, nil, accountID)
+	account, err = repo.Find(ctx, org1ID, ledger2ID, nil, accountID, mmodel.HolderOnV2)
 	require.Error(t, err, "should not find account with wrong ledger")
 	assert.Nil(t, account)
 }
@@ -227,7 +227,7 @@ func TestIntegration_AccountRepository_Create_InsertsAccount(t *testing.T) {
 
 	// Verify it can be retrieved
 	parsedID, _ := uuid.Parse(created.ID)
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	assert.Equal(t, created.ID, found.ID)
 }
@@ -276,7 +276,7 @@ func TestIntegration_AccountRepository_Find_BackwardCompatible_ExtraColumns(t *t
 	ctx := context.Background()
 
 	// Act - The old code (current repository) tries to read the account
-	account, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	account, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 
 	// Assert - Must NOT break, even with unknown columns in the table
 	require.NoError(t, err, "Find must not break when table has extra columns (backward compatibility)")
@@ -340,7 +340,7 @@ func TestIntegration_AccountRepository_Create_BackwardCompatible_ExtraColumns(t 
 
 	// Verify the account was actually persisted
 	parsedID, _ := uuid.Parse(created.ID)
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID, mmodel.HolderOnV2)
 	require.NoError(t, err, "should be able to retrieve the created account")
 	assert.Equal(t, created.ID, found.ID)
 
@@ -382,7 +382,7 @@ func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testi
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
@@ -420,15 +420,15 @@ func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *tes
 
 	// Act - Get all 3 pages
 	baseFilter.Page = 1
-	page1, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
+	page1, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter, mmodel.HolderOnV2)
 	require.NoError(t, err)
 
 	baseFilter.Page = 2
-	page2, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
+	page2, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter, mmodel.HolderOnV2)
 	require.NoError(t, err)
 
 	baseFilter.Page = 3
-	page3, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
+	page3, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter, mmodel.HolderOnV2)
 	require.NoError(t, err)
 
 	// Assert - Correct counts per page
@@ -474,7 +474,7 @@ func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T)
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -510,7 +510,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) 
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, &portfolioID, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, &portfolioID, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -551,7 +551,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersBySegment(t *testing.T) {
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, &segmentID, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, &segmentID, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -583,11 +583,11 @@ func TestIntegration_AccountRepository_FindWithDeleted_ReturnsDeletedAccount(t *
 	ctx := context.Background()
 
 	// Act - Find should fail
-	_, errFind := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	_, errFind := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.Error(t, errFind, "Find should not return soft-deleted account")
 
 	// Act - FindWithDeleted should succeed
-	account, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID)
+	account, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err, "FindWithDeleted should return soft-deleted account")
@@ -611,7 +611,7 @@ func TestIntegration_AccountRepository_FindWithDeleted_ReturnsActiveAccount(t *t
 	ctx := context.Background()
 
 	// Act
-	account, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID)
+	account, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -639,7 +639,7 @@ func TestIntegration_AccountRepository_FindAlias_ReturnsAccountByAlias(t *testin
 	ctx := context.Background()
 
 	// Act
-	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, alias)
+	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, alias, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err, "FindAlias should find account by alias")
@@ -661,7 +661,7 @@ func TestIntegration_AccountRepository_FindAlias_ReturnsErrorForNonExistent(t *t
 	ctx := context.Background()
 
 	// Act
-	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, "@nonexistent")
+	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, "@nonexistent", mmodel.HolderOnV2)
 
 	// Assert
 	require.Error(t, err, "FindAlias should return error for non-existent alias")
@@ -684,7 +684,7 @@ func TestIntegration_AccountRepository_FindAlias_ExcludesSoftDeleted(t *testing.
 	ctx := context.Background()
 
 	// Act
-	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, alias)
+	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, alias, mmodel.HolderOnV2)
 
 	// Assert
 	require.Error(t, err, "FindAlias should not find soft-deleted account")
@@ -724,7 +724,7 @@ func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *te
 	ctx := context.Background()
 
 	// Act & Assert: fetch by ID.
-	byID, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	byID, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "custom external account must be fetchable by ID")
 	require.NotNil(t, byID)
 	assert.Equal(t, accountID.String(), byID.ID)
@@ -732,7 +732,7 @@ func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *te
 	assert.Equal(t, customAlias, *byID.Alias, "custom alias should be persisted verbatim")
 
 	// Act & Assert: fetch by alias (the generic alias lookup, not external-by-code).
-	byAlias, err := repo.FindAlias(ctx, orgID, ledgerID, nil, customAlias)
+	byAlias, err := repo.FindAlias(ctx, orgID, ledgerID, nil, customAlias, mmodel.HolderOnV2)
 	require.NoError(t, err, "custom external account must be fetchable by its custom alias")
 	require.NotNil(t, byAlias)
 	assert.Equal(t, accountID.String(), byAlias.ID)
@@ -746,7 +746,7 @@ func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *te
 		Page:      1,
 		SortOrder: "asc",
 	}
-	listed, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	listed, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 	require.NoError(t, err, "FindAll should not error")
 
 	var found *mmodel.Account
@@ -785,7 +785,7 @@ func TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatibl
 	ctx := context.Background()
 
 	// Act: GetAccountExternalByCode resolves "@external/<code>" via FindAlias.
-	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, canonicalAlias)
+	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, canonicalAlias, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err, "canonical external-by-code alias must resolve")
@@ -796,7 +796,7 @@ func TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatibl
 
 	// A code with no provisioned external account still yields not-found,
 	// preserving the pre-existing 404 behavior.
-	missing, err := repo.FindAlias(ctx, orgID, ledgerID, nil, constant.DefaultExternalAccountAliasPrefix+"EUR")
+	missing, err := repo.FindAlias(ctx, orgID, ledgerID, nil, constant.DefaultExternalAccountAliasPrefix+"EUR", mmodel.HolderOnV2)
 	require.Error(t, err, "unprovisioned external code must remain not-found")
 	assert.Nil(t, missing)
 }
@@ -897,7 +897,7 @@ func TestIntegration_AccountRepository_Update_UpdatesName(t *testing.T) {
 	require.NotNil(t, updated)
 
 	// Verify via Find
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Name", found.Name)
 }
@@ -960,7 +960,7 @@ func TestIntegration_AccountRepository_Update_PreservesHolderLink(t *testing.T) 
 	require.NoError(t, err)
 	require.NotNil(t, updated)
 
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 
 	assert.Equal(t, "Renamed", found.Name, "the requested change must land")
@@ -994,7 +994,7 @@ func TestIntegration_AccountRepository_Update_UpdatesStatus(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	assert.Equal(t, "BLOCKED", found.Status.Code)
 	assert.NotNil(t, found.Status.Description)
@@ -1024,7 +1024,7 @@ func TestIntegration_AccountRepository_Update_UpdatesBlocked(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, found.Blocked)
 	assert.True(t, *found.Blocked)
@@ -1091,7 +1091,7 @@ func TestIntegration_AccountRepository_Delete_SoftDeletesAccount(t *testing.T) {
 	ctx := context.Background()
 
 	// Verify account exists before delete
-	_, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	_, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "account should exist before delete")
 
 	// Act
@@ -1101,11 +1101,11 @@ func TestIntegration_AccountRepository_Delete_SoftDeletesAccount(t *testing.T) {
 	require.NoError(t, err, "Delete should not return error")
 
 	// Find should fail now
-	_, err = repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	_, err = repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.Error(t, err, "Find should not return soft-deleted account")
 
 	// FindWithDeleted should still work
-	found, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID)
+	found, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.NotNil(t, found.DeletedAt, "deleted_at should be set")
@@ -1150,7 +1150,7 @@ func TestIntegration_AccountRepository_Delete_IsIdempotent(t *testing.T) {
 	require.NoError(t, err2, "second delete should be idempotent (no error)")
 
 	// Verify account is still soft-deleted (only once)
-	found, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID)
+	found, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	assert.NotNil(t, found.DeletedAt, "account should remain soft-deleted")
 }
@@ -1179,7 +1179,7 @@ func TestIntegration_AccountRepository_Delete_RespectsOrgLedgerIsolation(t *test
 	require.NoError(t, err, "delete with wrong org/ledger should not error (no-op)")
 
 	// Critical assertion: Account must still exist in org1 (isolation preserved)
-	found, err := repo.Find(ctx, org1ID, ledger1ID, nil, accountID)
+	found, err := repo.Find(ctx, org1ID, ledger1ID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "account should still exist in original org/ledger")
 	require.NotNil(t, found, "account should not be nil")
 	assert.Equal(t, accountID.String(), found.ID, "account ID should match")
@@ -1206,7 +1206,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *test
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2}, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1241,7 +1241,7 @@ func TestIntegration_AccountRepository_ListByIDs_FiltersBySegment(t *testing.T) 
 	ctx := context.Background()
 
 	// Act: ListByIDs with all 3 IDs but segment filter should exclude id3.
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, &segmentID, []uuid.UUID{id1, id2, id3})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, &segmentID, []uuid.UUID{id1, id2, id3}, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1269,7 +1269,7 @@ func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2}, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1289,7 +1289,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testi
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())}, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1701,7 +1701,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByStatus(t *testing.T) {
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1758,7 +1758,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByType(t *testing.T) {
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1815,7 +1815,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAssetCode(t *testing.T) 
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1888,7 +1888,7 @@ func TestIntegration_AccountRepository_FindAll_CombinesMultipleFiltersWithAND(t 
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1938,7 +1938,7 @@ func TestIntegration_AccountRepository_FindAll_EmptyFilterReturnsAll(t *testing.
 	}
 
 	// Act - empty filter (no filters applied)
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1986,7 +1986,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix(t *testing.T)
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2025,7 +2025,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_CaseInsensiti
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2070,7 +2070,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix(t *testing.T
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2120,7 +2120,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix_CaseInsensit
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2160,7 +2160,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_NoMiddleWordM
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2208,7 +2208,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByName_WildcardInjection(t
 				Name:      &nameFilter,
 			}
 
-			accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+			accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 			require.NoError(t, err)
 			assert.Len(t, accounts, tt.expected, "wildcard injection '%s' should return %d results", tt.filter, tt.expected)
@@ -2244,7 +2244,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByName_LiteralSpecialChars
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2294,7 +2294,7 @@ func TestIntegration_AccountRepository_FindAll_CombinesNameAndAliasFilters(t *te
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2351,7 +2351,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByEntityID(t *testing.T) {
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2412,7 +2412,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByBlocked(t *testing.T) {
 	}
 
 	// Act
-	blockedAccounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filterBlocked)
+	blockedAccounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filterBlocked, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2435,7 +2435,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByBlocked(t *testing.T) {
 	}
 
 	// Act
-	activeAccounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filterNotBlocked)
+	activeAccounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filterNotBlocked, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2499,7 +2499,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByParentAccountID(t *testi
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2590,11 +2590,11 @@ func TestIntegration_AccountRepository_SkipAudit_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Find single-row scan reads the flag back", func(t *testing.T) {
-		foundSkipped, err := repo.Find(ctx, orgID, ledgerID, nil, skippedID)
+		foundSkipped, err := repo.Find(ctx, orgID, ledgerID, nil, skippedID, mmodel.HolderOnV2)
 		require.NoError(t, err)
 		assert.True(t, foundSkipped.HolderCheckSkipped, "Find: skipped account holder_check_skipped should round-trip true")
 
-		foundControl, err := repo.Find(ctx, orgID, ledgerID, nil, controlID)
+		foundControl, err := repo.Find(ctx, orgID, ledgerID, nil, controlID, mmodel.HolderOnV2)
 		require.NoError(t, err)
 		assert.False(t, foundControl.HolderCheckSkipped, "Find: control holder_check_skipped should round-trip false")
 	})
@@ -2602,7 +2602,7 @@ func TestIntegration_AccountRepository_SkipAudit_RoundTrip(t *testing.T) {
 	t.Run("ListByIDs list scan reads the flag back", func(t *testing.T) {
 		// ListByIDs exercises a DIFFERENT Scan call site than Find, so the
 		// list-derived column order is proven independently here.
-		accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{skippedID, controlID})
+		accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{skippedID, controlID}, mmodel.HolderOnV2)
 		require.NoError(t, err)
 		require.Len(t, accounts, 2)
 
@@ -2668,7 +2668,7 @@ func TestIntegration_AccountRepository_Create_RoundTripsHolderID(t *testing.T) {
 	parsedID, err := uuid.Parse(created.ID)
 	require.NoError(t, err)
 
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID, mmodel.HolderOnV2)
 	require.NoError(t, err, "Find should not return error")
 	require.NotNil(t, found.HolderID, "found account holder_id should not be nil")
 	assert.Equal(t, holderID, *found.HolderID, "found account holder_id should round-trip")
@@ -2682,7 +2682,7 @@ func TestIntegration_AccountRepository_Create_RoundTripsHolderID(t *testing.T) {
 		EndDate:   now.Add(24 * time.Hour),
 	}
 
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 	require.NoError(t, err, "FindAll should not return error")
 	require.Len(t, accounts, 1, "should return the single created account")
 	require.NotNil(t, accounts[0].HolderID, "listed account holder_id should not be nil")
@@ -2753,7 +2753,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByHolderID(t *testing.T) {
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")

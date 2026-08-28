@@ -21,7 +21,7 @@ import (
 )
 
 // GetAllMetadataAccounts fetches all accounts from the repository.
-func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
+func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_accounts")
@@ -55,7 +55,7 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 
 	filter.EntityIDs = uuids
 
-	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, segmentID, filter)
+	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, segmentID, filter, holderPolicy)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, constant.EntityAccount)

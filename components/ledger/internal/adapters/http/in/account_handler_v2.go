@@ -76,7 +76,7 @@ func (handler *AccountHandler) ListAccountsV2(ctx context.Context, in *ListAccou
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	pagination, err := handler.getAllAccounts(ctx, orgID, ledgerID, in.queries())
+	pagination, err := handler.getAllAccounts(ctx, orgID, ledgerID, in.queries(), command.HolderOnV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -104,7 +104,7 @@ func (handler *AccountHandler) GetAccountByIDV2(ctx context.Context, in *GetAcco
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	account, err := handler.getAccountByID(ctx, orgID, ledgerID, id)
+	account, err := handler.getAccountByID(ctx, orgID, ledgerID, id, command.HolderOnV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -119,7 +119,7 @@ func (handler *AccountHandler) GetAccountByAliasV2(ctx context.Context, in *GetA
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	account, err := handler.getAccountByAlias(ctx, "handler.get_account_by_alias", orgID, ledgerID, in.Alias)
+	account, err := handler.getAccountByAlias(ctx, "handler.get_account_by_alias", orgID, ledgerID, in.Alias, command.HolderOnV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -137,7 +137,7 @@ func (handler *AccountHandler) GetAccountExternalByCodeV2(ctx context.Context, i
 
 	alias := constant.DefaultExternalAccountAliasPrefix + in.Code
 
-	account, err := handler.getAccountByAlias(ctx, "handler.get_account_external_by_code", orgID, ledgerID, alias)
+	account, err := handler.getAccountByAlias(ctx, "handler.get_account_external_by_code", orgID, ledgerID, alias, command.HolderOnV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -171,7 +171,7 @@ func (handler *AccountHandler) UpdateAccountV2(ctx context.Context, in *UpdateAc
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	account, err := handler.updateAccount(ctx, orgID, ledgerID, id, payload)
+	account, err := handler.updateAccount(ctx, orgID, ledgerID, id, payload, command.HolderOnV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
