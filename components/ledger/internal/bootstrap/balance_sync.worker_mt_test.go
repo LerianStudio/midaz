@@ -35,14 +35,14 @@ func TestNewBalanceSyncWorkerMT(t *testing.T) {
 		"mtEnabled should be true")
 	assert.Same(t, cache, worker.tenantCache,
 		"tenantCache should be the same instance")
-	assert.Same(t, pgMgr, worker.pgManager,
-		"pgManager should be the same instance")
+	assert.Same(t, pgMgr, worker.pgResolver,
+		"pgResolver should be the same instance")
 	assert.Equal(t, "transaction", worker.serviceName,
 		"serviceName should be set correctly")
 }
 
 // TestBalanceSyncWorker_IsMTReady exercises the isMTReady()
-// predicate across all combinations of mtEnabled x pgManager x tenantCache,
+// predicate across all combinations of mtEnabled x pgResolver x tenantCache,
 // plus the zero-value struct edge case.
 func TestBalanceSyncWorker_IsMTReady(t *testing.T) {
 	t.Parallel()
@@ -57,42 +57,42 @@ func TestBalanceSyncWorker_IsMTReady(t *testing.T) {
 	tests := []struct {
 		name        string
 		mtEnabled   bool
-		pgManager   *tmpostgres.Manager
+		pgResolver  tenantPGResolver
 		tenantCache *tenantcache.TenantCache
 		want        bool
 	}{
 		{
-			name:        "true_when_enabled_pgManager_and_tenantCache_set",
+			name:        "true_when_enabled_pgResolver_and_tenantCache_set",
 			mtEnabled:   true,
-			pgManager:   pgMgr,
+			pgResolver:  pgMgr,
 			tenantCache: cache,
 			want:        true,
 		},
 		{
-			name:        "false_when_enabled_but_pgManager_nil",
+			name:        "false_when_enabled_but_pgResolver_nil",
 			mtEnabled:   true,
-			pgManager:   nil,
+			pgResolver:  nil,
 			tenantCache: cache,
 			want:        false,
 		},
 		{
 			name:        "false_when_enabled_but_tenantCache_nil",
 			mtEnabled:   true,
-			pgManager:   pgMgr,
+			pgResolver:  pgMgr,
 			tenantCache: nil,
 			want:        false,
 		},
 		{
-			name:        "false_when_disabled_but_pgManager_set",
+			name:        "false_when_disabled_but_pgResolver_set",
 			mtEnabled:   false,
-			pgManager:   pgMgr,
+			pgResolver:  pgMgr,
 			tenantCache: cache,
 			want:        false,
 		},
 		{
-			name:        "false_when_disabled_and_pgManager_nil",
+			name:        "false_when_disabled_and_pgResolver_nil",
 			mtEnabled:   false,
-			pgManager:   nil,
+			pgResolver:  nil,
 			tenantCache: nil,
 			want:        false,
 		},
@@ -104,7 +104,7 @@ func TestBalanceSyncWorker_IsMTReady(t *testing.T) {
 
 			worker := NewBalanceSyncWorker(logger, useCase, BalanceSyncConfig{})
 			worker.mtEnabled = tt.mtEnabled
-			worker.pgManager = tt.pgManager
+			worker.pgResolver = tt.pgResolver
 			worker.tenantCache = tt.tenantCache
 
 			got := worker.isMTReady()
@@ -199,8 +199,8 @@ func TestNewBalanceSyncWorker_ZeroValueMultiTenantFields(t *testing.T) {
 		"mtEnabled should default to false")
 	assert.Nil(t, worker.tenantCache,
 		"tenantCache should default to nil")
-	assert.Nil(t, worker.pgManager,
-		"pgManager should default to nil")
+	assert.Nil(t, worker.pgResolver,
+		"pgResolver should default to nil")
 	assert.False(t, worker.isMTReady(),
 		"isMTReady() should be false for base constructor")
 }

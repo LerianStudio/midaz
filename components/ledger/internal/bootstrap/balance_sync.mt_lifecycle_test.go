@@ -6,6 +6,9 @@ package bootstrap
 
 import (
 	"context"
+	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,6 +18,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -72,6 +76,70 @@ func newTestWorkerWithCache(t *testing.T, cache *tenantcache.TenantCache) *Balan
 		logger, useCase, BalanceSyncConfig{},
 		true, cache, pgMgr, "transaction",
 	)
+}
+
+// newTestWorkerWithResolver creates an MT-ready BalanceSyncWorker whose tenant PG
+// resolution is driven by resolver, so a test can both control what a flush sees
+// and count how often the handle is resolved.
+func newTestWorkerWithResolver(t *testing.T, cache *tenantcache.TenantCache, resolver tenantPGResolver) *BalanceSyncWorker {
+	t.Helper()
+
+	w := NewBalanceSyncWorkerMT(
+		newTestLogger(), &command.UseCase{}, BalanceSyncConfig{},
+		true, cache, nil, "transaction",
+	)
+	w.pgResolver = resolver
+
+	return w
+}
+
+// fakePGResolver is a tenantPGResolver whose result a test can swap between
+// flushes, standing in for a tenant manager that closed and rebuilt a pool.
+type fakePGResolver struct {
+	mu    sync.Mutex
+	calls atomic.Int32
+	db    dbresolver.DB
+	err   error
+}
+
+func (f *fakePGResolver) GetDB(_ context.Context, _ string) (dbresolver.DB, error) {
+	f.calls.Add(1)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.db, f.err
+}
+
+// set swaps the pair GetDB returns from the next call onwards.
+func (f *fakePGResolver) set(db dbresolver.DB, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.db = db
+	f.err = err
+}
+
+// newStubDB mints a dbresolver.DB backed by a *sql.DB that never dials. Resolver
+// tests compare handle identity, so the handle must be distinguishable but is
+// never queried.
+func newStubDB() dbresolver.DB {
+	return dbresolver.New(dbresolver.WithPrimaryDBs(sql.OpenDB(stubConnector{})))
+}
+
+// stubConnector satisfies driver.Connector without opening a connection.
+type stubConnector struct{}
+
+func (stubConnector) Connect(context.Context) (driver.Conn, error) {
+	return nil, errors.New("stub connector: not a real database")
+}
+
+func (stubConnector) Driver() driver.Driver { return stubDriver{} }
+
+type stubDriver struct{}
+
+func (stubDriver) Open(string) (driver.Conn, error) {
+	return nil, errors.New("stub driver: not a real database")
 }
 
 // --------------------------------------------------------------------

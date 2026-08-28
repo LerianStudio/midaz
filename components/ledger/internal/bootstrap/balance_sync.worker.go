@@ -19,6 +19,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/LerianStudio/lib-observability/v2/metrics"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -47,6 +48,12 @@ func (c BalanceSyncConfig) PollInterval() time.Duration {
 	return time.Duration(c.PollIntervalMs) * time.Millisecond
 }
 
+// tenantPGResolver resolves a tenant's transaction-module PostgreSQL handle.
+// Satisfied by *tmpostgres.Manager.
+type tenantPGResolver interface {
+	GetDB(ctx context.Context, tenantID string) (dbresolver.DB, error)
+}
+
 // BalanceSyncWorker continuously processes balance keys using a dual-trigger collector.
 // Keys become eligible immediately after balance mutation (Lua ZADD with dueAt=now).
 // The worker accumulates keys and flushes based on batch size OR timeout, whichever comes first.
@@ -58,7 +65,7 @@ type BalanceSyncWorker struct {
 	metricsFactory *metrics.MetricsFactory
 	mtEnabled      bool
 	tenantCache    *tenantcache.TenantCache
-	pgManager      *tmpostgres.Manager
+	pgResolver     tenantPGResolver
 	serviceName    string
 }
 
@@ -133,8 +140,13 @@ func NewBalanceSyncWorkerMT(
 	w := NewBalanceSyncWorker(logger, useCase, syncCfg)
 	w.mtEnabled = mtEnabled
 	w.tenantCache = cache
-	w.pgManager = pgManager
 	w.serviceName = serviceName
+
+	// Guard against a typed-nil pointer being boxed into a non-nil interface,
+	// which would make isMTReady report ready with no resolver behind it.
+	if pgManager != nil {
+		w.pgResolver = pgManager
+	}
 
 	return w
 }
@@ -169,10 +181,10 @@ func (w *BalanceSyncWorker) emitTenantSkip(ctx context.Context, tenantID string)
 }
 
 // isMTReady returns true when the worker is configured for MT (multi-tenant)
-// dispatching. mtEnabled, pgManager, and tenantCache must all be set;
+// dispatching. mtEnabled, pgResolver, and tenantCache must all be set;
 // if any is missing the worker falls back to default (single-tenant) behavior.
 func (w *BalanceSyncWorker) isMTReady() bool {
-	return w.mtEnabled && w.pgManager != nil && w.tenantCache != nil
+	return w.mtEnabled && w.pgResolver != nil && w.tenantCache != nil
 }
 
 // Run dispatches to multi-tenant or single-tenant execution based on configuration.
@@ -344,19 +356,9 @@ func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context, collectors 
 func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tenantID string) *tenantCollector {
 	tenantCtx := tmcore.ContextWithTenantID(parentCtx, tenantID)
 
-	conn, err := w.pgManager.GetConnection(tenantCtx, tenantID)
+	db, err := w.pgResolver.GetDB(tenantCtx, tenantID)
 	if err != nil {
 		w.logger.Log(parentCtx, libLog.LevelError, "BalanceSyncWorker: failed to get PG connection for tenant",
-			libLog.String("tenant_id", tenantID), libLog.Err(err))
-
-		w.emitTenantSkip(parentCtx, tenantID)
-
-		return nil
-	}
-
-	db, err := conn.GetDB()
-	if err != nil {
-		w.logger.Log(parentCtx, libLog.LevelError, "BalanceSyncWorker: failed to get DB for tenant",
 			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		w.emitTenantSkip(parentCtx, tenantID)
