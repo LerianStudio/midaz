@@ -117,3 +117,50 @@ func TestBalanceConfigChangedPayload_JSONShape_MinimalIncludesRequiredFields(t *
 
 	assert.Lenf(t, generic, 11, "expected 11 top-level fields, got %d (drift?)", len(generic))
 }
+
+// TestBalanceConfigChangedPayload_JSONShape_SettingsSubobjectLocked pins the
+// nested settings object on balance.config_changed. BalanceSettingsPayload is
+// declared in balance_created.go but reaches the wire through both events, so
+// each event locks the subobject on its own side.
+func TestBalanceConfigChangedPayload_JSONShape_SettingsSubobjectLocked(t *testing.T) {
+	t.Run("full settings carries every key", func(t *testing.T) {
+		b := minimalBalance()
+		b.Settings = fullBalanceSettings()
+
+		req, err := events.NewBalanceConfigChanged(b, events.BalanceConfigChangeTypeSettingsUpdated).
+			ToEmitRequest("tenant-7", fixedTime)
+		require.NoError(t, err)
+
+		settings := settingsSubobject(t, req.Payload)
+
+		assert.Lenf(t, settings, 4, "expected 4 settings keys, got %d (drift?)", len(settings))
+
+		for _, key := range []string{"balanceScope", "allowOverdraft", "overdraftLimitEnabled", "overdraftLimit"} {
+			assert.Containsf(t, settings, key, "settings must include %q", key)
+		}
+	})
+
+	t.Run("minimal settings keeps only the two bools", func(t *testing.T) {
+		b := minimalBalance()
+		b.Settings = &mmodel.BalanceSettings{
+			BalanceScope:   "",
+			OverdraftLimit: nil,
+		}
+
+		req, err := events.NewBalanceConfigChanged(b, events.BalanceConfigChangeTypeSettingsUpdated).
+			ToEmitRequest("tenant-7", fixedTime)
+		require.NoError(t, err)
+
+		settings := settingsSubobject(t, req.Payload)
+
+		assert.Lenf(t, settings, 2, "expected 2 settings keys, got %d (drift?)", len(settings))
+
+		for _, key := range []string{"allowOverdraft", "overdraftLimitEnabled"} {
+			assert.Containsf(t, settings, key, "settings.%s is not omitempty and must always be present", key)
+		}
+
+		for _, key := range []string{"balanceScope", "overdraftLimit"} {
+			assert.NotContainsf(t, settings, key, "settings.%s must omitempty when empty", key)
+		}
+	})
+}

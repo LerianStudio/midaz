@@ -79,10 +79,12 @@ var BalanceConfigChangedDefinition = Definition{
 // signal. Money movement lives inside transaction.{posted,committed,...}
 // in the transaction-engine segment.
 //
-// Settings uses the *BalanceSettings pointer because the wire shape
-// distinguishes "settings was cleared" (settings:null) from "settings
-// was left unchanged on this PATCH" (consumers cannot disambiguate that
-// from this event alone — they must merge with the prior known state).
+// Settings is a *BalanceSettingsPayload carrying omitempty, so a nil
+// pointer is OMITTED from the payload — the key never reaches the wire as
+// settings:null. "Settings was cleared" and "settings was left untouched by
+// this PATCH" are therefore indistinguishable from this event alone;
+// consumers must merge the payload with the prior known state instead of
+// reading an absent settings as a clear.
 type BalanceConfigChangedPayload struct {
 	ID             string                  `json:"id"`
 	OrganizationID string                  `json:"organizationId"`
@@ -93,7 +95,7 @@ type BalanceConfigChangedPayload struct {
 	AllowSending   bool                    `json:"allowSending"`
 	AllowReceiving bool                    `json:"allowReceiving"`
 	Direction      string                  `json:"direction,omitempty"`
-	Settings       *mmodel.BalanceSettings `json:"settings,omitempty"`
+	Settings       *BalanceSettingsPayload `json:"settings,omitempty"`
 	ChangeType     string                  `json:"changeType"`
 	UpdatedAt      string                  `json:"updatedAt"`
 }
@@ -120,7 +122,7 @@ func NewBalanceConfigChanged(b *mmodel.Balance, changeType string) BalanceConfig
 		AllowSending:   b.AllowSending,
 		AllowReceiving: b.AllowReceiving,
 		Direction:      b.Direction,
-		Settings:       b.Settings,
+		Settings:       newBalanceSettingsPayload(b.Settings),
 		ChangeType:     changeType,
 		UpdatedAt:      b.UpdatedAt.Format(time.RFC3339),
 	}
