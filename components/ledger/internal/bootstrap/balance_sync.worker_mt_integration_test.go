@@ -59,103 +59,20 @@ func TestIntegration_BalanceSyncWorkerMT_RecoversFromClosedPool(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	const tenantID = "acme"
+	h := newSyncHarness(t, "healthy", "dead", "healed")
 
-	pg := pgtestutil.SetupLedgerContainer(t)
-	redisContainer := redistestutil.SetupReusableContainer(t)
-	redisConn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
+	healthy, dead, healed := h.targets[0], h.targets[1], h.targets[2]
 
-	redisRepo, err := redisTx.NewConsumerRedis(redisConn)
-	require.NoError(t, err, "should create the Redis repository")
-
-	// Two independent pools over the same database. dbA is the one the test kills;
-	// dbB stands in for the pool the tenant manager rebuilds on the next GetDB.
-	sqlA := openIntegrationPool(t, pg.DSN)
-	sqlB := openIntegrationPool(t, pg.DSN)
-	dbA := dbresolver.New(dbresolver.WithPrimaryDBs(sqlA))
-	dbB := dbresolver.New(dbresolver.WithPrimaryDBs(sqlB))
-
-	// Seed through the schema directly rather than HTTP, so the test owns exactly
-	// the three balances it syncs.
-	orgID := pgtestutil.CreateTestOrganization(t, pg.DB)
-	ledgerID := pgtestutil.CreateTestLedger(t, pg.DB, orgID)
-	pgtestutil.CreateTestAsset(t, pg.DB, orgID, ledgerID, "USD")
-
-	healthy := seedSyncTarget(t, pg.DB, orgID, ledgerID, "healthy")
-	dead := seedSyncTarget(t, pg.DB, orgID, ledgerID, "dead")
-	healed := seedSyncTarget(t, pg.DB, orgID, ledgerID, "healed")
-
-	reader, factory := newBalanceSyncReaderFactory(t)
-
-	resolver := &fakePGResolver{db: dbA}
-
-	w := newTestWorkerWithResolver(t, tenantcache.NewTenantCache(), resolver).
-		WithMetricsFactory(factory)
-
-	// requireTenant makes the repository resolve its handle from the context only,
-	// which is the multi-tenant contract this test exercises.
-	w.useCase = &command.UseCase{
-		TransactionRedisRepo: redisRepo,
-		BalanceRepo:          balancePG.NewBalancePostgreSQLRepository(nil, false, true),
-	}
-	// The default batch size is deliberate: the claim script reads the schedule
-	// with LIMIT 0 <batchSize>, so a batch of 1 would let the locked key left
-	// behind by stage 2 sit at the head of the window and hide every later key
-	// until its claim TTL expired. The 500ms TIMEOUT trigger flushes each stage.
-
-	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tenantID)
-
-	scheduleKey, err := tmvalkey.GetKey(tenantID, utils.BalanceSyncScheduleKey)
-	require.NoError(t, err, "should namespace the schedule key")
-
-	// enqueue publishes a balance and schedules it as due. The ZSET member is the
-	// tenant-namespaced key, matching what balance_atomic_operation.lua writes:
-	// GetBalancesByKeys MGETs the members as-is.
-	enqueue := func(target syncTarget, available int64) {
-		t.Helper()
-
-		unprefixed := utils.BalanceInternalKey(orgID, ledgerID, target.alias+"#default")
-
-		member, keyErr := tmvalkey.GetKey(tenantID, unprefixed)
-		require.NoError(t, keyErr, "should namespace the balance key")
-
-		payload := marshalBalanceRedis(t, target, available)
-		require.NoError(t, redisRepo.Set(tenantCtx, unprefixed, payload, 3600),
-			"should store the balance payload")
-
-		_, zErr := redisContainer.Client.ZAdd(context.Background(), scheduleKey, goredis.Z{
-			Score:  float64(time.Now().Add(-time.Minute).Unix()),
-			Member: member,
-		}).Result()
-		require.NoError(t, zErr, "should schedule the balance key as due")
-	}
-
-	// availableInPG reads through dbB, which stays healthy for the whole test so
-	// the assertion never depends on the pool under test.
-	availableInPG := func(target syncTarget) decimal.Decimal {
-		t.Helper()
-
-		var available decimal.Decimal
-		require.NoError(t,
-			sqlB.QueryRow(`SELECT available FROM balance WHERE id = $1`, target.balanceID).Scan(&available),
-			"should read the balance back")
-
-		return available
-	}
-
-	// processSyncBatch reads its metric factory off the context, not off the
-	// worker, so the collector must be started from a context carrying it.
-	ctx, cancel := context.WithCancel(
-		libObservability.ContextWithMetricFactory(context.Background(), factory),
-	)
-
-	tc := w.startTenantCollector(ctx, tenantID)
+	tc := h.worker.startTenantCollector(h.ctx, h.tenantID)
 	require.NotNil(t, tc, "the tenant's PG resolves, so the collector must start")
 
 	t.Cleanup(func() {
-		cancel()
+		h.cancel()
 		<-tc.done
 	})
+
+	enqueue, availableInPG := h.enqueue, h.availableInPG
+	reader, resolver, sqlA, dbB := h.reader, h.resolver, h.sqlA, h.dbB
 
 	// Stage 1: a healthy collector persists.
 	t.Log("Stage 1: syncing on a healthy pool")
@@ -198,6 +115,134 @@ func TestIntegration_BalanceSyncWorkerMT_RecoversFromClosedPool(t *testing.T) {
 	case <-tc.done:
 		t.Fatal("recovery must happen inside the original collector")
 	default:
+	}
+}
+
+// syncHarness is the shared setup for the balance-sync MT integration tests:
+// a migrated PostgreSQL, a Valkey, two independent pools over the same database,
+// a worker whose tenant PG resolution the test drives, and one seeded balance per
+// stage.
+type syncHarness struct {
+	tenantID string
+	worker   *BalanceSyncWorker
+	resolver *fakePGResolver
+	reader   *sdkmetric.ManualReader
+	cache    *tenantcache.TenantCache
+	targets  []syncTarget
+
+	// sqlA backs dbA, the pool a test kills. dbB stands in for the pool the tenant
+	// manager rebuilds on the next GetDB and also serves the assertion reads, so
+	// no assertion depends on the pool under test.
+	sqlA *sql.DB
+	dbB  dbresolver.DB
+
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	enqueue       func(target syncTarget, available int64)
+	availableInPG func(target syncTarget) decimal.Decimal
+}
+
+func newSyncHarness(t *testing.T, targetNames ...string) *syncHarness {
+	t.Helper()
+
+	const tenantID = "acme"
+
+	pg := pgtestutil.SetupLedgerContainer(t)
+	redisContainer := redistestutil.SetupReusableContainer(t)
+	redisConn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
+
+	redisRepo, err := redisTx.NewConsumerRedis(redisConn)
+	require.NoError(t, err, "should create the Redis repository")
+
+	sqlA := openIntegrationPool(t, pg.DSN)
+	sqlB := openIntegrationPool(t, pg.DSN)
+	dbA := dbresolver.New(dbresolver.WithPrimaryDBs(sqlA))
+	dbB := dbresolver.New(dbresolver.WithPrimaryDBs(sqlB))
+
+	// Seed through the schema directly rather than HTTP, so the test owns exactly
+	// the balances it syncs.
+	orgID := pgtestutil.CreateTestOrganization(t, pg.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, pg.DB, orgID)
+	pgtestutil.CreateTestAsset(t, pg.DB, orgID, ledgerID, "USD")
+
+	targets := make([]syncTarget, 0, len(targetNames))
+	for _, name := range targetNames {
+		targets = append(targets, seedSyncTarget(t, pg.DB, orgID, ledgerID, name))
+	}
+
+	reader, factory := newBalanceSyncReaderFactory(t)
+
+	resolver := &fakePGResolver{db: dbA}
+	cache := tenantcache.NewTenantCache()
+
+	w := newTestWorkerWithResolver(t, cache, resolver).WithMetricsFactory(factory)
+
+	// requireTenant makes the repository resolve its handle from the context only,
+	// which is the multi-tenant contract these tests exercise.
+	w.useCase = &command.UseCase{
+		TransactionRedisRepo: redisRepo,
+		BalanceRepo:          balancePG.NewBalancePostgreSQLRepository(nil, false, true),
+	}
+	// The batch size stays at its default on purpose: the claim script reads the
+	// schedule with LIMIT 0 <batchSize>, so a batch of 1 would let a key whose
+	// flush failed sit at the head of the window and hide every later key until
+	// its claim TTL expired. The 500ms TIMEOUT trigger flushes each stage.
+
+	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tenantID)
+
+	scheduleKey, err := tmvalkey.GetKey(tenantID, utils.BalanceSyncScheduleKey)
+	require.NoError(t, err, "should namespace the schedule key")
+
+	enqueue := func(target syncTarget, available int64) {
+		t.Helper()
+
+		unprefixed := utils.BalanceInternalKey(orgID, ledgerID, target.alias+"#default")
+
+		member, keyErr := tmvalkey.GetKey(tenantID, unprefixed)
+		require.NoError(t, keyErr, "should namespace the balance key")
+
+		payload := marshalBalanceRedis(t, target, available)
+		require.NoError(t, redisRepo.Set(tenantCtx, unprefixed, payload, 3600),
+			"should store the balance payload")
+
+		_, zErr := redisContainer.Client.ZAdd(context.Background(), scheduleKey, goredis.Z{
+			Score:  float64(time.Now().Add(-time.Minute).Unix()),
+			Member: member,
+		}).Result()
+		require.NoError(t, zErr, "should schedule the balance key as due")
+	}
+
+	availableInPG := func(target syncTarget) decimal.Decimal {
+		t.Helper()
+
+		var available decimal.Decimal
+		require.NoError(t,
+			sqlB.QueryRow(`SELECT available FROM balance WHERE id = $1`, target.balanceID).Scan(&available),
+			"should read the balance back")
+
+		return available
+	}
+
+	// processSyncBatch reads its metric factory off the context, not off the worker,
+	// so the collector must be started from a context carrying it.
+	ctx, cancel := context.WithCancel(
+		libObservability.ContextWithMetricFactory(context.Background(), factory),
+	)
+
+	return &syncHarness{
+		tenantID:      tenantID,
+		worker:        w,
+		resolver:      resolver,
+		reader:        reader,
+		cache:         cache,
+		targets:       targets,
+		sqlA:          sqlA,
+		dbB:           dbB,
+		ctx:           ctx,
+		cancel:        cancel,
+		enqueue:       enqueue,
+		availableInPG: availableInPG,
 	}
 }
 
@@ -288,4 +333,61 @@ func batchFailureCount(t *testing.T, reader *sdkmetric.ManualReader) int64 {
 	}
 
 	return total
+}
+
+// TestIntegration_BalanceSyncWorkerMT_TenantEvictionRestartsCollector is acceptance
+// (B): a tenant eviction stops the tenant's collector before its pool closes, and
+// the next reconcile brings the collector back on a freshly resolved pool — no
+// process restart.
+//
+// The stages run the same order the WithOnTenantRemoved callback does: stop the
+// collector, then close the tenant's pool.
+func TestIntegration_BalanceSyncWorkerMT_TenantEvictionRestartsCollector(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	h := newSyncHarness(t, "before-eviction", "after-eviction")
+
+	before, after := h.targets[0], h.targets[1]
+	w := h.worker
+
+	// The tenant stays in the cache across the eviction: tenant.cache.invalidate
+	// evicts connections, not the tenant.
+	h.cache.Set(h.tenantID, &tmcore.TenantConfig{ID: h.tenantID}, 1*time.Hour)
+
+	t.Cleanup(func() {
+		h.cancel()
+		w.stopAllCollectors(context.Background())
+	})
+
+	// Stage 1: the reconcile loop starts the collector and it syncs.
+	t.Log("Stage 1: reconcile starts the collector")
+	w.reconcileCollectors(h.ctx)
+	require.True(t, w.HasCollector(h.tenantID), "the cached tenant must get a collector")
+
+	h.enqueue(before, 1500)
+	require.Eventually(t, func() bool { return h.availableInPG(before).Equal(decimal.NewFromInt(1500)) },
+		syncRoundTimeout, 100*time.Millisecond,
+		"the collector must sync before the eviction")
+
+	// Stage 2: the eviction, in the callback's order.
+	t.Log("Stage 2: evicting the tenant — stop the collector, then close its pool")
+	w.StopTenantCollector(h.tenantID)
+	require.False(t, w.HasCollector(h.tenantID), "the eviction must stop the collector")
+	require.NoError(t, h.sqlA.Close(), "the evicted pool closes after the collector stopped")
+
+	// Stage 3: the manager rebuilt the pool. The reconcile must bring the collector
+	// back and it must land on the new pool, not the closed one.
+	t.Log("Stage 3: reconcile restarts the collector on the rebuilt pool")
+	h.resolver.set(h.dbB, nil)
+
+	w.reconcileCollectors(h.ctx)
+	require.True(t, w.HasCollector(h.tenantID),
+		"the tenant is still cached, so the reconcile must restart the collector")
+
+	h.enqueue(after, 3500)
+	require.Eventually(t, func() bool { return h.availableInPG(after).Equal(decimal.NewFromInt(3500)) },
+		syncRoundTimeout, 100*time.Millisecond,
+		"the restarted collector must sync on the rebuilt pool")
 }
