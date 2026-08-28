@@ -461,7 +461,7 @@ Source: `pkg/streaming/events/balance_created.go`. Trigger: `CreateAdditionalBal
 | `allowSending` | bool | |
 | `allowReceiving` | bool | |
 | `direction` | string | `omitempty` when empty. |
-| `settings` | object \| null | `omitempty` when nil. `balanceScope` (string, `omitempty`), `allowOverdraft` (bool), `overdraftLimitEnabled` (bool), `overdraftLimit` (string\|null, `omitempty`). |
+| `settings` | object | Omitted (not `null`) when nil. `balanceScope` (string, `omitempty`), `allowOverdraft` (bool), `overdraftLimitEnabled` (bool), `overdraftLimit` (string, `omitempty`). (`BalanceSettingsPayload`, `pkg/streaming/events/balance_created.go`) |
 | `createdAt` | string | RFC3339. |
 | `updatedAt` | string | RFC3339. |
 
@@ -542,7 +542,7 @@ Source: `pkg/streaming/events/balance_config_changed.go`. Trigger: `UseCase.Upda
 | `allowSending` | bool | |
 | `allowReceiving` | bool | |
 | `direction` | string | `omitempty` when empty. |
-| `settings` | object \| null | `omitempty` when nil. Same nested shape as `balance.created`. |
+| `settings` | object | Omitted (not `null`) when nil. Same nested shape as `balance.created`. |
 | `changeType` | string | `settings_updated` or `overdraft_enabled`. Snake_case value is payload data, not a routing identifier. |
 | `updatedAt` | string | RFC3339. |
 

@@ -37,6 +37,15 @@ var BalanceCreatedDefinition = Definition{
 	SchemaVersion: "1.0.0",
 }
 
+// BalanceSettingsPayload mirrors mmodel.BalanceSettings for balance events
+// without embedding the domain type into the wire contract.
+type BalanceSettingsPayload struct {
+	BalanceScope          string  `json:"balanceScope,omitempty"`
+	AllowOverdraft        bool    `json:"allowOverdraft"`
+	OverdraftLimitEnabled bool    `json:"overdraftLimitEnabled"`
+	OverdraftLimit        *string `json:"overdraftLimit,omitempty"`
+}
+
 // BalanceCreatedPayload is the wire payload for balance.created.
 //
 // Available/OnHold are decimal.Decimal so the wire encodes them as a
@@ -68,7 +77,7 @@ type BalanceCreatedPayload struct {
 	AllowSending   bool                    `json:"allowSending"`
 	AllowReceiving bool                    `json:"allowReceiving"`
 	Direction      string                  `json:"direction,omitempty"`
-	Settings       *mmodel.BalanceSettings `json:"settings,omitempty"`
+	Settings       *BalanceSettingsPayload `json:"settings,omitempty"`
 	CreatedAt      string                  `json:"createdAt"`
 	UpdatedAt      string                  `json:"updatedAt"`
 }
@@ -93,7 +102,7 @@ func NewBalanceCreated(b *mmodel.Balance) BalanceCreatedPayload {
 		AllowSending:   b.AllowSending,
 		AllowReceiving: b.AllowReceiving,
 		Direction:      b.Direction,
-		Settings:       b.Settings,
+		Settings:       newBalanceSettingsPayload(b.Settings),
 		CreatedAt:      b.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:      b.UpdatedAt.Format(time.RFC3339),
 	}
@@ -115,4 +124,27 @@ func (p BalanceCreatedPayload) ToEmitRequest(tenantID string, ts time.Time) (lib
 		Timestamp:     ts,
 		Payload:       data,
 	}, nil
+}
+
+// newBalanceSettingsPayload copies the domain settings onto the wire type.
+// Returns nil when s is nil, so the parent field stays omitted. The
+// OverdraftLimit pointer is reallocated so the payload never aliases the
+// domain struct's memory.
+func newBalanceSettingsPayload(s *mmodel.BalanceSettings) *BalanceSettingsPayload {
+	if s == nil {
+		return nil
+	}
+
+	p := &BalanceSettingsPayload{
+		BalanceScope:          s.BalanceScope,
+		AllowOverdraft:        s.AllowOverdraft,
+		OverdraftLimitEnabled: s.OverdraftLimitEnabled,
+	}
+
+	if s.OverdraftLimit != nil {
+		limit := *s.OverdraftLimit
+		p.OverdraftLimit = &limit
+	}
+
+	return p
 }
