@@ -49,7 +49,7 @@ func TestGetAccountByIDWithDeleted(t *testing.T) {
 			mockSetup: func() {
 				accountID := uuid.New()
 				mockAccountRepo.EXPECT().
-					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOnV2).
 					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -71,7 +71,7 @@ func TestGetAccountByIDWithDeleted(t *testing.T) {
 			accountID:      uuid.New(),
 			mockSetup: func() {
 				mockAccountRepo.EXPECT().
-					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOnV2).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:      true,
@@ -86,7 +86,7 @@ func TestGetAccountByIDWithDeleted(t *testing.T) {
 			mockSetup: func() {
 				accountID := uuid.New()
 				mockAccountRepo.EXPECT().
-					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOnV2).
 					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).

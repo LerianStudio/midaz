@@ -29,7 +29,7 @@ import (
 )
 
 // UpdateAccount updates an account from the repository by the given ID.
-func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *mmodel.UpdateAccountInput) (_ *mmodel.Account, err error) {
+func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *mmodel.UpdateAccountInput, holderPolicy mmodel.HolderPolicy) (_ *mmodel.Account, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_account")
@@ -47,9 +47,13 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		attribute.String("app.request.account_id", id.String()),
 	)
 
-	// HolderOffV1: holderId is immutable and absent from the update SET list, and
-	// account.updated carries no holder field, so the projected value is unused.
-	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id, mmodel.HolderOffV1)
+	// The lookup carries the route's policy even though nothing downstream reads
+	// the projected holder — holderId is immutable, absent from the update SET
+	// list, and account.updated has no holder field. It matters for ORDERING: on a
+	// schema without the holder columns a /v2 request has to fail here, before the
+	// row is mutated and account.updated is emitted, rather than after. /v1 needs
+	// no such column, so it proceeds and completes.
+	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id, holderPolicy)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to find account by id", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to find account by id", libLog.Err(err))

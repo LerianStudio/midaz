@@ -203,7 +203,7 @@ func (handler *AccountHandler) updateAccount(ctx context.Context, organizationID
 
 	recordSafePayloadAttributes(span, payload)
 
-	if _, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload); err != nil {
+	if _, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload, holderPolicy); err != nil {
 		handleSpanByErrorClass(span, "Failed to update Account on command", err)
 
 		return nil, err

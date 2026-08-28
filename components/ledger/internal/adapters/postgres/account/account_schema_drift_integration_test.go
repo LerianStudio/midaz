@@ -88,8 +88,12 @@ func driftedLedger(t *testing.T) (*AccountPostgreSQLRepository, *sql.DB, uuid.UU
 	return repo, container.DB, orgID, ledgerID
 }
 
+// driftTestTime is a fixed timestamp: these tests assert schema tolerance, so the
+// create/update instants carry no meaning and must not vary between runs.
+var driftTestTime = time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC)
+
 func newDriftAccount(orgID, ledgerID uuid.UUID) *mmodel.Account {
-	now := time.Now().Truncate(time.Microsecond)
+	now := driftTestTime
 	alias := fmt.Sprintf("@drift-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
 	blocked := false
 
@@ -264,4 +268,59 @@ func TestIntegration_SchemaDrift_V1ParityAfterMigrationsApplied(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, holderID, "a /v1 create must persist holder_id NULL")
 	assert.False(t, holderCheckSkipped, "a /v1 create must persist holder_check_skipped false")
+}
+
+// A /v2 update on a schema without the holder columns must fail at the lookup,
+// BEFORE the row is mutated. The update statement itself names no holder column,
+// so without the route policy on the lookup the mutation would land and the
+// account.updated event would fire, and only the caller's re-read would 503 —
+// a failure status over a write that actually happened.
+func TestIntegration_SchemaDrift_V2UpdateFailsBeforeMutating(t *testing.T) {
+	repo, db, orgID, ledgerID := driftedLedger(t)
+	ctx := t.Context()
+
+	acc := newDriftAccount(orgID, ledgerID)
+	_, err := repo.Create(ctx, acc)
+	require.NoError(t, err)
+
+	accountID := uuid.MustParse(acc.ID)
+	originalName := acc.Name
+
+	// The lookup a /v2 update performs before mutating.
+	_, err = repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
+
+	require.Error(t, err, "a /v2 update must not get past the lookup on this schema")
+
+	var unavailable pkg.ServiceUnavailableError
+	require.ErrorAs(t, err, &unavailable)
+	assert.Equal(t, constant.ErrSchemaMigrationPending.Error(), unavailable.Code)
+
+	var persistedName string
+	require.NoError(t, db.QueryRow(`SELECT name FROM account WHERE id = $1`, acc.ID).Scan(&persistedName))
+	assert.Equal(t, originalName, persistedName, "the row must be untouched")
+}
+
+// The /v1 counterpart completes: its lookup names no holder column, and neither
+// does the update statement.
+func TestIntegration_SchemaDrift_V1UpdateSucceeds(t *testing.T) {
+	repo, db, orgID, ledgerID := driftedLedger(t)
+	ctx := t.Context()
+
+	acc := newDriftAccount(orgID, ledgerID)
+	_, err := repo.Create(ctx, acc)
+	require.NoError(t, err)
+
+	accountID := uuid.MustParse(acc.ID)
+
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOffV1)
+	require.NoError(t, err, "a /v1 update must get past the lookup")
+	require.NotNil(t, found)
+
+	renamed := "Drift Account Renamed"
+	_, err = repo.Update(ctx, orgID, ledgerID, nil, accountID, &mmodel.Account{Name: renamed})
+	require.NoError(t, err, "the update statement names no holder column")
+
+	var persistedName string
+	require.NoError(t, db.QueryRow(`SELECT name FROM account WHERE id = $1`, acc.ID).Scan(&persistedName))
+	assert.Equal(t, renamed, persistedName)
 }
