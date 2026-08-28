@@ -67,6 +67,9 @@ type BalanceSyncWorker struct {
 	tenantCache    *tenantcache.TenantCache
 	pgResolver     tenantPGResolver
 	serviceName    string
+	// flushBatchFn is the flush body the collectors call. It defaults to
+	// flushBatch; tests replace it to observe the context a flush receives.
+	flushBatchFn func(ctx context.Context, keys []redisTransaction.SyncKey) bool
 }
 
 // tenantCollector tracks a running BalanceSyncCollector goroutine for a specific tenant.
@@ -114,12 +117,15 @@ func NewBalanceSyncWorker(logger libLog.Logger, useCase *command.UseCase, syncCf
 		idleWait = 1 * time.Second
 	}
 
-	return &BalanceSyncWorker{
+	w := &BalanceSyncWorker{
 		logger:     logger,
 		idleWait:   idleWait,
 		syncConfig: syncCfg,
 		useCase:    useCase,
 	}
+	w.flushBatchFn = w.flushBatch
+
+	return w
 }
 
 // NewBalanceSyncWorkerMT creates a BalanceSyncWorker with MT (multi-tenant) fields populated.
@@ -224,7 +230,7 @@ func (w *BalanceSyncWorker) runWorker() error {
 		ctx,
 		// FlushFunc: batch flush grouped by org/ledger, then persisted to PostgreSQL
 		func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
-			return w.flushBatch(flushCtx, keys)
+			return w.flushBatchFn(flushCtx, keys)
 		},
 		// FetchKeysFunc: claims due keys from the ZSET via Lua (ZRANGEBYSCORE + SET NX)
 		func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
@@ -407,7 +413,7 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 					return false
 				}
 
-				return w.flushBatch(pgCtx, keys)
+				return w.flushBatchFn(pgCtx, keys)
 			},
 			// FetchKeysFunc: tenant context enables Redis key namespacing via tmvalkey.GetKeyContext
 			func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
