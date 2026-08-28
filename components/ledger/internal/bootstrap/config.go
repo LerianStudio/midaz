@@ -642,6 +642,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		rmq.mongoManager = txnMgo.mongoManager
 	}
 
+	// Declared ahead of the worker section so the dispatcher callbacks below can
+	// reach it. They only run once Service.Run starts the event listener, long
+	// after the assignment.
+	var balanceSyncWorker *BalanceSyncWorker
+
 	// === Event Dispatcher & Listener (multi-tenant only) ===
 	// Created AFTER infrastructure init so the dispatcher receives the PG, Mongo, and RabbitMQ
 	// managers. This allows removeTenant to close infrastructure connections when a tenant is
@@ -656,6 +661,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			// entry has TTL-expired (the default cache-based check would miss it and skip
 			// the reload that restarts the consumer, leaving it stopped).
 			tmevent.WithTenantOwnershipChecker(func(tenantID string) bool {
+				// A balance-sync collector is as much a live consumer goroutine as a
+				// RabbitMQ one: without this a tenant whose only activity is balance
+				// sync would be reported unowned and its reload skipped.
+				if balanceSyncWorker != nil && balanceSyncWorker.HasCollector(tenantID) {
+					return true
+				}
+
 				if rmq == nil || rmq.multiTenantConsumer == nil {
 					return false
 				}
@@ -680,6 +692,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			tmevent.WithOnTenantRemoved(func(ctx context.Context, tenantID string) {
 				if rmq != nil && rmq.multiTenantConsumer != nil {
 					rmq.multiTenantConsumer.StopConsumer(tenantID)
+				}
+
+				// MUST precede the transaction PG close: stopping the collector drains
+				// its buffered keys, and that final flush needs a live pool.
+				if balanceSyncWorker != nil {
+					balanceSyncWorker.StopTenantCollector(tenantID)
 				}
 
 				// Close ALL postgres managers (onboarding + transaction)
@@ -1150,7 +1168,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		WithMetricsFactory(metricsFactory)
 
 	// BalanceSyncWorker: multi-tenant or single-tenant
-	balanceSyncWorker := initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
+	balanceSyncWorker = initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
 	balanceSyncWorker.WithMetricsFactory(metricsFactory)
 
 	// Legacy drainer: drains pre-v3.6.2 ZSET entries (balance-sync key with seconds/microsecond scores).

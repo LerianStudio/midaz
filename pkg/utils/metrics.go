@@ -88,7 +88,8 @@ var (
 		Description: "Measures the number of balances synced.",
 	}
 
-	// BalanceSyncBatchFailures counts batch sync operation failures.
+	// BalanceSyncBatchFailures counts batch sync operation failures, labelled by
+	// organization_id, ledger_id and tenant_id (empty in single-tenant).
 	BalanceSyncBatchFailures = metrics.Metric{
 		Name:        "balance_sync_batch_failures_total",
 		Unit:        "1",

@@ -111,9 +111,9 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 		worker.mtEnabled = workerEnabled
 
 		if workerHasPGMgr {
-			worker.pgManager = pgMgr
+			worker.pgResolver = pgMgr
 		} else {
-			worker.pgManager = nil
+			worker.pgResolver = nil
 		}
 
 		// Property: never panics.
