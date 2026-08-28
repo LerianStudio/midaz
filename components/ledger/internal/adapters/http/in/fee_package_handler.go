@@ -22,9 +22,8 @@ import (
 //
 // Every shell names the ledger in its path and resolves it via parseFeeV2Path, then
 // hands it to the core, which passes it to the by-ID scope filters and pins the
-// listings. A body that also carries a ledger must agree with the path — the field is
-// required on the models shared with the in-process fee seam, so it cannot be dropped
-// for one caller. See requireBodyLedgerMatchesPath in fee_ledger_scope.go.
+// listings. No package body carries a ledger: the path is the sole authority on which
+// ledger a request acts within.
 //
 // Body ops carry RawBody + SkipValidateBody, and the fee body validator runs inside
 // the replicated body-parsing span (decodeFeeBodyInSpan, NOT
@@ -81,9 +80,8 @@ type CreatePackageV2Request struct {
 	RawBody []byte `contentType:"application/json"`
 }
 
-// CreatePackageV2 decodes+validates the raw body imperatively, refuses a body
-// ledger that disagrees with the path, then delegates to the shared createPackage
-// core.
+// CreatePackageV2 decodes+validates the raw body imperatively then delegates to the
+// shared createPackage core with the path ledger.
 func (handler *PackageHandler) CreatePackageV2(ctx context.Context, in *CreatePackageV2Request) (*CreatePackageResponse, error) {
 	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
@@ -95,11 +93,7 @@ func (handler *PackageHandler) CreatePackageV2(ctx context.Context, in *CreatePa
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	if err := requireBodyLedgerMatchesPath(payload.LedgerID, ledgerID); err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
-	packOut, err := handler.createPackage(ctx, orgID, payload)
+	packOut, err := handler.createPackage(ctx, orgID, ledgerID, payload)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

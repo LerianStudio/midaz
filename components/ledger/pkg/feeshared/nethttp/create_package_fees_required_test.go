@@ -22,7 +22,6 @@ func TestValidateStruct_CreatePackageFeesRequired(t *testing.T) {
 	base := func() *model.CreatePackageInput {
 		return &model.CreatePackageInput{
 			FeeGroupLabel: "Test Package",
-			LedgerID:      "00000000-0000-0000-0000-000000000001",
 			MinAmount:     "100.00",
 			MaxAmount:     "1000.00",
 			Enable:        &enable,

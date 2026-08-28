@@ -44,17 +44,16 @@ type PackageHandler struct {
 }
 
 // createPackage is the transport-agnostic core of the create-package op. It owns the
-// span, the segment/ledger id parsing, the min/max + fee + duplicate-priority
-// validation, and the service call; the shell resolves the org id, decodes the
-// payload, and renders the returned package/error.
-func (handler *PackageHandler) createPackage(ctx context.Context, organizationID uuid.UUID, payload *model.CreatePackageInput) (*pack.Package, error) {
+// span, the segment id parsing, the min/max + fee + duplicate-priority validation, and
+// the service call; the shell resolves the org+ledger ids, decodes the payload, and
+// renders the returned package/error.
+func (handler *PackageHandler) createPackage(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *model.CreatePackageInput) (*pack.Package, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
 	var (
 		segmentID    uuid.UUID
-		ledgerID     uuid.UUID
 		errParseUUID error
 	)
 
@@ -66,6 +65,7 @@ func (handler *PackageHandler) createPackage(ctx context.Context, organizationID
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
 	if !commons.IsNilOrEmpty(payload.SegmentID) {
@@ -73,11 +73,6 @@ func (handler *PackageHandler) createPackage(ctx context.Context, organizationID
 		if errParseUUID != nil {
 			return nil, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidSegmentID, "")
 		}
-	}
-
-	ledgerID, errParseUUID = uuid.Parse(payload.LedgerID)
-	if errParseUUID != nil {
-		return nil, feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, "")
 	}
 
 	if errAmount := payload.ValidateMinAndMaxAmount(); errAmount != nil {

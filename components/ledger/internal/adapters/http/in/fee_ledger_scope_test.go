@@ -136,14 +136,6 @@ func driveFeeV2Probe(t *testing.T, app *fiber.App, method, template string) {
 	driveFeeV2(t, app, method, url, body)
 }
 
-// createPackageV2JSON is validCreatePackageJSON with the ledger under the caller's
-// control, so a test can make the body agree or disagree with the path.
-func createPackageV2JSON(ledgerID string) string {
-	return `{"feeGroupLabel":"Standard","ledgerId":"` + ledgerID + `","minimumAmount":"100.00","maximumAmount":"1000.00","enable":true,` +
-		`"fees":{"f1":{"feeLabel":"Admin","referenceAmount":"afterFeesAmount","priority":2,"isDeductibleFrom":false,` +
-		`"creditAccount":"conta_receita","calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"50.00"}]}}}}`
-}
-
 // createBillingPackageV2JSON is validBillingPackageJSON with a caller-chosen ledger.
 func createBillingPackageV2JSON(ledgerID string) string {
 	return `{"label":"Monthly Volume","type":"volume","ledgerId":"` + ledgerID + `"}`
@@ -154,7 +146,7 @@ func estimateV2JSON(ledgerID string) string {
 	return `{"packageId":"` + validLedgerUUID() + `","ledgerId":"` + ledgerID + `","transaction":{"send":` + validSendJSON() + `}}`
 }
 
-// TestFeesV2_BodyLedgerMustMatchPath pins the body-versus-path decision on the four
+// TestFeesV2_BodyLedgerMustMatchPath pins the body-versus-path decision on the
 // operations whose body carries a ledger. The field stays required — the models are
 // shared with the organization-scoped surface and with the in-process fee seam — so
 // what the ledger-scoped surface adds is the refusal of a value that names a different
@@ -173,14 +165,6 @@ func TestFeesV2_BodyLedgerMustMatchPath(t *testing.T) {
 		called   func(s *feesV2Stubs) bool
 		okStatus int
 	}{
-		{
-			name:     "create_package",
-			method:   http.MethodPost,
-			template: feesV2Scope + "/packages",
-			body:     createPackageV2JSON,
-			called:   func(s *feesV2Stubs) bool { return s.pkgSvc.createCalled },
-			okStatus: http.StatusCreated,
-		},
 		{
 			name:     "estimate_fee",
 			method:   http.MethodPost,
