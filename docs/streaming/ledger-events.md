@@ -476,9 +476,12 @@ cases with **two emission branches**:
 1. **`changeType = settings_updated`** — ordinary settings PATCH via
    `UseCase.Update` (`update_balance.go`): `AllowSending`, `AllowReceiving`,
    `Settings.*`. `id` = the updated parent balance.
-2. **`changeType = overdraft_enabled`** — emitted exactly once per
-   materialization of the companion overdraft balance, from
-   `ensureOverdraftBalance`. Two verbs reach that path: a PATCH flipping
+2. **`changeType = overdraft_enabled`** — emitted only AFTER the parent
+   balance persists successfully: `BalanceRepo.Create` on the POST path,
+   `BalanceRepo.Update` on the PATCH path. `ensureOverdraftBalance`
+   materializes the companion first, but the emit lives in the caller,
+   post-persist — so if the parent persistence fails, no event is emitted.
+   Two verbs reach that path: a PATCH flipping
    `AllowOverdraft` false→true, and a POST additional balance carrying
    `settings.allowOverdraft=true`. `id` = the **newly-materialized companion
    overdraft balance** (the companion's identity becoming known IS the "config
