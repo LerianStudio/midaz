@@ -24,9 +24,8 @@ import (
 // shell that decodes a request, calls estimateFeeCalculation in fee_estimate_core.go,
 // and renders the envelope.
 //
-// The shell names the ledger in its path and resolves it via parseFeeV2Path, and the
-// body's own ledger must agree with the path — see requireBodyLedgerMatchesPath in
-// fee_ledger_scope.go.
+// The shell names the ledger in its path and resolves it via parseFeeV2Path, then
+// threads it inward as an explicit parameter; the body carries no ledger.
 //
 // LANDMINE — the fee body is decoded via the fee-package feehttp.DecodeValidateBody (the
 // fee ValidateStruct/findUnknownFields/parseMetadata, a DIFFERENT validator instance
@@ -99,9 +98,9 @@ type EstimateFeeV2Request struct {
 	RawBody []byte `contentType:"application/json"`
 }
 
-// EstimateFeeCalculationV2 decodes+validates the raw body imperatively, refuses a
-// body ledger that disagrees with the path, then delegates to the shared
-// estimateFeeCalculation core and serializes the envelope verbatim.
+// EstimateFeeCalculationV2 decodes+validates the raw body imperatively, then delegates
+// to the shared estimateFeeCalculation core with the path-resolved ledger and
+// serializes the envelope verbatim.
 //
 // The response Body stays a pre-serialized []byte for the reason
 // EstimateFeeResponse documents: the estimate embeds the projected transaction tree,
@@ -118,11 +117,7 @@ func (handler *FeeHandler) EstimateFeeCalculationV2(ctx context.Context, in *Est
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	if err := requireLedgerMatchesPath(payload.LedgerID, ledgerID); err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
-	response, err := handler.estimateFeeCalculation(ctx, orgID, payload)
+	response, err := handler.estimateFeeCalculation(ctx, orgID, ledgerID, payload)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

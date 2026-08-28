@@ -26,7 +26,7 @@ import (
 )
 
 // EstimateFeeCalculation estimate a fee applied in transaction according a specific package
-func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEstimate, organizationID uuid.UUID) (_ *model.FeeEstimateResult, err error) {
+func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEstimate, organizationID, ledgerID uuid.UUID) (_ *model.FeeEstimateResult, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	// Defensive nil check for the main input parameter
@@ -54,11 +54,11 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 
 	span.SetAttributes(
 		attribute.String("app.request.package_id", cf.PackageID.String()),
-		attribute.String("app.request.ledger_id", cf.LedgerID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
 	// Validate the existence of a package. The estimate addresses the package by id
-	// alone: cf.LedgerID is the ledger the fees are computed FOR — it resolves the
+	// alone: ledgerID is the ledger the fees are computed FOR — it resolves the
 	// accounts and segment the calculation reads — and has never scoped which
 	// package answers, so the lookup stays organization-wide.
 	packModel, err := uc.packageRepo.FindByID(ctx, cf.PackageID, organizationID, uuid.Nil)
@@ -76,7 +76,7 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 	}
 
 	feeModel := &model.FeeCalculate{
-		LedgerID:    cf.LedgerID,
+		LedgerID:    ledgerID,
 		Transaction: cf.Transaction,
 	}
 
@@ -104,7 +104,7 @@ func (uc *UseCase) EstimateFeeCalculation(ctx context.Context, cf *model.FeeEsti
 		Ctx:            ctx,
 		Resolver:       uc.resolver,
 		OrganizationID: organizationID,
-		LedgerID:       cf.LedgerID,
+		LedgerID:       ledgerID,
 	}
 
 	errCalculateFee := feeUtils.CalculateFee(logger, feeModel, packModel, validationResult, segCtx)

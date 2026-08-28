@@ -26,8 +26,9 @@ type FeeEstimateResponse struct {
 }
 
 // FeeEstimate is a struct designed to encapsulate request create payload data.
+// The ledger is not carried on the wire: the path names it and the handler threads it
+// inward as an explicit parameter, mirroring the organization id.
 type FeeEstimate struct {
 	PackageID   uuid.UUID               `json:"packageId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
-	LedgerID    uuid.UUID               `json:"ledgerId" validate:"required" example:"00000000-0000-0000-0000-000000000000"`
 	Transaction transaction.Transaction `json:"transaction"` // Full transaction projection; rendered as TransactionInput in the API schema.
 }

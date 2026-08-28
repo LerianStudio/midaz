@@ -394,6 +394,8 @@ func TestHuma_EstimateFee_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
 	assert.True(t, stub.called, "service.EstimateFeeCalculation must be invoked")
 	assert.Equal(t, orgID, stub.gotOrg)
+	assert.Equal(t, uuid.MustParse(validLedgerUUID()), stub.gotLedger,
+		"the ledger threaded to the service must be the one named in the URL path")
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
@@ -454,13 +456,61 @@ func TestHuma_EstimateFee_ServiceError_Mapped(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidPathParameter.Error(), got["code"])
 }
 
+// TestHuma_EstimateFee_BodyLedgerId_Rejected400 pins the hard-cutover contract:
+// ledgerId was removed from the estimate body, and the path is the sole authority on
+// the ledger. A body still carrying ledgerId is an unknown field, so the fee decoder
+// (decodeFeeBodyInSpan -> findUnknownFields -> ValidateBadRequestFieldsError) rejects
+// it with 0053 "Unexpected Fields in the Request" and never reaches the service.
+func TestHuma_EstimateFee_BodyLedgerId_Rejected400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubFeeService{result: &model.FeeEstimateResult{}}
+	handler := &FeeHandler{Service: stub}
+
+	app := buildHumaFeeEstimateApp(t, handler, true)
+
+	// A validator-valid estimate body with one extra, now-forbidden ledgerId key.
+	body := `{"packageId":"` + validLedgerUUID() + `","transaction":{"send":` + validSendJSON() + `},"ledgerId":"` + validLedgerUUID() + `"}`
+	req := httptest.NewRequest(http.MethodPost, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/estimates", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "ledgerId in the body is an unknown field: body: %s", string(respBody))
+	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrUnexpectedFieldsInTheRequest.Error(), got["code"],
+		"unknown-field code (0053) must be preserved")
+
+	// The RFC 9457 v2 envelope names the unknown key in the errors array
+	// ({message,location,value}), not in a fields map.
+	errs, ok := got["errors"].([]any)
+	require.True(t, ok, "problem must carry an errors array naming the unknown key: body: %s", string(respBody))
+
+	var sawLedgerID bool
+	for _, e := range errs {
+		if detail, ok := e.(map[string]any); ok && detail["location"] == "ledgerId" {
+			sawLedgerID = true
+			break
+		}
+	}
+	assert.True(t, sawLedgerID, "the rejected field must be named as ledgerId: body: %s", string(respBody))
+
+	assert.False(t, stub.called, "an unknown field must short-circuit before the service")
+}
+
 // estimateBodyJSON returns a FeeEstimate payload that satisfies the fee-package
-// validator: packageId + ledgerId are required UUIDs and the embedded transaction's
-// send (asset + value + source.from + distribute.to) is required. The fee engine is
-// stubbed, so only decode+validate must pass. ledgerId is validLedgerUUID(), so the
-// ledger-scoped estimate guard admits it when the path names the same ledger.
+// validator: packageId is a required UUID and the embedded transaction's send (asset +
+// value + source.from + distribute.to) is required. The fee engine is stubbed, so only
+// decode+validate must pass. The body carries no ledger: the path is the sole authority
+// on which ledger the fees are estimated for.
 func estimateBodyJSON() string {
-	return `{"packageId":"` + validLedgerUUID() + `","ledgerId":"` + validLedgerUUID() + `","transaction":{"send":` + validSendJSON() + `}}`
+	return `{"packageId":"` + validLedgerUUID() + `","transaction":{"send":` + validSendJSON() + `}}`
 }
 
 // validSendJSON is a minimal transaction send that clears the fee-package validator:

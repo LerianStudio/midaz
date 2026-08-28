@@ -141,11 +141,6 @@ func createBillingPackageV2JSON(ledgerID string) string {
 	return `{"label":"Monthly Volume","type":"volume","ledgerId":"` + ledgerID + `"}`
 }
 
-// estimateV2JSON is estimateBodyJSON with a caller-chosen ledger.
-func estimateV2JSON(ledgerID string) string {
-	return `{"packageId":"` + validLedgerUUID() + `","ledgerId":"` + ledgerID + `","transaction":{"send":` + validSendJSON() + `}}`
-}
-
 // TestFeesV2_BodyLedgerMustMatchPath pins the body-versus-path decision on the
 // operations whose body carries a ledger. The field stays required — the models are
 // shared with the organization-scoped surface and with the in-process fee seam — so
@@ -165,14 +160,6 @@ func TestFeesV2_BodyLedgerMustMatchPath(t *testing.T) {
 		called   func(s *feesV2Stubs) bool
 		okStatus int
 	}{
-		{
-			name:     "estimate_fee",
-			method:   http.MethodPost,
-			template: feesV2Scope + "/estimates",
-			body:     estimateV2JSON,
-			called:   func(s *feesV2Stubs) bool { return s.feeSvc.called },
-			okStatus: http.StatusOK,
-		},
 		{
 			name:     "create_billing_package",
 			method:   http.MethodPost,

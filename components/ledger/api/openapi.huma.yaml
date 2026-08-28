@@ -2184,10 +2184,6 @@ components:
     FeeEstimate:
       additionalProperties: false
       properties:
-        ledgerId:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          type: string
         packageId:
           examples:
             - 00000000-0000-0000-0000-000000000000
@@ -2196,7 +2192,6 @@ components:
           $ref: "#/components/schemas/TransactionInput"
       required:
         - packageId
-        - ledgerId
         - transaction
       type: object
     FeeEventFilter:

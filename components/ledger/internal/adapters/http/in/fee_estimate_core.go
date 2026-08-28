@@ -21,7 +21,7 @@ import (
 // the unified binary the fee calculation itself runs in-process via the
 // transaction seam, so only the dry-run estimate is exposed over HTTP.
 type FeeService interface {
-	EstimateFeeCalculation(ctx context.Context, cf *model.FeeEstimate, organizationID uuid.UUID) (*model.FeeEstimateResult, error)
+	EstimateFeeCalculation(ctx context.Context, cf *model.FeeEstimate, organizationID, ledgerID uuid.UUID) (*model.FeeEstimateResult, error)
 }
 
 // FeeHandler exposes the fee-estimate (dry-run) endpoint over HTTP.
@@ -32,9 +32,9 @@ type FeeHandler struct {
 // estimateFeeCalculation is the transport-agnostic core of the fee-estimate op,
 // shared by the Fiber wrapper (EstimateFeeCalculation) and the Huma shell. It owns
 // the span, service call, nil-result guard, and the applied-vs-no-rules envelope
-// selection; the caller (Fiber/Huma) resolves the org id, decodes the payload, and
-// renders the returned envelope/error.
-func (handler *FeeHandler) estimateFeeCalculation(ctx context.Context, organizationID uuid.UUID, payload *model.FeeEstimate) (model.FeeEstimateResponse, error) {
+// selection; the caller (Fiber/Huma) resolves the org and ledger ids from the path,
+// decodes the payload, and renders the returned envelope/error.
+func (handler *FeeHandler) estimateFeeCalculation(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *model.FeeEstimate) (model.FeeEstimateResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return model.FeeEstimateResponse{}, err
 	}
@@ -48,10 +48,10 @@ func (handler *FeeHandler) estimateFeeCalculation(ctx context.Context, organizat
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", organizationID.String()),
 		attribute.String("app.request.package_id", payload.PackageID.String()),
-		attribute.String("app.request.ledger_id", payload.LedgerID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
-	feeCalculate, errCreateFee := handler.Service.EstimateFeeCalculation(ctx, payload, organizationID)
+	feeCalculate, errCreateFee := handler.Service.EstimateFeeCalculation(ctx, payload, organizationID, ledgerID)
 	if errCreateFee != nil {
 		handleSpanByErrorClass(span, "Failed to estimate fee calculation", errCreateFee)
 

@@ -153,13 +153,15 @@ type stubFeeService struct {
 
 	gotEstimate *model.FeeEstimate
 	gotOrg      uuid.UUID
+	gotLedger   uuid.UUID
 	called      bool
 }
 
-func (s *stubFeeService) EstimateFeeCalculation(_ context.Context, cf *model.FeeEstimate, organizationID uuid.UUID) (*model.FeeEstimateResult, error) {
+func (s *stubFeeService) EstimateFeeCalculation(_ context.Context, cf *model.FeeEstimate, organizationID, ledgerID uuid.UUID) (*model.FeeEstimateResult, error) {
 	s.called = true
 	s.gotEstimate = cf
 	s.gotOrg = organizationID
+	s.gotLedger = ledgerID
 
 	return s.result, s.err
 }
