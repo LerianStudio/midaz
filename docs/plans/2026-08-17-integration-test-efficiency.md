@@ -4,7 +4,7 @@
 
 **Architecture:** Integration build tags define what belongs to each lane. Required gates fail closed when discovery or prerequisites are missing. Datastore processes are eventually reused at package or shard scope, while every test keeps an isolated database, schema, namespace, or vhost. Parallelism is introduced only after isolation is explicit and measured.
 
-**Status (corrected 2026-08-28): delivery abandoned after layer 1.** P0-P3 and every finding from the final independent review were implemented together on the source branch, and delivery was split into four sequential review layers. Only layer 1 (reusable integration gate platform, PR #2341) merged. Layers 2-4 (PRs #2342/#2348, #2343, #2344) and the parent PR #2337 were **closed without merge**, their branches have not moved since 19-20/08, and no open PR replaces them. The test-infrastructure side of P0-P3 did land inside layer 1; **the money-path product code tracked by P0.6 did not, so both money-path defects remain open on `develop`** — see "Money-path defects OPEN" below. The measurements in this document were taken on the source branch, so any figure that depends on the money-path layers describes code that is not in the product. The current signal contains 1,735 exact integration tests; P1 reduces datastore starts by 92.9%, P2 reduces the like-for-like base critical path by 70.4%, and P3 removes redundant restarts, waits, cleanup, and history scans. A required capability lane additionally executes all 76 chaos scenarios that the base matrix classifies as skips, making the complete required critical path 478 seconds. Repository ruleset enforcement remains deliberately last.
+**Status (corrected 2026-08-28): delivery abandoned after layer 1.** P0-P3 and every finding from the final independent review were implemented together on the source branch, and delivery was split into four sequential review layers. Only layer 1 (reusable integration gate platform, PR #2341) merged. Layers 2-4 (PRs #2342/#2348, #2343, #2344) and the parent PR #2337 were **closed without merge**, their branches have not moved since 19-20/08, and no open PR replaces them. The test-infrastructure side of P0-P3 did land inside layer 1; **the money-path product work reopened in P0.6 below did not, so both money-path defects remain open on `develop`** — see "Money-path defects OPEN" below. The measurements in this document were taken on the source branch, so any figure that depends on the money-path layers describes code that is not in the product. The current signal contains 1,735 exact integration tests; P1 reduces datastore starts by 92.9%, P2 reduces the like-for-like base critical path by 70.4%, and P3 removes redundant restarts, waits, cleanup, and history scans. A required capability lane additionally executes all 76 chaos scenarios that the base matrix classifies as skips, making the complete required critical path 478 seconds. Repository ruleset enforcement remains deliberately last.
 
 ## Phase overview
 
@@ -17,7 +17,7 @@
 
 Evidence for the split: PR #2341 carried 100 files, including the shard contract in
 `ci/integration-shards.tsv`, the skip allowlist, and the reusable PostgreSQL/MongoDB fixtures under
-`tests/utils/` — all present on `develop`. The money-path product code in P0.6 is not.
+`tests/utils/` — all present on `develop`. The P0.6 product work reopened below is not.
 
 ### Execution order — 2026-08-17
 
