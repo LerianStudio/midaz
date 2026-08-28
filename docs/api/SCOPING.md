@@ -79,10 +79,14 @@ the value moved (path UUID → `.String()`), so the Mongo partition is unchanged
   family has since been retired too: fee **business** errors now use the canonical numeric registry
   in `pkg/constant/errors.go`, and no `FEE-` code is emitted on the wire. The literal still appears
   in test fixtures and comments that document the old-to-new mapping.
-- **`ledger_id` is not a scope on this surface.** It is a create-body field
+- **`ledger_id` is not a scope on this surface.** It was historically a create-body field
   (`CreatePackageInput.LedgerID`, `FeeEstimate.LedgerID`, `BillingCalculateRequest.LedgerID`) and
-  an optional list filter (`?ledgerId=`) on the package/billing-package lists. The ledger-scoped
-  surface below is a second contract, not a replacement of this one.
+  an optional list filter (`?ledgerId=`) on the package/billing-package lists. Those body fields
+  were removed from the shared `feeshared/model` request structs when `ledgerId` was dropped from
+  the fee create/estimate/calculate request contract (see the `/v2` section below), so `ledger_id`
+  is no longer a request-body field on either scope; the org-scoped `/v1` fee routes are not
+  currently mounted in the binary. The ledger-scoped surface below is a second contract, not a
+  replacement of this one.
 - **Authz keys unchanged.** The `plugin-fees` namespace and every `Authorize(...)` triple are
   byte-identical (R9) — route shape moved, policy keys did not. See `docs/auth/RBAC-NAMESPACES.md`.
 
@@ -112,9 +116,12 @@ On the ledger-scoped surface the path is the sole authority on which ledger a re
 - **The nil ledger is refused as a path value.** It is a syntactically valid UUID, so
   `ParseUUIDPathParameters` admits it, and both fee repositories read it as "no ledger requested" —
   which would widen a ledger-scoped read back to the whole organization.
-- **A body that names a different ledger is refused.** The ledger stays a required body field
-  (the models are shared with `/v1` and with the in-process fee seam, so it cannot be dropped for
-  one caller), but a disagreement with the path is a `400` (`0234`), not a silent path-wins.
+- **The request body no longer carries a ledger.** `ledgerId` was removed from every `/v2` fee and
+  billing create/estimate/calculate request body (`packages`, `estimates`, `billing-packages`,
+  `billing/calculate`); the billing-package create request has its own `CreateBillingPackageInput`
+  so the response model can keep `ledgerId` while the request does not. The path is the sole ledger
+  input — a body that still sends `ledgerId` is rejected as an unknown field (`400`). The former
+  body-versus-path mismatch guard and its `0234` code are retired.
 - **`?ledgerId=` is refused on the two listings** (`400`, `0235`) — the only ledger-scoped
   operations that read a query at all. It can only restate the path or contradict it, and its empty
   value means "every ledger of the organization" — the one scope a ledger-scoped listing must not

@@ -398,10 +398,11 @@ reaches only what that ledger owns.
 | POST | {base}/billing/calculate | Calculate billing |
 
 On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
-`ledger_id` path value, a request body naming a different ledger is refused (`0234`), and
-`?ledgerId=` is refused on the two listings (`0235`) — its empty value would mean "every ledger",
-the one scope a ledger-scoped listing must not express. Authz is `plugin-fees` with the usual
-`(resource, verb)` tuples.
+`ledger_id` path value, `ledgerId` was removed from the create/estimate/calculate request bodies
+(a body that still sends it is rejected as an unknown field, `400`; the former mismatch guard and
+its `0234` code are retired), and `?ledgerId=` is refused on the two listings (`0235`) — its empty
+value would mean "every ledger", the one scope a ledger-scoped listing must not express. Authz is
+`plugin-fees` with the usual `(resource, verb)` tuples.
 
 Live fee calculation (`POST .../fees`) is intentionally **not** exposed — fees run in-process via
 the transaction-create seam, not over HTTP.
