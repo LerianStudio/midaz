@@ -239,7 +239,7 @@ local function rollback(rollbackBalances, ttl)
 end
 
 local function main()
-    local ttl = 3600 -- 1 hour
+    local ttl = 86400 -- 1 day
 
     local groupSize = 24
     local returnBalances = {}
