@@ -124,3 +124,45 @@ func TestHasCollector_FalseForUnknownAndZeroValue(t *testing.T) {
 	var zero BalanceSyncWorker
 	assert.False(t, zero.HasCollector("nobody"), "a nil map must read as no collector")
 }
+
+// TestStopTenantCollector_DrainsBeforeReturning is the contract the tenant-eviction
+// wiring rests on: the callback calls StopTenantCollector and then closes the
+// tenant's pools, so the final flush must have finished by the time the call
+// returns — not eventually, afterwards.
+func TestStopTenantCollector_DrainsBeforeReturning(t *testing.T) {
+	t.Parallel()
+
+	resolver := &fakePGResolver{db: newStubDB()}
+
+	w, rec, _ := newResolveTestWorker(t, resolver)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tc := w.startTenantCollector(ctx, "tenant-1")
+	require.NotNil(t, tc)
+
+	w.collectorsMu.Lock()
+	w.collectors["tenant-1"] = tc
+	w.collectorsMu.Unlock()
+
+	// Let the collector claim keys so its shutdown has a buffer worth draining.
+	require.Eventually(t, func() bool { return rec.count() >= 1 }, resolveTestTimeout, 10*time.Millisecond,
+		"the collector must be flushing before the eviction")
+
+	flushesBeforeStop := rec.count()
+
+	w.StopTenantCollector("tenant-1")
+
+	// Read the goroutine's state with no waiting at all: anything StopTenantCollector
+	// left running would make these racy, and -race would say so.
+	select {
+	case <-tc.done:
+	default:
+		t.Fatal("StopTenantCollector must not return while the collector is still running")
+	}
+
+	assert.GreaterOrEqual(t, rec.count(), flushesBeforeStop,
+		"the final flush must have run before the pools are closed")
+	assert.False(t, w.HasCollector("tenant-1"))
+}
