@@ -40,6 +40,13 @@ import (
 // 500ms, so a stage that has not happened in this long is not going to.
 const syncRoundTimeout = 30 * time.Second
 
+// dueScorePast is the ZSET score every scheduled key gets: 2026-01-01T00:00:00Z.
+// The claim script selects members scoring at or below Redis's own clock with no
+// lower bound, so any fixed past value is due, and a fixed one keeps the schedule
+// state identical from run to run. Each stage schedules a distinct member, so the
+// shared score cannot collide with the conditional ZREM's score comparison.
+const dueScorePast = float64(1767225600)
+
 // TestIntegration_BalanceSyncWorkerMT_RecoversFromClosedPool reproduces the
 // production incident end to end and proves the cure.
 //
@@ -207,7 +214,7 @@ func newSyncHarness(t *testing.T, targetNames ...string) *syncHarness {
 			"should store the balance payload")
 
 		_, zErr := redisContainer.Client.ZAdd(context.Background(), scheduleKey, goredis.Z{
-			Score:  float64(time.Now().Add(-time.Minute).Unix()),
+			Score:  dueScorePast,
 			Member: member,
 		}).Result()
 		require.NoError(t, zErr, "should schedule the balance key as due")

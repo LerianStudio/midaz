@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -68,11 +69,15 @@ type BalanceSyncWorker struct {
 	tenantCache    *tenantcache.TenantCache
 	pgResolver     tenantPGResolver
 	serviceName    string
-	// collectorsMu guards collectors. The reconcile loop, the tenant-eviction
-	// callback and the ownership checker all reach the map from different
-	// goroutines.
+	// collectorsMu guards collectors and evictions. The reconcile loop, the
+	// tenant-eviction callback and the ownership checker all reach them from
+	// different goroutines.
 	collectorsMu sync.Mutex
 	collectors   map[string]*tenantCollector
+	// evictions counts StopTenantCollector calls per tenant, including those that
+	// found no collector. reconcileCollectors samples it before spawning and
+	// re-checks it before registering, so an eviction landing mid-spawn still wins.
+	evictions map[string]uint64
 	// flushBatchFn is the flush body the collectors call. It defaults to
 	// flushBatch; tests replace it to observe the context a flush receives.
 	flushBatchFn func(ctx context.Context, keys []redisTransaction.SyncKey) bool
@@ -129,6 +134,7 @@ func NewBalanceSyncWorker(logger libLog.Logger, useCase *command.UseCase, syncCf
 		syncConfig: syncCfg,
 		useCase:    useCase,
 		collectors: make(map[string]*tenantCollector),
+		evictions:  make(map[string]uint64),
 	}
 	w.flushBatchFn = w.flushBatch
 
@@ -342,9 +348,14 @@ func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context) {
 		}
 	}
 
+	// Sampled under the lock alongside the membership check so the pair is
+	// consistent with the map state we based the spawn decision on.
+	spawnGen := make(map[string]uint64, len(tenantIDs))
+
 	for _, id := range tenantIDs {
 		if _, ok := w.collectors[id]; !ok {
 			missing = append(missing, id)
+			spawnGen[id] = w.evictions[id]
 		}
 	}
 
@@ -361,12 +372,20 @@ func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context) {
 
 		w.collectorsMu.Lock()
 
-		if _, taken := w.collectors[id]; taken {
+		_, taken := w.collectors[id]
+		evicted := w.evictions[id] != spawnGen[id]
+
+		if taken || evicted {
 			w.collectorsMu.Unlock()
 
-			// Another goroutine registered a collector for this tenant while we were
-			// spawning. Drop ours; its buffer is still empty, so the final flush is
-			// a no-op.
+			// Either another goroutine registered a collector for this tenant while we
+			// were spawning, or an eviction landed in that window — registering now
+			// would resurrect a collector the eviction is about to close the pool
+			// under. Drop ours; its buffer is still empty, so the final flush is a
+			// no-op.
+			w.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncWorker: discarding collector that lost the registration race",
+				libLog.String("tenant_id", id), libLog.Bool("evicted", evicted))
+
 			tc.cancel()
 			<-tc.done
 
@@ -398,6 +417,15 @@ func (w *BalanceSyncWorker) reconcileCollectors(ctx context.Context) {
 // flush (see resolveTenantPG).
 func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tenantID string) *tenantCollector {
 	tenantCtx := tmcore.ContextWithTenantID(parentCtx, tenantID)
+
+	// A shutdown racing the reconcile loop must not pay for a PG round-trip, nor
+	// report the tenant as skipped for a reason the operator cannot act on.
+	if err := parentCtx.Err(); err != nil {
+		w.logger.Log(parentCtx, libLog.LevelDebug, "BalanceSyncWorker: context done before collector start",
+			libLog.String("tenant_id", tenantID))
+
+		return nil
+	}
 
 	// Preflight: a tenant whose PG cannot be resolved gets no collector at all.
 	if _, err := w.pgResolver.GetDB(tenantCtx, tenantID); err != nil {
@@ -439,6 +467,17 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 			func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
 				pgCtx, err := w.resolveTenantPG(flushCtx, tenantID)
 				if err != nil {
+					// Shutdown is not a degraded tenant: counting it would add one bogus
+					// skip per tenant to the metric on every graceful stop. The drain
+					// flush runs with cancellation stripped, so it never lands here.
+					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+						w.logger.Log(flushCtx, libLog.LevelDebug,
+							"BalanceSyncWorker: flush context done before PG resolution",
+							libLog.String("tenant_id", tenantID))
+
+						return false
+					}
+
 					w.logger.Log(flushCtx, libLog.LevelWarn,
 						"BalanceSyncWorker: failed to resolve tenant PG for flush, skipping batch",
 						libLog.String("tenant_id", tenantID), libLog.Err(err))
@@ -477,6 +516,10 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 // The worker only touches the transaction database, so only the module-specific
 // context entry is set — getDB looks that one up first.
 func (w *BalanceSyncWorker) resolveTenantPG(ctx context.Context, tenantID string) (context.Context, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	db, err := w.pgResolver.GetDB(ctx, tenantID)
 	if err != nil {
 		return nil, err
@@ -485,12 +528,28 @@ func (w *BalanceSyncWorker) resolveTenantPG(ctx context.Context, tenantID string
 	return tmcore.ContextWithPG(ctx, db, constant.ModuleTransaction), nil
 }
 
+// collectorDrainDeadline bounds how long StopTenantCollector waits for a cancelled
+// collector. The collector's own flushRemaining budget (shutdownFlushTimeout) starts
+// only once it observes the cancel, so a deadline equal to that budget could fire
+// while a legitimate final flush was still inside it — and the caller closes the
+// tenant's pool as soon as we return. The margin puts this deadline strictly after
+// the collector's, so we only abandon a collector that blew its own.
+const collectorDrainDeadline = shutdownFlushTimeout + 10*time.Second
+
 // StopTenantCollector cancels the collector for tenantID, waits for its final flush
 // to drain, and forgets it. Call it BEFORE closing the tenant's PostgreSQL pool so
 // that flush lands in a live pool. A tenant with no collector is a no-op. The next
 // reconcile restarts the collector when the tenant is still in the TenantCache.
 func (w *BalanceSyncWorker) StopTenantCollector(tenantID string) {
 	w.collectorsMu.Lock()
+
+	if w.evictions == nil {
+		w.evictions = make(map[string]uint64)
+	}
+
+	// Counted even when no collector is present: that is precisely the case where a
+	// reconcile is mid-spawn and must not register its collector afterwards.
+	w.evictions[tenantID]++
 
 	tc, ok := w.collectors[tenantID]
 	if ok {
@@ -510,11 +569,7 @@ func (w *BalanceSyncWorker) StopTenantCollector(tenantID string) {
 
 	tc.cancel()
 
-	// Bound the wait by the collector's own drain deadline: giving up earlier would
-	// guarantee the truncated final flush this ordering exists to avoid, and waiting
-	// longer would hold the tenant-event goroutine past the point the collector
-	// itself has given up.
-	timer := time.NewTimer(shutdownFlushTimeout)
+	timer := time.NewTimer(collectorDrainDeadline)
 	defer timer.Stop()
 
 	select {
@@ -524,7 +579,7 @@ func (w *BalanceSyncWorker) StopTenantCollector(tenantID string) {
 	case <-timer.C:
 		w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: collector did not drain before deadline",
 			libLog.String("tenant_id", tenantID),
-			libLog.String("deadline", shutdownFlushTimeout.String()))
+			libLog.String("deadline", collectorDrainDeadline.String()))
 	}
 }
 
