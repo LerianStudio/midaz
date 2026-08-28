@@ -207,21 +207,19 @@ func TestBillingCalculateRequest_Validation(t *testing.T) {
 			name: "all fields present",
 			request: BillingCalculateRequest{
 				OrganizationID: "org-001",
-				LedgerID:       "ledger-001",
 				Period:         "2026-01",
 				Type:           "volume",
 			},
-			wantJSONKeys:    []string{"ledgerId", "period", "type"},
+			wantJSONKeys:    []string{"period", "type"},
 			wantOmitJSONKey: "organizationId",
 		},
 		{
 			name: "type omitted when empty",
 			request: BillingCalculateRequest{
 				OrganizationID: "org-001",
-				LedgerID:       "ledger-001",
 				Period:         "2026-01",
 			},
-			wantJSONKeys:    []string{"ledgerId", "period"},
+			wantJSONKeys:    []string{"period"},
 			wantOmitJSONKey: "type",
 		},
 	}
@@ -255,7 +253,7 @@ func TestBillingCalculateRequest_RequiredFieldValidateTags(t *testing.T) {
 
 	reqType := reflect.TypeOf(BillingCalculateRequest{})
 
-	requiredFields := []string{"LedgerID", "Period"}
+	requiredFields := []string{"Period"}
 
 	for _, fieldName := range requiredFields {
 		field, ok := reqType.FieldByName(fieldName)

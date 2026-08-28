@@ -1775,12 +1775,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Deductible fee exceeds the amount it deducts from",
 			Message:    "A deductible fee cannot be applied because it meets or exceeds the amount it is deducted from, which would leave the recipient with nothing or a negative balance. Reduce the fee, increase the transfer amount, or exempt the account.",
 		},
-		constant.ErrLedgerIDMismatch: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrLedgerIDMismatch.Error(),
-			Title:      "Ledger Mismatch",
-			Message:    "The 'ledgerId' in the request body names a different ledger than the request path. The path is authoritative; send the same ledger in both, or remove the conflict, and try again.",
-		},
 		constant.ErrLedgerScopedQueryParameter: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrLedgerScopedQueryParameter.Error(),

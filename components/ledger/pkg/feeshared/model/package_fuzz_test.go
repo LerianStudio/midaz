@@ -38,7 +38,6 @@ func FuzzCreatePackageInput_Validate(f *testing.F) {
 
 		input := &CreatePackageInput{
 			FeeGroupLabel: feeGroupLabel,
-			LedgerID:      "00000000-0000-0000-0000-000000000001",
 			MinAmount:     minAmount,
 			MaxAmount:     maxAmount,
 			Enable:        &enable,

@@ -16,9 +16,9 @@ import (
 // envelope and the shell that decodes a request, calls calculateBilling in
 // billing_calculate_core.go, and renders the envelope.
 //
-// The shell names the ledger in its path and resolves it via parseFeeV2Path, and the
-// body's own ledger must agree with the path — see requireBodyLedgerMatchesPath in
-// fee_ledger_scope.go.
+// The shell names the ledger in its path and resolves it via parseFeeV2Path, then
+// threads it into the calculate core as an explicit parameter. The body no longer
+// carries a ledger.
 //
 // 200 is intentional: this is a compute/RPC-style endpoint that persists nothing.
 // Unlike the fee-estimate op (whose response embeds the transaction tree and forces a
@@ -47,9 +47,9 @@ type CalculateBillingV2Request struct {
 	RawBody []byte `contentType:"application/json"`
 }
 
-// CalculateBillingV2 decodes+validates the raw body imperatively, refuses a body
-// ledger that disagrees with the path, then delegates to the shared calculateBilling
-// core.
+// CalculateBillingV2 decodes+validates the raw body imperatively, then delegates to
+// the shared calculateBilling core with the ledger the path named. ledgerId is no
+// longer accepted in the body — an unknown-field body is rejected by decodeFeeBodyInSpan.
 func (handler *BillingCalculateHandler) CalculateBillingV2(ctx context.Context, in *CalculateBillingV2Request) (*CalculateBillingResponse, error) {
 	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
@@ -61,11 +61,7 @@ func (handler *BillingCalculateHandler) CalculateBillingV2(ctx context.Context, 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	if err := requireBodyLedgerMatchesPath(payload.LedgerID, ledgerID); err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
-	result, err := handler.calculateBilling(ctx, orgID, payload)
+	result, err := handler.calculateBilling(ctx, orgID, ledgerID, payload)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

@@ -21,8 +21,8 @@ import (
 //
 // Every shell names the ledger in its path and resolves it via parseFeeV2Path, then
 // hands it to the core, which passes it to the by-ID scope filters and pins the
-// listings. A body that also carries a ledger must agree with the path — see
-// requireBodyLedgerMatchesPath in fee_ledger_scope.go.
+// listings. No body carries a ledger: the create binds a dedicated request DTO
+// (CreateBillingPackageInput) with no ledgerId, so the path is the sole authority.
 //
 // Body ops carry RawBody + SkipValidateBody, and the fee body validator runs inside
 // the replicated body-parsing span (decodeFeeBodyInSpan, NOT
@@ -80,25 +80,21 @@ type CreateBillingPackageV2Request struct {
 	RawBody []byte `contentType:"application/json"`
 }
 
-// CreateBillingPackageV2 decodes+validates the raw body imperatively, refuses a
-// body ledger that disagrees with the path, then delegates to the shared
-// createBillingPackage core.
+// CreateBillingPackageV2 decodes+validates the raw body imperatively into the
+// request DTO, then delegates to the shared createBillingPackage core with the path
+// ledger. The DTO carries no ledgerId, so there is nothing to reconcile against the path.
 func (handler *BillingPackageHandler) CreateBillingPackageV2(ctx context.Context, in *CreateBillingPackageV2Request) (*CreateBillingPackageResponse, error) {
 	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	payload := new(model.BillingPackage)
-	if err := decodeFeeBodyInSpan(ctx, in.RawBody, payload); err != nil {
+	input := new(model.CreateBillingPackageInput)
+	if err := decodeFeeBodyInSpan(ctx, in.RawBody, input); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	if err := requireBodyLedgerMatchesPath(payload.LedgerID, ledgerID); err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
-	result, err := handler.createBillingPackage(ctx, orgID, payload)
+	result, err := handler.createBillingPackage(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

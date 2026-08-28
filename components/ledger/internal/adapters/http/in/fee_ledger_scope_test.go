@@ -136,107 +136,6 @@ func driveFeeV2Probe(t *testing.T, app *fiber.App, method, template string) {
 	driveFeeV2(t, app, method, url, body)
 }
 
-// createPackageV2JSON is validCreatePackageJSON with the ledger under the caller's
-// control, so a test can make the body agree or disagree with the path.
-func createPackageV2JSON(ledgerID string) string {
-	return `{"feeGroupLabel":"Standard","ledgerId":"` + ledgerID + `","minimumAmount":"100.00","maximumAmount":"1000.00","enable":true,` +
-		`"fees":{"f1":{"feeLabel":"Admin","referenceAmount":"afterFeesAmount","priority":2,"isDeductibleFrom":false,` +
-		`"creditAccount":"conta_receita","calculationModel":{"applicationRule":"flatFee","calculations":[{"type":"flat","value":"50.00"}]}}}}`
-}
-
-// createBillingPackageV2JSON is validBillingPackageJSON with a caller-chosen ledger.
-func createBillingPackageV2JSON(ledgerID string) string {
-	return `{"label":"Monthly Volume","type":"volume","ledgerId":"` + ledgerID + `"}`
-}
-
-// estimateV2JSON is estimateBodyJSON with a caller-chosen ledger.
-func estimateV2JSON(ledgerID string) string {
-	return `{"packageId":"` + validLedgerUUID() + `","ledgerId":"` + ledgerID + `","transaction":{"send":` + validSendJSON() + `}}`
-}
-
-// TestFeesV2_BodyLedgerMustMatchPath pins the body-versus-path decision on the four
-// operations whose body carries a ledger. The field stays required — the models are
-// shared with the organization-scoped surface and with the in-process fee seam — so
-// what the ledger-scoped surface adds is the refusal of a value that names a different
-// ledger than the path. A matching value is accepted and reaches the service; a
-// different one is refused before the service is touched.
-func TestFeesV2_BodyLedgerMustMatchPath(t *testing.T) {
-	orgID := uuid.New()
-	pathLedger := uuid.MustParse("11111111-1111-4111-8111-111111111111")
-	otherLedger := uuid.MustParse("22222222-2222-4222-8222-222222222222")
-
-	tests := []struct {
-		name     string
-		method   string
-		template string
-		body     func(ledger string) string
-		called   func(s *feesV2Stubs) bool
-		okStatus int
-	}{
-		{
-			name:     "create_package",
-			method:   http.MethodPost,
-			template: feesV2Scope + "/packages",
-			body:     createPackageV2JSON,
-			called:   func(s *feesV2Stubs) bool { return s.pkgSvc.createCalled },
-			okStatus: http.StatusCreated,
-		},
-		{
-			name:     "estimate_fee",
-			method:   http.MethodPost,
-			template: feesV2Scope + "/estimates",
-			body:     estimateV2JSON,
-			called:   func(s *feesV2Stubs) bool { return s.feeSvc.called },
-			okStatus: http.StatusOK,
-		},
-		{
-			name:     "create_billing_package",
-			method:   http.MethodPost,
-			template: feesV2Scope + "/billing-packages",
-			body:     createBillingPackageV2JSON,
-			called:   func(s *feesV2Stubs) bool { return s.billingSvc.createCalled },
-			okStatus: http.StatusCreated,
-		},
-		{
-			name:     "calculate_billing",
-			method:   http.MethodPost,
-			template: feesV2Scope + "/billing/calculate",
-			body:     validBillingCalculateJSON,
-			called:   func(s *feesV2Stubs) bool { return s.calcSvc.called },
-			okStatus: http.StatusOK,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name+"_matching_body_ledger_is_accepted", func(t *testing.T) {
-			// NOT parallel: huma registration mutates process-global state.
-			app, stubs := buildFeesV2App(t)
-			seedFeesV2Results(stubs)
-
-			url := feeV2Path(tt.template, orgID, pathLedger, uuid.Nil)
-			status, body := driveFeeV2(t, app, tt.method, url, tt.body(pathLedger.String()))
-
-			assert.Equalf(t, tt.okStatus, status, "body: %v", body)
-			assert.True(t, tt.called(stubs), "the service must be reached when the body agrees with the path")
-		})
-
-		t.Run(tt.name+"_conflicting_body_ledger_is_refused", func(t *testing.T) {
-			// NOT parallel: huma registration mutates process-global state.
-			app, stubs := buildFeesV2App(t)
-			seedFeesV2Results(stubs)
-
-			url := feeV2Path(tt.template, orgID, pathLedger, uuid.Nil)
-			status, body := driveFeeV2(t, app, tt.method, url, tt.body(otherLedger.String()))
-
-			assert.Equal(t, http.StatusBadRequest, status)
-			assert.Equal(t, constant.ErrLedgerIDMismatch.Error(), body["code"],
-				"a body naming another ledger must be refused with the mismatch code, got: %v", body)
-			assert.False(t, tt.called(stubs),
-				"MONEY-PATH: the service must not be reached when the body names another ledger")
-		})
-	}
-}
-
 // seedFeesV2Results gives every stub a non-nil success result, so an operation that is
 // supposed to succeed is not turned into a 500 by a nil return.
 func seedFeesV2Results(s *feesV2Stubs) {
@@ -469,48 +368,28 @@ func feesV2AnyServiceReached(s *feesV2Stubs) bool {
 		s.calcSvc.called
 }
 
-// TestFeesV2_CreateBillingPackageCanonicalisesTheBodyLedger pins that a billing
-// package created through the ledger-scoped surface is reachable through it
-// afterwards.
-//
-// The create guard admits the body ledger on parsed-UUID equality, so every
-// spelling uuid.Parse accepts reaches the create. The stored ledger is a string,
-// and every scoped read compares it against the canonical lowercase-hyphenated
-// form the path resolves to — so a body spelled any other way would persist a
-// value no scoped read, listing or billing calculation can match, and the package
-// would be created and then be unreachable.
-func TestFeesV2_CreateBillingPackageCanonicalisesTheBodyLedger(t *testing.T) {
+// TestFeesV2_CreateBillingPackageStampsThePathLedger pins that a billing package
+// created through the ledger-scoped surface is stamped with the ledger the path named —
+// the same ledger every scoped read, listing and billing calculation filters on — so it
+// is reachable through the surface afterwards. The create body no longer carries a
+// ledger (CreateBillingPackageInput has no ledgerId), so the path is the only source.
+func TestFeesV2_CreateBillingPackageStampsThePathLedger(t *testing.T) {
 	orgID := uuid.New()
 	pathLedger := uuid.MustParse("018f3a2b-1111-4111-8111-111111111111")
 
-	spellings := []struct {
-		name string
-		body string
-	}{
-		{name: "uppercase", body: strings.ToUpper(pathLedger.String())},
-		{name: "braced", body: "{" + pathLedger.String() + "}"},
-		{name: "unhyphenated", body: strings.ReplaceAll(pathLedger.String(), "-", "")},
-	}
+	// NOT parallel: huma registration mutates process-global state.
+	app, stubs := buildFeesV2App(t)
+	seedFeesV2Results(stubs)
 
-	for _, spelling := range spellings {
-		t.Run(spelling.name, func(t *testing.T) {
-			// NOT parallel: huma registration mutates process-global state.
-			app, stubs := buildFeesV2App(t)
-			seedFeesV2Results(stubs)
+	createURL := feeV2Path(feesV2Scope+"/billing-packages", orgID, pathLedger, uuid.Nil)
+	status, body := driveFeeV2(t, app, http.MethodPost, createURL, validBillingPackageJSON())
 
-			createURL := feeV2Path(feesV2Scope+"/billing-packages", orgID, pathLedger, uuid.Nil)
-			status, body := driveFeeV2(t, app, http.MethodPost, createURL, createBillingPackageV2JSON(spelling.body))
+	require.Equalf(t, http.StatusCreated, status, "body: %v", body)
+	require.NotNil(t, stubs.billingSvc.gotCreate)
 
-			require.Equalf(t, http.StatusCreated, status, "body: %v", body)
-			require.NotNil(t, stubs.billingSvc.gotCreate)
-
-			readURL := feeV2Path(feesV2Scope+"/billing-packages/:id", orgID, pathLedger, uuid.New())
-			status, body = driveFeeV2(t, app, http.MethodGet, readURL, "")
-			require.Equalf(t, http.StatusOK, status, "body: %v", body)
-
-			assert.Equal(t, stubs.billingSvc.gotGetByIDLedger.String(), stubs.billingSvc.gotCreate.LedgerID,
-				"MONEY-PATH: the ledger persisted by the create must be the one every scoped read filters on, "+
-					"or the package is created and then unreachable")
-		})
-	}
+	assert.Equal(t, pathLedger.String(), stubs.billingSvc.gotCreate.LedgerID,
+		"MONEY-PATH: the ledger persisted by the create must be the one the path named, "+
+			"or the package is created and then unreachable")
+	assert.Equal(t, pathLedger, stubs.billingSvc.gotCreateLedger,
+		"the create service must receive the path ledger as a parameter")
 }

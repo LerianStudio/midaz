@@ -73,7 +73,6 @@ func TestCreatePackage_InvalidDecimalMinAmount(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			segIDString := uuid.New().String()
-			ledgerIDString := uuid.New().String()
 
 			feeModel := model.Fee{
 				FeeLabel:         "Teste",
@@ -87,7 +86,6 @@ func TestCreatePackage_InvalidDecimalMinAmount(t *testing.T) {
 			cpi := &model.CreatePackageInput{
 				FeeGroupLabel: "teste group label",
 				SegmentID:     &segIDString,
-				LedgerID:      ledgerIDString,
 				MinAmount:     tt.minAmount,
 				MaxAmount:     tt.maxAmount,
 				Fee:           fees,

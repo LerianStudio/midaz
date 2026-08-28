@@ -40,7 +40,7 @@ func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler, opSuff
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateBillingPackageV2)
-	attachTypedRequestBody[model.BillingPackage](api, "createBillingPackage"+opSuffix)
+	attachTypedRequestBody[model.CreateBillingPackageInput](api, "createBillingPackage"+opSuffix)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getAllBillingPackages" + opSuffix,

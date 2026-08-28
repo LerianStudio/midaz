@@ -1850,10 +1850,6 @@ components:
     FeeBillingCalculateRequest:
       additionalProperties: false
       properties:
-        ledgerId:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          type: string
         period:
           examples:
             - 2026-01
@@ -1863,7 +1859,6 @@ components:
             - volume
           type: string
       required:
-        - ledgerId
         - period
       type: object
     FeeBillingCalculateResponse:
@@ -2111,6 +2106,101 @@ components:
         - applicationRule
         - calculations
       type: object
+    FeeCreateBillingPackageInput:
+      additionalProperties: false
+      properties:
+        accountTarget:
+          $ref: "#/components/schemas/FeeAccountTarget"
+        assetCode:
+          examples:
+            - BRL
+          type: string
+        countMode:
+          examples:
+            - perRoute
+          type: string
+        createdAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          type: string
+        creditAccountAlias:
+          examples:
+            - account_fees_credit
+          type: string
+        debitAccountAlias:
+          examples:
+            - account_fees_debit
+          type: string
+        deletedAt:
+          examples:
+            - "2026-06-01T00:00:00Z"
+          type: string
+        description:
+          examples:
+            - Charges per completed transaction route
+          type: string
+        discountTiers:
+          items:
+            $ref: "#/components/schemas/FeeDiscountTier"
+          type:
+            - array
+            - "null"
+        enable:
+          examples:
+            - true
+          type:
+            - boolean
+            - "null"
+        eventFilter:
+          $ref: "#/components/schemas/FeeEventFilter"
+        feeAmount:
+          examples:
+            - "50.00"
+          type: string
+        freeQuota:
+          examples:
+            - 100
+          format: int64
+          type: integer
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        label:
+          examples:
+            - Monthly Volume Billing
+          type: string
+        maintenanceCreditAccount:
+          examples:
+            - account_maintenance_credit
+          type: string
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          type: string
+        pricingModel:
+          examples:
+            - tiered
+          type: string
+        tiers:
+          items:
+            $ref: "#/components/schemas/FeePricingTier"
+          type:
+            - array
+            - "null"
+        type:
+          examples:
+            - volume
+          type: string
+        updatedAt:
+          examples:
+            - "2026-01-01T00:00:00Z"
+          type: string
+      required:
+        - label
+        - type
+        - enable
+      type: object
     FeeCreatePackageInput:
       additionalProperties: false
       properties:
@@ -2130,10 +2220,6 @@ components:
           additionalProperties:
             $ref: "#/components/schemas/Fee"
           type: object
-        ledgerId:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          type: string
         maximumAmount:
           examples:
             - "1000.20"
@@ -2164,7 +2250,6 @@ components:
       required:
         - feeGroupLabel
         - segmentId
-        - ledgerId
         - minimumAmount
         - maximumAmount
         - fees
@@ -2189,10 +2274,6 @@ components:
     FeeEstimate:
       additionalProperties: false
       properties:
-        ledgerId:
-          examples:
-            - 00000000-0000-0000-0000-000000000000
-          type: string
         packageId:
           examples:
             - 00000000-0000-0000-0000-000000000000
@@ -2201,7 +2282,6 @@ components:
           $ref: "#/components/schemas/TransactionInput"
       required:
         - packageId
-        - ledgerId
         - transaction
       type: object
     FeeEventFilter:
@@ -12035,7 +12115,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/FeeBillingPackage"
+              $ref: "#/components/schemas/FeeCreateBillingPackageInput"
         required: true
       responses:
         "201":

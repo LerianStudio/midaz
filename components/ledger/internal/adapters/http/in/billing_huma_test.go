@@ -107,20 +107,20 @@ func billingCalcV2URL(orgID, ledgerID string) string {
 }
 
 // validBillingPackageJSON is a decode-valid create-billing-package body: label + type
-// + ledgerId are the fields the create path stamps/forwards. DecodeValidateBody runs
-// ValidateStruct (no struct tags on BillingPackage → no-op) + unknown-field check;
-// business Validate() runs in the service layer (stubbed), so this clears decode. The
-// ledger is validLedgerUUID(), so the ledger-scoped create guard admits it when the
-// path names the same ledger.
+// are the client fields the create path forwards. The ledger is NOT in the body — the
+// path (ledger_id) is the sole authority and the handler stamps it. DecodeValidateBody
+// runs ValidateStruct (no struct tags on CreateBillingPackageInput → no-op) +
+// unknown-field check; business Validate() runs in the service layer (stubbed), so this
+// clears decode.
 func validBillingPackageJSON() string {
-	return `{"label":"Monthly Volume","type":"volume","ledgerId":"` + validLedgerUUID() + `"}`
+	return `{"label":"Monthly Volume","type":"volume"}`
 }
 
 func TestCreateBillingPackage_Success(t *testing.T) {
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	stub := &stubBillingPackageService{
-		createResult: &model.BillingPackage{ID: uuid.NewString(), Label: "Monthly Volume", Type: "volume"},
+		createResult: &model.BillingPackage{ID: uuid.NewString(), Label: "Monthly Volume", Type: "volume", LedgerID: validLedgerUUID()},
 	}
 	handler := &BillingPackageHandler{Service: stub}
 
@@ -137,11 +137,14 @@ func TestCreateBillingPackage_Success(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, resp.StatusCode, "body: %s", string(respBody))
 	assert.True(t, stub.createCalled, "service.CreateBillingPackage must be invoked")
 	assert.Equal(t, orgID.String(), stub.gotCreate.OrganizationID, "handler must stamp path org onto the payload")
+	assert.Equal(t, validLedgerUUID(), stub.gotCreate.LedgerID, "handler must stamp the path ledger onto the payload")
+	assert.Equal(t, uuid.MustParse(validLedgerUUID()), stub.gotCreateLedger, "the create service must receive the path ledger as a parameter")
 	assert.NotContains(t, string(respBody), "$schema")
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, "Monthly Volume", got["label"])
+	assert.Equal(t, validLedgerUUID(), got["ledgerId"], "the response must still expose ledgerId")
 }
 
 func TestCreateBillingPackage_AuthPreserved(t *testing.T) {
@@ -180,6 +183,46 @@ func TestCreateBillingPackage_MalformedBody_Canonical400(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInvalidRequestBody.Error(), got["code"], "malformed-body code preserved (0094)")
+}
+
+// TestCreateBillingPackage_BodyLedgerId_Rejected400 pins the hard-cutover contract:
+// ledgerId was removed from the create-billing-package request DTO, and the path is the
+// sole authority on the ledger. A body still carrying ledgerId is an unknown field, so
+// the fee decoder (decodeFeeBodyInSpan -> findUnknownFields -> ValidateBadRequestFieldsError)
+// rejects it with 0053 "Unexpected Fields in the Request" and never reaches the service.
+func TestCreateBillingPackage_BodyLedgerId_Rejected400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingPackageService{
+		createResult: &model.BillingPackage{ID: uuid.NewString()},
+	}
+	handler := &BillingPackageHandler{Service: stub}
+
+	// A decode-valid body with one extra, now-forbidden ledgerId key spliced in.
+	body := `{"label":"Monthly Volume","type":"volume","ledgerId":"` + validLedgerUUID() + `"}`
+
+	status, got, raw := doBillingPkgRequest(t, handler, http.MethodPost,
+		billingPkgV2URL(orgID.String(), validLedgerUUID()), body)
+
+	assert.Equal(t, http.StatusBadRequest, status, "ledgerId in the body is an unknown field: body: %s", string(raw))
+	assert.Equal(t, constant.ErrUnexpectedFieldsInTheRequest.Error(), got["code"],
+		"unknown-field code (0053) must be preserved")
+
+	// The RFC 9457 v2 envelope names the unknown key in the errors array
+	// ({message,location,value}), not in a fields map.
+	errs, ok := got["errors"].([]any)
+	require.True(t, ok, "problem must carry an errors array naming the unknown key: body: %s", string(raw))
+
+	var sawLedgerID bool
+	for _, e := range errs {
+		if detail, ok := e.(map[string]any); ok && detail["location"] == "ledgerId" {
+			sawLedgerID = true
+			break
+		}
+	}
+	assert.True(t, sawLedgerID, "the rejected field must be named as ledgerId: body: %s", string(raw))
+
+	assert.False(t, stub.createCalled, "an unknown field must short-circuit before the service")
 }
 
 func TestGetBillingPackageByID_Success(t *testing.T) {
@@ -533,8 +576,11 @@ func TestDeleteBillingPackage_NotFound_404(t *testing.T) {
 	assert.True(t, stub.deleteCalled)
 }
 
-func validBillingCalculateJSON(ledgerID string) string {
-	return `{"ledgerId":"` + ledgerID + `","period":"2026-01","type":"volume"}`
+// validBillingCalculateJSON is a decode-valid calculate body. The ledger is NOT in
+// the body — the path (ledger_id) is the sole authority and the handler threads it
+// into the service as a parameter.
+func validBillingCalculateJSON() string {
+	return `{"period":"2026-01","type":"volume"}`
 }
 
 func TestCalculateBilling_Success(t *testing.T) {
@@ -548,7 +594,7 @@ func TestCalculateBilling_Success(t *testing.T) {
 
 	app := buildHumaBillingCalculateApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(validBillingCalculateJSON(ledgerID.String())))
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(validBillingCalculateJSON()))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -559,6 +605,7 @@ func TestCalculateBilling_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
 	assert.True(t, stub.called, "service.Calculate must be invoked")
 	assert.Equal(t, orgID.String(), stub.got.OrganizationID, "handler must stamp path org onto the request")
+	assert.Equal(t, ledgerID, stub.gotLedger, "the service must receive the path ledger as a parameter")
 	assert.NotContains(t, string(respBody), "$schema")
 
 	var got map[string]any
@@ -566,6 +613,56 @@ func TestCalculateBilling_Success(t *testing.T) {
 	summary, ok := got["summary"].(map[string]any)
 	require.True(t, ok, "response must carry the summary envelope, body: %s", string(respBody))
 	assert.EqualValues(t, 3, summary["totalResults"])
+}
+
+// TestCalculateBilling_BodyLedgerId_Rejected400 pins the hard-cutover contract:
+// ledgerId was removed from the billing-calculate request DTO, and the path is the
+// sole authority on the ledger. A body still carrying ledgerId is an unknown field, so
+// the fee decoder (decodeFeeBodyInSpan -> findUnknownFields -> ValidateBadRequestFieldsError)
+// rejects it with 0053 "Unexpected Fields in the Request" and never reaches the service.
+func TestCalculateBilling_BodyLedgerId_Rejected400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	stub := &stubBillingCalculateService{
+		result: &model.BillingCalculateResponse{},
+	}
+	handler := &BillingCalculateHandler{Service: stub}
+
+	app := buildHumaBillingCalculateApp(t, handler, true)
+
+	// A decode-valid body with one extra, now-forbidden ledgerId key spliced in.
+	body := `{"period":"2026-01","type":"volume","ledgerId":"` + ledgerID.String() + `"}`
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "ledgerId in the body is an unknown field: body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrUnexpectedFieldsInTheRequest.Error(), got["code"],
+		"unknown-field code (0053) must be preserved")
+
+	// The RFC 9457 v2 envelope names the unknown key in the errors array
+	// ({message,location,value}), not in a fields map.
+	errs, ok := got["errors"].([]any)
+	require.True(t, ok, "problem must carry an errors array naming the unknown key: body: %s", string(respBody))
+
+	var sawLedgerID bool
+	for _, e := range errs {
+		if detail, ok := e.(map[string]any); ok && detail["location"] == "ledgerId" {
+			sawLedgerID = true
+			break
+		}
+	}
+	assert.True(t, sawLedgerID, "the rejected field must be named as ledgerId: body: %s", string(respBody))
+
+	assert.False(t, stub.called, "an unknown field must short-circuit before the service")
 }
 
 func TestCalculateBilling_AuthPreserved(t *testing.T) {
@@ -584,57 +681,6 @@ func TestCalculateBilling_AuthPreserved(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "auth middleware must reject before Huma")
 }
 
-func TestCalculateBilling_MissingLedger_Canonical400(t *testing.T) {
-	orgID := uuid.Must(libCommons.GenerateUUIDv7())
-
-	handler := &BillingCalculateHandler{Service: &stubBillingCalculateService{}}
-	app := buildHumaBillingCalculateApp(t, handler, true)
-
-	// ledgerId omitted → the fee body validator (WithBodyTracing/DecodeValidateBody,
-	// which the shell preserves via decodeFeeBodyInSpan) rejects it on the
-	// `validate:"required"` struct tag with ErrMissingFieldsInRequest (0009) BEFORE the
-	// body-ledger-match guard and the handler-level validateBillingCalculateRequest run.
-	// This is byte-identical to the Fiber path — a native Huma 422 must NOT appear.
-	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), validLedgerUUID()), bytes.NewBufferString(`{"period":"2026-01"}`))
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, _ := io.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "missing ledgerId stays canonical 400, body: %s", string(respBody))
-	assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
-
-	var got map[string]any
-	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
-	assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), got["code"])
-}
-
-func TestCalculateBilling_MalformedLedger_Canonical400(t *testing.T) {
-	orgID := uuid.Must(libCommons.GenerateUUIDv7())
-
-	handler := &BillingCalculateHandler{Service: &stubBillingCalculateService{}}
-	app := buildHumaBillingCalculateApp(t, handler, true)
-
-	// ledgerId present but not a UUID → clears the `required` struct tag, so the
-	// ledger-scoped body-match guard (requireBodyLedgerMatchesPath) rejects it with
-	// ErrInvalidLedgerID (0203) when uuid.Parse fails, BEFORE the service call.
-	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), validLedgerUUID()), bytes.NewBufferString(`{"ledgerId":"not-a-uuid","period":"2026-01"}`))
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, _ := io.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed ledgerId stays canonical 400, body: %s", string(respBody))
-
-	var got map[string]any
-	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
-	assert.Equal(t, constant.ErrInvalidLedgerID.Error(), got["code"])
-}
-
 func TestCalculateBilling_ServiceError_Mapped(t *testing.T) {
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -644,7 +690,7 @@ func TestCalculateBilling_ServiceError_Mapped(t *testing.T) {
 
 	app := buildHumaBillingCalculateApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(validBillingCalculateJSON(ledgerID.String())))
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(validBillingCalculateJSON()))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -698,12 +744,12 @@ func TestValidateBillingPeriod(t *testing.T) {
 
 func TestValidateBillingCalculateRequest(t *testing.T) {
 	// Pure validator. Each case isolates one guard; the period cases live in
-	// TestValidateBillingPeriod.
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	// TestValidateBillingPeriod. The ledger is no longer a body field — it comes from
+	// the URL path — so there is no ledger case here.
 	orgID := uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	base := func() *model.BillingCalculateRequest {
-		return &model.BillingCalculateRequest{OrganizationID: orgID, LedgerID: ledgerID, Period: "2026-03"}
+		return &model.BillingCalculateRequest{OrganizationID: orgID, Period: "2026-03"}
 	}
 
 	tests := []struct {
@@ -713,8 +759,6 @@ func TestValidateBillingCalculateRequest(t *testing.T) {
 	}{
 		{"valid request passes", func(*model.BillingCalculateRequest) {}, ""},
 		{"missing organization", func(r *model.BillingCalculateRequest) { r.OrganizationID = "" }, constant.ErrFeeInvalidHeaderParameter.Error()},
-		{"missing ledger", func(r *model.BillingCalculateRequest) { r.LedgerID = "" }, constant.ErrInvalidLedgerID.Error()},
-		{"malformed ledger", func(r *model.BillingCalculateRequest) { r.LedgerID = "not-a-uuid" }, constant.ErrInvalidLedgerID.Error()},
 		{"unknown package type", func(r *model.BillingCalculateRequest) { r.Type = "subscription" }, constant.ErrInvalidBillingPackageType.Error()},
 		{"volume type passes", func(r *model.BillingCalculateRequest) { r.Type = model.BillingPackageTypeVolume }, ""},
 		{"maintenance type passes", func(r *model.BillingCalculateRequest) { r.Type = model.BillingPackageTypeMaintenance }, ""},
@@ -749,7 +793,7 @@ func TestCalculateBilling_NilResult_500(t *testing.T) {
 
 	app := buildHumaBillingCalculateApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(validBillingCalculateJSON(ledgerID.String())))
+	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(validBillingCalculateJSON()))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
@@ -771,7 +815,7 @@ func TestCalculateBilling_InvalidPeriod_Canonical400(t *testing.T) {
 
 	app := buildHumaBillingCalculateApp(t, handler, true)
 
-	body := `{"ledgerId":"` + ledgerID.String() + `","period":"2026-W99"}`
+	body := `{"period":"2026-W99"}`
 	req := httptest.NewRequest(http.MethodPost, billingCalcV2URL(orgID.String(), ledgerID.String()), bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
