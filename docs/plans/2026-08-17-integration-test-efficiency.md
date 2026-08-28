@@ -10,7 +10,7 @@
 
 | Phase | Outcome | Status |
 |---|---|---|
-| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | Gates and discovery complete and on `develop` via PR #2341; **the P0.6 money-path items are OPEN** — their layers were closed without merge |
+| P0 | Every required gate executes the coverage it claims and emits usable timing evidence | Gates and discovery complete and on `develop` via PR #2341; **the P0.6 product items reopened below are OPEN** — their layers were closed without merge |
 | P1 | Ledger datastore startup and migrations are reused without sharing mutable test state | Complete — consolidated randomized and serial gates green |
 | P2 | Independent families run concurrently within an explicit resource budget | Complete — five base shards plus the required chaos capability green within budget |
 | P3 | Tracer restarts, fixed waits, polling, cleanup, and streaming history scans are reduced | Complete — implemented, measured, and revalidated |
