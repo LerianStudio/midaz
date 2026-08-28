@@ -100,10 +100,10 @@ Both seams the skips gate are **`/v2` contracts**: a `/v1` transaction create ne
 the fee engine and a `/v1` account create never reaches the holder seam, so a `skip` object
 in a `/v1` body is inert and can never raise the 422. A `/v1` account create links no holder
 (`holder_id` stays NULL) and its response withholds `holderId` + `holderCheckSkipped`. The
-same `command.RouteHolderPolicy` gates the organization self-holder: `POST /v1/organizations`
-provisions no CRM holder record. Outside the seam on both contracts: the asset-created
-external account (bypasses `CreateAccount`, no holder) and account update (`holderId` is
-immutable). See `docs/api/SCOPING.md`.
+Outside the seam on both contracts: organization create (neither contract writes a CRM
+self-holder — the idempotent backfill runner is the only provisioning path), the
+asset-created external account (bypasses `CreateAccount`, no holder) and account update
+(`holderId` is immutable). See `docs/api/SCOPING.md`.
 
 ## CRM Field Encryption (KMS)
 

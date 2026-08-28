@@ -13,7 +13,6 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v3"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -25,11 +24,7 @@ import (
 )
 
 // CreateOrganization creates a new organization and persists it in the repository.
-//
-// holderPolicy is the caller's route-version holder contract, carried explicitly from
-// the transport shell down to the self-holder provisioning: the /v1 shell passes
-// HolderOffV1, the /v2 shell HolderOnV2.
-func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput, holderPolicy RouteHolderPolicy) (_ *mmodel.Organization, err error) {
+func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (_ *mmodel.Organization, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_organization")
@@ -82,8 +77,6 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	uc.emitOrganizationCreatedEvent(ctx, span, logger, org)
 
-	uc.provisionSelfHolder(ctx, span, logger, org, holderPolicy)
-
 	// NOTE: The organization is already persisted at this point. If metadata creation
 	// fails, the org exists in PostgreSQL without its metadata in MongoDB. This is a
 	// known consistency gap that affects all entity creates. A proper fix requires
@@ -110,47 +103,4 @@ func (uc *UseCase) emitOrganizationCreatedEvent(ctx context.Context, span trace.
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewOrganizationCreated(org).ToEmitRequest(tenantID, org.CreatedAt)
 		})
-}
-
-// provisionSelfHolder eagerly creates the organization's deterministic self-holder
-// (a LEGAL_PERSON holder whose ID is derived from the org ID via UUIDv5). It runs
-// after the PG commit and is non-fatal: there is no cross-store transaction, so a
-// Mongo failure is span-recorded, logged at Warn, and swallowed. The idempotent
-// backfill runner is the repair path for any miss.
-//
-// On holderPolicy=HolderOffV1 this is a no-op, and it is the FIRST gate: the /v1
-// organization contract predates the holder seam, so a /v1 create writes NO CRM holder
-// record. The self-holder exists to be the default owner of accounts, and a /v1 account
-// create links no holder — so provisioning it here would leave an orphan record in the
-// org's CRM collections that nothing on the /v1 contract can reach. The idempotent
-// backfill runner remains the way an organization acquires its self-holder before it
-// starts using the /v2 surface.
-func (uc *UseCase) provisionSelfHolder(ctx context.Context, span trace.Span, logger libLog.Logger, org *mmodel.Organization, holderPolicy RouteHolderPolicy) {
-	if holderPolicy == HolderOffV1 {
-		return
-	}
-
-	if uc.HolderProvisioner == nil {
-		return
-	}
-
-	organizationID, err := uuid.Parse(org.ID)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to parse organization ID for self-holder", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to parse organization ID for self-holder provisioning", libLog.Err(err))
-
-		return
-	}
-
-	holderType := "LEGAL_PERSON"
-	input := &mmodel.CreateHolderInput{
-		Type:     &holderType,
-		Name:     org.LegalName,
-		Document: org.LegalDocument,
-	}
-
-	if _, err := uc.HolderProvisioner.CreateHolderWithID(ctx, org.ID, deriveSelfHolderID(organizationID), input); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to provision organization self-holder", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to provision organization self-holder", libLog.Err(err))
-	}
 }

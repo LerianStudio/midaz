@@ -12,7 +12,6 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -36,11 +35,10 @@ import (
 //     RegisterOrganizationRoutesToApp BEFORE the Huma registration — NOT a Huma
 //     Security scheme. The per-op Security metadata below is SPEC-ONLY.
 //
-// The CREATE shell in this file serves the /v1 contract: it passes
-// command.HolderOffV1 so the organization's self-holder is NOT provisioned. Its /v2
-// twin is in organization_handler_v2.go. Every other op is version-agnostic — the
-// organization wire shape carries no holder field, so the two contracts share one
-// response type and the five non-create terminals bind the same handler methods.
+// Every op in this file is version-agnostic: the organization wire shape carries no
+// holder field and no organization op behaves differently between the contracts, so
+// the /v1 and /v2 registrars bind the same handler methods and share one set of
+// schema components. The contracts differ only in the operation IDs they publish.
 
 // secOrgBearer advertises that each organization operation accepts EITHER a
 // JWT bearer token. SPEC metadata only; runtime auth is the Fiber guard chain. The
@@ -64,15 +62,14 @@ type CreateOrganizationResponse struct {
 }
 
 // CreateOrganization decodes+validates the raw body imperatively then delegates
-// to the shared createOrganization core under command.HolderOffV1: the /v1 contract
-// predates the holder seam, so no CRM self-holder record is written.
+// to the shared createOrganization core. Both contracts bind it.
 func (handler *OrganizationHandler) CreateOrganization(ctx context.Context, in *CreateOrganizationRequest) (*CreateOrganizationResponse, error) {
 	payload := new(mmodel.CreateOrganizationInput)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	organization, err := handler.createOrganization(ctx, payload, command.HolderOffV1)
+	organization, err := handler.createOrganization(ctx, payload)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

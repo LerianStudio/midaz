@@ -24,11 +24,12 @@ import (
 // CreateHolderWithID inserts a holder using a caller-supplied deterministic ID.
 //
 // Unlike CreateHolder it does not mint a UUIDv7; the caller owns the ID so the
-// record's _id is reproducible (used for the org self-holder and the backfill
-// runner). A conflict that could mean the deterministic holder already exists —
+// record's _id is reproducible. The backfill runner is its only caller: it is how
+// an organization acquires its deterministic self-holder. A conflict that could
+// mean the deterministic holder already exists —
 // a duplicate _id or a document-association conflict on the supplied id — is
 // treated as idempotent success: the holder is re-fetched by id and returned, so
-// re-running the provisioning path is a no-op. If the document conflict resolves
+// re-running the backfill is a no-op. If the document conflict resolves
 // to a genuinely different holder, the conflict propagates unchanged.
 func (uc *UseCase) CreateHolderWithID(ctx context.Context, organizationID string, id uuid.UUID, chi *mmodel.CreateHolderInput) (_ *mmodel.Holder, err error) {
 	logger, tracer, reqID, _ := libObservability.NewTrackingFromContext(ctx)

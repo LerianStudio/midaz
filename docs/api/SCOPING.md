@@ -223,15 +223,15 @@ projection they serve as a distinct component, and the `/v1` one keeps the canon
 name so generated v1 SDKs bind to the type they already have, which puts the holder-bearing shape
 on **`AccountV2`**.
 
-The same gate covers the **organization self-holder**. Creating an organization eagerly provisions
-its deterministic self-holder — the `LEGAL_PERSON` CRM holder whose ID is derived from the org ID,
-and the default owner an account create resolves to. A `POST /v1/organizations` provisions **no**
-such record: the self-holder exists to own accounts, and a `/v1` account create links no holder, so
-writing it would leave an orphan in the org's CRM collections that nothing on `/v1` can reach. The
-organization itself is created either way — the gate suppresses the side effect, not the resource —
-and the idempotent backfill runner remains how an organization acquires its self-holder before it
-starts using the `/v2` surface. Nothing about the organization response is versioned: the
-organization wire shape carries no holder field, so both contracts publish one schema.
+The **organization self-holder** is outside the seam on both contracts. Creating an organization
+writes no CRM record on either `/v1` or `/v2`; the idempotent backfill runner
+(`components/ledger/cmd/backfill`) is the only path by which an organization acquires its
+deterministic self-holder — the `LEGAL_PERSON` holder whose ID is derived from the org ID via
+UUIDv5, and the default owner a `/v2` account create resolves to. The derivation is pure, so an
+account create materialises `holder_id` without consulting CRM; the referenced record exists once
+the backfill has run. Nothing about the organization response is versioned: the organization wire
+shape carries no holder field, so both contracts publish one schema and differ only in the
+operation IDs they publish.
 
 The **CRM holder surface itself** (`/v2/organizations/{organization_id}/holders...`) and the
 holder-account **composition** route (`POST /v2/.../ledgers/{ledger_id}/holders/{id}/accounts`) are

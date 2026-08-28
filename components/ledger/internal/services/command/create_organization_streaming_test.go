@@ -56,7 +56,7 @@ func TestCreateOrganization_EmitsOrganizationCreatedEvent(t *testing.T) {
 		DoingBusinessAs: &dba,
 		LegalDocument:   "123456789012345",
 		Address:         mmodel.Address{Country: "US"},
-	}, HolderOnV2)
+	})
 	require.NoError(t, err)
 	require.NotNil(t, org)
 
@@ -92,7 +92,7 @@ func TestCreateOrganization_NoopEmitterDoesNotPanic(t *testing.T) {
 		LegalName:     "Noop Org",
 		LegalDocument: "123456789012345",
 		Address:       mmodel.Address{Country: "US"},
-	}, HolderOnV2)
+	})
 	require.NoError(t, err)
 	require.NotNil(t, org)
 }
@@ -108,7 +108,7 @@ func TestCreateOrganization_EmitFailureDoesNotFailRequest(t *testing.T) {
 		LegalName:     "Emit Fail Org",
 		LegalDocument: "123456789012345",
 		Address:       mmodel.Address{Country: "US"},
-	}, HolderOnV2)
+	})
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, org)
 }
@@ -124,7 +124,7 @@ func TestCreateOrganization_NilStreamingDoesNotPanic(t *testing.T) {
 		LegalName:     "Nil Streaming Org",
 		LegalDocument: "123456789012345",
 		Address:       mmodel.Address{Country: "US"},
-	}, HolderOnV2)
+	})
 	require.NoError(t, err)
 	require.NotNil(t, org)
 }
