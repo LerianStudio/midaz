@@ -341,8 +341,8 @@ func BuildStreamingManifestHandler(cfg *Config) (nethttp.Handler, error) {
 //
 // DefinitionKey is deliberately EMPTY: that is what makes the route a catch-all
 // serving every definition. One topic per producing application leaves nothing
-// to fan out per event — every event has the same destination — so a single
-// route replaces the former one-route-per-catalog-entry table.
+// to fan out per event — every event has the same destination, so one route
+// serves the whole catalog.
 //
 // The destination is derived through libStreaming.AppTopic, which VALIDATES the
 // source and returns an error rather than handing back a topic name built from a

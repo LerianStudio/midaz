@@ -50,8 +50,7 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
   ledger writes. It is independent of `STREAMING_ENABLED` and degraded-safe (it
   reflects the static Catalog, not a live broker connection); an illegal `ce-source`
   leaves the route unmounted rather than advertising a topic built from a malformed
-  name. The billing event is excluded — it rides a fixed topic owned by
-  lib-streaming, not the ledger's application topic.
+  name. Every event the binary emits is on that topic; there is no exception.
 - **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled, bootstrap
   injects a `NoopEmitter` and no broker connection is attempted. The ledger has no
   streaming readiness prober, so `/readyz` carries no streaming check in either

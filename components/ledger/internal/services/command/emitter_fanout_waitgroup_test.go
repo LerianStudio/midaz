@@ -95,22 +95,27 @@ func requireFanOutDrains(t *testing.T, fnName string) {
 	// Past the settle window a correct fan-out has completed. Keep re-checking
 	// for a while anyway so a heavily loaded CI box cannot fail this on timing
 	// alone; only a goroutine that never drains reaches the Fatalf.
-	deadline := time.Now().Add(5 * time.Second)
+	timeout := time.NewTimer(5 * time.Second)
+	defer timeout.Stop()
+
+	retry := time.NewTicker(25 * time.Millisecond)
+	defer retry.Stop()
+
 	for {
 		if !fanOutGoroutineParked(fnName) {
 			return
 		}
 
-		if time.Now().After(deadline) {
-			break
+		select {
+		case <-timeout.C:
+			t.Fatalf("emitter fan-out goroutine in %s is still parked in sync.WaitGroup.Wait: "+
+				"the wg.Add(N) count does not match the number of emitter goroutines spawned, "+
+				"so the fan-out goroutine leaks on every committed transaction", fnName)
+
+			return
+		case <-retry.C:
 		}
-
-		time.Sleep(25 * time.Millisecond)
 	}
-
-	t.Fatalf("emitter fan-out goroutine in %s is still parked in sync.WaitGroup.Wait: "+
-		"the wg.Add(N) count does not match the number of emitter goroutines spawned, "+
-		"so the fan-out goroutine leaks on every committed transaction", fnName)
 }
 
 // TestCreateBalanceTransactionOperationsAsync_EmitterFanOutDrains pins the
