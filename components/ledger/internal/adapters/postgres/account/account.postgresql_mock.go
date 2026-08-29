@@ -147,6 +147,21 @@ func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, ledgerID, por
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, ledgerID, portfolioID, segmentID, filter, holderPolicy)
 }
 
+// FindAllByHolder mocks base method.
+func (m *MockRepository) FindAllByHolder(ctx context.Context, organizationID, holderID uuid.UUID, ledgerID *uuid.UUID, filter http.QueryHeader, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindAllByHolder", ctx, organizationID, holderID, ledgerID, filter, holderPolicy)
+	ret0, _ := ret[0].([]*mmodel.Account)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindAllByHolder indicates an expected call of FindAllByHolder.
+func (mr *MockRepositoryMockRecorder) FindAllByHolder(ctx, organizationID, holderID, ledgerID, filter, holderPolicy any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllByHolder", reflect.TypeOf((*MockRepository)(nil).FindAllByHolder), ctx, organizationID, holderID, ledgerID, filter, holderPolicy)
+}
+
 // FindByAlias mocks base method.
 func (m *MockRepository) FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error) {
 	m.ctrl.T.Helper()
