@@ -256,10 +256,6 @@ services:
   # production provision it with max.message.bytes at or above its source topic's:
   # a DLQ record is strictly larger than the record it quarantines, so a near-cap
   # record that fails could otherwise never fit.
-  #
-  # lerian.streaming.billing.recorded is the one exception — a fixed topic owned
-  # by lib-streaming's billing package (Confluent-framed Protobuf), registered via
-  # billing.Definition() rather than derived from any application's ce-source.
   midaz-redpanda-init:
     container_name: midaz-redpanda-init
     image: redpandadata/redpanda:v24.2.7
@@ -277,9 +273,6 @@ services:
         # tracer (ce-source "tracer"): whole catalog — rule and limit lifecycles
         rpk topic create lerian.streaming.tracer -r 1 -p 1 --brokers midaz-redpanda:9092 || true
         rpk topic create lerian.streaming.tracer.dlq -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        # fixed lib-owned billing topic, plus its DLQ
-        rpk topic create lerian.streaming.billing.recorded -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.billing.recorded.dlq -r 1 -p 1 --brokers midaz-redpanda:9092 || true
     networks:
       - infra-network
 
