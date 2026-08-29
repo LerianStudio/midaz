@@ -179,8 +179,8 @@ The signal is `command.RouteHolderPolicy` (`HolderOffV1` / `HolderOnV2`), thread
 shell for the same reason the transaction cores thread `routeVersionPolicy`: the use case is
 transport-agnostic and cannot read the request path. The two are siblings at different layers, not
 duplicates — the fee and tracer seams sit in the transaction handler, the holder seam in the account
-and organization use cases, and a `command` type cannot be the unexported `in` one without inverting
-the dependency direction.
+use case, and a `command` type cannot be the unexported `in` one without inverting the dependency
+direction.
 
 A `/v1` account create never reaches it. It links no holder (the row persists `holder_id = NULL`
 and `holder_check_skipped = false`), performs no holder settings read, and can be rejected by
@@ -257,7 +257,7 @@ ledger-scoped on `/v2` — the deeper scope is expressed by a deeper path, not b
 query parameter. The convention does not change; only how much of the hierarchy the path names.
 
 Scope and contract are separate questions. The fee admin surface answers the first (two scopes,
-both live); the transaction fee seam, the tracer reservation lifecycle and the account/organization
-holder seam answer the second (`/v2` only — the first two driven by `routeVersionPolicy` in the
-transaction handler, the third by `command.RouteHolderPolicy` in the use cases). A surface being
+both live); the transaction fee seam, the tracer reservation lifecycle and the account holder seam
+answer the second (`/v2` only — the first two driven by `routeVersionPolicy` in the transaction
+handler, the third by `command.RouteHolderPolicy` in the account use case). A surface being
 reachable at a scope says nothing about which contract applies it.
