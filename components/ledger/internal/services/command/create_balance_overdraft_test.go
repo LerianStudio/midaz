@@ -488,6 +488,9 @@ func TestCreateAdditionalBalance_AllowOverdraft_CompanionRaceIsBenign(t *testing
 		Key:            constant.OverdraftBalanceKey,
 		AssetCode:      "USD",
 		Direction:      constant.DirectionDebit,
+		Settings: &mmodel.BalanceSettings{
+			BalanceScope: mmodel.BalanceScopeInternal,
+		},
 	}
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
