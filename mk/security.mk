@@ -62,7 +62,7 @@ sec-gosec:
 	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
 	if ! $(call sec_tool_current,gosec,github.com/securego/gosec/v2,$(GOSEC_VERSION)); then \
 		echo "$(YELLOW)Installing gosec $(GOSEC_VERSION)...$(NC)"; \
-		go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION); \
+		go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION) || exit 1; \
 	fi; \
 	if find . -name "*.go" -type f | grep -q .; then \
 		echo "$(CYAN)Running gosec on $(SEC_SCAN_PATHS)...$(NC)"; \
@@ -84,7 +84,7 @@ sec-govulncheck:
 	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
 	if ! $(call sec_tool_current,govulncheck,golang.org/x/vuln,$(GOVULNCHECK_VERSION)); then \
 		echo "$(YELLOW)Installing govulncheck $(GOVULNCHECK_VERSION)...$(NC)"; \
-		go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION); \
+		go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) || exit 1; \
 	fi; \
 	if find . -name "*.go" -type f | grep -q .; then \
 		echo "$(CYAN)Running govulncheck on $(SEC_SCAN_PATHS)...$(NC)"; \
