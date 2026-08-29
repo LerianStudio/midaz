@@ -5,6 +5,16 @@
 Breaking Changes:
 - Removed `POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl`. Send the transaction to `POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json` instead: it expresses the same intent as a JSON body rather than an uploaded grammar file. (@andreimatiazi)
 
+## [3.8.3](https://github.com/LerianStudio/midaz/releases/tag/v3.8.3)
+
+Fixes:
+
+- Increased the balance cache TTL to 1 day to improve performance and reliability. (@Ygohr)
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.8.2...v3.8.3)
+
+---
+
 ## [3.8.0](https://github.com/LerianStudio/midaz/releases/tag/v3.8.0)
 
 Features:
