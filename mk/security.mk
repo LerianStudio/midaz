@@ -23,8 +23,18 @@
 # ------------------------------------------------------
 
 # Pinned tool versions for reproducible security scans
-GOSEC_VERSION ?= v2.22.11
+GOSEC_VERSION ?= v2.29.0
 GOVULNCHECK_VERSION ?= v1.1.4
+
+# A tool on PATH counts as current only when `go version -m` shows it was
+# built from the pinned module version by the active Go toolchain. A stale
+# build from an older Go refuses to load the module ("package requires newer
+# Go version"), and `gosec --version` cannot be used because `go install`
+# builds print "Version: dev".
+# $(1) binary, $(2) module path, $(3) pinned version
+define sec_tool_current
+{ command -v $(1) >/dev/null 2>&1 && go version -m "$$(command -v $(1))" | awk -v mod='$(2)' -v ver='$(3)' -v gov="$$(go env GOVERSION)" 'NR==1 && $$NF==gov {g=1} $$1=="mod" && $$2==mod && $$3==ver {m=1} END {exit !(g && m)}'; }
+endef
 
 # Package paths to scan. Components scan their whole module (./...);
 # the root narrows to the monorepo source trees.
@@ -50,9 +60,9 @@ sec:
 .PHONY: sec-gosec
 sec-gosec:
 	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
-	if ! command -v gosec >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing gosec...$(NC)"; \
-		go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION); \
+	if ! $(call sec_tool_current,gosec,github.com/securego/gosec/v2,$(GOSEC_VERSION)); then \
+		echo "$(YELLOW)Installing gosec $(GOSEC_VERSION)...$(NC)"; \
+		go install github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION) || exit 1; \
 	fi; \
 	if find . -name "*.go" -type f | grep -q .; then \
 		echo "$(CYAN)Running gosec on $(SEC_SCAN_PATHS)...$(NC)"; \
@@ -72,9 +82,9 @@ sec-gosec:
 .PHONY: sec-govulncheck
 sec-govulncheck:
 	@export PATH="$$(go env GOPATH)/bin:$$PATH"; \
-	if ! command -v govulncheck >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing govulncheck...$(NC)"; \
-		go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION); \
+	if ! $(call sec_tool_current,govulncheck,golang.org/x/vuln,$(GOVULNCHECK_VERSION)); then \
+		echo "$(YELLOW)Installing govulncheck $(GOVULNCHECK_VERSION)...$(NC)"; \
+		go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) || exit 1; \
 	fi; \
 	if find . -name "*.go" -type f | grep -q .; then \
 		echo "$(CYAN)Running govulncheck on $(SEC_SCAN_PATHS)...$(NC)"; \

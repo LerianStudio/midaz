@@ -20,7 +20,7 @@ Midaz is a composable core banking platform built around a double-entry ledger. 
 - **Tracer**: real-time transaction validation and fraud prevention — a CEL rule engine, multi-scope spending limits, and a hash-chained immutable audit trail for compliance.
 ## Quickstart
 
-Prerequisites: Go 1.26.4+ and Docker.
+Prerequisites: Go 1.27.0+ and Docker.
 
 ```bash
 git clone https://github.com/LerianStudio/midaz.git
