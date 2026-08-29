@@ -165,12 +165,6 @@ type UseCase struct {
 	// settings (RequireHolder false), preserving permissive behaviour.
 	SettingsReader SettingsReader
 
-	// HolderProvisioner provisions the deterministic self-holder when an
-	// organization is created. Satisfied by the CRM holder service's
-	// CreateHolderWithID. A nil value skips eager provisioning (the backfill
-	// runner remains the repair path).
-	HolderProvisioner HolderProvisioner
-
 	// --- Observability (D6) ---
 
 	// MetricsFactory emits the bounded domain_operations_total /

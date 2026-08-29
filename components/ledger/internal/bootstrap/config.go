@@ -916,11 +916,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// The command UseCase reads cached settings and asserts holder existence
 	// through narrow ports so it never imports the query or CRM packages.
 	// HolderReader adapts the CRM holder service; SettingsReader is satisfied
-	// directly by the query UseCase (signatures match); HolderProvisioner is
-	// satisfied directly by the CRM holder service's CreateHolderWithID.
+	// directly by the query UseCase (signatures match).
 	commandUseCase.HolderReader = holderReaderAdapter{service: crmMgo.holderHandler.Service}
 	commandUseCase.SettingsReader = queryUseCase
-	commandUseCase.HolderProvisioner = crmMgo.holderHandler.Service
 
 	// === CRM domain metrics (D6) ===
 	// The holder and instrument handlers share the SAME CRM use-case instance,

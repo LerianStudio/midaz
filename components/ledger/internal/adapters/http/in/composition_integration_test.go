@@ -205,7 +205,7 @@ func (infra *compositionTestInfra) seedOrgLedgerAsset(t *testing.T) (uuid.UUID, 
 			State:   "NY",
 			Country: "US",
 		},
-	}, command.HolderOnV2)
+	})
 	require.NoError(t, err, "seed organization must succeed")
 
 	orgID, err := uuid.Parse(org.ID)
