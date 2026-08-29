@@ -1014,12 +1014,66 @@ type stubHolderAccountsReader struct {
 	gotOrganizationID string
 	gotHolderID       uuid.UUID
 	gotHolderFilter   *string
+	gotLedgerID       *string
 }
 
 func (s *stubHolderAccountsReader) ListAccountsByHolder(_ context.Context, organizationID string, holderID uuid.UUID, filter pkgHTTP.QueryHeader) ([]*mmodel.Account, error) {
 	s.gotOrganizationID = organizationID
 	s.gotHolderID = holderID
 	s.gotHolderFilter = filter.HolderID
+	s.gotLedgerID = filter.LedgerID
 
 	return s.accounts, s.err
+}
+
+// TestGetAccountsByHolder_LedgerIDFilter_PassedThrough pins the ledger_id query
+// parameter reaching the reader: the listing is org-wide, so ledger_id is the
+// only way a caller narrows it, and a transport that drops it silently widens
+// every narrowed request.
+func TestGetAccountsByHolder_LedgerIDFilter_PassedThrough(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	reader := &stubHolderAccountsReader{accounts: []*mmodel.Account{}}
+	handler := &HolderAccountsHandler{Reader: reader}
+
+	app := buildHumaHolderAccountsApp(t, handler)
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/accounts?limit=10&page=1&ledger_id="+ledgerID.String(), nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+
+	require.NotNil(t, reader.gotLedgerID, "ledger_id must reach the reader")
+	assert.Equal(t, ledgerID.String(), *reader.gotLedgerID)
+}
+
+// TestGetAccountsByHolder_NoLedgerID_ReaderGetsNil pins the absent case: with no
+// ledger_id the reader must see nil, which is what makes the listing org-wide.
+func TestGetAccountsByHolder_NoLedgerID_ReaderGetsNil(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	reader := &stubHolderAccountsReader{accounts: []*mmodel.Account{}}
+	handler := &HolderAccountsHandler{Reader: reader}
+
+	app := buildHumaHolderAccountsApp(t, handler)
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/accounts?limit=10&page=1", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+
+	assert.Nil(t, reader.gotLedgerID, "an absent ledger_id must reach the reader as nil, not an empty string")
 }

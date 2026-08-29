@@ -48,8 +48,8 @@ func RegisterHolderAccountsV2RoutesToApp(group fiber.Router, api huma.API, auth 
 }
 
 // registerHolderAccountsRoutesToApp is the single description of the holder-accounts
-// route surface. It attaches auth.Authorize("midaz","holders","get") + the CRM-scoped
-// tenant PostAuthMiddlewares + ParseUUIDPathParameters("holder") as MIDDLEWARE ONLY on
+// route surface. It attaches auth.Authorize("midaz","holders","get") + the
+// holder-accounts-scoped tenant PostAuthMiddlewares + ParseUUIDPathParameters("holder") as MIDDLEWARE ONLY on
 // the versioned group, then registers the Huma terminal on the same group's Huma API.
 func registerHolderAccountsRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *HolderAccountsHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const acctsPath = "/organizations/:organization_id/holders/:id/accounts"

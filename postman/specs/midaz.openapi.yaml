@@ -5456,6 +5456,17 @@ paths:
           schema:
             description: Sort direction (asc, desc)
             type: string
+        - description: >-
+            Optional ledger ID (UUID). Narrows the org-wide listing to one
+            ledger.
+          explode: false
+          in: query
+          name: ledger_id
+          schema:
+            description: >-
+              Optional ledger ID (UUID). Narrows the org-wide listing to one
+              ledger.
+            type: string
       responses:
         '200':
           content:

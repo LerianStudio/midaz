@@ -66,7 +66,7 @@ There is no standalone "microservices" deployment of onboarding, transaction, CR
 
 ### Component Communication
 
-The `ledger` component composes all four surfaces in-process — there is no gRPC anywhere in the ledger binary. Onboarding and transaction share a single `command.UseCase` and a single `query.UseCase` constructed over the same repo set; all handlers receive the same use-case pointers. Every one of the six route-scoped mount groups (onboarding, transaction, ledger metadata, CRM, fees, composition) mounts onto one Fiber app through the two `HumaRouteRegistrar` mounts that `buildHumaMountDeps` assembles; the variadic `RouteRegistrar` takes app-root routes that sit outside the versioned groups. The composition below runs inside package `bootstrap`, where the unexported `buildHumaMountDeps` is in scope:
+The `ledger` component composes all four surfaces in-process — there is no gRPC anywhere in the ledger binary. Onboarding and transaction share a single `command.UseCase` and a single `query.UseCase` constructed over the same repo set; all handlers receive the same use-case pointers. Every one of the seven route-scoped mount groups (onboarding, transaction, ledger metadata, CRM, fees, composition, holder-accounts) mounts onto one Fiber app through the two `HumaRouteRegistrar` mounts that `buildHumaMountDeps` assembles; the variadic `RouteRegistrar` takes app-root routes that sit outside the versioned groups. The composition below runs inside package `bootstrap`, where the unexported `buildHumaMountDeps` is in scope:
 
 ```go
 // buildHumaMountDeps threads every handler and its route-scoped
