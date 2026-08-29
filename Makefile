@@ -23,7 +23,7 @@ GO_COMPONENTS := $(LEDGER_DIR) $(TRACER_DIR)
 # and dev-setup), which do NOT include mk/quality.mk. Components inherit the
 # shared default from mk/quality.mk instead. Keep in sync with
 # .github/workflows/go-combined-analysis.yml.
-GOLANGCI_LINT_VERSION ?= v2.12.2
+GOLANGCI_LINT_VERSION ?= v2.13.2
 
 # Shared color/title vocabulary + docker-compose detection.
 MK_DIR := $(abspath mk)

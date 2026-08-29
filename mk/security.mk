@@ -23,7 +23,7 @@
 # ------------------------------------------------------
 
 # Pinned tool versions for reproducible security scans
-GOSEC_VERSION ?= v2.22.11
+GOSEC_VERSION ?= v2.29.0
 GOVULNCHECK_VERSION ?= v1.1.4
 
 # Package paths to scan. Components scan their whole module (./...);

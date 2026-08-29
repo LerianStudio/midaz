@@ -1,6 +1,6 @@
 # Lerian Tracer — Full Reference
 
-> Real-time transaction validation and fraud prevention API. Go 1.26.4 service (Docker builder golang:1.26.3-alpine) using hexagonal architecture + CQRS with Google CEL rule engine, multi-scope spending limits, and immutable audit trail with hash chain verification. PostgreSQL 17. Elastic License 2.0.
+> Real-time transaction validation and fraud prevention API. Go 1.27.0 service (Docker builder golang:1.27.0-alpine) using hexagonal architecture + CQRS with Google CEL rule engine, multi-scope spending limits, and immutable audit trail with hash chain verification. PostgreSQL 17. Elastic License 2.0.
 
 Tracer is a co-located deploy unit in the Midaz monorepo (module `github.com/LerianStudio/midaz/v4`, single root `go.mod`, no own `go.mod`). It is a product-agnostic validation service that provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It is part of the Lerian Studio ecosystem alongside Midaz (ledger) and Matcher (reconciliation). Designed for sub-100ms P99 latency with in-memory rule cache, background sync worker, and circuit breaker resilience.
 
@@ -248,5 +248,5 @@ The component `docker-compose.yml` declares only the `tracer` app service (conta
 ---
 
 **Last Updated**: June 2026
-**Go Version**: root `go.mod` `go 1.26.4`; Docker builder image `golang:1.26.3-alpine`
+**Go Version**: root `go.mod` `go 1.27.0`; Docker builder image `golang:1.27.0-alpine`
 **Migrations**: 17 (000001 through 000017)

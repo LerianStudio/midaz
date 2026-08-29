@@ -1,6 +1,6 @@
 # Lerian Tracer
 
-> Real-time transaction validation and fraud prevention API. A co-located deploy unit in the Lerian Midaz monorepo (module `github.com/LerianStudio/midaz/v4`, single root `go.mod`, no own `go.mod`; Go 1.26.4, Docker builder golang:1.26.3-alpine) on lib-commons/v6 v6.2.0 + lib-observability/v2 v2.1.0. Hexagonal architecture + CQRS with a CEL rule engine, spending limits, and an immutable hash-chained audit trail. Serves on :4020. Elastic License 2.0.
+> Real-time transaction validation and fraud prevention API. A co-located deploy unit in the Lerian Midaz monorepo (module `github.com/LerianStudio/midaz/v4`, single root `go.mod`, no own `go.mod`; Go 1.27.0, Docker builder golang:1.27.0-alpine) on lib-commons/v6 v6.2.0 + lib-observability/v2 v2.1.0. Hexagonal architecture + CQRS with a CEL rule engine, spending limits, and an immutable hash-chained audit trail. Serves on :4020. Elastic License 2.0.
 
 Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. It evaluates configurable CEL expressions against transaction data, enforces multi-scope spending limits (account, segment, portfolio), and maintains SOX/GLBA-compliant audit records with hash chain verification. Authentication via lib-auth v3 (API Key + Access Manager plugin). Multi-tenant isolation is wired and gated by `MULTI_TENANT_ENABLED` (default false). Persistence is the shared infra PostgreSQL (postgres:17 from `components/infra/docker-compose.yml`); it also uses an in-memory rule cache with a background sync worker and circuit breaker resilience.
 
@@ -41,7 +41,7 @@ Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. 
 
 - [Environment Template](.env.example): All configuration variables with documentation (SERVER_PORT 4020)
 - [Docker Compose](docker-compose.yml): Tracer app service only; joins the shared external `infra-network` for PostgreSQL and other backing services
-- [Dockerfile](Dockerfile): Multi-stage build (golang:1.26.3-alpine → distroless nonroot)
+- [Dockerfile](Dockerfile): Multi-stage build (golang:1.27.0-alpine → distroless nonroot)
 - [Linter Config](.golangci.yml): golangci-lint v2 with errorlint, depguard, revive, wsl_v5
 
 ## Development

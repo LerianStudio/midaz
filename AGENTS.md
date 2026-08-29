@@ -8,7 +8,7 @@ Midaz is a **source-available core banking platform** written in Go, built aroun
 
 | Aspect | Detail |
 |--------|--------|
-| Language | Go 1.26.4 |
+| Language | Go 1.27.0 |
 | Module | `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`) |
 | License | Elastic License 2.0 |
 | Architecture | Hexagonal + CQRS |

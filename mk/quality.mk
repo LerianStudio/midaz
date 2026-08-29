@@ -24,7 +24,7 @@
 # Pinned golangci-lint version — single source of truth for every includer.
 # Override per-invocation if needed; keep in sync with
 # .github/workflows/go-combined-analysis.yml.
-GOLANGCI_LINT_VERSION ?= v2.12.2
+GOLANGCI_LINT_VERSION ?= v2.13.2
 
 #-------------------------------------------------------
 # Commands (alphabetically ordered)
