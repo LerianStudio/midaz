@@ -2,7 +2,7 @@
 
 > Real-time transaction validation and fraud prevention API for financial systems
 
-[![Go Version](https://img.shields.io/badge/Go-1.26.4+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.27.0+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?style=flat&logo=postgresql)](https://www.postgresql.org)
 [![License](https://img.shields.io/badge/license-Elastic%20License%202.0-4c1.svg)](LICENSE)
 
@@ -290,7 +290,7 @@ tracer/
 
 | Layer                | Technology                  | Purpose                                   |
 |----------------------|-----------------------------|-------------------------------------------|
-| **Language**         | Go 1.26.4                   | Performance, concurrency, static typing   |
+| **Language**         | Go 1.27.0                   | Performance, concurrency, static typing   |
 | **HTTP Framework**   | Fiber v3.4.0                | Fast, Express-like API framework          |
 | **Database**         | PostgreSQL 17               | ACID transactions, JSON support           |
 | **Expression Engine**| CEL (google/cel-go v0.28.1) | Type-safe rule evaluation                 |
@@ -307,7 +307,7 @@ tracer/
 ### Prerequisites
 
 - Docker 20+ & Docker Compose 2+
-- Go 1.26.4+ (for local development)
+- Go 1.27.0+ (for local development)
 - Make (optional, for convenience commands)
 
 ### 1. Clone & Setup

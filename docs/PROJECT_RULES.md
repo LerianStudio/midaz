@@ -891,7 +891,7 @@ make ledger COMMAND=lint
 
 ```dockerfile
 # Stage 1: Builder (multi-platform support)
-FROM --platform=$BUILDPLATFORM golang:1.26.4-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27.0-alpine AS builder
 WORKDIR /ledger-app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -934,7 +934,7 @@ plus two local required jobs: `check-docs` (regenerates and drift-checks the Hum
 Postman specs) and `check-proto` (regenerates and drift-checks the gRPC stubs under `pkg/proto`).
 
 Required checks before merge:
-1. golangci-lint **v2.12.2** — the CI gate and local Makefile pin match (`GOLANGCI_LINT_VERSION`)
+1. golangci-lint **v2.13.2** — the CI gate and local Makefile pin match (`GOLANGCI_LINT_VERSION`)
 2. Go analysis + security scanning from the shared workflow
 3. Unit tests (must pass, 85% coverage threshold enforced)
 4. `check-docs` — OpenAPI/Postman spec drift gate
@@ -1229,4 +1229,4 @@ Multi-tenancy is provided by `lib-commons/v6`:
 - **Project Structure:** `STRUCTURE.md`
 - **Linter Config:** `.golangci.yml`
 - **CRM Field Encryption / KMS:** `docs/architecture/crm-field-encryption.md`
-- **Go Version:** 1.26.4 (go.mod `go 1.26.4`)
+- **Go Version:** 1.27.0 (go.mod `go 1.27.0`)

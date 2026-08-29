@@ -2,7 +2,7 @@
 
 > The unified Midaz binary: double-entry ledger, onboarding, CRM, and fees on a single port
 
-[![Go Version](https://img.shields.io/badge/Go-1.26.4+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.27.0+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?style=flat&logo=postgresql)](https://www.postgresql.org)
 [![License](https://img.shields.io/badge/license-Elastic%20License%202.0-4c1.svg)](../../LICENSE)
 
@@ -139,7 +139,7 @@ Shared code lives at the repo root: `pkg/mmodel` (domain models), `pkg/mtransact
 
 | Layer | Technology |
 |-------|------------|
-| **Language** | Go 1.26.4 |
+| **Language** | Go 1.27.0 |
 | **HTTP framework** | Fiber v3.4.0 (runtime) + Huma v2.38.0 (OAS 3.1 contract) |
 | **Relational store** | PostgreSQL 17 (`jackc/pgx`, `Masterminds/squirrel`) |
 | **Document store** | MongoDB 8 (`go.mongodb.org/mongo-driver/v2`) |
@@ -157,7 +157,7 @@ Shared code lives at the repo root: `pkg/mmodel` (domain models), `pkg/mtransact
 ### Prerequisites
 
 - Docker 20+ & Docker Compose 2+
-- Go 1.26.4+ (for local development)
+- Go 1.27.0+ (for local development)
 - Make
 
 ### 1. Setup
@@ -205,7 +205,7 @@ make ledger COMMAND=down       # Stop it
 # Or run the monorepo-wide targets from the root:
 make test-unit                 # Unit tests
 make test-integration          # Integration tests (testcontainers)
-make lint                      # golangci-lint v2.12.2
+make lint                      # golangci-lint v2.13.2
 make format                    # gofmt
 make sec                       # gosec + govulncheck
 ```
