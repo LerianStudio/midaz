@@ -179,8 +179,8 @@ The signal is `command.RouteHolderPolicy` (`HolderOffV1` / `HolderOnV2`), thread
 shell for the same reason the transaction cores thread `routeVersionPolicy`: the use case is
 transport-agnostic and cannot read the request path. The two are siblings at different layers, not
 duplicates — the fee and tracer seams sit in the transaction handler, the holder seam in the account
-and organization use cases, and a `command` type cannot be the unexported `in` one without inverting
-the dependency direction.
+use case, and a `command` type cannot be the unexported `in` one without inverting the dependency
+direction.
 
 A `/v1` account create never reaches it. It links no holder (the row persists `holder_id = NULL`
 and `holder_check_skipped = false`), performs no holder settings read, and can be rejected by
@@ -223,15 +223,15 @@ projection they serve as a distinct component, and the `/v1` one keeps the canon
 name so generated v1 SDKs bind to the type they already have, which puts the holder-bearing shape
 on **`AccountV2`**.
 
-The same gate covers the **organization self-holder**. Creating an organization eagerly provisions
-its deterministic self-holder — the `LEGAL_PERSON` CRM holder whose ID is derived from the org ID,
-and the default owner an account create resolves to. A `POST /v1/organizations` provisions **no**
-such record: the self-holder exists to own accounts, and a `/v1` account create links no holder, so
-writing it would leave an orphan in the org's CRM collections that nothing on `/v1` can reach. The
-organization itself is created either way — the gate suppresses the side effect, not the resource —
-and the idempotent backfill runner remains how an organization acquires its self-holder before it
-starts using the `/v2` surface. Nothing about the organization response is versioned: the
-organization wire shape carries no holder field, so both contracts publish one schema.
+The **organization self-holder** is outside the seam on both contracts. Creating an organization
+writes no CRM record on either `/v1` or `/v2`; the idempotent backfill runner
+(`components/ledger/cmd/backfill`) is the only path by which an organization acquires its
+deterministic self-holder — the `LEGAL_PERSON` holder whose ID is derived from the org ID via
+UUIDv5, and the default owner a `/v2` account create resolves to. The derivation is pure, so an
+account create materialises `holder_id` without consulting CRM; the referenced record exists once
+the backfill has run. Nothing about the organization response is versioned: the organization wire
+shape carries no holder field, so both contracts publish one schema and differ only in the
+operation IDs they publish.
 
 The **CRM holder surface itself** (`/v2/organizations/{organization_id}/holders...`) and the
 holder-account **composition** route (`POST /v2/.../ledgers/{ledger_id}/holders/{id}/accounts`) are
@@ -257,7 +257,7 @@ ledger-scoped on `/v2` — the deeper scope is expressed by a deeper path, not b
 query parameter. The convention does not change; only how much of the hierarchy the path names.
 
 Scope and contract are separate questions. The fee admin surface answers the first (two scopes,
-both live); the transaction fee seam, the tracer reservation lifecycle and the account/organization
-holder seam answer the second (`/v2` only — the first two driven by `routeVersionPolicy` in the
-transaction handler, the third by `command.RouteHolderPolicy` in the use cases). A surface being
+both live); the transaction fee seam, the tracer reservation lifecycle and the account holder seam
+answer the second (`/v2` only — the first two driven by `routeVersionPolicy` in the transaction
+handler, the third by `command.RouteHolderPolicy` in the account use case). A surface being
 reachable at a scope says nothing about which contract applies it.

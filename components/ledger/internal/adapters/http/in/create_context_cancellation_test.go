@@ -34,28 +34,10 @@ import (
 // inherits it.
 //
 // The assertion that matters in each case is the .Times(0) on the repository: the
-// command must not be entered at all. For the organization that transitively covers the
-// self-holder provisioning too, which is why provisionSelfHolder needs no guard of its
-// own — it is unreachable when the command never runs. (Its own post-commit,
-// non-fatal position is why a guard THERE would change nothing: either way no holder is
-// written, and the idempotent backfill runner is the repair path.)
-
-// countingHolderProvisioner records whether the self-holder port was reached.
-type countingHolderProvisioner struct {
-	calls int
-}
-
-func (p *countingHolderProvisioner) CreateHolderWithID(_ context.Context, _ string, id uuid.UUID, chi *mmodel.CreateHolderInput) (*mmodel.Holder, error) {
-	p.calls++
-
-	return &mmodel.Holder{ID: &id, Type: chi.Type, Name: &chi.Name, Document: &chi.Document}, nil
-}
-
-var _ command.HolderProvisioner = (*countingHolderProvisioner)(nil)
+// command must not be entered at all.
 
 // TestCreateOrganizationCore_CanceledContext proves a canceled context returns
-// context.Canceled from the core and reaches NEITHER the organization repository NOR the
-// self-holder provisioner.
+// context.Canceled from the core and never reaches the organization repository.
 func TestCreateOrganizationCore_CanceledContext(t *testing.T) {
 	t.Parallel()
 
@@ -68,12 +50,9 @@ func TestCreateOrganizationCore_CanceledContext(t *testing.T) {
 	orgRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Times(0)
 	metadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
-	prov := &countingHolderProvisioner{}
-
 	handler := &OrganizationHandler{Command: &command.UseCase{
 		OrganizationRepo:       orgRepo,
 		OnboardingMetadataRepo: metadataRepo,
-		HolderProvisioner:      prov,
 	}}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -83,11 +62,10 @@ func TestCreateOrganizationCore_CanceledContext(t *testing.T) {
 		LegalName:     "Acme Ltd",
 		LegalDocument: "12345678901234",
 		Status:        mmodel.Status{Code: "ACTIVE"},
-	}, command.HolderOnV2)
+	})
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, org)
-	assert.Zero(t, prov.calls, "the self-holder provisioner must not be reached on a canceled context")
 }
 
 // TestCreateAccountCore_CanceledContext proves a canceled context returns
