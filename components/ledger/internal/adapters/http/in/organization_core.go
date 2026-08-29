@@ -42,11 +42,7 @@ type OrganizationHandler struct {
 // createOrganization owns the span + service call for an already-decoded
 // payload. Body decode+validation happens BEFORE this core, in the handler, via
 // http.DecodeAndValidate.
-//
-// holderPolicy is the caller's route-version holder contract, carried explicitly from
-// the transport shell down to the self-holder provisioning in the use case: the /v1
-// shell passes command.HolderOffV1, the /v2 shell command.HolderOnV2.
-func (handler *OrganizationHandler) createOrganization(ctx context.Context, payload *mmodel.CreateOrganizationInput, holderPolicy command.RouteHolderPolicy) (*mmodel.Organization, error) {
+func (handler *OrganizationHandler) createOrganization(ctx context.Context, payload *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -58,7 +54,7 @@ func (handler *OrganizationHandler) createOrganization(ctx context.Context, payl
 
 	recordSafePayloadAttributes(span, payload)
 
-	organization, err := handler.Command.CreateOrganization(ctx, payload, holderPolicy)
+	organization, err := handler.Command.CreateOrganization(ctx, payload)
 	if err != nil {
 		handleSpanByErrorClass(span, "Failed to create organization on command", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))

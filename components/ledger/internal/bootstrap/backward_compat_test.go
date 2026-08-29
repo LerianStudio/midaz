@@ -101,6 +101,8 @@ func TestMultiTenant_BackwardCompatibility(t *testing.T) {
 			"CRM routes must carry no tenant middleware in single-tenant mode")
 		assert.Nil(t, setup.feesRouteOptions,
 			"fee routes must carry no tenant middleware in single-tenant mode")
+		assert.Nil(t, setup.holderAccountsRouteOptions,
+			"holder-accounts routes must carry no tenant middleware in single-tenant mode")
 	})
 
 	t.Run("crm_config_fields_present_with_correct_tags", func(t *testing.T) {

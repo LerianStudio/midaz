@@ -311,6 +311,7 @@ type ListHolderAccountsRequest struct {
 	Limit          string `query:"limit" doc:"Max items per page (1-100, default 10)"`
 	Page           string `query:"page" doc:"Page number (default 1)"`
 	SortOrder      string `query:"sort_order" doc:"Sort direction (asc, desc)"`
+	LedgerID       string `query:"ledger_id" doc:"Optional ledger ID (UUID). Narrows the org-wide listing to one ledger."`
 
 	rawQuery url.Values
 }

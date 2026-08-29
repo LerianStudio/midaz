@@ -13,9 +13,8 @@ import (
 
 // midazNamespace is the deterministic UUIDv5 namespace used to derive a stable
 // self-holder ID from an organization ID. It must never change: the same org ID
-// must always resolve to the same self-holder ID, on the create path, the
-// eager-provision path, and the backfill runner. It is shared by the create-account
-// default materialisation and the org-create self-holder provisioning.
+// must always resolve to the same self-holder ID, on the create-account default
+// materialisation and in the backfill runner.
 var midazNamespace = uuid.MustParse("8d9e2c1b-3a47-5f60-9c8b-1d2e3f405162")
 
 // HolderReader is the narrow port the create path uses to assert a holder exists.
@@ -42,10 +41,10 @@ type SettingsReader interface {
 	GetParsedLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (mmodel.LedgerSettings, error)
 }
 
-// HolderProvisioner is the narrow port the org-create path uses to provision the
-// deterministic self-holder. It is satisfied at bootstrap by the CRM holder
-// service's CreateHolderWithID, which treats a duplicate deterministic ID as
-// idempotent success — so command never imports the CRM package.
+// HolderProvisioner is the narrow port the backfill runner uses to provision an
+// organization's deterministic self-holder. It is satisfied at bootstrap by the
+// CRM holder service's CreateHolderWithID, which treats a duplicate deterministic
+// ID as idempotent success — so command never imports the CRM package.
 type HolderProvisioner interface {
 	// CreateHolderWithID provisions a holder with a caller-supplied deterministic ID.
 	CreateHolderWithID(ctx context.Context, organizationID string, id uuid.UUID, chi *mmodel.CreateHolderInput) (*mmodel.Holder, error)
@@ -54,13 +53,13 @@ type HolderProvisioner interface {
 // DeriveSelfHolderID computes the deterministic self-holder ID for an organization.
 // The derivation is pure (no I/O), so the create hot path can materialise the
 // default holder_id without a Mongo lookup. It is exported so the cross-store
-// backfill runner derives the SAME ID from the SAME namespace as the create and
-// org-provision paths, without redefining the namespace constant.
+// backfill runner derives the SAME ID from the SAME namespace as the create path,
+// without redefining the namespace constant.
 func DeriveSelfHolderID(organizationID uuid.UUID) uuid.UUID {
 	return uuid.NewSHA1(midazNamespace, organizationID[:])
 }
 
-// deriveSelfHolderID is the internal alias used by the create/org-provision paths.
+// deriveSelfHolderID is the internal alias used by the create-account path.
 func deriveSelfHolderID(organizationID uuid.UUID) uuid.UUID {
 	return DeriveSelfHolderID(organizationID)
 }

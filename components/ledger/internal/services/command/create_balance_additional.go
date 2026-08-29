@@ -161,6 +161,27 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		UpdatedAt:      time.Now(),
 	}
 
+	// Companion-first: provision the system-managed overdraft balance BEFORE
+	// persisting the parent, so a provisioning failure never leaves a parent
+	// with AllowOverdraft=true and no companion. The inverse partial state —
+	// companion without parent, if the parent Create fails below — is inert
+	// (internal scope blocks direct operations) and is reused idempotently on
+	// retry. The synthetic current carries nil Settings so the enable check
+	// observes a false→true transition.
+	var overdraftCompanion *mmodel.Balance
+
+	if cbi.Settings != nil {
+		syntheticCurrent := *additionalBalance
+		syntheticCurrent.Settings = nil
+
+		companion, oerr := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, &syntheticCurrent, cbi.Settings)
+		if oerr != nil {
+			return nil, oerr
+		}
+
+		overdraftCompanion = companion
+	}
+
 	created, err := uc.BalanceRepo.Create(ctx, additionalBalance)
 	if err != nil {
 		// Migration 032 adds a unique balance key index. If another pod wins the
@@ -188,6 +209,10 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	}
 
 	uc.emitBalanceCreatedEvent(ctx, span, logger, created)
+
+	if overdraftCompanion != nil {
+		uc.emitBalanceConfigChangedEvent(ctx, span, logger, overdraftCompanion, events.BalanceConfigChangeTypeOverdraftEnabled)
+	}
 
 	return created, nil
 }

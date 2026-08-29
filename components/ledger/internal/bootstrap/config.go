@@ -898,11 +898,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// The command UseCase reads cached settings and asserts holder existence
 	// through narrow ports so it never imports the query or CRM packages.
 	// HolderReader adapts the CRM holder service; SettingsReader is satisfied
-	// directly by the query UseCase (signatures match); HolderProvisioner is
-	// satisfied directly by the CRM holder service's CreateHolderWithID.
+	// directly by the query UseCase (signatures match).
 	commandUseCase.HolderReader = holderReaderAdapter{service: crmMgo.holderHandler.Service}
 	commandUseCase.SettingsReader = queryUseCase
-	commandUseCase.HolderProvisioner = crmMgo.holderHandler.Service
 
 	// === CRM domain metrics (D6) ===
 	// The holder and instrument handlers share the SAME CRM use-case instance,
@@ -1052,7 +1050,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// (midaz:{holders,instruments}, encoded in the route definitions). The CRM-scoped
 	// tenant middleware travels via routeSetup.crmRouteOptions. The holder-accounts
 	// handler reads ledger accounts through a thin adapter over the query UseCase so the
-	// CRM HTTP layer never imports ledger internals.
+	// CRM HTTP layer never imports ledger internals; because it reads onboarding stores
+	// rather than CRM ones, its route carries routeSetup.holderAccountsRouteOptions.
 	holderAccountsHandler := &httpin.HolderAccountsHandler{
 		Reader: holderAccountsReaderAdapter{query: queryUseCase},
 	}
@@ -1479,10 +1478,16 @@ type unifiedRouteSetup struct {
 	feesRouteOptions        *midazhttp.ProtectedRouteOptions
 	compositionRouteOptions *midazhttp.ProtectedRouteOptions
 
+	holderAccountsRouteOptions *midazhttp.ProtectedRouteOptions
+
 	// feesTenantMiddleware is the fee-route tenant middleware instance, exposed so
 	// its configured module managers stay pinnable by a same-package regression
 	// test. Nil in single-tenant mode, where no tenant middleware is built.
 	feesTenantMiddleware *tmmiddleware.TenantMiddleware
+
+	// holderAccountsTenantMiddleware is the holder-accounts tenant middleware
+	// instance, exposed on the same terms as feesTenantMiddleware.
+	holderAccountsTenantMiddleware *tmmiddleware.TenantMiddleware
 }
 
 func buildUnifiedRouteSetup(
@@ -1622,6 +1627,24 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
+	// The holder-accounts listing reads onboarding stores only: the account rows
+	// come from the onboarding PG account repo and their metadata from the
+	// onboarding Mongo metadata repo. Both are MODULE-keyed — the metadata repo
+	// looks up the module key first, so binding onboarding Mongo to the generic
+	// key instead would send the lookup to whichever store owns that key.
+	//
+	// The CRM Mongo manager is deliberately absent: this route never reads a CRM
+	// collection, and this middleware resolves every registered manager eagerly,
+	// so including it would make the listing depend on CRM provisioning it does
+	// not use. A holder-existence gate on this route would change that.
+	holderAccountsTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
+	)
+	setup.holderAccountsTenantMiddleware = holderAccountsTenantMiddleware
+
 	// Built from the module constants rather than spelled out: an operator provisions a
 	// tenant from this line, and a literal that drifts from constant.Module* hands them a
 	// database key the resolver will never look up.
@@ -1661,6 +1684,13 @@ func buildUnifiedRouteSetup(
 	// routes only.
 	setup.compositionRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, compositionTenantMiddleware.WithTenantDB},
+	}
+
+	// The holder-accounts route gets its own onboarding-only tenant middleware
+	// instance rather than the CRM one, which binds the CRM Mongo on the generic
+	// key and no onboarding PG at all.
+	setup.holderAccountsRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, holderAccountsTenantMiddleware.WithTenantDB},
 	}
 
 	return setup, nil
@@ -1739,6 +1769,8 @@ func buildHumaMountDeps(
 		CRMOptions:         setup.crmRouteOptions,
 		FeesOptions:        setup.feesRouteOptions,
 		CompositionOptions: setup.compositionRouteOptions,
+
+		HolderAccountsOptions: setup.holderAccountsRouteOptions,
 	}
 }
 

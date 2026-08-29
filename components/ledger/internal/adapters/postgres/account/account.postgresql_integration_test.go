@@ -8,7 +8,9 @@ package account
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -2763,4 +2765,249 @@ func TestIntegration_AccountRepository_FindAll_FiltersByHolderID(t *testing.T) {
 		require.NotNil(t, acc.HolderID, "account holder_id should not be nil")
 		assert.Equal(t, holderA, *acc.HolderID, "all returned accounts should be owned by holderA")
 	}
+}
+
+// ============================================================================
+// FindAllByHolder Tests
+// ============================================================================
+
+// holderListFilter returns a query header for a holder listing page.
+func holderListFilter(limit, page int, sortOrder string) http.QueryHeader {
+	return http.QueryHeader{Limit: limit, Page: page, SortOrder: sortOrder}
+}
+
+// seedHolderAccount inserts a live account owned by holderID in the given ledger
+// and returns its alias, which the assertions use as the row's identity.
+func seedHolderAccount(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, holderID *uuid.UUID, prefix string, deletedAt *time.Time, createdAt *time.Time) (uuid.UUID, string) {
+	t.Helper()
+
+	alias := fmt.Sprintf("@%s-%s", prefix, uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+
+	params := pgtestutil.DefaultAccountParams()
+	params.Alias = alias
+	params.Name = prefix
+	params.HolderID = holderID
+	params.DeletedAt = deletedAt
+	params.CreatedAt = createdAt
+
+	id := pgtestutil.CreateTestAccountWithParams(t, db, orgID, ledgerID, params)
+
+	return id, alias
+}
+
+// idsOf projects a result set onto its ids, in result order.
+func idsOf(accounts []*mmodel.Account) []string {
+	out := make([]string, 0, len(accounts))
+	for _, a := range accounts {
+		out = append(out, a.ID)
+	}
+
+	return out
+}
+
+// aliasesOf projects a result set onto its aliases, for set comparison.
+func aliasesOf(accounts []*mmodel.Account) []string {
+	out := make([]string, 0, len(accounts))
+	for _, a := range accounts {
+		if a.Alias != nil {
+			out = append(out, *a.Alias)
+		}
+	}
+
+	return out
+}
+
+func TestIntegration_AccountRepository_FindAllByHolder_CrossLedger_ReturnsAllLedgers(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1ID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	ledger2ID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	otherHolderID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	deletedAt := time.Now().Truncate(time.Microsecond)
+
+	// Two accounts in ledger 1 and one in ledger 2 for the target holder.
+	_, a1 := seedHolderAccount(t, container.DB, orgID, ledger1ID, &holderID, "l1a", nil, nil)
+	_, a2 := seedHolderAccount(t, container.DB, orgID, ledger1ID, &holderID, "l1b", nil, nil)
+	_, a3 := seedHolderAccount(t, container.DB, orgID, ledger2ID, &holderID, "l2a", nil, nil)
+	// Must not appear: another holder, and a soft-deleted account of the target holder.
+	_, _ = seedHolderAccount(t, container.DB, orgID, ledger1ID, &otherHolderID, "other", nil, nil)
+	_, _ = seedHolderAccount(t, container.DB, orgID, ledger2ID, &holderID, "gone", &deletedAt, nil)
+
+	// Act
+	accounts, err := repo.FindAllByHolder(context.Background(), orgID, holderID, nil, holderListFilter(10, 1, "asc"), mmodel.HolderOnV2)
+
+	// Assert
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{a1, a2, a3}, aliasesOf(accounts))
+
+	ledgers := map[string]bool{}
+	for _, a := range accounts {
+		ledgers[a.LedgerID] = true
+
+		require.NotNil(t, a.HolderID)
+		assert.Equal(t, holderID.String(), *a.HolderID)
+	}
+
+	assert.Truef(t, ledgers[ledger1ID.String()] && ledgers[ledger2ID.String()],
+		"result must span both ledgers, got %v", ledgers)
+}
+
+func TestIntegration_AccountRepository_FindAllByHolder_LedgerIDNarrows(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1ID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	ledger2ID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	_, a1 := seedHolderAccount(t, container.DB, orgID, ledger1ID, &holderID, "l1a", nil, nil)
+	_, a2 := seedHolderAccount(t, container.DB, orgID, ledger1ID, &holderID, "l1b", nil, nil)
+	_, _ = seedHolderAccount(t, container.DB, orgID, ledger2ID, &holderID, "l2a", nil, nil)
+
+	ctx := context.Background()
+	unknownLedger := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// Act
+	narrowed, err := repo.FindAllByHolder(ctx, orgID, holderID, &ledger1ID, holderListFilter(10, 1, "asc"), mmodel.HolderOnV2)
+	require.NoError(t, err)
+
+	empty, err := repo.FindAllByHolder(ctx, orgID, holderID, &unknownLedger, holderListFilter(10, 1, "asc"), mmodel.HolderOnV2)
+	require.NoError(t, err)
+
+	// Assert
+	assert.ElementsMatch(t, []string{a1, a2}, aliasesOf(narrowed))
+	assert.Empty(t, empty, "an unknown ledger narrows to nothing, without erroring")
+}
+
+func TestIntegration_AccountRepository_FindAllByHolder_IsolatesByOrg(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	org1ID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1ID := pgtestutil.CreateTestLedger(t, container.DB, org1ID)
+
+	org2ID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger2ID := pgtestutil.CreateTestLedger(t, container.DB, org2ID)
+
+	// The same holder id value under two organizations.
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	_, own := seedHolderAccount(t, container.DB, org1ID, ledger1ID, &holderID, "o1", nil, nil)
+	_, _ = seedHolderAccount(t, container.DB, org2ID, ledger2ID, &holderID, "o2a", nil, nil)
+	_, _ = seedHolderAccount(t, container.DB, org2ID, ledger2ID, &holderID, "o2b", nil, nil)
+
+	ctx := context.Background()
+
+	// Act
+	fromOrg1, err := repo.FindAllByHolder(ctx, org1ID, holderID, nil, holderListFilter(10, 1, "asc"), mmodel.HolderOnV2)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, []string{own}, aliasesOf(fromOrg1))
+}
+
+// TestIntegration_AccountRepository_FindAllByHolder_PaginationUnion_IdenticalCreatedAt
+// pins the ORDER BY tiebreaker: with every row sharing one created_at, created_at
+// alone is not a total order, so paging could repeat a row on one page and drop it
+// from another. The id tiebreaker makes the order total, which is what lets the
+// pages partition the set and makes descending the exact reverse of ascending.
+func TestIntegration_AccountRepository_FindAllByHolder_PaginationUnion_IdenticalCreatedAt(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	sharedCreatedAt := time.Date(2026, 2, 3, 4, 5, 6, 0, time.UTC)
+
+	seeded := make([]string, 0, 7)
+	for i := 0; i < 7; i++ {
+		id, _ := seedHolderAccount(t, container.DB, orgID, ledgerID, &holderID, fmt.Sprintf("tie%d", i), nil, &sharedCreatedAt)
+		seeded = append(seeded, id.String())
+	}
+
+	page := func(sortOrder string, n int) []string {
+		accounts, err := repo.FindAllByHolder(context.Background(), orgID, holderID, nil, holderListFilter(3, n, sortOrder), mmodel.HolderOnV2)
+		require.NoError(t, err)
+
+		return idsOf(accounts)
+	}
+
+	// Act & Assert
+	assertPagedTotalOrder(t, seeded, page)
+}
+
+// TestIntegration_AccountRepository_FindAll_PaginationUnion_IdenticalCreatedAt is
+// the ledger-scoped sibling of the holder pagination pin.
+func TestIntegration_AccountRepository_FindAll_PaginationUnion_IdenticalCreatedAt(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	sharedCreatedAt := time.Date(2026, 2, 3, 4, 5, 6, 0, time.UTC)
+
+	seeded := make([]string, 0, 7)
+	for i := 0; i < 7; i++ {
+		id, _ := seedHolderAccount(t, container.DB, orgID, ledgerID, nil, fmt.Sprintf("flat%d", i), nil, &sharedCreatedAt)
+		seeded = append(seeded, id.String())
+	}
+
+	page := func(sortOrder string, n int) []string {
+		accounts, err := repo.FindAll(context.Background(), orgID, ledgerID, nil, nil, holderListFilter(3, n, sortOrder), mmodel.HolderOnV2)
+		require.NoError(t, err)
+
+		return idsOf(accounts)
+	}
+
+	// Act & Assert
+	assertPagedTotalOrder(t, seeded, page)
+}
+
+// assertPagedTotalOrder walks a 7-row set three at a time in both directions and
+// asserts the listing is a total order on id: ascending pages must come back in id
+// order, and descending must be the exact reverse. Without the id tiebreaker the
+// two directions return the same physical order, which this catches.
+func assertPagedTotalOrder(t *testing.T, seeded []string, page func(sortOrder string, n int) []string) {
+	t.Helper()
+
+	wantAsc := slices.Clone(seeded)
+	slices.Sort(wantAsc)
+
+	wantDesc := slices.Clone(wantAsc)
+	slices.Reverse(wantDesc)
+
+	walk := func(sortOrder string) []string {
+		var got []string
+		for n := 1; n <= 3; n++ {
+			got = append(got, page(sortOrder, n)...)
+		}
+
+		return got
+	}
+
+	gotAsc, gotDesc := walk("asc"), walk("desc")
+
+	assert.Equal(t, wantAsc, gotAsc, "ascending pages must walk the set in id order")
+	assert.Equal(t, wantDesc, gotDesc, "descending pages must be the exact reverse of ascending")
+	assert.ElementsMatch(t, seeded, gotAsc, "paging must be a partition of the result set")
 }
