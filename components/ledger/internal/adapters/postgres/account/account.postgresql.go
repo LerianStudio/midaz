@@ -96,6 +96,10 @@ type Repository interface {
 	// reads take none — the transaction and asset paths they serve read no holder,
 	// so they always project constants and never depend on those columns.
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error)
+	// FindAllByHolder lists the live accounts owned by holderID within the organization,
+	// across every ledger; a non-nil ledgerID narrows to one ledger. Ordered by
+	// created_at then id in filter.SortOrder, paged by filter.Limit/Page.
+	FindAllByHolder(ctx context.Context, organizationID, holderID uuid.UUID, ledgerID *uuid.UUID, filter http.QueryHeader, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error)
 	Find(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error)
 	FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error)
 	FindAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error)
@@ -287,118 +291,80 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	return record.ToEntity(), nil
 }
 
-// FindAll retrieves an Account entities from the database (including soft-deleted ones) with pagination.
-//
-//nolint:gocyclo // Query builder with optional filters per parameter; refactor candidate.
-func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.find_all_accounts")
-	defer span.End()
-
-	db, err := r.getDB(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		return nil, err
-	}
-
-	var accounts []*mmodel.Account
-
-	findAll := squirrel.Select(accountColumns(holderPolicy.ProjectsHolder())...).
-		From(r.tableName).
-		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.Expr("organization_id = ?", organizationID)).
-		Where(squirrel.Expr("ledger_id = ?", ledgerID))
-
-	if portfolioID != nil && *portfolioID != uuid.Nil {
-		findAll = findAll.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
-	}
-
-	if segmentID != nil && *segmentID != uuid.Nil {
-		findAll = findAll.Where(squirrel.Expr("segment_id = ?", *segmentID))
-	}
-
+// applyAccountListFilters applies the account list query header — the optional
+// column filters and the created_at range — to a select builder. Shared by the
+// ledger-scoped and holder-scoped listings so both honour the same filter set.
+func applyAccountListFilters(b squirrel.SelectBuilder, filter http.QueryHeader) squirrel.SelectBuilder {
 	// Filter by entity IDs when provided (metadata composition)
 	if len(filter.EntityIDs) > 0 {
-		findAll = findAll.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
+		b = b.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
 	}
 
-	// Apply account-specific filters (status, type, asset_code, entity_id, blocked, parent_account_id)
 	if !libCommons.IsNilOrEmpty(filter.Status) {
-		findAll = findAll.Where(squirrel.Expr("status = ?", *filter.Status))
+		b = b.Where(squirrel.Expr("status = ?", *filter.Status))
 	}
 
 	if !libCommons.IsNilOrEmpty(filter.Type) {
-		findAll = findAll.Where(squirrel.Expr("type = ?", *filter.Type))
+		b = b.Where(squirrel.Expr("type = ?", *filter.Type))
 	}
 
 	if !libCommons.IsNilOrEmpty(filter.AssetCode) {
-		findAll = findAll.Where(squirrel.Expr("asset_code = ?", *filter.AssetCode))
+		b = b.Where(squirrel.Expr("asset_code = ?", *filter.AssetCode))
 	}
 
 	if !libCommons.IsNilOrEmpty(filter.EntityID) {
-		findAll = findAll.Where(squirrel.Expr("entity_id = ?", *filter.EntityID))
+		b = b.Where(squirrel.Expr("entity_id = ?", *filter.EntityID))
 	}
 
 	if !libCommons.IsNilOrEmpty(filter.HolderID) {
-		findAll = findAll.Where(squirrel.Expr("holder_id = ?", *filter.HolderID))
+		b = b.Where(squirrel.Expr("holder_id = ?", *filter.HolderID))
 	}
 
 	if filter.Blocked != nil {
-		findAll = findAll.Where(squirrel.Expr("blocked = ?", *filter.Blocked))
+		b = b.Where(squirrel.Expr("blocked = ?", *filter.Blocked))
 	}
 
 	if !libCommons.IsNilOrEmpty(filter.ParentAccountID) {
-		findAll = findAll.Where(squirrel.Expr("parent_account_id = ?", *filter.ParentAccountID))
+		b = b.Where(squirrel.Expr("parent_account_id = ?", *filter.ParentAccountID))
 	}
 
 	if filter.Name != nil && *filter.Name != "" {
 		sanitized := http.EscapeSearchMetacharacters(*filter.Name)
-		findAll = findAll.Where(
+		b = b.Where(
 			squirrel.Expr("lower(name) LIKE lower(?) || '%' ESCAPE '\\'", sanitized),
 		)
 	}
 
 	if filter.Alias != nil && *filter.Alias != "" {
 		sanitized := http.EscapeSearchMetacharacters(*filter.Alias)
-		findAll = findAll.Where(
+		b = b.Where(
 			squirrel.Expr("lower(alias) LIKE lower(?) || '%' ESCAPE '\\'", sanitized),
 		)
 	}
 
-	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder))
-
 	if !filter.StartDate.IsZero() {
-		findAll = findAll.
+		b = b.
 			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
 			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
 	}
 
-	findAll = findAll.Limit(libCommons.SafeIntToUint64(filter.Limit)).
-		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
-		PlaceholderFormat(squirrel.Dollar)
+	return b
+}
 
-	query, args, err := findAll.ToSql()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+// accountListOrderBy orders a listing by created_at with id as tiebreaker, both
+// in the requested direction. The tiebreaker makes paging total: accounts written
+// in the same transaction share a created_at, and without it a row can repeat on
+// one page and be missing from another.
+func accountListOrderBy(filter http.QueryHeader) []string {
+	dir := strings.ToUpper(filter.SortOrder)
 
-		return nil, err
-	}
+	return []string{"created_at " + dir, "id " + dir}
+}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
-
-	rows, err := db.QueryContext(ctx, query, args...)
-	if err != nil {
-		mapped := mapReadError(err)
-
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
-
-		return nil, mapped
-	}
-	defer rows.Close()
-
-	spanQuery.End()
+// scanAccountRows drains an account projection into domain entities. The scan
+// order mirrors accountColumns.
+func scanAccountRows(rows *sql.Rows) ([]*mmodel.Account, error) {
+	var accounts []*mmodel.Account
 
 	for rows.Next() {
 		var acc AccountPostgreSQLModel
@@ -423,18 +389,149 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
 		); err != nil {
-			mapped := mapReadError(err)
-
-			libOpentelemetry.HandleSpanError(span, "Failed to scan row", mapped)
-
-			return nil, mapped
+			return nil, mapReadError(err)
 		}
 
 		accounts = append(accounts, acc.ToEntity())
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
+		return nil, err
+	}
+
+	return accounts, nil
+}
+
+// FindAll retrieves the live Account entities of a ledger with pagination.
+func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_all_accounts")
+	defer span.End()
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	findAll := squirrel.Select(accountColumns(holderPolicy.ProjectsHolder())...).
+		From(r.tableName).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID))
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		findAll = findAll.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
+	}
+
+	if segmentID != nil && *segmentID != uuid.Nil {
+		findAll = findAll.Where(squirrel.Expr("segment_id = ?", *segmentID))
+	}
+
+	findAll = applyAccountListFilters(findAll, filter).
+		OrderBy(accountListOrderBy(filter)...).
+		Limit(libCommons.SafeIntToUint64(filter.Limit)).
+		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return nil, err
+	}
+
+	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		mapped := mapReadError(err)
+
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
+
+		return nil, mapped
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	accounts, err := scanAccountRows(rows)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to read rows", err)
+
+		return nil, err
+	}
+
+	return accounts, nil
+}
+
+// FindAllByHolder retrieves the live accounts owned by a holder across every
+// ledger of the organization, narrowed to one ledger when ledgerID is non-nil.
+func (r *AccountPostgreSQLRepository) FindAllByHolder(ctx context.Context, organizationID, holderID uuid.UUID, ledgerID *uuid.UUID, filter http.QueryHeader, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_all_accounts_by_holder")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.holder_id", holderID.String()),
+		attribute.Bool("app.request.has_ledger_id", ledgerID != nil && *ledgerID != uuid.Nil),
+	)
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	findAll := squirrel.Select(accountColumns(holderPolicy.ProjectsHolder())...).
+		From(r.tableName).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("holder_id = ?", holderID))
+
+	if ledgerID != nil && *ledgerID != uuid.Nil {
+		findAll = findAll.Where(squirrel.Expr("ledger_id = ?", *ledgerID))
+	}
+
+	// The path holder is authoritative; a holder_id query filter cannot widen or
+	// contradict it.
+	filter.HolderID = nil
+
+	findAll = applyAccountListFilters(findAll, filter).
+		OrderBy(accountListOrderBy(filter)...).
+		Limit(libCommons.SafeIntToUint64(filter.Limit)).
+		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return nil, err
+	}
+
+	_, spanQuery := tracer.Start(ctx, "postgres.find_all_accounts_by_holder.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		mapped := mapReadError(err)
+
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
+
+		return nil, mapped
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	accounts, err := scanAccountRows(rows)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to read rows", err)
 
 		return nil, err
 	}

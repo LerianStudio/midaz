@@ -37510,6 +37510,12 @@
                   "value": "",
                   "description": "Sort direction (asc, desc)",
                   "disabled": true
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.",
+                  "disabled": true
                 }
               ]
             },
@@ -37576,6 +37582,12 @@
                       "key": "sort_order",
                       "value": "",
                       "description": "Sort direction (asc, desc)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "ledger_id",
+                      "value": "",
+                      "description": "Optional ledger ID (UUID). Narrows the org-wide listing to one ledger.",
                       "disabled": true
                     }
                   ]

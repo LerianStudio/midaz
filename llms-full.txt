@@ -338,7 +338,7 @@ an instrument create-body field and an optional `GET .../instruments` list filte
 | GET | /v2/organizations/{organization_id}/holders/{id} | Get a holder (authz `midaz`/`holders`) |
 | PATCH | /v2/organizations/{organization_id}/holders/{id} | Update a holder (authz `midaz`/`holders`) |
 | DELETE | /v2/organizations/{organization_id}/holders/{id} | Delete a holder (authz `midaz`/`holders`) |
-| GET | /v2/organizations/{organization_id}/holders/{id}/accounts | List a holder's accounts org-wide (authz `midaz`/`holders`; mounted only when the ledger account-query backing is non-nil) |
+| GET | /v2/organizations/{organization_id}/holders/{id}/accounts | List a holder's accounts org-wide across every ledger, with an optional `?ledger_id=` narrowing filter (authz `midaz`/`holders`; mounted only when the ledger account-query backing is non-nil) |
 | GET | /v2/organizations/{organization_id}/instruments | List instruments (authz `midaz`/`instruments`) |
 | POST | /v2/organizations/{organization_id}/holders/{holder_id}/instruments | Create an instrument for a holder (authz `midaz`/`instruments`) |
 | GET | /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id} | Get an instrument (authz `midaz`/`instruments`) |
@@ -355,8 +355,10 @@ in legacy mode their handlers are nil and the routes are never mounted.
 
 The holder-account composition (`POST`) carries an extra `:ledger_id` segment because it creates a
 real ledger account; the holder-accounts `GET` (`HolderAccountsHandler.GetAccountsByHolder`, mounted
-only when the ledger account-query backing is non-nil) lists a holder's accounts org-wide and needs
-no ledger. The `POST` (`CompositionHandler.CreateHolderAccount`, in `composition_routes.go`) is
+only when the ledger account-query backing is non-nil) lists a holder's accounts across every ledger
+of the organization and needs no ledger. It accepts an optional `?ledger_id=` narrowing filter; a
+malformed value is `0082` / 400. Because it reads the onboarding stores rather than the CRM ones, it
+is the one CRM-path route carrying its own `holder-accounts` route options. The `POST` (`CompositionHandler.CreateHolderAccount`, in `composition_routes.go`) is
 always mounted. Holder ownership is org-scoped (matching Mongo storage), not ledger-scoped.
 
 CRM error responses carry **canonical midaz codes** (e.g. `0009`, `0046`, `0047`, `0094`) — the

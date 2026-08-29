@@ -55,11 +55,18 @@ not match and Fiber returns `404`. The former "missing scoping header" error cla
   a validated UUID rather than a raw header string.
 - **`X-Ledger-Id` was removed entirely.** It is no longer a live contract on any CRM or composition
   route. The single route that legitimately needs a ledger — composition account-open — now carries
-  `:ledger_id` in its path (`/v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts`),
+  `:ledger_id` in its path (`/v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts`),
   because it creates a real ledger account.
 - **`ledger_id` keeps two non-scoping roles.** It remains a **create-body field** on instrument
-  creation, and an **optional list filter** (`?ledger_id=`) on `GET .../instruments`. In neither
-  role is it a scoping input for pure-CRM routes.
+  creation, and an **optional list filter** (`?ledger_id=`) on `GET .../instruments` and on
+  `GET .../holders/{id}/accounts`. In neither role is it a scoping input for pure-CRM routes.
+
+  `GET /v2/organizations/{organization_id}/holders/{id}/accounts` is org-scoped by its path, and
+  holder ownership is org-global, so the listing spans **every ledger of the organization**;
+  `?ledger_id=` narrows it to one. A malformed value is `0082` / 400, not a 404: it is a
+  query-parameter format error, not a missing ledger. Because the read touches the onboarding
+  stores rather than the CRM ones, the route carries its own `holder-accounts` route options
+  instead of the CRM ones — see `components/ledger/internal/bootstrap/config.go`.
 
 The service layer keeps its `organizationID string` signatures; only the source and validation of
 the value moved (path UUID → `.String()`), so the Mongo partition is unchanged.

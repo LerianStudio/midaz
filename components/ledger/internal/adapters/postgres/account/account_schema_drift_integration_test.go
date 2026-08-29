@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,6 +38,7 @@ func driftToPreHolderSchema(t *testing.T, db *sql.DB) {
 
 	// Reverse order, as golang-migrate would roll them back.
 	for _, name := range []string{
+		"000021_create_idx_account_org_holder.down.sql",
 		"000019_add_holder_skip_audit_to_account.down.sql",
 		"000018_create_idx_account_holder.down.sql",
 		"000017_add_account_holder_id_column.down.sql",
@@ -44,9 +46,9 @@ func driftToPreHolderSchema(t *testing.T, db *sql.DB) {
 		content, err := os.ReadFile(filepath.Join(dir, name))
 		require.NoErrorf(t, err, "failed to read %s", name)
 
-		// The index drop is CONCURRENTLY, which cannot run inside the implicit
-		// transaction of a multi-statement Exec; the column drop removes it anyway.
-		if name == "000018_create_idx_account_holder.down.sql" {
+		// Index drops are CONCURRENTLY, which cannot run inside the implicit
+		// transaction of a multi-statement Exec; the column drop removes them anyway.
+		if strings.Contains(strings.ToUpper(string(content)), "CONCURRENTLY") {
 			continue
 		}
 

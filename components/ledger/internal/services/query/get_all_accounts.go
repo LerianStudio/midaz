@@ -13,6 +13,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -54,6 +55,13 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
+	return uc.attachAccountMetadata(ctx, span, accounts)
+}
+
+// attachAccountMetadata enriches a page of accounts with their onboarding
+// metadata. A metadata lookup failure surfaces as ErrNoAccountsFound, the same
+// class both account listings report.
+func (uc *UseCase) attachAccountMetadata(ctx context.Context, span trace.Span, accounts []*mmodel.Account) ([]*mmodel.Account, error) {
 	if len(accounts) == 0 {
 		return accounts, nil
 	}

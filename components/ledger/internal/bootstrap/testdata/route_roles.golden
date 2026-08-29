@@ -1,5 +1,5 @@
 # Route -> role map: METHOD<TAB>RAW PATH<TAB>ROLE.
-# ROLE is which of the six route-scoped ProtectedRouteOptions a registered route runs, observed by
+# ROLE is which of the seven route-scoped ProtectedRouteOptions a registered route runs, observed by
 # threading a distinct sentinel post-auth handler per role and recording which one executed.
 # It pins the registrar -> options pairing the route table cannot: swapping the crm and fees
 # options moves neither path nor handler count, but flips the role recorded here.
@@ -76,7 +76,7 @@ GET	/v2/organizations/:organization_id/encryption/status	crm
 GET	/v2/organizations/:organization_id/holders	crm
 GET	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrument_id	crm
 GET	/v2/organizations/:organization_id/holders/:id	crm
-GET	/v2/organizations/:organization_id/holders/:id/accounts	crm
+GET	/v2/organizations/:organization_id/holders/:id/accounts	holder-accounts
 GET	/v2/organizations/:organization_id/instruments	crm
 GET	/v2/organizations/:organization_id/ledgers	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
