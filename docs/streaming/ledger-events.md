@@ -26,9 +26,8 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
   `lerian.streaming.ledger.dlq` as its single dead-letter topic. There is no
   per-event topic and no `.v<major>` topic suffix: `ce-schemaversion` is the only
   version carrier on the wire. Consumers subscribe to the application and dispatch
-  on the event key. (The one destination the binary writes outside this pair is the
-  billing event's fixed topic — see
-  [`docs/architecture/billing-active-account-streaming.md`](../architecture/billing-active-account-streaming.md).)
+  on the event key. This pair is the binary's ENTIRE write surface — there is no
+  destination outside it.
 - **Posture:** all 35 events invoke `pkgStreaming.EmitBrokerBestEffort` at the
   post-commit slot. The helper bounds the synchronous `Emitter.Emit` call, records
   build/emit failures on the span, logs a Warn, and **never fails the HTTP request**.
@@ -51,8 +50,7 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
   ledger writes. It is independent of `STREAMING_ENABLED` and degraded-safe (it
   reflects the static Catalog, not a live broker connection); an illegal `ce-source`
   leaves the route unmounted rather than advertising a topic built from a malformed
-  name. The billing event is excluded — it rides a fixed topic owned by
-  lib-streaming, not the ledger's application topic.
+  name. Every event the binary emits is on that topic; there is no exception.
 - **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled, bootstrap
   injects a `NoopEmitter` and no broker connection is attempted. The ledger has no
   streaming readiness prober, so `/readyz` carries no streaming check in either

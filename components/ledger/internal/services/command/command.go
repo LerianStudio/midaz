@@ -11,7 +11,6 @@ import (
 	"github.com/LerianStudio/lib-observability/v2/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v3"
-	billing "github.com/LerianStudio/lib-streaming/v3/billing"
 	"go.opentelemetry.io/otel/trace"
 
 	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
@@ -34,28 +33,6 @@ import (
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
 )
-
-// billingSerializer is the narrow seam over lib-streaming's *billing.Serializer.
-// It exists so the billable-event emit path can be unit-tested with a
-// fake and so a nil value cleanly means "billing disabled". The concrete
-// *billing.Serializer satisfies it; the assertion below locks that at compile
-// time.
-type billingSerializer interface {
-	Serialize(*billing.BillablePayload) ([]byte, error)
-}
-
-var _ billingSerializer = (*billing.Serializer)(nil)
-
-// SetBillingSerializer assigns the billing serializer through the typed-nil
-// guard. It exists so the nil-interface trap — a nil *billing.Serializer
-// assigned straight to the billingSerializer interface field compares NON-nil —
-// is defended in ONE tested place shared by bootstrap and any future caller.
-// A nil pointer leaves BillingSerializer as a nil interface ("billing disabled").
-func (uc *UseCase) SetBillingSerializer(s *billing.Serializer) {
-	if s != nil {
-		uc.BillingSerializer = s
-	}
-}
 
 // UseCase is a struct that aggregates all repositories for both onboarding and transaction
 // domains, providing simplified access in use case implementations.
@@ -135,22 +112,6 @@ type UseCase struct {
 	// disabled" by every call site — never required for the request to
 	// succeed.
 	Streaming libStreaming.Emitter
-
-	// BillingSerializer encodes billable events into the Confluent-Protobuf
-	// wire format for the metering topic. It is built once at bootstrap (one
-	// Schema Registry round-trip at construction), never on the request path.
-	// A nil value means billing is disabled — the registry was absent or
-	// unreachable at boot — and is never required for a request to succeed.
-	// The field is the billingSerializer seam, so it MUST be assigned only a
-	// non-nil concrete serializer; a nil *billing.Serializer assigned directly
-	// would become a non-nil typed-nil interface (see the bootstrap injection
-	// nil-guard).
-	BillingSerializer billingSerializer
-
-	// MultiTenantEnabled selects the billing subscription identity: when true,
-	// active-account billing uses the resolved tenant ID as SubscriptionId; when
-	// false, the transaction's OrganizationID. Injected from config at bootstrap.
-	MultiTenantEnabled bool
 
 	// --- Holder ownership (CRM seam, wired at bootstrap) ---
 

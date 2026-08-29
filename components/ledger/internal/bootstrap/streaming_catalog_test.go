@@ -31,11 +31,11 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 	routes, err := buildRoutes(streamingPrimaryTargetName, streamingServiceName)
 	require.NoError(t, err)
 
-	// One catalog entry per domain definition, plus the single shared
-	// billing_recorded entry appended by buildCatalog (owned by lib-streaming's
-	// billing package, not part of midazEventDefinitions). Routes from buildRoutes
-	// remain domain-only; the billing route is wired via Builder.RouteOverrides.
-	assert.Equal(t, len(defs)+1, catalog.Len(), "catalog = one entry per domain definition plus the shared billing entry")
+	// One catalog entry per domain definition, and nothing else. The catalog is
+	// exactly midazEventDefinitions(): no entry is appended from outside it, and
+	// no definition is routed away from the catch-all, so catalog and manifest
+	// advertise the same set.
+	assert.Equal(t, len(defs), catalog.Len(), "catalog = exactly one entry per domain definition")
 
 	// One route, not one per event: the collapse is the contract. A route count
 	// that tracks the definition count again would mean the per-event fan-out came
