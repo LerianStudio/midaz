@@ -98,3 +98,63 @@ func TestIntegration_Overdraft_PendingDestinationCreditDefersRepayment(t *testin
 		"a pending create must neither repay nor re-accrue the destination overdraft")
 	assert.Equal(t, int64(1), destCached.Version, "an untouched balance must not consume a version")
 }
+
+// TestIntegration_Overdraft_CommitDestinationCreditRepaysOnce locks the commit
+// half of the same lifecycle: the destination credit posts on the APPROVED
+// transition, so that is where the overdraft repayment happens. The enrichment
+// layer queues a sibling CREDIT on the direction=debit companion, and the two
+// legs must settle exactly one repayment between them — the primary keeps the
+// remainder, the companion sheds the repaid liability.
+func TestIntegration_Overdraft_CommitDestinationCreditRepaysOnce(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	sourceAliasKey := "@commit-repay-src" + "#" + constant.DefaultBalanceKey
+	destAliasKey := "@commit-repay-dst" + "#" + constant.DefaultBalanceKey
+	companionAliasKey := "@commit-repay-dst" + "#" + constant.OverdraftBalanceKey
+
+	destSettings := &mmodel.BalanceSettings{
+		BalanceScope:          mmodel.BalanceScopeTransactional,
+		AllowOverdraft:        true,
+		OverdraftLimitEnabled: true,
+		OverdraftLimit:        ptrString("100"),
+	}
+
+	// Commit consumes the hold the pending create reserved: the source leg is an
+	// ON_HOLD under route validation and never touches Available.
+	sourceOp := pendingOverdraftBalanceOp(orgID, ledgerID, "@commit-repay-src", constant.DefaultBalanceKey, constant.DirectionCredit,
+		decimal.NewFromInt(940), decimal.NewFromInt(60), decimal.Zero, 1, nil,
+		constant.ONHOLD, constant.APPROVED, decimal.NewFromInt(60), decimal.Zero, true)
+
+	destOp := pendingOverdraftBalanceOp(orgID, ledgerID, "@commit-repay-dst", constant.DefaultBalanceKey, constant.DirectionCredit,
+		decimal.Zero, decimal.Zero, decimal.NewFromInt(50), 1, destSettings,
+		libConstants.CREDIT, constant.APPROVED, decimal.NewFromInt(60), decimal.Zero, false)
+
+	companionOp := pendingOverdraftBalanceOp(orgID, ledgerID, "@commit-repay-dst", constant.OverdraftBalanceKey, constant.DirectionDebit,
+		decimal.NewFromInt(50), decimal.Zero, decimal.Zero, 1, nil,
+		libConstants.CREDIT, constant.APPROVED, decimal.NewFromInt(50), decimal.Zero, false)
+
+	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		uuid.New(), constant.APPROVED, true, []mmodel.BalanceOperation{sourceOp, destOp, companionOp})
+	require.NoError(t, err)
+
+	sourceAfter := findBalanceByAliasKey(t, result.After, sourceAliasKey)
+	assert.True(t, sourceAfter.Available.Equal(decimal.NewFromInt(940)),
+		"a commit consumes the hold, not available; got %s", sourceAfter.Available.String())
+	assert.True(t, sourceAfter.OnHold.IsZero(), "got %s", sourceAfter.OnHold.String())
+
+	destAfter := findBalanceByAliasKey(t, result.After, destAliasKey)
+	assert.True(t, destAfter.Available.Equal(decimal.NewFromInt(10)),
+		"available must receive credit minus repayment; got %s", destAfter.Available.String())
+	assert.True(t, destAfter.OverdraftUsed.IsZero(),
+		"the credit must repay the outstanding overdraft exactly once; got %s", destAfter.OverdraftUsed.String())
+
+	companionAfter := findBalanceByAliasKey(t, result.After, companionAliasKey)
+	assert.True(t, companionAfter.Available.IsZero(),
+		"the companion must shed the repaid liability in lock-step; got %s", companionAfter.Available.String())
+}

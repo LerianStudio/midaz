@@ -342,6 +342,56 @@ func TestEnrichOverdraftOperations_PendingDestinationCreditIsNotRefunded(t *test
 	assert.NotContains(t, validate.Destinations, "@bob#"+constant.OverdraftBalanceKey)
 }
 
+// TestEnrichOverdraftOperations_CommitConsumptionDebitIsNotSplit locks the
+// commit-side guard: a DEBIT carrying TransactionType=APPROVED consumes the
+// OnHold the pending create reserved, so it never touches Available. Available
+// is routinely zero at that point (the funds sit in OnHold), which the deficit
+// detector would otherwise read as a fresh overdraft draw and mirror as a
+// companion debit for capacity nobody used.
+func TestEnrichOverdraftOperations_CommitConsumptionDebitIsNotSplit(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	source := overdraftEnabledBalance(t, "@alice", decimal.Zero, "100")
+	source.OnHold = decimal.NewFromInt(100)
+
+	primary := mmodel.BalanceOperation{
+		Balance: source,
+		Alias:   "0#@alice#default",
+		Amount: mtransaction.Amount{
+			Asset:           "BRL",
+			Value:           decimal.NewFromInt(100),
+			Operation:       libConstants.DEBIT,
+			TransactionType: constant.APPROVED,
+			Direction:       constant.DirectionDebit,
+		},
+		InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@alice#default"),
+	}
+
+	loaderCalled := false
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		loaderCalled = true
+
+		return []*mmodel.Balance{companionOverdraftBalance("@alice")}, nil
+	}
+
+	validate := &mtransaction.Responses{
+		From:    map[string]mtransaction.Amount{"0#@alice#default": primary.Amount},
+		Sources: []string{"@alice#default"},
+		Aliases: []string{"@alice#default"},
+	}
+
+	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{primary}, validate, loader)
+	require.NoError(t, err)
+
+	assert.False(t, loaderCalled, "a commit consumption debit must not even trigger a companion lookup")
+	require.Len(t, enriched, 1, "no companion debit may be appended for a commit consumption debit")
+	assert.Empty(t, companionFromTos)
+	assert.NotContains(t, validate.Sources, "@alice#"+constant.OverdraftBalanceKey)
+}
+
 // TestEnrichOverdraftOperations_NoSplitForNonOverflow guards the common path:
 // when the debit fits within the available balance, no enrichment happens and
 // the loader is not called.

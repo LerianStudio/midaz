@@ -432,9 +432,17 @@ func collectOverdraftDebitSplits(balanceOps []mmodel.BalanceOperation) []overdra
 	return splits
 }
 
+// isOverdraftDebitSplitCandidate reports whether an operation is a debit that
+// draws against Available and may therefore open a fresh overdraft.
+//
+// A DEBIT carrying TransactionType=APPROVED is a commit consuming the OnHold
+// that the pending create already reserved: it never touches Available, so the
+// amount-versus-available comparison downstream would misread the drained
+// Available (funds sit in OnHold at that point) as a new deficit and mirror a
+// companion debit for capacity that was never drawn.
 func isOverdraftDebitSplitCandidate(amount mtransaction.Amount) bool {
 	if amount.Operation == libConstants.DEBIT {
-		return true
+		return amount.TransactionType != constant.APPROVED
 	}
 
 	return amount.Operation == constant.ONHOLD &&
