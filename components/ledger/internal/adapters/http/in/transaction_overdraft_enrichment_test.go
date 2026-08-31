@@ -194,12 +194,16 @@ func TestEnrichOverdraftOperations_SourceDebitSplit(t *testing.T) {
 	assert.True(t, ft.IsFrom, "debit enrichment companion lives on the source side")
 }
 
-func TestEnrichOverdraftOperations_PendingLegacyOnHoldSplit(t *testing.T) {
+// TestEnrichOverdraftOperations_PendingLegacyOnHoldDoesNotDraw locks the product
+// rule on the enrichment side: a HOLD never draws overdraft, so the legacy
+// single-ON_HOLD pending shape produces no draw companion however far the hold
+// exceeds Available. The atomic script rejects such a hold outright, so there is
+// no balance movement to mirror.
+func TestEnrichOverdraftOperations_PendingLegacyOnHoldDoesNotDraw(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
 	source := overdraftEnabledBalance(t, "@alice", decimal.NewFromInt(50), "100")
-	companion := companionOverdraftBalance("@alice")
 
 	primary := mmodel.BalanceOperation{
 		Balance: source,
@@ -215,10 +219,12 @@ func TestEnrichOverdraftOperations_PendingLegacyOnHoldSplit(t *testing.T) {
 		InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@alice#default"),
 	}
 
-	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
-		assert.Equal(t, []string{"@alice#overdraft"}, aliases)
+	loaderCalled := false
 
-		return []*mmodel.Balance{companion}, nil
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		loaderCalled = true
+
+		return []*mmodel.Balance{companionOverdraftBalance("@alice")}, nil
 	}
 
 	validate := &mtransaction.Responses{
@@ -232,27 +238,22 @@ func TestEnrichOverdraftOperations_PendingLegacyOnHoldSplit(t *testing.T) {
 	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
-	require.Len(t, enriched, 2)
 
-	companionOp := enriched[1]
-	assert.Equal(t, libConstants.DEBIT, companionOp.Amount.Operation,
-		"pending legacy hold must still debit the direction=debit companion")
-	assert.Equal(t, constant.DirectionDebit, companionOp.Amount.Direction)
-	assert.True(t, companionOp.Amount.Value.Equal(decimal.NewFromInt(50)))
-	assert.Equal(t, constant.PENDING, companionOp.Amount.TransactionType)
-
-	require.Len(t, companionFromTos, 1)
-	assert.Equal(t, "0#@alice#overdraft", companionFromTos[0].AccountAlias)
-	assert.True(t, companionFromTos[0].IsFrom)
-	assert.Contains(t, validate.Sources, "@alice#overdraft")
+	assert.False(t, loaderCalled, "a hold must not even trigger a companion lookup")
+	require.Len(t, enriched, 1, "a hold must not produce a draw companion")
+	assert.Empty(t, companionFromTos)
+	assert.NotContains(t, validate.Sources, "@alice#"+constant.OverdraftBalanceKey)
 }
 
-func TestEnrichOverdraftOperations_PendingRouteValidationOnHoldDoesNotDoubleSplit(t *testing.T) {
+// TestEnrichOverdraftOperations_PendingRouteValidationDoesNotDraw is the
+// route-validated sibling: the double-entry hold arrives as a DEBIT plus an
+// ON_HOLD, and neither leg may draw. The DEBIT leg is the one that moves
+// Available, so it is the one that used to produce the companion.
+func TestEnrichOverdraftOperations_PendingRouteValidationDoesNotDraw(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
 	source := overdraftEnabledBalance(t, "@alice", decimal.NewFromInt(50), "100")
-	companion := companionOverdraftBalance("@alice")
 
 	debit := mmodel.BalanceOperation{
 		Balance: source,
@@ -270,8 +271,12 @@ func TestEnrichOverdraftOperations_PendingRouteValidationOnHoldDoesNotDoubleSpli
 	onHold.Amount.Operation = constant.ONHOLD
 	onHold.Amount.Direction = constant.DirectionCredit
 
+	loaderCalled := false
+
 	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
-		return []*mmodel.Balance{companion}, nil
+		loaderCalled = true
+
+		return []*mmodel.Balance{companionOverdraftBalance("@alice")}, nil
 	}
 
 	validate := &mtransaction.Responses{
@@ -286,10 +291,10 @@ func TestEnrichOverdraftOperations_PendingRouteValidationOnHoldDoesNotDoubleSpli
 		[]mmodel.BalanceOperation{debit, onHold}, validate, loader)
 	require.NoError(t, err)
 
-	require.Len(t, enriched, 3, "only the generated DEBIT leg may create a companion")
-	assert.Equal(t, libConstants.DEBIT, enriched[2].Amount.Operation)
-	assert.True(t, enriched[2].Amount.Value.Equal(decimal.NewFromInt(50)))
-	require.Len(t, companionFromTos, 1, "route-validation ON_HOLD leg must not create a duplicate companion")
+	assert.False(t, loaderCalled, "neither hold leg may trigger a companion lookup")
+	require.Len(t, enriched, 2, "neither hold leg may produce a draw companion")
+	assert.Empty(t, companionFromTos)
+	assert.NotContains(t, validate.Sources, "@alice#"+constant.OverdraftBalanceKey)
 }
 
 // TestEnrichOverdraftOperations_PendingDestinationCreditIsNotRefunded locks the

@@ -99,46 +99,97 @@ func findLatestBalanceByKey(t *testing.T, balances []*mmodel.Balance, key string
 	return latest
 }
 
-func TestIntegration_Overdraft_PendingLegacyHoldMutatesCompanion(t *testing.T) {
+// TestIntegration_Overdraft_PendingHoldRejectsOverdraftDraw locks the product
+// rule: a HOLD never draws overdraft. Debt is created only by conclusive
+// operations, so a pending create whose hold exceeds Available is rejected with
+// the classic insufficient-funds error even on an allowOverdraft balance, and
+// nothing is persisted. Both pending shapes are covered — the legacy single
+// ON_HOLD and the route-validated DEBIT + ON_HOLD double entry, where the DEBIT
+// leg is the one that would go negative.
+func TestIntegration_Overdraft_PendingHoldRejectsOverdraftDraw(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	infra := setupRedisIntegrationInfra(t)
-	ctx := context.Background()
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	alias := "@t17-pending-hold"
-
-	settings := &mmodel.BalanceSettings{
-		BalanceScope:          mmodel.BalanceScopeTransactional,
-		AllowOverdraft:        true,
-		OverdraftLimitEnabled: true,
-		OverdraftLimit:        ptrString("100"),
+	settings := func() *mmodel.BalanceSettings {
+		return &mmodel.BalanceSettings{
+			BalanceScope:          mmodel.BalanceScopeTransactional,
+			AllowOverdraft:        true,
+			OverdraftLimitEnabled: true,
+			OverdraftLimit:        ptrString("100"),
+		}
 	}
 
-	defaultOp := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
-		decimal.NewFromInt(50), decimal.Zero, decimal.Zero, 1, settings,
-		constant.ONHOLD, constant.PENDING, decimal.NewFromInt(100), decimal.Zero, false)
-	companionOp := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.OverdraftBalanceKey, constant.DirectionDebit,
-		decimal.Zero, decimal.Zero, decimal.Zero, 1, nil,
-		constant.DEBIT, constant.PENDING, decimal.NewFromInt(50), decimal.Zero, false)
+	// assertUntouched proves the rejection moved nothing: the rollback restores
+	// every balance the batch touched to the state the caller read.
+	assertUntouched := func(t *testing.T, infra *integrationTestInfra, orgID, ledgerID uuid.UUID, alias string) {
+		t.Helper()
 
-	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{defaultOp, companionOp})
+		def := readCachedBalance(t, infra, utils.BalanceInternalKey(orgID, ledgerID, alias+"#"+constant.DefaultBalanceKey))
+		assert.Equal(t, "50", def.Available, "a rejected hold must not move available")
+		assert.Equal(t, "0", def.OnHold, "a rejected hold must not place a hold")
+		assert.Equal(t, "0", def.OverdraftUsed, "a rejected hold must not accrue overdraft")
+		assert.Equal(t, int64(1), def.Version, "a rejected hold must not consume a version")
+	}
 
-	require.NoError(t, err)
-	require.Len(t, result.After, 2)
+	t.Run("legacy_shape", func(t *testing.T) {
+		infra := setupRedisIntegrationInfra(t)
+		ctx := context.Background()
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		alias := "@pending-hold-reject-legacy"
 
-	defaultAfter := findBalanceByKey(t, result.After, constant.DefaultBalanceKey)
-	companionAfter := findBalanceByKey(t, result.After, constant.OverdraftBalanceKey)
+		onHold := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
+			decimal.NewFromInt(50), decimal.Zero, decimal.Zero, 1, settings(),
+			constant.ONHOLD, constant.PENDING, decimal.NewFromInt(100), decimal.Zero, false)
 
-	assert.True(t, defaultAfter.Available.IsZero())
-	assert.True(t, defaultAfter.OnHold.Equal(decimal.NewFromInt(100)))
-	assert.True(t, defaultAfter.OverdraftUsed.Equal(decimal.NewFromInt(50)))
-	assert.True(t, companionAfter.Available.Equal(decimal.NewFromInt(50)))
+		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{onHold})
+
+		require.Error(t, err, "a hold exceeding available must be rejected, not floored into overdraft")
+		assert.Contains(t, err.Error(), "0018")
+
+		assertUntouched(t, infra, orgID, ledgerID, alias)
+	})
+
+	t.Run("route_validated_shape", func(t *testing.T) {
+		infra := setupRedisIntegrationInfra(t)
+		ctx := context.Background()
+		orgID := uuid.New()
+		ledgerID := uuid.New()
+		alias := "@pending-hold-reject-rv"
+
+		// Route validation splits the hold: the DEBIT drops Available (and is
+		// what would overdraw), the ON_HOLD raises OnHold.
+		debit := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
+			decimal.NewFromInt(50), decimal.Zero, decimal.Zero, 1, settings(),
+			constant.DEBIT, constant.PENDING, decimal.NewFromInt(100), decimal.Zero, true)
+		onHold := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
+			decimal.NewFromInt(50), decimal.Zero, decimal.Zero, 1, settings(),
+			constant.ONHOLD, constant.PENDING, decimal.NewFromInt(100), decimal.Zero, true)
+
+		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{debit, onHold})
+
+		require.Error(t, err, "a hold exceeding available must be rejected, not floored into overdraft")
+		assert.Contains(t, err.Error(), "0018")
+
+		assertUntouched(t, infra, orgID, ledgerID, alias)
+	})
 }
 
+// TestIntegration_Overdraft_PendingLegacyCancelRestoresCompanion locks the
+// UNWIND path, which must keep working unchanged: holds no longer draw overdraft,
+// but a pending created under an earlier build did, and those pendings still have
+// to be cancelable after deploy.
+//
+// The drawn state is therefore SEEDED directly rather than produced by running a
+// hold — a hold that draws is now rejected, so the old setup could not reach this
+// path at all. The seeded values are exactly what an earlier build left behind: a
+// 100 hold against 50 available floored Available at 0, put 100 in OnHold, accrued
+// 50 of overdraft, and moved the mirrored 50 onto the companion. The Lua NX-seed
+// materializes the cache from these incoming values on first touch, so the cancel
+// batch runs against the same state it would have read in production.
 func TestIntegration_Overdraft_PendingLegacyCancelRestoresCompanion(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -157,25 +208,18 @@ func TestIntegration_Overdraft_PendingLegacyCancelRestoresCompanion(t *testing.T
 		OverdraftLimit:        ptrString("100"),
 	}
 
-	pendingDefault := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
-		decimal.NewFromInt(50), decimal.Zero, decimal.Zero, 1, settings,
-		constant.ONHOLD, constant.PENDING, decimal.NewFromInt(100), decimal.Zero, false)
-	pendingCompanion := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.OverdraftBalanceKey, constant.DirectionDebit,
-		decimal.Zero, decimal.Zero, decimal.Zero, 1, nil,
-		constant.DEBIT, constant.PENDING, decimal.NewFromInt(50), decimal.Zero, false)
+	// Drawn state left by a hold under an earlier build (version already bumped
+	// once by that hold).
+	const drawnVersion = 2
 
-	pendingResult, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{pendingDefault, pendingCompanion})
-	require.NoError(t, err)
-
-	defaultAfterPending := findLatestBalanceByKey(t, pendingResult.After, constant.DefaultBalanceKey)
-	companionAfterPending := findBalanceByKey(t, pendingResult.After, constant.OverdraftBalanceKey)
+	drawnAvailable, drawnOnHold, drawnOverdraftUsed := decimal.Zero, decimal.NewFromInt(100), decimal.NewFromInt(50)
+	companionAvailable := decimal.NewFromInt(50)
 
 	cancelDefault := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
-		defaultAfterPending.Available, defaultAfterPending.OnHold, defaultAfterPending.OverdraftUsed, defaultAfterPending.Version, settings,
+		drawnAvailable, drawnOnHold, drawnOverdraftUsed, drawnVersion, settings,
 		constant.RELEASE, constant.CANCELED, decimal.NewFromInt(100), decimal.NewFromInt(50), false)
 	cancelCompanion := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.OverdraftBalanceKey, constant.DirectionDebit,
-		companionAfterPending.Available, companionAfterPending.OnHold, companionAfterPending.OverdraftUsed, companionAfterPending.Version, nil,
+		companionAvailable, decimal.Zero, decimal.Zero, drawnVersion, nil,
 		constant.CREDIT, constant.CANCELED, decimal.NewFromInt(50), decimal.Zero, false)
 
 	cancelResult, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
@@ -192,6 +236,17 @@ func TestIntegration_Overdraft_PendingLegacyCancelRestoresCompanion(t *testing.T
 	assert.True(t, companionAfterCancel.Available.IsZero())
 }
 
+// TestIntegration_Overdraft_PendingRouteValidationCancelAllowsSameBatchVersionChain
+// is the route-validated sibling of the unwind test above, and locks the
+// same-batch version chain: the RELEASE bumps the version, so the CREDIT that
+// follows it in the same batch reads a version one ahead of the one it carried
+// and must not be treated as stale.
+//
+// The drawn state is SEEDED for the same reason given above — a hold that draws
+// is now rejected, so it cannot be produced by running one. In the
+// route-validated shape the earlier build's hold mutated the default balance
+// twice (DEBIT then ON_HOLD), which is why its seeded version is one higher than
+// the companion's.
 func TestIntegration_Overdraft_PendingRouteValidationCancelAllowsSameBatchVersionChain(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -210,31 +265,24 @@ func TestIntegration_Overdraft_PendingRouteValidationCancelAllowsSameBatchVersio
 		OverdraftLimit:        ptrString("100"),
 	}
 
-	pendingDebit := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
-		decimal.NewFromInt(50), decimal.Zero, decimal.Zero, 1, settings,
-		constant.DEBIT, constant.PENDING, decimal.NewFromInt(100), decimal.Zero, true)
-	pendingOnHold := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
-		decimal.NewFromInt(50), decimal.Zero, decimal.Zero, 1, settings,
-		constant.ONHOLD, constant.PENDING, decimal.NewFromInt(100), decimal.Zero, true)
-	pendingCompanion := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.OverdraftBalanceKey, constant.DirectionDebit,
-		decimal.Zero, decimal.Zero, decimal.Zero, 1, nil,
-		constant.DEBIT, constant.PENDING, decimal.NewFromInt(50), decimal.Zero, true)
+	// Drawn state left by a route-validated hold under an earlier build: the
+	// default balance was mutated twice (DEBIT then ON_HOLD), the companion once.
+	const (
+		drawnDefaultVersion   = 3
+		drawnCompanionVersion = 2
+	)
 
-	pendingResult, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{pendingDebit, pendingOnHold, pendingCompanion})
-	require.NoError(t, err)
-
-	defaultAfterPending := findLatestBalanceByKey(t, pendingResult.After, constant.DefaultBalanceKey)
-	companionAfterPending := findBalanceByKey(t, pendingResult.After, constant.OverdraftBalanceKey)
+	drawnAvailable, drawnOnHold, drawnOverdraftUsed := decimal.Zero, decimal.NewFromInt(100), decimal.NewFromInt(50)
+	companionAvailable := decimal.NewFromInt(50)
 
 	cancelRelease := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
-		defaultAfterPending.Available, defaultAfterPending.OnHold, defaultAfterPending.OverdraftUsed, defaultAfterPending.Version, settings,
+		drawnAvailable, drawnOnHold, drawnOverdraftUsed, drawnDefaultVersion, settings,
 		constant.RELEASE, constant.CANCELED, decimal.NewFromInt(100), decimal.Zero, true)
 	cancelCredit := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.DefaultBalanceKey, constant.DirectionCredit,
-		defaultAfterPending.Available, defaultAfterPending.OnHold, defaultAfterPending.OverdraftUsed, defaultAfterPending.Version, settings,
+		drawnAvailable, drawnOnHold, drawnOverdraftUsed, drawnDefaultVersion, settings,
 		constant.CREDIT, constant.CANCELED, decimal.NewFromInt(100), decimal.NewFromInt(50), true)
 	cancelCompanion := pendingOverdraftBalanceOp(orgID, ledgerID, alias, constant.OverdraftBalanceKey, constant.DirectionDebit,
-		companionAfterPending.Available, companionAfterPending.OnHold, companionAfterPending.OverdraftUsed, companionAfterPending.Version, nil,
+		companionAvailable, decimal.Zero, decimal.Zero, drawnCompanionVersion, nil,
 		constant.CREDIT, constant.CANCELED, decimal.NewFromInt(50), decimal.Zero, true)
 
 	cancelResult, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,

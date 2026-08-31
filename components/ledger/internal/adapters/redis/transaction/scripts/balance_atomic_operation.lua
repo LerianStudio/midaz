@@ -407,10 +407,12 @@ local function main()
                     result = sub_decimal(balance.Available, amount)
                 end
             elseif operation == "DEBIT" and transactionStatus == "PENDING" and isDebitDirection then
-                -- Legacy pending overdraft companion: the user-facing source
-                -- is an ON_HOLD, but the internal direction=debit companion
-                -- receives a synthetic DEBIT so liability state matches the
-                -- one-phase overdraft path.
+                -- Pending overdraft companion. Holds no longer draw overdraft,
+                -- so no new pending emits this leg; the branch is retained
+                -- because a pending created under an earlier build may still
+                -- replay through the backup consumer. It grows a
+                -- direction=debit balance, so it never reaches the accrual
+                -- block below.
                 result = add_decimal(balance.Available, amount)
             elseif operation == "ON_HOLD" and transactionStatus == "PENDING" and routeValidationEnabled == 1 then
                 -- Double-entry: ON_HOLD only increments OnHold.
@@ -563,15 +565,33 @@ local function main()
             result = sub_decimal(result, repay)
         end
 
+        -- A HOLD never draws overdraft. Debt is created only by CONCLUSIVE
+        -- operations — the direct create, and the revert that is shaped like
+        -- one — so a pending create that would overdraw falls through to the
+        -- 0018 rejection below and moves nothing, on every route version.
+        --
+        -- Only the source hold can go negative in a PENDING batch: the legacy
+        -- shape's single ON_HOLD and the route-validated shape's DEBIT leg both
+        -- subtract from Available. Nothing else there reaches this block — the
+        -- pending companion DEBIT lands on a direction=debit balance and grows
+        -- it, and the deferred destination credit leaves Available untouched.
+        --
+        -- This gates the CREATE side only. A pending that already drew overdraft
+        -- under an earlier build still has to be committed or canceled, so the
+        -- unwind branches above (the pending companion, the RELEASE overdraft
+        -- reversal, the same-batch cancel credit) are deliberately retained.
+        local isHold = transactionStatus == "PENDING"
+
         if startsWithMinus(result) and balance.AccountType ~= "external" then
             -- Direction-aware overdraft: credit-direction balances with
             -- AllowOverdraft=1 may go temporarily negative. The shortfall
             -- is floored at zero in Available and accrued in OverdraftUsed,
             -- subject to OverdraftLimit when enabled.
             --
-            -- Debit-direction balances and credit-direction balances without
-            -- AllowOverdraft fall through to the legacy 0018 rejection.
-            if balance.Direction == "credit" and (balance.AllowOverdraft or 0) == 1 then
+            -- Debit-direction balances, credit-direction balances without
+            -- AllowOverdraft, and every hold fall through to the legacy 0018
+            -- rejection.
+            if balance.Direction == "credit" and (balance.AllowOverdraft or 0) == 1 and not isHold then
                 -- deficit = abs(result). Because result is negative,
                 -- sub_decimal("0", result) produces the absolute value.
                 local deficit = sub_decimal("0", result)

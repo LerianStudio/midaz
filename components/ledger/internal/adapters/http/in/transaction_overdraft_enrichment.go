@@ -309,9 +309,10 @@ func registerCompanionInValidate(validate *mtransaction.Responses, _ mmodel.Bala
 		validate.From = make(map[string]mtransaction.Amount, 1)
 	}
 
-	// First-wins: double-entry splits can produce two source ops on the same
-	// alias (e.g. DEBIT + ONHOLD for PENDING). Both would lead us here but
-	// only one companion entry is needed — the amount is identical.
+	// First-wins: a batch can carry two source legs on the same alias (a
+	// route-validated cancel splits the restore into RELEASE + CREDIT). Both
+	// would lead us here but only one companion entry is needed — the amount is
+	// identical.
 	if _, exists := validate.From[companionOp.Alias]; !exists {
 		validate.From[companionOp.Alias] = companionOp.Amount
 	}
@@ -435,26 +436,40 @@ func collectOverdraftDebitSplits(balanceOps []mmodel.BalanceOperation) []overdra
 // isOverdraftDebitSplitCandidate reports whether an operation is a debit that
 // draws against Available and may therefore open a fresh overdraft.
 //
-// A DEBIT carrying TransactionType=APPROVED is a commit consuming the OnHold
-// that the pending create already reserved: it never touches Available, so the
-// amount-versus-available comparison downstream would misread the drained
-// Available (funds sit in OnHold at that point) as a new deficit and mirror a
-// companion debit for capacity that was never drawn.
+// Only CONCLUSIVE operations create debt: the direct create, and the revert that
+// is shaped like one. Two shapes are therefore excluded, on every route version:
+//
+//   - PENDING — a hold never draws overdraft. A pending create that would
+//     overdraw is rejected outright by the atomic script, so there is no draw to
+//     mirror onto the companion. This covers both pending shapes: the legacy
+//     single ON_HOLD and the route-validated double-entry DEBIT leg.
+//   - APPROVED — a commit consumes the OnHold the pending already reserved, so it
+//     never touches Available. The amount-versus-available comparison downstream
+//     would otherwise misread the drained Available (funds sit in OnHold at that
+//     point) as a new deficit and mirror a companion debit for capacity that was
+//     never drawn.
+//
+// Repayment is unaffected and keeps its own candidacy rules
+// (isOverdraftRefundSplitCandidate); unwinding a pending that drew overdraft
+// under an earlier build is likewise unaffected and stays with
+// collectOverdraftCancelSplits.
 func isOverdraftDebitSplitCandidate(amount mtransaction.Amount) bool {
-	if amount.Operation == libConstants.DEBIT {
-		return amount.TransactionType != constant.APPROVED
+	if amount.Operation != libConstants.DEBIT {
+		return false
 	}
 
-	return amount.Operation == constant.ONHOLD &&
-		amount.TransactionType == constant.PENDING &&
-		!amount.RouteValidationEnabled
+	return amount.TransactionType != constant.PENDING &&
+		amount.TransactionType != constant.APPROVED
 }
 
 // buildCompanionDebitOp constructs the BalanceOperation that mirrors the
 // overdraft deficit onto the direction=debit companion balance. The operation
-// inherits transaction metadata (TransactionType, route ids, pending flag)
-// from the source op so downstream consumers (aggregation, accounting entries)
-// treat the companion as part of the same logical transaction.
+// inherits transaction metadata (TransactionType, route ids) from the source op
+// so downstream consumers (aggregation, accounting entries) treat the companion
+// as part of the same logical transaction.
+//
+// Only conclusive source debits reach here — a hold never draws overdraft, so
+// this is never built for a pending create.
 //
 // Direction is set to debit explicitly: the companion balance is always
 // direction=debit (TRD 2.2 table row 2), and passing the direction lets the

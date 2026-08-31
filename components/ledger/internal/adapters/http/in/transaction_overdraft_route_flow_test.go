@@ -340,10 +340,16 @@ func TestOverdraftRouteFlow_DestinationRepaymentOnDirectCreate(t *testing.T) {
 		"repayment is capped at the outstanding overdraft; got %s", companions[0].Amount.Value)
 }
 
-// TestOverdraftRouteFlow_SourceDrawOnPendingCreate locks the hold half of the
-// source path: a pending create draws the overdraft immediately, because the
-// hold moves funds out of Available right away.
-func TestOverdraftRouteFlow_SourceDrawOnPendingCreate(t *testing.T) {
+// TestOverdraftRouteFlow_PendingCreateDrawsNoOverdraftOnSource locks the product
+// rule through the handler chain: a HOLD never draws overdraft, so a pending
+// create whose source hold exceeds Available enriches no draw companion — on
+// either route version, since this is a product rule and not a version rule.
+//
+// The chain stops at ValidateAccountingRules, so the rejection itself is not
+// observable here; that a hold exceeding Available is refused with 0018 and moves
+// nothing is locked at the atomic script in
+// TestIntegration_Overdraft_PendingHoldRejectsOverdraftDraw.
+func TestOverdraftRouteFlow_PendingCreateDrawsNoOverdraftOnSource(t *testing.T) {
 	result := runOverdraftRouteFlow(t, overdraftRouteFlowOptions{
 		balances:          overdraftFlowSourceBalances(t),
 		companion:         overdraftFlowCompanion("@alice", decimal.Zero),
@@ -352,8 +358,11 @@ func TestOverdraftRouteFlow_SourceDrawOnPendingCreate(t *testing.T) {
 		bidirectional:     true,
 	})
 
-	require.NoError(t, result.err, "pending source overdraft draw with the overdraft rubric configured must pass")
-	assert.Len(t, result.companionOps(), 1, "the hold draws overdraft, so the companion debit belongs on the create")
+	require.NoError(t, result.err)
+	assert.Empty(t, result.companionOps(),
+		"a hold must not draw overdraft, so no companion debit may be enriched on a pending create")
+	assert.Empty(t, result.companionFromTos)
+	assert.NotContains(t, result.validate.Sources, "@alice#"+constant.OverdraftBalanceKey)
 }
 
 // TestOverdraftRouteFlow_PendingCreateDefersDestinationRepayment locks the
