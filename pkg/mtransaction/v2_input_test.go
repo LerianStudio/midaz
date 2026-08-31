@@ -660,6 +660,48 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			},
 		},
 		{
+			// A leg's description is the description of the operation that leg produces, and
+			// each side carries its own: a debit and a credit of one transaction describe
+			// opposite halves of it, so the two must not be collapsed into one value.
+			name: "each leg's description reaches its own built leg",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000", Description: "debit leg note"}},
+				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000", Description: "credit leg note"}},
+			),
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Source.From, 1)
+				assert.Equal(t, "debit leg note", got.Send.Source.From[0].Description)
+
+				require.Len(t, got.Send.Distribute.To, 1)
+				assert.Equal(t, "credit leg note", got.Send.Distribute.To[0].Description)
+
+				assert.Equal(t, "New Transaction", got.Description,
+					"a leg description must not overwrite the transaction-level one")
+			},
+		},
+		{
+			// Translate itself does NOT inherit: a leg that names no description reaches the
+			// operation builders empty, and THEY substitute the transaction-level description.
+			// Filling it here instead would make the two indistinguishable downstream.
+			name: "leg without a description leaves it empty at translate",
+			input: arrayV2Input(
+				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}},
+				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+			),
+			verify: func(t *testing.T, got mtransaction.Transaction) {
+				t.Helper()
+
+				require.Len(t, got.Send.Source.From, 1)
+				require.Len(t, got.Send.Distribute.To, 1)
+				assert.Empty(t, got.Send.Source.From[0].Description)
+				assert.Empty(t, got.Send.Distribute.To[0].Description)
+				assert.Equal(t, "New Transaction", got.Description,
+					"the transaction description the legs inherit downstream is still set")
+			},
+		},
+		{
 			name: "leg operation route wins over the request-level one",
 			input: arrayV2Input(
 				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000", OperationRouteID: &legRoute}},

@@ -185,6 +185,52 @@ func fetchOperationRows(t *testing.T, db *sql.DB, txID uuid.UUID) []operationEco
 	return out
 }
 
+// operationDescriptionKey spells the key a persisted operation description is indexed by. The
+// alias alone is not a key across a lifecycle: one account carries both an ON_HOLD and a DEBIT
+// of the same transaction, so the type has to join it.
+func operationDescriptionKey(alias, opType string) string {
+	return alias + "/" + opType
+}
+
+// fetchOperationDescriptions returns the persisted description of every operation of a
+// transaction, keyed by operationDescriptionKey.
+//
+// It reads the column on its own instead of widening operationEconomicRow: that projection is
+// the v1↔v2 parity envelope, every field on it feeds sortOperationRows' total order and
+// assertOperationSetsEqual's comparison, and a description is not one of the economic
+// quantities those assertions are about.
+func fetchOperationDescriptions(t *testing.T, db *sql.DB, txID uuid.UUID) map[string]string {
+	t.Helper()
+
+	rows, err := db.Query(`
+		SELECT account_alias, type, description
+		FROM operation
+		WHERE transaction_id = $1
+	`, txID)
+	require.NoError(t, err, "failed to query operation descriptions")
+
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[string]string)
+
+	for rows.Next() {
+		var alias, opType, description string
+
+		require.NoError(t, rows.Scan(&alias, &opType, &description), "failed to scan operation description row")
+
+		key := operationDescriptionKey(alias, opType)
+
+		_, dup := out[key]
+		require.Falsef(t, dup, "two operations share alias %s and type %s", alias, opType)
+
+		out[key] = description
+	}
+
+	require.NoError(t, rows.Err(), "operation description row iteration error")
+
+	return out
+}
+
 // requireProblemCode asserts the RFC 9457 problem body carries EXACTLY the expected
 // canonical code. A substring check over the raw body would also match the code appearing
 // inside `type` or a message, so the field is read out of the parsed envelope.
@@ -2926,4 +2972,134 @@ func TestIntegration_TransactionV2Direct_BodyScopeDecidesTheLedger(t *testing.T)
 		"a ledger the body never named must be untouched")
 	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, unnamedDst),
 		"a ledger the body never named must be untouched")
+}
+
+// advancedLegDescribedV2Body is advancedLegV2Body with a DISTINCT description on all four legs
+// and a fifth, different one on the transaction. Five distinct values is what makes the per-leg
+// claim falsifiable: a builder that stamped one leg's description onto its siblings, or the
+// transaction's onto every operation, cannot pass. Both value expressions are represented, so
+// carrying the description is not conditional on how a leg states its value.
+const advancedLegDescribedV2Body = `{"description":"v2 transaction-level note","asset":"USD","amount":"100",` +
+	`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"60","description":"srcA leg note"},` +
+	`{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"40","description":"srcB leg note"}],` +
+	`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"share":{"percentage":50},"description":"dstA leg note"},` +
+	`{"alias":"@dstB",` + v2ScopeJSON + `,"share":{"percentage":50},"description":"dstB leg note"}]}`
+
+// =============================================================================
+// 25. PER-LEG OPERATION DESCRIPTION ON THE DIRECT ACTION: a v2 leg may describe the operation
+//     it produces, and the description it names must land on THAT operation and no other. The
+//     claim spans four layers — the decode boundary that admits the field, Translate, the shared
+//     operation builders, and the persisted rows — and any one of them collapsing the per-leg
+//     values onto a single sentence leaves a transaction whose operations no longer say which
+//     half of it they are. Only an end-to-end read-back can see that, which is why the
+//     assertion is on the rows rather than on the response envelope.
+// =============================================================================
+
+func TestIntegration_TransactionV2Direct_PerLegOperationDescriptions(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	resp := decodeTxResponse(t,
+		postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, advancedLegDescribedV2Body, ""),
+		nethttp.StatusCreated)
+
+	txID := uuid.MustParse(resp["id"].(string))
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
+		"a body carrying per-leg descriptions must settle like any other direct create")
+
+	assert.Equal(t, "v2 transaction-level note", resp["description"],
+		"the transaction keeps its own description; the legs describe their operations")
+
+	got := fetchOperationDescriptions(t, infra.pgContainer.DB, txID)
+
+	assert.Equal(t, map[string]string{
+		operationDescriptionKey("@srcA", cn.DEBIT):  "srcA leg note",
+		operationDescriptionKey("@srcB", cn.DEBIT):  "srcB leg note",
+		operationDescriptionKey("@dstA", cn.CREDIT): "dstA leg note",
+		operationDescriptionKey("@dstB", cn.CREDIT): "dstB leg note",
+	}, got, "each operation must carry the description of the leg that produced it")
+}
+
+// =============================================================================
+// 26. A LEG THAT NAMES NO DESCRIPTION INHERITS THE TRANSACTION'S. The fallback is contract, not
+//     an accident of the builders: a client that describes only the transaction still gets
+//     readable operations. It is also the fragile half of the pair — an omitted leg description
+//     and an explicitly empty one are the same empty string by the time the builders see it — so
+//     the inheritance is pinned next to the override rather than left to the override's absence.
+// =============================================================================
+
+func TestIntegration_TransactionV2Direct_LegsWithoutDescriptionInheritTheTransactions(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	// advancedLegV2Body names a transaction description and no leg description at all.
+	resp := decodeTxResponse(t,
+		postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, advancedLegV2Body, ""),
+		nethttp.StatusCreated)
+
+	txID := uuid.MustParse(resp["id"].(string))
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID))
+
+	got := fetchOperationDescriptions(t, infra.pgContainer.DB, txID)
+
+	assert.Equal(t, map[string]string{
+		operationDescriptionKey("@srcA", cn.DEBIT):  "v2 advanced multi-leg",
+		operationDescriptionKey("@srcB", cn.DEBIT):  "v2 advanced multi-leg",
+		operationDescriptionKey("@dstA", cn.CREDIT): "v2 advanced multi-leg",
+		operationDescriptionKey("@dstB", cn.CREDIT): "v2 advanced multi-leg",
+	}, got, "a leg naming no description must inherit the transaction-level one")
+}
+
+// =============================================================================
+// 27. PER-LEG OPERATION DESCRIPTION ON THE HOLD ACTION: the pending create path builds its
+//     operations through its own builder, not the one the direct action uses, so "the leg's
+//     description reaches the operation" has to be proven there too. A hold reserves the SOURCE
+//     side only, so the two reservations are what carry a description at this point in the
+//     lifecycle — one per source leg, each its own.
+// =============================================================================
+
+func TestIntegration_TransactionV2Hold_PerLegOperationDescriptions(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	seedAdvancedLegBalances(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, 1000)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	resp := decodeTxResponse(t,
+		postV2Create(t, v2App, "hold", infra.orgID, infra.ledgerID, advancedLegDescribedV2Body, ""),
+		nethttp.StatusCreated)
+
+	txID := uuid.MustParse(resp["id"].(string))
+	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
+		"the hold action opens the transaction as PENDING")
+
+	got := fetchOperationDescriptions(t, infra.pgContainer.DB, txID)
+
+	assert.Equal(t, "srcA leg note", got[operationDescriptionKey("@srcA", cn.ONHOLD)],
+		"the @srcA reservation must carry the @srcA leg's own description")
+	assert.Equal(t, "srcB leg note", got[operationDescriptionKey("@srcB", cn.ONHOLD)],
+		"the @srcB reservation must carry the @srcB leg's own description")
+
+	for key, description := range got {
+		assert.NotEqual(t, "v2 transaction-level note", description,
+			"operation %s described its leg, so it must not fall back to the transaction description", key)
+	}
 }
