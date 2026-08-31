@@ -12,7 +12,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -140,7 +140,7 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 }
 
 func (uc *UseCase) emitInstrumentCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, i *mmodel.Instrument, organizationID string) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.InstrumentCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.InstrumentCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewInstrumentCreated(i, organizationID).ToEmitRequest(tenantID, i.CreatedAt)
 		})

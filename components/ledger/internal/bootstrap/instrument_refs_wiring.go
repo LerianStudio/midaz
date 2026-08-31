@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -45,7 +46,8 @@ func (a ledgerAccountReaderAdapter) LedgerExists(ctx context.Context, organizati
 // directly. An account-not-found business error is mapped to (false, nil);
 // every other error propagates.
 func (a ledgerAccountReaderAdapter) AccountExists(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (bool, error) {
-	if _, err := a.query.GetAccountByID(ctx, organizationID, ledgerID, nil, accountID); err != nil {
+	// HolderOffV1: this is an existence check; the account is never serialized.
+	if _, err := a.query.GetAccountByID(ctx, organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1); err != nil {
 		var notFound pkg.EntityNotFoundError
 		if errors.As(err, &notFound) && notFound.Code == constant.ErrAccountIDNotFound.Error() {
 			return false, nil

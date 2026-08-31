@@ -6,149 +6,65 @@ package in
 
 import (
 	"context"
-	"fmt"
-	"time"
-
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	"net/http"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
-	feeerrors "github.com/LerianStudio/midaz/v4/pkg"
-	feeconstant "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-
-	commonsHttp "github.com/LerianStudio/lib-commons/v6/commons/net/http"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
-	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// BillingCalculateUseCase defines the billing-calculation operation consumed by
-// the billing-calculate handler.
-type BillingCalculateUseCase interface {
-	Calculate(ctx context.Context, request model.BillingCalculateRequest) (*model.BillingCalculateResponse, error)
+// This file is the Huma transport of the billing-calculate resource: the response
+// envelope and the shell that decodes a request, calls calculateBilling in
+// billing_calculate_core.go, and renders the envelope.
+//
+// The shell names the ledger in its path and resolves it via parseFeeV2Path, then
+// threads it into the calculate core as an explicit parameter. The body no longer
+// carries a ledger.
+//
+// 200 is intentional: this is a compute/RPC-style endpoint that persists nothing.
+// Unlike the fee-estimate op (whose response embeds the transaction tree and forces a
+// raw-[]byte escape hatch), BillingCalculateResponse is a flat Results+Summary struct
+// with no time.Time-alias schema-gen landmine, so it serializes as a normal typed Body.
+//
+// AUTH is appName "midaz" (routes.go midazName), resource "billing-calculate". The
+// Fiber guard chain — auth.Authorize("midaz","billing-calculate","post") + the
+// fees-scoped tenant PostAuthMiddlewares +
+// ParseUUIDPathParameters("billing-calculate") — is attached on the /v2 group BEFORE
+// this terminal (see billing_calculate_routes.go), so the Security metadata is SPEC
+// metadata only.
+
+// CalculateBillingResponse carries the calculation envelope at 200.
+type CalculateBillingResponse struct {
+	Status int
+	Body   *model.BillingCalculateResponse
 }
 
-// BillingCalculateHandler exposes the billing-calculation endpoint over HTTP.
-type BillingCalculateHandler struct {
-	Service BillingCalculateUseCase
+// --- POST /ledgers/{ledger_id}/billing/calculate ---------------------------------
+
+// CalculateBillingV2Request is the ledger-scoped calculate envelope (RawBody, see
+// CreatePackageV2Request).
+type CalculateBillingV2Request struct {
+	FeeV2Path
+	RawBody []byte `contentType:"application/json"`
 }
 
-// CalculateBilling performs a billing calculation for the given request.
-func (handler *BillingCalculateHandler) CalculateBilling(p any, c fiber.Ctx) error {
-	ctx := c.Context()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
+// CalculateBillingV2 decodes+validates the raw body imperatively, then delegates to
+// the shared calculateBilling core with the ledger the path named. ledgerId is no
+// longer accepted in the body — an unknown-field body is rejected by decodeFeeBodyInSpan.
+func (handler *BillingCalculateHandler) CalculateBillingV2(ctx context.Context, in *CalculateBillingV2Request) (*CalculateBillingResponse, error) {
+	orgID, ledgerID, err := parseFeeV2Path(in.FeeV2Path)
 	if err != nil {
-		return http.WithError(c, err)
+		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	payload, ok := p.(*model.BillingCalculateRequest)
-	if !ok || payload == nil {
-		return http.WithError(c, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingCalculation"))
+	payload := new(model.BillingCalculateRequest)
+	if err := decodeFeeBodyInSpan(ctx, in.RawBody, payload); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	result, err := handler.calculateBilling(ctx, organizationID, payload)
+	result, err := handler.calculateBilling(ctx, orgID, ledgerID, payload)
 	if err != nil {
-		return http.WithError(c, err)
+		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return commonsHttp.Respond(c, fiber.StatusOK, result)
-}
-
-// calculateBilling is the transport-agnostic core of the calculate op, shared by the
-// Fiber wrapper (CalculateBilling) and the Huma shell. It owns the span, stamps the
-// path org onto the request, runs the handler-level validateBillingCalculateRequest,
-// and calls the service; the caller resolves the org id, decodes the payload, and
-// renders the response/error.
-func (handler *BillingCalculateHandler) calculateBilling(ctx context.Context, organizationID uuid.UUID, payload *model.BillingCalculateRequest) (*model.BillingCalculateResponse, error) {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.calculate_billing")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.request_id", reqId),
-		attribute.String("app.request.organization_id", organizationID.String()),
-	)
-
-	payload.OrganizationID = organizationID.String()
-
-	span.SetAttributes(
-		attribute.String("app.request.ledger_id", payload.LedgerID),
-		attribute.String("app.request.period", payload.Period),
-		attribute.String("app.request.type", payload.Type),
-	)
-
-	if errValidation := validateBillingCalculateRequest(payload); errValidation != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Billing calculate request validation failed", errValidation)
-
-		return nil, errValidation
-	}
-
-	result, errCalc := handler.Service.Calculate(ctx, *payload)
-	if errCalc != nil {
-		handleSpanByErrorClass(span, "Failed to calculate billing", errCalc)
-
-		return nil, errCalc
-	}
-
-	if result == nil {
-		return nil, feeerrors.ValidateInternalError(feeconstant.ErrInternalServer, "BillingCalculation")
-	}
-
-	return result, nil
-}
-
-// validateBillingCalculateRequest validates the billing calculate request payload.
-func validateBillingCalculateRequest(req *model.BillingCalculateRequest) error {
-	if req.OrganizationID == "" {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrFeeInvalidHeaderParameter, "BillingCalculation", "organizationId")
-	}
-
-	if req.LedgerID == "" {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, "BillingCalculation", "ledgerId")
-	}
-
-	if _, err := uuid.Parse(req.LedgerID); err != nil {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidLedgerID, "BillingCalculation", "ledgerId")
-	}
-
-	if err := validateBillingPeriod(req.Period); err != nil {
-		return err
-	}
-
-	if req.Type != "" && req.Type != model.BillingPackageTypeVolume && req.Type != model.BillingPackageTypeMaintenance {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidBillingPackageType, "BillingCalculation")
-	}
-
-	return nil
-}
-
-// validateBillingPeriod checks that the period is a valid YYYY-MM, YYYY-Www, or YYYY-MM-DD date.
-func validateBillingPeriod(period string) error {
-	if period == "" {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidBillingPeriod, "BillingCalculation",
-			"period is required")
-	}
-
-	if _, err := time.Parse("2006-01-02", period); err == nil {
-		return nil
-	}
-
-	if _, _, ok := model.ParseWeeklyPeriod(period); ok {
-		return nil
-	}
-
-	if model.LooksLikeWeeklyPeriod(period) {
-		return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidBillingPeriod, "BillingCalculation",
-			fmt.Sprintf("period %q is not a valid ISO week (week does not exist in that year)", period))
-	}
-
-	if _, err := time.Parse("2006-01", period); err == nil {
-		return nil
-	}
-
-	return feeerrors.ValidateBusinessError(feeconstant.ErrInvalidBillingPeriod, "BillingCalculation",
-		"period must be a valid date in YYYY-MM, YYYY-Www, or YYYY-MM-DD format")
+	return &CalculateBillingResponse{Status: http.StatusOK, Body: result}, nil
 }

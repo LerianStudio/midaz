@@ -23,7 +23,7 @@ import (
 	"github.com/LerianStudio/lib-commons/v6/commons"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/iancoleman/strcase"
 	"github.com/shopspring/decimal"
@@ -97,7 +97,7 @@ func (uc *UseCase) UpdatePackageByID(ctx context.Context, id, organizationID, le
 
 // emitFeesPackageUpdatedEvent publishes fee-packages.updated. IMPORTANT posture.
 func (uc *UseCase) emitFeesPackageUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, p *pack.Package, organizationID uuid.UUID) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesPackageUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.FeesPackageUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewFeesPackageUpdated(
 				p.ID.String(), organizationID.String(), p.LedgerID.String(),

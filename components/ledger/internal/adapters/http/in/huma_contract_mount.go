@@ -5,6 +5,7 @@
 package in
 
 import (
+	"reflect"
 	"sort"
 	"strings"
 
@@ -19,7 +20,7 @@ import (
 
 // HumaMountDeps is the single source of truth for the ledger's Huma mount list. It
 // carries, by name, the auth client, every handler the registrars consume, and the
-// six route-scoped ProtectedRouteOptions the guard chains attach. Production and
+// seven route-scoped ProtectedRouteOptions the guard chains attach. Production and
 // every offline harness build one of these and mount through MountV1/MountV2, so a
 // registrar added to the mount reaches all of them at once instead of drifting
 // across four hand-maintained copies.
@@ -31,7 +32,7 @@ import (
 type HumaMountDeps struct {
 	Auth *middleware.AuthClient
 
-	// Onboarding + Wave-1 handlers.
+	// Handlers on the onboarding policy group (see registerOnboardingRoutes).
 	Organization  *OrganizationHandler
 	Ledger        *LedgerHandler
 	Portfolio     *PortfolioHandler
@@ -42,7 +43,7 @@ type HumaMountDeps struct {
 	Asset         *AssetHandler
 	AssetRate     *AssetRateHandler
 
-	// Wave-2 money-read + routing handlers.
+	// Handlers on the money-read + routing policy group (see registerMoneyReadRoutes).
 	Balance          *BalanceHandler
 	Operation        *OperationHandler
 	OperationRoute   *OperationRouteHandler
@@ -51,7 +52,7 @@ type HumaMountDeps struct {
 	// Transaction handler: money-write ops, transaction count, and the /v2 create.
 	Transaction *TransactionHandler
 
-	// Wave-3 CRM handlers. HolderAccounts, Encryption and Audit may be nil; the CRM
+	// CRM handlers. HolderAccounts, Encryption and Audit may be nil; the CRM
 	// registrar mounts neither the Fiber guard chain nor the Huma terminal for a nil
 	// handler, matching the pre-Huma nil-guard posture.
 	Holder         *HolderHandler
@@ -60,17 +61,17 @@ type HumaMountDeps struct {
 	Encryption     *EncryptionHandler
 	Audit          *AuditHandler
 
-	// Wave-3 fee/billing handlers.
+	// Fee/billing handlers.
 	FeePackage       *PackageHandler
 	Fee              *FeeHandler
 	BillingPackage   *BillingPackageHandler
 	BillingCalculate *BillingCalculateHandler
 
-	// Wave-3 composition handler.
+	// Composition handler.
 	Composition *CompositionHandler
 
 	// Route-scoped protected options, one instance per role. In multi-tenant mode
-	// buildUnifiedRouteSetup builds six distinct instances drawn from four tenant
+	// buildUnifiedRouteSetup builds seven distinct instances drawn from five tenant
 	// middlewares; in single-tenant mode every field is nil.
 	OnboardingOptions  *pkgHTTP.ProtectedRouteOptions
 	LedgerOptions      *pkgHTTP.ProtectedRouteOptions
@@ -78,6 +79,10 @@ type HumaMountDeps struct {
 	CRMOptions         *pkgHTTP.ProtectedRouteOptions
 	FeesOptions        *pkgHTTP.ProtectedRouteOptions
 	CompositionOptions *pkgHTTP.ProtectedRouteOptions
+
+	// HolderAccountsOptions scopes the org-wide holder account listing, which reads
+	// onboarding stores rather than the CRM ones CRMOptions binds.
+	HolderAccountsOptions *pkgHTTP.ProtectedRouteOptions
 }
 
 // MountV1 registers the /v1 Huma terminals + Fiber auth/tenant chain on the shared
@@ -85,28 +90,37 @@ type HumaMountDeps struct {
 // authz tuple and the same route options the pre-Huma inline route used:
 //   - organization/ledger/portfolio/segment/account/asset use OnboardingOptions
 //     ([authAssertion, WithTenantDB]).
-//   - account-type uses OnboardingOptions too, but authorizes against the "routing"
-//     appName (protectedRouting).
+//   - account-type uses OnboardingOptions too, authorizing against the "midaz"
+//     appName (protectedMidaz).
 //   - asset-rate uses TransactionOptions ([authAssertion, WithTenantDB]) — it is
 //     MONEY-adjacent (exchange rates), so it shares the transaction tenant chain.
 //   - metadata-index uses LedgerOptions ([authAssertion] ONLY, no WithTenantDB).
 //     Passing OnboardingOptions here would inject tenant-DB middleware the inline
 //     route never had, so LedgerOptions is load-bearing.
 func (d HumaMountDeps) MountV1(group fiber.Router, api huma.API) {
-	d.registerWave1(group, api)
-	d.registerWave2(group, api)
+	d.registerOnboardingRoutes(group, api)
+	d.registerMoneyReadRoutes(group, api)
 
-	// Wave-4 (MONEY-WRITE): the twelve transaction ops (json/inflow/outflow/annotation/
+	// MONEY-WRITE: the twelve transaction ops (json/inflow/outflow/annotation/
 	// block/unblock CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list).
 	// They carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
 	// against the "midaz" appName (protectedMidaz).
 	RegisterTransactionHumaRoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 }
 
-// registerWave1 mounts organization, ledger, portfolio, segment, account,
-// account-type, metadata-index, asset and asset-rate. See MountV1 for the
-// per-registrar options rationale.
-func (d HumaMountDeps) registerWave1(group fiber.Router, api huma.API) {
+// registerOnboardingRoutes mounts the /v1 resources whose guard chain is the
+// onboarding one — organization, ledger, portfolio, segment, account, account-type
+// and asset all carry OnboardingOptions ([authAssertion, WithTenantDB]) — plus the
+// two members whose policy deviates and is therefore load-bearing at the call site:
+//
+//   - metadata-index carries LedgerOptions ([authAssertion] ONLY, no WithTenantDB).
+//     Passing OnboardingOptions here would inject tenant-DB middleware the route
+//     never had.
+//   - asset-rate carries TransactionOptions because it is MONEY-adjacent (exchange
+//     rates), so it shares the transaction tenant chain.
+//
+// account-type authorizes against the "midaz" appName (protectedMidaz).
+func (d HumaMountDeps) registerOnboardingRoutes(group fiber.Router, api huma.API) {
 	RegisterOrganizationRoutesToApp(group, api, d.Auth, d.Organization, d.OnboardingOptions)
 	RegisterLedgerRoutesToApp(group, api, d.Auth, d.Ledger, d.OnboardingOptions)
 	RegisterPortfolioRoutesToApp(group, api, d.Auth, d.Portfolio, d.OnboardingOptions)
@@ -118,12 +132,12 @@ func (d HumaMountDeps) registerWave1(group fiber.Router, api huma.API) {
 	RegisterAssetRateRoutesToApp(group, api, d.Auth, d.AssetRate, d.TransactionOptions)
 }
 
-// registerWave2 mounts balance, operation-read, transaction-count, operation-route
-// and transaction-route. All carry TransactionOptions ([authAssertion,
-// WithTenantDB]). balance/operation/count authorize against the "midaz" appName
-// (protectedMidaz); operation-route/transaction-route authorize against the
-// "routing" appName (protectedRouting).
-func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
+// registerMoneyReadRoutes mounts the /v1 resources that share the money-read guard
+// chain: balance, operation-read, transaction-count, operation-route and
+// transaction-route. Every member carries TransactionOptions ([authAssertion,
+// WithTenantDB]) and authorizes against the "midaz" appName (protectedMidaz) — a
+// uniform policy, unlike the onboarding group above.
+func (d HumaMountDeps) registerMoneyReadRoutes(group fiber.Router, api huma.API) {
 	RegisterBalanceRoutesToApp(group, api, d.Auth, d.Balance, d.TransactionOptions)
 	RegisterOperationRoutesToApp(group, api, d.Auth, d.Operation, d.TransactionOptions)
 	RegisterCountTransactionRoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
@@ -140,47 +154,46 @@ func (d HumaMountDeps) registerWave2(group fiber.Router, api huma.API) {
 // The seven onboarding families — organizations, ledgers, portfolios, segments,
 // accounts, account-types, assets — carry OnboardingOptions and reuse the same authz
 // tuples and tenant chain as their v1 twins; they are straight mirrors, additive over v1,
-// with no new policy surface. account-types is the one nuance: it authorizes against the
-// "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see
-// registerWave1 / registerAccountTypeRoutesToApp).
+// with no new policy surface. account-types authorizes against the "midaz" appName
+// (protectedMidaz), exactly as on v1 (see registerOnboardingRoutes / registerAccountTypeRoutesToApp).
 //
 // metadata-index is the LEDGER-AGNOSTIC settings resource: it carries LedgerOptions
 // ([authAssertion] ONLY, no WithTenantDB) and authorizes against the "midaz" appName under
-// the "settings" resource, exactly as on v1 (see registerWave1 / registerMetadataIndexRoutesToApp).
+// the "settings" resource, exactly as on v1 (see registerOnboardingRoutes / registerMetadataIndexRoutesToApp).
 // Passing OnboardingOptions here would inject tenant-DB middleware the route never had, so
 // LedgerOptions is load-bearing.
 //
 // The transaction ops carry TransactionOptions ([authAssertion, WithTenantDB]) and
 // authorize against the "midaz" appName (protectedMidaz) — the same auth + tenant
 // chain the v1 transaction CREATE ops use, no new policy. RegisterTransactionMirrorV2RoutesToApp
-// additionally mirrors the seven v1 ops that have no dedicated v2 wire shape — the legacy-create
-// twins (json/inflow/outflow/annotation), the PATCH update, and the two reads (get-by-id + list) —
-// as straight v1 twins carrying the same TransactionOptions and "midaz" appName. block/unblock
-// create and commit/cancel/revert lifecycle are intentionally absent from that mirror: they are
-// already published as v2 ops by RegisterTransactionV2RoutesToApp. asset-rate is MONEY-adjacent
-// (exchange rates): it likewise carries TransactionOptions and authorizes against the
-// "midaz" appName, exactly as on v1 (see registerWave1 / registerAssetRateRoutesToApp).
+// additionally mirrors the three v1 ops that have no dedicated v2 wire shape — the PATCH update
+// and the two reads (get-by-id + list) — as straight v1 twins carrying the same TransactionOptions
+// and "midaz" appName. The legacy-create ops (json/inflow/outflow/annotation) are served on /v1
+// only; block/unblock create and commit/cancel/revert lifecycle are also absent from that mirror,
+// because they are already published as v2 ops by RegisterTransactionV2RoutesToApp. asset-rate is
+// served on /v1 only and has no v2 twin.
 // balance (resource "balances") and operation (resource "operations") also carry
 // TransactionOptions and authorize against the "midaz" appName, matching their v1 twins.
 // The transaction-count HEAD op (RegisterCountTransactionV2RoutesToApp) is a straight mirror:
 // it carries TransactionOptions and authorizes against the "midaz" appName under the
-// "transactions" resource with the "head" verb, exactly as on v1 (see registerWave2 /
+// "transactions" resource with the "head" verb, exactly as on v1 (see registerMoneyReadRoutes /
 // RegisterCountTransactionRoutesToApp).
 //
 // CRM carries its OWN CRMOptions and authorizes against the "midaz" holders/instruments/
 // encryption/protection tuples; it is served ONLY on this /v2 contract. The nil-guards
 // (holder-accounts, encryption, audit) leave a route unregistered when its handler is
-// nil. The fee/billing ops carry FeesOptions and authorize against the "plugin-fees"
+// nil. holder-accounts is the exception to CRMOptions: it lists ledger accounts from
+// the onboarding stores, so it carries its own HolderAccountsOptions. The fee/billing ops carry FeesOptions and authorize against the "midaz"
 // tuples at ledger scope: the path names the ledger, so a package another ledger owns
 // is out of reach. Fees/billing are served ONLY on this /v2 contract. composition
 // carries CompositionOptions and authorizes under the "midaz" appName's "accounts"
 // resource; it is served ONLY on this /v2 contract (see RegisterCompositionV2RoutesToApp).
 //
 // operation-routes carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
-// against the "routing" appName (protectedRouting), NOT "midaz", exactly as on v1 (see
-// registerWave2 / RegisterOperationRouteRoutesToApp). transaction-routes likewise carry
-// TransactionOptions and authorize against the "routing" appName (protectedRouting), NOT
-// "midaz", exactly as on v1 (see registerWave2 / RegisterTransactionRouteRoutesToApp).
+// against the "midaz" appName (protectedMidaz), exactly as on v1 (see registerMoneyReadRoutes /
+// RegisterOperationRouteRoutesToApp). transaction-routes likewise carry TransactionOptions
+// and authorize against the "midaz" appName (protectedMidaz), exactly as on v1 (see
+// registerMoneyReadRoutes / RegisterTransactionRouteRoutesToApp).
 func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterOrganizationV2RoutesToApp(group, api, d.Auth, d.Organization, d.OnboardingOptions)
 	RegisterLedgerV2RoutesToApp(group, api, d.Auth, d.Ledger, d.OnboardingOptions)
@@ -190,14 +203,20 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterAccountTypeV2RoutesToApp(group, api, d.Auth, d.AccountType, d.OnboardingOptions)
 	RegisterMetadataIndexV2RoutesToApp(group, api, d.Auth, d.MetadataIndex, d.LedgerOptions)
 	RegisterAssetV2RoutesToApp(group, api, d.Auth, d.Asset, d.OnboardingOptions)
-	RegisterAssetRateV2RoutesToApp(group, api, d.Auth, d.AssetRate, d.TransactionOptions)
 	RegisterTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterTransactionMirrorV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterCountTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterBalanceV2RoutesToApp(group, api, d.Auth, d.Balance, d.TransactionOptions)
 	RegisterOperationV2RoutesToApp(group, api, d.Auth, d.Operation, d.TransactionOptions)
-	RegisterCRMV2RoutesToApp(group, api, d.Auth, d.Holder, d.Instrument, d.HolderAccounts, d.Encryption, d.Audit, d.CRMOptions)
-	RegisterFeesV2RoutesToApp(group, api, d.Auth, d.FeePackage, d.Fee, d.BillingPackage, d.BillingCalculate, d.FeesOptions)
+	RegisterHolderV2RoutesToApp(group, api, d.Auth, d.Holder, d.CRMOptions)
+	RegisterHolderAccountsV2RoutesToApp(group, api, d.Auth, d.HolderAccounts, d.HolderAccountsOptions)
+	RegisterInstrumentV2RoutesToApp(group, api, d.Auth, d.Instrument, d.CRMOptions)
+	RegisterEncryptionV2RoutesToApp(group, api, d.Auth, d.Encryption, d.CRMOptions)
+	RegisterAuditV2RoutesToApp(group, api, d.Auth, d.Audit, d.CRMOptions)
+	RegisterPackageV2RoutesToApp(group, api, d.Auth, d.FeePackage, d.FeesOptions)
+	RegisterFeeEstimateV2RoutesToApp(group, api, d.Auth, d.Fee, d.FeesOptions)
+	RegisterBillingPackageV2RoutesToApp(group, api, d.Auth, d.BillingPackage, d.FeesOptions)
+	RegisterBillingCalculateV2RoutesToApp(group, api, d.Auth, d.BillingCalculate, d.FeesOptions)
 	RegisterCompositionV2RoutesToApp(group, api, d.Auth, d.Composition, d.CompositionOptions)
 	RegisterOperationRouteV2RoutesToApp(group, api, d.Auth, d.OperationRoute, d.TransactionOptions)
 	RegisterTransactionRouteV2RoutesToApp(group, api, d.Auth, d.TransactionRoute, d.TransactionOptions)
@@ -215,9 +234,10 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 //     fresh registry, so a second call would discard every schema registered after
 //     the first. It must run after openapi.New and before any huma.Register (the
 //     mount), because the registry namer is captured lazily on first registration.
-//  5. openapi.DeclareBearerAuth + the ApiKeyAuth block — SPEC-ONLY security scheme
-//     metadata, so the per-operation Security references resolve in the generated
-//     spec. Runtime auth stays the Fiber guard chain the mount closure attaches.
+//  5. openapi.DeclareBearerAuth — SPEC-ONLY security scheme metadata, so the
+//     per-operation Security references resolve in the generated spec. BearerAuth is
+//     the only scheme the ledger accepts; runtime auth is the Fiber guard chain the
+//     mount closure attaches, which authorizes a JWT bearer token and nothing else.
 //
 // It does NOT serve the spec: openapi.ServeSpec is bootstrap exposure policy, gated
 // on openAPIDocsEnabled(), and stays with the caller. The caller creates the Fiber
@@ -232,19 +252,22 @@ func AssembleHumaContract(app *fiber.App, group fiber.Router, cfg openapi.Config
 
 	openapi.DeclareBearerAuth(api)
 
-	components := api.OpenAPI().Components
-	if components.SecuritySchemes == nil {
-		components.SecuritySchemes = map[string]*huma.SecurityScheme{}
-	}
-
-	components.SecuritySchemes["ApiKeyAuth"] = &huma.SecurityScheme{
-		Type:        "apiKey",
-		In:          "header",
-		Name:        "X-API-Key",
-		Description: "Static API key presented in the X-API-Key header.",
-	}
-
 	return api
+}
+
+// FinalizeContract runs every post-registration pass over the assembled document,
+// in the order they depend on, and is the ONLY supported way to apply them.
+//
+// It exists because the passes were previously listed twice — once in the unified
+// server and once in the contract-test seam that snapshots the golden spec — so a
+// new pass added to production but not to the seam produced a served contract the
+// golden gate could not see. Adding a pass here reaches both.
+//
+// Call it AFTER the last huma.Register and BEFORE the spec is snapshotted or served.
+func FinalizeContract(api huma.API) {
+	MarkV1OperationsDeprecated(api)
+	RepointV1ErrorResponses(api)
+	ApplyVersionTagGroups(api)
 }
 
 // MarkV1OperationsDeprecated flags every operation whose path key is under "/v1/"
@@ -259,6 +282,55 @@ func MarkV1OperationsDeprecated(api huma.API) {
 
 		for _, op := range operationsOf(item) {
 			op.Deprecated = true
+		}
+	}
+}
+
+// LegacyError is the /v1 error envelope as a client receives it: the shape midaz v3
+// served, restored on /v1 by the ErrorEnvelope middleware. It is published so the
+// contract describes what /v1 actually returns rather than the RFC 9457 document
+// /v2 serves.
+//
+// It is a CONTRACT-ONLY type. Nothing constructs it: the middleware rewrites
+// serialized bytes. Its fields, order and omitempty set mirror the renderer's
+// output, and drift between the two is a wire lie — change both together.
+type LegacyError struct {
+	EntityType string         `json:"entityType,omitempty" doc:"The domain entity the error concerns. Present only on field-validation errors." example:"Account"`
+	Title      string         `json:"title,omitempty" required:"true" doc:"Short, human-readable summary of the error." example:"Invalid Path Parameter"`
+	Message    string         `json:"message,omitempty" required:"true" doc:"Human-readable explanation of this occurrence. The /v2 contract carries this as 'detail'."`
+	Code       string         `json:"code,omitempty" required:"true" doc:"Stable, machine-readable midaz error code. Identical to the code /v2 returns for the same condition." example:"0065"`
+	Fields     map[string]any `json:"fields,omitempty" doc:"Per-field validation detail, keyed by field name. The value is the violation message for a known field and the offending value for an unexpected one, so it is not always a string. The /v2 contract carries these as the 'errors' array."`
+}
+
+// RepointV1ErrorResponses rewrites every /v1 operation's default error response to
+// the LegacyError schema at application/json, leaving /v2 on the shared RFC 9457
+// Error schema.
+//
+// Both versions share ONE document and ONE component registry, so this adds a
+// second, distinctly named schema rather than altering Error — which must stay
+// byte-identical to the tracer plane's (tests/openapi/error_schema_parity_test.go)
+// and must remain the only schema matching the Error singleton check in
+// postman/generator/check-docs.sh.
+//
+// Run it AFTER the last huma.Register and BEFORE the spec is snapshotted, like the
+// sibling passes above.
+func RepointV1ErrorResponses(api huma.API) {
+	schema := api.OpenAPI().Components.Schemas.Schema(reflect.TypeOf(LegacyError{}), true, "LegacyError")
+
+	for key, item := range api.OpenAPI().Paths {
+		if !strings.HasPrefix(key, "/v1/") {
+			continue
+		}
+
+		for _, op := range operationsOf(item) {
+			response, ok := op.Responses["default"]
+			if !ok || response == nil {
+				continue
+			}
+
+			response.Content = map[string]*huma.MediaType{
+				"application/json": {Schema: schema},
+			}
 		}
 	}
 }

@@ -19,7 +19,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
@@ -77,6 +77,13 @@ type Service struct {
 	// StreamingEnabled mirrors cfg.StreamingEnabled so Run() can decide
 	// whether to register the producer-drain Launcher app.
 	StreamingEnabled bool
+
+	// DeclarationStops holds the RI permission-declaration publisher's stop
+	// hook(s). Non-empty only when IDP_DECLARATION_ENABLED=true and the publisher
+	// constructed successfully; Run() registers the drain runnable as a Launcher
+	// app only when len(DeclarationStops) > 0. Fail-open: a publish failure never
+	// populates this and never blocks boot.
+	DeclarationStops []func()
 
 	// ServiceDiscovery is the service-discovery Manager wrapper. It is always
 	// non-nil (a working no-op when discovery is disabled), so callers can
@@ -173,6 +180,15 @@ func (app *Service) Run() {
 	if shouldRegisterStreamingProducer(app.StreamingEnabled, app.StreamingClose) {
 		opts = append(opts, libCommons.RunApp("Streaming Producer",
 			&streamingProducerRunnable{close: app.StreamingClose, logger: app.Logger}))
+	}
+
+	// RI permission-declaration publisher drain: register only when at least one
+	// stop hook was produced (IDP_DECLARATION_ENABLED=true and the publisher
+	// constructed). The disabled/fail-open path leaves DeclarationStops empty so
+	// nothing is registered and the Launcher app list stays lean.
+	if len(app.DeclarationStops) > 0 {
+		opts = append(opts, libCommons.RunApp("RI Declaration Publishers",
+			&declarationPublisherRunnable{stops: app.DeclarationStops}))
 	}
 
 	// Install the drain handler BEFORE the Launcher starts so its

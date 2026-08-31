@@ -1,0 +1,124 @@
+name: Fork PR Notice
+
+# Comments when a PR is opened from a fork, explaining the trusted-promotion
+# flow (fork-pr-promote.yml) and redirecting PRs opened against the wrong
+# base branch. Also reacts when the base branch is later changed (edited),
+# so retargeting to `fork` gets its own confirmation instead of silence, and
+# on every new push (synchronize), so the unverified-commits warning below
+# gets re-evaluated and dropped once a contributor pushes a signed fixup —
+# the comment is rebuilt from scratch and edited in place each run, so a
+# now-clean signature status just means the caution block isn't re-added.
+# Metadata-only: no checkout, no code execution, safe under
+# pull_request_target despite the elevated token it carries.
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  notice:
+    # edited fires for title/body edits too — only react to those when the
+    # base branch itself changed, so we don't spam a comment on every edit.
+    if: >
+      github.event.pull_request.head.repo.full_name != github.repository &&
+      (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.changes.base != null)
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Comment with the promotion flow explanation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          RETARGETED: ${{ github.event.action == 'edited' && github.event.changes.base != null }}
+        run: |
+          set -euo pipefail
+          if [[ "$BASE_REF" == "fork" && "$RETARGETED" == "true" ]]; then
+            cat > /tmp/notice-body.md <<'EOF'
+          > [!NOTE]
+          > ✅ **Retargeted to `fork` — this PR will now be evaluated and, once merged, its code enters the real promotion flow into `develop`.**
+
+          🎉 Thanks for making the change!
+
+          A maintainer will review the diff and merge it into `fork` when ready — that's the ordinary GitHub merge button, nothing else needed from you. That merge automatically opens a follow-up PR into `develop` with full CI (this repo does not grant secrets to PRs opened directly from a fork — a GitHub security restriction, not something disabled here).
+
+          ### 📚 Related docs
+          - [CONTRIBUTING.md](https://github.com/LerianStudio/midaz/blob/develop/CONTRIBUTING.md#how-to-submit-a-pull-request) — full contribution flow
+          - [Securely using `pull_request_target`](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target) — why fork PRs don't get secrets by default
+
+          ---
+          🤖 *This message was generated automatically.*
+          EOF
+          elif [[ "$BASE_REF" == "fork" ]]; then
+            cat > /tmp/notice-body.md <<'EOF'
+          > [!NOTE]
+          > ✅ **This PR is correctly targeting `fork`.**
+
+          🎉 **Thank you for contributing to Midaz — we really appreciate it, and contributions like yours are very welcome!**
+
+          A maintainer will review the diff and merge it into `fork` when ready — that's the ordinary GitHub merge button, nothing else needed from you. That merge automatically opens a follow-up PR into `develop` with full CI (this repo does not grant secrets to PRs opened directly from a fork — a GitHub security restriction, not something disabled here).
+
+          ### 📚 Related docs
+          - [CONTRIBUTING.md](https://github.com/LerianStudio/midaz/blob/develop/CONTRIBUTING.md#how-to-submit-a-pull-request) — full contribution flow
+          - [Securely using `pull_request_target`](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target) — why fork PRs don't get secrets by default
+
+          ---
+          🤖 *This message was generated automatically.*
+          EOF
+          else
+            cat > /tmp/notice-body.md <<EOF
+          > [!WARNING]
+          > 🔀 **This PR needs to be retargeted — it's pointing at \`$BASE_REF\` instead of \`fork\`.**
+
+          🎉 **Thank you for contributing to Midaz — we really appreciate it, and contributions like yours are very welcome!** Just one small adjustment needed before CI can run fully: PRs opened from a fork against any branch other than \`fork\` run without secrets, so some CI checks will fail as a result — that's expected, not a bug on your end.
+
+          ### 🔧 What to do
+          1. Click **Edit** at the top of this PR.
+          2. Change the base branch from \`$BASE_REF\` to \`fork\`.
+          3. A maintainer will pick it up from there — no need to close and reopen this PR.
+
+          ### 📚 Related docs
+          - [CONTRIBUTING.md](https://github.com/LerianStudio/midaz/blob/develop/CONTRIBUTING.md#how-to-submit-a-pull-request) — full contribution flow, including a direct compare-link tip for targeting \`fork\`
+          - [Securely using \`pull_request_target\`](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target) — why fork PRs don't get secrets by default
+
+          ---
+          🤖 *This message was generated automatically.*
+          EOF
+          fi
+
+          # Both `fork` and `develop` enforce required_signatures (an org
+          # ruleset) — an unverified commit merges nowhere here, but the
+          # merge button just goes red with no context unless someone
+          # notices. Flag it up front instead of letting it surface later.
+          # --paginate --slurp: the default single-page fetch would silently
+          # under-count commits/PRs with more than 30 commits (this
+          # endpoint's own hard cap is 250 — unrealistic for this flow's
+          # PRs, so no separate fallback for that).
+          # verified == false, not reason == "unsigned": that also catches
+          # commits that ARE signed but fail verification for another
+          # reason (unknown_key, bad_email, expired_key, ...) — those are
+          # just as blocked by required_signatures as a truly unsigned one.
+          # --slurp isn't accepted together with --jq (gh api rejects the
+          # combination outright), so the flattening has to happen in a
+          # separate, standalone jq call instead of inline on the gh api call.
+          commits_json=$(gh api --paginate --slurp "repos/$GH_REPO/pulls/$PR_NUMBER/commits")
+          unverified_count=$(jq '[.[][] | select(.commit.verification.verified == false)] | length' <<<"$commits_json")
+          total_count=$(jq '[.[][]] | length' <<<"$commits_json")
+          if [[ "$unverified_count" -gt 0 ]]; then
+            cat >> /tmp/notice-body.md <<EOF
+
+          > [!CAUTION]
+          > ✍️ **$unverified_count of $total_count commit(s) in this PR could not be verified.** Both \`fork\` and \`develop\` require signed, verified commits to merge — GitHub will block the merge button until this is fixed.
+
+          Sign your commits (e.g. \`git commit -S\`, or configure SSH commit signing) and force-push this branch. See [GitHub's guide to signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits) and the [commit signing section of CONTRIBUTING.md](https://github.com/LerianStudio/midaz/blob/develop/CONTRIBUTING.md#commit-signing-requirement).
+          EOF
+          fi
+
+          # --edit-last updates this workflow's own previous comment on the
+          # PR (e.g. the initial wrong-branch warning) instead of piling up
+          # a new one on every retarget/edit; --create-if-none covers the
+          # first run, when there's nothing yet to edit.
+          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body-file /tmp/notice-body.md

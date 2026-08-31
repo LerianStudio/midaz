@@ -88,6 +88,77 @@ func TestV2LegInput_NoRemainingExpression(t *testing.T) {
 		"the rejection must point the caller at the unsupported expression")
 }
 
+// TestV2LegInput_DescriptionIsAKnownField pins that a leg may spell its own `description`: the
+// description the operation that leg produces is persisted with.
+//
+// The decoder answers any field the struct does not publish with the unknown-field rejection, so
+// a leg description is only reachable while the field stays on the struct — dropping it turns
+// every describing body into a 400. Both sides are swept because a debit and a credit produce
+// separate operations, so each has to carry its own value rather than share one.
+func TestV2LegInput_DescriptionIsAKnownField(t *testing.T) {
+	t.Parallel()
+
+	body := `{"asset":"BRL","amount":"100","description":"transaction note",` +
+		`"debits":[{"alias":"@srcA",` + scopeJSON + `,"amount":"100","description":"debit leg note"}],` +
+		`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100","description":"credit leg note"}]}`
+
+	var in mtransaction.CreateTransactionV2Input
+
+	_, err := nethttp.DecodeAndValidate([]byte(body), &in)
+	require.NoError(t, err, "a leg spelling `description` must decode as a known field")
+
+	require.Len(t, in.Debits, 1)
+	assert.Equal(t, "debit leg note", in.Debits[0].Description)
+
+	require.Len(t, in.Credits, 1)
+	assert.Equal(t, "credit leg note", in.Credits[0].Description)
+
+	assert.Equal(t, "transaction note", in.Description,
+		"a leg description must decode alongside the transaction-level one, not over it")
+}
+
+// TestV2LegInput_DescriptionLengthBound locks the published 256-character ceiling on a leg
+// description. The bound is what keeps an oversized value a clean 400 naming the field instead of
+// a persistence failure raised after the transaction has already been assembled.
+func TestV2LegInput_DescriptionLengthBound(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		length  int
+		wantErr bool
+	}{
+		{name: "at the cap", length: 256},
+		{name: "one past the cap", length: 257, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := `{"asset":"BRL","amount":"100",` +
+				`"debits":[{"alias":"@srcA",` + scopeJSON + `,"amount":"100",` +
+				`"description":"` + strings.Repeat("d", tt.length) + `"}],` +
+				`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`
+
+			var in mtransaction.CreateTransactionV2Input
+
+			_, err := nethttp.DecodeAndValidate([]byte(body), &in)
+			if tt.wantErr {
+				require.Error(t, err, "a %d-character leg description must be rejected", tt.length)
+
+				fields := requireKnownFieldsError(t, err, constant.ErrBadRequest)
+				assert.Contains(t, fields, "description",
+					"the rejection must name the field the caller has to shorten")
+
+				return
+			}
+
+			require.NoError(t, err, "a %d-character leg description must be accepted", tt.length)
+		})
+	}
+}
+
 // TestCreateTransactionV2Input_LegArrayCap locks the published per-side leg cap. It is the only
 // bound on the leg count: the request-body byte limit alone admits tens of thousands of legs,
 // each carrying its own downstream cost.

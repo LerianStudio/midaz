@@ -28,7 +28,7 @@ import (
 )
 
 // This file pins the registrar -> ProtectedRouteOptions binding, the one relationship the
-// route-table golden cannot capture: five of the six route-scoped options carry exactly two
+// route-table golden cannot capture: six of the seven route-scoped options carry exactly two
 // post-auth handlers, so a positional swap moves neither path nor handler count. The crm and
 // fees options both write the GENERIC tenant-context key over different Mongo managers, so
 // swapping that pair resolves CRM holder PII against the fees tenant database with every other
@@ -42,13 +42,13 @@ import (
 // TestRouteOptionsBinding asserts that buildHumaMountDeps threads each route-scoped option to
 // the correctly named field, by pointer identity. It exercises buildUnifiedRouteSetup in both
 // modes: single-tenant returns a zero-value setup whose six options are nil (the product
-// default), multi-tenant returns six pairwise-distinct instances. A crm<->fees swap in the
+// default), multi-tenant returns seven pairwise-distinct instances. A crm<->fees swap in the
 // mapper fails the two named assertions here because those two instances are distinct pointers.
 func TestRouteOptionsBinding(t *testing.T) {
 	logger := newTestLogger()
 
 	// Single-tenant: buildUnifiedRouteSetup short-circuits to a zero-value setup before it
-	// looks at any manager, so nil managers are the correct inputs and all six options are nil.
+	// looks at any manager, so nil managers are the correct inputs and all seven options are nil.
 	stSetup, err := buildUnifiedRouteSetup(&Config{}, logger, nil, nil, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err, "single-tenant setup must not error")
 	require.NotNil(t, stSetup, "single-tenant setup is a zero value, not nil")
@@ -59,14 +59,16 @@ func TestRouteOptionsBinding(t *testing.T) {
 	assert.Nil(t, stSetup.crmRouteOptions, "single-tenant crm option must be nil")
 	assert.Nil(t, stSetup.feesRouteOptions, "single-tenant fees option must be nil")
 	assert.Nil(t, stSetup.compositionRouteOptions, "single-tenant composition option must be nil")
+	assert.Nil(t, stSetup.holderAccountsRouteOptions, "single-tenant holder-accounts option must be nil")
 
 	stDeps := buildHumaMountDepsWithNilHandlers(stSetup)
 	assert.Nil(t, stDeps.OnboardingOptions, "single-tenant deps onboarding option must be nil")
 	assert.Nil(t, stDeps.CRMOptions, "single-tenant deps crm option must be nil")
 	assert.Nil(t, stDeps.FeesOptions, "single-tenant deps fees option must be nil")
+	assert.Nil(t, stDeps.HolderAccountsOptions, "single-tenant deps holder-accounts option must be nil")
 
-	// Multi-tenant: non-nil managers make buildUnifiedRouteSetup build six distinct options
-	// drawn from four separate tenant middlewares. The managers are zero-value structs because
+	// Multi-tenant: non-nil managers make buildUnifiedRouteSetup build seven distinct options
+	// drawn from five separate tenant middlewares. The managers are zero-value structs because
 	// buildUnifiedRouteSetup only wires them into middleware options; nothing connects here.
 	mtSetup, err := buildUnifiedRouteSetup(
 		&Config{MultiTenantEnabled: true}, logger,
@@ -87,6 +89,7 @@ func TestRouteOptionsBinding(t *testing.T) {
 		{"crm", mtSetup.crmRouteOptions},
 		{"fees", mtSetup.feesRouteOptions},
 		{"composition", mtSetup.compositionRouteOptions},
+		{"holder-accounts", mtSetup.holderAccountsRouteOptions},
 	}
 
 	for _, ri := range roleInstances {
@@ -117,6 +120,9 @@ func TestRouteOptionsBinding(t *testing.T) {
 			"against the CRM tenant database")
 	assert.Samef(t, mtSetup.compositionRouteOptions, deps.CompositionOptions,
 		"composition option must bind to the composition route setup")
+	assert.Samef(t, mtSetup.holderAccountsRouteOptions, deps.HolderAccountsOptions,
+		"holder-accounts option must bind to the holder-accounts route setup, not the crm one: the crm middleware binds "+
+			"the CRM Mongo on the generic key and no onboarding PG, so this swap fails the listing's account read")
 }
 
 // buildHumaMountDepsWithNilHandlers exercises the mapper with the setup under test and nil
@@ -148,7 +154,7 @@ const routeRolesGoldenPath = "testdata/route_roles.golden"
 // routeRolesGoldenHeader prefixes the golden so a reader knows what the third column means and how
 // to regenerate. It is part of the compared bytes, so it cannot drift from the rows it describes.
 const routeRolesGoldenHeader = `# Route -> role map: METHOD<TAB>RAW PATH<TAB>ROLE.
-# ROLE is which of the six route-scoped ProtectedRouteOptions a registered route runs, observed by
+# ROLE is which of the seven route-scoped ProtectedRouteOptions a registered route runs, observed by
 # threading a distinct sentinel post-auth handler per role and recording which one executed.
 # It pins the registrar -> options pairing the route table cannot: swapping the crm and fees
 # options moves neither path nor handler count, but flips the role recorded here.
@@ -199,17 +205,17 @@ func TestRouteRoles(t *testing.T) {
 		}
 
 		_, ok := observed[group.key]
-		assert.Truef(t, ok, "%s ran no role sentinel: it is mounted outside all six route-scoped options, or its chain "+
+		assert.Truef(t, ok, "%s ran no role sentinel: it is mounted outside all seven route-scoped options, or its chain "+
 			"never reached the post-auth handler", group.display())
 	}
 
-	// 2. All six roles appear at least once, so no role's registrars silently vanished.
-	rolesSeen := make(map[string]bool, 6)
+	// 2. All seven roles appear at least once, so no role's registrars silently vanished.
+	rolesSeen := make(map[string]bool, 7)
 	for _, role := range observed {
 		rolesSeen[role] = true
 	}
 
-	for _, role := range []string{"onboarding", "ledger", "transaction", "crm", "fees", "composition"} {
+	for _, role := range []string{"onboarding", "ledger", "transaction", "crm", "fees", "composition", "holder-accounts"} {
 		assert.Truef(t, rolesSeen[role], "no route ran the %q sentinel: that role's registrars are missing from the surface", role)
 	}
 
@@ -262,7 +268,7 @@ func TestRouteRoles(t *testing.T) {
 	t.Logf("route roles match golden: %d routes", len(observed))
 }
 
-// probeRouteRoles mounts the full surface with six distinct sentinel options and returns the
+// probeRouteRoles mounts the full surface with seven distinct sentinel options and returns the
 // observed route -> role map plus the route groups. Auth is DISABLED so the authorizer passes and
 // the sentinel is the handler that answers; each sentinel records its role and short-circuits with
 // 204 so no terminal runs.
@@ -293,6 +299,8 @@ func probeRouteRoles(t *testing.T) (map[string]string, []routeGroup) {
 		crmRouteOptions:         sentinel("crm"),
 		feesRouteOptions:        sentinel("fees"),
 		compositionRouteOptions: sentinel("composition"),
+
+		holderAccountsRouteOptions: sentinel("holder-accounts"),
 	}
 
 	logger := newTestLogger()
@@ -316,17 +324,13 @@ func probeRouteRoles(t *testing.T) (map[string]string, []routeGroup) {
 		setup,
 	)
 
-	onboardingRouteRegistrar := func(router fiber.Router) {
-		httpin.RegisterOnboardingRoutesToApp(router, auth,
-			&httpin.AccountHandler{}, &httpin.PortfolioHandler{}, &httpin.LedgerHandler{},
-			&httpin.OrganizationHandler{}, &httpin.SegmentHandler{}, &httpin.AccountTypeHandler{}, setup.onboardingRouteOptions)
-	}
-	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, &httpin.MetadataIndexHandler{}, setup.ledgerRouteOptions)
-
 	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
 
+	// The role map is scoped to the versioned Huma groups, so no RouteRegistrar is passed here.
+	// The app-root streaming manifest route does carry onboardingRouteOptions in production,
+	// so this harness leaves that binding unpinned.
 	server := NewUnifiedServer(":0", "test-version", logger, telemetry, readyzHandler,
-		humaDeps.MountV1, humaDeps.MountV2, onboardingRouteRegistrar, ledgerRouteRegistrar)
+		humaDeps.MountV1, humaDeps.MountV2)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")
 

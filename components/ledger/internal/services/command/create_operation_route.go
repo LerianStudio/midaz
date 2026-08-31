@@ -12,7 +12,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -89,8 +89,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 // event for a successfully persisted operation route. IMPORTANT
 // posture: build and emit failures are span-recorded and logged at
 // Warn, never returned. Durability of the event is owned by PG and
-// (follow-up task) the outbox subsystem + DLQ, not by the synchronous
-// Emit call.
+// the persisted database mutation; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after OperationRouteRepo.Create succeeds
 // and before the metadata-write call in CreateOperationRoute, so a
@@ -99,7 +98,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 // Wire-format mapping lives in pkg/streaming/events/operation_route_created.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitOperationRouteCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, o *mmodel.OperationRoute) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.OperationRouteCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.OperationRouteCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewOperationRouteCreated(o).ToEmitRequest(tenantID, o.CreatedAt)
 		})

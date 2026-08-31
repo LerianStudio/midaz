@@ -7,8 +7,11 @@ package http
 import (
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // Huma's DefaultSchemaNamer keys the shared schema registry by the BARE Go type
@@ -66,7 +69,37 @@ func installSchemaNamer(api huma.API, namer func(reflect.Type, string) string) {
 		return
 	}
 
-	oapi.Components.Schemas = huma.NewMapRegistry("#/components/schemas/", namer)
+	registry := huma.NewMapRegistry("#/components/schemas/", namer)
+	registerDomainSchemaAliases(registry)
+
+	oapi.Components.Schemas = registry
+}
+
+// registerDomainSchemaAliases teaches a registry how to schema the domain types Huma
+// cannot infer on its own. mtransaction.TransactionDate is a named type over
+// time.Time, so Huma sees a struct whose fields are all unexported: it schemas the
+// type as an OBJECT and then cannot parse the `format:"date-time"` / `example:` tags
+// declared on fields of that type. Aliasing it to time.Time routes it through Huma's
+// own time.Time case, which emits exactly {"type":"string","format":"date-time"}.
+//
+// This lives on the ADAPTER side rather than as a huma.SchemaProvider method on the
+// domain type, so pkg/mtransaction — the shared transaction model that the ledger,
+// the tracer and the fee engine all compile against — carries no dependency on an
+// OpenAPI generator. It affects OpenAPI generation only; JSON decoding stays governed
+// by TransactionDate.UnmarshalJSON.
+//
+// Aliases MUST be seeded before the first huma.Register on the registry, because
+// mapRegistry.Schema consults its alias map on every lookup and caches the resulting
+// schema under the resolved name. installSchemaNamer satisfies that by seeding the
+// registry it is about to install, which is why a harness registering an operation
+// whose body carries one of these types must go through an Install*SchemaNamer before
+// its first huma.Register, exactly as AssembleHumaContract does.
+func registerDomainSchemaAliases(registry huma.Registry) {
+	if registry == nil {
+		return
+	}
+
+	registry.RegisterTypeAlias(reflect.TypeFor[mtransaction.TransactionDate](), reflect.TypeFor[time.Time]())
 }
 
 // problemDetailPkgPath is the import path of the lib-commons RFC 9457 problem
@@ -126,6 +159,44 @@ const transactionPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/i
 // same layering reason as operationPkgPath.
 const mtransactionPkgPath = "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 
+// ledgerHTTPInPkgPath is the import path of the ledger's inbound HTTP adapter, which
+// declares the per-version response projections. Matched as a STRING for the same
+// layering reason as the adapter paths above.
+const ledgerHTTPInPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+
+// v1ProjectionNames maps a /v1 response projection declared in the inbound HTTP adapter
+// to the CANONICAL component name it publishes under. The Go types carry a version
+// suffix so each reads as the sibling of its newer twin, while the published name stays
+// what the generated v1 SDKs already bind to — renaming a v1 component would churn every
+// v1 SDK, which is the opposite of what a backward-compatibility projection is for.
+//
+// The consequence is that the projection, not the domain type, owns the canonical name:
+// see mmodelV2Names for the newer shape each domain type is pushed onto.
+var v1ProjectionNames = map[string]string{
+	"TransactionV1": "Transaction",
+	"AccountV1":     "Account",
+}
+
+// mmodelPkgPath is the import path of the shared domain-model package. Matched as a
+// STRING for symmetry with the paths above (mtransaction is imported here only for its
+// TransactionDate type alias).
+const mmodelPkgPath = "github.com/LerianStudio/midaz/v4/pkg/mmodel"
+
+// mmodelV2Names remaps a domain type whose /v1 projection took over its canonical
+// component name (see v1ProjectionNames) onto the versioned name of the NEWER wire
+// shape it actually describes.
+//
+// mmodel.Account is the account WITH the holder seam — holderId and holderCheckSkipped —
+// which is the /v2 account contract; the /v1 ops answer with in.AccountV1, which
+// withholds both keys and publishes as "Account". The two shapes are distinct, so they
+// must carry distinct names or huma.Register panics on the shared registry. Only the
+// exact name "Account" is remapped: every sibling mmodel type (Accounts, AccountType,
+// CreateAccountInput, …) keeps its bare name, which is what the published contract
+// already binds to.
+var mmodelV2Names = map[string]string{
+	"Account": "AccountV2",
+}
+
 // feePkgPathPrefix roots the Wave-3 fee/billing packages whose response-body types
 // register on the shared ledger Huma registry: feeshared/model (Pagination,
 // BillingPackage, BillingCalculateResponse, and their nested tiers) and
@@ -169,6 +240,18 @@ func ledgerSchemaNamer(t reflect.Type, hint string) string {
 
 	if dt.PkgPath() == mtransactionPkgPath && name == "Transaction" {
 		return "TransactionInput"
+	}
+
+	if dt.PkgPath() == ledgerHTTPInPkgPath {
+		if canonical, ok := v1ProjectionNames[name]; ok {
+			return canonical
+		}
+	}
+
+	if dt.PkgPath() == mmodelPkgPath {
+		if versioned, ok := mmodelV2Names[name]; ok {
+			return versioned
+		}
 	}
 
 	if feePkgPaths[dt.PkgPath()] {

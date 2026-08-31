@@ -44,7 +44,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 				"description": "Daily spending limit",
 				"limitType":   "DAILY",
 				"maxAmount":   "1000.00",
-				"currency":    "BRL",
+				"asset":       "BRL",
 				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
@@ -58,7 +58,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 						Name:      "Daily Limit",
 						LimitType: model.LimitTypeDaily,
 						MaxAmount: decimal.RequireFromString("1000"),
-						Currency:  "BRL",
+						Asset:     "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
 						UpdatedAt: testutil.FixedTime(),
@@ -81,7 +81,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			requestBody: map[string]any{
 				"limitType": "DAILY",
 				"maxAmount": "1000.00",
-				"currency":  "BRL",
+				"asset":     "BRL",
 				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
@@ -98,7 +98,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"maxAmount": "1000.00",
-				"currency":  "BRL",
+				"asset":     "BRL",
 				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
@@ -116,7 +116,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 				"name":      "Test Limit",
 				"limitType": "INVALID",
 				"maxAmount": "1000.00",
-				"currency":  "BRL",
+				"asset":     "BRL",
 				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
@@ -129,12 +129,12 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 			},
 		},
 		{
-			name: "error - invalid currency (not 3 chars)",
+			name: "error - invalid asset (not 3 chars)",
 			requestBody: map[string]any{
 				"name":      "Test Limit",
 				"limitType": "DAILY",
 				"maxAmount": "1000.00",
-				"currency":  "BR",
+				"asset":     "BR",
 				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
@@ -152,7 +152,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 				"name":      "Test Limit",
 				"limitType": "DAILY",
 				"maxAmount": "0",
-				"currency":  "BRL",
+				"asset":     "BRL",
 				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
@@ -170,7 +170,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 				"name":      "Test Limit",
 				"limitType": "DAILY",
 				"maxAmount": "1000.00",
-				"currency":  "BRL",
+				"asset":     "BRL",
 				"scopes":    []map[string]any{},
 			},
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
@@ -186,7 +186,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 				"name":      "Test Limit",
 				"limitType": "DAILY",
 				"maxAmount": "1000.00",
-				"currency":  "BRL",
+				"asset":     "BRL",
 				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
@@ -208,7 +208,7 @@ func TestLimitHandler_CreateLimit(t *testing.T) {
 				"name":      "Duplicate Limit Name",
 				"limitType": "DAILY",
 				"maxAmount": "1000.00",
-				"currency":  "BRL",
+				"asset":     "BRL",
 				"scopes": []map[string]any{
 					{"accountId": "550e8400-e29b-41d4-a716-446655440000"},
 				},
@@ -295,7 +295,7 @@ func TestLimitHandler_GetLimit(t *testing.T) {
 						Name:      "Daily Limit",
 						LimitType: model.LimitTypeDaily,
 						MaxAmount: decimal.RequireFromString("1000"),
-						Currency:  "BRL",
+						Asset:     "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
 						UpdatedAt: testutil.FixedTime(),
@@ -749,7 +749,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 						Name:      "Updated Limit Name",
 						LimitType: model.LimitTypeDaily,
 						MaxAmount: decimal.RequireFromString("1000"),
-						Currency:  "BRL",
+						Asset:     "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
 						UpdatedAt: testutil.FixedTime(),
@@ -780,7 +780,7 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 						Name:      "Test Limit",
 						LimitType: model.LimitTypeDaily,
 						MaxAmount: decimal.RequireFromString("2000"),
-						Currency:  "BRL",
+						Asset:     "BRL",
 						Status:    model.LimitStatusActive,
 						CreatedAt: testutil.FixedTime(),
 						UpdatedAt: testutil.FixedTime(),
@@ -836,24 +836,6 @@ func TestLimitHandler_UpdateLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusNotFound,
 			expectedBody:   func(t *testing.T, body []byte) {},
-		},
-		{
-			name:    "error - limit already deleted",
-			limitID: validID.String(),
-			requestBody: map[string]any{
-				"name": "Test",
-			},
-			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
-				mockService := NewMockLimitService(ctrl)
-				mockService.EXPECT().
-					UpdateLimit(gomock.Any(), validID, gomock.Any()).
-					Return(nil, constant.ErrLimitAlreadyDeleted)
-
-				return mockService
-			},
-			expectedStatus: http.StatusUnprocessableEntity,
-			expectedBody: func(t *testing.T, body []byte) {
-			},
 		},
 	}
 
@@ -1089,19 +1071,6 @@ func TestLimitHandler_DeleteLimit(t *testing.T) {
 			},
 			expectedStatus: http.StatusNotFound,
 		},
-		{
-			name:    "error - limit already deleted",
-			limitID: validID.String(),
-			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
-				mockService := NewMockLimitService(ctrl)
-				mockService.EXPECT().
-					DeleteLimit(gomock.Any(), validID).
-					Return(constant.ErrLimitAlreadyDeleted)
-
-				return mockService
-			},
-			expectedStatus: http.StatusUnprocessableEntity,
-		},
 	}
 
 	for _, tt := range tests {
@@ -1246,7 +1215,7 @@ func TestToCreateLimitServiceInput(t *testing.T) {
 		Description: &desc,
 		LimitType:   model.LimitTypeDaily,
 		MaxAmount:   decimal.RequireFromString("1000"),
-		Currency:    "BRL",
+		Asset:       "BRL",
 		Scopes: []model.Scope{
 			{
 				AccountID:       &accountID,
@@ -1261,7 +1230,7 @@ func TestToCreateLimitServiceInput(t *testing.T) {
 	assert.Equal(t, input.Description, result.Description)
 	assert.Equal(t, input.LimitType, result.LimitType)
 	assert.Equal(t, input.MaxAmount, result.MaxAmount)
-	assert.Equal(t, input.Currency, result.Currency)
+	assert.Equal(t, input.Asset, result.Asset)
 	assert.Len(t, result.Scopes, 1)
 	assert.Equal(t, accountID, *result.Scopes[0].AccountID)
 	assert.Equal(t, &txType, result.Scopes[0].TransactionType)
@@ -1340,7 +1309,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "BRL",
+				Asset:     "BRL",
 				Scopes: []model.Scope{
 					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(80))},
 				},
@@ -1353,7 +1322,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "BRL",
+				Asset:     "BRL",
 				Scopes: []model.Scope{
 					{}, // Empty scope
 				},
@@ -1367,7 +1336,7 @@ func TestCreateLimitInput_Validate(t *testing.T) {
 				Name:      string(make([]byte, 300)),
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "BRL",
+				Asset:     "BRL",
 				Scopes: []model.Scope{
 					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(81))},
 				},
@@ -1626,7 +1595,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "BRL",
+				Asset:     "BRL",
 				Scopes: []model.Scope{
 					{
 						TransactionType: func() *model.TransactionType {
@@ -1645,7 +1614,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "BRL",
+				Asset:     "BRL",
 				Scopes: []model.Scope{
 					{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(90))}, // Valid scope at index 0
 					{}, // Empty scope at index 1
@@ -1660,7 +1629,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "BRL",
+				Asset:     "BRL",
 				Scopes: []model.Scope{
 					{
 						AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(100)),
@@ -1712,7 +1681,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
-					"currency":  "BRL",
+					"asset":     "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 				require.NoError(t, err)
@@ -1735,7 +1704,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
-					"currency":  "BRL",
+					"asset":     "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 				require.NoError(t, err)
@@ -1758,7 +1727,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
-					"currency":  "BRL",
+					"asset":     "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 				require.NoError(t, err)
@@ -1781,7 +1750,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
-					"currency":  "BRL",
+					"asset":     "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 				require.NoError(t, err)
@@ -1789,7 +1758,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 				return httptest.NewRequest(http.MethodPost, "/limits", bytes.NewReader(body))
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   "currency",
+			expectedBody:   "asset",
 		},
 		{
 			name:   "ErrLimitInvalidScope",
@@ -1804,7 +1773,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
-					"currency":  "BRL",
+					"asset":     "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 				require.NoError(t, err)
@@ -1827,7 +1796,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
-					"currency":  "BRL",
+					"asset":     "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 				require.NoError(t, err)
@@ -1850,7 +1819,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
-					"currency":  "BRL",
+					"asset":     "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 				require.NoError(t, err)
@@ -1873,7 +1842,7 @@ func TestLimitHandler_ServiceErrorHandling(t *testing.T) {
 					"name":      "Test",
 					"limitType": "DAILY",
 					"maxAmount": "1000.00",
-					"currency":  "BRL",
+					"asset":     "BRL",
 					"scopes":    []map[string]any{{"accountId": testutil.MustDeterministicUUID(120).String()}},
 				})
 				require.NoError(t, err)

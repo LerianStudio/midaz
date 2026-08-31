@@ -7,6 +7,7 @@ package http
 import (
 	"errors"
 	"net/http"
+	"sync/atomic"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
@@ -20,8 +21,37 @@ import (
 
 // problemContentType is the RFC 9457 media type for the error body. huma's
 // ErrorModel.ContentType maps application/json to this; because we serialize
-// through fiber's JSON encoder (not huma's transport), we set it explicitly.
+// through fiber's JSON encoder (not huma's transport), we pass it to JSON
+// explicitly. It MUST be passed as JSON's ctype argument — setting the header
+// beforehand does not survive, because JSON overwrites Content-Type when it is
+// not given one.
 const problemContentType = "application/problem+json"
+
+// highStatusScrubDisabled stops this process replacing the registry title and
+// message on >=500 bodies with generic text. It exists so a binary can choose
+// whether a 5xx tells the caller what went wrong.
+//
+// Off by default, so a binary that never calls DisableHighStatusScrub produces
+// byte-identical bodies to before this existed.
+var highStatusScrubDisabled atomic.Bool
+
+// DisableHighStatusScrub keeps the registry title and message on >=500 problem
+// bodies instead of replacing them with the status text and "internal error".
+//
+// The scrub exists to stop a raw cause reaching a client (E9). What it actually
+// suppresses here is CATALOG text: static strings from pkg/errors.go, chosen by
+// whoever declared the sentinel, never err.Error() output. Suppressing those
+// costs more than it protects, because several sentinels describe a CALLER
+// mistake — 0181 "Account not found on Midaz" tells the client to check the
+// account alias it passed — and rendering them as an indistinguishable "internal
+// error" turns an integration bug into a storm of apparent server faults.
+//
+// A process that calls this is asserting that its >=500 registry text is safe to
+// publish. That holds only while every 5xx message stays static; a sentinel whose
+// message interpolates a raw error would leak through here.
+func DisableHighStatusScrub() {
+	highStatusScrubDisabled.Store(true)
+}
 
 // Detail is the Midaz wire projection of the shared lib-commons RFC 9457 body:
 // problem.Detail (type/title/status/detail/instance/code/errors[]) plus the
@@ -120,12 +150,14 @@ func classifyForProblem(err error) (code, msg, title, entityType string, status 
 	// WithError uses. Its mapped codes carry the same status their pkg type would.
 	if e := (libCommons.Response{}); errors.As(err, &e) {
 		switch e.Code {
-		case libConstants.ErrInsufficientFunds.Error(), libConstants.ErrAccountIneligibility.Error():
+		// ErrOverFlowInt64 rides here as well as in the pkg registry, under the SAME
+		// wire code (0097). Both arms must agree, or one code would answer with two
+		// different statuses depending on which layer produced it.
+		case libConstants.ErrInsufficientFunds.Error(), libConstants.ErrAccountIneligibility.Error(),
+			libConstants.ErrOverFlowInt64.Error():
 			return e.Code, e.Message, e.Title, "", http.StatusUnprocessableEntity, true
 		case libConstants.ErrAssetCodeNotFound.Error():
 			return e.Code, e.Message, e.Title, "", http.StatusNotFound, true
-		case libConstants.ErrOverFlowInt64.Error():
-			return e.Code, e.Message, e.Title, "", http.StatusInternalServerError, true
 		default:
 			return e.Code, e.Message, e.Title, "", http.StatusBadRequest, true
 		}
@@ -174,9 +206,10 @@ func withProblem(c fiber.Ctx, err error) error {
 			http.StatusText(http.StatusInternalServerError), "internal error")
 	}
 
-	c.Set(fiber.HeaderContentType, problemContentType)
-
-	return c.Status(body.Status).JSON(body)
+	// The media type is passed to JSON rather than Set beforehand: fiber's JSON
+	// overwrites Content-Type with application/json unless it is given one, so a
+	// prior Set is silently discarded.
+	return c.Status(body.Status).JSON(body, problemContentType)
 }
 
 // ProblemDetail builds the frozen RFC 9457 *Detail for err WITHOUT writing it
@@ -230,6 +263,19 @@ func ProblemDetail(err error) (Detail, bool) {
 		pd.Title = capturedTitle
 	}
 
+	// With the scrub disabled, >=500 keeps the registry text too. An error the
+	// cascade did not classify captured nothing, so MapError's generic fallback
+	// stands and stays generic — an unrecognized error still says nothing.
+	if highStatusScrubDisabled.Load() && pd.Status >= http.StatusInternalServerError {
+		if capturedTitle != "" {
+			pd.Title = capturedTitle
+		}
+
+		if capturedMessage != "" {
+			pd.Detail = capturedMessage
+		}
+	}
+
 	body := Detail{Detail: *pd, EntityType: capturedEntityType}
 	if errs := fieldsToErrors(err); errs != nil {
 		body.Errors = errs
@@ -274,7 +320,8 @@ func withProblemStatus(c fiber.Ctx, status int, err error) error {
 	}
 
 	// >=500 scrub mirrors MapError (r3 §2.3): status text title, generic detail.
-	if status >= http.StatusInternalServerError {
+	// Disabled, the registry text stands, exactly as in ProblemDetail.
+	if status >= http.StatusInternalServerError && !highStatusScrubDisabled.Load() {
 		pd.Title = http.StatusText(status)
 		pd.Detail = "internal error"
 	}
@@ -284,7 +331,5 @@ func withProblemStatus(c fiber.Ctx, status int, err error) error {
 		body.Errors = errs
 	}
 
-	c.Set(fiber.HeaderContentType, problemContentType)
-
-	return c.Status(status).JSON(body)
+	return c.Status(status).JSON(body, problemContentType)
 }

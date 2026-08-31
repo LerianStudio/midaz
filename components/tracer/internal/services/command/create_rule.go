@@ -10,14 +10,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
-	"strings"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -30,8 +28,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
-
-var multipleSpaces = regexp.MustCompile(`\s+`)
 
 // Sentinel errors for nil dependencies passed to NewCreateRuleCommand.
 // The atomicity fix made the constructor return (*Cmd, error) so DI
@@ -57,14 +53,6 @@ var (
 	// transaction.
 	ErrNilCreateRuleTxBeginner = errors.New("create rule tx beginner is nil")
 )
-
-// NormalizeName normalizes a rule name for uniqueness comparison.
-// Applies: lowercase + trim whitespace + collapse multiple spaces.
-// Example: "  mInha    REGRA  xpto " -> "minha regra xpto"
-func NormalizeName(name string) string {
-	name = strings.ToLower(strings.TrimSpace(name))
-	return multipleSpaces.ReplaceAllString(name, " ")
-}
 
 // ExpressionCompiler validates CEL expressions.
 // Interface defined locally per Ring pattern.
@@ -167,9 +155,6 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 		return nil, err
 	}
 
-	// Normalize name for storage and uniqueness check
-	normalizedName := NormalizeName(input.Name)
-
 	// 1. Validate CEL expression syntax
 	_, err := c.cel.Compile(ctx, input.Expression)
 	if err != nil {
@@ -177,8 +162,9 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 		return nil, err
 	}
 
-	// 2. Build rule entity using validating constructor (store normalized name)
-	// model.NewRule normalizes nil scopes to empty slice for proper JSON serialization
+	// 2. Build rule entity using the validating constructor. Name is stored as
+	// submitted — casing and internal spacing are preserved (parity with limits)
+	// so GET/LIST return the name exactly as submitted.
 	var description *string
 	if input.Description != "" {
 		description = &input.Description
@@ -186,7 +172,7 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 
 	now := c.clock.Now()
 
-	rule, err := model.NewRule(normalizedName, input.Expression, input.Action, input.Scopes, description, now)
+	rule, err := model.NewRule(input.Name, input.Expression, input.Action, input.Scopes, description, now)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid rule input", err)
 		logger.With(
@@ -278,10 +264,10 @@ func (c *CreateRuleCommand) Execute(ctx context.Context, input *CreateRuleInput)
 }
 
 // emitRuleCreatedEvent publishes the rule.created event post-commit. IMPORTANT
-// posture: EmitImportant nil-guards the emitter, bounds the emit, and never
+// posture: EmitBrokerBestEffort nil-guards the emitter, bounds the emit, and never
 // propagates build/emit failures — so this never fails the request.
 func (c *CreateRuleCommand) emitRuleCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, rule *model.Rule) {
-	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.RuleCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.RuleCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewRuleCreated(rule).ToEmitRequest(tenantID, rule.CreatedAt)
 		})

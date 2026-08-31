@@ -13,12 +13,10 @@ import (
 	"github.com/shopspring/decimal"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	"github.com/gofiber/fiber/v3"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -28,7 +26,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/skip"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -656,6 +653,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
 		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
+		AccountType:     blc.AccountType,
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -706,6 +704,7 @@ func (handler *TransactionHandler) buildDoubleEntryPendingOps(
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
 		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
+		AccountType:     blc.AccountType,
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -787,6 +786,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
 		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
+		AccountType:     blc.AccountType,
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -839,6 +839,7 @@ func (handler *TransactionHandler) buildDoubleEntryCanceledOps(
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
 		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
+		AccountType:     blc.AccountType,
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -972,6 +973,7 @@ func (handler *TransactionHandler) buildStandardOp(
 		BalanceID:       blc.ID,
 		AccountID:       blc.AccountID,
 		AccountAlias:    mtransaction.SplitAlias(blc.Alias),
+		AccountType:     blc.AccountType,
 		BalanceKey:      blc.Key,
 		OrganizationID:  blc.OrganizationID,
 		LedgerID:        blc.LedgerID,
@@ -985,15 +987,13 @@ func (handler *TransactionHandler) buildStandardOp(
 	}, nil
 }
 
-// createTransaction is the transport-neutral create core. It is called by BOTH the
-// Fiber wrappers (which read the path params + idempotency headers off fiber.Ctx and
-// write the response) and the Huma shells (which read them off the request envelope and
-// project onto the typed Out). It returns the built transaction and the idempotency
-// `replayed` flag so each transport can set X-Idempotency-Replayed itself. The ~480-line
-// orchestration in executeCreateTransaction is untouched: this is the thin transport
-// boundary only.
-func (handler *TransactionHandler) createTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
-	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL, idempotencyHashSource...)
+// createTransaction is the transport-neutral create core. The shells read the path
+// params + idempotency headers off the request envelope and project the result onto the
+// typed Out; this core returns the built transaction and the idempotency `replayed` flag
+// so the caller can set X-Idempotency-Replayed itself. The orchestration lives in
+// executeCreateTransaction — this is the thin boundary in front of it.
+func (handler *TransactionHandler) createTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration, policy routeVersionPolicy, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
+	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL, policy, idempotencyHashSource...)
 }
 
 // idempotencyDiscriminatorSep joins an action discriminator to the rest of an idempotency
@@ -1015,37 +1015,13 @@ func resolveIdempotencyHashSource(transactionInput mtransaction.Transaction, ove
 // createRevertTransaction creates a reversal transaction. The action is forced
 // to "revert" so that accounting route lookups use the revert rubrics instead
 // of the status-derived action. Transport-neutral, mirroring createTransaction.
-func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration) (*transaction.Transaction, bool, error) {
-	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, true, idempotencyKey, idempotencyTTL)
-}
-
-// createTransactionFiber is the Fiber transport adapter: it reads the path params and
-// idempotency key/TTL off fiber.Ctx, delegates to the transport-neutral core, projects
-// the replayed flag onto the X-Idempotency-Replayed response header, and writes the
-// created transaction (or the canonical error). It preserves the exact Fiber-path
-// behavior the four create wrappers relied on before the Huma migration.
-func (handler *TransactionHandler) createTransactionFiber(c fiber.Ctx, transactionInput mtransaction.Transaction, transactionStatus string) error {
-	ctx := c.Context()
-
-	params, err := readPathParams(c)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	idempotencyKey, idempotencyTTL := http.GetIdempotencyKeyAndTTL(c)
-
-	c.Set(libConstants.IdempotencyReplayed, "false")
-
-	tran, replayed, err := handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, false, idempotencyKey, idempotencyTTL)
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	if replayed {
-		c.Set(libConstants.IdempotencyReplayed, "true")
-	}
-
-	return http.Created(c, tran)
+//
+// The policy has to be carried in rather than fixed here, even though applyFees
+// ignores it on a revert (it no-ops on isRevert=true regardless): the reserve
+// anchor has no isRevert gate, so a /v2 revert must still reserve capacity while
+// a /v1 revert must not reach the tracer at all.
+func (handler *TransactionHandler) createRevertTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey string, idempotencyTTL time.Duration, policy routeVersionPolicy) (*transaction.Transaction, bool, error) {
+	return handler.executeCreateTransaction(ctx, params, transactionInput, transactionStatus, true, idempotencyKey, idempotencyTTL, policy)
 }
 
 // resolveTransactionSkips resolves the two per-call control skips (fees, tracer)
@@ -1069,7 +1045,7 @@ func resolveTransactionSkips(input mtransaction.Transaction, settings mmodel.Led
 }
 
 //nolint:gocyclo // Orchestration step with conditional branches per transaction type; refactor candidate.
-func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool, idempotencyKey string, idempotencyTTL time.Duration, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
+func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context, params *transactionPathParams, transactionInput mtransaction.Transaction, transactionStatus string, isRevert bool, idempotencyKey string, idempotencyTTL time.Duration, policy routeVersionPolicy, idempotencyHashSource ...string) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.create_transaction.orchestrate")
@@ -1194,24 +1170,31 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// Record the resolved skips as system observations (not request inputs): they
 	// reflect what the two-key gate actually honored, and they are persisted to the
 	// transaction row below for the durable audit trail.
+	// The two *_route_eligible attributes are deliberately NOT folded into the matching
+	// *_skipped flags: those are persisted on the transaction row as the audit trail of a
+	// skip the CLIENT asked for, so marking them true on every /v1 create would record a
+	// claim never made. The two reasons a control did not run stay distinguishable.
 	span.SetAttributes(
 		attribute.Bool("app.transaction.fees_skipped", honoredFeeSkip),
 		attribute.Bool("app.transaction.tracer_skipped", honoredTracerSkip),
+		attribute.Bool("app.transaction.fees_route_eligible", policy == routeV2),
+		attribute.Bool("app.transaction.tracer_route_eligible", policy == routeV2),
 	)
 
 	// Fee seam: drive the in-process fee engine over the validated transaction,
 	// mutating transactionInput.Send.* (fee legs + moved Send.Value on
-	// deductible fees). No-op on isRevert (the reverse transaction already
-	// carries reversed fee legs from TransactionRevert) and on an honored fee
-	// skip (which bypasses the engine before its package lookup). The settings
-	// read + skip resolution above precede this seam; the seam still runs before
-	// the single validate reassignment below, which is upstream of
+	// deductible fees). No-op on routeV1 (the /v1 contract carries no fee
+	// engine), on isRevert (the reverse transaction already carries reversed fee
+	// legs from TransactionRevert) and on an honored fee skip (which bypasses the
+	// engine before its package lookup). The settings read + skip resolution above
+	// precede this seam; the seam still runs before the single validate
+	// reassignment below, which is upstream of
 	// PropagateRouteValidation — that mutator decorates the post-fee validate,
 	// and every downstream consumer reads the same pointer. applyFees resolves
 	// the tenant's fee DB internally, only once it has decided fees actually
 	// apply, so the MT tenant resolution rides inside the same gate as the fee
 	// computation.
-	if err = handler.applyFees(ctx, &transactionInput, params.OrganizationID, params.LedgerID, isRevert, transactionStatus == constant.NOTED, honoredFeeSkip); err != nil {
+	if err = handler.applyFees(ctx, &transactionInput, params.OrganizationID, params.LedgerID, policy, isRevert, transactionStatus == constant.NOTED, honoredFeeSkip); err != nil {
 		handleSpanByErrorClass(span, "Failed to apply fees", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to apply fees", libLog.Err(err))
 
@@ -1359,7 +1342,9 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	}
 
 	// Reserve anchor (F3-T13): hold usage-limit capacity against the
-	// FEE-INCLUSIVE transaction immediately before the balance commit. This
+	// FEE-INCLUSIVE transaction immediately before the balance commit. No-op on
+	// routeV1 (the /v1 contract carries no tracer), which is the anchor's first
+	// gate — a /v1 create builds no reserve request and dials nothing. This
 	// observes the validated fee-inclusive send amount; it never mutates
 	// Send.Value or balance state. A DENIED decision (enforce) or a fail-closed
 	// unavailable tracer rejects here, before ProcessBalanceOperations moves any
@@ -1368,7 +1353,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// is confirmed on success / released on abort at the post-commit transport.
 	reservation := handler.reserveTransaction(ctx, span, logger, ledgerSettings.Tracer, transactionID,
 		transactionInput.Send.Value, transactionInput.Send.Asset, firstSourceAccountID(validate.Sources, balances),
-		transactionDate, reservationTTLForStatus(transactionStatus), honoredTracerSkip)
+		transactionDate, reservationTTLForStatus(transactionStatus), policy, honoredTracerSkip)
 	if reservation.Kind == reservationReject {
 		handler.deleteIdempotencyKey(ctx, idempotencyResult.InternalKey)
 		handler.Command.RemoveTransactionFromRedisQueue(ctx, logger, params.OrganizationID, params.LedgerID, transactionID.String())

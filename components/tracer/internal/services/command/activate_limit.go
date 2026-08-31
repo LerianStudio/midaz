@@ -13,7 +13,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -224,7 +224,7 @@ func (c *ActivateLimitCommand) Execute(ctx context.Context, id uuid.UUID) (_ *mo
 // not called on the idempotent already-active no-op (which skips the tx).
 // IMPORTANT posture: emit failures never fail the request.
 func (c *ActivateLimitCommand) emitLimitActivatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
-	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitActivatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.LimitActivatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewLimitActivated(limit).ToEmitRequest(tenantID, limit.UpdatedAt)
 		})

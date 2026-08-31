@@ -1,3 +1,5 @@
+//go:build property
+
 // Copyright (c) 2026 Lerian Studio. All rights reserved.
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
@@ -35,9 +37,9 @@ func TestProperty_BalanceSyncWorker_PredicateEqualsEnabledAndPGManagerNonNil(t *
 		worker.mtEnabled = enabled
 
 		if hasPGManager {
-			worker.pgManager = pgMgr
+			worker.pgResolver = pgMgr
 		} else {
-			worker.pgManager = nil
+			worker.pgResolver = nil
 		}
 
 		if hasTenantCache {
@@ -60,7 +62,7 @@ func TestProperty_BalanceSyncWorker_PredicateEqualsEnabledAndPGManagerNonNil(t *
 
 	err = quick.Check(property, &quick.Config{MaxCount: 200})
 	require.NoError(t, err,
-		"Property violated: BalanceSyncWorker.isMTReady() != (mtEnabled && pgManager != nil && tenantCache != nil)")
+		"Property violated: BalanceSyncWorker.isMTReady() != (mtEnabled && pgResolver != nil && tenantCache != nil)")
 }
 
 // TestNewBalanceSyncWorkerMT_PreservesBaseFields verifies that
@@ -95,7 +97,7 @@ func TestNewBalanceSyncWorkerMT_PreservesBaseFields(t *testing.T) {
 			require.Equal(t, useCase, worker.useCase, "base field useCase must be preserved")
 			require.Equal(t, tt.enabled, worker.mtEnabled, "mtEnabled must match input")
 			require.Equal(t, cache, worker.tenantCache, "tenantCache must be set")
-			require.Equal(t, pgMgr, worker.pgManager, "pgManager must be set")
+			require.Equal(t, pgMgr, worker.pgResolver, "pgResolver must be set")
 		})
 	}
 }

@@ -134,12 +134,6 @@
       "durable": true
     },
     {
-      "name": "transaction.transaction_events.exchange",
-      "vhost": "/",
-      "type": "topic",
-      "durable": true
-    },
-    {
       "name": "transaction.overdraft_events.exchange",
       "vhost": "/",
       "type": "topic",

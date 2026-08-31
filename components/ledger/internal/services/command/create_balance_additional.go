@@ -14,7 +14,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/trace"
@@ -161,6 +161,27 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		UpdatedAt:      time.Now(),
 	}
 
+	// Companion-first: provision the system-managed overdraft balance BEFORE
+	// persisting the parent, so a provisioning failure never leaves a parent
+	// with AllowOverdraft=true and no companion. The inverse partial state —
+	// companion without parent, if the parent Create fails below — is inert
+	// (internal scope blocks direct operations) and is reused idempotently on
+	// retry. The synthetic current carries nil Settings so the enable check
+	// observes a false→true transition.
+	var overdraftCompanion *mmodel.Balance
+
+	if cbi.Settings != nil {
+		syntheticCurrent := *additionalBalance
+		syntheticCurrent.Settings = nil
+
+		companion, oerr := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, &syntheticCurrent, cbi.Settings)
+		if oerr != nil {
+			return nil, oerr
+		}
+
+		overdraftCompanion = companion
+	}
+
 	created, err := uc.BalanceRepo.Create(ctx, additionalBalance)
 	if err != nil {
 		// Migration 032 adds a unique balance key index. If another pod wins the
@@ -189,6 +210,10 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	uc.emitBalanceCreatedEvent(ctx, span, logger, created)
 
+	if overdraftCompanion != nil {
+		uc.emitBalanceConfigChangedEvent(ctx, span, logger, overdraftCompanion, events.BalanceConfigChangeTypeOverdraftEnabled)
+	}
+
 	return created, nil
 }
 
@@ -210,7 +235,7 @@ func isPostgresUniqueViolation(err error) bool {
 // balance materialized via CreateAdditionalBalance. IMPORTANT posture:
 // build and emit failures are span-recorded and logged at Warn, never
 // returned. Durability of the event is owned by PG and (follow-up task)
-// the outbox subsystem + DLQ, not by the synchronous Emit call.
+// the configured lib-streaming delivery policy; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after BalanceRepo.Create succeeds on the
 // public POST .../accounts/:account_id/balances endpoint. The other
@@ -223,7 +248,7 @@ func isPostgresUniqueViolation(err error) bool {
 // Wire-format mapping lives in pkg/streaming/events/balance_created.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitBalanceCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, b *mmodel.Balance) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.BalanceCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.BalanceCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewBalanceCreated(b).ToEmitRequest(tenantID, b.CreatedAt)
 		})

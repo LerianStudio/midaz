@@ -1038,7 +1038,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Locked",
 			Message:    "This transaction is currently being processed by another request. Please retry shortly.",
 		},
-		constant.ErrOverFlowInt64: InternalServerError{
+		constant.ErrOverFlowInt64: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrOverFlowInt64.Error(),
 			Title:      "Overflow Error",
@@ -1163,6 +1163,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrInvalidAccountTypeDirection.Error(),
 			Title:      "Invalid Account Type Direction",
 			Message:    "The field 'defaultDirection' has an invalid value. Use one of the allowed values: credit or debit.",
+		},
+		constant.ErrSchemaMigrationPending: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrSchemaMigrationPending.Error(),
+			Title:      "Schema Migration Pending",
+			Message:    "The request could not be completed because a pending database migration has not been applied to this database yet. Please retry shortly.",
 		},
 		constant.ErrDuplicateAccountTypeKeyValue: EntityConflictError{
 			EntityType: entityType,
@@ -1556,7 +1562,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid fee priority",
 			Message:    "The priority field in fees is invalid. Field can not be repeated.",
 		},
-		constant.ErrFindAccountOnMidaz: InternalServerError{
+		constant.ErrFindAccountOnMidaz: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrFindAccountOnMidaz.Error(),
 			Title:      "Account not found on Midaz",
@@ -1733,7 +1739,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid ledgerID",
 			Message:    "The specified ledgerID is not a valid UUID. Please check the value passed.",
 		},
-		constant.ErrConvertToDecimal: InternalServerError{
+		constant.ErrConvertToDecimal: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrConvertToDecimal.Error(),
 			Title:      "Error to convert values",
@@ -1768,12 +1774,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrDeductibleFeeExceedsAmount.Error(),
 			Title:      "Deductible fee exceeds the amount it deducts from",
 			Message:    "A deductible fee cannot be applied because it meets or exceeds the amount it is deducted from, which would leave the recipient with nothing or a negative balance. Reduce the fee, increase the transfer amount, or exempt the account.",
-		},
-		constant.ErrLedgerIDMismatch: ValidationError{
-			EntityType: entityType,
-			Code:       constant.ErrLedgerIDMismatch.Error(),
-			Title:      "Ledger Mismatch",
-			Message:    "The 'ledgerId' in the request body names a different ledger than the request path. The path is authoritative; send the same ledger in both, or remove the conflict, and try again.",
 		},
 		constant.ErrLedgerScopedQueryParameter: ValidationError{
 			EntityType: entityType,
@@ -2157,8 +2157,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrLimitInvalidCurrency: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrLimitInvalidCurrency.Error(),
-			Title:      "Limit Invalid Currency",
-			Message:    "Currency must be valid ISO 4217.",
+			Title:      "Limit Invalid Asset",
+			Message:    "Asset must be valid ISO 4217.",
 		},
 		constant.ErrLimitInvalidScope: ValidationError{
 			EntityType: entityType,
@@ -2177,12 +2177,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrLimitNameTooLong.Error(),
 			Title:      "Limit Name Too Long",
 			Message:    "Limit name exceeds max length.",
-		},
-		constant.ErrLimitAlreadyDeleted: UnprocessableOperationError{
-			EntityType: entityType,
-			Code:       constant.ErrLimitAlreadyDeleted.Error(),
-			Title:      "Limit Already Deleted",
-			Message:    "Limit is already in DELETED state.",
 		},
 		constant.ErrLimitNameInvalidChars: ValidationError{
 			EntityType: entityType,
@@ -2242,7 +2236,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrLimitImmutableField.Error(),
 			Title:      "Limit Immutable Field",
-			Message:    "Cannot modify immutable field (limitType, currency).",
+			Message:    "Cannot modify immutable field (limitType, asset).",
 		},
 		constant.ErrAuditEventNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -2361,8 +2355,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrCheckLimitsInvalidCurrency: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrCheckLimitsInvalidCurrency.Error(),
-			Title:      "Check Limits Invalid Currency",
-			Message:    "Check limits currency must be valid ISO 4217.",
+			Title:      "Check Limits Invalid Asset",
+			Message:    "Check limits asset must be valid ISO 4217.",
 		},
 		constant.ErrCheckLimitsUnknownLimitType: ValidationError{
 			EntityType: entityType,
@@ -2457,14 +2451,14 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrValidationCurrencyRequired: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrValidationCurrencyRequired.Error(),
-			Title:      "Validation Currency Required",
-			Message:    "Currency is required.",
+			Title:      "Validation Asset Required",
+			Message:    "Asset is required.",
 		},
 		constant.ErrValidationInvalidCurrency: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidCurrency.Error(),
-			Title:      "Validation Invalid Currency",
-			Message:    "Currency must be valid ISO 4217.",
+			Title:      "Validation Invalid Asset",
+			Message:    "Asset must be valid ISO 4217.",
 		},
 		constant.ErrValidationTimestampRequired: ValidationError{
 			EntityType: entityType,

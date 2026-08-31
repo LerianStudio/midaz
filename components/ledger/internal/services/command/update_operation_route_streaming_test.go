@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,7 +148,7 @@ func TestUpdateOperationRoute_NoopEmitterDoesNotPanic(t *testing.T) {
 // TestUpdateOperationRoute_EmitFailureDoesNotFailRequest verifies the
 // IMPORTANT posture: when Emit returns an error, UpdateOperationRoute
 // must still return the successfully-persisted operation route because
-// durability is owned by PG + future DLQ/outbox, not by the synchronous
+// durability is owned by PG + the configured lib-streaming policy, not by the synchronous
 // Emit call.
 func TestUpdateOperationRoute_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)

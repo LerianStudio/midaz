@@ -31,6 +31,13 @@ import (
 // Coverage:
 //   - 23 codes 400 -> 422 (ValidationError -> UnprocessableOperationError)
 //   - 1 reverse fix -> 400 (ValidationError): 0096 (was 500)
+//   - 3 caller-mistake codes lifted out of the 5xx band: 0181 -> 404, 0204 -> 400,
+//     0097 -> 422
+//
+// The golden sweep in pkg/net/http does NOT cover these: it derives the expected
+// status from the Go type on both sides, so re-typing an entry moves the
+// expectation with it and stays green. This table is what actually pins
+// sentinel -> status.
 func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -209,9 +216,35 @@ func TestMainlineErrorContract_ReclassifiedCodes(t *testing.T) {
 			expectedCode:   "0096",
 			expectedTitle:  "Invalid Account Alias",
 		},
+		// --- 3 caller-mistake codes lifted out of the 5xx band ---
+		//
+		// Each of these described something the CALLER had to fix while answering with
+		// a server-fault status, so a client could neither branch on the status nor
+		// tell its own bug from an outage — and 5xx alerting counted every one of them.
+		{
+			name:           "0181 account not found on midaz is 404 (was 500)",
+			err:            pkg.ValidateBusinessError(constant.ErrFindAccountOnMidaz, constant.EntityAccount, "@person1"),
+			expectedStatus: fiber.StatusNotFound,
+			expectedCode:   "0181",
+			expectedTitle:  "Account not found on Midaz",
+		},
+		{
+			name:           "0204 convert to decimal is 400 (was 500)",
+			err:            pkg.ValidateBusinessError(constant.ErrConvertToDecimal, constant.EntityTransaction, "amount"),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0204",
+			expectedTitle:  "Error to convert values",
+		},
+		{
+			name:           "0097 int64 overflow is 422 (was 500)",
+			err:            pkg.ValidateBusinessError(constant.ErrOverFlowInt64, constant.EntityTransaction),
+			expectedStatus: fiber.StatusUnprocessableEntity,
+			expectedCode:   "0097",
+			expectedTitle:  "Overflow Error",
+		},
 	}
 
-	require.Len(t, tests, 24, "the reclassification table is 24 codes (23 move-422 + 1 reverse fix)")
+	require.Len(t, tests, 27, "the reclassification table is 27 codes (23 move-422 + 1 reverse fix + 3 caller-mistake lifts)")
 
 	runErrorContractCases(t, tests)
 }
@@ -237,24 +270,27 @@ func TestMainlineErrorContract_DependencyFaultCodes(t *testing.T) {
 			err:            pkg.ValidateBusinessError(constant.ErrMidazQueryFailed, constant.EntityTransaction),
 			expectedStatus: fiber.StatusServiceUnavailable,
 			expectedCode:   "0228",
-			// >=500 scrub: MapError sets Title to http.StatusText(503). code+status frozen.
-			expectedTitle: "Service Unavailable",
+			// The ledger publishes >=500 registry titles rather than the status text (DisableHighStatusScrub);
+			// code+status stay frozen.
+			expectedTitle: "Service dependency unavailable",
 		},
 		{
 			name:           "0231 missing segment context is 500 (server config fault)",
 			err:            pkg.ValidateBusinessError(constant.ErrMissingSegmentContext, ""),
 			expectedStatus: fiber.StatusInternalServerError,
 			expectedCode:   "0231",
-			// >=500 scrub: MapError sets Title to http.StatusText(500). code+status frozen.
-			expectedTitle: "Internal Server Error",
+			// The ledger publishes >=500 registry titles rather than the status text (DisableHighStatusScrub);
+			// code+status stay frozen.
+			expectedTitle: "Segment context unavailable",
 		},
 		{
 			name:           "0178 transaction reservation unavailable is 503 (retryable outage)",
 			err:            pkg.ValidateBusinessError(constant.ErrTransactionReservationUnavailable, constant.EntityTransaction),
 			expectedStatus: fiber.StatusServiceUnavailable,
 			expectedCode:   "0178",
-			// >=500 scrub: MapError sets Title to http.StatusText(503). code+status frozen.
-			expectedTitle: "Service Unavailable",
+			// The ledger publishes >=500 registry titles rather than the status text (DisableHighStatusScrub);
+			// code+status stay frozen.
+			expectedTitle: "Transaction Reservation Unavailable Error",
 		},
 	}
 

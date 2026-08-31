@@ -239,19 +239,23 @@ services:
     networks:
       - infra-network
 
-  # One-shot topic provisioner for lib-streaming. lib-streaming v1.6.2 has no
+  # One-shot topic provisioner for lib-streaming. lib-streaming has no
   # client-side topic auto-create, so every topic the platform emits to must be
-  # pre-created or emits fail on a healthy broker. Runs once after the broker is
-  # healthy, creates every topic idempotently ("|| true"), then exits.
+  # pre-created or emits fail on a healthy broker AND trip the producer circuit
+  # breaker, poisoning every later emit. Runs once after the broker is healthy,
+  # creates every topic idempotently ("|| true"), then exits.
   #
-  # Topic set is the FULL platform catalog derived from the two canonical
-  # registration functions — DO NOT hand-edit stale entries; keep in sync with:
-  #   - midazEventDefinitions()  (components/ledger/internal/bootstrap/streaming.go) — 49 ledger/fee/crm topics
-  #   - tracerEventDefinitions() (components/tracer/internal/bootstrap/streaming.go) — 12 tracer_rule.*/tracer_limit.* topics
-  # Total: 62 topics. Topic name = "lerian.streaming.<service>_<resource>.<event>".
-  # Note: lerian.streaming.billing.recorded is registered separately via
-  # billing.Definition() (not midazEventDefinitions()), so it is an explicit
-  # addition below rather than a member of the two catalog functions above.
+  # ONE TOPIC PER PRODUCING APPLICATION. The topic name is
+  # "lerian.streaming.{app}" where {app} is the application's ce-source
+  # (STREAMING_CLOUDEVENTS_SOURCE): "ledger" for the ledger binary and "tracer"
+  # for tracer. Every event an application emits rides its single topic, whatever
+  # the resource or event type — the per-event topic shape is gone, so this list
+  # no longer has to track the event registry by hand.
+  #
+  # Each application also owns a ".dlq" where a failed publish is copied. In
+  # production provision it with max.message.bytes at or above its source topic's:
+  # a DLQ record is strictly larger than the record it quarantines, so a near-cap
+  # record that fails could otherwise never fit.
   midaz-redpanda-init:
     container_name: midaz-redpanda-init
     image: redpandadata/redpanda:v24.2.7
@@ -263,72 +267,12 @@ services:
     command:
       - -c
       - |
-        # ledger core (35)
-        rpk topic create lerian.streaming.ledger_account.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_account.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_account.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_asset.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_asset.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_asset.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_balance.changed -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_balance.config_changed -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_balance.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_balance.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_balance.overdraft_cleared -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_balance.overdraft_drawn -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_balance.overdraft_repaid -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_ledger.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_ledger.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_ledger.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_operation_route.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_operation_route.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_operation_route.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_organization.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_organization.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_organization.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_portfolio.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_portfolio.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_portfolio.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_segment.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_segment.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_segment.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_transaction.canceled -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_transaction.committed -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_transaction.posted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_transaction.reverted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_transaction_route.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_transaction_route.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.ledger_transaction_route.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        # fees (7) — embedded in the ledger binary, ce-source lerian.midaz.ledger
-        rpk topic create lerian.streaming.fee_billing_packages.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.fee_billing_packages.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.fee_billing_packages.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.fee_charge.applied -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.fee_packages.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.fee_packages.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.fee_packages.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        # crm (7) — embedded in the ledger binary, ce-source lerian.midaz.ledger
-        rpk topic create lerian.streaming.crm_holder.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.crm_holder.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.crm_holder.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.crm_instrument.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.crm_instrument.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.crm_instrument.related_party_deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.crm_instrument.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        # tracer (12) — ce-source lerian.midaz.tracer
-        rpk topic create lerian.streaming.tracer_limit.activated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.tracer_limit.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.tracer_limit.deactivated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.tracer_limit.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.tracer_limit.drafted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.tracer_limit.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.tracer_rule.activated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.tracer_rule.created -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.tracer_rule.deactivated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.tracer_rule.deleted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.tracer_rule.drafted -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.tracer_rule.updated -r 1 -p 1 --brokers midaz-redpanda:9092 || true
-        rpk topic create lerian.streaming.billing.recorded -r 1 -p 1 --brokers midaz-redpanda:9092 || true
+        # ledger (ce-source "ledger"): whole catalog — ledger core, fees, CRM
+        rpk topic create lerian.streaming.ledger -r 1 -p 1 --brokers midaz-redpanda:9092 || true
+        rpk topic create lerian.streaming.ledger.dlq -r 1 -p 1 --brokers midaz-redpanda:9092 || true
+        # tracer (ce-source "tracer"): whole catalog — rule and limit lifecycles
+        rpk topic create lerian.streaming.tracer -r 1 -p 1 --brokers midaz-redpanda:9092 || true
+        rpk topic create lerian.streaming.tracer.dlq -r 1 -p 1 --brokers midaz-redpanda:9092 || true
     networks:
       - infra-network
 

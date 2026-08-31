@@ -22,9 +22,11 @@ type CreateLedgerInput struct {
 	// example: {"department": "Finance", "currency": "USD", "region": "North America"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 
-	// Dynamic configuration settings for this ledger. When nil, no settings are persisted (optional).
+	// Dynamic configuration settings for this ledger. Absent groups and absent fields fall back
+	// to their defaults; nothing is persisted when the result equals the defaults.
+	// required: false
 	// example: {"accounting": {"validateAccountType": true}}
-	Settings *LedgerSettings `json:"settings,omitempty" validate:"omitempty"`
+	Settings *LedgerSettingsInput `json:"settings,omitempty" validate:"omitempty"`
 }
 
 // UpdateLedgerInput is a struct designed to encapsulate request update payload data.

@@ -78,6 +78,16 @@ type Config struct {
 	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
 	JWKAddress  string `env:"CASDOOR_JWK_ADDRESS"`
 
+	// Resource-inventory (RI) permission declaration against the IdP (identity, :4001),
+	// distinct from PLUGIN_AUTH_HOST (auth, :4000). RI is OPTIONAL and fail-open: an unset
+	// or invalid IDP_DECLARATION_ENABLED decodes to false (safe), and empty host/credentials
+	// never block boot — the publisher handles incomplete config fail-open. IDPM2MClientSecret
+	// MUST NOT be logged, span-attached, or serialized.
+	DeclarationEnabled bool   `env:"IDP_DECLARATION_ENABLED"`
+	IDPHost            string `env:"IDP_HOST"`
+	IDPM2MClientID     string `env:"IDP_M2M_CLIENT_ID"`
+	IDPM2MClientSecret string `env:"IDP_M2M_CLIENT_SECRET"`
+
 	// Redis configuration (shared across domains)
 	// Defaults are applied programmatically by applyConfigDefaults after env loading.
 	RedisHost                    string `env:"REDIS_HOST"`
@@ -218,13 +228,6 @@ type Config struct {
 	FeesPrefixedMongoDBParameters string `env:"MONGO_FEES_PARAMETERS"`
 	FeesPrefixedMaxPoolSize       int    `env:"MONGO_FEES_MAX_POOL_SIZE"`
 	FeesPrefixedMongoTLSCACert    string `env:"MONGO_FEES_TLS_CA_CERT"`
-
-	// --- Fee engine config (FEES_* / DEFAULT_CURRENCY) ---
-	// DEFAULT_CURRENCY keeps its bare env name (carried verbatim from the
-	// standalone fees service) so existing deployments need no rename. It is the
-	// fallback currency used by the fee calculation engine when a fee leg does
-	// not specify one. Defaults to "USD" in applyConfigDefaults when unset.
-	FeesDefaultCurrency string `env:"DEFAULT_CURRENCY"`
 
 	// --- RabbitMQ (transaction domain only) ---
 	RabbitURI                                string `env:"RABBITMQ_URI"`
@@ -581,9 +584,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	// 4c. Fees MongoDB → pack/billing-package repos (collapsed from the
-	// standalone plugin-fees service in P4). The constructors ensure the 11
+	// standalone fees service in P4). The constructors ensure the 11
 	// compound indexes on the static connection's DB at startup. In MT mode a
-	// fee tenant Mongo manager (module plugin-fees) is also built; per-request
+	// fee tenant Mongo manager (module constant.ModuleFees) is also built; per-request
 	// DB resolution lands on tmcore via the route-scoped middleware.
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing fees MongoDB...")
 
@@ -639,6 +642,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		rmq.mongoManager = txnMgo.mongoManager
 	}
 
+	// Declared ahead of the worker section so the dispatcher callbacks below can
+	// reach it. They only run once Service.Run starts the event listener, long
+	// after the assignment.
+	var balanceSyncWorker *BalanceSyncWorker
+
 	// === Event Dispatcher & Listener (multi-tenant only) ===
 	// Created AFTER infrastructure init so the dispatcher receives the PG, Mongo, and RabbitMQ
 	// managers. This allows removeTenant to close infrastructure connections when a tenant is
@@ -653,6 +661,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			// entry has TTL-expired (the default cache-based check would miss it and skip
 			// the reload that restarts the consumer, leaving it stopped).
 			tmevent.WithTenantOwnershipChecker(func(tenantID string) bool {
+				// A balance-sync collector is as much a live consumer goroutine as a
+				// RabbitMQ one: without this a tenant whose only activity is balance
+				// sync would be reported unowned and its reload skipped.
+				if balanceSyncWorker != nil && balanceSyncWorker.HasCollector(tenantID) {
+					return true
+				}
+
 				if rmq == nil || rmq.multiTenantConsumer == nil {
 					return false
 				}
@@ -677,6 +692,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			tmevent.WithOnTenantRemoved(func(ctx context.Context, tenantID string) {
 				if rmq != nil && rmq.multiTenantConsumer != nil {
 					rmq.multiTenantConsumer.StopConsumer(tenantID)
+				}
+
+				// MUST precede the transaction PG close: stopping the collector drains
+				// its buffered keys, and that final flush needs a live pool.
+				if balanceSyncWorker != nil {
+					balanceSyncWorker.StopTenantCollector(tenantID)
 				}
 
 				// Close ALL postgres managers (onboarding + transaction)
@@ -718,7 +739,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 				if feeMgo.mongoManager != nil {
 					if err := feeMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
-						logger.Log(ctx, libLog.LevelWarn, "failed to close plugin-fees Mongo connection",
+						logger.Log(ctx, libLog.LevelWarn, "failed to close fees Mongo connection",
 							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
 					}
 				}
@@ -808,12 +829,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		addCleanup(func() { _ = streamingClose() })
 	}
 
-	// === Billing serializer (metering) ===
-	// Built once here (one Schema Registry round-trip at construction), never on
-	// the request path. Graceful degradation: a nil value means billing is
-	// disabled (registry absent/unreachable at boot) and never fails startup.
-	billingSerializer := buildBillingSerializerFromEnv(context.Background(), logger)
-
 	// === Use cases ===
 
 	// Arm lib-observability's panic-observability trident so every
@@ -854,18 +869,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MetricsFactory: metricsFactory,
 	}
 
-	// Nil-guard the billing serializer assignment via the tested UseCase setter:
-	// buildBillingSerializerFromEnv returns a concrete *billing.Serializer, and a
-	// nil one assigned directly to the interface field would become a non-nil
-	// typed-nil interface. SetBillingSerializer keeps that guard in one place, so
-	// commandUseCase.BillingSerializer stays nil (the "billing disabled" signal).
-	commandUseCase.SetBillingSerializer(billingSerializer)
-
-	// Selects the active-account billing subscription identity: the resolved
-	// tenant ID when multi-tenant is enabled, otherwise the transaction's
-	// OrganizationID.
-	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
-
 	queryUseCase := &query.UseCase{
 		// Onboarding domain
 		OrganizationRepo:       onbPG.organizationRepo,
@@ -895,11 +898,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// The command UseCase reads cached settings and asserts holder existence
 	// through narrow ports so it never imports the query or CRM packages.
 	// HolderReader adapts the CRM holder service; SettingsReader is satisfied
-	// directly by the query UseCase (signatures match); HolderProvisioner is
-	// satisfied directly by the CRM holder service's CreateHolderWithID.
+	// directly by the query UseCase (signatures match).
 	commandUseCase.HolderReader = holderReaderAdapter{service: crmMgo.holderHandler.Service}
 	commandUseCase.SettingsReader = queryUseCase
-	commandUseCase.HolderProvisioner = crmMgo.holderHandler.Service
 
 	// === CRM domain metrics (D6) ===
 	// The holder and instrument handlers share the SAME CRM use-case instance,
@@ -930,7 +931,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// account/segment/count reads run in-process. HTTP route mounting is
 	// deferred to the next chunk (P4-T10/T17); here the fee use cases are only
 	// constructed + held so they are not dead code.
-	fees, err := initFees(feeMgo, queryUseCase, cfg, logger, streamingEmitter)
+	fees, err := initFees(feeMgo, queryUseCase, logger, streamingEmitter)
 	if err != nil {
 		doCleanup()
 		return nil, fmt.Errorf("failed to initialize fee use cases: %w", err)
@@ -1041,12 +1042,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, err
 	}
 
-	// === Route registrars ===
-
-	onboardingRouteRegistrar := func(router fiber.Router) {
-		httpin.RegisterOnboardingRoutesToApp(router, auth, accountHandler, portfolioHandler, ledgerHandler, organizationHandler, segmentHandler, accountTypeHandler, routeSetup.onboardingRouteOptions)
-	}
-
 	// Wave-3 (additive) handlers are constructed here, BEFORE the HumaMountDeps that
 	// carries them, because MountV1/MountV2 wire their Huma terminals + Fiber auth
 	// chain on the shared contract.
@@ -1055,14 +1050,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// (midaz:{holders,instruments}, encoded in the route definitions). The CRM-scoped
 	// tenant middleware travels via routeSetup.crmRouteOptions. The holder-accounts
 	// handler reads ledger accounts through a thin adapter over the query UseCase so the
-	// CRM HTTP layer never imports ledger internals.
+	// CRM HTTP layer never imports ledger internals; because it reads onboarding stores
+	// rather than CRM ones, its route carries routeSetup.holderAccountsRouteOptions.
 	holderAccountsHandler := &httpin.HolderAccountsHandler{
 		Reader: holderAccountsReaderAdapter{query: queryUseCase},
 	}
 
 	// Fee/billing handlers wire directly to the in-process fee use cases built by
 	// initFees (no reconstruction). The fee UseCase satisfies both the package CRUD and
-	// fee-estimate handler interfaces. Fees authorizes under the plugin-fees namespace
+	// fee-estimate handler interfaces. Fees authorizes under the midaz namespace
 	// (encoded in the route definitions); its tenant middleware travels via
 	// routeSetup.feesRouteOptions.
 	feePackageHandler := &httpin.PackageHandler{Service: fees.useCase}
@@ -1077,10 +1073,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	compositionService := composition.NewService(commandUseCase, crmMgo.instrumentHandler.Service)
 	compositionHandler := &httpin.CompositionHandler{Service: compositionService}
 
-	logger.Log(
-		context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server",
-		libLog.String("default_currency", fees.useCase.DefaultCurrency()),
-	)
+	logger.Log(context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server")
 
 	// humaMountDeps is the single mount list both contract versions build from. The
 	// per-registrar options rationale (why metadata-index takes ledgerRouteOptions
@@ -1099,7 +1092,20 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		routeSetup,
 	)
 
-	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
+	// Streaming manifest route (catalog-only lib-streaming manifest). Built
+	// DEGRADED-SAFE and INDEPENDENT of STREAMING_ENABLED: the manifest advertises
+	// the event taxonomy even with publication off. A build error logs at Warn and
+	// leaves the route unmounted (the hub sees 404), never failing ledger startup.
+	streamingManifestHandler, streamingManifestErr := BuildStreamingManifestHandler(cfg)
+	if streamingManifestErr != nil {
+		logger.Log(context.Background(), libLog.LevelWarn,
+			"Streaming manifest route disabled: failed to build manifest handler",
+			libLog.Err(streamingManifestErr))
+	}
+
+	streamingManifestRegistrar := func(router fiber.Router) {
+		httpin.RegisterStreamingManifestRouteToApp(router, auth, routeSetup.onboardingRouteOptions, streamingManifestHandler)
+	}
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
@@ -1123,8 +1129,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		readyzHandler,
 		humaMountDeps.MountV1,
 		humaMountDeps.MountV2,
-		onboardingRouteRegistrar,
-		ledgerRouteRegistrar,
+		streamingManifestRegistrar,
 	)
 
 	// === Workers ===
@@ -1144,7 +1149,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		WithMetricsFactory(metricsFactory)
 
 	// BalanceSyncWorker: multi-tenant or single-tenant
-	balanceSyncWorker := initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
+	balanceSyncWorker = initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
 	balanceSyncWorker.WithMetricsFactory(metricsFactory)
 
 	// Legacy drainer: drains pre-v3.6.2 ZSET entries (balance-sync key with seconds/microsecond scores).
@@ -1154,6 +1159,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		FlushTimeoutMs: 2000,
 		PollIntervalMs: 1000,
 	})
+
+	// SaaS TLS gate for the RI declaration publisher's IdP dial. Placed before the
+	// success log so an explicit http:// IDP_HOST under DEPLOYMENT_MODE=saas refuses
+	// boot rather than claiming a successful start. Mirrors the streaming TLS gate:
+	// no-op unless DEPLOYMENT_MODE=saas AND RI declaration is enabled AND IDP_HOST is
+	// an explicit cleartext http:// URL. It is a synchronous boot validation — it
+	// opens no connection and starts no goroutine.
+	if err := ValidateSaaSDeclarationTLS(cfg.DeploymentMode, cfg.DeclarationEnabled, cfg.IDPHost); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to validate RI declaration IdP TLS: %w", err)
+	}
 
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
@@ -1178,6 +1195,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory:           rmq.metricsFactory,
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
+		DeclarationStops:         buildDeclarationPublishers(cfg, auth, logger),
 		TracerClose:              tracerClose,
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,
@@ -1459,6 +1477,21 @@ type unifiedRouteSetup struct {
 	crmRouteOptions         *midazhttp.ProtectedRouteOptions
 	feesRouteOptions        *midazhttp.ProtectedRouteOptions
 	compositionRouteOptions *midazhttp.ProtectedRouteOptions
+
+	holderAccountsRouteOptions *midazhttp.ProtectedRouteOptions
+
+	// feesTenantMiddleware is the fee-route tenant middleware instance, exposed so
+	// its configured module managers stay pinnable by a same-package regression
+	// test. Nil in single-tenant mode, where no tenant middleware is built.
+	feesTenantMiddleware *tmmiddleware.TenantMiddleware
+
+	// holderAccountsTenantMiddleware is the holder-accounts tenant middleware
+	// instance, exposed on the same terms as feesTenantMiddleware.
+	holderAccountsTenantMiddleware *tmmiddleware.TenantMiddleware
+
+	// compositionTenantMiddleware is the holder-account composition tenant
+	// middleware instance, exposed on the same terms as feesTenantMiddleware.
+	compositionTenantMiddleware *tmmiddleware.TenantMiddleware
 }
 
 func buildUnifiedRouteSetup(
@@ -1537,59 +1570,106 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
-	// Fees tenant middleware is its own SEPARATE instance carrying ONLY the
-	// plugin-fees Mongo manager, for the same isolation reason as CRM: mounting
-	// the fee WithTenantDB on the onboarding/transaction middleware (or globally)
-	// would overwrite the tenant Mongo that ledger handlers resolve. It is
-	// attached only to fee routes via feesRouteOptions below.
+	// Fees tenant middleware is its own SEPARATE instance, attached only to fee
+	// routes via feesRouteOptions below (never global, never on ledger routes),
+	// for the same isolation reason as CRM: mounting a generic-key WithTenantDB
+	// globally would overwrite the tenant Mongo that ledger handlers resolve.
+	// Route scoping keeps every key this instance writes off ledger routes, so
+	// the generic-key fees MB write cannot collide with the module-keyed
+	// onboarding/transaction injection ledger routes carry.
 	//
-	// WithMB is called WITHOUT a module name (single-manager mode) on purpose:
-	// the fee pack/billing_package repos read tmcore.GetMBContext(ctx) on the
-	// GENERIC key (the standalone fees service ran single-module — it registered
-	// its manager under the SERVICE name with no WithModule). A module-keyed
-	// WithMB would write the plugin-fees key while the repos read the generic
-	// key, so MT fee requests would fail DB resolution. Route scoping keeps the
-	// generic-key write from colliding with the module-keyed onboarding/
-	// transaction injection on ledger routes. (The manager itself still carries
-	// WithModule(ModuleFees) for tenant-manager DB resolution; that is a separate
-	// concern from the request-context key.) Same cache/loader are reused.
+	// WithMB(feesMongoManager) stays WITHOUT a module name (generic key): the fee
+	// pack/billing_package repos read tmcore.GetMBContext(ctx) on the GENERIC key,
+	// so a module-keyed fees MB would fail their DB resolution.
+	//
+	// The module-keyed injections cover the stores the fee paths reach beyond the
+	// fee Mongo: fee package create/update and estimate validate account aliases
+	// through the onboarding account repo (onboarding PG); billing/calculate
+	// counts transactions through the transaction repo (transaction PG, volume
+	// branch); account enrichment reads the onboarding metadata repo (onboarding
+	// MB). These module keys are distinct from the generic key, so they coexist
+	// with the fees MB on this instance without collision.
+	//
+	// Fee routes therefore hard-depend on the tenant having both onboarding and
+	// transaction PG provisioning, because this middleware eagerly resolves every
+	// registered manager on each fee request.
 	feesTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithPG(transactionPGManager, constant.ModuleTransaction),
+		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
 		tmmiddleware.WithMB(feesMongoManager),
 		tmmiddleware.WithTenantCache(tenantCache),
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
+	setup.feesTenantMiddleware = feesTenantMiddleware
 
-	// Composition tenant middleware is its own SEPARATE instance spanning BOTH
-	// stores the holder-account composition touches: the onboarding PostgreSQL
-	// (module-keyed) for the account write AND the CRM Mongo (generic key) for
-	// the instrument write. It is attached ONLY to composition routes via
-	// compositionRouteOptions below — never global, never on ledger routes.
-	// Mounting it globally (or on the onboarding/transaction middleware) would
-	// bleed the generic CRM Mongo key onto ledger routes and overwrite the
-	// tenant Mongo that ledger handlers resolve, leaking one tenant's CRM DB
-	// into a concurrent ledger request — the precise cross-store leak this
-	// instance exists to prevent.
+	// Composition tenant middleware is its own SEPARATE instance carrying every
+	// store the holder-account composition writes or reads. It is attached ONLY
+	// to composition routes via compositionRouteOptions below — never global,
+	// never on ledger routes. Mounting it globally (or on the
+	// onboarding/transaction middleware) would bleed the generic CRM Mongo key
+	// onto ledger routes and overwrite the tenant Mongo that ledger handlers
+	// resolve, leaking one tenant's CRM DB into a concurrent ledger request —
+	// the precise cross-store leak this instance exists to prevent.
 	//
-	// WithPG carries constant.ModuleOnboarding because composition writes the
-	// account through the onboarding account repo, which resolves the
-	// module-keyed PG context. WithMB is called WITHOUT a module name
-	// (single-manager mode), matching the CRM block above: the CRM instrument
-	// repo reads tmcore.GetMBContext(ctx) on the GENERIC key. Route scoping
-	// keeps that generic-key write from colliding with the module-keyed
-	// onboarding/transaction injection on ledger routes. The transaction PG
-	// manager is DELIBERATELY excluded: composition writes the onboarding
-	// account and the CRM instrument only and never touches the transaction PG.
+	// The composition POST reaches four stores, and each key below answers one:
+	//
+	//  1. onboarding PG (module-keyed) — the account row, plus the ledger
+	//     settings and parent/alias reads the create path performs.
+	//  2. transaction PG (module-keyed) — CreateAccount ALWAYS creates the
+	//     default balance, and the balance repo resolves the transaction module
+	//     key with requireTenant set, so a missing injection is a hard 500.
+	//  3. onboarding Mongo (module-keyed) — the account metadata write. The
+	//     metadata repo looks the module key up FIRST and falls back to the
+	//     generic key, so omitting it would send the write to whichever store
+	//     owns the generic key (the CRM Mongo below): a silent cross-store write,
+	//     not an error.
+	//  4. CRM Mongo (generic key) — the instrument write and the holder-existence
+	//     read, which predate module-keyed resolution and read
+	//     tmcore.GetMBContext(ctx) on the GENERIC key. Route scoping keeps that
+	//     generic-key write from colliding with the module-keyed
+	//     onboarding/transaction injection on ledger routes.
+	//
+	// Nothing on the path resolves a tenant Valkey: the ledger-settings cache is
+	// best-effort over the static client, so no cache manager is registered here.
+	//
 	// Same tenantCache/tenantLoader are reused (no second cache/loader).
 	compositionTenantMiddleware := tmmiddleware.NewTenantMiddleware(
 		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithPG(transactionPGManager, constant.ModuleTransaction),
+		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
 		tmmiddleware.WithMB(crmMongoManager),
 		tmmiddleware.WithTenantCache(tenantCache),
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
+	setup.compositionTenantMiddleware = compositionTenantMiddleware
 
+	// The holder-accounts listing reads onboarding stores only: the account rows
+	// come from the onboarding PG account repo and their metadata from the
+	// onboarding Mongo metadata repo. Both are MODULE-keyed — the metadata repo
+	// looks up the module key first, so binding onboarding Mongo to the generic
+	// key instead would send the lookup to whichever store owns that key.
+	//
+	// The CRM Mongo manager is deliberately absent: this route never reads a CRM
+	// collection, and this middleware resolves every registered manager eagerly,
+	// so including it would make the listing depend on CRM provisioning it does
+	// not use. A holder-existence gate on this route would change that.
+	holderAccountsTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
+	)
+	setup.holderAccountsTenantMiddleware = holderAccountsTenantMiddleware
+
+	// Built from the module constants rather than spelled out: an operator provisions a
+	// tenant from this line, and a literal that drifts from constant.Module* hands them a
+	// database key the resolver will never look up.
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Tenant middleware configured",
-		libLog.String("modules", "onboarding,transaction,crm-api,plugin-fees"),
+		libLog.String("modules", strings.Join([]string{
+			constant.ModuleOnboarding, constant.ModuleTransaction, constant.ModuleCRM, constant.ModuleFees,
+		}, ",")),
 	)
 
 	authAssertion := midazhttp.MarkTrustedAuthAssertion()
@@ -1611,8 +1691,7 @@ func buildUnifiedRouteSetup(
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmTenantMiddleware.WithTenantDB},
 	}
 
-	// Fee routes get the fees-only tenant middleware instance. The next chunk
-	// (P4-T10) consumes feesRouteOptions when it mounts the fee RouteRegistrar.
+	// Fee routes get the fees-only tenant middleware instance.
 	setup.feesRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, feesTenantMiddleware.WithTenantDB},
 	}
@@ -1622,6 +1701,13 @@ func buildUnifiedRouteSetup(
 	// routes only.
 	setup.compositionRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, compositionTenantMiddleware.WithTenantDB},
+	}
+
+	// The holder-accounts route gets its own onboarding-only tenant middleware
+	// instance rather than the CRM one, which binds the CRM Mongo on the generic
+	// key and no onboarding PG at all.
+	setup.holderAccountsRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, holderAccountsTenantMiddleware.WithTenantDB},
 	}
 
 	return setup, nil
@@ -1700,6 +1786,8 @@ func buildHumaMountDeps(
 		CRMOptions:         setup.crmRouteOptions,
 		FeesOptions:        setup.feesRouteOptions,
 		CompositionOptions: setup.compositionRouteOptions,
+
+		HolderAccountsOptions: setup.holderAccountsRouteOptions,
 	}
 }
 
@@ -1809,13 +1897,6 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceSyncBatchSize, 50)
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
-
-	// Fee engine default currency. The standalone fees service shipped with no
-	// hard default (DEFAULT_CURRENCY was required env); the unified binary must
-	// not fail fee construction when the var is unset, so fall back to "USD".
-	if strings.TrimSpace(cfg.FeesDefaultCurrency) == "" {
-		cfg.FeesDefaultCurrency = "USD"
-	}
 }
 
 // buildTracerReserver constructs the tracer reservation HTTP client when the

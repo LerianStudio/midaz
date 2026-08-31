@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,8 +39,8 @@ func newUpdateStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitte
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	mockAccountRepo.EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, orgID, ledgerID uuid.UUID, _ *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOffV1).
+		DoAndReturn(func(_ context.Context, orgID, ledgerID uuid.UUID, _ *uuid.UUID, id uuid.UUID, _ mmodel.HolderPolicy) (*mmodel.Account, error) {
 			return &mmodel.Account{
 				ID:             id.String(),
 				OrganizationID: orgID.String(),
@@ -93,7 +93,7 @@ func TestUpdateAccount_EmitsAccountUpdatedEvent(t *testing.T) {
 		Status: mmodel.Status{Code: "ACTIVE"},
 	}
 
-	acc, err := uc.UpdateAccount(ctx, orgID, ledgerID, nil, accountID, input)
+	acc, err := uc.UpdateAccount(ctx, orgID, ledgerID, nil, accountID, input, mmodel.HolderOffV1)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 
@@ -139,7 +139,7 @@ func TestUpdateAccount_NoopEmitterDoesNotPanic(t *testing.T) {
 		Status: mmodel.Status{Code: "ACTIVE"},
 	}
 
-	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input)
+	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input, mmodel.HolderOffV1)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 }
@@ -147,7 +147,7 @@ func TestUpdateAccount_NoopEmitterDoesNotPanic(t *testing.T) {
 // TestUpdateAccount_EmitFailureDoesNotFailRequest verifies the IMPORTANT
 // posture: when Emit returns an error, UpdateAccount must still return
 // the successfully-persisted account because durability is owned by PG
-// + future DLQ/outbox, not by the synchronous Emit call.
+// + the configured lib-streaming policy, not by the synchronous Emit call.
 func TestUpdateAccount_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -160,7 +160,7 @@ func TestUpdateAccount_EmitFailureDoesNotFailRequest(t *testing.T) {
 		Status: mmodel.Status{Code: "ACTIVE"},
 	}
 
-	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input)
+	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input, mmodel.HolderOffV1)
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, acc)
 }
@@ -180,7 +180,7 @@ func TestUpdateAccount_NilStreamingDoesNotPanic(t *testing.T) {
 		Status: mmodel.Status{Code: "ACTIVE"},
 	}
 
-	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input)
+	acc, err := uc.UpdateAccount(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), input, mmodel.HolderOffV1)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 }

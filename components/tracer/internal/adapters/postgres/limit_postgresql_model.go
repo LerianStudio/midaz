@@ -28,7 +28,7 @@ type LimitPostgreSQLModel struct {
 	Description     sql.NullString  `db:"description"`
 	LimitType       string          `db:"limit_type"`
 	MaxAmount       decimal.Decimal `db:"max_amount"`
-	Currency        string          `db:"currency"`
+	Asset           string          `db:"asset"`
 	Scopes          string          `db:"scopes"`
 	Status          string          `db:"status"`
 	ResetAt         sql.NullTime    `db:"reset_at"`
@@ -132,7 +132,7 @@ func (m *LimitPostgreSQLModel) ToEntity() (*model.Limit, error) {
 		Description:     description,
 		LimitType:       limitType,
 		MaxAmount:       m.MaxAmount,
-		Currency:        m.Currency,
+		Asset:           m.Asset,
 		Scopes:          scopes,
 		Status:          status,
 		ResetAt:         resetAt,
@@ -162,7 +162,7 @@ func (m *LimitPostgreSQLModel) FromEntity(entity *model.Limit) error {
 	m.Name = entity.Name
 	m.LimitType = string(entity.LimitType)
 	m.MaxAmount = entity.MaxAmount
-	m.Currency = entity.Currency
+	m.Asset = entity.Asset
 	m.Status = string(entity.Status)
 	m.CreatedAt = entity.CreatedAt
 	m.UpdatedAt = entity.UpdatedAt

@@ -1,6 +1,6 @@
 # Lerian Midaz — Full Reference
 
-> Source-available (Elastic License 2.0) core banking platform in a single Go 1.26.4 monorepo (v4 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v6` v6.2.0 + `lib-observability/v2` v2.1.0. Three deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/instruments + fees, :3002), a Tracer real-time transaction-validation / fraud-prevention API (:4020), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via the lib-commons v6 tenant-manager.
+> Source-available (Elastic License 2.0) core banking platform in a single Go 1.27.0 monorepo (v4 module path, single root go.mod — no go.work) on `github.com/LerianStudio/lib-commons/v6` v6.8.1 + `lib-observability/v2` v2.1.3. Three deploy units: a unified Ledger HTTP API (onboarding + transaction + CRM holders/instruments + fees, :3002), a Tracer real-time transaction-validation / fraud-prevention API (:4020), plus an Infra docker-compose backing stack. Uses PostgreSQL (primary/replica), MongoDB (metadata + CRM + fees), RabbitMQ (async transactions), and Valkey/Redis (caching). Supports multi-tenant isolation via the lib-commons v6 tenant-manager.
 
 ---
 
@@ -67,7 +67,7 @@ midaz/
 │   │   ├── cmd/app/         # main.go entry point
 │   │   ├── internal/
 │   │   │   ├── adapters/
-│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes (incl. fees_routes.go, crm_routes.go, holder/instrument handlers)
+│   │   │   │   ├── http/in/ # Fiber HTTP handlers + routes (incl. fee_package_routes.go, holder_routes.go, instrument_routes.go, holder/instrument handlers)
 │   │   │   │   ├── http/out/# Outbound HTTP clients
 │   │   │   │   ├── postgres/# PostgreSQL repositories (onboarding + transaction)
 │   │   │   │   ├── mongodb/ # MongoDB metadata + fees repositories
@@ -159,6 +159,7 @@ All models live in `pkg/mmodel/`. Key entities:
 - Optimistic concurrency via Version field (lock version)
 - Supports additional balances per account (e.g., multi-currency)
 - Balance history queries via timestamp
+- POST additional balance with `settings.allowOverdraft=true` provisions the system-managed `overdraft` companion balance (key=`overdraft`, direction=`debit`, scope=`internal`)
 
 ### 3.7 Operation Route / Transaction Route
 - Operation routes define per-operation rules (source/destination/bidirectional)
@@ -182,9 +183,11 @@ All models live in `pkg/mmodel/`. Key entities:
 
 The HTTP layer is **Huma v2 (OAS 3.1) over Fiber v3**: Fiber remains the runtime router, auth
 chain, and middleware stack, while Huma sits on top to generate the OpenAPI contract and validate
-typed request/response structs. API errors serialize as **RFC 9457 `application/problem+json`** — a
-`type`/`title`/`status`/`detail`/`instance` document extended with `code` and `entityType`; the
-`(code, status)` tuple per business error is preserved (HTTP status codes are unchanged). The native
+typed request/response structs. The API error envelope is chosen by ROUTE VERSION: `>= /v2`
+serializes **RFC 9457 `application/problem+json`** — a `type`/`title`/`status`/`detail`/`instance`
+document extended with `code` and `entityType` — while `/v1` keeps the midaz v3
+`{entityType?, title, message, code, fields?}` body at `application/json` for clients already in
+production. The `(code, status)` tuple per business error is identical on both. The native
 OpenAPI 3.1 spec and Scalar docs UI are served differently per component. The ledger serves one spec
 and docs UI at the root — `/openapi.{json,yaml}` and `/docs` — from a single contract that carries
 both its `/v1` and `/v2` paths. The tracer serves its own spec and docs UI under `/v1` —
@@ -336,7 +339,7 @@ an instrument create-body field and an optional `GET .../instruments` list filte
 | GET | /v2/organizations/{organization_id}/holders/{id} | Get a holder (authz `midaz`/`holders`) |
 | PATCH | /v2/organizations/{organization_id}/holders/{id} | Update a holder (authz `midaz`/`holders`) |
 | DELETE | /v2/organizations/{organization_id}/holders/{id} | Delete a holder (authz `midaz`/`holders`) |
-| GET | /v2/organizations/{organization_id}/holders/{id}/accounts | List a holder's accounts org-wide (authz `midaz`/`holders`; mounted only when the ledger account-query backing is non-nil) |
+| GET | /v2/organizations/{organization_id}/holders/{id}/accounts | List a holder's accounts org-wide across every ledger, with an optional `?ledger_id=` narrowing filter (authz `midaz`/`holders`; mounted only when the ledger account-query backing is non-nil) |
 | GET | /v2/organizations/{organization_id}/instruments | List instruments (authz `midaz`/`instruments`) |
 | POST | /v2/organizations/{organization_id}/holders/{holder_id}/instruments | Create an instrument for a holder (authz `midaz`/`instruments`) |
 | GET | /v2/organizations/{organization_id}/holders/{holder_id}/instruments/{instrument_id} | Get an instrument (authz `midaz`/`instruments`) |
@@ -353,8 +356,10 @@ in legacy mode their handlers are nil and the routes are never mounted.
 
 The holder-account composition (`POST`) carries an extra `:ledger_id` segment because it creates a
 real ledger account; the holder-accounts `GET` (`HolderAccountsHandler.GetAccountsByHolder`, mounted
-only when the ledger account-query backing is non-nil) lists a holder's accounts org-wide and needs
-no ledger. The `POST` (`CompositionHandler.CreateHolderAccount`, in `composition_routes.go`) is
+only when the ledger account-query backing is non-nil) lists a holder's accounts across every ledger
+of the organization and needs no ledger. It accepts an optional `?ledger_id=` narrowing filter; a
+malformed value is `0082` / 400. Because it reads the onboarding stores rather than the CRM ones, it
+is the one CRM-path route carrying its own `holder-accounts` route options. The `POST` (`CompositionHandler.CreateHolderAccount`, in `composition_routes.go`) is
 always mounted. Holder ownership is org-scoped (matching Mongo storage), not ledger-scoped.
 
 CRM error responses carry **canonical midaz codes** (e.g. `0009`, `0046`, `0047`, `0094`) — the
@@ -365,7 +370,7 @@ are still emitted on their own paths.
 
 The fee engine + billing-package surface is embedded in the ledger binary — it is **not** a
 standalone service. Routes are registered in
-`components/ledger/internal/adapters/http/in/fees_v2_register.go` (ledger-scoped, `/v2`), under the
+`components/ledger/internal/adapters/http/in/fee_package_routes.go` and its billing siblings (ledger-scoped, `/v2`), under the
 `plugin-fees` authz namespace and served on `:3002`.
 
 Scoping is **path-based**: fee endpoints read the organization and ledger from the
@@ -396,10 +401,11 @@ reaches only what that ledger owns.
 | POST | {base}/billing/calculate | Calculate billing |
 
 On the `/v2` paths the path is the sole authority on the ledger: the nil UUID is refused as a
-`ledger_id` path value, a request body naming a different ledger is refused (`0234`), and
-`?ledgerId=` is refused on the two listings (`0235`) — its empty value would mean "every ledger",
-the one scope a ledger-scoped listing must not express. Authz is `plugin-fees` with the usual
-`(resource, verb)` tuples.
+`ledger_id` path value, `ledgerId` was removed from the create/estimate/calculate request bodies
+(a body that still sends it is rejected as an unknown field, `400`; the former mismatch guard and
+its `0234` code are retired), and `?ledgerId=` is refused on the two listings (`0235`) — its empty
+value would mean "every ledger", the one scope a ledger-scoped listing must not express. Authz is
+`plugin-fees` with the usual `(resource, verb)` tuples.
 
 Live fee calculation (`POST .../fees`) is intentionally **not** exposed — fees run in-process via
 the transaction-create seam, not over HTTP.
@@ -475,9 +481,9 @@ only when the reservation service is wired (non-nil); they are live in the defau
 
 Numeric ledger codes starting at 0001 (non-contiguous; gap at 0130). 28 CRM domain codes prefixed
 with `CRM-` (CRM-0006..CRM-0041, non-contiguous). The registry is numeric-only for the core; the
-`FEE-` / `TRC-` / `TPL-` / `REP-` prefixed families are retired (0 survivors). API errors are
-emitted as RFC 9457 `application/problem+json` (§4), preserving each sentinel's `(code, status)`
-tuple.
+`FEE-` / `TRC-` / `TPL-` / `REP-` prefixed families are retired (0 survivors). API errors are emitted
+in the envelope the route version serves (§4) — RFC 9457 `application/problem+json` on `>= /v2`, the
+midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on both.
 
 #### Ledger Error Codes (selected key codes)
 - `0007` ErrEntityNotFound — entity not found
@@ -717,8 +723,6 @@ are set programmatically by `applyConfigDefaults()`.
 | RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE | — | Balance operation queue name |
 | RABBITMQ_TRANSACTION_ASYNC | false | Enable async transaction processing |
 | RABBITMQ_OPERATION_TIMEOUT | — | Operation timeout (e.g., "30s") |
-| RABBITMQ_TRANSACTION_EVENTS_ENABLED | false | Enable transaction event exchange |
-| RABBITMQ_TRANSACTION_EVENTS_EXCHANGE | — | Events exchange name |
 | RABBITMQ_OVERDRAFT_EVENTS_ENABLED | false | Enable overdraft event publishing |
 | RABBITMQ_OVERDRAFT_EVENTS_EXCHANGE | transaction.overdraft_events.exchange | Overdraft events exchange name |
 | AUDIT_LOG_ENABLED | false | Enable audit log publishing |
@@ -783,10 +787,23 @@ are set programmatically by `applyConfigDefaults()`.
 | BALANCE_SYNC_FLUSH_TIMEOUT_MS | 500 | Max ms before flush (TIMEOUT trigger) |
 | BALANCE_SYNC_POLL_INTERVAL_MS | 50 | ZSET polling interval (ms) when draining |
 
-#### Streaming (lib-streaming/v2 v2.0.0 / Kafka)
+#### Streaming (lib-streaming/v3 v3.1.0 / Kafka)
 The master flag is `STREAMING_ENABLED`; when false, a no-op emitter is injected. The rest are
 loaded by `libStreaming.LoadConfig()` with franz-go defaults. Wire format: CloudEvents 1.0 binary
 mode on Kafka.
+
+One topic per producing application: every event a binary emits rides
+`lerian.streaming.<app>`, with `<app>` being its `STREAMING_CLOUDEVENTS_SOURCE`: `ledger` (whose
+one topic carries ledger core, fees and CRM alike) and `tracer`. A failed publish is copied to
+`lerian.streaming.<app>.dlq`. Those two topics are an application's entire write surface, with
+no exception. The source is accepted only when it is exactly the application's roster
+name (`ledger` for the ledger binary, `tracer` for tracer); any other non-blank value, malformed
+or merely different, is rejected at startup, never normalized, and the check runs even when
+`STREAMING_ENABLED=false`. A blank value (unset or whitespace-only) defaults to the roster name
+before that check, so omission passes it; an enabled producer must still set the variable, since
+`libStreaming.LoadConfig()` fail-closes on a missing source. `ce-type` is
+`studio.lerian.<app>.<resourceType>.<eventType>`; schema version travels only in
+`ce-schemaversion`, and tenant only in `ce-tenantid`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -801,7 +818,7 @@ mode on Kafka.
 | STREAMING_SASL_USERNAME | — | SASL username |
 | STREAMING_SASL_PASSWORD | — | SASL password |
 | STREAMING_ALLOW_PLAINTEXT_SASL | — | Allow SASL over plaintext |
-| STREAMING_IMPORTANT_EMIT_TIMEOUT_MS | 5000 | Bound on direct IMPORTANT-event emit latency |
+| STREAMING_IMPORTANT_EMIT_TIMEOUT_MS | 5000 | Bound on best-effort broker-publication latency |
 
 #### Service Discovery (opt-in; no-op when SD_ENABLED=false)
 Consul-backed registration + host resolution. Read by `libsd.ConfigFromEnv()`.
@@ -833,11 +850,6 @@ enabling discovery with an empty advertise address aborts boot
 | TRACER_TLS_CA_FILE | — | CA used to verify the tracer's server cert under `mtls` |
 
 Seam topology and TLS posture: [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
-
-#### Fee Engine
-| Variable | Default | Description |
-|----------|---------|-------------|
-| DEFAULT_CURRENCY | USD | Default currency for fee calculation |
 
 ### 6.2 CRM + Fees (folded into the ledger binary)
 
@@ -951,9 +963,9 @@ server identity and `TRACER_TLS_CLIENT_CA_FILE` to verify the ledger's client ce
 
 ### 7.1 Prerequisites
 
-- Go 1.26.4 (`go.mod` `go 1.26.4`; component Docker builders use `golang:1.26.3-alpine`)
+- Go 1.27.0 (`go.mod` `go 1.27.0`; component Docker builders use `golang:1.27.0-alpine`)
 - Docker (with `docker compose`)
-- golangci-lint v2.12.2
+- golangci-lint v2.13.2
 
 ### 7.2 Makefile Commands
 
@@ -1012,7 +1024,7 @@ There is no standalone CRM image — CRM ships inside the ledger image.
 |------------|---------|---------|
 | github.com/LerianStudio/lib-commons/v6 | v6.2.0 | Shared library (tenant-manager, Redis, HTTP toolkit, lifecycle, outbox, Huma/OpenAPI + RFC 9457 problem wrappers) |
 | github.com/LerianStudio/lib-observability/v2 | v2.1.0 | Logging, metrics, tracing, assertions, panic recovery, redaction |
-| github.com/LerianStudio/lib-streaming/v2 | v2.0.0 | CloudEvents/Kafka streaming producer (franz-go) |
+| github.com/LerianStudio/lib-streaming/v3 | v3.1.0 | CloudEvents/Kafka streaming producer (franz-go) |
 | github.com/LerianStudio/lib-auth/v3 | v3.3.0 | Authentication middleware |
 | github.com/danielgtaylor/huma/v2 | v2.38.0 | OpenAPI 3.1 contract + request/response validation over Fiber |
 | github.com/gofiber/fiber/v3 | v3.4.0 | HTTP framework (runtime router / middleware) |
@@ -1060,9 +1072,14 @@ The resolver is `pkg/skip.ResolveSkipFor(control, requested, allowed)`.
 
 | Control | Surface | Request flag | Ledger opt-in | Audit column |
 |---|---|---|---|---|
-| Fees | transaction create (json/inflow/outflow) | `skip.fees` | `overrides.allowFeeSkip` | `transaction.fees_skipped` |
-| Tracer | transaction create (json/inflow/outflow) | `skip.tracer` | `overrides.allowTracerSkip` | `transaction.tracer_skipped` |
-| Holder | account create | `skip.holder` | `overrides.allowHolderSkip` | `account.holder_check_skipped` |
+| Fees | `/v2` transaction create (json/inflow/outflow) | `skip.fees` | `overrides.allowFeeSkip` | `transaction.fees_skipped` |
+| Tracer | `/v2` transaction create (json/inflow/outflow) | `skip.tracer` | `overrides.allowTracerSkip` | `transaction.tracer_skipped` |
+| Holder | `/v2` account create | `skip.holder` | `overrides.allowHolderSkip` | `account.holder_check_skipped` |
+
+The surface column is the route CONTRACT, not just the path: both seams the skips gate are
+`/v2` only. A `/v1` transaction create never reaches the fee engine, and a `/v1` account
+create never reaches the holder seam — so a `skip` object in a `/v1` body is inert and can
+never raise the 422. See § Account Holder Seam and `docs/api/SCOPING.md`.
 
 Honored skips are persisted to audit columns (domain fields
 `mtransaction.Transaction.FeesSkipped` / `.TracerSkipped`, `mmodel.Account.HolderCheckSkipped`)
@@ -1074,6 +1091,56 @@ and surface on the `transaction.*` and `account.created` streaming payloads.
 - **Idempotency replay returns the first outcome** and ignores a replayer's differing skip.
 - An **honored skip adds zero downstream work** — it short-circuits before the control's
   package lookup; it never replaces the control with a more expensive code path.
+
+## 10a. Holder Seam (`/v2` only)
+
+Account creation resolves a holder through the seam in
+`components/ledger/internal/services/command/create_account.go`
+(`resolveAccountHolder`): it reads the two holder gate keys
+(`accounting.requireHolder`, `overrides.allowHolderSkip`), resolves the per-call skip,
+enforces the requireHolder validation, and materialises the account's `holder_id` —
+defaulting a non-external account to the organization's deterministic self-holder.
+
+The seam is a **`/v2` contract**. `command.RouteHolderPolicy` travels from the transport
+shell into the use case (`HolderOffV1` / `HolderOnV2`, `account_holder_policy.go`), and
+`HolderOffV1` is the FIRST gate — it short-circuits before the ledger settings read. A
+`/v1` account create therefore:
+
+- links **no** holder: the row persists `holder_id = NULL` and `holder_check_skipped = false`;
+- cannot be rejected by the requireHolder gate (`ErrHolderRequired` / `ErrHolderNotFound`);
+- cannot be rejected for an unpermitted `skip.holder` (`ErrSkipNotPermitted`);
+- performs no holder settings read at all.
+
+`holderId` and `skip.holder` in a `/v1` body are inert. The `/v1` responses withhold both
+holder keys (`in.AccountV1`, published as the `Account` component), so the fields have no
+readable effect on that contract; `/v2` answers with the holder-bearing `AccountV2`
+component. `/v1` shipped before the seam existed, and a client integrated against it must
+not acquire a holder link — or a new rejection class — from a version upgrade.
+
+The holder-account composition route (`POST /v2/.../holders/{id}/accounts`) passes
+`HolderOnV2`: it exists to link a holder, and is served on `/v2` only.
+
+### Organization self-holder
+
+`CreateOrganization` takes the same `RouteHolderPolicy` and gates `provisionSelfHolder`
+on it. `POST /v1/organizations` writes **no** CRM holder record; `POST /v2/organizations`
+provisions the deterministic `LEGAL_PERSON` self-holder as before. The organization is
+persisted either way — the gate suppresses the side effect, not the resource — and the
+idempotent backfill runner is still the repair path. `mmodel.Organization` carries no
+holder field, so no response projection is involved and the two contracts share one
+schema component; only the create terminal differs
+(`CreateOrganization` / `CreateOrganizationV2`).
+
+### Outside the seam on both contracts
+
+- **The asset-created external account.** `CreateAsset` builds the implicit external
+  account as an `mmodel.Account` and hands it straight to `AccountRepo.Create`, bypassing
+  `CreateAccount`, so it reaches no holder seam and persists `holder_id = NULL`. That is
+  also what the seam resolves for an external account, so the two paths agree.
+- **Account update.** Ownership is immutable: `mmodel.UpdateAccountInput` has no
+  `holderId` (and an unknown body field is a `400`), and neither `holder_id` nor
+  `holder_check_skipped` appears in the update statement's SET list or in the
+  merge-patch nullable-field set.
 
 ## 11. Testing
 

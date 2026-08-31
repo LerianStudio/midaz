@@ -56,12 +56,10 @@ func TestCreatePackage(t *testing.T) {
 	fees["teste"] = feeModel
 
 	segIDString := segId.String()
-	ledgerIDString := segId.String()
 	createPackInput := &model.CreatePackageInput{
 		FeeGroupLabel:  "teste group label",
 		Description:    nil,
 		SegmentID:      &segIDString,
-		LedgerID:       ledgerIDString,
 		MinAmount:      "2000",
 		MaxAmount:      "3000",
 		WaivedAccounts: &[]string{"acc01", "acc02"},
@@ -430,7 +428,6 @@ func TestCreatePackage_KeepsSegmentWithLeadingZeroIdentifier(t *testing.T) {
 	_, err := svc.CreatePackage(context.Background(), &model.CreatePackageInput{
 		FeeGroupLabel: "group",
 		SegmentID:     &segmentIDString,
-		LedgerID:      ledgerID.String(),
 		MinAmount:     "100",
 		MaxAmount:     "200",
 		Fee:           map[string]model.Fee{},

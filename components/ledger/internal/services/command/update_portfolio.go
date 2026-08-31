@@ -12,7 +12,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -81,8 +81,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 // emitPortfolioUpdatedEvent publishes the portfolio.updated event for a
 // successfully persisted update. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked between the PortfolioRepo.Update success branch and
 // the metadata-write call in UpdatePortfolioByID, so a downstream Mongo
@@ -95,7 +94,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 // Wire-format mapping lives in pkg/streaming/events/portfolio_updated.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitPortfolioUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, p *mmodel.Portfolio) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.PortfolioUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.PortfolioUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewPortfolioUpdated(p).ToEmitRequest(tenantID, p.UpdatedAt)
 		})

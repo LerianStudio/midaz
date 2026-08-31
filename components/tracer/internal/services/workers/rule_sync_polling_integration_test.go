@@ -297,7 +297,7 @@ func TestIntegration_Polling_RealCELCompilation(t *testing.T) {
 	_, err = setup.db.Exec(
 		`INSERT INTO rules (name, expression, action, status, scopes, activated_at)
 		 VALUES ($1, $2, $3, $4, $5, NOW())`,
-		"new-cel-rule", `amount >= 100 && currency == "BRL"`, "DENY", "ACTIVE", "[]",
+		"new-cel-rule", `amount >= 100 && asset == "BRL"`, "DENY", "ACTIVE", "[]",
 	)
 	require.NoError(t, err)
 

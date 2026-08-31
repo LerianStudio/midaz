@@ -34,6 +34,7 @@ components/onboarding/_docker-compose.yml
 
 # Environment files
 .env
+.env.bak*
 
 # Dependencies
 node_modules/
@@ -50,3 +51,9 @@ cert/
 
 # Security scan reports
 *.sarif
+
+# Checkout-scoped tool caches (see GOLANGCI_LINT_CACHE in mk/utils.mk)
+.cache/
+
+# Compiled Grafana dashboards are build artifacts; the .libsonnet is the source.
+docs/dashboards/*/*/*.json

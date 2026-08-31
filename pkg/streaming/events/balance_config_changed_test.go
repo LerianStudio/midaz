@@ -15,12 +15,11 @@ import (
 )
 
 func TestBalanceConfigChangedDefinition_Key(t *testing.T) {
-	// EventType is the underscored canonical form (config_changed): Key() is
-	// balance.config_changed and only RouteKey() folds it to the hyphenated
-	// balance.config-changed routing handle. The payload changeType discriminator
-	// (settings_updated / overdraft_enabled) is separate payload data.
+	// EventType is the underscored canonical form (config_changed), so Key() is
+	// balance.config_changed and reaches the wire that way. The payload
+	// changeType discriminator (settings_updated / overdraft_enabled) is
+	// separate payload data.
 	assert.Equal(t, "balance.config_changed", events.BalanceConfigChangedDefinition.Key())
-	assert.Equal(t, "balance.config-changed", events.BalanceConfigChangedDefinition.RouteKey())
 	assert.Equal(t, "balance", events.BalanceConfigChangedDefinition.ResourceType)
 	assert.Equal(t, "config_changed", events.BalanceConfigChangedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.BalanceConfigChangedDefinition.SchemaVersion)
@@ -117,4 +116,51 @@ func TestBalanceConfigChangedPayload_JSONShape_MinimalIncludesRequiredFields(t *
 	assert.False(t, hasSettings, "settings is omitempty when nil")
 
 	assert.Lenf(t, generic, 11, "expected 11 top-level fields, got %d (drift?)", len(generic))
+}
+
+// TestBalanceConfigChangedPayload_JSONShape_SettingsSubobjectLocked pins the
+// nested settings object on balance.config_changed. BalanceSettingsPayload is
+// declared in balance_created.go but reaches the wire through both events, so
+// each event locks the subobject on its own side.
+func TestBalanceConfigChangedPayload_JSONShape_SettingsSubobjectLocked(t *testing.T) {
+	t.Run("full settings carries every key", func(t *testing.T) {
+		b := minimalBalance()
+		b.Settings = fullBalanceSettings()
+
+		req, err := events.NewBalanceConfigChanged(b, events.BalanceConfigChangeTypeSettingsUpdated).
+			ToEmitRequest("tenant-7", fixedTime)
+		require.NoError(t, err)
+
+		settings := settingsSubobject(t, req.Payload)
+
+		assert.Lenf(t, settings, 4, "expected 4 settings keys, got %d (drift?)", len(settings))
+
+		for _, key := range []string{"balanceScope", "allowOverdraft", "overdraftLimitEnabled", "overdraftLimit"} {
+			assert.Containsf(t, settings, key, "settings must include %q", key)
+		}
+	})
+
+	t.Run("minimal settings keeps only the two bools", func(t *testing.T) {
+		b := minimalBalance()
+		b.Settings = &mmodel.BalanceSettings{
+			BalanceScope:   "",
+			OverdraftLimit: nil,
+		}
+
+		req, err := events.NewBalanceConfigChanged(b, events.BalanceConfigChangeTypeSettingsUpdated).
+			ToEmitRequest("tenant-7", fixedTime)
+		require.NoError(t, err)
+
+		settings := settingsSubobject(t, req.Payload)
+
+		assert.Lenf(t, settings, 2, "expected 2 settings keys, got %d (drift?)", len(settings))
+
+		for _, key := range []string{"allowOverdraft", "overdraftLimitEnabled"} {
+			assert.Containsf(t, settings, key, "settings.%s is not omitempty and must always be present", key)
+		}
+
+		for _, key := range []string{"balanceScope", "overdraftLimit"} {
+			assert.NotContainsf(t, settings, key, "settings.%s must omitempty when empty", key)
+		}
+	})
 }

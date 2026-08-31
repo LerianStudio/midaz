@@ -25,6 +25,8 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
@@ -37,6 +39,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vmihailenco/msgpack/v5"
 
+	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
@@ -49,7 +52,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
@@ -77,7 +79,6 @@ func setupTestInfra(t *testing.T) *testInfra {
 	t.Helper()
 
 	// Disable async RabbitMQ features (no RabbitMQ container in this test)
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 
 	infra := &testInfra{}
@@ -186,39 +187,39 @@ func seedLedgerSettings(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID) {
 	require.NoError(t, err, "failed to seed ledger settings row")
 }
 
-// setupRoutes registers handler routes on the Fiber app.
+// mountTransactionHumaRoutes wires the transaction surface onto app exactly as
+// production does: ParseUUIDPathParameters runs as Fiber middleware on the /v1
+// group and RegisterTransactionRoutes owns the Huma terminals, so body decode,
+// path-param validation and the RFC 9457 error envelope all match production.
+func mountTransactionHumaRoutes(app *fiber.App, handler *TransactionHandler) {
+	libProblem.Install()
+	http.InstallHumaFrameworkErrors()
+
+	// Mirror production: the ledger registers ErrorEnvelope on the app root, so
+	// /v1 serves the v3 envelope. Without it these assertions lock a shape no
+	// deployed ledger returns.
+	app.Use(ledgerMiddleware.ErrorEnvelope())
+
+	apiV1 := app.Group("/v1")
+	hAPI := openapi.New(app, apiV1, openapi.Config{
+		Title:   "ledger-integration",
+		Version: "test",
+		Servers: []string{"/v1"},
+	})
+
+	// The transaction Out nests operation.{Status,Balance,Amount}, which collide on
+	// bare schema names with the mmodel/transaction types on the shared registry.
+	// Must run after openapi.New and BEFORE any huma.Register.
+	http.InstallLedgerSchemaNamer(hAPI)
+
+	mountTransactionRoutes(apiV1)
+
+	RegisterTransactionRoutes(hAPI, handler)
+}
+
+// setupRoutes registers the transaction routes on the Fiber app.
 func (infra *testInfra) setupRoutes() {
-	// Middleware to inject path params as locals
-	paramMiddleware := func(c fiber.Ctx) error {
-		orgIDStr := c.Params("organization_id")
-		ledgerIDStr := c.Params("ledger_id")
-		txIDStr := c.Params("transaction_id")
-
-		if orgIDStr != "" {
-			orgID, _ := uuid.Parse(orgIDStr)
-			c.Locals("organization_id", orgID)
-		}
-		if ledgerIDStr != "" {
-			ledgerID, _ := uuid.Parse(ledgerIDStr)
-			c.Locals("ledger_id", ledgerID)
-		}
-		if txIDStr != "" {
-			txID, _ := uuid.Parse(txIDStr)
-			c.Locals("transaction_id", txID)
-		}
-		return c.Next()
-	}
-
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json",
-		paramMiddleware, http.WithBody(new(mtransaction.CreateTransactionInput), infra.handler.CreateTransactionJSON))
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit",
-		paramMiddleware, infra.handler.CommitTransaction)
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel",
-		paramMiddleware, infra.handler.CancelTransaction)
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert",
-		paramMiddleware, infra.handler.RevertTransaction)
-	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id",
-		paramMiddleware, infra.handler.GetTransaction)
+	mountTransactionHumaRoutes(infra.app, infra.handler)
 }
 
 // getBalanceFromRedis retrieves a balance from Redis and unmarshals it to BalanceRedis.
@@ -649,7 +650,6 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	t.Setenv("RABBITMQ_HEALTH_CHECK_URL", rabbitHealthCheckURL)
 
 	// Disable other async features we don't need for this test
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 
 	// Setup RabbitMQ exchange and queue
@@ -761,33 +761,9 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	return infra
 }
 
-// setupRoutes registers handler routes on the Fiber app for async infra.
+// setupRoutes registers the transaction routes on the Fiber app for async infra.
 func (infra *testAsyncInfra) setupRoutes() {
-	// Middleware to inject path params as locals
-	paramMiddleware := func(c fiber.Ctx) error {
-		orgIDStr := c.Params("organization_id")
-		ledgerIDStr := c.Params("ledger_id")
-		txIDStr := c.Params("transaction_id")
-
-		if orgIDStr != "" {
-			orgID, _ := uuid.Parse(orgIDStr)
-			c.Locals("organization_id", orgID)
-		}
-		if ledgerIDStr != "" {
-			ledgerID, _ := uuid.Parse(ledgerIDStr)
-			c.Locals("ledger_id", ledgerID)
-		}
-		if txIDStr != "" {
-			txID, _ := uuid.Parse(txIDStr)
-			c.Locals("transaction_id", txID)
-		}
-		return c.Next()
-	}
-
-	infra.app.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json",
-		paramMiddleware, http.WithBody(new(mtransaction.CreateTransactionInput), infra.handler.CreateTransactionJSON))
-	infra.app.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id",
-		paramMiddleware, infra.handler.GetTransaction)
+	mountTransactionHumaRoutes(infra.app, infra.handler)
 }
 
 // waitForTransactionStatus polls the database until the transaction reaches the expected status or timeout.
@@ -2191,7 +2167,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 		}
 	}`, sourceAlias, destAlias)
 
-	idempotencyKey := "test-idempotency-" + uuid.New().String()
+	idempotencyKey := "test-idempotency-" + uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	// First request with idempotency key
 	req1 := httptest.NewRequest("POST",
@@ -2266,141 +2242,6 @@ func TestIntegration_TransactionHandler_IdempotencyReplay(t *testing.T) {
 		"source balance should be %s (deducted once), got %s", expectedBalance.String(), sourceBalance.String())
 
 	t.Logf("Idempotency replay test passed: transaction %s, balance %s", txID.String(), sourceBalance.String())
-}
-
-// TestIntegration_TransactionHandler_IdempotencyConflict tests that using the same
-// idempotency key with a different payload returns HTTP 409 Conflict.
-//
-// Flow:
-// 1. First request with X-Idempotency header creates transaction
-// 2. Second request with same key but different payload returns 409
-//
-// SKIPPED: This test documents EXPECTED behavior, but conflict detection is NOT implemented.
-// Current behavior: same key + different payload returns 201 with cached response (replay).
-// The hash parameter in CreateOrCheckTransactionIdempotency is only used as fallback key when
-// X-Idempotency header is not provided - it is never stored or compared.
-func TestIntegration_TransactionHandler_IdempotencyConflict(t *testing.T) {
-	t.Skip("PENDING: Conflict detection not implemented - same key returns cached response regardless of payload")
-
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
-	// Note: Cannot use t.Parallel() because setupTestInfra uses t.Setenv
-	infra := setupTestInfra(t)
-
-	// Use fake account IDs (account table is in onboarding component)
-	sourceAccountID := uuid.Must(libCommons.GenerateUUIDv7())
-	destAccountID := uuid.Must(libCommons.GenerateUUIDv7())
-
-	sourceAlias := "@source-idem-conflict"
-	destAlias := "@dest-idem-conflict"
-
-	// Create source balance with 1000 USD available
-	initialBalance := decimal.NewFromInt(1000)
-	sourceBalanceParams := postgrestestutil.DefaultBalanceParams()
-	sourceBalanceParams.Alias = sourceAlias
-	sourceBalanceParams.AssetCode = "USD"
-	sourceBalanceParams.Available = initialBalance
-	sourceBalanceParams.OnHold = decimal.Zero
-	postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAccountID, sourceBalanceParams)
-
-	// Create destination balance with 0 USD available
-	destBalanceParams := postgrestestutil.DefaultBalanceParams()
-	destBalanceParams.Alias = destAlias
-	destBalanceParams.AssetCode = "USD"
-	destBalanceParams.Available = decimal.Zero
-	destBalanceParams.OnHold = decimal.Zero
-	postgrestestutil.CreateTestBalance(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, destAccountID, destBalanceParams)
-
-	// First request payload
-	requestBody1 := fmt.Sprintf(`{
-		"send": {
-			"asset": "USD",
-			"value": "100",
-			"source": {
-				"from": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "100"}}]
-			},
-			"distribute": {
-				"to": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "100"}}]
-			}
-		}
-	}`, sourceAlias, destAlias)
-
-	// Second request payload (different value)
-	requestBody2 := fmt.Sprintf(`{
-		"send": {
-			"asset": "USD",
-			"value": "200",
-			"source": {
-				"from": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "200"}}]
-			},
-			"distribute": {
-				"to": [{"accountAlias": "%s", "amount": {"asset": "USD", "value": "200"}}]
-			}
-		}
-	}`, sourceAlias, destAlias)
-
-	idempotencyKey := "conflict-test-" + uuid.New().String()
-
-	// First request
-	req1 := httptest.NewRequest("POST",
-		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
-		bytes.NewBufferString(requestBody1))
-	req1.Header.Set("Content-Type", "application/json")
-	req1.Header.Set("X-Idempotency", idempotencyKey)
-	req1.Header.Set("X-TTL", "60")
-
-	resp1, err := infra.app.Test(req1, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err, "first request should not fail")
-
-	body1, err := io.ReadAll(resp1.Body)
-	require.NoError(t, err, "should read first response body")
-
-	require.Equal(t, 201, resp1.StatusCode,
-		"first request should return 201, got %d: %s", resp1.StatusCode, string(body1))
-
-	// Wait for async goroutine to save the result to Redis
-	// The SetTransactionIdempotencyValue is called in a goroutine after success
-	time.Sleep(200 * time.Millisecond)
-
-	// Second request with same key but different payload
-	req2 := httptest.NewRequest("POST",
-		"/v1/organizations/"+infra.orgID.String()+"/ledgers/"+infra.ledgerID.String()+"/transactions/json",
-		bytes.NewBufferString(requestBody2))
-	req2.Header.Set("Content-Type", "application/json")
-	req2.Header.Set("X-Idempotency", idempotencyKey)
-	req2.Header.Set("X-TTL", "60")
-
-	resp2, err := infra.app.Test(req2, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err, "second request should not fail")
-
-	body2, err := io.ReadAll(resp2.Body)
-	require.NoError(t, err, "should read second response body")
-
-	// Second request with different payload should return 409 Conflict
-	// Note: The implementation may return 409 immediately (key exists without value during processing)
-	// or may return 409 after detecting hash mismatch
-	assert.Equal(t, 409, resp2.StatusCode,
-		"second request with different payload should return 409, got %d: %s", resp2.StatusCode, string(body2))
-
-	// Verify only the first transaction exists
-	var result1 map[string]any
-	require.NoError(t, json.Unmarshal(body1, &result1), "first response should be valid JSON")
-
-	txID, err := uuid.Parse(result1["id"].(string))
-	require.NoError(t, err, "transaction ID should be valid UUID")
-
-	dbStatus := postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID)
-	assert.NotEmpty(t, dbStatus, "first transaction should exist in database")
-
-	// Verify balance was only affected by the first transaction (100, not 200)
-	sourceBalance := postgrestestutil.GetBalanceByAlias(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, sourceAlias)
-	expectedBalance := initialBalance.Sub(decimal.NewFromInt(100))
-	assert.True(t, sourceBalance.Equal(expectedBalance),
-		"source balance should be %s (only first transaction), got %s", expectedBalance.String(), sourceBalance.String())
-
-	t.Logf("Idempotency conflict test passed: only transaction %s created, balance %s", txID.String(), sourceBalance.String())
 }
 
 // TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip is the
@@ -2482,7 +2323,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 		}
 	}`, sourceAlias, destAlias)
 
-	idempotencyKey := "idem-skip-" + uuid.New().String()
+	idempotencyKey := "idem-skip-" + uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	// First POST.
 	req1 := httptest.NewRequest("POST",
@@ -2502,8 +2343,8 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 
 	var result1 map[string]any
 	require.NoError(t, json.Unmarshal(body1, &result1), "first response should be valid JSON")
-	assert.Equal(t, false, result1["feesSkipped"],
-		"first transaction should persist feesSkipped=false (no skip requested)")
+	// feesSkipped is withheld from the /v1 body (v2-only audit flag); the persisted
+	// audit state is asserted against the DB columns below.
 
 	// Wait for the async goroutine to write the idempotency outcome to Redis.
 	time.Sleep(200 * time.Millisecond)
@@ -2539,8 +2380,6 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerSkip(t 
 
 	assert.Equal(t, result1["id"], result2["id"],
 		"replay must return the same transaction id as the first request")
-	assert.Equal(t, false, result2["feesSkipped"],
-		"replay must return the FIRST transaction's audit state (feesSkipped=false); the replayer's skip.fees=true is ignored")
 
 	// Confirm the persisted audit state is the first outcome (fees_skipped=false).
 	txID, err := uuid.Parse(result1["id"].(string))
@@ -2779,7 +2618,7 @@ func TestIntegration_Property_Protocol_Idempotency(t *testing.T) {
 		}
 	}`
 
-	idempotencyKey := "idem-fuzz-" + uuid.New().String()
+	idempotencyKey := "idem-fuzz-" + uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	// Send same request 5 times with same idempotency key
 	var results []int

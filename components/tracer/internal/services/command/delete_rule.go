@@ -13,7 +13,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -242,7 +242,7 @@ func (s *DeleteRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (retE
 // posture: emit failures never fail the request. deletedAt is the delete moment
 // captured before the transaction.
 func (s *DeleteRuleService) emitRuleDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, ruleID uuid.UUID, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.RuleDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, s.Streaming, events.RuleDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewRuleDeleted(ruleID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

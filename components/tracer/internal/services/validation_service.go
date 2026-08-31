@@ -30,6 +30,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/sanitize"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // validationPersistTimeout is the maximum duration for transaction validation record persistence.
@@ -662,7 +663,7 @@ func buildTransactionValidation(req *model.ValidationRequest, resp *model.Valida
 	tv.TransactionType = req.TransactionType
 	tv.SubType = req.SubType
 	tv.Amount = req.Amount
-	tv.Currency = req.Currency
+	tv.Asset = req.Asset
 	tv.TransactionTimestamp = req.TransactionTimestamp
 	tv.Account = req.Account
 	tv.Segment = req.Segment
@@ -709,9 +710,9 @@ func validateTransactionValidation(tv *model.TransactionValidation) error {
 		return fmt.Errorf("invalid amount: %s", tv.Amount.String())
 	}
 
-	// Currency must not be empty
-	if tv.Currency == "" {
-		return errors.New("currency is empty")
+	// Asset must not be empty
+	if tv.Asset == "" {
+		return constant.ErrValidationCurrencyRequired
 	}
 
 	// TransactionTimestamp must be valid for compliance audit trail
@@ -734,7 +735,7 @@ func buildRequestSnapshot(req *model.ValidationRequest) map[string]any {
 		"transactionType": req.TransactionType,
 		"subType":         req.SubType,
 		"amount":          req.Amount,
-		"currency":        req.Currency,
+		"asset":           req.Asset,
 		"timestamp":       req.TransactionTimestamp,
 		"account": map[string]any{
 			"id":       req.Account.ID.String(),

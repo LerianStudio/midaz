@@ -104,6 +104,22 @@ func detectPostgresTLS(dsn string) (bool, error) {
 	return false, nil
 }
 
+// idpSchemeIsCleartext reports whether idpHost carries an explicit http:// scheme —
+// the one case where the RI declaration publisher would dial the IdP in cleartext
+// and ship the M2M client_credentials grant plus the resulting bearer token
+// unencrypted. An https:// host is secure. A scheme-less or otherwise malformed
+// host is rejected by the publisher's own config validation (lib-auth requires an
+// absolute http(s):// URL) and fails open with no dial, so it is deliberately NOT
+// treated as a cleartext dial here. Scheme comparison is case-insensitive.
+func idpSchemeIsCleartext(idpHost string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(idpHost))
+	if err != nil {
+		return false
+	}
+
+	return strings.EqualFold(parsed.Scheme, "http")
+}
+
 // postgresSSLModeIsTLS centralizes the rule that ANY non-empty sslmode other
 // than "disable" is TLS-enabled. libpq accepts: disable, allow, prefer,
 // require, verify-ca, verify-full. Only "disable" is plaintext.

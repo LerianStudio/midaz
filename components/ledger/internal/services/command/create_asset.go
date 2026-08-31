@@ -13,7 +13,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -231,8 +231,7 @@ func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 // emitAssetCreatedEvent publishes the asset.created event for a
 // successfully persisted asset. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after AssetRepo.Create succeeds and
 // before CreateOnboardingMetadata runs, so a downstream Mongo failure
@@ -244,7 +243,7 @@ func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 // Wire-format mapping lives in pkg/streaming/events/asset_created.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitAssetCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, a *mmodel.Asset) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AssetCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.AssetCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewAssetCreated(a).ToEmitRequest(tenantID, a.CreatedAt)
 		})

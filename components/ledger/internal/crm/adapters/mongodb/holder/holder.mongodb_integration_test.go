@@ -63,7 +63,7 @@ func createRepository(t *testing.T, container *mongotestutil.ContainerResult, or
 
 func TestIntegration_HolderRepo_Create(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -91,7 +91,7 @@ func TestIntegration_HolderRepo_Create(t *testing.T) {
 
 func TestIntegration_HolderRepo_Create_EncryptsData(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-encrypt-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -138,7 +138,7 @@ func TestIntegration_HolderRepo_Create_EncryptsData(t *testing.T) {
 
 func TestIntegration_HolderRepo_Create_DuplicateDocument(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-dup-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -163,7 +163,7 @@ func TestIntegration_HolderRepo_Create_DuplicateDocument(t *testing.T) {
 
 func TestIntegration_HolderRepo_Create_WithAllFields(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-complete-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -200,7 +200,7 @@ func TestIntegration_HolderRepo_Create_WithAllFields(t *testing.T) {
 
 func TestIntegration_HolderRepo_Create_WithLegalPerson(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-legal-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -232,7 +232,7 @@ func TestIntegration_HolderRepo_Create_WithLegalPerson(t *testing.T) {
 
 func TestIntegration_HolderRepo_Find(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-find-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -258,7 +258,7 @@ func TestIntegration_HolderRepo_Find(t *testing.T) {
 
 func TestIntegration_HolderRepo_Find_NotFound(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-notfound-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -276,7 +276,7 @@ func TestIntegration_HolderRepo_Find_NotFound(t *testing.T) {
 
 func TestIntegration_HolderRepo_Find_ExcludesDeleted(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-deleted-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -300,7 +300,7 @@ func TestIntegration_HolderRepo_Find_ExcludesDeleted(t *testing.T) {
 
 func TestIntegration_HolderRepo_Find_IncludesDeleted(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-incldel-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -328,7 +328,7 @@ func TestIntegration_HolderRepo_Find_IncludesDeleted(t *testing.T) {
 
 func TestIntegration_HolderRepo_FindAll(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-findall-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -351,7 +351,7 @@ func TestIntegration_HolderRepo_FindAll(t *testing.T) {
 
 func TestIntegration_HolderRepo_FindAll_Pagination(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-page-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -391,7 +391,7 @@ func TestIntegration_HolderRepo_FindAll_Pagination(t *testing.T) {
 
 func TestIntegration_HolderRepo_FindAll_FilterByExternalID(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-filterext-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -423,7 +423,7 @@ func TestIntegration_HolderRepo_FindAll_FilterByExternalID(t *testing.T) {
 
 func TestIntegration_HolderRepo_FindAll_FilterByDocument(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-filterdoc-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -455,7 +455,7 @@ func TestIntegration_HolderRepo_FindAll_FilterByDocument(t *testing.T) {
 
 func TestIntegration_HolderRepo_FindAll_FilterByMetadata(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-filtermeta-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -489,7 +489,7 @@ func TestIntegration_HolderRepo_FindAll_FilterByMetadata(t *testing.T) {
 
 func TestIntegration_HolderRepo_FindAll_ReturnsEmpty(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-empty-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -505,7 +505,7 @@ func TestIntegration_HolderRepo_FindAll_ReturnsEmpty(t *testing.T) {
 
 func TestIntegration_HolderRepo_FindAll_ExcludesDeleted(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-findalldel-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -539,7 +539,7 @@ func TestIntegration_HolderRepo_FindAll_ExcludesDeleted(t *testing.T) {
 
 func TestIntegration_HolderRepo_Update(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-update-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -563,7 +563,7 @@ func TestIntegration_HolderRepo_Update(t *testing.T) {
 
 func TestIntegration_HolderRepo_Update_FieldsToRemove(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-remove-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -587,7 +587,7 @@ func TestIntegration_HolderRepo_Update_FieldsToRemove(t *testing.T) {
 
 func TestIntegration_HolderRepo_Update_NotFound(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-updatenotfound-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -615,7 +615,7 @@ func TestIntegration_HolderRepo_Update_NotFound(t *testing.T) {
 
 func TestIntegration_HolderRepo_Delete_Soft(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-softdel-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -639,7 +639,7 @@ func TestIntegration_HolderRepo_Delete_Soft(t *testing.T) {
 
 func TestIntegration_HolderRepo_Delete_Hard(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-harddel-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -662,7 +662,7 @@ func TestIntegration_HolderRepo_Delete_Hard(t *testing.T) {
 
 func TestIntegration_HolderRepo_Delete_NotFound(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-delnotfound-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -679,7 +679,7 @@ func TestIntegration_HolderRepo_Delete_NotFound(t *testing.T) {
 
 func TestIntegration_HolderRepo_Delete_AlreadyDeleted(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-delalready-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -706,7 +706,7 @@ func TestIntegration_HolderRepo_Delete_AlreadyDeleted(t *testing.T) {
 
 func TestIntegration_HolderRepo_EncryptionRoundTrip(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-roundtrip-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -749,7 +749,7 @@ func TestIntegration_HolderRepo_EncryptionRoundTrip(t *testing.T) {
 
 func TestIntegration_HolderRepo_EncryptionRoundTrip_LegalPerson(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-roundtrip-legal-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -791,7 +791,7 @@ func TestIntegration_HolderRepo_EncryptionRoundTrip_LegalPerson(t *testing.T) {
 
 func TestIntegration_HolderRepo_Create_SameDocumentDifferentOrganizations(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	org1 := "org-1-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, org1)
 	ctx := context.Background()
@@ -818,7 +818,7 @@ func TestIntegration_HolderRepo_Create_SameDocumentDifferentOrganizations(t *tes
 
 func TestIntegration_HolderRepo_Create_ReuseSoftDeletedDocument(t *testing.T) {
 	// Arrange
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 	organizationID := "org-reuse-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)
 	ctx := context.Background()
@@ -854,7 +854,7 @@ func TestIntegration_HolderRepo_Create_ReuseSoftDeletedDocument(t *testing.T) {
 // ends up correctly indexed.
 func TestHolderRepository_Create_ConcurrentBurst_SingleIndexBuild(t *testing.T) {
 	// Arrange - fresh container, one new org, tracker reset for that exact collection key.
-	container := mongotestutil.SetupContainer(t)
+	container := mongotestutil.SetupReusableContainer(t)
 
 	organizationID := "org-burst-" + uuid.New().String()[:8]
 	repo := createRepository(t, container, organizationID)

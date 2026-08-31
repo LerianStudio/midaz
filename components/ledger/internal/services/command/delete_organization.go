@@ -12,7 +12,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -65,7 +65,7 @@ func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) (er
 // successfully soft-deleted organization. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
 func (uc *UseCase) emitOrganizationDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id string, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.OrganizationDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.OrganizationDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewOrganizationDeleted(id, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

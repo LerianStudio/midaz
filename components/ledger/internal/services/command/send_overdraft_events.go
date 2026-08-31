@@ -14,7 +14,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
@@ -307,7 +307,7 @@ func (uc *UseCase) emitBalanceOverdraftEvent(ctx context.Context, span trace.Spa
 		return
 	}
 
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
 }
 
 // classifyOverdraftOperation determines the event action for a companion

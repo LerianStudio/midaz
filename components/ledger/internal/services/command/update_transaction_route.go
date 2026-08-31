@@ -12,7 +12,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -156,7 +156,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 //
 // Wire-format mapping lives in pkg/streaming/events/transaction_route_updated.go.
 func (uc *UseCase) emitTransactionRouteUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, tr *mmodel.TransactionRoute) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.TransactionRouteUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.TransactionRouteUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewTransactionRouteUpdated(tr).ToEmitRequest(tenantID, tr.UpdatedAt)
 		})

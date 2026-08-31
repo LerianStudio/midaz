@@ -13,6 +13,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,9 +23,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-const (
-	reserveAmount = int64(400)
-	maxAmountTest = int64(1000)
+var (
+	reserveAmount = decimal.NewFromInt(400)
+	maxAmountTest = decimal.NewFromInt(1000)
 )
 
 // setupUsageReservationRepository wires the reservation repository plus the shared
@@ -79,34 +80,170 @@ const reserveInsertSQL = `
 		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) DO NOTHING
 	`
 
+func TestUsageReservationRepository_AcquireReserveScopeLock(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	t.Run("bounds the lock wait then issues the advisory lock on the supplied handle", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		// lock_timeout is set FIRST (transaction-local), then the advisory lock.
+		mock.ExpectExec(regexp.QuoteMeta(`SELECT set_config('lock_timeout', $1, true)`)).
+			WithArgs(reserveLockTimeout.String()).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectExec(regexp.QuoteMeta(`SELECT pg_advisory_xact_lock($1)`)).
+			WithArgs(int64(4242)).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+
+		require.NoError(t, repo.AcquireReserveScopeLock(context.Background(), db, 4242))
+	})
+
+	t.Run("nil handle returns the connection sentinel", func(t *testing.T) {
+		repo, _, _, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		require.ErrorIs(t, repo.AcquireReserveScopeLock(context.Background(), nil, 1), pgdb.ErrNilConnection)
+	})
+
+	t.Run("wraps a lock_timeout driver error", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectExec(regexp.QuoteMeta(`SELECT set_config('lock_timeout', $1, true)`)).
+			WithArgs(reserveLockTimeout.String()).
+			WillReturnError(assert.AnError)
+
+		err := repo.AcquireReserveScopeLock(context.Background(), db, 9)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, assert.AnError)
+	})
+
+	t.Run("wraps an advisory-lock driver error", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		mock.ExpectExec(regexp.QuoteMeta(`SELECT set_config('lock_timeout', $1, true)`)).
+			WithArgs(reserveLockTimeout.String()).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectExec(regexp.QuoteMeta(`SELECT pg_advisory_xact_lock($1)`)).
+			WithArgs(int64(7)).
+			WillReturnError(assert.AnError)
+
+		err := repo.AcquireReserveScopeLock(context.Background(), db, 7)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, assert.AnError)
+	})
+}
+
 func TestUsageReservationRepository_Reserve(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	t.Run("Success - reserve seeds counter and inserts row", func(t *testing.T) {
+	t.Run("Success - reserve inserts row then seeds counter", func(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
 		res := newTestReservation(t)
 
-		// Reserve CTE (counter seed) returns succeeded=true.
-		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
-			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("400", true))
-		// Reservation row insert with the 4-tuple ON CONFLICT grain.
+		// Reservation row insert (4-tuple ON CONFLICT grain) runs first; 1 row affected
+		// means a new reservation.
 		mock.ExpectExec(regexp.QuoteMeta(reserveInsertSQL)).
 			WillReturnResult(sqlmock.NewResult(0, 1))
+		// A new row was inserted, so the reserve CTE (counter seed) follows and returns
+		// succeeded=true.
+		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
+			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("400", true))
 
 		err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
 		require.NoError(t, err)
 	})
 
-	t.Run("Guard denies - exceeds-limit error, no row inserted", func(t *testing.T) {
+	t.Run("Replay - existing row suppresses the counter move", func(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
 		res := newTestReservation(t)
 
-		// Reserve CTE WHERE guard fails: succeeded=false -> ErrUsageCounterExceedsLimit.
-		// No INSERT expected — the guard error returns before the row insert.
+		// ON CONFLICT DO NOTHING suppresses the insert (0 rows affected): the 4-tuple
+		// already exists. The counter CTE MUST NOT run, so the replay holds capacity
+		// exactly once. ExpectationsWereMet on cleanup asserts no stray counter query.
+		mock.ExpectExec(regexp.QuoteMeta(reserveInsertSQL)).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+
+		err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		require.NoError(t, err)
+	})
+
+	t.Run("Fractional amount is inserted without truncation", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		res, err := model.NewReservation(
+			testutil.MustDeterministicUUID(8001),
+			testutil.MustDeterministicUUID(8002),
+			"acct:8001",
+			"2026-06",
+			decimal.RequireFromString("10.50"),
+			testutil.FixedTime().Add(5*time.Minute),
+			testutil.FixedTime(),
+		)
+		require.NoError(t, err)
+
+		// The reservation carries the exact decimal; the pre-fix int64 row would have
+		// held 10.
+		require.Equal(t, "10.5", res.Amount.String())
+
+		maxAmount := decimal.NewFromInt(20)
+
+		// WithArgs guards the changed line: the exact fractional amount (not a
+		// truncated integer) MUST reach both the row insert and the reserve CTE. The row
+		// insert runs first; its $5 amount carries the exact fraction on the row.
+		mock.ExpectExec(regexp.QuoteMeta(reserveInsertSQL)).
+			WithArgs(
+				res.ID,                             // $1 reservation id
+				res.LimitID,                        // $2 limit id
+				res.ScopeKey,                       // $3 scope key
+				res.PeriodKey,                      // $4 period key
+				decimal.RequireFromString("10.50"), // $5 amount — exact fraction on the row
+				string(res.Status),                 // $6 status
+				res.TransactionID,                  // $7 transaction id
+				sqlmock.AnyArg(),                   // $8 reservation_expires_at
+				sqlmock.AnyArg(),                   // $9 created_at
+			).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		// A new row was inserted, so the reserve CTE follows. It binds the amount three
+		// times ($5 INSERT seed, $7 UPDATE increment, $9 WHERE-guard check) and the cap
+		// once ($10); the counter id, timestamps and expiry are non-deterministic. A
+		// hardcoded return row alone would pass even if the repo truncated the amount.
+		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
+			WithArgs(
+				sqlmock.AnyArg(),                   // $1 counter id (uuid.New)
+				res.LimitID.String(),               // $2 limit id
+				res.ScopeKey,                       // $3 scope key
+				res.PeriodKey,                      // $4 period key
+				decimal.RequireFromString("10.50"), // $5 INSERT reserved_usage seed
+				sqlmock.AnyArg(),                   // $6 last_updated_at
+				decimal.RequireFromString("10.50"), // $7 UPDATE reserved_usage increment
+				sqlmock.AnyArg(),                   // $8 last_updated_at
+				decimal.RequireFromString("10.50"), // $9 WHERE-guard amount
+				maxAmount,                          // $10 WHERE-guard cap
+				sqlmock.AnyArg(),                   // $11 reservation_expires_at
+			).
+			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("10.5", true))
+
+		require.NoError(t, repo.ReserveWithTx(context.Background(), db, res, maxAmount))
+	})
+
+	t.Run("Guard denies - exceeds-limit error after row insert", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		res := newTestReservation(t)
+
+		// A new row inserts first (1 row affected); the reserve CTE then fails its WHERE
+		// guard (succeeded=false) -> ErrUsageCounterExceedsLimit. The caller rolls the
+		// transaction back, which unwinds the row inserted above.
+		mock.ExpectExec(regexp.QuoteMeta(reserveInsertSQL)).
+			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("1000", false))
 
@@ -231,7 +368,8 @@ func TestUsageReservationRepository_ConfirmByTransaction(t *testing.T) {
 
 		// Two reservations for one transaction (two limits): the select returns both
 		// and each gets a counter move + row flip in the SAME (caller-owned) tx.
-		expectReservedByTransactionSelect(mock, txID,
+		expectReservedByTransactionSelect(
+			mock, txID,
 			[4]any{res1, limit1, "acct:8601", "2026-06"},
 			[4]any{res2, limit2, "global", "2026-06-05"},
 		)
@@ -283,7 +421,8 @@ func TestUsageReservationRepository_ReleaseByTransaction(t *testing.T) {
 		repo, db, mock, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
-		expectReservedByTransactionSelect(mock, txID,
+		expectReservedByTransactionSelect(
+			mock, txID,
 			[4]any{res1, limit1, "acct:8701", "2026-06"},
 			[4]any{res2, limit2, "global", "2026-06-05"},
 		)

@@ -30,6 +30,29 @@ import (
 // Using a constant prevents SQL injection via table name interpolation.
 const usageReservationsTable = "usage_reservations"
 
+// reserveScopeLockSQL takes a transaction-scoped advisory lock. pg_advisory_xact_lock
+// blocks until the key is free and releases it automatically at commit or rollback,
+// so no explicit unlock is needed and a crashed transaction never leaks the lock.
+const reserveScopeLockSQL = `SELECT pg_advisory_xact_lock($1)`
+
+// reserveLockTimeout bounds how long the reserve transaction may wait on the
+// per-account advisory lock. Without it a reserve blocked by same-account contention
+// parks its pooled connection until the lock frees, so sustained contention on one
+// hot account can drain the per-tenant pool (default 25) into an indefinite queue.
+// When the wait exceeds this budget PostgreSQL aborts the statement with SQLSTATE
+// 55P03 (lock_not_available); the service rolls the transaction back, releasing the
+// connection, and its jittered transient-retry re-attempts. 3s sits well above the
+// time a legitimate same-account reserve queue drains (each reserve touches a handful
+// of rows in single-digit milliseconds) yet far below the point a stuck waiter would
+// starve the pool.
+const reserveLockTimeout = 3 * time.Second
+
+// reserveLockTimeoutSQL bounds the reserve transaction's lock wait. set_config with
+// is_local=true is the SET LOCAL equivalent that accepts a bind parameter, so the
+// timeout applies only within the current transaction and reverts at commit/rollback,
+// and no value is interpolated into the statement text.
+const reserveLockTimeoutSQL = `SELECT set_config('lock_timeout', $1, true)`
+
 // UsageReservationRepository implements the two-phase reservation lifecycle over
 // usage_reservations, keeping each transition atomic with the matching
 // usage_counters bucket move. Every method takes the caller's db handle (a *sql.Tx
@@ -37,9 +60,10 @@ const usageReservationsTable = "usage_reservations"
 // move, AND the caller's audit write all commit in ONE transaction owned by the
 // service (mirroring the RuleRepository/LimitRepository *WithTx pattern).
 //
-//   - ReserveWithTx: seeds usage_counters.reserved_usage via the reserve CTE
-//     (guarded on current_usage + reserved_usage + amount <= maxAmount) AND inserts
-//     the reservation row (idempotent on the 4-tuple).
+//   - ReserveWithTx: inserts the reservation row (idempotent on the 4-tuple) FIRST,
+//     then seeds usage_counters.reserved_usage via the reserve CTE (guarded on
+//     current_usage + reserved_usage + amount <= maxAmount) only when that insert
+//     added a new row, so a replay never moves the counter twice.
 //   - ConfirmWithTx: moves the amount reserved_usage -> current_usage AND flips the
 //     row to CONFIRMED, guarded WHERE status='RESERVED'.
 //   - ReleaseWithTx: returns the amount from reserved_usage AND flips the row to
@@ -62,9 +86,42 @@ func NewUsageReservationRepositoryWithConnection(counterRepo *UsageCounterReposi
 	return &UsageReservationRepository{counterRepo: counterRepo}
 }
 
-// ReserveWithTx seeds the counter's reserved_usage via the reserve CTE and inserts
-// the reservation row idempotently on the (transaction_id, limit_id, scope_key,
-// period_key) tuple, both on the supplied transaction handle.
+// AcquireReserveScopeLock sets a transaction-scoped lock_timeout FIRST, then takes
+// the advisory lock, so a wait that exceeds reserveLockTimeout surfaces as SQLSTATE
+// 55P03 (and the service retries) rather than parking the pooled connection
+// indefinitely under same-account contention.
+func (r *UsageReservationRepository) AcquireReserveScopeLock(ctx context.Context, db pgdb.DB, key int64) error {
+	if db == nil {
+		return pgdb.ErrNilConnection
+	}
+
+	//nolint:dogsled // NewTrackingFromContext returns four values; this lock-only path needs just the tracer.
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.usage_reservation.acquire_scope_lock")
+	defer span.End()
+
+	span.SetAttributes(attribute.Int64("app.request.reserve_scope_lock_key", key))
+
+	if _, err := db.ExecContext(ctx, reserveLockTimeoutSQL, reserveLockTimeout.String()); err != nil {
+		libOtel.HandleSpanError(span, "Failed to set reserve lock_timeout", err)
+		return fmt.Errorf("failed to set reserve lock_timeout: %w", err)
+	}
+
+	if _, err := db.ExecContext(ctx, reserveScopeLockSQL, key); err != nil {
+		libOtel.HandleSpanError(span, "Failed to acquire reserve scope advisory lock", err)
+		return fmt.Errorf("failed to acquire reserve scope advisory lock: %w", err)
+	}
+
+	return nil
+}
+
+// ReserveWithTx inserts the reservation row idempotently on the (transaction_id,
+// limit_id, scope_key, period_key) tuple FIRST, then — only when that insert added a
+// new row — seeds the counter's reserved_usage via the reserve CTE, both on the
+// supplied transaction handle. A replay for an existing 4-tuple hits ON CONFLICT DO
+// NOTHING (zero rows affected) and returns without touching the counter, so the held
+// capacity is never counted twice.
 //
 // maxAmount is the limit ceiling the reserve CTE guards against; it is supplied by
 // the caller (the limit it resolved) and is NOT stored on the reservation row.
@@ -72,9 +129,13 @@ func NewUsageReservationRepositoryWithConnection(counterRepo *UsageCounterReposi
 // Returns constant.ErrUsageCounterExceedsLimit when the combined committed +
 // outstanding usage would exceed the limit (the guard denied the reservation). The
 // caller is responsible for rolling the transaction back on any error so a denied
-// reserve leaves no RESERVED row whose capacity was never held. A retried reserve
-// for the same 4-tuple collapses onto the existing row (ON CONFLICT DO NOTHING).
-func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount int64) error {
+// reserve leaves no RESERVED row whose capacity was never held — the CTE runs after
+// the row insert, so that rollback also unwinds the freshly inserted row.
+//
+// Concurrency: two simultaneous first-inserts of the same 4-tuple serialize on the
+// unique index — the second blocks until the first commits, then hits ON CONFLICT
+// and reports zero rows, so the RowsAffected gate stays correct without extra locks.
+func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.DB, reservation *model.Reservation, maxAmount decimal.Decimal) error {
 	if db == nil {
 		return pgdb.ErrNilConnection
 	}
@@ -95,22 +156,6 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		return err
 	}
 
-	// Reserve capacity on the counter (the over-limit guard lives in the CTE). On
-	// guard failure this returns ErrUsageCounterExceedsLimit; the caller rolls back
-	// so the row insert below never persists.
-	if _, err := r.counterRepo.UpsertAndReserveAtomic(
-		ctx,
-		db,
-		reservation.LimitID,
-		reservation.ScopeKey,
-		reservation.PeriodKey,
-		decimal.NewFromInt(reservation.Amount),
-		decimal.NewFromInt(maxAmount),
-		&reservation.ReservationExpiresAt,
-	); err != nil {
-		return err
-	}
-
 	insertSQL := `
 		INSERT INTO usage_reservations (
 			id, limit_id, scope_key, period_key, amount, status,
@@ -120,7 +165,7 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) DO NOTHING
 	`
 
-	if _, err := db.ExecContext(
+	result, err := db.ExecContext(
 		ctx,
 		insertSQL,
 		reservation.ID,
@@ -132,9 +177,46 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		reservation.TransactionID,
 		reservation.ReservationExpiresAt,
 		reservation.CreatedAt,
-	); err != nil {
+	)
+	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to insert reservation row", err)
 		return fmt.Errorf("failed to insert reservation row: %w", err)
+	}
+
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		libOtel.HandleSpanError(span, "Failed to read reservation rows affected", err)
+		return fmt.Errorf("failed to read reservation rows affected: %w", err)
+	}
+
+	// Zero rows means the 4-tuple already exists: an idempotent replay. The capacity
+	// was reserved on the first call, so return without re-moving the counter.
+	if inserted == 0 {
+		span.SetAttributes(attribute.Bool("app.reservation_replay", true))
+
+		logger.With(
+			libLog.String("operation", "repository.usage_reservation.reserve"),
+			libLog.String("reservation_id", reservation.ID.String()),
+			libLog.String("limit_id", reservation.LimitID.String()),
+		).Log(ctx, libLog.LevelDebug, "Reserve replay, counter unchanged")
+
+		return nil
+	}
+
+	// A new row was inserted: reserve capacity on the counter (the over-limit guard
+	// lives in the CTE). On guard failure this returns ErrUsageCounterExceedsLimit;
+	// the caller rolls back, which also unwinds the row inserted above.
+	if _, err := r.counterRepo.UpsertAndReserveAtomic(
+		ctx,
+		db,
+		reservation.LimitID,
+		reservation.ScopeKey,
+		reservation.PeriodKey,
+		reservation.Amount,
+		maxAmount,
+		&reservation.ReservationExpiresAt,
+	); err != nil {
+		return err
 	}
 
 	logger.With(

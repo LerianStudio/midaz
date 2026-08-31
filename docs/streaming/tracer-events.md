@@ -12,23 +12,51 @@ producer conventions in `CLAUDE.md` (Streaming section) and
 
 ## Overview
 
-- **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v1.6.2.
+- **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v3.1.0.
 - **Wire format:** CloudEvents 1.0, binary mode, over Kafka/Redpanda.
 - **Component:** tracer (`components/tracer`). Tracer is a standalone Go service
   with its own self-contained emitter bootstrap at
   `components/tracer/internal/bootstrap/streaming.go`.
-- **CloudEvents source (`ce-source`):** `lerian.midaz.tracer` (set on the
-  producer Builder at construction; there is no per-emit source).
-- **Posture:** all 12 events are **IMPORTANT** — direct-emit, synchronous, via
-  `pkgStreaming.EmitImportant`. Emit is best-effort at the post-commit slot in
-  the command use case: a build/emit failure logs a Warn and is recorded on the
-  span, but **never fails the request**. Durability of the mutation itself is
-  owned by the database write, not by the emit.
-- **No outbox.** Emission is direct-emit only. When an outbox lands, only the
-  emit call sites change; the Definitions and payload contracts below stay put.
-- **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled — or
-  when `STREAMING_BROKERS` is empty, or no events are registered — bootstrap
-  injects a `NoopEmitter` and no broker connection is attempted.
+- **Application name / CloudEvents source (`ce-source`):** `tracer` (set on the
+  producer Builder at construction; there is no per-emit source). It must be ONE
+  dot-free lowercase segment matching `^[a-z0-9][a-z0-9_-]*$`, at most 223 bytes; a
+  malformed value is REJECTED at startup, never normalized. The resolved value is
+  load-bearing three times over — it is stamped as `ce-source`, it derives the one
+  topic every event rides, and it is what the streaming manifest advertises.
+- **Kafka topics:** ONE topic per producing application. All 12 events — every
+  resource type, every event type, every schema version — ride
+  `lerian.streaming.tracer`, with `lerian.streaming.tracer.dlq` as its single
+  dead-letter topic. There is no per-event topic and no `.v<major>` topic suffix:
+  `ce-schemaversion` is the only version carrier on the wire. Consumers subscribe to
+  the application and dispatch on the event key.
+- **Posture:** all 12 events invoke `pkgStreaming.EmitBrokerBestEffort` at the
+  post-commit slot. It bounds the synchronous `Emitter.Emit` call, span-records
+  and Warn-logs build/emit failures, and **never fails the request**. The library
+  resolves delivery policy and any configured fallback behavior.
+- **No Midaz transactional outbox.** Bootstrap passes neither an outbox writer nor
+  repository, and registers no relay. The helper does not persist a local fallback record or
+  make the database mutation and broker delivery atomic; definitions and payload
+  contracts stay unchanged.
+- **HTTP event-manifest endpoint.** The tracer binary serves
+  `GET /v1/streaming/manifest` (inside the `/v1` group; auth
+  `streaming-manifest`/`get`) — a catalog-only view of the 12 registered event
+  Definitions, at manifest wire version `1.0.0`. The document carries
+  `publisher.source` plus tracer's `topic` / `dlqTopic` pair at DOCUMENT level (no
+  commands queue: tracer emits facts only), and each event entry names its
+  `eventKey` (`"<resourceType>.<eventType>"` — the consumer's dispatch selector),
+  its `schemaVersion`, and its `class`, always `"fact"`. The advertised topic is
+  derived from the same `ce-source` the emitter publishes under. It is independent
+  of `STREAMING_ENABLED` and degraded-safe.
+- **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled, bootstrap
+  injects a `NoopEmitter`, no broker connection is attempted, and `/readyz` reports
+  the streaming check as `skipped` rather than healthy. `STREAMING_ENABLED=true`
+  with an empty `STREAMING_BROKERS` REFUSES BOOT (`pkgStreaming.RequireBrokers`,
+  which validates only the broker list); an empty event registry also refuses
+  boot, via a separate inline check in the tracer's `BuildStreamingEmitter`, not
+  `RequireBrokers`. An enabled producer with nowhere (or nothing) to publish
+  discards every event silently while readiness stays green, which is the same
+  invisible-total-loss failure the roster source gate exists to kill. To run
+  without streaming, set `STREAMING_ENABLED=false`.
 - **No `organizationId` / `ledgerId` on the wire.** Those dimensions do not
   exist anywhere in Tracer's domain. Tenant isolation travels only in the
   `ce-tenantid` header (see [ce-tenantid](#ce-tenantid)).
@@ -37,29 +65,34 @@ Routing constants are assembled from `Definition{ResourceType, EventType,
 SchemaVersion}` (`pkg/streaming/events/events.go`) and registered exactly once
 in `tracerEventDefinitions()`
 (`components/tracer/internal/bootstrap/streaming.go`), which feeds both the
-Catalog (`buildCatalog`) and the route table (`buildRoutes`):
+Catalog (`buildCatalog`) and the manifest:
 
 - **Event key** = `<resourceType>.<eventType>` via `Definition.Key()` (e.g.
-  `rule.created`). `resource` ∈ {`rule`, `limit`}; `event` ∈ {`created`,
+  `rule.created`) — the dispatch selector a consumer registers a handler under
+  inside the `tracer` stream. `resource` ∈ {`rule`, `limit`}; `event` ∈ {`created`,
   `updated`, `activated`, `deactivated`, `drafted`, `deleted`}.
-- **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`
-  (resource unchanged, e.g. `studio.lerian.rule.created`).
-- **Kafka topic** = `pkgStreaming.TopicName("tracer", key)` =
-  `lerian.streaming.tracer_<resource>.<event>` — the producing-service segment
-  (`tracer`) is folded in (e.g. `lerian.streaming.tracer_rule.created`).
+- **`ce-type`** = `studio.lerian.<app>.<resourceType>.<eventType>`, i.e.
+  `studio.lerian.tracer.<key>` (resource unchanged, e.g.
+  `studio.lerian.tracer.rule.created`). The `tracer` segment names the producing
+  application, which is what keeps two services emitting a same-named event from
+  producing byte-identical `ce-type` values — a homonym collision a consumer reading
+  only `ce-type` cannot detect.
+- **Kafka topic** = `lerian.streaming.tracer` for every event in the catalog,
+  derived from `ce-source` via `libStreaming.AppTopic`. One catch-all route carries
+  every fact; nothing fans out per event.
 - **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`) — the rule UUID or
   limit UUID.
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
-  `pkgStreaming.ResolveTenantID(ctx)` inside `EmitImportant`.
+  `pkgStreaming.ResolveTenantID(ctx)` inside `EmitBrokerBestEffort`.
 
 ## Conventions
 
 | Aspect | Rule |
 |--------|------|
-| Event key | `<resource>.<event>`, lowercase; tokens are single words (no separator); underscores are rejected by the route-key validator |
-| Kafka topic | `lerian.streaming.tracer_<resource>.<event>` |
-| `ce-type` | `studio.lerian.<resource>.<event>` (auto-prefixed by lib-streaming) |
-| `ce-source` | `lerian.midaz.tracer` |
+| Event key | `<resource>.<event>`, lowercase; tokens are single words (no separator); it is the consumer's dispatch selector |
+| Kafka topic | `lerian.streaming.tracer` — one topic for the whole catalog; `lerian.streaming.tracer.dlq` for a failed publish |
+| `ce-type` | `studio.lerian.tracer.<resource>.<event>` (auto-prefixed by lib-streaming) |
+| `ce-source` | `tracer` |
 | `ce-subject` | aggregate ID — rule UUID or limit UUID |
 | `ce-tenantid` | `pkgStreaming.ResolveTenantID(ctx)`, falls back to `"default"` |
 | Schema version | `1.0.0` (all 12 events) |
@@ -68,20 +101,20 @@ Catalog (`buildCatalog`) and the route table (`buildRoutes`):
 
 All 12 events carry `SchemaVersion = 1.0.0`.
 
-| Event key | `ce-type` | Kafka topic | `ce-subject` | Schema version |
-|-----------|-----------|-------------|--------------|----------------|
-| `rule.created` | `studio.lerian.rule.created` | `lerian.streaming.tracer_rule.created` | rule ID | `1.0.0` |
-| `rule.updated` | `studio.lerian.rule.updated` | `lerian.streaming.tracer_rule.updated` | rule ID | `1.0.0` |
-| `rule.activated` | `studio.lerian.rule.activated` | `lerian.streaming.tracer_rule.activated` | rule ID | `1.0.0` |
-| `rule.deactivated` | `studio.lerian.rule.deactivated` | `lerian.streaming.tracer_rule.deactivated` | rule ID | `1.0.0` |
-| `rule.drafted` | `studio.lerian.rule.drafted` | `lerian.streaming.tracer_rule.drafted` | rule ID | `1.0.0` |
-| `rule.deleted` | `studio.lerian.rule.deleted` | `lerian.streaming.tracer_rule.deleted` | rule ID | `1.0.0` |
-| `limit.created` | `studio.lerian.limit.created` | `lerian.streaming.tracer_limit.created` | limit ID | `1.0.0` |
-| `limit.updated` | `studio.lerian.limit.updated` | `lerian.streaming.tracer_limit.updated` | limit ID | `1.0.0` |
-| `limit.activated` | `studio.lerian.limit.activated` | `lerian.streaming.tracer_limit.activated` | limit ID | `1.0.0` |
-| `limit.deactivated` | `studio.lerian.limit.deactivated` | `lerian.streaming.tracer_limit.deactivated` | limit ID | `1.0.0` |
-| `limit.drafted` | `studio.lerian.limit.drafted` | `lerian.streaming.tracer_limit.drafted` | limit ID | `1.0.0` |
-| `limit.deleted` | `studio.lerian.limit.deleted` | `lerian.streaming.tracer_limit.deleted` | limit ID | `1.0.0` |
+| Event key | `ce-type` | `ce-subject` | Schema version |
+|-----------|-----------|--------------|----------------|
+| `rule.created` | `studio.lerian.tracer.rule.created` | rule ID | `1.0.0` |
+| `rule.updated` | `studio.lerian.tracer.rule.updated` | rule ID | `1.0.0` |
+| `rule.activated` | `studio.lerian.tracer.rule.activated` | rule ID | `1.0.0` |
+| `rule.deactivated` | `studio.lerian.tracer.rule.deactivated` | rule ID | `1.0.0` |
+| `rule.drafted` | `studio.lerian.tracer.rule.drafted` | rule ID | `1.0.0` |
+| `rule.deleted` | `studio.lerian.tracer.rule.deleted` | rule ID | `1.0.0` |
+| `limit.created` | `studio.lerian.tracer.limit.created` | limit ID | `1.0.0` |
+| `limit.updated` | `studio.lerian.tracer.limit.updated` | limit ID | `1.0.0` |
+| `limit.activated` | `studio.lerian.tracer.limit.activated` | limit ID | `1.0.0` |
+| `limit.deactivated` | `studio.lerian.tracer.limit.deactivated` | limit ID | `1.0.0` |
+| `limit.drafted` | `studio.lerian.tracer.limit.drafted` | limit ID | `1.0.0` |
+| `limit.deleted` | `studio.lerian.tracer.limit.deleted` | limit ID | `1.0.0` |
 
 ## Shared `scopes[]` nested shape
 
@@ -233,7 +266,7 @@ Source: `pkg/streaming/events/limit_created.go`, `limit_updated.go`.
   "id":              "uuid",
   "status":          "DRAFT | ACTIVE | INACTIVE | DELETED",
   "limitType":       "DAILY | WEEKLY | MONTHLY | CUSTOM | PER_TRANSACTION",
-  "currency":        "ISO-4217",
+  "asset":           "asset code",
   "scopes":          [ { /* RuleScopePayload — 6 keys */ } ],
   "activeTimeStart": "HH:MM | null",
   "activeTimeEnd":   "HH:MM | null",
@@ -250,7 +283,7 @@ Source: `pkg/streaming/events/limit_created.go`, `limit_updated.go`.
 | `id` | string | Limit ID. |
 | `status` | string | `DRAFT` / `ACTIVE` / `INACTIVE` / `DELETED`. |
 | `limitType` | string | `DAILY` / `WEEKLY` / `MONTHLY` / `CUSTOM` / `PER_TRANSACTION`. |
-| `currency` | string | ISO-4217 code. |
+| `asset` | string | Asset code. |
 | `scopes` | array | Shared `RuleScopePayload` elements (6 keys each); `[]` when empty. |
 | `activeTimeStart` | string \| null | Time-of-day window start (`HH:MM`), `null` when unset. |
 | `activeTimeEnd` | string \| null | Time-of-day window end (`HH:MM`), `null` when unset. |
@@ -279,7 +312,7 @@ Source: `pkg/streaming/events/limit_activated.go`, `limit_deactivated.go`,
 Unlike Rule, the Limit domain model has no `ActivatedAt` / `DeactivatedAt`
 fields, so all three status-transition events carry the same minimal shape.
 
-**Excluded:** `limitType`, `currency`, `scopes`, all time-window fields,
+**Excluded:** `limitType`, `asset`, `scopes`, all time-window fields,
 `name`, `description`, `maxAmount`.
 
 ### `limit.deleted` — 2 fields
@@ -293,7 +326,7 @@ Source: `pkg/streaming/events/limit_deleted.go`. `ce-subject` = limit ID.
 }
 ```
 
-**Excluded:** `status`, `limitType`, `currency`, `scopes`, all time-window
+**Excluded:** `status`, `limitType`, `asset`, `scopes`, all time-window
 fields, `name`, `description`, `maxAmount`.
 
 ## What is deliberately off the wire, and why
@@ -353,8 +386,8 @@ metadata in Kafka headers, payload in the record value):
 
 ```
 ce-specversion: 1.0
-ce-type:        studio.lerian.rule.created
-ce-source:      lerian.midaz.tracer
+ce-type:        studio.lerian.tracer.rule.created
+ce-source:      tracer
 ce-id:          0f9c1a3e-6b2d-4e7f-9a10-2c8d5f4b1a22
 ce-subject:     7b3e2c14-9d5a-4f61-8c2b-1e0a9d7f4c33
 ce-tenantid:    default
@@ -384,10 +417,44 @@ content-type:   application/json
 }
 ```
 
-`ce-type` is the auto-prefixed key (`studio.lerian.` + `rule.created`);
+`ce-type` is the application-qualified key — `studio.lerian.` plus the
+application name (`tracer`) plus the event key (`rule.created`);
 `ce-subject` is the rule UUID and matches the payload `id`; the payload carries
 no `name`, `description`, or `expression`. All UUIDs above are illustrative
 placeholders.
+
+> **Before upgrading:** the ce-source is now REFUSED at startup unless it is exactly
+> `tracer`. A value carried over from before the one-topic contract — the dotted
+> `lerian.midaz.tracer` or URI `//lerian.midaz/tracer` shapes, or any other legal
+> name — must be removed from every env file first, or the service will not boot. The
+> refusal is deliberate: broker topics and Kafka ACLs are provisioned for the roster
+> name alone, so any other value would publish into a stream that neither exists nor
+> is granted, and midaz would swallow every one of those failures as a Warn while
+> reporting healthy. The check runs whether or not `STREAMING_ENABLED` is set.
+
+## Partitioning
+
+lib-streaming picks a record's partition key by falling back through: system event
+→ tenant → `ce-subject` → event id. Under one topic per application that has one
+consequence worth stating plainly.
+
+- **Multi-tenant deployments** key by the resolved tenant, so the stream spreads
+  across `lerian.streaming.tracer`'s partitions and every tenant's events keep a
+  stable partition affinity.
+- **Single-tenant deployments** carry the literal tenant `"default"` on every event
+  (see `ce-tenantid` above), so the ENTIRE stream hashes to ONE partition regardless
+  of how many the topic has. Consumer parallelism on that stream is capped at one.
+
+That is a throughput ceiling, not a correctness problem: a single partition makes
+ordering stronger, not weaker — total order across the stream instead of order per
+tenant — and nothing is dropped or misrouted. Plan capacity for it in single-tenant
+deployments.
+
+The ceiling stands until the platform-wide partition-key default is decided in
+lib-streaming (tenant+subject is the likely shape). midaz deliberately does not
+override the key locally: partitioning is a fleet contract, and one service opting
+out of it privately is how two consumers of the same stream end up disagreeing about
+what a partition means.
 
 ## Local testing
 
@@ -397,23 +464,17 @@ point tracer at it:
 - Bind the broker on host port `19092`; join `infra-network` so it is reachable
   from both host (`localhost:19092`) and containers (`<container>:9092`).
 - Set `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:19092`, and
-  `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.tracer`.
-- Pre-provision these 12 topics explicitly; do not rely on auto-create:
+  `STREAMING_CLOUDEVENTS_SOURCE=tracer`.
+- Pre-provision these two topics explicitly; do not rely on auto-create. The
+  per-event topic list is gone — every event tracer emits rides the first of them:
 
   ```
-  lerian.streaming.tracer_rule.created
-  lerian.streaming.tracer_rule.updated
-  lerian.streaming.tracer_rule.activated
-  lerian.streaming.tracer_rule.deactivated
-  lerian.streaming.tracer_rule.drafted
-  lerian.streaming.tracer_rule.deleted
-  lerian.streaming.tracer_limit.created
-  lerian.streaming.tracer_limit.updated
-  lerian.streaming.tracer_limit.activated
-  lerian.streaming.tracer_limit.deactivated
-  lerian.streaming.tracer_limit.drafted
-  lerian.streaming.tracer_limit.deleted
+  lerian.streaming.tracer
+  lerian.streaming.tracer.dlq
   ```
+
+  Give the DLQ a `max.message.bytes` at or above its source topic's: a DLQ record is
+  strictly larger than the record it quarantines.
 
 The default unit suite never touches a broker — the JSONShape and mapping tests
 in `pkg/streaming/events/` marshal payloads in memory. See the `CLAUDE.md`
@@ -425,7 +486,7 @@ Streaming → Local testing section for the broker/environment conventions.
   and the matching `*_test.go`.
 - **Shared scope shape:** `pkg/streaming/events/rule_scope.go`
   (`RuleScopePayload`, `newRuleScopePayloads`).
-- **Event registry (single source of truth for catalog + routes):**
+- **Event registry (single source of truth for catalog + manifest):**
   `tracerEventDefinitions()` in
   `components/tracer/internal/bootstrap/streaming.go`.
 - **Emit helpers (post-commit):** `emit<Event>Event` on each command in

@@ -75,7 +75,7 @@ func setupConsumerInfra(t *testing.T, numWorkers, prefetch int) *consumerTestInf
 	t.Helper()
 
 	// Setup RabbitMQ container
-	rmqContainer := rmqtestutil.SetupContainer(t)
+	rmqContainer := rmqtestutil.SetupReusableContainer(t)
 
 	// Setup exchange and queue
 	exchange := "test-consumer-exchange"
@@ -106,6 +106,7 @@ func setupConsumerInfra(t *testing.T, numWorkers, prefetch int) *consumerTestInf
 	// Create consumer routes
 	consumer, err := NewConsumerRoutes(conn, numWorkers, prefetch, logger, telemetry)
 	require.NoError(t, err, "failed to create consumer routes")
+	t.Cleanup(consumer.StopConsumers)
 
 	// Create producer for publishing test messages
 	producer, err := NewProducerRabbitMQ(conn)
@@ -261,6 +262,9 @@ func setupConsumerNetworkChaosInfra(t *testing.T, numWorkers, prefetch int) *con
 
 // cleanup releases all resources for chaos tests.
 func (infra *consumerChaosTestInfra) cleanup() {
+	if infra.consumer != nil {
+		infra.consumer.StopConsumers()
+	}
 	if infra.chaosOrch != nil {
 		infra.chaosOrch.Close()
 	}
@@ -268,6 +272,9 @@ func (infra *consumerChaosTestInfra) cleanup() {
 
 // cleanup releases all resources for network chaos infrastructure.
 func (infra *consumerNetworkChaosTestInfra) cleanup() {
+	if infra.proxyConsumer != nil {
+		infra.proxyConsumer.StopConsumers()
+	}
 	if infra.chaosInfra != nil {
 		infra.chaosInfra.Cleanup()
 	}

@@ -15,7 +15,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/LerianStudio/lib-observability/v2/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -85,8 +85,11 @@ func (s *BillingPackageService) resolveAccountExists(ctx context.Context, organi
 	return s.resolver.AccountExistsByAlias(ctx, orgUUID, ledgerUUID, alias)
 }
 
-// CreateBillingPackage validates and creates a new billing package.
-func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, bp *model.BillingPackage) (_ *model.BillingPackage, err error) {
+// CreateBillingPackage validates and creates a new billing package within the given
+// ledger. The ledger is the request's authority — the caller resolves it from the path
+// and passes it here — so it is stamped onto the package before validation and persistence,
+// and every scoped check below reads that stamped value.
+func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, ledgerID uuid.UUID, bp *model.BillingPackage) (_ *model.BillingPackage, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "service.billing_package.create")
@@ -102,9 +105,12 @@ func (s *BillingPackageService) CreateBillingPackage(ctx context.Context, bp *mo
 		return nil, errors.New("billing package cannot be nil")
 	}
 
+	bp.LedgerID = ledgerID.String()
+
 	span.SetAttributes(
 		attribute.String("app.request.request_id", reqId),
 		attribute.String("app.request.organization_id", bp.OrganizationID),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.billing_package_type", bp.Type),
 	)
 
@@ -462,7 +468,7 @@ func (s *BillingPackageService) DeleteBillingPackage(ctx context.Context, id, or
 
 // emitBillingPackageCreatedEvent publishes fee-billing-packages.created. IMPORTANT posture.
 func (s *BillingPackageService) emitBillingPackageCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, bp *model.BillingPackage) {
-	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, s.Streaming, events.FeesBillingPackageCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			ts, err := time.Parse(time.RFC3339, bp.CreatedAt)
 			if err != nil {
@@ -479,7 +485,7 @@ func (s *BillingPackageService) emitBillingPackageCreatedEvent(ctx context.Conte
 
 // emitBillingPackageUpdatedEvent publishes fee-billing-packages.updated. IMPORTANT posture.
 func (s *BillingPackageService) emitBillingPackageUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, bp *model.BillingPackage) {
-	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, s.Streaming, events.FeesBillingPackageUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			ts, err := time.Parse(time.RFC3339, bp.UpdatedAt)
 			if err != nil {
@@ -496,7 +502,7 @@ func (s *BillingPackageService) emitBillingPackageUpdatedEvent(ctx context.Conte
 
 // emitBillingPackageDeletedEvent publishes fee-billing-packages.deleted. IMPORTANT posture.
 func (s *BillingPackageService) emitBillingPackageDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID, ledgerID string, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.FeesBillingPackageDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, s.Streaming, events.FeesBillingPackageDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewFeesBillingPackageDeleted(id, organizationID, ledgerID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

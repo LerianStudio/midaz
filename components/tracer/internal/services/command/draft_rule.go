@@ -13,7 +13,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -245,7 +245,7 @@ func (s *DraftRuleService) Execute(ctx context.Context, ruleID uuid.UUID) (_ *mo
 // emitRuleDraftedEvent publishes the rule.drafted event post-commit. IMPORTANT
 // posture: emit failures never fail the request.
 func (s *DraftRuleService) emitRuleDraftedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, rule *model.Rule) {
-	pkgStreaming.EmitImportant(ctx, span, logger, s.Streaming, events.RuleDraftedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, s.Streaming, events.RuleDraftedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewRuleDrafted(rule).ToEmitRequest(tenantID, rule.UpdatedAt)
 		})

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 )
 
 // TransactionRouteDeletedDefinition is the routing contract for transaction_route.deleted.

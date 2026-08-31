@@ -8,16 +8,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -26,8 +25,7 @@ import (
 )
 
 const (
-	Source    string = "midaz"
-	EventType string = "transaction"
+	Source string = "midaz"
 
 	// TransactionLifecyclePhaseCreated marks a freshly persisted
 	// transaction (TransactionRepo.Create returned success). Emits
@@ -43,89 +41,27 @@ const (
 
 	// TransactionLifecyclePhaseNoop marks a code path that observed no
 	// state change (e.g. a unique violation with no eligible status
-	// transition). SendTransactionEvents emits NEITHER the lib-streaming
-	// lifecycle event nor the legacy rabbit publish in this phase.
+	// transition). SendTransactionEvents emits no lifecycle event in
+	// this phase.
 	TransactionLifecyclePhaseNoop = "noop"
 )
 
-// SendTransactionEvents publishes the post-commit notifications for a
-// persisted transaction state change.
-//
-// During the lib-streaming cutover window this function emits BOTH the
-// legacy transaction.transaction_events rabbit publish AND the new
-// lib-streaming transaction.{posted,committed,canceled,reverted}
-// CloudEvent. The two transports are independent: a rabbit failure does
-// not block the lib-streaming emit and vice versa. The disabled flag
-// RABBITMQ_TRANSACTION_EVENTS_ENABLED=false short-circuits BOTH
-// transports together (per cutover discipline).
+// SendTransactionEvents emits the post-commit lib-streaming lifecycle
+// event for a persisted transaction state change.
 //
 // phase is the lifecycle phase returned by CreateOrUpdateTransaction
 // (TransactionLifecyclePhaseCreated / TransactionLifecyclePhaseUpdated /
-// TransactionLifecyclePhaseNoop). The lib-streaming emission picks
-// posted vs reverted vs committed vs canceled from phase + status +
-// parent. Callers that don't have a phase tracked (e.g. the bulk path
-// at create_bulk_transaction_operations_async.go:555 which only does
-// fresh inserts) pass TransactionLifecyclePhaseCreated explicitly.
+// TransactionLifecyclePhaseNoop). The emission picks posted vs reverted
+// vs committed vs canceled from phase + status + parent. Callers that
+// don't have a phase tracked (e.g. the bulk path at
+// create_bulk_transaction_operations_async.go:555 which only does fresh
+// inserts) pass TransactionLifecyclePhaseCreated explicitly.
 func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.Transaction, phase string) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	if !isTransactionEventEnabled() {
-		logger.Log(ctx, libLog.LevelDebug, "Transaction event not enabled",
-			libLog.String("rabbitmq_transaction_events_enabled", os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))
-
-		return
-	}
 
 	ctxSendTransactionEvents, spanTransactionEvents := tracer.Start(ctx, "command.send_transaction_events_async")
 	defer spanTransactionEvents.End()
 
-	payload, err := json.Marshal(tran)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to marshal transaction to JSON string", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to marshal transaction to JSON string", libLog.Err(err))
-	}
-
-	event := mmodel.Event{
-		Source:         Source,
-		EventType:      EventType,
-		Action:         tran.Status.Code,
-		TimeStamp:      time.Now(),
-		Version:        os.Getenv("VERSION"),
-		OrganizationID: tran.OrganizationID,
-		LedgerID:       tran.LedgerID,
-		Payload:        payload,
-	}
-
-	var key strings.Builder
-
-	key.WriteString(Source)
-	key.WriteString(".")
-	key.WriteString(EventType)
-	key.WriteString(".")
-	key.WriteString(tran.Status.Code)
-
-	message, err := json.Marshal(event)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to marshal exchange message struct", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to marshal exchange message struct")
-	}
-
-	if _, err := uc.RabbitMQRepo.ProducerDefault(
-		ctxSendTransactionEvents,
-		os.Getenv("RABBITMQ_TRANSACTION_EVENTS_EXCHANGE"),
-		key.String(),
-		message,
-	); err != nil {
-		libOpentelemetry.HandleSpanError(spanTransactionEvents, "Failed to send transaction events to exchange", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to send message", libLog.Err(err))
-	}
-
-	// lib-streaming emission runs alongside the rabbit publish during
-	// the cutover window. The phase parameter discriminates which of
-	// the four lifecycle events to fire — see emitTransactionLifecycleEvent.
 	uc.emitTransactionLifecycleEvent(ctxSendTransactionEvents, spanTransactionEvents, logger, tran, phase)
 }
 
@@ -133,11 +69,10 @@ func (uc *UseCase) SendTransactionEvents(ctx context.Context, tran *transaction.
 // transaction.{posted,committed,canceled,reverted} lib-streaming events
 // based on the (phase, status, parent) discriminator triple.
 //
-// IMPORTANT posture (catalog says CRITICAL with outbox: always, but the
-// outbox subsystem is not yet wired in midaz — see handoff). Build and
+// Best-effort broker publication (catalog says CRITICAL with outbox: always, but
+// Midaz has no local outbox writer or relay. Build and
 // emit failures are span-recorded and logged at Warn, never returned to
-// the caller; durability of these events is owned by PG + (follow-up
-// task) the outbox subsystem, not by this synchronous Emit call.
+// the caller; the persisted database mutation is durable, while this helper does not make broker delivery transactional.
 //
 // Discriminator table:
 //
@@ -238,7 +173,7 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 		return
 	}
 
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, definitionKey, buildFn)
 
 	// fee-charge.applied rides alongside transaction.posted only. Commit/cancel/
 	// revert do NOT re-emit it (the fee charge happened once, at post).
@@ -252,7 +187,7 @@ func (uc *UseCase) emitTransactionLifecycleEvent(ctx context.Context, span trace
 // packageAppliedID are present in metadata (charged-only, set by the fee
 // engine on the real-charge branch); pure exemptions still carry
 // packageAppliedID but omit feeApplied=true, so the feeApplied guard suppresses
-// the emit. IMPORTANT posture: EmitImportant swallows build/emit failures.
+// the emit. IMPORTANT posture: EmitBrokerBestEffort swallows build/emit failures.
 func (uc *UseCase) emitFeesAppliedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, tran *transaction.Transaction) {
 	if applied, _ := tran.Metadata["feeApplied"].(string); applied != "true" {
 		return
@@ -265,11 +200,34 @@ func (uc *UseCase) emitFeesAppliedEvent(ctx context.Context, span trace.Span, lo
 
 	appliedAt := tran.CreatedAt
 
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesAppliedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.FeesAppliedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewFeesApplied(tran.ID, tran.OrganizationID, tran.LedgerID, packageID, appliedAt).
 				ToEmitRequest(tenantID, appliedAt)
 		})
+}
+
+// operationEventPayload is the wire shape of one entry in the lifecycle
+// payload's operations array: the operation marshalled verbatim, plus the
+// type of the account it moved.
+//
+// The operation is embedded, so every key it already emitted keeps its name,
+// type and value — the view only adds accountType, and a consumer that ignores
+// the new key reads an unchanged document.
+//
+// This lives here rather than in pkg/streaming/events for the same reason the
+// operations array is []json.RawMessage: operation.Operation sits behind an
+// internal/ boundary the events package cannot import, so the inner shape of
+// that array is the caller's to assemble.
+//
+// AccountType carries no omitempty. The account's type is required on every
+// account, so the key is always meaningful; an empty value means the operation
+// reached the emit without one — an in-flight queue payload produced before
+// this field existed — which a consumer can tell apart from any real type.
+type operationEventPayload struct {
+	*operation.Operation
+
+	AccountType string `json:"accountType"`
 }
 
 // buildTransactionEventSource maps a persisted Transaction into the
@@ -277,10 +235,7 @@ func (uc *UseCase) emitFeesAppliedEvent(ctx context.Context, span trace.Span, lo
 // constructors. The mapping does the one heavy lift the events package
 // cannot do for itself: marshaling each *operation.Operation into
 // json.RawMessage so the events package stays decoupled from the
-// internal/ domain operation type. The on-the-wire bytes match what the
-// legacy transaction.transaction_events rabbit publish produces for the
-// `operations` array — consumers migrating off the rabbit topic see no
-// payload shape drift.
+// internal/ domain operation type.
 //
 // Returns the assembled source plus a build error if any operation
 // fails to marshal. The caller (emitTransactionLifecycleEvent) treats
@@ -294,7 +249,11 @@ func buildTransactionEventSource(tran *transaction.Transaction) (events.Transact
 			continue
 		}
 
-		raw, err := json.Marshal(op)
+		// Every operation is decorated, external accounts included. Dropping
+		// the external legs here would take with them the evidence that the
+		// leg existed at all, and a consumer could no longer reconcile the
+		// transaction against the ledger.
+		raw, err := json.Marshal(operationEventPayload{Operation: op, AccountType: op.AccountType})
 		if err != nil {
 			return events.TransactionSource{}, fmt.Errorf("marshal operation[%d]: %w", i, err)
 		}
@@ -324,7 +283,7 @@ func buildTransactionEventSource(tran *transaction.Transaction) (events.Transact
 		Description:              tran.Description,
 		Source:                   tran.Source,
 		Destination:              tran.Destination,
-		Route:                    tran.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
+		Route:                    tran.Route, //nolint:staticcheck // deprecated field kept for backward compatibility; RouteID is canonical
 		RouteID:                  tran.RouteID,
 		Operations:               operationsRaw,
 		Metadata:                 tran.Metadata,
@@ -333,9 +292,4 @@ func buildTransactionEventSource(tran *transaction.Transaction) (events.Transact
 		CreatedAt:                tran.CreatedAt,
 		UpdatedAt:                tran.UpdatedAt,
 	}, nil
-}
-
-func isTransactionEventEnabled() bool {
-	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED")))
-	return envValue != "false"
 }

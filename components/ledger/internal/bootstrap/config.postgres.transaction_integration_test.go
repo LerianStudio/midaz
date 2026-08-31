@@ -43,7 +43,7 @@ type integrationTestInfra struct {
 func setupBootstrapIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
-	pgResult := pgtestutil.SetupContainer(t)
+	pgResult := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	return &integrationTestInfra{
 		pgResult: pgResult,

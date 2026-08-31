@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -103,7 +103,7 @@ func TestDeleteOperationRouteByID_NoopEmitterDoesNotPanic(t *testing.T) {
 // TestDeleteOperationRouteByID_EmitFailureDoesNotFailRequest verifies
 // the IMPORTANT posture: when Emit returns an error,
 // DeleteOperationRouteByID must still complete successfully because
-// durability is owned by PG + future DLQ/outbox, not by the
+// durability is owned by PG + the configured lib-streaming policy, not by the
 // synchronous Emit call.
 func TestDeleteOperationRouteByID_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)

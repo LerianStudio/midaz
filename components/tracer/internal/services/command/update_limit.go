@@ -19,7 +19,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
@@ -43,7 +43,7 @@ import (
 //   - Command layer remains framework-agnostic and testable
 //   - Domain model (limit.Update) performs business validation
 //
-// Note: LimitType and Currency are immutable and cannot be updated.
+// Note: LimitType and Asset are immutable and cannot be updated.
 type UpdateLimitInput struct {
 	Name            *string          `json:"name,omitempty"`
 	Description     *string          `json:"description,omitempty"`
@@ -92,7 +92,7 @@ func NewUpdateLimitCommand(repo LimitRepository, clk clock.Clock, auditWriter Au
 // Execute updates an existing limit.
 // Returns constant.ErrLimitNilInput for nil input.
 // Returns constant.ErrLimitInvalidID for nil UUID.
-// Returns constant.ErrLimitAlreadyDeleted if attempting to update a deleted limit.
+// Returns constant.ErrLimitNotFound when the limit does not exist.
 // Only fields with non-nil values in input are updated.
 //
 // The persistence of the update and the audit event happens atomically inside a
@@ -140,17 +140,6 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		return nil, err
 	}
 
-	if limit.Status == model.LimitStatusDeleted {
-		err := constant.ErrLimitAlreadyDeleted
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cannot update deleted limit", err)
-		logger.With(
-			libLog.String("operation", "service.limit.update"),
-			libLog.String("limit.id", id.String()),
-		).Log(ctx, libLog.LevelWarn, "Attempted to update deleted limit")
-
-		return nil, err
-	}
-
 	if !c.hasChanges(normalizedInput) {
 		logger.With(
 			libLog.String("operation", "service.limit.update"),
@@ -160,7 +149,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 		return limit, nil
 	}
 
-	// Capture "before" state for audit (after terminal-state guard and no-op check, before mutation)
+	// Capture "before" state for audit (after no-op check, before mutation)
 	beforeState := LimitToMap(limit)
 
 	// Parse custom period dates if provided
@@ -270,7 +259,7 @@ func (c *UpdateLimitCommand) Execute(ctx context.Context, id uuid.UUID, input *U
 // short-circuit (which skips the tx), so a no-op update emits nothing.
 // IMPORTANT posture: emit failures never fail the request.
 func (c *UpdateLimitCommand) emitLimitUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
-	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.LimitUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewLimitUpdated(limit).ToEmitRequest(tenantID, limit.UpdatedAt)
 		})

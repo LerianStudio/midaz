@@ -10,7 +10,7 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -54,7 +54,7 @@ func (uc *UseCase) DeleteRelatedPartyByID(ctx context.Context, organizationID st
 }
 
 func (uc *UseCase) emitInstrumentRelatedPartyDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, instrumentID, holderID, organizationID, relatedPartyID string, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.InstrumentRelatedPartyDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.InstrumentRelatedPartyDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewInstrumentRelatedPartyDeleted(instrumentID, holderID, organizationID, relatedPartyID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

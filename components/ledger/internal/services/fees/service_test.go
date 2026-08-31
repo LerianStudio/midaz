@@ -12,7 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,43 +30,31 @@ func TestNewUseCase(t *testing.T) {
 	mockResolver := feeshared.NewMockMidazResolver(ctrl)
 
 	tests := []struct {
-		name            string
-		packageRepo     pack.Repository
-		resolver        feeshared.MidazResolver
-		defaultCurrency string
-		wantErr         bool
-		errContains     string
+		name        string
+		packageRepo pack.Repository
+		resolver    feeshared.MidazResolver
+		wantErr     bool
+		errContains string
 	}{
 		{
-			name:            "Success - all dependencies provided",
-			packageRepo:     mockPackRepo,
-			resolver:        mockResolver,
-			defaultCurrency: "BRL",
-			wantErr:         false,
+			name:        "Success - all dependencies provided",
+			packageRepo: mockPackRepo,
+			resolver:    mockResolver,
+			wantErr:     false,
 		},
 		{
-			name:            "Error - nil PackageRepo",
-			packageRepo:     nil,
-			resolver:        mockResolver,
-			defaultCurrency: "BRL",
-			wantErr:         true,
-			errContains:     "PackageRepo",
+			name:        "Error - nil PackageRepo",
+			packageRepo: nil,
+			resolver:    mockResolver,
+			wantErr:     true,
+			errContains: "PackageRepo",
 		},
 		{
-			name:            "Error - nil MidazResolver",
-			packageRepo:     mockPackRepo,
-			resolver:        nil,
-			defaultCurrency: "BRL",
-			wantErr:         true,
-			errContains:     "MidazResolver",
-		},
-		{
-			name:            "Error - empty DefaultCurrency",
-			packageRepo:     mockPackRepo,
-			resolver:        mockResolver,
-			defaultCurrency: "",
-			wantErr:         true,
-			errContains:     "DefaultCurrency",
+			name:        "Error - nil MidazResolver",
+			packageRepo: mockPackRepo,
+			resolver:    nil,
+			wantErr:     true,
+			errContains: "MidazResolver",
 		},
 	}
 
@@ -74,7 +62,7 @@ func TestNewUseCase(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			uc, err := NewUseCase(tt.packageRepo, tt.resolver, tt.defaultCurrency)
+			uc, err := NewUseCase(tt.packageRepo, tt.resolver)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -85,7 +73,6 @@ func TestNewUseCase(t *testing.T) {
 				assert.NotNil(t, uc)
 				assert.Equal(t, tt.packageRepo, uc.PackageRepo())
 				assert.Equal(t, tt.resolver, uc.Resolver())
-				assert.Equal(t, tt.defaultCurrency, uc.DefaultCurrency())
 			}
 		})
 	}

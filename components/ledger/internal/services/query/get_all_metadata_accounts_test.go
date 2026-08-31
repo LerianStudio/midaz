@@ -61,7 +61,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc2ID.String(), Data: map[string]any{"group": "ops"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Account 1", Status: mmodel.Status{Code: "ACTIVE"}},
 						{ID: acc2ID.String(), Name: "Account 2", Status: mmodel.Status{Code: "ACTIVE"}},
@@ -99,7 +99,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Admin Account"},
 					}, nil)
@@ -122,7 +122,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc1ID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Portfolio Account"},
 					}, nil)
@@ -147,7 +147,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc1ID.String(), Data: map[string]any{"key": "seg-value"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Segment Account"},
 					}, nil)
@@ -172,7 +172,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc1ID.String(), Data: map[string]any{"key": "both-value"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Not(gomock.Nil()), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Not(gomock.Nil()), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Both Filters Account"},
 					}, nil)
@@ -222,7 +222,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc1ID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:   true,
@@ -240,7 +240,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc1ID.String(), Data: map[string]any{"key": "value"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("database connection timeout"))
 			},
 			expectErr:   true,
@@ -260,7 +260,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc2ID.String(), Data: map[string]any{"found": true}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Only This One"},
 					}, nil)
@@ -290,7 +290,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 					}, nil)
 				// The key assertion: entityIDs are in filter.EntityIDs AND filter.Status is forwarded
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Premium Active", Status: mmodel.Status{Code: "ACTIVE"}},
 					}, nil)
@@ -319,7 +319,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 					}, nil)
 				// entityIDs AND AssetCode filter are both passed to FindAll
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "USD Account", AssetCode: "USD"},
 					}, nil)
@@ -347,7 +347,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc1ID.String(), Data: map[string]any{"category": "savings"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Deposit Account", Type: "deposit"},
 					}, nil)
@@ -375,7 +375,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc1ID.String(), Data: map[string]any{"priority": "high"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Main Account", Alias: func() *string { s := "main-account"; return &s }()},
 					}, nil)
@@ -406,7 +406,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 					}, nil)
 				// All filters combined: entityIDs + status + asset_code + type
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "BRL Credit Card", AssetCode: "BRL", Type: "creditCard", Status: mmodel.Status{Code: "ACTIVE"}},
 					}, nil)
@@ -436,7 +436,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 						{EntityID: acc1ID.String(), Data: map[string]any{"reason": "fraud"}},
 					}, nil)
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Blocked Account"},
 					}, nil)
@@ -464,7 +464,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 					}, nil)
 				// Metadata found IDs but status filter excludes all
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:   true,
@@ -477,7 +477,7 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAllMetadataAccounts(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.segmentID, tt.filter)
+			result, err := uc.GetAllMetadataAccounts(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.segmentID, tt.filter, mmodel.HolderOnV2)
 
 			if tt.expectErr {
 				require.Error(t, err)

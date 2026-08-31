@@ -8,4 +8,4 @@ package constant
 // registering with the multi-tenant Tenant Manager.
 // The Tenant Manager uses the hierarchy Service → Module → Resource.
 // Tracer is a single-module service; this constant is the only module name.
-const ModuleName = "tracer"
+const ModuleName = "tracer-api"

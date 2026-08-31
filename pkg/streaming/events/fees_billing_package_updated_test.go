@@ -17,7 +17,6 @@ import (
 // TestFeesBillingPackageUpdatedDefinition_Key locks the canonical event key.
 func TestFeesBillingPackageUpdatedDefinition_Key(t *testing.T) {
 	assert.Equal(t, "fee_billing_packages.updated", events.FeesBillingPackageUpdatedDefinition.Key())
-	assert.Equal(t, "fee-billing-packages.updated", events.FeesBillingPackageUpdatedDefinition.RouteKey())
 	assert.Equal(t, "fee_billing_packages", events.FeesBillingPackageUpdatedDefinition.ResourceType)
 	assert.Equal(t, "updated", events.FeesBillingPackageUpdatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.FeesBillingPackageUpdatedDefinition.SchemaVersion)

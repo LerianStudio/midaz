@@ -47,7 +47,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/tests/utils/stubs"
 )
 
-// mountCompositionHuma wires the Huma-migrated composition registrar on app,
+// mountCompositionRoutes wires the Huma-migrated composition registrar on app,
 // mirroring the production humaMount seam: problem.Install() before any
 // huma.Register, the shared Huma API built with openapi.New over a /v2 group, and
 // RegisterCompositionV2RoutesToApp attaching the Fiber auth+tenant middleware chain
@@ -57,7 +57,7 @@ import (
 //
 // MUST-NOT-PARALLELIZE: libProblem.Install() swaps the process-global huma.NewError
 // hook and Huma validation uses process-global sync.Pools.
-func mountCompositionHuma(app *fiber.App, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *nethttp.ProtectedRouteOptions) {
+func mountCompositionRoutes(app *fiber.App, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *nethttp.ProtectedRouteOptions) {
 	libProblem.Install()
 	apiV2 := app.Group("/v2")
 	hAPI := openapi.New(app, apiV2, openapi.Config{Title: "composition-integration", Version: "test", Servers: []string{"/v2"}})
@@ -109,15 +109,14 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 
 	infra := &compositionTestInfra{}
 
-	pgContainer := postgrestestutil.SetupContainer(t)
-	mongoContainer := mongotestutil.SetupContainer(t)
+	pgContainer := postgrestestutil.SetupMigratedContainer(t, "onboarding")
+	mongoContainer := mongotestutil.SetupReusableContainer(t)
 
 	// Onboarding-PG connection + repos for the account leg.
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "onboarding")
 	connStr := postgrestestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
-	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	infra.pgConn = postgrestestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
-	infra.mongoConn = mongotestutil.CreateConnection(t, mongoContainer.URI, "composition_test_db")
+	infra.mongoConn = mongotestutil.CreateConnection(t, mongoContainer.URI, mongoContainer.DBName)
 
 	orgRepo := organization.NewOrganizationPostgreSQLRepository(infra.pgConn)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
@@ -177,7 +176,7 @@ func setupCompositionTestInfra(t *testing.T, instrumentCreator composition.Instr
 	// cases on a side app (the onboarding routes are not part of the composition
 	// surface). The composition route itself is mounted on infra.app.
 	infra.app = fiber.New(fiber.Config{})
-	mountCompositionHuma(infra.app, auth, compositionHandler, nil)
+	mountCompositionRoutes(infra.app, auth, compositionHandler, nil)
 
 	t.Cleanup(func() {
 		if err := infra.app.Shutdown(); err != nil {
@@ -303,7 +302,7 @@ func TestIntegration_CompositionHappyPath(t *testing.T) {
 	accountID, err := uuid.Parse(resp.Account.ID)
 	require.NoError(t, err)
 
-	persisted, err := infra.accountRepo.Find(context.Background(), orgID, ledgerID, nil, accountID)
+	persisted, err := infra.accountRepo.Find(context.Background(), orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "account must be queryable in PG")
 	require.NotNil(t, persisted.HolderID)
 	assert.Equal(t, holderID.String(), *persisted.HolderID, "persisted PG account holder_id must be the path holder")
@@ -399,7 +398,7 @@ func TestIntegration_CompositionPartialFailureNoCompensation(t *testing.T) {
 
 	// (a)+(b) The account row SURVIVES in PG and is queryable: no compensating
 	// delete fired. Deleting a balance-bearing ledger account is unacceptable.
-	persisted, err := infra.accountRepo.Find(context.Background(), orgID, ledgerID, nil, accountID)
+	persisted, err := infra.accountRepo.Find(context.Background(), orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "account must SURVIVE and be queryable in PG (no compensating delete)")
 	require.NotNil(t, persisted.HolderID)
 	assert.Equal(t, holderID.String(), *persisted.HolderID)
@@ -492,7 +491,7 @@ func TestIntegration_CompositionRejectsInvalidAssetCode(t *testing.T) {
 		Name:      "Standalone Invalid Asset",
 		AssetCode: "FAKE",
 		Type:      "deposit",
-	}, "")
+	}, "", command.HolderOnV2)
 	require.Error(t, standaloneErr, "standalone CreateAccount must reject an unknown asset code")
 
 	var standaloneNotFound pkg.EntityNotFoundError
@@ -548,7 +547,7 @@ func TestIntegration_CompositionRejectsNonexistentHolder(t *testing.T) {
 		AssetCode: "USD",
 		Type:      "deposit",
 		HolderID:  testutils.Ptr(nonexistentHolder.String()),
-	}, "")
+	}, "", command.HolderOnV2)
 	require.NoError(t, err, "account create is permissive on the holder gate by default")
 
 	_, standaloneErr := infra.crmUC.CreateInstrument(context.Background(), orgID.String(), nonexistentHolder, &mmodel.CreateInstrumentInput{

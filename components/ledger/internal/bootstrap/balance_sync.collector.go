@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -107,7 +108,11 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetch
 
 		keys, err := fetchKeys(ctx, int64(remaining))
 		if err != nil {
-			c.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncCollector: fetch keys error", libLog.Err(err))
+			// Empty in single-tenant; in MT the collector context carries the tenant the
+			// dead collector belongs to, which is what attributes the stall.
+			c.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncCollector: fetch keys error",
+				libLog.String("tenant_id", tmcore.GetTenantIDContext(ctx)),
+				libLog.Err(err))
 
 			// If the buffer already has items, skip the sleep and re-enter the
 			// draining path so the timeout trigger can still flush on time.
@@ -225,7 +230,7 @@ func (c *BalanceSyncCollector) handleIdleMode(ctx context.Context, timer *time.T
 }
 
 // flushRemaining drains any leftover buffer on shutdown.
-// ctx carries context values (tenant ID, PG connection) needed by the flush callback.
+// ctx carries the context values (e.g. tenant ID) the flush callback needs.
 // The cancellation signal is stripped via context.WithoutCancel so the final flush
 // can complete even after the parent context has been cancelled.
 const shutdownFlushTimeout = 30 * time.Second
@@ -237,8 +242,8 @@ func (c *BalanceSyncCollector) flushRemaining(ctx context.Context) {
 	c.mu.Unlock()
 
 	if len(remaining) > 0 && c.flushFn != nil {
-		// Use WithoutCancel to preserve context values (tenant ID, PG connection)
-		// while removing the cancellation signal that already fired.
+		// Use WithoutCancel to preserve context values (e.g. tenant ID) while
+		// removing the cancellation signal that already fired.
 		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownFlushTimeout)
 		defer cancel()
 

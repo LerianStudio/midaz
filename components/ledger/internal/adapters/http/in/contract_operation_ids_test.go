@@ -53,7 +53,7 @@ func collectSpecOperationIDs(t *testing.T, path string) map[string][]string {
 // single published contract is unique — across its /v1 and /v2 operations alike, since
 // one document now carries both. Client SDK generators key methods off the operation
 // ID, so a collision either overwrites one method or silently drops it; the /v2 contract
-// suffixes its reused resource IDs (see crmOpSuffixV2) precisely so they stay distinct
+// suffixes its reused resource IDs (see v2OpSuffix) precisely so they stay distinct
 // from their /v1 twins here.
 //
 // This is NOT the primary net. The single document shares one component registry, so
@@ -81,4 +81,33 @@ func TestContractOperationIDsAreUniqueAcrossVersions(t *testing.T) {
 	require.Emptyf(t, duplicated,
 		"operation IDs must be unique across the /v1 and /v2 operations of %s; reused (%d):\n  %s",
 		specPath, len(duplicated), strings.Join(duplicated, "\n  "))
+}
+
+// TestUnifiedContract_NoDuplicateOperationIDs is
+// TestContractOperationIDsAreUniqueAcrossVersions against the LIVE document rather than
+// the committed dump. It assembles the contract in-process and sweeps the operations Huma
+// actually registered, so a duplicate is caught on the change that introduces it instead of
+// on the next dump regeneration.
+//
+// The invariant is document-global — one document carries every v1 and v2 family — so one
+// sweep covers the whole surface rather than one copy per family. What it catches in
+// practice is a v2 twin that dropped its version suffix (see v2OpSuffix).
+func TestUnifiedContract_NoDuplicateOperationIDs(t *testing.T) {
+	t.Parallel()
+
+	_, api := buildUnifiedHumaAPI()
+
+	seen := make(map[string]string)
+
+	for key, item := range api.OpenAPI().Paths {
+		for _, operation := range operationsOf(item) {
+			where := operation.Method + " " + key
+
+			prior, dup := seen[operation.OperationID]
+			require.Falsef(t, dup, "operationId %q is published twice: %s and %s",
+				operation.OperationID, prior, where)
+
+			seen[operation.OperationID] = where
+		}
+	}
 }

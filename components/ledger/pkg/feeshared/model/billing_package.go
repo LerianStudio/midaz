@@ -128,7 +128,7 @@ func (ef *EventFilter) Validate() error {
 type BillingPackage struct {
 	ID             string  `json:"id" bson:"_id" example:"00000000-0000-0000-0000-000000000000"`
 	OrganizationID string  `json:"organizationId" bson:"organization_id" example:"00000000-0000-0000-0000-000000000000"`
-	LedgerID       string  `json:"ledgerId" bson:"ledger_id" example:"00000000-0000-0000-0000-000000000000"`
+	LedgerID       string  `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
 	Label          string  `json:"label" bson:"label" example:"Monthly Volume Billing"`
 	Description    *string `json:"description,omitempty" bson:"description,omitempty" example:"Charges per completed transaction route"`
 	Type           string  `json:"type" bson:"type" example:"volume" enums:"volume,maintenance"`

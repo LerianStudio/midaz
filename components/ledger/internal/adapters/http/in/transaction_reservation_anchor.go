@@ -71,8 +71,12 @@ const (
 
 // reserveTransaction is the reserve anchor (F3-T13). It is called immediately
 // before ProcessBalanceOperations on FEE-INCLUSIVE amounts and gates execution
-// on the per-ledger tracer settings:
+// on the route version first, then on the per-ledger tracer settings:
 //
+//   - policy=routeV1: skipped — the /v1 transaction contract shipped before the
+//     tracer existed, so a /v1 create is never gated by a reservation and can
+//     never be rejected by one. This is the FIRST gate, so no request is built
+//     and no connection is dialled.
 //   - mode=off (or nil reserver): skipped — returns proceed with an empty handle.
 //   - mode=advisory: the reserve is called but never blocks — a DENIED decision
 //     or an unavailable tracer still returns proceed (advisory observes, the
@@ -94,8 +98,13 @@ func (handler *TransactionHandler) reserveTransaction(
 	accountID string,
 	transactionTimestamp time.Time,
 	ttl reservationTTLPolicy,
+	policy routeVersionPolicy,
 	honoredTracerSkip bool,
 ) reservationOutcome {
+	if policy == routeV1 {
+		return reservationOutcome{Kind: reservationProceed}
+	}
+
 	// off, unconfigured, no client injected, or an honored per-call tracer skip:
 	// the create path is unchanged and no reserve request is built or sent. An
 	// honored skip wins over advisory/enforce — the operator explicitly allowed
@@ -110,7 +119,7 @@ func (handler *TransactionHandler) reserveTransaction(
 		TransactionID:        transactionID,
 		RequestID:            reservationRequestID(transactionID).String(),
 		Amount:               amount.String(),
-		Currency:             asset,
+		Asset:                asset,
 		Account:              tracer.ReserveAccount{AccountID: accountID},
 		TransactionTimestamp: transactionTimestamp.UTC().Format(time.RFC3339Nano),
 		LongLived:            ttl == reservationTTLLongLived,
@@ -296,13 +305,27 @@ func (handler *TransactionHandler) recordReservationTransportFailure(ctx context
 // /commit (F3-T15, PENDING success phase). At /commit the ledger holds only the
 // transaction id — the reserve handle from create-pending does not survive the
 // separate commit request — so the tracer flips every RESERVED reservation the
-// transaction holds, addressed by transaction id. Gated on the per-ledger tracer
-// settings (off / nil reserver → no call) and on an honored per-call tracer skip
-// (so a skip honored at create removes the gRPC cost here rather than relocating
-// it to commit); same best-effort, non-blocking posture as the by-id transport: a
-// failure is logged at Warn, span-recorded, and never propagated, with the TTL
-// reaper as the durability backstop.
-func (handler *TransactionHandler) confirmReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, honoredTracerSkip bool) {
+// transaction holds, addressed by transaction id. Gated on the route version first
+// (routeV1 → no call, the /v1 contract carries no tracer), then on the per-ledger
+// tracer settings (off / nil reserver → no call) and on an honored per-call tracer
+// skip (so a skip honored at create removes the gRPC cost here rather than
+// relocating it to commit); same best-effort, non-blocking posture as the by-id
+// transport: a failure is logged at Warn, span-recorded, and never propagated, with
+// the TTL reaper as the durability backstop.
+//
+// The route gate carries an accepted cost. A by-transaction call cannot tell whether
+// the transaction holds reservations, so gating it on the route means a PENDING
+// created on /v2 and committed through /v1 never gets its confirm: the reservation
+// stays RESERVED until the reaper releases it, and the committed amount is never
+// counted against the usage limit. Mixing mounts across one transaction lifecycle is
+// therefore unsupported — see docs/api/SCOPING.md. Closing it needs create-time
+// reservation state persisted on the transaction row for this gate to read instead of
+// the route version.
+func (handler *TransactionHandler) confirmReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, policy routeVersionPolicy, honoredTracerSkip bool) {
+	if policy == routeV1 {
+		return
+	}
+
 	if honoredTracerSkip || !handler.tracerReservationEnabled(settings) {
 		return
 	}
@@ -315,7 +338,11 @@ func (handler *TransactionHandler) confirmReservationsByTransaction(ctx context.
 // releaseReservationsByTransaction returns a transaction's held reservations at
 // /cancel (F3-T15, PENDING abort phase). Same transaction-id addressing, gating,
 // and non-blocking posture as confirmReservationsByTransaction.
-func (handler *TransactionHandler) releaseReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, honoredTracerSkip bool) {
+func (handler *TransactionHandler) releaseReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, policy routeVersionPolicy, honoredTracerSkip bool) {
+	if policy == routeV1 {
+		return
+	}
+
 	if honoredTracerSkip || !handler.tracerReservationEnabled(settings) {
 		return
 	}

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,8 +96,7 @@ func TestDeleteSegmentByID_NoopEmitterDoesNotPanic(t *testing.T) {
 
 // TestDeleteSegmentByID_EmitFailureDoesNotFailRequest verifies the
 // IMPORTANT posture: when Emit returns an error, DeleteSegmentByID
-// must still complete successfully because durability is owned by PG +
-// future DLQ/outbox, not by the synchronous Emit call.
+// must still complete successfully because the persisted database mutation is durable; this helper does not make broker delivery transactional.
 func TestDeleteSegmentByID_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

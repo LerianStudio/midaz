@@ -14,7 +14,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -29,7 +29,7 @@ import (
 )
 
 // UpdateAccount updates an account from the repository by the given ID.
-func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *mmodel.UpdateAccountInput) (_ *mmodel.Account, err error) {
+func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *mmodel.UpdateAccountInput, holderPolicy mmodel.HolderPolicy) (_ *mmodel.Account, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_account")
@@ -47,7 +47,13 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		attribute.String("app.request.account_id", id.String()),
 	)
 
-	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
+	// The lookup carries the route's policy even though nothing downstream reads
+	// the projected holder — holderId is immutable, absent from the update SET
+	// list, and account.updated has no holder field. It matters for ORDERING: on a
+	// schema without the holder columns a /v2 request has to fail here, before the
+	// row is mutated and account.updated is emitted, rather than after. /v1 needs
+	// no such column, so it proceeds and completes.
+	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id, holderPolicy)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to find account by id", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to find account by id", libLog.Err(err))
@@ -158,8 +164,7 @@ func mergePatchAccount(pre, in *mmodel.Account, updatedAt time.Time) *mmodel.Acc
 // emitAccountUpdatedEvent publishes the account.updated event for a
 // successfully persisted update. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked between the AccountRepo.Update success branch and the
 // metadata-write call in UpdateAccount, so a downstream Mongo failure
@@ -169,7 +174,7 @@ func mergePatchAccount(pre, in *mmodel.Account, updatedAt time.Time) *mmodel.Acc
 // changes to the payload contract belong there, not here. This function
 // stays a thin emit-and-log adapter.
 func (uc *UseCase) emitAccountUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AccountUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.AccountUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewAccountUpdated(acc).ToEmitRequest(tenantID, acc.UpdatedAt)
 		})

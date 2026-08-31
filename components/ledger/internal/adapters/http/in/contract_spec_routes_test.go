@@ -5,6 +5,7 @@
 package in
 
 import (
+	nethttp "net/http"
 	"os"
 	"regexp"
 	"sort"
@@ -17,6 +18,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 // unifiedHumaMountDeps is the HumaMountDeps every offline harness in this package
@@ -79,12 +82,12 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 
 	deps := unifiedHumaMountDeps(auth)
 
-	// Pre-Huma Fiber registrars, mounted on the app root exactly as the unified server
-	// mounts them before assembling the contract. They register no route today; mounting
-	// them keeps this harness the COMPLETE served surface, so a route that re-attaches
-	// here falls under the route-diff gate instead of escaping it.
-	RegisterMetadataRoutesToApp(app, auth, deps.MetadataIndex, deps.OnboardingOptions)
-	RegisterOnboardingRoutesToApp(app, auth, deps.Account, deps.Portfolio, deps.Ledger, deps.Organization, deps.Segment, deps.AccountType, deps.OnboardingOptions)
+	// The streaming manifest is a wrapped stdlib net/http handler (not a Huma
+	// operation), mounted on the app root exactly as the unified server mounts it.
+	// A stub handler is enough here: the diff gate compares paths and methods, not
+	// bodies, and excludedPaths carves this path out of the contract comparison.
+	RegisterStreamingManifestRouteToApp(app, auth, deps.OnboardingOptions,
+		nethttp.HandlerFunc(func(nethttp.ResponseWriter, *nethttp.Request) {}))
 
 	api := AssembleHumaContract(app, app, openapi.Config{
 		Title:   "Midaz Ledger API",
@@ -95,8 +98,7 @@ func buildUnifiedHumaAPI() (*fiber.App, huma.API) {
 	deps.MountV1(app.Group("/v1"), huma.NewGroup(api, "/v1"))
 	deps.MountV2(app.Group("/v2"), huma.NewGroup(api, "/v2"))
 
-	MarkV1OperationsDeprecated(api)
-	ApplyVersionTagGroups(api)
+	FinalizeContract(api)
 
 	return app, api
 }
@@ -125,6 +127,12 @@ var excludedPaths = map[string]bool{
 	canonicalizePath("/health"):  true,
 	canonicalizePath("/version"): true,
 	canonicalizePath("/readyz"):  true,
+	// Streaming manifest: a wrapped stdlib net/http handler (lib-streaming,
+	// adaptor.HTTPHandler), guarded by the midaz authz chain but carrying no Huma
+	// OAS operation, so it is deliberately absent from the generated contract. It
+	// is mounted on the served surface (buildUnifiedHumaAPI mounts it too) and
+	// dropped from the diff here rather than forced into the spec.
+	canonicalizePath(pkgStreaming.ManifestRoutePath): true,
 }
 
 // pathParam matches a single path-parameter segment in EITHER syntax: Fiber
@@ -277,8 +285,8 @@ func TestContractSpecMatchesRoutes(t *testing.T) {
 // TestUnifiedHumaContractIsSingleDocument locks the shape this harness must mirror
 // from the unified server (unified-server.go mountHumaContracts): ONE Huma document,
 // advertised at the root, whose operation paths carry the version segment. v1 and v2
-// share one component registry, so the union is a single spec — 129 path keys (55
-// under /v1, 74 under /v2), 204 operations — served on the single root server "/".
+// share one component registry, so the union is a single spec — 122 path keys (55
+// under /v1, 67 under /v2), 197 operations — served on the single root server "/".
 // CRM, fees/billing and composition are /v2-only, so their keys and operations count toward /v2 alone.
 func TestUnifiedHumaContractIsSingleDocument(t *testing.T) {
 	t.Parallel()
@@ -303,10 +311,10 @@ func TestUnifiedHumaContractIsSingleDocument(t *testing.T) {
 		}
 	}
 
-	require.Len(t, doc.Paths, 129, "single document must enumerate every versioned path key")
+	require.Len(t, doc.Paths, 122, "single document must enumerate every versioned path key")
 	require.Equal(t, 55, v1, "path keys under /v1")
-	require.Equal(t, 74, v2, "path keys under /v2")
-	require.Equal(t, 204, ops, "operations across both versions")
+	require.Equal(t, 67, v2, "path keys under /v2")
+	require.Equal(t, 197, ops, "operations across both versions")
 
 	require.Len(t, doc.Servers, 1, "single document advertises exactly one server")
 	require.Equal(t, "/", doc.Servers[0].URL, "the version rides the operation path, so the server is the root")

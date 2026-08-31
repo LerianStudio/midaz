@@ -373,6 +373,20 @@ type Operation struct {
 	// `snapshot` column, and round-tripped through the Redis cache envelope.
 	// Forward-compatible: future keys may be added without schema migration.
 	Snapshot mmodel.OperationSnapshot `json:"-"`
+
+	// Type of the account this operation moved (e.g. "deposit", "external"),
+	// mirrored from the balance the operation was built from. Distinct from
+	// Type above, which is the DEBIT/CREDIT ledger movement and says nothing
+	// about the account.
+	//
+	// Internal only — NOT emitted on the public JSON wire, and NOT persisted:
+	// there is no `account_type` column, so an operation read back from
+	// Postgres would carry an empty value and the public shape would differ
+	// between the create response and a later read. It reaches the transaction
+	// lifecycle events instead, which are built from the in-memory operation
+	// while the balance is still in hand. The Redis backup envelope
+	// round-trips it so a replayed transaction emits what a first-pass one does.
+	AccountType string `json:"-"`
 }
 
 // ToEntity converts an OperationPostgreSQLModel to entity Operation
@@ -583,6 +597,7 @@ func (op *Operation) ToRedis() mmodel.OperationRedis {
 		RouteCode:        op.RouteCode,
 		RouteDescription: op.RouteDescription,
 		Metadata:         op.Metadata,
+		AccountType:      op.AccountType,
 	}
 
 	if op.Amount.Value != nil {
@@ -670,6 +685,7 @@ func OperationFromRedis(r mmodel.OperationRedis) *Operation {
 		RouteDescription: r.RouteDescription,
 		Metadata:         r.Metadata,
 		Snapshot:         r.Snapshot,
+		AccountType:      r.AccountType,
 	}
 
 	// Legacy cache envelopes (no `snapshot` key) decode to the zero-value

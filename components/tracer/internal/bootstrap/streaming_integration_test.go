@@ -15,22 +15,17 @@ import (
 	"testing"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
-	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
-
-// defaultSmokeBroker is the host-facing Redpanda listener the local
-// components/infra stack advertises (external://localhost:19092). Overridable
-// via STREAMING_BROKERS so CI can target another broker.
-const defaultSmokeBroker = "localhost:19092"
 
 // smokeDeadline bounds the whole emit+consume round-trip so a wedged broker
 // can never hang the suite. Generous because a cold Redpanda + first-write
@@ -50,11 +45,26 @@ const (
 // top level AND inside every nested scope object.
 var forbiddenPayloadKeys = []string{"name", "description", "expression", "maxAmount", "compiledProgram"}
 
+// smokeSource is tracer's roster name — a single dot-free lowercase segment, the
+// only shape lib-streaming accepts as a ce-source. Both the topic every event
+// rides and the application segment of ce-type derive from it.
+const smokeSource = "tracer"
+
+// smokeCEType is the ce-type header expected on the wire for one tracer event,
+// spelled as an independent literal template rather than through the library's
+// own formatter: deriving the expectation from libStreaming.CloudEventsType
+// would let a formatter change move producer and assertion together, and this
+// smoke test exists to catch exactly that drift. Shape: reverse-DNS namespace,
+// the PRODUCING APPLICATION, then the resource and event types.
+func smokeCEType(resourceType, eventType string) string {
+	return fmt.Sprintf("studio.lerian.%s.%s.%s", smokeSource, resourceType, eventType)
+}
+
 // smokeEvent pairs an EmitRequest with the ce-type it must surface once
 // consumed back, so the assertion loop can look each record up by subject.
 type smokeEvent struct {
 	subject    string // aggregate UUID (ce-subject)
-	wantCEType string // "studio.lerian.<resource>.<event>"
+	wantCEType string // "studio.lerian.<app>.<resource>.<event>"
 	request    libStreaming.EmitRequest
 }
 
@@ -65,13 +75,16 @@ type smokeEvent struct {
 // CloudEvents headers and the payload fence for each one. This is the core
 // contract check — not merely "emit returned no error".
 //
-// The test skips (never fails) when no broker is reachable, so a unit-only CI
-// run without infra stays green. It runs under the `integration` build tag so
-// `make test-unit` excludes it.
+// When STREAMING_BROKERS is unset the test starts an in-process Kafka protocol
+// broker. An explicitly configured broker must be reachable. The integration
+// capability therefore never disappears behind a skip.
 func TestStreamingSmoke(t *testing.T) {
 	broker := strings.TrimSpace(os.Getenv("STREAMING_BROKERS"))
 	if broker == "" {
-		broker = defaultSmokeBroker
+		cluster, err := kfake.NewCluster(kfake.NumBrokers(1))
+		require.NoError(t, err)
+		t.Cleanup(cluster.Close)
+		broker = cluster.ListenAddrs()[0]
 	}
 
 	// First broker in a comma list is enough for a single-node dev cluster.
@@ -80,7 +93,7 @@ func TestStreamingSmoke(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), smokeDeadline)
 	defer cancel()
 
-	skipIfBrokerUnreachable(ctx, t, broker)
+	requireBrokerReachable(ctx, t, broker)
 
 	// Unique per-run identifiers so repeat runs never read each other's
 	// records. tenant is stamped into every event and matched on consume.
@@ -90,8 +103,8 @@ func TestStreamingSmoke(t *testing.T) {
 	smokeEvents := buildSmokeEvents(t, tenant)
 	require.Len(t, smokeEvents, 12, "expected exactly 12 tracer lifecycle events")
 
-	topics := smokeTopics(smokeEvents)
-	ensureTopics(ctx, t, broker, topics)
+	appTopic, dlqTopic := smokeTopics(t)
+	ensureTopics(ctx, t, broker, []string{appTopic, dlqTopic})
 
 	emitter := buildSmokeEmitter(ctx, t, broker)
 	defer func() {
@@ -100,29 +113,25 @@ func TestStreamingSmoke(t *testing.T) {
 
 	emitAll(ctx, t, emitter, smokeEvents)
 
-	consumed := consumeRecords(ctx, t, broker, topics, tenant, len(smokeEvents))
+	consumed := consumeRecords(ctx, t, broker, []string{appTopic}, tenant, len(smokeEvents))
 	assertConsumed(t, tenant, smokeEvents, consumed)
 }
 
-// skipIfBrokerUnreachable probes the broker's metadata once. An unreachable
-// broker means "no infra" -> t.Skip (safe for unit CI). A reachable broker
-// means the smoke MUST run.
-func skipIfBrokerUnreachable(ctx context.Context, t *testing.T, broker string) {
+// requireBrokerReachable probes the broker's metadata once. The integration
+// shard supplies its own broker when none is configured, so any failure here
+// is a real capability failure.
+func requireBrokerReachable(ctx context.Context, t *testing.T, broker string) {
 	t.Helper()
 
 	cl, err := kgo.NewClient(kgo.SeedBrokers(broker))
-	if err != nil {
-		t.Skipf("streaming smoke skipped: cannot build probe client for %q: %v", broker, err)
-	}
+	require.NoErrorf(t, err, "build streaming probe client for %q", broker)
 
 	defer cl.Close()
 
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	if err := cl.Ping(pingCtx); err != nil {
-		t.Skipf("streaming smoke skipped: broker %q unreachable: %v", broker, err)
-	}
+	require.NoErrorf(t, cl.Ping(pingCtx), "streaming broker %q must be reachable", broker)
 }
 
 // buildSmokeEmitter constructs the production emitter via BuildStreamingEmitter
@@ -132,11 +141,11 @@ func buildSmokeEmitter(ctx context.Context, t *testing.T, broker string) libStre
 
 	t.Setenv("STREAMING_ENABLED", "true")
 	t.Setenv("STREAMING_BROKERS", broker)
-	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", "lerian.midaz.tracer")
+	t.Setenv("STREAMING_CLOUDEVENTS_SOURCE", smokeSource)
 
 	cfg := &Config{
 		StreamingEnabled:           true,
-		StreamingCloudEventsSource: "lerian.midaz.tracer",
+		StreamingCloudEventsSource: smokeSource,
 	}
 
 	emitter, closeFn, err := BuildStreamingEmitter(ctx, cfg, nil, nil)
@@ -178,18 +187,18 @@ func buildSmokeEvents(t *testing.T, tenant string) []smokeEvent {
 		ts         time.Time
 		build      reqFn
 	}{
-		{rule.ID.String(), "studio.lerian.rule.created", rule.CreatedAt, events.NewRuleCreated(rule).ToEmitRequest},
-		{rule.ID.String(), "studio.lerian.rule.updated", rule.UpdatedAt, events.NewRuleUpdated(rule).ToEmitRequest},
-		{rule.ID.String(), "studio.lerian.rule.activated", rule.UpdatedAt, events.NewRuleActivated(rule).ToEmitRequest},
-		{rule.ID.String(), "studio.lerian.rule.deactivated", rule.UpdatedAt, events.NewRuleDeactivated(rule).ToEmitRequest},
-		{rule.ID.String(), "studio.lerian.rule.drafted", rule.UpdatedAt, events.NewRuleDrafted(rule).ToEmitRequest},
-		{rule.ID.String(), "studio.lerian.rule.deleted", ts, events.NewRuleDeleted(rule.ID, ts).ToEmitRequest},
-		{limit.ID.String(), "studio.lerian.limit.created", limit.CreatedAt, events.NewLimitCreated(limit).ToEmitRequest},
-		{limit.ID.String(), "studio.lerian.limit.updated", limit.UpdatedAt, events.NewLimitUpdated(limit).ToEmitRequest},
-		{limit.ID.String(), "studio.lerian.limit.activated", limit.UpdatedAt, events.NewLimitActivated(limit).ToEmitRequest},
-		{limit.ID.String(), "studio.lerian.limit.deactivated", limit.UpdatedAt, events.NewLimitDeactivated(limit).ToEmitRequest},
-		{limit.ID.String(), "studio.lerian.limit.drafted", limit.UpdatedAt, events.NewLimitDrafted(limit).ToEmitRequest},
-		{limit.ID.String(), "studio.lerian.limit.deleted", ts, events.NewLimitDeleted(limit).ToEmitRequest},
+		{rule.ID.String(), smokeCEType("rule", "created"), rule.CreatedAt, events.NewRuleCreated(rule).ToEmitRequest},
+		{rule.ID.String(), smokeCEType("rule", "updated"), rule.UpdatedAt, events.NewRuleUpdated(rule).ToEmitRequest},
+		{rule.ID.String(), smokeCEType("rule", "activated"), rule.UpdatedAt, events.NewRuleActivated(rule).ToEmitRequest},
+		{rule.ID.String(), smokeCEType("rule", "deactivated"), rule.UpdatedAt, events.NewRuleDeactivated(rule).ToEmitRequest},
+		{rule.ID.String(), smokeCEType("rule", "drafted"), rule.UpdatedAt, events.NewRuleDrafted(rule).ToEmitRequest},
+		{rule.ID.String(), smokeCEType("rule", "deleted"), ts, events.NewRuleDeleted(rule.ID, ts).ToEmitRequest},
+		{limit.ID.String(), smokeCEType("limit", "created"), limit.CreatedAt, events.NewLimitCreated(limit).ToEmitRequest},
+		{limit.ID.String(), smokeCEType("limit", "updated"), limit.UpdatedAt, events.NewLimitUpdated(limit).ToEmitRequest},
+		{limit.ID.String(), smokeCEType("limit", "activated"), limit.UpdatedAt, events.NewLimitActivated(limit).ToEmitRequest},
+		{limit.ID.String(), smokeCEType("limit", "deactivated"), limit.UpdatedAt, events.NewLimitDeactivated(limit).ToEmitRequest},
+		{limit.ID.String(), smokeCEType("limit", "drafted"), limit.UpdatedAt, events.NewLimitDrafted(limit).ToEmitRequest},
+		{limit.ID.String(), smokeCEType("limit", "deleted"), ts, events.NewLimitDeleted(limit).ToEmitRequest},
 	}
 
 	out := make([]smokeEvent, 0, len(specs))
@@ -254,7 +263,7 @@ func newSmokeLimit(t *testing.T, ts time.Time) *model.Limit {
 		Description:     &desc,
 		LimitType:       model.LimitTypeDaily,
 		MaxAmount:       decimal.RequireFromString("1000.00"),
-		Currency:        "USD",
+		Asset:           "USD",
 		Scopes:          []model.Scope{fencedScope()},
 		Status:          model.LimitStatusActive,
 		ActiveTimeStart: &start,
@@ -285,18 +294,24 @@ func fencedScope() model.Scope {
 	}
 }
 
-// smokeTopics maps each event's ce-type back to its canonical topic name
-// "lerian.streaming.tracer_<resource>.<event>" (service segment folded into
-// the first topic segment, hyphens normalized to underscores).
-func smokeTopics(evs []smokeEvent) []string {
-	out := make([]string, 0, len(evs))
+// smokeTopics returns the two topics the smoke test must provision: tracer's ONE
+// application topic, which every one of the twelve lifecycle events rides, and its
+// DLQ. Under one topic per producing application those two names are tracer's
+// whole write surface.
+//
+// The DLQ is provisioned but deliberately NOT consumed: a quarantine copy carries
+// the same tenant as the record it quarantines, so counting it would let a failed
+// publish fill this run's record budget and read as success.
+func smokeTopics(t *testing.T) (appTopic, dlqTopic string) {
+	t.Helper()
 
-	for _, e := range evs {
-		key := strings.TrimPrefix(e.wantCEType, "studio.lerian.")
-		out = append(out, pkgStreaming.TopicName("tracer", key))
-	}
+	appTopic, err := libStreaming.AppTopic(smokeSource)
+	require.NoError(t, err)
 
-	return out
+	dlqTopic, err = libStreaming.AppDLQTopic(smokeSource)
+	require.NoError(t, err)
+
+	return appTopic, dlqTopic
 }
 
 // ensureTopics idempotently creates the given topics (1 partition, RF 1) via

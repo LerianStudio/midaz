@@ -6,6 +6,8 @@ package events_test
 
 import (
 	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -41,6 +43,32 @@ func minimalBalance() *mmodel.Balance {
 		CreatedAt:      fixedTime,
 		UpdatedAt:      fixedTime,
 	}
+}
+
+// fullBalanceSettings returns settings with every field populated, so the
+// settings subobject reaches the wire at its maximum key set.
+func fullBalanceSettings() *mmodel.BalanceSettings {
+	limit := "1000"
+
+	return &mmodel.BalanceSettings{
+		BalanceScope:          "transactional",
+		AllowOverdraft:        true,
+		OverdraftLimitEnabled: true,
+		OverdraftLimit:        &limit,
+	}
+}
+
+// settingsSubobject decodes an emitted payload and returns its settings object.
+func settingsSubobject(t *testing.T, raw []byte) map[string]any {
+	t.Helper()
+
+	var generic map[string]any
+	require.NoError(t, json.Unmarshal(raw, &generic))
+
+	settings, ok := generic["settings"].(map[string]any)
+	require.True(t, ok, "settings must serialize as an object")
+
+	return settings
 }
 
 func TestBalanceCreatedDefinition_Key(t *testing.T) {
@@ -158,4 +186,156 @@ func TestBalanceCreatedPayload_JSONShape_OmitsEmptyOptionals(t *testing.T) {
 		_, has := generic[key]
 		assert.Falsef(t, has, "%q must omitempty when empty", key)
 	}
+}
+
+func TestNewBalanceCreated_SettingsOverdraftLimitNilStaysNil(t *testing.T) {
+	b := minimalBalance()
+	b.Settings = &mmodel.BalanceSettings{
+		AllowOverdraft: true,
+		OverdraftLimit: nil,
+	}
+
+	payload := events.NewBalanceCreated(b)
+
+	require.NotNil(t, payload.Settings)
+	assert.True(t, payload.Settings.AllowOverdraft)
+	assert.Nil(t, payload.Settings.OverdraftLimit)
+}
+
+func TestNewBalanceCreated_SettingsDoesNotAliasDomainOverdraftLimit(t *testing.T) {
+	b := minimalBalance()
+	limit := "1000"
+	b.Settings = &mmodel.BalanceSettings{
+		AllowOverdraft:        true,
+		OverdraftLimitEnabled: true,
+		OverdraftLimit:        &limit,
+	}
+
+	payload := events.NewBalanceCreated(b)
+
+	require.NotNil(t, payload.Settings)
+	require.NotNil(t, payload.Settings.OverdraftLimit)
+	assert.NotSame(t, b.Settings.OverdraftLimit, payload.Settings.OverdraftLimit,
+		"wire payload must not alias the domain OverdraftLimit pointer")
+	assert.Equal(t, *b.Settings.OverdraftLimit, *payload.Settings.OverdraftLimit)
+}
+
+// jsonTagNames returns the wire key every field of v contributes, in
+// declaration order. Unexported fields and fields tagged `json:"-"` carry no
+// wire key and are skipped; an untagged exported field marshals under its Go
+// name, so that is what it contributes.
+func jsonTagNames(v any) []string {
+	typ := reflect.TypeOf(v)
+	names := make([]string, 0, typ.NumField())
+
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+
+		tag := field.Tag.Get("json")
+		if tag == "-" {
+			continue
+		}
+
+		name, _, _ := strings.Cut(tag, ",")
+		if name == "" {
+			name = field.Name
+		}
+
+		names = append(names, name)
+	}
+
+	return names
+}
+
+// TestBalanceSettingsPayload_MirrorsDomainJSONTags locks the wire mirror to the
+// domain type it mirrors, comparing the JSON key each side contributes rather
+// than field arity: a same-arity domain refactor — one field dropped, another
+// added — has to surface here. The JSON shape locks only pin the payload's own
+// key set, which does not move when mmodel.BalanceSettings grows a field, so
+// without this test a new domain field is silently dropped from both
+// balance.created and balance.config_changed with the whole suite green.
+func TestBalanceSettingsPayload_MirrorsDomainJSONTags(t *testing.T) {
+	domain := jsonTagNames(mmodel.BalanceSettings{})
+	mirror := jsonTagNames(events.BalanceSettingsPayload{})
+
+	assert.ElementsMatch(t, domain, mirror,
+		"events.BalanceSettingsPayload must carry the same wire keys as mmodel.BalanceSettings. "+
+			"A domain field must either be mirrored onto BalanceSettingsPayload — updating the settings "+
+			"key-count assertions in both balance event tests and docs/streaming/ledger-events.md — or be "+
+			"consciously withheld from the wire, in which case allowlist it here with the reason it is "+
+			"withheld. A changed wire shape needs a ce-schemaversion bump on balance.created and "+
+			"balance.config_changed.")
+}
+
+// TestBalanceCreatedPayload_JSONShape_SettingsSubobjectLocked pins the nested
+// settings object on balance.created: its full key set, the two omitempty tags,
+// and that it decodes to the same document as the domain type.
+func TestBalanceCreatedPayload_JSONShape_SettingsSubobjectLocked(t *testing.T) {
+	t.Run("full settings carries every key", func(t *testing.T) {
+		b := minimalBalance()
+		b.Settings = fullBalanceSettings()
+
+		req, err := events.NewBalanceCreated(b).ToEmitRequest("tenant-1", fixedTime)
+		require.NoError(t, err)
+
+		settings := settingsSubobject(t, req.Payload)
+
+		assert.Lenf(t, settings, 4, "expected 4 settings keys, got %d (drift?)", len(settings))
+
+		for _, key := range []string{"balanceScope", "allowOverdraft", "overdraftLimitEnabled", "overdraftLimit"} {
+			assert.Containsf(t, settings, key, "settings must include %q", key)
+		}
+	})
+
+	t.Run("minimal settings keeps only the two bools", func(t *testing.T) {
+		b := minimalBalance()
+		b.Settings = &mmodel.BalanceSettings{
+			BalanceScope:   "",
+			OverdraftLimit: nil,
+		}
+
+		req, err := events.NewBalanceCreated(b).ToEmitRequest("tenant-1", fixedTime)
+		require.NoError(t, err)
+
+		settings := settingsSubobject(t, req.Payload)
+
+		assert.Lenf(t, settings, 2, "expected 2 settings keys, got %d (drift?)", len(settings))
+
+		for _, key := range []string{"allowOverdraft", "overdraftLimitEnabled"} {
+			assert.Containsf(t, settings, key, "settings.%s is not omitempty and must always be present", key)
+		}
+
+		for _, key := range []string{"balanceScope", "overdraftLimit"} {
+			assert.NotContainsf(t, settings, key, "settings.%s must omitempty when empty", key)
+		}
+	})
+
+	// Decoded documents, not raw bytes: JSON object key order carries no
+	// meaning, so reordering the mirror's fields must not fail here.
+	t.Run("settings serializes to the same document as the domain", func(t *testing.T) {
+		b := minimalBalance()
+		b.Settings = fullBalanceSettings()
+
+		payload := events.NewBalanceCreated(b)
+
+		mirroredRaw, err := json.Marshal(payload.Settings)
+		require.NoError(t, err)
+
+		domainRaw, err := json.Marshal(b.Settings)
+		require.NoError(t, err)
+
+		var mirrored, domain map[string]any
+		require.NoError(t, json.Unmarshal(mirroredRaw, &mirrored))
+		require.NoError(t, json.Unmarshal(domainRaw, &domain))
+
+		assert.Equal(t, domain, mirrored,
+			"events.BalanceSettingsPayload must serialize to the same JSON document as "+
+				"mmodel.BalanceSettings. This assertion is permanent: it documents that the wire mirror "+
+				"has not diverged from the domain. Divergence is allowed, but it is a wire change — bump "+
+				"ce-schemaversion on balance.created and balance.config_changed and update "+
+				"docs/streaming/ledger-events.md before relaxing this.")
+	})
 }

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
@@ -29,7 +29,7 @@ type LimitUpdatedPayload struct {
 	ID              string             `json:"id"`
 	Status          string             `json:"status"`
 	LimitType       string             `json:"limitType"`
-	Currency        string             `json:"currency"`
+	Asset           string             `json:"asset"`
 	Scopes          []RuleScopePayload `json:"scopes"`
 	ActiveTimeStart *string            `json:"activeTimeStart"`
 	ActiveTimeEnd   *string            `json:"activeTimeEnd"`
@@ -47,7 +47,7 @@ func NewLimitUpdated(limit *model.Limit) LimitUpdatedPayload {
 		ID:              limit.ID.String(),
 		Status:          string(limit.Status),
 		LimitType:       string(limit.LimitType),
-		Currency:        limit.Currency,
+		Asset:           limit.Asset,
 		Scopes:          newRuleScopePayloads(limit.Scopes),
 		ActiveTimeStart: formatOptionalTimeOfDay(limit.ActiveTimeStart),
 		ActiveTimeEnd:   formatOptionalTimeOfDay(limit.ActiveTimeEnd),

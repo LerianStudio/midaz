@@ -74,4 +74,9 @@ type OperationRedis struct {
 	// values rather than absent fields, matching the always-populated wire-
 	// shape contract.
 	Snapshot OperationSnapshot `json:"snapshot"`
+	// AccountType is the type of the account the operation moved. It is not
+	// persisted with the operation row, so the backup envelope is what carries
+	// it across a replay; omitempty keeps envelopes written before this field
+	// existed decoding unchanged.
+	AccountType string `json:"accountType,omitempty"`
 }

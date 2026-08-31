@@ -58,7 +58,7 @@ func TestToLimitJSONFieldName(t *testing.T) {
 		"Description": "description",
 		"LimitType":   "limitType",
 		"MaxAmount":   "maxAmount",
-		"Currency":    "currency",
+		"Asset":       "asset",
 		"Scopes":      "scopes",
 		"Status":      "status",
 		"Limit":       "limit",

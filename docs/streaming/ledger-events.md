@@ -11,38 +11,74 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
 
 ## Overview
 
-- **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v1.9.0.
+- **Producer:** [`github.com/LerianStudio/lib-streaming`](https://github.com/LerianStudio/lib-streaming) v3.1.0.
 - **Wire format:** CloudEvents 1.0, binary mode, over Kafka.
 - **Component:** Ledger (`components/ledger`).
-- **CloudEvents source (`ce-source`):** `lerian.midaz.ledger`.
-- **Posture:** all 35 events are **IMPORTANT** — direct-emit, synchronous, via
-  `pkgStreaming.EmitImportant`. Emit is best-effort at the post-commit slot in
-  the command use case: a build/emit failure logs a Warn and is recorded on the
-  span, but **never fails the HTTP request**. Durability of the mutation itself
-  is owned by the database write, not by the emit.
-- **No outbox.** Emission is direct-emit only. The `transaction.*`,
-  `balance.changed`, and `balance.overdraft-*` docstrings mark their catalog
-  posture as CRITICAL (outbox: always, direct: skip), but the outbox is not
-  wired today (`WithOutboxRepository` is not passed at build). When an outbox
-  lands, only the emit call sites change; the Definitions and payload contracts
-  below stay put.
-- **No HTTP event-manifest endpoint.** Out of scope for this pilot (same as the
-  CRM).
-- **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled — or
-  when `STREAMING_BROKERS` is empty, or no events are registered — bootstrap
-  injects a `NoopEmitter` and no broker connection is attempted.
+- **Application name / CloudEvents source (`ce-source`):** `ledger`. It must be ONE
+  dot-free lowercase segment matching `^[a-z0-9][a-z0-9_-]*$`, at most 223 bytes; a
+  malformed value is REJECTED at startup, never normalized. The resolved value is
+  load-bearing three times over — it is stamped as `ce-source`, it derives the one
+  topic every event rides, and it is what the streaming manifest advertises — so
+  changing `STREAMING_CLOUDEVENTS_SOURCE` moves all three together.
+- **Kafka topics:** ONE topic per producing application. Every event this binary
+  emits — ledger core, fees, and CRM; every resource type, every event type, every
+  schema version — rides `lerian.streaming.ledger`, with
+  `lerian.streaming.ledger.dlq` as its single dead-letter topic. There is no
+  per-event topic and no `.v<major>` topic suffix: `ce-schemaversion` is the only
+  version carrier on the wire. Consumers subscribe to the application and dispatch
+  on the event key. This pair is the binary's ENTIRE write surface — there is no
+  destination outside it.
+- **Posture:** all 35 events invoke `pkgStreaming.EmitBrokerBestEffort` at the
+  post-commit slot. The helper bounds the synchronous `Emitter.Emit` call, records
+  build/emit failures on the span, logs a Warn, and **never fails the HTTP request**.
+  The library, not the wrapper, resolves the delivery policy and any configured
+  fallback behavior.
+- **No Midaz transactional outbox.** Bootstrap passes neither an outbox writer nor
+  repository, and registers no relay. The helper does not persist a local fallback record or
+  make the database mutation and broker delivery atomic; do not infer a delivery
+  guarantee beyond the configured lib-streaming policy. Definitions and payload
+  contracts remain unchanged.
+- **HTTP event-manifest endpoint.** The ledger binary serves
+  `GET /v1/streaming/manifest` (auth `streaming-manifest`/`get`) — a catalog-only
+  view of the registered event Definitions, at manifest wire version `1.0.0`. The
+  document carries `publisher.source` plus the application's `topic` / `dlqTopic`
+  pair at DOCUMENT level (no commands queue: the ledger emits facts only), and each
+  event entry names its `eventKey` (`"<resourceType>.<eventType>"` — the consumer's
+  dispatch selector), its `schemaVersion`, and its `class`, always `"fact"` here.
+  The topic it advertises is derived from the same `ce-source` the emitter publishes
+  under, so what the streaming hub discovers is by construction the stream the
+  ledger writes. It is independent of `STREAMING_ENABLED` and degraded-safe (it
+  reflects the static Catalog, not a live broker connection); an illegal `ce-source`
+  leaves the route unmounted rather than advertising a topic built from a malformed
+  name. Every event the binary emits is on that topic; there is no exception.
+- **Master flag:** `STREAMING_ENABLED` (default `false`). When disabled, bootstrap
+  injects a `NoopEmitter` and no broker connection is attempted. The ledger has no
+  streaming readiness prober, so `/readyz` carries no streaming check in either
+  mode (only the tracer reports one). `STREAMING_ENABLED=true` with an empty
+  `STREAMING_BROKERS` REFUSES BOOT (`pkgStreaming.RequireBrokers`, which validates
+  only the broker list): an enabled producer with nowhere to publish discards
+  every event silently while readiness stays green, which is the same
+  invisible-total-loss failure the roster source gate exists to kill. To run
+  without streaming, set `STREAMING_ENABLED=false`.
 
 Routing constants are assembled from `Definition{ResourceType, EventType,
 SchemaVersion}` (`pkg/streaming/events/events.go`) and registered exactly once
 in `midazEventDefinitions()` (`components/ledger/internal/bootstrap/streaming.go`),
-which feeds both the Catalog and the route table:
+which feeds both the Catalog and the manifest:
 
-- **Event key** = `<resourceType>.<eventType>` (e.g. `balance.changed`).
-- **`ce-type`** = lib-streaming auto-prefixes the key: `studio.lerian.<key>`.
-- **Kafka topic** = `lerian.streaming.ledger_<key>`, with hyphens in `<key>`
-  converted to underscores in the topic name only (e.g.
-  `lerian.streaming.ledger_operation_route.created`). The event key and
-  `ce-type` keep the hyphen.
+- **Event key** = `<resourceType>.<eventType>` (e.g. `balance.changed`) — the
+  dispatch selector a consumer registers a handler under inside the `ledger`
+  stream. Underscore-preserving.
+- **`ce-type`** = `studio.lerian.<app>.<resourceType>.<eventType>`, i.e.
+  `studio.lerian.ledger.<key>` (e.g.
+  `studio.lerian.ledger.operation_route.created`). The application segment is what
+  keeps `ce-type` globally unambiguous: without it, two services emitting a
+  same-named event produce byte-identical values — a homonym collision a consumer
+  reading only `ce-type` cannot detect, and one that a shared per-application topic
+  makes reachable in practice.
+- **Kafka topic** = `lerian.streaming.ledger`, derived from `ce-source` via
+  `libStreaming.AppTopic` and shared by the whole catalog. One catch-all route
+  carries every fact; nothing fans out per event.
 - **`ce-subject`** = the aggregate ID (`EmitRequest.Subject`). Five exceptions
   exist — see [ce-subject](#ce-subject).
 - **`ce-tenantid`** = `EmitRequest.TenantID`, resolved by
@@ -54,59 +90,63 @@ All 35 events carry `SchemaVersion = 1.0.0`. The `account_type.*` events are
 intentionally NOT registered — the type label flows through `account.*` events
 as a string field.
 
-| Event key | Resource / Event | `ce-type` | Kafka topic | `ce-subject` | Trigger (use case) |
-|-----------|------------------|-----------|-------------|--------------|--------------------|
-| `organization.created` | organization / created | `studio.lerian.organization.created` | `lerian.streaming.ledger_organization.created` | org ID | `CreateOrganization` |
-| `organization.updated` | organization / updated | `studio.lerian.organization.updated` | `lerian.streaming.ledger_organization.updated` | org ID | `UpdateOrganizationByID` |
-| `organization.deleted` | organization / deleted | `studio.lerian.organization.deleted` | `lerian.streaming.ledger_organization.deleted` | org ID | `DeleteOrganizationByID` |
-| `ledger.created` | ledger / created | `studio.lerian.ledger.created` | `lerian.streaming.ledger_ledger.created` | ledger ID | `CreateLedger` |
-| `ledger.updated` | ledger / updated | `studio.lerian.ledger.updated` | `lerian.streaming.ledger_ledger.updated` | ledger ID | `UpdateLedgerByID` |
-| `ledger.deleted` | ledger / deleted | `studio.lerian.ledger.deleted` | `lerian.streaming.ledger_ledger.deleted` | ledger ID | `DeleteLedgerByID` |
-| `account.created` | account / created | `studio.lerian.account.created` | `lerian.streaming.ledger_account.created` | account ID | `CreateAccount` |
-| `account.updated` | account / updated | `studio.lerian.account.updated` | `lerian.streaming.ledger_account.updated` | account ID | `UpdateAccount` |
-| `account.deleted` | account / deleted | `studio.lerian.account.deleted` | `lerian.streaming.ledger_account.deleted` | account ID | `DeleteAccountByID` |
-| `asset.created` | asset / created | `studio.lerian.asset.created` | `lerian.streaming.ledger_asset.created` | asset ID | `CreateAsset` |
-| `asset.updated` | asset / updated | `studio.lerian.asset.updated` | `lerian.streaming.ledger_asset.updated` | asset ID | `UpdateAssetByID` |
-| `asset.deleted` | asset / deleted | `studio.lerian.asset.deleted` | `lerian.streaming.ledger_asset.deleted` | asset ID | `DeleteAssetByID` |
-| `portfolio.created` | portfolio / created | `studio.lerian.portfolio.created` | `lerian.streaming.ledger_portfolio.created` | portfolio ID | `CreatePortfolio` |
-| `portfolio.updated` | portfolio / updated | `studio.lerian.portfolio.updated` | `lerian.streaming.ledger_portfolio.updated` | portfolio ID | `UpdatePortfolioByID` |
-| `portfolio.deleted` | portfolio / deleted | `studio.lerian.portfolio.deleted` | `lerian.streaming.ledger_portfolio.deleted` | portfolio ID | `DeletePortfolioByID` |
-| `segment.created` | segment / created | `studio.lerian.segment.created` | `lerian.streaming.ledger_segment.created` | segment ID | `CreateSegment` |
-| `segment.updated` | segment / updated | `studio.lerian.segment.updated` | `lerian.streaming.ledger_segment.updated` | segment ID | `UpdateSegmentByID` |
-| `segment.deleted` | segment / deleted | `studio.lerian.segment.deleted` | `lerian.streaming.ledger_segment.deleted` | segment ID | `DeleteSegmentByID` |
-| `operation-route.created` | operation-route / created | `studio.lerian.operation-route.created` | `lerian.streaming.ledger_operation_route.created` | op-route ID | `CreateOperationRoute` |
-| `operation-route.updated` | operation-route / updated | `studio.lerian.operation-route.updated` | `lerian.streaming.ledger_operation_route.updated` | op-route ID | `UpdateOperationRoute` |
-| `operation-route.deleted` | operation-route / deleted | `studio.lerian.operation-route.deleted` | `lerian.streaming.ledger_operation_route.deleted` | op-route ID | `DeleteOperationRouteByID` |
-| `transaction-route.created` | transaction-route / created | `studio.lerian.transaction-route.created` | `lerian.streaming.ledger_transaction_route.created` | txn-route ID | `CreateTransactionRoute` |
-| `transaction-route.updated` | transaction-route / updated | `studio.lerian.transaction-route.updated` | `lerian.streaming.ledger_transaction_route.updated` | txn-route ID | `UpdateTransactionRoute` |
-| `transaction-route.deleted` | transaction-route / deleted | `studio.lerian.transaction-route.deleted` | `lerian.streaming.ledger_transaction_route.deleted` | txn-route ID | `DeleteTransactionRouteByID` |
-| `balance.created` | balance / created | `studio.lerian.balance.created` | `lerian.streaming.ledger_balance.created` | balance ID | `CreateAdditionalBalance` |
-| `balance.changed` | balance / changed | `studio.lerian.balance.changed` | `lerian.streaming.ledger_balance.changed` | **`transactionId:operationId`** | `SendBalanceChangedEvents` (per op, post-commit) |
-| `balance.config-changed` | balance / config-changed | `studio.lerian.balance.config-changed` | `lerian.streaming.ledger_balance.config_changed` | balance ID† | `UseCase.Update` (`settings_updated`) + `ensureOverdraftBalance` (`overdraft_enabled`) |
-| `balance.deleted` | balance / deleted | `studio.lerian.balance.deleted` | `lerian.streaming.ledger_balance.deleted` | balance ID | `DeleteBalance` |
-| `balance.overdraft-drawn` | balance / overdraft-drawn | `studio.lerian.balance.overdraft-drawn` | `lerian.streaming.ledger_balance.overdraft_drawn` | **`transactionId:operationId`** | `SendOverdraftEvents` (per companion op) |
-| `balance.overdraft-repaid` | balance / overdraft-repaid | `studio.lerian.balance.overdraft-repaid` | `lerian.streaming.ledger_balance.overdraft_repaid` | **`transactionId:operationId`** | `SendOverdraftEvents` |
-| `balance.overdraft-cleared` | balance / overdraft-cleared | `studio.lerian.balance.overdraft-cleared` | `lerian.streaming.ledger_balance.overdraft_cleared` | **`transactionId:operationId`** | `SendOverdraftEvents` |
-| `transaction.posted` | transaction / posted | `studio.lerian.transaction.posted` | `lerian.streaming.ledger_transaction.posted` | transaction ID | `SendTransactionEvents` (created, APPROVED, no parent) |
-| `transaction.committed` | transaction / committed | `studio.lerian.transaction.committed` | `lerian.streaming.ledger_transaction.committed` | transaction ID | `SendTransactionEvents` (updated, APPROVED) |
-| `transaction.canceled` | transaction / canceled | `studio.lerian.transaction.canceled` | `lerian.streaming.ledger_transaction.canceled` | transaction ID | `SendTransactionEvents` (updated, CANCELED) |
-| `transaction.reverted` | transaction / reverted | `studio.lerian.transaction.reverted` | `lerian.streaming.ledger_transaction.reverted` | **child** transaction ID | `SendTransactionEvents` (created, APPROVED, parent non-nil) |
+| Event key | Resource / Event | `ce-type` | `ce-subject` | Trigger (use case) |
+|-----------|------------------|-----------|--------------|--------------------|
+| `organization.created` | organization / created | `studio.lerian.ledger.organization.created` | org ID | `CreateOrganization` |
+| `organization.updated` | organization / updated | `studio.lerian.ledger.organization.updated` | org ID | `UpdateOrganizationByID` |
+| `organization.deleted` | organization / deleted | `studio.lerian.ledger.organization.deleted` | org ID | `DeleteOrganizationByID` |
+| `ledger.created` | ledger / created | `studio.lerian.ledger.ledger.created` | ledger ID | `CreateLedger` |
+| `ledger.updated` | ledger / updated | `studio.lerian.ledger.ledger.updated` | ledger ID | `UpdateLedgerByID` |
+| `ledger.deleted` | ledger / deleted | `studio.lerian.ledger.ledger.deleted` | ledger ID | `DeleteLedgerByID` |
+| `account.created` | account / created | `studio.lerian.ledger.account.created` | account ID | `CreateAccount` |
+| `account.updated` | account / updated | `studio.lerian.ledger.account.updated` | account ID | `UpdateAccount` |
+| `account.deleted` | account / deleted | `studio.lerian.ledger.account.deleted` | account ID | `DeleteAccountByID` |
+| `asset.created` | asset / created | `studio.lerian.ledger.asset.created` | asset ID | `CreateAsset` |
+| `asset.updated` | asset / updated | `studio.lerian.ledger.asset.updated` | asset ID | `UpdateAssetByID` |
+| `asset.deleted` | asset / deleted | `studio.lerian.ledger.asset.deleted` | asset ID | `DeleteAssetByID` |
+| `portfolio.created` | portfolio / created | `studio.lerian.ledger.portfolio.created` | portfolio ID | `CreatePortfolio` |
+| `portfolio.updated` | portfolio / updated | `studio.lerian.ledger.portfolio.updated` | portfolio ID | `UpdatePortfolioByID` |
+| `portfolio.deleted` | portfolio / deleted | `studio.lerian.ledger.portfolio.deleted` | portfolio ID | `DeletePortfolioByID` |
+| `segment.created` | segment / created | `studio.lerian.ledger.segment.created` | segment ID | `CreateSegment` |
+| `segment.updated` | segment / updated | `studio.lerian.ledger.segment.updated` | segment ID | `UpdateSegmentByID` |
+| `segment.deleted` | segment / deleted | `studio.lerian.ledger.segment.deleted` | segment ID | `DeleteSegmentByID` |
+| `operation_route.created` | operation_route / created | `studio.lerian.ledger.operation_route.created` | op-route ID | `CreateOperationRoute` |
+| `operation_route.updated` | operation_route / updated | `studio.lerian.ledger.operation_route.updated` | op-route ID | `UpdateOperationRoute` |
+| `operation_route.deleted` | operation_route / deleted | `studio.lerian.ledger.operation_route.deleted` | op-route ID | `DeleteOperationRouteByID` |
+| `transaction_route.created` | transaction_route / created | `studio.lerian.ledger.transaction_route.created` | txn-route ID | `CreateTransactionRoute` |
+| `transaction_route.updated` | transaction_route / updated | `studio.lerian.ledger.transaction_route.updated` | txn-route ID | `UpdateTransactionRoute` |
+| `transaction_route.deleted` | transaction_route / deleted | `studio.lerian.ledger.transaction_route.deleted` | txn-route ID | `DeleteTransactionRouteByID` |
+| `balance.created` | balance / created | `studio.lerian.ledger.balance.created` | balance ID | `CreateAdditionalBalance` |
+| `balance.changed` | balance / changed | `studio.lerian.ledger.balance.changed` | **`transactionId:operationId`** | `SendBalanceChangedEvents` (per op, post-commit) |
+| `balance.config_changed` | balance / config_changed | `studio.lerian.ledger.balance.config_changed` | balance ID† | `UseCase.Update` (`settings_updated`) + `ensureOverdraftBalance` (`overdraft_enabled`) |
+| `balance.deleted` | balance / deleted | `studio.lerian.ledger.balance.deleted` | balance ID | `DeleteBalance` |
+| `balance.overdraft_drawn` | balance / overdraft_drawn | `studio.lerian.ledger.balance.overdraft_drawn` | **`transactionId:operationId`** | `SendOverdraftEvents` (per companion op) |
+| `balance.overdraft_repaid` | balance / overdraft_repaid | `studio.lerian.ledger.balance.overdraft_repaid` | **`transactionId:operationId`** | `SendOverdraftEvents` |
+| `balance.overdraft_cleared` | balance / overdraft_cleared | `studio.lerian.ledger.balance.overdraft_cleared` | **`transactionId:operationId`** | `SendOverdraftEvents` |
+| `transaction.posted` | transaction / posted | `studio.lerian.ledger.transaction.posted` | transaction ID | `SendTransactionEvents` (created, APPROVED, no parent) |
+| `transaction.committed` | transaction / committed | `studio.lerian.ledger.transaction.committed` | transaction ID | `SendTransactionEvents` (updated, APPROVED) |
+| `transaction.canceled` | transaction / canceled | `studio.lerian.ledger.transaction.canceled` | transaction ID | `SendTransactionEvents` (updated, CANCELED) |
+| `transaction.reverted` | transaction / reverted | `studio.lerian.ledger.transaction.reverted` | **child** transaction ID | `SendTransactionEvents` (created, APPROVED, parent non-nil) |
 
-† On `balance.config-changed` the `ce-subject` is the companion overdraft
+† On `balance.config_changed` the `ce-subject` is the companion overdraft
 balance's ID in the `overdraft_enabled` branch, not the parent's.
 
-> **Hyphen, not underscore.** The `operation-route.*`, `transaction-route.*`,
-> `balance.config-changed`, and `balance.overdraft-{drawn,repaid,cleared}` event
-> types are hyphenated. The lib-streaming route-key validator rejects
-> underscores, so the key, topic, and `ce-type` all keep the hyphen. Payload
-> field *values* (e.g. `changeType="settings_updated"`) may keep snake_case
-> because they are payload data, not routing identifiers.
+> **Underscores are preserved everywhere.** The `operation_route.*`,
+> `transaction_route.*`, `balance.config_changed`, and
+> `balance.overdraft_{drawn,repaid,cleared}` events are multi-word. Their **event
+> key** (`Definition.Key()`) and **`ce-type`** are underscore-canonical, and that is
+> what consumers see on the wire and register handlers under (e.g. event key
+> `operation_route.created`, ce-type
+> `studio.lerian.ledger.operation_route.created`). Nothing is folded anywhere: route
+> keys accept underscores, so no event name has a hyphenated variant. Payload field
+> *values* (e.g. `changeType="settings_updated"`) are snake_case for the same
+> reason — they are payload data, not routing identifiers.
 
 ## ce-subject
 
 Most events carry their own record ID as `ce-subject`. Five exceptions:
 
-- **`balance.changed`** and the three **`balance.overdraft-*`** events carry the
+- **`balance.changed`** and the three **`balance.overdraft_*`** events carry the
   composite idempotency key `transactionId:operationId` — NOT the balance ID.
   This keys the event to the operation that caused the mutation, so consumers
   can deduplicate replayed emits.
@@ -328,7 +368,7 @@ Source: `pkg/streaming/events/segment_deleted.go`.
 
 ### Operation route
 
-#### `operation-route.created` / `operation-route.updated` — 7 (or 11) / 6 fields
+#### `operation_route.created` / `operation_route.updated` — 7 (or 11) / 6 fields
 
 Source: `pkg/streaming/events/operation_route_created.go`,
 `operation_route_updated.go`.
@@ -344,13 +384,13 @@ Source: `pkg/streaming/events/operation_route_created.go`,
 | `operationType` | string | ✓ | ✓ | e.g. `source` / `destination`. |
 | `account` | object \| null | ✓ | ✓ | `omitempty` when nil. Nested: `ruleType` (string, `omitempty`) + `validIf` (any, `omitempty`). |
 | `accountingEntries` | object \| null | ✓ | ✓ | `omitempty` when nil. Nested `direct`/`hold`/`commit`/`cancel`/`revert`/`overdraft`/`block`/`unblock` — each `*AccountingEntry` (`omitempty`); each entry has `debit`/`credit` (`*AccountingRubric`, `null` when nil); `AccountingRubric` = `code` + `description`. |
-| `createdAt` | string | ✓ | — | RFC3339. Test asserts `createdAt` ABSENT on `operation-route.updated`. |
+| `createdAt` | string | ✓ | — | RFC3339. Test asserts `createdAt` ABSENT on `operation_route.updated`. |
 | `updatedAt` | string | ✓ | ✓ | RFC3339. |
 
-> `operation-route.created` field count is 7 when all optionals are empty/nil,
+> `operation_route.created` field count is 7 when all optionals are empty/nil,
 > 11 when `description`, `code`, `account`, and `accountingEntries` are all set.
 
-#### `operation-route.deleted` — 4 fields
+#### `operation_route.deleted` — 4 fields
 
 Source: `pkg/streaming/events/operation_route_deleted.go`.
 
@@ -363,7 +403,7 @@ Source: `pkg/streaming/events/operation_route_deleted.go`.
 
 ### Transaction route
 
-#### `transaction-route.created` / `transaction-route.updated` — 7 (or 8) / 6 fields
+#### `transaction_route.created` / `transaction_route.updated` — 7 (or 8) / 6 fields
 
 Source: `pkg/streaming/events/transaction_route_created.go`,
 `transaction_route_updated.go`.
@@ -376,14 +416,14 @@ Source: `pkg/streaming/events/transaction_route_created.go`,
 | `title` | string | ✓ | ✓ | |
 | `description` | string | ✓ | ✓ | `omitempty` — omitted when empty. |
 | `operationRouteIds` | []string | ✓ | ✓ | `omitempty`. POST-UPDATE list (not a diff) on `updated` — consumers replace their cached join set. Derived from `OperationRoutes[].ID`. |
-| `createdAt` | string | ✓ | — | RFC3339. Test asserts `createdAt` ABSENT on `transaction-route.updated`. |
+| `createdAt` | string | ✓ | — | RFC3339. Test asserts `createdAt` ABSENT on `transaction_route.updated`. |
 | `updatedAt` | string | ✓ | ✓ | RFC3339. |
 
-> `transaction-route.created` field count is 7 when `description` is empty, 8
+> `transaction_route.created` field count is 7 when `description` is empty, 8
 > when set. `operationRouteIds` is always non-nil in practice (create requires
 > ≥1 op route) but `omitempty` guards against a future validation loosening.
 
-#### `transaction-route.deleted` — 4 fields
+#### `transaction_route.deleted` — 4 fields
 
 Source: `pkg/streaming/events/transaction_route_deleted.go`.
 
@@ -419,7 +459,7 @@ Source: `pkg/streaming/events/balance_created.go`. Trigger: `CreateAdditionalBal
 | `allowSending` | bool | |
 | `allowReceiving` | bool | |
 | `direction` | string | `omitempty` when empty. |
-| `settings` | object \| null | `omitempty` when nil. `balanceScope` (string, `omitempty`), `allowOverdraft` (bool), `overdraftLimitEnabled` (bool), `overdraftLimit` (string\|null, `omitempty`). |
+| `settings` | object | Omitted (not `null`) when nil. `balanceScope` (string, `omitempty`), `allowOverdraft` (bool), `overdraftLimitEnabled` (bool), `overdraftLimit` (string, `omitempty`). (`BalanceSettingsPayload`, `pkg/streaming/events/balance_created.go`) |
 | `createdAt` | string | RFC3339. |
 | `updatedAt` | string | RFC3339. |
 
@@ -430,7 +470,7 @@ Source: `pkg/streaming/events/balance_created.go`. Trigger: `CreateAdditionalBal
 > auto-create from `CreateAccount`/`CreateAsset`) and `ensureOverdraftBalance`
 > (system-managed overdraft companion) do NOT emit `balance.created`. The former
 > emits `account.created`/`asset.created`; the latter emits
-> `balance.config-changed` with `changeType=overdraft_enabled`.
+> `balance.config_changed` with `changeType=overdraft_enabled`.
 
 #### `balance.changed` — 17 fields
 
@@ -468,26 +508,40 @@ committed transaction (3-goroutine post-commit cascade), gated by
 > **`scale` is intentionally omitted** — test asserts `scale` ABSENT. Test build
 > tag: `//go:build unit`; white-box package `events`.
 
-#### `balance.config-changed` — no pinned count (11 in fixture)
+#### `balance.config_changed` — no pinned count (11 in fixture)
 
-Source: `pkg/streaming/events/balance_config_changed.go`. Trigger: `UseCase.Update`
-(`update_balance.go`), with **two emission branches**:
+Source: `pkg/streaming/events/balance_config_changed.go`. Emitted from two use
+cases with **two emission branches**:
 
-1. **`changeType = settings_updated`** — ordinary settings PATCH
-   (`AllowSending`, `AllowReceiving`, `Settings.*`). `id` = the updated parent
-   balance.
-2. **`changeType = overdraft_enabled`** — emitted exactly once on the
-   false→true overdraft transition, from `ensureOverdraftBalance`. `id` = the
-   **newly-materialized companion overdraft balance** (the companion's identity
-   becoming known IS the "config changed" signal). This event substitutes for a
-   `balance.created` on the companion (suppressed because companions are
-   system-managed).
+1. **`changeType = settings_updated`** — ordinary settings PATCH via
+   `UseCase.Update` (`update_balance.go`): `AllowSending`, `AllowReceiving`,
+   `Settings.*`. `id` = the updated parent balance.
+2. **`changeType = overdraft_enabled`** — emitted only AFTER the parent
+   balance persists successfully: `BalanceRepo.Create` on the POST path,
+   `BalanceRepo.Update` on the PATCH path. `ensureOverdraftBalance`
+   materializes the companion first, but the emit lives in the caller,
+   post-persist — so if the parent persistence fails, no event is emitted.
+   Two verbs reach that path: a PATCH flipping
+   `AllowOverdraft` false→true, and a POST additional balance carrying
+   `settings.allowOverdraft=true`. `id` = the **newly-materialized companion
+   overdraft balance** (the companion's identity becoming known IS the "config
+   changed" signal). This event substitutes for a `balance.created` on the
+   companion (suppressed because companions are system-managed). Idempotent
+   reuse of an existing companion and race-loser paths do not emit.
 
 > A single PATCH flipping `AllowOverdraft` false→true produces **TWO**
-> `config-changed` events: `overdraft_enabled` (companion) then
+> `config_changed` events: `overdraft_enabled` (companion) then
 > `settings_updated` (parent). Ordering enforced by the use case
 > (`ensureOverdraftBalance` runs before `BalanceRepo.Update`). Internal-scope
 > balances cannot be updated via the public API (rejected by the scope guard).
+
+> On the create path, a POST additional balance with
+> `settings.allowOverdraft=true` provisions the companion before persisting the
+> parent, then emits in parent→companion order: `balance.created` (parent)
+> followed by `config_changed` with `changeType=overdraft_enabled` (companion).
+> This inverts the PATCH ordering: on create, `balance.created` is the
+> aggregate's birth event, so consumers observe the parent before the
+> companion's config signal.
 
 | Key | Type | Notes |
 |-----|------|-------|
@@ -500,7 +554,7 @@ Source: `pkg/streaming/events/balance_config_changed.go`. Trigger: `UseCase.Upda
 | `allowSending` | bool | |
 | `allowReceiving` | bool | |
 | `direction` | string | `omitempty` when empty. |
-| `settings` | object \| null | `omitempty` when nil. Same nested shape as `balance.created`. |
+| `settings` | object | Omitted (not `null`) when nil. Same nested shape as `balance.created`. |
 | `changeType` | string | `settings_updated` or `overdraft_enabled`. Snake_case value is payload data, not a routing identifier. |
 | `updatedAt` | string | RFC3339. |
 
@@ -525,7 +579,7 @@ Source: `pkg/streaming/events/balance_deleted.go`. Trigger: `DeleteBalance`
 > deletion is impossible by API contract; balances with non-zero
 > `Available`/`OnHold` cannot be deleted.
 
-#### `balance.overdraft-drawn` / `balance.overdraft-repaid` / `balance.overdraft-cleared` — no pinned count (11 in fixture)
+#### `balance.overdraft_drawn` / `balance.overdraft_repaid` / `balance.overdraft_cleared` — no pinned count (11 in fixture)
 
 Source: `pkg/streaming/events/balance_overdraft.go`. Shared payload across the
 three events. Trigger: `SendOverdraftEvents`, called in the same post-commit
@@ -580,10 +634,6 @@ status discriminator selects the Definition:
 | `updated` | — | CANCELED | `transaction.canceled` |
 | `updated` | — | other | skipped |
 
-> Coexists with the legacy `transaction.transaction_events` rabbit publish
-> during cutover (`RABBITMQ_TRANSACTION_EVENTS_ENABLED`); the flag short-circuits
-> BOTH transports together.
-
 | Key | Type | Notes |
 |-----|------|-------|
 | `id` | string | Transaction ID. |
@@ -599,12 +649,37 @@ status discriminator selects the Definition:
 | `destination` | []string | `omitempty`. |
 | `route` | string | `omitempty`. Legacy field (`//nolint:staticcheck`; `routeId` is canonical). |
 | `routeId` | string \| null | `omitempty`. |
-| `operations` | array | Each operation marshalled verbatim by the caller so the events package stays decoupled from the internal `operation.Operation` type. Wire bytes match the legacy rabbit publish. Always present (no omitempty). |
+| `operations` | array | Each operation marshalled verbatim by the caller so the events package stays decoupled from the internal `operation.Operation` type, plus `accountType` (see below). Always present (no omitempty). |
 | `metadata` | object | `omitempty`. |
 | `createdAt` | string | RFC3339. |
 | `updatedAt` | string | RFC3339. |
 
 > **`scale` is intentionally omitted** (asset-level) — test asserts ABSENT.
+
+**`operations[].accountType`** — the type of the account the operation moved
+(`deposit`, `external`, …), taken from the balance the operation was built from,
+so nothing extra is read or joined. Built by `operationEventPayload` in
+`send_transaction_events.go`: the inner shape of the `operations` array belongs
+to the caller, for the same reason the array is `[]json.RawMessage`.
+
+- Present on **every** operation, external accounts included. Filtering external
+  legs out at the source would take with them the evidence that the leg existed,
+  and a consumer could no longer reconcile the transaction.
+- Not part of the public `operation` shape on the REST API: there is no
+  `account_type` column, so an operation read back from Postgres could not carry
+  it and the public shape would disagree between a create and a later read.
+- Distinct from `operations[].type`, which stays the DEBIT/CREDIT ledger movement
+  and says nothing about the account.
+- No `omitempty`. An empty value means the operation reached the emit without a
+  type — an in-flight queue payload produced before this field existed — which a
+  consumer can tell apart from any real type.
+
+A consumer classifying accounts should read `accountType` rather than matching
+`accountAlias` against `@external/`. `mmodel.Account.Alias` is validated with
+`prohibitedexternalaccountprefix`, so a client cannot supply that prefix: a
+client-created external account (`type: "external"`, canonicalised in
+`CreateAccount`) has the type and not the prefix, and only the per-asset account
+Midaz creates for itself has both.
 
 ## Excluded by design
 
@@ -617,7 +692,7 @@ structural choices, not a privacy guarantee.
 
 - **`scale`** — omitted from every `balance.*` and `transaction.*` payload
   (asset-level property; consumers join against `asset.created`).
-- **Money fields on `balance.config-changed`** — `available`/`onHold` are
+- **Money fields on `balance.config_changed`** — `available`/`onHold` are
   absent; config mutation is a separate signal family from money movement.
 - **`createdAt`** — omitted on every `*.updated` event (the `updatedAt` stamp
   is the mutation marker).
@@ -625,7 +700,7 @@ structural choices, not a privacy guarantee.
   `organization.updated`.
 - **`deletionType`** — ledger `*.deleted` payloads carry no soft/hard
   discriminator (unlike CRM).
-- **`overdraftLimit`** — `omitempty` on `balance.overdraft-*`; currently always
+- **`overdraftLimit`** — `omitempty` on `balance.overdraft_*`; currently always
   nil until the operation-snapshot extension lands.
 
 **Enforcement.** The `JSONShape` unit test in each event's `*_test.go` locks the
@@ -647,6 +722,39 @@ Every emission carries a `ce-tenantid` header sourced from
 Note: `organizationId` is a **payload** field (a collection/sub-tenant
 dimension), not the tenant. It is never used as `ce-tenantid`.
 
+> **Before upgrading:** the ce-source is now REFUSED at startup unless it is exactly
+> `ledger`. A value carried over from before the one-topic contract — the dotted
+> `lerian.midaz.ledger` or URI `//lerian.midaz/ledger` shapes, or any other legal
+> name — must be removed from every env file first, or the service will not boot. The
+> refusal is deliberate: broker topics and Kafka ACLs are provisioned for the roster
+> name alone, so any other value would publish into a stream that neither exists nor
+> is granted, and midaz would swallow every one of those failures as a Warn while
+> reporting healthy. The check runs whether or not `STREAMING_ENABLED` is set.
+
+## Partitioning
+
+lib-streaming picks a record's partition key by falling back through: system event
+→ tenant → `ce-subject` → event id. Under one topic per application that has one
+consequence worth stating plainly.
+
+- **Multi-tenant deployments** key by the resolved tenant, so the stream spreads
+  across `lerian.streaming.ledger`'s partitions and every tenant's events keep a
+  stable partition affinity.
+- **Single-tenant deployments** carry the literal tenant `"default"` on every event
+  (see `ce-tenantid` above), so the ENTIRE stream hashes to ONE partition regardless
+  of how many the topic has. Consumer parallelism on that stream is capped at one.
+
+That is a throughput ceiling, not a correctness problem: a single partition makes
+ordering stronger, not weaker — total order across the stream instead of order per
+tenant — and nothing is dropped or misrouted. Plan capacity for it in single-tenant
+deployments.
+
+The ceiling stands until the platform-wide partition-key default is decided in
+lib-streaming (tenant+subject is the likely shape). midaz deliberately does not
+override the key locally: partitioning is a fleet contract, and one service opting
+out of it privately is how two consumers of the same stream end up disagreeing about
+what a partition means.
+
 ## Local testing
 
 The default unit suite (`go test ./...` with no tag) never touches a broker —
@@ -662,8 +770,11 @@ offline.
 For a longer-lived local broker (e.g. to point a running ledger service at it),
 use the Redpanda compose in the `end-to-end` repo
 (`docker-compose.redpanda.yaml`) and set `STREAMING_ENABLED=true` +
-`STREAMING_BROKERS` + `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.ledger` on the
-ledger accordingly.
+`STREAMING_BROKERS` + `STREAMING_CLOUDEVENTS_SOURCE=ledger` on the
+ledger accordingly. Pre-provision exactly two topics —
+`lerian.streaming.ledger` and `lerian.streaming.ledger.dlq` — and give the DLQ a
+`max.message.bytes` at or above its source topic's, since a DLQ record is strictly
+larger than the record it quarantines. Do not rely on auto-create.
 
 See the `CLAUDE.md` Streaming → Local testing section for the
 broker/environment conventions.

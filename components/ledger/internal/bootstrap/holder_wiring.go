@@ -8,6 +8,8 @@ import (
 	"context"
 	"errors"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -48,32 +50,34 @@ func (a holderReaderAdapter) Exists(ctx context.Context, organizationID string, 
 }
 
 // holderAccountsReaderAdapter satisfies httpin.HolderAccountsReader over the
-// ledger account query use case. Ownership is org-global (the holder collection
-// is per-organization), so the account-list query is scoped by holder_id; the
-// existing account-list read path is ledger-partitioned, so the caller supplies
-// the ledger via the ledger_id query parameter.
+// ledger account query use case. Ownership is org-global — the holder collection
+// is per-organization — so the listing spans every ledger of the organization and
+// ledger_id is an optional narrowing filter rather than a scoping key.
 type holderAccountsReaderAdapter struct {
 	query *query.UseCase
 }
 
-// ListAccountsByHolder lists the accounts owned by a holder. The holder_id
-// filter (set by the handler) performs the ownership scoping; ledger_id narrows
-// the read to one ledger. The underlying account-list read is ledger-scoped, so
-// ledger_id is required and its absence is reported as a missing-parameter error.
+// ListAccountsByHolder lists the accounts a holder owns across the organization.
+// A ledger_id query parameter narrows the result to one ledger; a malformed one
+// is a query-parameter validation error.
 func (a holderAccountsReaderAdapter) ListAccountsByHolder(ctx context.Context, organizationID string, holderID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Account, error) {
 	orgID, err := uuid.Parse(organizationID)
 	if err != nil {
 		return nil, pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, constant.EntityOrganization)
 	}
 
-	if filter.LedgerID == nil || *filter.LedgerID == "" {
-		return nil, pkg.ValidateBusinessError(constant.ErrMissingRequiredQueryParameter, constant.EntityAccount, "ledger_id")
+	var ledgerID *uuid.UUID
+
+	if !libCommons.IsNilOrEmpty(filter.LedgerID) {
+		parsed, err := uuid.Parse(*filter.LedgerID)
+		if err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityAccount, "ledger_id")
+		}
+
+		ledgerID = &parsed
 	}
 
-	ledgerID, err := uuid.Parse(*filter.LedgerID)
-	if err != nil {
-		return nil, pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, constant.EntityLedger)
-	}
-
-	return a.query.GetAllAccount(ctx, orgID, ledgerID, nil, nil, filter)
+	// HolderOnV2: the holder-accounts route is served on /v2 only, so the
+	// accounts it answers with carry the holder keys.
+	return a.query.GetAllAccountsByHolder(ctx, orgID, holderID, ledgerID, filter, mmodel.HolderOnV2)
 }

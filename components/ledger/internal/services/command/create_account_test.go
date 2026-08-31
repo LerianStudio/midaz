@@ -546,7 +546,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance, mockLedgerRepo)
 
-			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
+			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token, HolderOnV2)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -697,7 +697,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(true, nil).AnyTimes()
 
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Account{
 						ID:        parentAccountIDStr,
 						AssetCode: "USD",
@@ -749,7 +749,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(true, nil).AnyTimes()
 
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("parent account not found")).AnyTimes()
 			},
 			expectError:  true,
@@ -774,7 +774,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Return(true, nil).AnyTimes()
 
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Account{
 						ID:        parentAccountIDStr,
 						AssetCode: "EUR", // Different from the input's USD
@@ -947,7 +947,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 				FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 
-			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
+			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token, HolderOnV2)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -1142,7 +1142,7 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance, mockLedgerRepo)
 
-			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
+			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token, HolderOnV2)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -1371,7 +1371,7 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 				}).AnyTimes()
 
 			token := "Bearer test-token"
-			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token)
+			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token, HolderOnV2)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -1511,7 +1511,7 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 	}
 
 	token := "Bearer test-token"
-	acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, input, token)
+	acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, input, token, HolderOnV2)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

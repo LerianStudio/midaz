@@ -297,7 +297,6 @@ var (
 	ErrMissingSegmentContext                = errors.New("0231")
 	ErrMidazRouteNotFound                   = errors.New("0232")
 	ErrDeductibleFeeExceedsAmount           = errors.New("0233")
-	ErrLedgerIDMismatch                     = errors.New("0234")
 	ErrLedgerScopedQueryParameter           = errors.New("0235")
 )
 
@@ -349,7 +348,6 @@ var (
 	ErrLimitInvalidScope                      = errors.New("0367")
 	ErrLimitNameRequired                      = errors.New("0368")
 	ErrLimitNameTooLong                       = errors.New("0369")
-	ErrLimitAlreadyDeleted                    = errors.New("0370")
 	ErrLimitNameInvalidChars                  = errors.New("0371")
 	ErrLimitDescriptionInvalidChars           = errors.New("0372")
 	ErrLimitInvalidID                         = errors.New("0373")
@@ -477,6 +475,11 @@ var (
 	ErrReadyzStreamingUnhealthy               = errors.New("0496")
 	// 0499 is intentionally skipped: it is the last slot of the reserved Tracer platform block (0328-0499); 0500 starts fresh beyond all documented blocks.
 	ErrInvalidAccountTypeDirection = errors.New("0500")
+	// ErrSchemaMigrationPending is returned when a statement names a column the
+	// database does not have (SQLSTATE 42703), i.e. the binary is ahead of the
+	// applied migrations. Retryable: the schema is applied out of band, so the
+	// same request succeeds once the migration runner reaches this database.
+	ErrSchemaMigrationPending = errors.New("0501")
 )
 
 // List of CRM domain errors.

@@ -12,7 +12,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -63,8 +63,7 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 // emitPortfolioDeletedEvent publishes the portfolio.deleted event for a
 // successfully soft-deleted portfolio. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after PortfolioRepo.Delete succeeds.
 // PortfolioRepo.Delete does not return the post-delete record, so the
@@ -77,7 +76,7 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 // Wire-format mapping lives in pkg/streaming/events/portfolio_deleted.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitPortfolioDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID, ledgerID string, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.PortfolioDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.PortfolioDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewPortfolioDeleted(id, organizationID, ledgerID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

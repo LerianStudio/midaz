@@ -266,7 +266,7 @@ func TestValidation_MissingRequestID_ReturnsError(t *testing.T) {
 	payload := map[string]any{
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(2001).String(),
@@ -337,7 +337,7 @@ func TestValidation_InvalidTransactionType_ReturnsError(t *testing.T) {
 				"requestId":            testutil.MustDeterministicUUID(int64(2002 + i*2)).String(),
 				"transactionType":      tc.transactionType,
 				"amount":               100,
-				"currency":             "BRL",
+				"asset":                "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
 					"accountId": testutil.MustDeterministicUUID(int64(2003 + i*2)).String(),
@@ -405,7 +405,7 @@ func TestValidation_AmountNonPositive_ReturnsError(t *testing.T) {
 				"requestId":            testutil.MustDeterministicUUID(int64(2010 + i*2)).String(),
 				"transactionType":      "CARD",
 				"amount":               tc.amount,
-				"currency":             "BRL",
+				"asset":                "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
 					"accountId": testutil.MustDeterministicUUID(int64(2011 + i*2)).String(),
@@ -439,9 +439,9 @@ func TestValidation_AmountNonPositive_ReturnsError(t *testing.T) {
 	}
 }
 
-// TestValidation_MissingCurrency_ReturnsError verifies that missing currency returns an error.
-// 0416: currency is required
-func TestValidation_MissingCurrency_ReturnsError(t *testing.T) {
+// TestValidation_MissingAsset_ReturnsError verifies that missing asset returns an error.
+// 0416: asset is required
+func TestValidation_MissingAsset_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
@@ -474,46 +474,46 @@ func TestValidation_MissingCurrency_ReturnsError(t *testing.T) {
 
 	errResp := testutil.ParseErrorResponse(t, respBody)
 
-	// 0416 (ErrValidationCurrencyRequired): currency is required
-	assert.Equal(t, "0416", errResp.Code, "Expected 0416 for missing currency")
-	assert.Equal(t, "Validation Currency Required", errResp.Title)
-	assert.Equal(t, "Currency is required.", errResp.Detail)
+	// 0416 (ErrValidationCurrencyRequired): asset is required
+	assert.Equal(t, "0416", errResp.Code, "Expected 0416 for missing asset")
+	assert.Equal(t, "Validation Asset Required", errResp.Title)
+	assert.Equal(t, "Asset is required.", errResp.Detail)
 }
 
-// TestValidation_InvalidCurrency_ReturnsError verifies that invalid currency code returns an error.
-// 0417: currency must be valid ISO 4217 code (e.g., BRL, USD)
-func TestValidation_InvalidCurrency_ReturnsError(t *testing.T) {
+// TestValidation_InvalidAsset_ReturnsError verifies that invalid asset code returns an error.
+// 0417: asset must be valid ISO 4217 code (e.g., BRL, USD)
+func TestValidation_InvalidAsset_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
 
 	testCases := []struct {
 		name        string
-		currency    string
+		asset       string
 		description string
 	}{
 		{
 			name:        "lowercase_brl",
-			currency:    "brl",
-			description: "Lowercase currency code",
+			asset:       "brl",
+			description: "Lowercase asset code",
 		},
 		{
 			name:        "invalid_length_4_chars",
-			currency:    "USDD",
-			description: "Currency code with 4 characters",
+			asset:       "USDD",
+			description: "Asset code with 4 characters",
 		},
 		{
 			name:        "invalid_length_2_chars",
-			currency:    "US",
-			description: "Currency code with 2 characters",
+			asset:       "US",
+			description: "Asset code with 2 characters",
 		},
 		{
-			name:        "numeric_currency",
-			currency:    "123",
-			description: "Numeric currency code",
+			name:        "numeric_asset",
+			asset:       "123",
+			description: "Numeric asset code",
 		},
 		{
 			name:        "invalid_but_formatted",
-			currency:    "XYZ",
+			asset:       "XYZ",
 			description: "Properly formatted but invalid ISO 4217 code",
 		},
 	}
@@ -524,7 +524,7 @@ func TestValidation_InvalidCurrency_ReturnsError(t *testing.T) {
 				"requestId":            testutil.MustDeterministicUUID(int64(2018 + i*2)).String(),
 				"transactionType":      "CARD",
 				"amount":               100,
-				"currency":             tc.currency,
+				"asset":                tc.asset,
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
 					"accountId": testutil.MustDeterministicUUID(int64(2019 + i*2)).String(),
@@ -550,10 +550,10 @@ func TestValidation_InvalidCurrency_ReturnsError(t *testing.T) {
 
 			errResp := testutil.ParseErrorResponse(t, respBody)
 
-			// 0417 (ErrValidationInvalidCurrency): currency must be valid ISO 4217 code (e.g., BRL, USD)
-			assert.Equal(t, "0417", errResp.Code, "Test case: %s - Expected 0417 for invalid currency", tc.description)
-			assert.Equal(t, "Validation Invalid Currency", errResp.Title)
-			assert.Equal(t, "Currency must be valid ISO 4217.", errResp.Detail)
+			// 0417 (ErrValidationInvalidCurrency): asset must be valid ISO 4217 code (e.g., BRL, USD)
+			assert.Equal(t, "0417", errResp.Code, "Test case: %s - Expected 0417 for invalid asset", tc.description)
+			assert.Equal(t, "Validation Invalid Asset", errResp.Title)
+			assert.Equal(t, "Asset must be valid ISO 4217.", errResp.Detail)
 		})
 	}
 }
@@ -568,7 +568,7 @@ func TestValidation_MissingTimestamp_ReturnsError(t *testing.T) {
 		"requestId":       testutil.MustDeterministicUUID(2028).String(),
 		"transactionType": "CARD",
 		"amount":          100,
-		"currency":        "BRL",
+		"asset":           "BRL",
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(2029).String(),
 		},
@@ -613,7 +613,7 @@ func TestValidation_FutureTimestamp_ReturnsError(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(2030).String(),
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": futureTime,
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(2031).String(),
@@ -660,7 +660,7 @@ func TestValidation_FutureTimestamp_SmallClockSkew_IsAccepted(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(2032).String(),
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": futureTime,
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(2033).String(),
@@ -704,7 +704,7 @@ func TestValidation_MissingAccount_ReturnsError(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(2034).String(),
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 	}
 
@@ -743,7 +743,7 @@ func TestValidation_EmptyAccountObject_ReturnsError(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(2035).String(),
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account":              map[string]any{}, // Empty account object (missing accountId)
 	}
@@ -787,7 +787,7 @@ func TestValidation_SubTypeTooLong_ReturnsError(t *testing.T) {
 		"transactionType":      "CARD",
 		"subType":              longSubType,
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(2037).String(),
@@ -831,7 +831,7 @@ func TestValidation_WithoutAuth_Returns401(t *testing.T) {
 		"requestId":            testutil.MustDeterministicUUID(2038).String(),
 		"transactionType":      "CARD",
 		"amount":               100,
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": testutil.MustDeterministicUUID(2039).String(),
@@ -897,7 +897,7 @@ func TestValidation_InvalidUUIDFormat_ReturnsError(t *testing.T) {
 				"requestId":            tc.requestID,
 				"transactionType":      "CARD",
 				"amount":               100,
-				"currency":             "BRL",
+				"asset":                "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
 					"accountId": testutil.MustDeterministicUUID(int64(2040 + i)).String(),
@@ -969,7 +969,7 @@ func TestValidation_InvalidTimestampFormat_ReturnsError(t *testing.T) {
 				"requestId":            testutil.MustDeterministicUUID(int64(2043 + i*2)).String(),
 				"transactionType":      "CARD",
 				"amount":               100,
-				"currency":             "BRL",
+				"asset":                "BRL",
 				"transactionTimestamp": tc.timestamp,
 				"account": map[string]any{
 					"accountId": testutil.MustDeterministicUUID(int64(2044 + i*2)).String(),
@@ -1018,7 +1018,7 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 				"requestId":            testutil.MustDeterministicUUID(2051).String(),
 				"transactionType":      "CARD",
 				"amount":               "not_a_number", // Non-numeric string that decimal.Decimal rejects
-				"currency":             "BRL",
+				"asset":                "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
 					"accountId": testutil.MustDeterministicUUID(2052).String(),
@@ -1031,7 +1031,7 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 				"requestId":            testutil.MustDeterministicUUID(2053).String(),
 				"transactionType":      "CARD",
 				"amount":               100,
-				"currency":             "BRL",
+				"asset":                "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account":              []string{testutil.MustDeterministicUUID(2054).String()}, // Array instead of object
 			},
@@ -1042,7 +1042,7 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 				"requestId":            testutil.MustDeterministicUUID(2055).String(),
 				"transactionType":      123, // Number instead of string
 				"amount":               100,
-				"currency":             "BRL",
+				"asset":                "BRL",
 				"transactionTimestamp": testutil.FixedTime().Add(-1 * time.Minute).Format(time.RFC3339),
 				"account": map[string]any{
 					"accountId": testutil.MustDeterministicUUID(2056).String(),
@@ -1091,8 +1091,8 @@ func TestValidation_ValidJSONWithWrongTypes_ReturnsError(t *testing.T) {
 // 0413: ErrValidationRequestIDRequired - requestId is required
 // 0414: ErrValidationInvalidTransactionType - transactionType invalid
 // 0415: ErrValidationAmountNonPositive - amount must be positive
-// 0416: ErrValidationCurrencyRequired - currency is required
-// 0417: ErrValidationInvalidCurrency - currency invalid ISO 4217
+// 0416: ErrValidationCurrencyRequired - asset is required
+// 0417: ErrValidationInvalidCurrency - asset invalid ISO 4217
 // 0418: ErrValidationTimestampRequired - transactionTimestamp is required
 // 0419: ErrValidationTimestampFuture - transactionTimestamp in future
 // 0420: ErrValidationAccountRequired - account is required

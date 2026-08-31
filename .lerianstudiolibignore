@@ -5,10 +5,3 @@
 #   lib-name/vN@vX.Y.Z                 -> pin: only fail if current < pinned target
 #   lib-name/vN|ttl:YYYY-MM-DD         -> skip until TTL date
 #   lib-name/vN@vX.Y.Z|ttl:YYYY-MM-DD  -> pin until TTL date
-
-# lib-streaming v2.0.1 cannot be verified: the tag was moved after sum.golang.org
-# signed it, so the origin now serves different bits than the transparency log
-# recorded and `go get` fails with a checksum mismatch. v2.0.1 carries no Go code
-# (CI workflow + CHANGELOG only), so staying on v2.0.0 costs nothing. Drop this
-# entry once lib-streaming publishes a release from a fresh, never-moved tag.
-lib-streaming/v2|ttl:2026-08-17

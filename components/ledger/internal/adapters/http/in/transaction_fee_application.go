@@ -48,6 +48,10 @@ type FeeApplier interface {
 // the persistence path (BuildOperations / ProcessBalanceOperations /
 // WriteTransaction) through a single reassigned validate pointer.
 //
+// On policy=routeV1 this is a no-op, and it is the FIRST gate: the /v1
+// transaction contract does not include fees, so a /v1 create posts exactly as
+// authored and never reaches the package lookup or the tenant fee-DB resolution.
+//
 // On isRevert=true this is a no-op: the reverse transaction already carries the
 // reversed fee legs reconstructed by TransactionRevert from the persisted
 // parent operations, so re-charging here would double the fees.
@@ -69,8 +73,13 @@ func (handler *TransactionHandler) applyFees(
 	ctx context.Context,
 	transactionInput *mtransaction.Transaction,
 	organizationID, ledgerID uuid.UUID,
+	policy routeVersionPolicy,
 	isRevert, isAnnotation, honoredFeeSkip bool,
 ) error {
+	if policy == routeV1 {
+		return nil
+	}
+
 	if honoredFeeSkip {
 		return nil
 	}
@@ -138,7 +147,7 @@ func (handler *TransactionHandler) resolveFeesTenantContext(ctx context.Context)
 
 	feesDB, err := handler.FeesMongoManager.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
-		return nil, mapTenantError(err, tenantID)
+		return nil, mapTenantError(ctx, err, tenantID)
 	}
 
 	return tmcore.ContextWithMB(ctx, feesDB), nil

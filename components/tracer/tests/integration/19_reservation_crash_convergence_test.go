@@ -60,7 +60,7 @@ func (b resSQLTxBeginner) BeginTx(ctx context.Context, opts *sql.TxOptions) (pgd
 }
 
 // resStubResolver returns a fixed set of ReservationSpecs, isolating the proof
-// from the DB-wide "list every active limit for this currency" behaviour of the
+// from the DB-wide "list every active limit for this asset" behaviour of the
 // real ResolveReservations (which would couple the assertion to other tests'
 // lingering limits). It is the LimitResolver the ReservationService consumes.
 type resStubResolver struct {
@@ -112,7 +112,7 @@ func resSeedLimit(t *testing.T, db *sql.DB, seed int64, name string, maxAmount i
 	limitID := testutil.MustDeterministicUUID(seed)
 
 	_, err := db.Exec(`
-		INSERT INTO limits (id, name, limit_type, max_amount, currency, scopes, status)
+		INSERT INTO limits (id, name, limit_type, max_amount, asset, scopes, status)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, limitID, "Reservation Proof Limit "+name, "DAILY", decimal.NewFromInt(maxAmount), "USD", "[]", "ACTIVE")
 	require.NoError(t, err, "failed to seed proof limit")
@@ -128,10 +128,22 @@ func resCleanupLimit(t *testing.T, db *sql.DB, limitID uuid.UUID) {
 	}
 }
 
-// resReadCounter reads the (current_usage, reserved_usage) pair for a counter.
-// A missing counter row yields (0, 0): a reserve that the guard denied before any
-// INSERT, or a counter that was never created, is observationally a zero counter.
+// resReadCounter reads the (current_usage, reserved_usage) pair for a counter as
+// whole units. A missing counter row yields (0, 0): a reserve that the guard denied
+// before any INSERT, or a counter that was never created, is observationally a zero
+// counter. The whole-unit proofs read through here; the fractional proof reads
+// resReadCounterDecimal to keep the fraction visible.
 func resReadCounter(t *testing.T, db *sql.DB, limitID uuid.UUID, scopeKey, periodKey string) (current, reserved int64) {
+	t.Helper()
+
+	cur, rsv := resReadCounterDecimal(t, db, limitID, scopeKey, periodKey)
+
+	return cur.IntPart(), rsv.IntPart()
+}
+
+// resReadCounterDecimal reads the counter buckets as exact decimals (the columns
+// became DECIMAL in migration 000021), so a fractional hold survives the round-trip.
+func resReadCounterDecimal(t *testing.T, db *sql.DB, limitID uuid.UUID, scopeKey, periodKey string) (current, reserved decimal.Decimal) {
 	t.Helper()
 
 	err := db.QueryRow(
@@ -139,7 +151,7 @@ func resReadCounter(t *testing.T, db *sql.DB, limitID uuid.UUID, scopeKey, perio
 		limitID, scopeKey, periodKey,
 	).Scan(&current, &reserved)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, 0
+		return decimal.Zero, decimal.Zero
 	}
 
 	require.NoError(t, err, "failed to read counter buckets")
@@ -205,8 +217,15 @@ func resWireReaper(t *testing.T, db *sql.DB, audit *resCountingAudit, sweepAt ti
 	return reaper
 }
 
-// spec is a small helper for the stub resolver: one counter-backed limit.
+// resSpec is a small helper for the stub resolver: one counter-backed limit. The
+// whole-unit proofs pass int64 amounts; the spec carries them as decimals.
 func resSpec(limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount int64) query.ReservationSpec {
+	return resSpecDec(limitID, scopeKey, periodKey, decimal.NewFromInt(amount), decimal.NewFromInt(maxAmount))
+}
+
+// resSpecDec builds a spec from decimal amounts, so the fractional proof can hold a
+// sub-unit amount the int64 seam would have truncated.
+func resSpecDec(limitID uuid.UUID, scopeKey, periodKey string, amount, maxAmount decimal.Decimal) query.ReservationSpec {
 	return query.ReservationSpec{
 		LimitID:   limitID,
 		ScopeKey:  scopeKey,
@@ -682,3 +701,46 @@ func TestIntegration_ReservationOverCommit(t *testing.T) {
 // silently weakening the over-commit proof's premise (the loser is denied via
 // that exact guard inside ReservationService.Reserve).
 var _ = constant.ErrUsageCounterExceedsLimit
+
+// TestIntegration_ReservationFractionalConvergence proves the two-phase seam
+// preserves a sub-unit amount end-to-end: a 10.50 reserve holds 10.50 in
+// reserved_usage (not 10), and a confirm-by-transaction moves the exact fraction
+// into current_usage. The pre-fix int64 seam truncated 10.50 -> 10 at resolution.
+func TestIntegration_ReservationFractionalConvergence(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+
+	limitID := resSeedLimit(t, db, 8901, "fractional-converge", 20)
+	t.Cleanup(func() { resCleanupLimit(t, db, limitID) })
+
+	scopeKey := "acct:frac-" + testutil.MustDeterministicUUID(8911).String()[:8]
+	periodKey := "2026-06"
+	txID := testutil.MustDeterministicUUID(8921)
+
+	want := decimal.RequireFromString("10.50")
+
+	audit := &resCountingAudit{}
+	svc := resWireService(t, db, resStubResolver{
+		specs: []query.ReservationSpec{resSpecDec(limitID, scopeKey, periodKey, want, decimal.NewFromInt(20))},
+	}, audit)
+
+	ctx := context.Background()
+
+	res, err := svc.Reserve(ctx, txID, resCheckInput(t), false)
+	require.NoError(t, err)
+	require.False(t, res.Denied)
+	require.Len(t, res.ReservationIDs, 1)
+
+	current, reserved := resReadCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, current.IsZero(), "reserve must not touch current_usage")
+	assert.True(t, want.Equal(reserved), "reserve must hold the exact fraction, got %s", reserved)
+
+	flipped, err := svc.ConfirmByTransaction(ctx, txID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, flipped)
+
+	current, reserved = resReadCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, want.Equal(current), "confirm must move the exact fraction into current_usage, got %s", current)
+	assert.True(t, reserved.IsZero(), "confirm must drain reserved_usage")
+}

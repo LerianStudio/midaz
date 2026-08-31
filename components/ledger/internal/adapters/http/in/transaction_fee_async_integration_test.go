@@ -74,7 +74,6 @@ func (c *asyncFeeConsumer) handle(ctx context.Context, body []byte) error {
 // FEE-INCLUSIVE transaction (not the pre-fee payload).
 func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
-	t.Setenv("RABBITMQ_TRANSACTION_EVENTS_ENABLED", "false")
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
 	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "test.fee.exchange")
 	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test.fee.key")
@@ -147,7 +146,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	require.NoError(t, err)
 	resolver, err := feesservices.NewQueryResolver(queryUC)
 	require.NoError(t, err)
-	feeUC, err := feesservices.NewUseCase(packageRepo, resolver, "USD")
+	feeUC, err := feesservices.NewUseCase(packageRepo, resolver)
 	require.NoError(t, err)
 
 	h := &feeHarness{
@@ -159,7 +158,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	h.orgID = postgrestestutil.CreateTestOrganization(t, h.db)
 	h.ledgerID = postgrestestutil.CreateTestLedger(t, h.db, h.orgID)
 
-	app := h.newApp()
+	app := h.newV2App()
 
 	// Consumer wiring.
 	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
@@ -198,18 +197,11 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	h.seedBalance(t, "@fee_rev", "USD", decimal.Zero, "deposit")
 	h.seedPackage(t, packageSpec{label: "async_pkg", fees: []feeSpec{flatFee("async_fee", "@fee_rev", "10", false)}})
 
-	body := `{
-		"description": "async fee tx",
-		"pending": false,
-		"send": {
-			"asset": "USD",
-			"value": "1000",
-			"source": { "from": [{"accountAlias": "@payer", "amount": {"asset": "USD", "value": "1000"}}] },
-			"distribute": { "to": [{"accountAlias": "@receiver", "amount": {"asset": "USD", "value": "1000"}}] }
-		}
-	}`
+	body := h.v2Body("async fee tx", "USD", "1000",
+		[]string{h.v2Leg("@payer", "1000")},
+		[]string{h.v2Leg("@receiver", "1000")})
 
-	resp := h.createJSON(t, app, body, nil)
+	resp := h.createV2Direct(t, app, body, nil)
 	require.Equalf(t, 201, resp.status, "async fee create must succeed: %s", string(resp.rawBody))
 
 	txID := mustTxID(t, resp)
@@ -227,7 +219,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	require.NotEmpty(t, legs, "async path must persist operations")
 	requireBalanced(t, legs, "async fee tx")
 
-	feeLegs := feeCreditLegs(legs, "@fee_rev")
+	feeLegs := legsFor(legs, "@fee_rev", "CREDIT")
 	require.NotEmpty(t, feeLegs, "async persisted operations must include the fee legs")
 	assert.Truef(t, sumAmounts(feeLegs).Equal(decimal.NewFromInt(10)),
 		"async fee legs must total exactly 10, got %s", sumAmounts(feeLegs).String())
@@ -258,7 +250,7 @@ func assertBackupFeeInclusive(t *testing.T, h *feeHarness, txID interface{ Strin
 		// distribute side — i.e. the post-fee, fee-inclusive payload.
 		var hasFeeLeg bool
 		for _, ft := range q.TransactionInput.Send.Distribute.To {
-			if aliasContains(ft.AccountAlias, "@fee_rev") {
+			if ft.AccountAlias == "@fee_rev" {
 				hasFeeLeg = true
 			}
 		}
@@ -266,19 +258,6 @@ func assertBackupFeeInclusive(t *testing.T, h *feeHarness, txID interface{ Strin
 			"backup seed must reconstruct to the FEE-INCLUSIVE transaction (fee leg present in TransactionInput), not the pre-fee payload")
 	}
 	require.True(t, found, "backup seed for the transaction must exist in the Redis backup queue")
-}
-
-func aliasContains(alias, want string) bool {
-	return len(alias) >= len(want) && (alias == want || containsSub(alias, want))
-}
-
-func containsSub(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
 
 // waitForTxStatus polls the persisted transaction status until it matches or the

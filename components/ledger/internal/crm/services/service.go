@@ -7,7 +7,7 @@ package services
 import (
 	"github.com/LerianStudio/lib-observability/v2/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
@@ -38,7 +38,7 @@ type UseCase struct {
 	MetricsFactory *metrics.MetricsFactory
 
 	// Streaming emits IMPORTANT-posture CRM business events (holder.*,
-	// instrument.*) via pkgStreaming.EmitImportant at the post-commit,
+	// instrument.*) via pkgStreaming.EmitBrokerBestEffort at the post-commit,
 	// pre-metadata slot. A nil value disables emission (mirroring the
 	// idempotency nil-guard); bootstrap injects libStreaming.NewNoopEmitter()
 	// when STREAMING_ENABLED=false.

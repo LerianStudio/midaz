@@ -43,7 +43,7 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 
 	// Validate input settings against schema before any DB operations
 	if err := mmodel.ValidateSettings(settings); err != nil {
-		logger.Log(ctx, libLog.LevelError, "Settings validation failed", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "Settings validation failed", libLog.Err(err))
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Settings validation failed", err)
 
@@ -58,9 +58,7 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 			return mmodel.DeepMergeSettings(existing, settings), nil
 		})
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error updating ledger settings atomically", libLog.Err(err))
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger settings", err)
+		recordCommandError(ctx, span, logger, "Failed to update ledger settings", err)
 
 		return nil, err
 	}

@@ -10,7 +10,7 @@ import (
 	"errors"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,7 +123,7 @@ func TestCreateAccount_EmitsAccountCreatedEvent(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(ctx, orgID, ledgerID, input, "Bearer test")
+	acc, err := uc.CreateAccount(ctx, orgID, ledgerID, input, "Bearer test", HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 
@@ -167,15 +167,14 @@ func TestCreateAccount_NoopEmitterDoesNotPanic(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test")
+	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test", HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 }
 
 // TestCreateAccount_EmitFailureDoesNotFailRequest verifies the IMPORTANT
 // posture: when Emit returns an error, CreateAccount must still return the
-// successfully-persisted account because durability is owned by PG +
-// future DLQ/outbox, not by the synchronous Emit call.
+// successfully-persisted account because the persisted database mutation is durable; this helper does not make broker delivery transactional.
 func TestCreateAccount_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -188,7 +187,7 @@ func TestCreateAccount_EmitFailureDoesNotFailRequest(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test")
+	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test", HolderOnV2)
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, acc)
 }
@@ -208,7 +207,7 @@ func TestCreateAccount_NilStreamingDoesNotPanic(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test")
+	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test", HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 }

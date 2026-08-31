@@ -22,7 +22,7 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
 	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v2/zap"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
@@ -112,6 +112,16 @@ type Config struct {
 	APIKeyLabel       string `env:"API_KEY_LABEL"`
 	PluginAuthAddress string `env:"PLUGIN_AUTH_ADDRESS"`
 	PluginAuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
+
+	// Resource-inventory (RI) permission declaration against the IdP (identity, :4001),
+	// distinct from PLUGIN_AUTH_ADDRESS (auth, :4000). RI is OPTIONAL and fail-open: an unset
+	// or invalid IDP_DECLARATION_ENABLED decodes to false (safe), and empty host/credentials
+	// never block boot — the publisher handles incomplete config fail-open. IDPM2MClientSecret
+	// MUST NOT be logged, span-attached, or serialized.
+	DeclarationEnabled bool   `env:"IDP_DECLARATION_ENABLED"`
+	IDPHost            string `env:"IDP_HOST"`
+	IDPM2MClientID     string `env:"IDP_M2M_CLIENT_ID"`
+	IDPM2MClientSecret string `env:"IDP_M2M_CLIENT_SECRET"`
 
 	// Application identity
 	// ApplicationName is the module identifier used when registering with the
@@ -232,32 +242,22 @@ type Config struct {
 	// service with STREAMING_ENABLED=false injects a NoopEmitter and never
 	// initialises the underlying transport, so an existing deployment that never
 	// sets these vars is not broken by the new dependency. Transport knobs
-	// (brokers, compression, acks, linger) are NOT bound here — they are read by
-	// libStreaming.LoadConfig() directly from STREAMING_* env at build time.
+	// (brokers, compression, acks, linger, TLS and SASL) are NOT bound here — they
+	// are read by libStreaming.LoadConfig() directly from STREAMING_* env at build
+	// time and handed to the Builder via TLSFromConfig / SASLFromConfig. Binding
+	// them here a second time is what left STREAMING_TLS_ENABLED with no reader at
+	// all: the duplicate struct simply had no TLS field.
 	StreamingEnabled bool `env:"STREAMING_ENABLED"`
 
-	// StreamingCloudEventsSource overrides the CloudEvents `ce-source` stamped
-	// on every event tracer emits. When empty (the default), the in-code
-	// default lerian.midaz.tracer is used, so an existing deployment that never
-	// sets this var keeps the historical source. Operators set it only to
-	// distinguish sources across environments or shadow deployments.
+	// StreamingCloudEventsSource sets the CloudEvents `ce-source` stamped on
+	// every event tracer emits. It is REQUIRED when streaming is enabled:
+	// libStreaming.LoadConfig fails closed (ErrMissingSource) on a genuinely-unset
+	// value, so the binary never starts with streaming enabled and this empty.
+	// The in-code fallback is the bare service name "tracer" (a defense-in-depth
+	// guard for a whitespace-only value that slips past LoadConfig, aligned with
+	// the leading ACL-scoped topic segment "tracer."); operators set it to the
+	// bare service name so ce-source and the emitted topics agree on that prefix.
 	StreamingCloudEventsSource string `env:"STREAMING_CLOUDEVENTS_SOURCE"`
-
-	// --- Streaming SASL/TLS auth ---
-	// When STREAMING_SASL_MECHANISM is empty (default) the producer connects
-	// without authentication, matching the existing behaviour for local/dev
-	// brokers. When set, the value must be one of PLAIN, SCRAM-SHA-256,
-	// SCRAM-SHA-512 (case-insensitive); USERNAME and PASSWORD are then required.
-	//
-	// SASL without TLS is rejected by lib-streaming with
-	// ErrPlaintextSASLNotAllowed. STREAMING_ALLOW_PLAINTEXT_SASL=true is the
-	// explicit unsafe opt-in for local/dev brokers that do not terminate TLS. It
-	// must NOT be set in production: SASL credentials cross the network in
-	// cleartext.
-	StreamingSASLMechanism      string `env:"STREAMING_SASL_MECHANISM"`
-	StreamingSASLUsername       string `env:"STREAMING_SASL_USERNAME"`
-	StreamingSASLPassword       string `env:"STREAMING_SASL_PASSWORD"`
-	StreamingAllowPlaintextSASL bool   `env:"STREAMING_ALLOW_PLAINTEXT_SASL"`
 }
 
 // minAPIKeyLength is the minimum recommended length for API keys.
@@ -1192,6 +1192,17 @@ func initHTTPServer(
 		workerSupervisor = mtComponents.supervisor
 	}
 
+	// Streaming manifest route (catalog-only lib-streaming manifest). Built
+	// DEGRADED-SAFE and INDEPENDENT of STREAMING_ENABLED: the manifest advertises
+	// the event taxonomy even with publication off. A build error logs at Warn and
+	// leaves the route unmounted (the hub sees 404), never failing tracer startup.
+	streamingManifestHandler, streamingManifestErr := BuildStreamingManifestHandler(cfg)
+	if streamingManifestErr != nil {
+		logger.Log(ctx, libLog.LevelWarn,
+			"Streaming manifest route disabled: failed to build manifest handler",
+			libLog.Err(streamingManifestErr))
+	}
+
 	// Note: NewRoutes wires ReadyzHandler which is a Fiber
 	// handler closure that receives ctx per-request via c.Context();
 	// passing boot-time ctx here is conceptually wrong (boot ctx outlives
@@ -1212,6 +1223,7 @@ func initHTTPServer(
 		MultiTenantEnabled:           cfg.MultiTenantEnabled,
 		PgManager:                    pgManager,
 		Supervisor:                   workerSupervisor,
+		StreamingManifestHandler:     streamingManifestHandler,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create routes: %w", err)
@@ -1674,6 +1686,13 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
 	}
 
+	// Scheme gate (fatal), orthogonal to the RI publisher's fail-open wiring: in
+	// SaaS mode a cleartext http:// IDP_HOST refuses boot before any IdP dial, so
+	// the M2M grant and bearer token cannot travel unencrypted.
+	if err := ValidateSaaSDeclarationTLS(cfg); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("TLS enforcement: %w", err)
+	}
+
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
 	telemetry, err := libOtel.NewTelemetry(libOtel.TelemetryConfig{
 		LibraryName:               cfg.OtelLibraryName,
@@ -1940,6 +1959,8 @@ func InitServers(ctx context.Context) (*Service, error) {
 	svc.ServiceDiscoveryEnabled = sd.enabled
 	svc.ServiceDescriptor = sd.descriptor
 	svc.ServiceDiscoveryMetrics = sd.recorder
+
+	svc.DeclarationStops = wireDeclarationPublisher(cfg, sd.authHost, logger)
 
 	// The launcher Runnable now owns the manager's graceful close; disarm the
 	// boot-failure closer so it does not double-close on the success path.

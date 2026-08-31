@@ -6,15 +6,18 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
 	servicesMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
@@ -25,6 +28,7 @@ import (
 )
 
 type reservationDeps struct {
+	ctrl        *gomock.Controller
 	conn        *pgdbMocks.MockTxBeginner
 	tx          *pgdbMocks.MockTx
 	resolver    *servicesMocks.MockLimitResolver
@@ -41,6 +45,7 @@ func newReservationServiceDeps(t *testing.T) (*ReservationService, *reservationD
 	ctrl := gomock.NewController(t)
 
 	deps := &reservationDeps{
+		ctrl:        ctrl,
 		conn:        pgdbMocks.NewMockTxBeginner(ctrl),
 		tx:          pgdbMocks.NewMockTx(ctrl),
 		resolver:    servicesMocks.NewMockLimitResolver(ctrl),
@@ -67,6 +72,13 @@ func (d *reservationDeps) expectTxCommit() {
 func (d *reservationDeps) expectTxRollback() {
 	d.conn.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(d.tx, nil).Times(1)
 	d.tx.EXPECT().Rollback().Return(nil).Times(1)
+}
+
+// expectScopeLock wires the per-account advisory lock the reserve closure acquires
+// on the shared mock tx before any counter row is touched. Only the
+// Reserve path takes it; confirm/release do not, so it is opt-in per subtest.
+func (d *reservationDeps) expectScopeLock() {
+	d.repo.EXPECT().AcquireReserveScopeLock(gomock.Any(), d.tx, gomock.Any()).Return(nil).Times(1)
 }
 
 func TestNewReservationService_NilDeps(t *testing.T) {
@@ -106,21 +118,26 @@ func testCheckLimitsInput(t *testing.T) *model.CheckLimitsInput {
 	return input
 }
 
+// decEq matches a decimal.Decimal argument by value (decimal.Equal, never ==).
+func decEq(want decimal.Decimal) gomock.Matcher {
+	return gomock.Cond(func(got decimal.Decimal) bool { return got.Equal(want) })
+}
+
 func twoSpecs() []query.ReservationSpec {
 	return []query.ReservationSpec{
 		{
 			LimitID:   testutil.MustDeterministicUUID(7101),
 			ScopeKey:  "acct:7001",
 			PeriodKey: "2026-06",
-			Amount:    400,
-			MaxAmount: 10000,
+			Amount:    decimal.NewFromInt(400),
+			MaxAmount: decimal.NewFromInt(10000),
 		},
 		{
 			LimitID:   testutil.MustDeterministicUUID(7102),
 			ScopeKey:  "global",
 			PeriodKey: "2026-06-05",
-			Amount:    400,
-			MaxAmount: 5000,
+			Amount:    decimal.NewFromInt(400),
+			MaxAmount: decimal.NewFromInt(5000),
 		},
 	}
 }
@@ -140,14 +157,15 @@ func TestReservationService_Reserve(t *testing.T) {
 			Times(1)
 
 		deps.expectTxCommit()
+		deps.expectScopeLock()
 
 		// One reserve + one audit per applicable limit.
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), int64(10000)).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(10000))).
 			Return(nil).
 			Times(1)
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), int64(5000)).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.AssignableToTypeOf(&model.Reservation{}), decEq(decimal.NewFromInt(5000))).
 			Return(nil).
 			Times(1)
 		deps.auditWriter.EXPECT().
@@ -159,6 +177,51 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, result.Denied)
 		assert.Len(t, result.ReservationIDs, 2)
+	})
+
+	t.Run("Fractional spec amount reaches the reservation row intact", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		input := testCheckLimitsInput(t)
+
+		fractional := decimal.RequireFromString("10.50")
+		spec := []query.ReservationSpec{
+			{
+				LimitID:   testutil.MustDeterministicUUID(7101),
+				ScopeKey:  "acct:7001",
+				PeriodKey: "2026-06",
+				Amount:    fractional,
+				MaxAmount: decimal.NewFromInt(20),
+			},
+		}
+
+		deps.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), input).
+			Return(spec, false, nil).
+			Times(1)
+
+		deps.expectTxCommit()
+		deps.expectScopeLock()
+
+		var captured decimal.Decimal
+		deps.repo.EXPECT().
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(20))).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
+				captured = r.Amount
+
+				return nil
+			}).
+			Times(1)
+		deps.auditWriter.EXPECT().
+			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		_, err := svc.Reserve(context.Background(), txID, input, false)
+		require.NoError(t, err)
+
+		// The pre-fix int64 path would have persisted 10 here.
+		assert.True(t, fractional.Equal(captured), "expected 10.50 held, got %s", captured)
 	})
 
 	t.Run("Denied by resolver (per-transaction cap) returns Denied without a tx", func(t *testing.T) {
@@ -189,11 +252,12 @@ func TestReservationService_Reserve(t *testing.T) {
 			Times(1)
 
 		deps.expectTxRollback()
+		deps.expectScopeLock()
 
 		// First reserve trips the over-limit guard; the whole tx rolls back and no
 		// further reserve/audit runs.
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
 			Return(constant.ErrUsageCounterExceedsLimit).
 			Times(1)
 
@@ -201,6 +265,31 @@ func TestReservationService_Reserve(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, result.Denied, "guard-denied reserve must surface the limit-exceeded decision")
 		assert.Empty(t, result.ReservationIDs)
+	})
+
+	t.Run("Scope-lock acquisition failure aborts the reserve", func(t *testing.T) {
+		svc, deps := newReservationServiceDeps(t)
+
+		input := testCheckLimitsInput(t)
+
+		deps.resolver.EXPECT().
+			ResolveReservations(gomock.Any(), input).
+			Return(twoSpecs(), false, nil).
+			Times(1)
+
+		deps.expectTxRollback()
+
+		lockErr := errors.New("advisory lock failed")
+
+		// The scope lock is taken FIRST; its failure rolls the tx back and no
+		// reserve/audit runs.
+		deps.repo.EXPECT().
+			AcquireReserveScopeLock(gomock.Any(), deps.tx, gomock.Any()).
+			Return(lockErr).
+			Times(1)
+
+		_, err := svc.Reserve(context.Background(), txID, input, false)
+		require.ErrorIs(t, err, lockErr)
 	})
 
 	t.Run("No applicable limits -> allow with empty handle", func(t *testing.T) {
@@ -241,8 +330,8 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
 				captured = r.ReservationExpiresAt
 
 				return nil
@@ -252,6 +341,8 @@ func TestReservationService_Reserve(t *testing.T) {
 			RecordReservationEventWithTx(gomock.Any(), deps.tx, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
 			Return(nil).
 			Times(1)
+
+		deps.expectScopeLock()
 
 		_, err := svc.Reserve(context.Background(), txID, input, false)
 		require.NoError(t, err)
@@ -286,11 +377,12 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		conn.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx, nil).Times(1)
 		tx.EXPECT().Commit().Return(nil).Times(1)
+		repo.EXPECT().AcquireReserveScopeLock(gomock.Any(), tx, gomock.Any()).Return(nil).Times(1)
 
 		var captured time.Time
 		repo.EXPECT().
-			ReserveWithTx(gomock.Any(), tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+			ReserveWithTx(gomock.Any(), tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
 				captured = r.ReservationExpiresAt
 
 				return nil
@@ -325,8 +417,8 @@ func TestReservationService_Reserve(t *testing.T) {
 
 		var captured time.Time
 		deps.repo.EXPECT().
-			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), int64(10000)).
-			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ int64) error {
+			ReserveWithTx(gomock.Any(), deps.tx, gomock.Any(), decEq(decimal.NewFromInt(10000))).
+			DoAndReturn(func(_ context.Context, _ any, r *model.Reservation, _ decimal.Decimal) error {
 				captured = r.ReservationExpiresAt
 
 				return nil
@@ -337,12 +429,124 @@ func TestReservationService_Reserve(t *testing.T) {
 			Return(nil).
 			Times(1)
 
+		deps.expectScopeLock()
+
 		_, err := svc.Reserve(context.Background(), txID, input, true)
 		require.NoError(t, err)
 
 		// newReservationServiceDeps passes longLivedTTL=0, so the service falls back
 		// to defaultLongLivedReservationTTL (30 days).
 		assert.Equal(t, now.UTC().Add(defaultLongLivedReservationTTL), captured)
+	})
+}
+
+// TestReservationService_Reserve_TransientRetry_NoDuplicateHandles locks the
+// per-attempt accumulator reset (reservationIDs[:0] / guardDenied=false) at the top
+// of the reserve closure. Attempt 1 reserves the first spec, then trips a transient
+// 40P01 on the second and rolls back; attempt 2 begins fresh and reserves BOTH. Two
+// BeginTx calls prove the retry; the result must carry exactly one handle per spec —
+// never the three that a missing reset would accumulate across attempts.
+func TestReservationService_Reserve_TransientRetry_NoDuplicateHandles(t *testing.T) {
+	svc, deps := newReservationServiceDeps(t)
+
+	input := testCheckLimitsInput(t)
+	specs := twoSpecs()
+
+	deps.resolver.EXPECT().
+		ResolveReservations(gomock.Any(), input).
+		Return(specs, false, nil).
+		Times(1)
+
+	// DISTINCT transaction handles per attempt. tx1 is the attempt-1 handle that
+	// trips the transient abort and is rolled back; tx2 is the fresh attempt-2
+	// handle that commits. Wiring the whole lifecycle onto attempt-specific mocks
+	// is what proves the rolled-back tx1 is never reused on attempt 2: every
+	// attempt-2 expectation matches tx2 exactly, so any reuse of tx1 would trip a
+	// gomock "unexpected call" (tx1 has no attempt-2 expectations and no Commit).
+	tx1 := pgdbMocks.NewMockTx(deps.ctrl)
+	tx2 := pgdbMocks.NewMockTx(deps.ctrl)
+
+	// BeginTx hands out tx1 first, then tx2. Declaration order + Times(1) makes the
+	// sequence deterministic: the first call exhausts the tx1 expectation.
+	gomock.InOrder(
+		deps.conn.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx1, nil).Times(1),
+		deps.conn.EXPECT().BeginTx(gomock.Any(), gomock.Any()).Return(tx2, nil).Times(1),
+	)
+
+	// Attempt 1 (tx1): scope lock, then reserve spec0 ok + one audit row, then
+	// reserve spec1 trips 40P01 and the whole tx1 rolls back. No Commit on tx1.
+	tx1.EXPECT().Rollback().Return(nil).Times(1)
+	deps.repo.EXPECT().
+		AcquireReserveScopeLock(gomock.Any(), tx1, gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	tx1ReserveCalls := 0
+	deps.repo.EXPECT().
+		ReserveWithTx(gomock.Any(), tx1, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ pgdb.DB, _ *model.Reservation, _ decimal.Decimal) error {
+			tx1ReserveCalls++
+			if tx1ReserveCalls == 2 {
+				return &pgconn.PgError{Code: "40P01"} // deadlock_detected, transient
+			}
+
+			return nil
+		}).
+		Times(2)
+	deps.auditWriter.EXPECT().
+		RecordReservationEventWithTx(gomock.Any(), tx1, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	// Attempt 2 (tx2): fresh begin, scope lock, both specs reserve + audit, commit.
+	tx2.EXPECT().Commit().Return(nil).Times(1)
+	deps.repo.EXPECT().
+		AcquireReserveScopeLock(gomock.Any(), tx2, gomock.Any()).
+		Return(nil).
+		Times(1)
+	deps.repo.EXPECT().
+		ReserveWithTx(gomock.Any(), tx2, gomock.AssignableToTypeOf(&model.Reservation{}), gomock.Any()).
+		Return(nil).
+		Times(2)
+	deps.auditWriter.EXPECT().
+		RecordReservationEventWithTx(gomock.Any(), tx2, model.AuditEventReservationReserved, model.AuditActionReserve, gomock.Any(), gomock.Any()).
+		Return(nil).
+		Times(2)
+
+	// Deterministic retry: no wall-clock backoff.
+	svc.retrySleep = func(context.Context, time.Duration) error { return nil }
+
+	res, err := svc.Reserve(context.Background(), testutil.MustDeterministicUUID(7050), input, false)
+	require.NoError(t, err)
+	require.False(t, res.Denied)
+	assert.Len(t, res.ReservationIDs, len(specs),
+		"the retry must reset the per-attempt accumulator: exactly one handle per spec, never doubled")
+}
+
+func TestReserveScopeLockKey(t *testing.T) {
+	t.Parallel()
+
+	acctA := testutil.MustDeterministicUUID(7401)
+	acctB := testutil.MustDeterministicUUID(7402)
+
+	// nilAccountScopeLockKey is the FNV-1a (64-bit) of 16 zero bytes, cast to int64 —
+	// the fixed key every external-only (nil-account) reserve must map to. Pinning the
+	// literal locks the hashing so a change to reserveScopeLockKey cannot silently move
+	// the shared key.
+	const nilAccountScopeLockKey = int64(-8637869204239850395)
+
+	t.Run("distinct accounts map to distinct keys", func(t *testing.T) {
+		t.Parallel()
+
+		assert.NotEqual(t, reserveScopeLockKey(acctA), reserveScopeLockKey(acctB),
+			"distinct accounts must not collapse onto one key (parallelism preserved)")
+	})
+
+	t.Run("nil account maps to the fixed precomputed key", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, nilAccountScopeLockKey, reserveScopeLockKey(uuid.Nil),
+			"an external-only (nil-account) reserve must serialize on the fixed FNV-1a-of-zeroes key")
 	})
 }
 
@@ -354,8 +558,8 @@ func oneSpec() []query.ReservationSpec {
 			LimitID:   testutil.MustDeterministicUUID(7101),
 			ScopeKey:  "acct:7001",
 			PeriodKey: "2026-06",
-			Amount:    400,
-			MaxAmount: 10000,
+			Amount:    decimal.NewFromInt(400),
+			MaxAmount: decimal.NewFromInt(10000),
 		},
 	}
 }
@@ -445,11 +649,11 @@ func TestReservationService_Release(t *testing.T) {
 
 func twoReservations(txID uuid.UUID) []*model.Reservation {
 	res1, _ := model.NewReservation(
-		testutil.MustDeterministicUUID(7401), txID, "acct:7401", "2026-06", 400,
+		testutil.MustDeterministicUUID(7401), txID, "acct:7401", "2026-06", decimal.NewFromInt(400),
 		testutil.FixedTime().Add(5*time.Minute), testutil.FixedTime(),
 	)
 	res2, _ := model.NewReservation(
-		testutil.MustDeterministicUUID(7402), txID, "global", "2026-06-05", 400,
+		testutil.MustDeterministicUUID(7402), txID, "global", "2026-06-05", decimal.NewFromInt(400),
 		testutil.FixedTime().Add(5*time.Minute), testutil.FixedTime(),
 	)
 

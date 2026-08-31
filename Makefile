@@ -23,7 +23,7 @@ GO_COMPONENTS := $(LEDGER_DIR) $(TRACER_DIR)
 # and dev-setup), which do NOT include mk/quality.mk. Components inherit the
 # shared default from mk/quality.mk instead. Keep in sync with
 # .github/workflows/go-combined-analysis.yml.
-GOLANGCI_LINT_VERSION ?= v2.12.2
+GOLANGCI_LINT_VERSION ?= v2.13.2
 
 # Shared color/title vocabulary + docker-compose detection.
 MK_DIR := $(abspath mk)
@@ -137,6 +137,7 @@ help:
 	@echo "Test Suite Aliases:"
 	@echo "  make test-unit                   - Run Go unit tests"
 	@echo "  make test-integration            - Run integration tests with testcontainers (RUN=<test>, CHAOS=1)"
+	@echo "  make test-property               - Run property tests selected by the property build tag"
 	@echo "  make test-all                    - Run all tests (unit + integration)"
 	@echo "  make test-bench                  - Run benchmark tests (BENCH=pattern, BENCH_PKG=./path)"
 	@echo "  make test-fuzz                   - Run native Go fuzz tests (FUZZ=target, FUZZTIME=duration)"
@@ -148,6 +149,12 @@ help:
 	@echo "  make coverage                    - Run all coverage targets (unit + integration)"
 	@echo ""
 	@echo "Test Tooling:"
+	@echo "  make list-integration-tests      - List integration tests selected by build tags (no Docker)"
+	@echo "  make test-integration-shard      - Run one bounded shard (INTEGRATION_SHARD=<name>)"
+	@echo "  make test-integration-shards     - Run all five bounded integration shards"
+	@echo "  make test-integration-shard-contract - Verify shard membership, isolation, and observers"
+	@echo "  make list-property-tests         - List property tests selected by build tags (no Docker)"
+	@echo "  make test-gate-selection         - Verify the Make test-selection contract"
 	@echo "  make wait-for-services           - Wait for backend services to be healthy"
 	@echo ""
 	@echo ""
@@ -162,6 +169,7 @@ help:
 	@echo ""
 	@echo "Target usage (which vars each target honors):"
 	@echo "  test-integration:  PKG, RUN, CHAOS=1, LOW_RESOURCE (testcontainers-based, no external services needed)"
+	@echo "  test-property:     PKG, LOW_RESOURCE (build-tag selected, no Docker required)"
 	@echo "  test-chaos-system: TEST_LEDGER_URL, TEST_AUTH_* (starts full stack)"
 	@echo "  test-fuzz:         FUZZ, FUZZTIME (native Go fuzz testing)"
 	@echo "  test-bench:        BENCH, BENCH_PKG (benchmark pattern and package filter)"
@@ -349,8 +357,9 @@ check-telemetry:
 
 # Top-level CI gate — static checks + fast unit tests, one command, one exit code.
 # Sequences the deterministic gates that need no live stack: lint (all components
-# + tests/ + pkg/), the telemetry/observability gates, then the race-enabled unit
-# suite (test-unit already exports ALLOW_INSECURE_TLS=true). Each leg is a separate
+# + tests/ + pkg/), the telemetry/observability gates, the offline test-selection
+# contract, then the race-enabled unit suite (test-unit already exports
+# ALLOW_INSECURE_TLS=true). Each leg is a separate
 # $(MAKE) under `set -e`, so the first failure aborts and `make ci` exits non-zero.
 # Mirrors the required PR-validation gates so a green `make ci` predicts a green
 # PR: lint, telemetry, protobuf-stub drift, unit tests, and OpenAPI doc
@@ -360,10 +369,11 @@ check-telemetry:
 # report first. For the heavier integration/property/chaos matrix run `make ci-tests`.
 .PHONY: ci
 ci:
-	$(call print_title,Running CI gate (lint + telemetry + proto + unit tests + docs + spec locks))
+	$(call print_title,Running CI gate (lint + telemetry + test contract + proto + unit tests + docs + spec locks))
 	@set -e; \
 	$(MAKE) lint; \
 	$(MAKE) check-telemetry; \
+	$(MAKE) test-gate-selection; \
 	$(MAKE) proto-check; \
 	$(MAKE) test-unit; \
 	CHECK_DOCS_REGEN=1 $(MAKE) check-docs; \
@@ -700,3 +710,23 @@ migrate-create:
 	@echo "  2. Edit the .down.sql file with the rollback"
 	@echo "  3. Run 'make migrate-lint' to validate"
 	@echo "  4. Follow the guidelines in scripts/migration_linter/docs/MIGRATION_GUIDELINES.md"
+
+#-------------------------------------------------------
+# Grafana Dashboards
+#-------------------------------------------------------
+
+# Dashboards live at docs/dashboards/<theme>/<theme>.libsonnet and compile to a sibling
+# <theme>.json build artifact. Source of truth is the libsonnet; the JSON is gitignored.
+.PHONY: dashboards
+dashboards:
+	$(call print_title,Compiling Grafana dashboards)
+	$(call check_command,jsonnet,"Install with: go install github.com/google/go-jsonnet/cmd/jsonnet@v0.22.0")
+	@./scripts/build-dashboards.sh
+	@echo "[ok] Dashboards compiled"
+
+.PHONY: dashboards-verify
+dashboards-verify: dashboards
+	$(call print_title,Verifying dashboards against telemetry dictionary)
+	@./scripts/verify-dashboard-primitives.sh
+	@echo "[ok] Every referenced metric is documented"
+

@@ -62,7 +62,7 @@ func TestNewCreateLimitCommand_NilClock(t *testing.T) {
 // pins the strict in-order chain.
 //
 // Field-level assertions on the returned *model.Limit cover LimitType,
-// MaxAmount, Currency, ResetAt, and Scopes — mirroring the depth of the
+// MaxAmount, Asset, ResetAt, and Scopes — mirroring the depth of the
 // gomock.Cond-based field checks in TestCreateLimitCommand_Execute_Normalization.
 func TestCreateLimit_Success_Atomic(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -95,7 +95,7 @@ func TestCreateLimit_Success_Atomic(t *testing.T) {
 		Description: testutil.StringPtr("Daily spending limit"),
 		LimitType:   model.LimitTypeDaily,
 		MaxAmount:   maxAmount,
-		Currency:    "USD",
+		Asset:       "USD",
 		Scopes:      []model.Scope{validScope},
 	}
 
@@ -109,7 +109,7 @@ func TestCreateLimit_Success_Atomic(t *testing.T) {
 	assert.Equal(t, model.LimitTypeDaily, result.LimitType)
 	assert.True(t, maxAmount.Equal(result.MaxAmount),
 		"MaxAmount must equal input: expected %s got %s", maxAmount, result.MaxAmount)
-	assert.Equal(t, "USD", result.Currency)
+	assert.Equal(t, "USD", result.Asset)
 	assert.NotNil(t, result.ResetAt,
 		"ResetAt must be set by the DAILY constructor")
 	require.Len(t, result.Scopes, 1)
@@ -149,7 +149,7 @@ func TestCreateLimit_BeginTxError(t *testing.T) {
 		Name:      "BeginTx Failure Limit",
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    []model.Scope{validScope},
 	}
 
@@ -197,7 +197,7 @@ func TestCreateLimit_RepoError_Rollback(t *testing.T) {
 		Name:      "Repo Failure Limit",
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    []model.Scope{validScope},
 	}
 
@@ -244,7 +244,7 @@ func TestCreateLimit_RepoError_NameAlreadyExists(t *testing.T) {
 		Name:      "Existing Limit Name",
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    []model.Scope{validScope},
 	}
 
@@ -305,7 +305,7 @@ func TestCreateLimit_AuditError_Rollback(t *testing.T) {
 		Name:      "Audit Failure Test",
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    []model.Scope{validScope},
 	}
 
@@ -363,7 +363,7 @@ func TestCreateLimit_CommitError(t *testing.T) {
 		Name:      "Commit Failure Limit",
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    []model.Scope{validScope},
 	}
 
@@ -402,7 +402,7 @@ func TestCreateLimit_NilInput_NoTx(t *testing.T) {
 }
 
 // TestCreateLimit_DomainValidation_NoTx exercises pre-tx domain validation
-// failures (invalid name, type, maxAmount, currency, scopes). All must
+// failures (invalid name, type, maxAmount, asset, scopes). All must
 // short-circuit before BeginTx is called.
 func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 	validScope := model.Scope{
@@ -420,7 +420,7 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 				Name:      "   ",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "USD",
+				Asset:     "USD",
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitNameRequired,
@@ -431,7 +431,7 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 				Name:      "",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "USD",
+				Asset:     "USD",
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitNameRequired,
@@ -442,7 +442,7 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitType("INVALID"),
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "USD",
+				Asset:     "USD",
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitInvalidType,
@@ -453,7 +453,7 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("0"),
-				Currency:  "USD",
+				Asset:     "USD",
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitInvalidMaxAmount,
@@ -464,29 +464,29 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("-1"),
-				Currency:  "USD",
+				Asset:     "USD",
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitInvalidMaxAmount,
 		},
 		{
-			name: "invalid currency (contains number)",
+			name: "invalid asset (contains number)",
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "US1",
+				Asset:     "US1",
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitInvalidCurrency,
 		},
 		{
-			name: "currency too short",
+			name: "asset too short",
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "US",
+				Asset:     "US",
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitInvalidCurrency,
@@ -497,7 +497,7 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "USD",
+				Asset:     "USD",
 				Scopes:    []model.Scope{},
 			},
 			errorIs: constant.ErrLimitInvalidScope,
@@ -508,7 +508,7 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "USD",
+				Asset:     "USD",
 				Scopes:    nil,
 			},
 			errorIs: constant.ErrLimitInvalidScope,
@@ -519,7 +519,7 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  "USD",
+				Asset:     "USD",
 				Scopes:    []model.Scope{{}},
 			},
 			errorIs: constant.ErrLimitInvalidScope,
@@ -555,7 +555,7 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 }
 
 // TestCreateLimitCommand_Execute_Normalization verifies that the limit
-// passed into CreateWithTx has its name and currency normalized.
+// passed into CreateWithTx has its name and asset normalized.
 func TestCreateLimitCommand_Execute_Normalization(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -572,10 +572,10 @@ func TestCreateLimitCommand_Execute_Normalization(t *testing.T) {
 			expectedCurrency: "USD",
 		},
 		{
-			name:             "uppercases lowercase currency",
-			inputName:        "Lowercase Currency Test",
+			name:             "uppercases lowercase asset",
+			inputName:        "Lowercase Asset Test",
 			inputCurrency:    "usd",
-			expectedName:     "Lowercase Currency Test",
+			expectedName:     "Lowercase Asset Test",
 			expectedCurrency: "USD",
 		},
 		{
@@ -605,7 +605,7 @@ func TestCreateLimitCommand_Execute_Normalization(t *testing.T) {
 				mockRepo.EXPECT().
 					CreateWithTx(gomock.Any(), mockTx, gomock.Cond(func(x any) bool {
 						limit, ok := x.(*model.Limit)
-						return ok && limit.Name == tc.expectedName && limit.Currency == tc.expectedCurrency
+						return ok && limit.Name == tc.expectedName && limit.Asset == tc.expectedCurrency
 					})).
 					Return(nil),
 				auditWriter.EXPECT().
@@ -630,7 +630,7 @@ func TestCreateLimitCommand_Execute_Normalization(t *testing.T) {
 				Name:      tc.inputName,
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Currency:  tc.inputCurrency,
+				Asset:     tc.inputCurrency,
 				Scopes:    []model.Scope{validScope},
 			}
 
@@ -639,7 +639,7 @@ func TestCreateLimitCommand_Execute_Normalization(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tc.expectedName, result.Name)
-			assert.Equal(t, tc.expectedCurrency, result.Currency)
+			assert.Equal(t, tc.expectedCurrency, result.Asset)
 		})
 	}
 }
@@ -658,7 +658,7 @@ func TestCreateLimitCommand_Execute_ContextCancellation(t *testing.T) {
 		Name:      "Test Limit",
 		LimitType: model.LimitTypeDaily,
 		MaxAmount: decimal.RequireFromString("1000"),
-		Currency:  "USD",
+		Asset:     "USD",
 		Scopes:    []model.Scope{validScope},
 	}
 
@@ -749,7 +749,7 @@ func TestCreateLimitCommand_Execute_PartialCustomPeriod(t *testing.T) {
 				Name:            "Test Partial Custom",
 				LimitType:       tc.limitType,
 				MaxAmount:       decimal.RequireFromString("1000"),
-				Currency:        "USD",
+				Asset:           "USD",
 				Scopes:          []model.Scope{validScope},
 				CustomStartDate: tc.customStartDate,
 				CustomEndDate:   tc.customEndDate,
@@ -813,7 +813,7 @@ func TestCreateLimitCommand_Execute_PartialTimeWindow(t *testing.T) {
 				Name:            "Test Partial TimeWindow",
 				LimitType:       model.LimitTypeDaily,
 				MaxAmount:       decimal.RequireFromString("1000"),
-				Currency:        "USD",
+				Asset:           "USD",
 				Scopes:          []model.Scope{validScope},
 				ActiveTimeStart: tc.activeTimeStart,
 				ActiveTimeEnd:   tc.activeTimeEnd,

@@ -147,3 +147,151 @@ func TestValidateSaaSTLS(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateSaaSStreamingTLS covers the streaming half of the SaaS TLS gate.
+// STREAMING_TLS_ENABLED belongs to lib-streaming's env contract and never lands
+// on tracer's Config (binding it there is what left the flag with no reader at
+// all in the pre-v3 tracer), so the resolved flag is passed in. The rule and the
+// error sentence match the Postgres sibling above, plus the knob name.
+func TestValidateSaaSStreamingTLS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		cfg        *Config
+		tlsEnabled bool
+		wantErr    bool
+	}{
+		{name: "saas plaintext broker refused", cfg: &Config{DeploymentMode: "saas"}, wantErr: true},
+		{name: "saas tls broker allowed", cfg: &Config{DeploymentMode: "saas"}, tlsEnabled: true},
+		{name: "saas padded and uppercase is still saas", cfg: &Config{DeploymentMode: " SaaS "}, wantErr: true},
+		{name: "byoc keeps plaintext broker", cfg: &Config{DeploymentMode: "byoc"}},
+		{name: "local keeps plaintext broker", cfg: &Config{DeploymentMode: "local"}},
+		{name: "unset mode keeps plaintext broker", cfg: &Config{}},
+		{name: "nil config is an error", cfg: nil, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateSaaSStreamingTLS(tt.cfg, tt.tlsEnabled)
+
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestValidateSaaSStreamingTLS_ErrorNamesTheKnob keeps the operator-facing
+// sentence locked: the failing dependency and the env var that fixes it.
+func TestValidateSaaSStreamingTLS_ErrorNamesTheKnob(t *testing.T) {
+	t.Parallel()
+
+	err := ValidateSaaSStreamingTLS(&Config{DeploymentMode: "saas"}, false)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "DEPLOYMENT_MODE=saas")
+	require.Contains(t, err.Error(), "streaming")
+	require.Contains(t, err.Error(), "STREAMING_TLS_ENABLED")
+}
+
+// TestValidateSaaSDeclarationTLS covers the RI permission-declaration half of the
+// SaaS TLS gate. The publisher dials IDP_HOST with the M2M client_credentials grant,
+// so a Lerian-hosted deployment must not reach the IdP in cleartext. Only an explicit
+// http:// scheme with RI ENABLED under saas trips the gate; https://, an empty host,
+// the flag off, or a non-saas mode are all no-ops. The gate never references
+// IDP_M2M_CLIENT_SECRET, so no credential can leak into the error sentence.
+func TestValidateSaaSDeclarationTLS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		cfg     *Config
+		wantErr bool
+	}{
+		{
+			name:    "saas enabled http cleartext idp refused",
+			cfg:     &Config{DeploymentMode: "saas", DeclarationEnabled: true, IDPHost: "http://idp:4001"},
+			wantErr: true,
+		},
+		{
+			name: "saas enabled https idp allowed",
+			cfg:  &Config{DeploymentMode: "saas", DeclarationEnabled: true, IDPHost: "https://idp:4001"},
+		},
+		{
+			name: "saas enabled empty idp host is a no-op",
+			cfg:  &Config{DeploymentMode: "saas", DeclarationEnabled: true, IDPHost: ""},
+		},
+		{
+			name: "saas enabled scheme-less idp host is a no-op",
+			cfg:  &Config{DeploymentMode: "saas", DeclarationEnabled: true, IDPHost: "idp:4001"},
+		},
+		{
+			name: "declaration disabled keeps plaintext idp",
+			cfg:  &Config{DeploymentMode: "saas", DeclarationEnabled: false, IDPHost: "http://idp:4001"},
+		},
+		{
+			name: "byoc keeps plaintext idp",
+			cfg:  &Config{DeploymentMode: "byoc", DeclarationEnabled: true, IDPHost: "http://idp:4001"},
+		},
+		{
+			name: "local keeps plaintext idp",
+			cfg:  &Config{DeploymentMode: "local", DeclarationEnabled: true, IDPHost: "http://idp:4001"},
+		},
+		{
+			name: "unset mode keeps plaintext idp",
+			cfg:  &Config{DeclarationEnabled: true, IDPHost: "http://idp:4001"},
+		},
+		{
+			name:    "padded and uppercase is still saas",
+			cfg:     &Config{DeploymentMode: " SaaS ", DeclarationEnabled: true, IDPHost: "http://idp:4001"},
+			wantErr: true,
+		},
+		{
+			name:    "nil config is an error",
+			cfg:     nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateSaaSDeclarationTLS(tt.cfg)
+
+			if tt.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestValidateSaaSDeclarationTLS_ErrorNamesTheKnob locks the operator-facing sentence
+// (the failing dependency and the env var that fixes it) and proves the gate never
+// leaks the M2M client secret into the error message.
+func TestValidateSaaSDeclarationTLS_ErrorNamesTheKnob(t *testing.T) {
+	t.Parallel()
+
+	const secret = "super-secret-m2m-value"
+
+	err := ValidateSaaSDeclarationTLS(&Config{
+		DeploymentMode:     "saas",
+		DeclarationEnabled: true,
+		IDPHost:            "http://idp:4001",
+		IDPM2MClientSecret: secret,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "DEPLOYMENT_MODE=saas")
+	require.Contains(t, err.Error(), "IDP_HOST")
+	require.NotContains(t, err.Error(), secret)
+}

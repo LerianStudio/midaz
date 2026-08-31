@@ -14,7 +14,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -61,7 +61,7 @@ type CreateLimitInput struct {
 	Description     *string
 	LimitType       model.LimitType
 	MaxAmount       decimal.Decimal
-	Currency        string
+	Asset           string
 	Scopes          []model.Scope
 	ActiveTimeStart *model.TimeOfDay
 	ActiveTimeEnd   *model.TimeOfDay
@@ -143,12 +143,12 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	// Create normalized copy to avoid mutating caller's input
 	normalizedInput := *input
 	normalizedInput.Name = strings.TrimSpace(normalizedInput.Name)
-	normalizedInput.Currency = strings.ToUpper(strings.TrimSpace(normalizedInput.Currency))
+	normalizedInput.Asset = strings.ToUpper(strings.TrimSpace(normalizedInput.Asset))
 
 	span.SetAttributes(
 		attribute.String("app.request.limit_name", normalizedInput.Name),
 		attribute.String("app.request.limit_type", string(normalizedInput.LimitType)),
-		attribute.String("app.request.currency", normalizedInput.Currency),
+		attribute.String("app.request.asset", normalizedInput.Asset),
 	)
 
 	// Create domain entity via appropriate NewLimit* function
@@ -195,7 +195,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 				normalizedInput.Name,
 				normalizedInput.LimitType,
 				normalizedInput.MaxAmount,
-				normalizedInput.Currency,
+				normalizedInput.Asset,
 				normalizedInput.Scopes,
 				normalizedInput.Description,
 				customStart,
@@ -209,7 +209,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 				normalizedInput.Name,
 				normalizedInput.LimitType,
 				normalizedInput.MaxAmount,
-				normalizedInput.Currency,
+				normalizedInput.Asset,
 				normalizedInput.Scopes,
 				normalizedInput.Description,
 				customStart,
@@ -223,7 +223,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 			normalizedInput.Name,
 			normalizedInput.LimitType,
 			normalizedInput.MaxAmount,
-			normalizedInput.Currency,
+			normalizedInput.Asset,
 			normalizedInput.Scopes,
 			normalizedInput.Description,
 			normalizedInput.ActiveTimeStart.String(),
@@ -236,7 +236,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 			normalizedInput.Name,
 			normalizedInput.LimitType,
 			normalizedInput.MaxAmount,
-			normalizedInput.Currency,
+			normalizedInput.Asset,
 			normalizedInput.Scopes,
 			normalizedInput.Description,
 			now,
@@ -333,10 +333,10 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 }
 
 // emitLimitCreatedEvent publishes the limit.created event post-commit. IMPORTANT
-// posture: EmitImportant nil-guards the emitter, bounds the emit, and never
+// posture: EmitBrokerBestEffort nil-guards the emitter, bounds the emit, and never
 // propagates build/emit failures — so this never fails the request.
 func (c *CreateLimitCommand) emitLimitCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, limit *model.Limit) {
-	pkgStreaming.EmitImportant(ctx, span, logger, c.Streaming, events.LimitCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, c.Streaming, events.LimitCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewLimitCreated(limit).ToEmitRequest(tenantID, limit.CreatedAt)
 		})

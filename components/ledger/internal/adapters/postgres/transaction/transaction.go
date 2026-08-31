@@ -342,7 +342,7 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 		Description:              t.Description,
 		Pending:                  false,
 		Metadata:                 t.Metadata,
-		Route:                    t.Route,
+		Route:                    t.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:                  t.RouteID,
 		Send:                     send,
 	}

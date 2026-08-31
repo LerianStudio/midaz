@@ -12,7 +12,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -46,7 +46,9 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		attribute.String("app.request.account_id", id.String()),
 	)
 
-	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
+	// HolderOffV1: the account is read to guard the delete; nothing downstream
+	// reads or rewrites its holder, and account.deleted carries no holder field.
+	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id, mmodel.HolderOffV1)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to find account by id", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to find account by id", libLog.Err(err))
@@ -111,8 +113,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 // emitAccountDeletedEvent publishes the account.deleted event for a
 // successfully soft-deleted account. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after AccountRepo.Delete succeeds.
 // AccountRepo.Delete does not return the post-delete record, so the
@@ -125,7 +126,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 // Wire-format mapping lives in pkg/streaming/events/account_deleted.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitAccountDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AccountDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.AccountDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewAccountDeleted(acc, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

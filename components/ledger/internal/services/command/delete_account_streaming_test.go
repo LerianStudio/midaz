@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,8 +40,8 @@ func newDeleteStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitte
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 
 	mockAccountRepo.EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, orgID, ledgerID uuid.UUID, _ *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOffV1).
+		DoAndReturn(func(_ context.Context, orgID, ledgerID uuid.UUID, _ *uuid.UUID, id uuid.UUID, _ mmodel.HolderPolicy) (*mmodel.Account, error) {
 			return &mmodel.Account{
 				ID:             id.String(),
 				OrganizationID: orgID.String(),
@@ -153,8 +153,7 @@ func TestDeleteAccountByID_NoopEmitterDoesNotPanic(t *testing.T) {
 
 // TestDeleteAccountByID_EmitFailureDoesNotFailRequest verifies the
 // IMPORTANT posture: when Emit returns an error, DeleteAccountByID must
-// still complete successfully because durability is owned by PG +
-// future DLQ/outbox, not by the synchronous Emit call.
+// still complete successfully because the persisted database mutation is durable; this helper does not make broker delivery transactional.
 func TestDeleteAccountByID_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

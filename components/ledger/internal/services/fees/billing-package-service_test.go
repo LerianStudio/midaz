@@ -169,7 +169,7 @@ func TestCreateBillingPackage_Success_Volume(t *testing.T) {
 
 			ctx := context.Background()
 
-			result, err := svc.CreateBillingPackage(ctx, tt.input)
+			result, err := svc.CreateBillingPackage(ctx, uuid.MustParse(tt.input.LedgerID), tt.input)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, result)
@@ -245,7 +245,7 @@ func TestCreateBillingPackage_Success_Maintenance(t *testing.T) {
 
 			ctx := context.Background()
 
-			result, err := svc.CreateBillingPackage(ctx, tt.input)
+			result, err := svc.CreateBillingPackage(ctx, uuid.MustParse(tt.input.LedgerID), tt.input)
 
 			assert.NoError(t, err)
 			assert.NotNil(t, result)
@@ -301,7 +301,7 @@ func TestCreateBillingPackage_ValidationError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			result, err := svc.CreateBillingPackage(ctx, tt.input)
+			result, err := svc.CreateBillingPackage(ctx, uuid.MustParse(tt.input.LedgerID), tt.input)
 
 			assert.Error(t, err)
 			assert.Nil(t, result)
@@ -348,7 +348,7 @@ func TestCreateBillingPackage_RouteOverlap(t *testing.T) {
 
 			ctx := context.Background()
 
-			result, err := svc.CreateBillingPackage(ctx, tt.input)
+			result, err := svc.CreateBillingPackage(ctx, uuid.MustParse(tt.input.LedgerID), tt.input)
 
 			assert.Error(t, err)
 			assert.Nil(t, result)
@@ -396,7 +396,7 @@ func TestCreateBillingPackage_AccountValidationError(t *testing.T) {
 
 			ctx := context.Background()
 
-			result, err := svc.CreateBillingPackage(ctx, tt.input)
+			result, err := svc.CreateBillingPackage(ctx, uuid.MustParse(tt.input.LedgerID), tt.input)
 
 			assert.Error(t, err)
 			assert.Nil(t, result)
@@ -880,7 +880,7 @@ func TestValidateMaintenanceCreate_CreditAccountFails(t *testing.T) {
 
 			ctx := context.Background()
 
-			result, err := svc.CreateBillingPackage(ctx, tt.input)
+			result, err := svc.CreateBillingPackage(ctx, uuid.MustParse(tt.input.LedgerID), tt.input)
 
 			assert.Error(t, err)
 			assert.Nil(t, result)
@@ -928,7 +928,7 @@ func TestValidateMaintenanceCreate_AccountTargetAliases(t *testing.T) {
 				return input, nil
 			})
 
-		result, err := svc.CreateBillingPackage(context.Background(), bp)
+		result, err := svc.CreateBillingPackage(context.Background(), ledgerUUID, bp)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -950,7 +950,7 @@ func TestValidateMaintenanceCreate_AccountTargetAliases(t *testing.T) {
 			AccountExistsByAlias(gomock.Any(), orgUUID, ledgerUUID, "ghost@midaz").
 			Return(errors.New("0181"))
 
-		result, err := svc.CreateBillingPackage(context.Background(), bp)
+		result, err := svc.CreateBillingPackage(context.Background(), ledgerUUID, bp)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -993,7 +993,7 @@ func TestValidateVolumeCreate_DebitAccountAliasFails(t *testing.T) {
 
 			ctx := context.Background()
 
-			result, err := svc.CreateBillingPackage(ctx, tt.input)
+			result, err := svc.CreateBillingPackage(ctx, uuid.MustParse(tt.input.LedgerID), tt.input)
 
 			assert.Error(t, err)
 			assert.Nil(t, result)

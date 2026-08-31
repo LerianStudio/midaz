@@ -96,7 +96,7 @@ func assertNoDedupSuffixCollision(t *testing.T, doc *huma.OpenAPI) {
 // request and leg components.
 //
 // The expected refs are resolved off the registry by type, exactly as
-// transaction_v2_register.go resolves them, so a schema-namer change surfaces here as a
+// transaction_routes_v2.go resolves them, so a schema-namer change surfaces here as a
 // mismatch rather than being baked in as a literal ref string.
 func assertV2CreateBodiesTyped(t *testing.T, doc *huma.OpenAPI) {
 	require.NotNil(t, doc.Components, "document must carry components")
@@ -150,7 +150,7 @@ func assertV2CreateBodiesTyped(t *testing.T, doc *huma.OpenAPI) {
 
 // assertPrefixesCoexist is the readable gate for boot invariant F2 (AddOperation panics on
 // a duplicate ID): both version prefixes live in ONE document, the path-key totals are 55
-// under /v1 and 74 under /v2, and the /v1 and /v2 operation-ID sets are disjoint. CRM,
+// under /v1 and 67 under /v2, and the /v1 and /v2 operation-ID sets are disjoint. CRM,
 // fees/billing and composition are /v2-only, so their path keys count toward /v2 and never /v1.
 func assertPrefixesCoexist(t *testing.T, doc *huma.OpenAPI) {
 	var v1Keys, v2Keys int
@@ -176,7 +176,7 @@ func assertPrefixesCoexist(t *testing.T, doc *huma.OpenAPI) {
 	}
 
 	require.Equal(t, 55, v1Keys, "path keys under /v1")
-	require.Equal(t, 74, v2Keys, "path keys under /v2")
+	require.Equal(t, 67, v2Keys, "path keys under /v2")
 
 	var overlap []string
 
@@ -194,15 +194,14 @@ func assertPrefixesCoexist(t *testing.T, doc *huma.OpenAPI) {
 }
 
 // assertSecuritySchemesResolve reproduces in Go, over the source document, the assertion
-// that today lives only as jq over the joined hub — and that only passes because the tracer
-// lends the schemes (F9). Components.SecuritySchemes must declare both BearerAuth and
-// ApiKeyAuth, and no operation may reference a scheme the document does not declare.
+// that today lives only as jq over the joined hub. BearerAuth is the ONLY scheme the
+// ledger may declare: the Fiber guard chain authorizes a JWT bearer token and nothing
+// else, so any other scheme would advertise an auth method the runtime rejects. No
+// operation may reference a scheme the document does not declare.
 func assertSecuritySchemesResolve(t *testing.T, doc *huma.OpenAPI) {
 	require.NotNil(t, doc.Components, "document must carry components")
-	require.Contains(t, doc.Components.SecuritySchemes, "BearerAuth",
-		"AssembleHumaContract must declare the BearerAuth scheme")
-	require.Contains(t, doc.Components.SecuritySchemes, "ApiKeyAuth",
-		"AssembleHumaContract must declare the ApiKeyAuth scheme")
+	require.Equal(t, []string{"BearerAuth"}, declaredSecuritySchemes(doc),
+		"ledger contract must declare exactly BearerAuth — it accepts no other scheme")
 
 	for _, name := range referencedSecuritySchemes(doc) {
 		require.Containsf(t, doc.Components.SecuritySchemes, name,

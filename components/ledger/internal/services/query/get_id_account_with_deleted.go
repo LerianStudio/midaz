@@ -21,13 +21,13 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 )
 
-func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
+func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_account_by_id_with_deleted")
 	defer span.End()
 
-	account, err := uc.AccountRepo.FindWithDeleted(ctx, organizationID, ledgerID, portfolioID, id)
+	account, err := uc.AccountRepo.FindWithDeleted(ctx, organizationID, ledgerID, portfolioID, id, holderPolicy)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error getting account on repo by id", libLog.Err(err))
 

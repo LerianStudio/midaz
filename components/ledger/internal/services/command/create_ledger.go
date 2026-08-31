@@ -11,8 +11,9 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -40,29 +41,46 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		status.Code = "ACTIVE"
 	}
 
-	_, err = uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find ledger by name", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to find ledger by name", libLog.Err(err))
-
-		return nil, err
-	}
-
-	// Validate settings early when provided, same as UpdateLedgerSettings (fail before creating the ledger).
+	// Validate before creating the ledger. Persist only when the result differs from the
+	// defaults, so an all-defaults request leaves the settings column at its '{}' default.
 	var settingsToPersist *mmodel.LedgerSettings
 
-	if !mmodel.LedgerSettingsIsDefault(cli.Settings) {
-		settingsMap := mmodel.LedgerSettingsToMap(*cli.Settings)
+	if sparseSettings := cli.Settings.ToSparseMap(); sparseSettings != nil {
+		// Group presence only, never the sent keys or their values (T4). A settings
+		// validation error names a field path; without these flags that error is
+		// indistinguishable from one naming a group the client never sent.
+		span.SetAttributes(
+			attribute.Bool("app.request.settings.has_accounting", cli.Settings.Accounting != nil),
+			attribute.Bool("app.request.settings.has_tracer", cli.Settings.Tracer != nil),
+			attribute.Bool("app.request.settings.has_overrides", cli.Settings.Overrides != nil),
+		)
 
-		if err := mmodel.ValidateSettings(settingsMap); err != nil {
+		if err := mmodel.ValidateSettings(sparseSettings); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Settings validation failed", err)
-			logger.Log(ctx, libLog.LevelError, "Settings validation failed", libLog.Err(err))
+			logger.Log(ctx, libLog.LevelWarn, "Settings validation failed", libLog.Err(err))
 
 			return nil, err
 		}
 
-		parsed := mmodel.ParseLedgerSettings(settingsMap)
-		settingsToPersist = &parsed
+		parsed := mmodel.ParseLedgerSettings(sparseSettings)
+		if !mmodel.LedgerSettingsIsDefault(&parsed) {
+			settingsToPersist = &parsed
+		}
+	}
+
+	// Bail out before the uniqueness round-trip when the caller is already gone.
+	if err = ctx.Err(); err != nil {
+		recordCommandError(ctx, span, logger, "Context cancelled before ledger creation", err)
+
+		return nil, err
+	}
+
+	// Dual-class: span helper and log level are picked by error class.
+	_, err = uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to find ledger by name", err)
+
+		return nil, err
 	}
 
 	now := time.Now()
@@ -76,10 +94,10 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		Settings:       settingsToPersist,
 	}
 
+	// Dual-class: span helper and log level are picked by error class.
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create ledger", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create ledger", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create ledger", err)
 
 		return nil, err
 	}
@@ -88,7 +106,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityLedger, led.ID, cli.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create ledger metadata", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to create ledger metadata", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to create ledger metadata", libLog.Err(err))
 
 		return nil, err
@@ -110,7 +128,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 // successfully persisted ledger. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
 func (uc *UseCase) emitLedgerCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, led *mmodel.Ledger) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.LedgerCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.LedgerCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewLedgerCreated(led).ToEmitRequest(tenantID, led.CreatedAt)
 		})

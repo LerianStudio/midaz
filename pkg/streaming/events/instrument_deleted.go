@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 )
 
 // InstrumentDeletedDefinition is the routing contract for instrument.deleted.
 // IMPORTANT posture: emit failures MUST NOT fail the request; durability is
-// owned by PG + (follow-up task) the outbox subsystem.
+// owned by the persisted database mutation.
 var InstrumentDeletedDefinition = Definition{
 	ResourceType:  "instrument",
 	EventType:     "deleted",

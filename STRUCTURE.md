@@ -1,7 +1,7 @@
 # Project Structure Overview
 
 This guide covers the project structure after the monorepo consolidation. The codebase is a
-single Go module (`github.com/LerianStudio/midaz/v4`, Go 1.26.4, single root `go.mod` — no
+single Go module (`github.com/LerianStudio/midaz/v4`, Go 1.27.0, single root `go.mod` — no
 `go.work`, no `replace`) following hexagonal architecture with Command Query Responsibility
 Segregation (CQRS).
 
@@ -26,7 +26,7 @@ MIDAZ
  |   |   |---   internal
  |   |   |   |---   adapters
  |   |   |   |   |---   http
- |   |   |   |   |   |---   in     # Fiber handlers + routes (incl. CRM holder/instrument + fees_routes.go)
+ |   |   |   |   |   |---   in     # Fiber handlers + routes (incl. CRM holder/instrument + fee/billing per-resource routes)
  |   |   |   |   |---   mongodb    # metadata + fees repositories
  |   |   |   |   |---   postgres   # onboarding + transaction repositories
  |   |   |   |   |---   rabbitmq
@@ -97,7 +97,7 @@ The unified ledger binary folds four domains into one process:
 * **Fees (embedded)**: fee engine at `components/ledger/pkg/fee`, shared types at
   `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`,
   Mongo repos at `components/ledger/internal/adapters/mongodb/fees`, routes at
-  `components/ledger/internal/adapters/http/in/fees_routes.go`. The fee seam runs inside the
+  `components/ledger/internal/adapters/http/in/{fee_package,fee_estimate,billing_package,billing_calculate}_routes.go`. The fee seam runs inside the
   `transaction_create.go` HTTP handler (not the command layer) after
   `mtransaction.ApplyDefaultBalanceKeys(...)` and the idempotency claim, mutating the send legs
   before the post-fee re-validation; `applyFees` itself lives in `transaction_fee_application.go`.
@@ -116,9 +116,9 @@ own — the package tree holds only persistence and use cases:
 * **Services** (`./components/ledger/internal/crm/services`): holder/instrument command/query use cases.
 
 The entire CRM HTTP surface lives in the ledger tree under
-`components/ledger/internal/adapters/http/in/`: `crm_routes.go` (holder/instrument registration,
+`components/ledger/internal/adapters/http/in/`: `holder_routes.go` / `instrument_routes.go` (holder/instrument registration,
 `midaz` namespace), `composition_routes.go` (holder↔account composition), and the
-`holder.go`, `holder_accounts.go`, and `instrument.go` handlers. CRM endpoints are folded into
+`holder_core.go`, `holder_accounts_core.go`, and `instrument_core.go` cores. CRM endpoints are folded into
 the ledger Swagger spec (`components/ledger/api`); there is no separate CRM OpenAPI spec.
 
 CRM scopes requests by the `:organization_id` URL path parameter (path-based org hierarchy; R22

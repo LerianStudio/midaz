@@ -367,6 +367,185 @@ func (handler *TransactionHandler) commitOrCancelTransaction() error {
 	assert.Less(t, mc.settingsPos, mc.resolveSkipPos, "fixture sanity: settings re-fetch precedes the re-resolution")
 }
 
+// commitCancelOverdraftMetrics captures the overdraft-enrichment wiring facts of
+// commitOrCancelTransaction.
+type commitCancelOverdraftMetrics struct {
+	// enrichStatuses holds the transaction-status constants named in the
+	// condition guarding the enrichOverdraftOperations call.
+	enrichStatuses map[string]bool
+	// enrichPos is the index of the guarded enrichment statement (-1 if absent).
+	enrichPos int
+	// validatePos is the index of the ValidateAccountingRules call (-1).
+	validatePos int
+	// companionsReachFromTo reports whether companionFromTos is appended into the
+	// fromTo slice that BuildOperations consumes.
+	companionsReachFromTo bool
+}
+
+// analyzeCommitCancelOverdraftSeam walks commitOrCancelTransaction and extracts
+// which transitions enrich overdraft companions and whether those companions
+// reach validation and the operation-record builder.
+func analyzeCommitCancelOverdraftSeam(t *testing.T, src string) commitCancelOverdraftMetrics {
+	t.Helper()
+
+	fn := findFuncDecl(t, src, commitCancelFuncName)
+
+	m := commitCancelOverdraftMetrics{
+		enrichStatuses: map[string]bool{},
+		enrichPos:      -1,
+		validatePos:    -1,
+	}
+
+	for i, stmt := range fn.Body.List {
+		if m.enrichPos == -1 {
+			if ifStmt, ok := stmt.(*ast.IfStmt); ok && stmtCallsFunc(ifStmt.Body, "enrichOverdraftOperations") {
+				m.enrichPos = i
+
+				for _, name := range constantSelectorNames(ifStmt.Cond) {
+					m.enrichStatuses[name] = true
+				}
+			}
+		}
+
+		if m.validatePos == -1 && stmtCallsMethod(stmt, "ValidateAccountingRules") {
+			m.validatePos = i
+		}
+
+		if stmtAppendsIdentInto(stmt, "fromTo", "companionFromTos") {
+			m.companionsReachFromTo = true
+		}
+	}
+
+	return m
+}
+
+// constantSelectorNames returns the selector names of every `constant.X`
+// reference in the expression.
+func constantSelectorNames(expr ast.Expr) []string {
+	names := make([]string, 0, 2)
+
+	ast.Inspect(expr, func(n ast.Node) bool {
+		sel, ok := n.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+
+		if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "constant" {
+			names = append(names, sel.Sel.Name)
+		}
+
+		return true
+	})
+
+	return names
+}
+
+// stmtAppendsIdentInto reports whether stmt assigns to `target` the result of an
+// append that spreads `source` (i.e. target = append(target, source...)).
+func stmtAppendsIdentInto(stmt ast.Stmt, target, source string) bool {
+	assign, ok := stmt.(*ast.AssignStmt)
+	if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+		return false
+	}
+
+	lhs, ok := assign.Lhs[0].(*ast.Ident)
+	if !ok || lhs.Name != target {
+		return false
+	}
+
+	call, ok := assign.Rhs[0].(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+
+	fun, ok := call.Fun.(*ast.Ident)
+	if !ok || fun.Name != "append" || call.Ellipsis == token.NoPos {
+		return false
+	}
+
+	for _, arg := range call.Args {
+		if id, ok := arg.(*ast.Ident); ok && id.Name == source {
+			return true
+		}
+	}
+
+	return false
+}
+
+// TestCommitCancel_OverdraftEnrichmentCoversBothTransitions — the two-phase
+// overdraft wiring proof. Both transitions move funds on an overdrafted balance:
+// a cancel restores the held capacity, and a commit posts the destination credit
+// that repays outstanding overdraft. Enriching is what puts the companion leg in
+// front of ValidateAccountingRules (so the route's overdraft rubric is enforced),
+// into the atomic batch (so the companion balance moves in lock-step) and into
+// the fromTo slice (so BuildOperations persists the overdraft leg). Gating the
+// enrichment on the cancel alone silently drops all three on commit, which is a
+// money-correctness bug the enrichment unit tests cannot see — they never reach
+// this call site. Asserted over the live source AST.
+func TestCommitCancel_OverdraftEnrichmentCoversBothTransitions(t *testing.T) {
+	src := readStateHandlersSource(t)
+
+	m := analyzeCommitCancelOverdraftSeam(t, src)
+
+	require.NotEqual(t, -1, m.enrichPos, "guarded enrichOverdraftOperations call not found in commitOrCancelTransaction")
+	require.NotEqual(t, -1, m.validatePos, "ValidateAccountingRules call not found")
+
+	assert.True(t, m.enrichStatuses["APPROVED"],
+		"the commit transition must enrich overdraft companions: its destination credit is what repays outstanding overdraft")
+	assert.True(t, m.enrichStatuses["CANCELED"],
+		"the cancel transition must enrich overdraft companions: it restores the capacity the hold consumed")
+
+	assert.Less(t, m.enrichPos, m.validatePos,
+		"enrichment must precede ValidateAccountingRules so the companion is subject to the route's overdraft rubric")
+	assert.True(t, m.companionsReachFromTo,
+		"companionFromTos must be appended into fromTo so BuildOperations persists the overdraft operation")
+}
+
+// TestCommitCancel_OverdraftEnrichmentCoversBothTransitions_Bites proves the
+// analyzer bites on a seam that enriches on cancel only, validates before
+// enriching, or never threads the companions into fromTo.
+func TestCommitCancel_OverdraftEnrichmentCoversBothTransitions_Bites(t *testing.T) {
+	leaky := `package in
+func (handler *TransactionHandler) commitOrCancelTransaction() error {
+	routeCache, _ := handler.Query.ValidateAccountingRules(ctx, balanceOps, validate, action)
+	var companionFromTos []mtransaction.FromTo
+	if transactionStatus == constant.CANCELED { // BUG: commit is not enriched
+		balanceOps, companionFromTos, _ = enrichOverdraftOperations(readCtx, balanceOps, validate)
+	}
+	_, _ = routeCache, companionFromTos
+	return nil
+}`
+
+	m := analyzeCommitCancelOverdraftSeam(t, leaky)
+
+	require.NotEqual(t, -1, m.enrichPos, "fixture sanity: the guarded enrichment must be present")
+
+	assert.False(t, m.enrichStatuses["APPROVED"],
+		"gate failed to bite: a cancel-only guard was reported as covering the commit")
+	assert.True(t, m.enrichStatuses["CANCELED"], "fixture sanity: the cancel status must be detected")
+	assert.Greater(t, m.enrichPos, m.validatePos,
+		"fixture sanity: this fixture validates before enriching")
+	assert.False(t, m.companionsReachFromTo,
+		"gate failed to bite: companions never appended into fromTo were reported as reaching it")
+
+	correct := `package in
+func (handler *TransactionHandler) commitOrCancelTransaction() error {
+	var companionFromTos []mtransaction.FromTo
+	if transactionStatus == constant.APPROVED || transactionStatus == constant.CANCELED {
+		balanceOps, companionFromTos, _ = enrichOverdraftOperations(readCtx, balanceOps, validate)
+	}
+	routeCache, _ := handler.Query.ValidateAccountingRules(ctx, balanceOps, validate, action)
+	fromTo = append(fromTo, companionFromTos...)
+	_ = routeCache
+	return nil
+}`
+
+	mc := analyzeCommitCancelOverdraftSeam(t, correct)
+	assert.True(t, mc.enrichStatuses["APPROVED"] && mc.enrichStatuses["CANCELED"] && mc.companionsReachFromTo,
+		"fixture sanity: the correct shape must satisfy every fact")
+	assert.Less(t, mc.enrichPos, mc.validatePos, "fixture sanity: enrichment precedes validation")
+}
+
 // readStateHandlersSource reads transaction_state_handlers.go from disk so the
 // commit/cancel wiring gate runs against the live source.
 func readStateHandlersSource(t *testing.T) string {

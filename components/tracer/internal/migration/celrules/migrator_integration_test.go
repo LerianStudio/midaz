@@ -1,0 +1,281 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+//go:build integration
+
+package celrules
+
+import (
+	"context"
+	"database/sql"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
+	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+)
+
+// sqlTxBeginner adapts a raw *sql.DB to pgdb.TxBeginner. The integration suite
+// connects with a raw *sql.DB (testutil.SetupIntegrationDB), whose BeginTx
+// returns *sql.Tx — which satisfies pgdb.Tx structurally but not the TxBeginner
+// return type, so this thin adapter bridges the concrete return.
+type sqlTxBeginner struct{ db *sql.DB }
+
+func (b sqlTxBeginner) BeginTx(ctx context.Context, opts *sql.TxOptions) (pgdb.Tx, error) {
+	return b.db.BeginTx(ctx, opts)
+}
+
+// celCompiler adapts *cel.Environment.Compile to the ExpressionCompiler port,
+// discarding the AST because the recompile-all gate only cares whether the
+// rewritten expression compiles against the NEW (asset) environment.
+type celCompiler struct{ env *cel.Environment }
+
+func (c celCompiler) Compile(expression string) error {
+	_, err := c.env.Compile(expression)
+	return err
+}
+
+func newTestMigrator(t *testing.T, db *sql.DB) *Migrator {
+	t.Helper()
+
+	env, err := cel.NewEnvironment()
+	require.NoError(t, err)
+
+	repo := postgres.NewRepositoryWithConnection(&testutil.IntegrationDBAdapter{DB: db})
+
+	m, err := NewMigrator(sqlTxBeginner{db: db}, repo, celCompiler{env: env}, cel.RewriteCurrencyToAsset, false)
+	require.NoError(t, err)
+
+	return m
+}
+
+func cleanRules(t *testing.T, db *sql.DB) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(), `DELETE FROM rules`)
+	require.NoError(t, err)
+}
+
+func seedRule(t *testing.T, db *sql.DB, seed int64, name, expression string) uuid.UUID {
+	t.Helper()
+
+	id := testutil.MustDeterministicUUID(seed)
+	_, err := db.ExecContext(context.Background(),
+		`INSERT INTO rules (id, name, expression, action, scopes, status)
+		 VALUES ($1, $2, $3, 'ALLOW', '[]', 'ACTIVE')`,
+		id, name, expression)
+	require.NoError(t, err)
+
+	return id
+}
+
+func readExpression(t *testing.T, db *sql.DB, id uuid.UUID) string {
+	t.Helper()
+
+	var expr string
+	err := db.QueryRowContext(context.Background(),
+		`SELECT expression FROM rules WHERE id = $1`, id).Scan(&expr)
+	require.NoError(t, err)
+
+	return expr
+}
+
+func mustRewrite(t *testing.T, expression string) string {
+	t.Helper()
+	out, _, err := cel.RewriteCurrencyToAsset(expression)
+	require.NoError(t, err)
+	return out
+}
+
+func TestIntegration_CELRuleMigration_Up_RewritesGlobalPreservesOthers(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	cleanRules(t, db)
+	t.Cleanup(func() { cleanRules(t, db) })
+
+	const (
+		globalExpr = `currency == "BRL"`
+		metaExpr   = `metadata.currency == "USD"`
+		shadowExpr = `["BRL"].exists(currency, currency == "BRL")`
+	)
+
+	globalID := seedRule(t, db, 10, "global-currency", globalExpr)
+	metaID := seedRule(t, db, 11, "metadata-currency", metaExpr)
+	shadowID := seedRule(t, db, 12, "shadowing-currency", shadowExpr)
+
+	m := newTestMigrator(t, db)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
+
+	res, err := m.Up(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 3, res.Scanned)
+	// Only the global-currency rule is rewritten; metadata.currency and the
+	// shadowing comprehension binding stay unchanged.
+	assert.Equal(t, 1, res.Rewritten)
+	assert.Equal(t, 2, res.Unchanged)
+
+	// The global currency reference is renamed to asset and recompiles/evaluates
+	// against the new environment.
+	gotGlobal := readExpression(t, db, globalID)
+	assert.Equal(t, mustRewrite(t, globalExpr), gotGlobal)
+	assert.Contains(t, gotGlobal, "asset")
+	assert.NotContains(t, tokens(gotGlobal), "currency",
+		"global rule must no longer reference the currency global")
+
+	// A metadata.currency field selection is preserved (currency is a field name,
+	// not the global variable). Classified unchanged and never persisted, so the
+	// stored text must be byte-identical to the seed, not the rewriter's output.
+	gotMeta := readExpression(t, db, metaID)
+	assert.Equal(t, metaExpr, gotMeta)
+	assert.Contains(t, gotMeta, "metadata.currency")
+
+	// A comprehension binding named currency shadows the global inside the macro
+	// body and is preserved. Also unchanged, so the stored text is the seed itself.
+	gotShadow := readExpression(t, db, shadowID)
+	assert.Equal(t, shadowExpr, gotShadow)
+	assert.Contains(t, gotShadow, "currency")
+	assert.NotContains(t, gotShadow, "asset")
+}
+
+func TestIntegration_CELRuleMigration_Up_NonCanonicalNoCurrency_NotRewritten(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	cleanRules(t, db)
+	t.Cleanup(func() { cleanRules(t, db) })
+
+	const (
+		globalExpr = `currency == "BRL"`
+		// Stored NON-canonically (no spaces around >). The rewriter canonicalizes
+		// this to "amount > 0" but renames no global currency, so the migration must
+		// classify it unchanged and leave the stored text byte-identical.
+		nonCanonicalExpr = `amount>0`
+	)
+
+	globalID := seedRule(t, db, 40, "global-currency", globalExpr)
+	nonCanonicalID := seedRule(t, db, 41, "non-canonical-no-currency", nonCanonicalExpr)
+
+	m := newTestMigrator(t, db)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
+
+	res, err := m.Up(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.Scanned)
+	// Only the global-currency rule is a genuine rewrite; the non-canonical rule
+	// carries no global currency, so it is unchanged despite differing canonical text.
+	assert.Equal(t, 1, res.Rewritten)
+	assert.Equal(t, 1, res.Unchanged)
+
+	// The global currency rule is renamed and persisted.
+	assert.Equal(t, mustRewrite(t, globalExpr), readExpression(t, db, globalID))
+
+	// The non-canonical no-currency rule was NOT persisted: its stored text stays
+	// byte-identical to the seed, NOT the canonical "amount > 0" form.
+	assert.Equal(t, nonCanonicalExpr, readExpression(t, db, nonCanonicalID),
+		"a no-currency rule must not be reformatted or persisted")
+}
+
+func TestIntegration_CELRuleMigration_Up_RollsBackOnBadRule(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	cleanRules(t, db)
+	t.Cleanup(func() { cleanRules(t, db) })
+
+	// The bad rule rewrites cleanly (parse-only) but references an undeclared
+	// variable, so it fails the recompile-all gate against the new environment.
+	//
+	// Ordered slice, not a map: each rule must pair with a FIXED deterministic
+	// seed so a failure reports the same rule ID every run. Go randomizes map
+	// iteration, which would drift the seed->name pairing across runs.
+	seeds := []struct {
+		seed int64
+		name string
+		expr string
+	}{
+		{20, "global-currency", `currency == "BRL"`},
+		{21, "metadata-currency", `metadata.currency == "USD"`},
+		{22, "shadowing-currency", `["BRL"].exists(currency, currency == "BRL")`},
+		{23, "broken-rule", `currency == "BRL" && undeclaredThing > 0`},
+	}
+
+	ids := make(map[uuid.UUID]string, len(seeds))
+	for _, s := range seeds {
+		ids[seedRule(t, db, s.seed, s.name, s.expr)] = s.expr
+	}
+
+	m := newTestMigrator(t, db)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
+
+	_, err := m.Up(ctx)
+	require.Error(t, err, "recompile-all gate must abort on the undeclared reference")
+	assert.ErrorIs(t, err, constant.ErrExpressionSyntax,
+		"the bounded error must wrap the sentinel, not the raw cel-go error")
+	assert.NotContains(t, err.Error(), "undeclaredThing",
+		"the bounded error must not leak the offending CEL expression detail")
+
+	// All-or-nothing: not a single rule was mutated.
+	for id, original := range ids {
+		assert.Equal(t, original, readExpression(t, db, id),
+			"rollback must leave every rule byte-identical to its seeded expression")
+	}
+}
+
+func TestIntegration_CELRuleMigration_Down_FailsLoudAndMutatesNothing(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	cleanRules(t, db)
+	t.Cleanup(func() { cleanRules(t, db) })
+
+	const globalExpr = `currency == "BRL"`
+	globalID := seedRule(t, db, 30, "global-currency", globalExpr)
+
+	m := newTestMigrator(t, db)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
+
+	err := m.Down(ctx)
+	require.Error(t, err, "down must fail loud")
+	assert.ErrorIs(t, err, ErrDownIrreversible)
+
+	assert.Equal(t, globalExpr, readExpression(t, db, globalID),
+		"down must not mutate any rule")
+}
+
+// tokens returns the expression with string literals removed so an assertion can
+// distinguish the currency IDENTIFIER from the substring "currency" appearing
+// inside a quoted literal.
+func tokens(expression string) string {
+	var b strings.Builder
+
+	inString := false
+	for _, r := range expression {
+		if r == '"' {
+			inString = !inString
+			continue
+		}
+
+		if !inString {
+			b.WriteRune(r)
+		}
+	}
+
+	return b.String()
+}

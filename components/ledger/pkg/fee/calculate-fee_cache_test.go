@@ -176,7 +176,7 @@ func runScenario(t *testing.T, useCache bool) (*countingResolver, *transaction.R
 		segCtx.ResolverCache = make(map[string]*feeshared.Account)
 	}
 
-	err := CalculateFee(logger, feeCalc, feePackage, resp, "BRL", segCtx)
+	err := CalculateFee(logger, feeCalc, feePackage, resp, segCtx)
 	require.NoError(t, err)
 
 	return resolver, resp, feeCalc

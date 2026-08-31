@@ -11,7 +11,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -78,7 +78,7 @@ func (uc *UseCase) DeletePackageByID(ctx context.Context, id, organizationID, le
 
 // emitFeesPackageDeletedEvent publishes fee-packages.deleted. IMPORTANT posture.
 func (uc *UseCase) emitFeesPackageDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID, ledgerID uuid.UUID, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.FeesPackageDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.FeesPackageDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewFeesPackageDeleted(
 				id.String(), organizationID.String(), ledgerID.String(), deletedAt,

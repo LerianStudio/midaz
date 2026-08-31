@@ -41,8 +41,8 @@ func TestCompile_Success(t *testing.T) {
 			description: "Compiles complex expression with multiple conditions",
 		},
 		{
-			name:        "Success - expression with currency check",
-			expression:  `currency == "USD" || currency == "BRL"`,
+			name:        "Success - expression with asset check",
+			expression:  `asset == "USD" || asset == "BRL"`,
 			description: "Compiles expression with OR conditions",
 		},
 		{
@@ -244,9 +244,9 @@ func TestCompile_SpanAttributes(t *testing.T) {
 		},
 		{
 			name:       "Success - long expression has correct length",
-			expression: `transactionType == "CARD" && amount > 100 && account.status == "active" && currency == "USD"`,
+			expression: `transactionType == "CARD" && amount > 100 && account.status == "active" && asset == "USD"`,
 			expectedAttrs: map[string]any{
-				"app.request.expression_length": len(`transactionType == "CARD" && amount > 100 && account.status == "active" && currency == "USD"`),
+				"app.request.expression_length": len(`transactionType == "CARD" && amount > 100 && account.status == "active" && asset == "USD"`),
 			},
 			description: "Span should have correct expression_length for longer expressions",
 		},
@@ -499,7 +499,7 @@ func TestCompile_CostValidation(t *testing.T) {
 		{
 			name:        "Success - moderate expression within limit",
 			costLimit:   5000,
-			expression:  `transactionType == "CARD" && amount > 100 && currency == "USD"`,
+			expression:  `transactionType == "CARD" && amount > 100 && asset == "USD"`,
 			expectError: false,
 			description: "Moderate expression should be within cost limit",
 		},
@@ -554,7 +554,7 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
 				Amount:          decimal.RequireFromString("500"),
-				Currency:        "USD",
+				Asset:           "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
 			expected:    true,
@@ -562,11 +562,11 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 		},
 		{
 			name:       "Success - moderate expression executes without runtime cost error",
-			expression: `transactionType == "CARD" && amount > 100 && currency == "USD"`,
+			expression: `transactionType == "CARD" && amount > 100 && asset == "USD"`,
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
 				Amount:          decimal.RequireFromString("500"),
-				Currency:        "USD",
+				Asset:           "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
 			expected:    true,
@@ -578,7 +578,7 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
 				Amount:          decimal.RequireFromString("500"),
-				Currency:        "USD",
+				Asset:           "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
 			expected:    true,
@@ -590,7 +590,7 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
 				Amount:          decimal.RequireFromString("500"),
-				Currency:        "USD",
+				Asset:           "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
 			expected:    true,
@@ -602,7 +602,7 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
 				Amount:          decimal.RequireFromString("500"),
-				Currency:        "USD",
+				Asset:           "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
 			expected:    false,
@@ -614,7 +614,7 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
 				Amount:          decimal.RequireFromString("500"),
-				Currency:        "USD",
+				Asset:           "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
 			expected:    false,
@@ -626,7 +626,7 @@ func TestCompile_NoRuntimeCostLimit(t *testing.T) {
 			request: &model.ValidationRequest{
 				TransactionType: "CARD",
 				Amount:          decimal.RequireFromString("500.50"),
-				Currency:        "USD",
+				Asset:           "USD",
 				Account:         model.AccountContext{Type: "checking", Status: "active"},
 			},
 			expected:    true,
@@ -698,7 +698,7 @@ func TestCompile_CostValidationIsCompileTimeOnly(t *testing.T) {
 		req := &model.ValidationRequest{
 			TransactionType: "CARD",
 			Amount:          decimal.RequireFromString("500"),
-			Currency:        "USD",
+			Asset:           "USD",
 		}
 
 		// Evaluate multiple times - should never hit runtime cost limit

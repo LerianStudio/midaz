@@ -8,8 +8,9 @@
 -- Date: 2026-06-05
 -- ============================================
 
--- reserved_usage is stored in the smallest currency unit (e.g., cents), matching
--- current_usage. NOT NULL DEFAULT 0 so existing rows backfill cleanly; the CHECK
--- keeps the bucket non-negative (a release must never drive it below zero).
+-- reserved_usage holds a currency amount matching current_usage (a whole currency
+-- unit here; both are widened to DECIMAL in 000021). NOT NULL DEFAULT 0 so existing
+-- rows backfill cleanly; the CHECK keeps the bucket non-negative (a release must
+-- never drive it below zero).
 ALTER TABLE usage_counters
     ADD COLUMN IF NOT EXISTS reserved_usage BIGINT NOT NULL DEFAULT 0 CHECK (reserved_usage >= 0);

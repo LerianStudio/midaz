@@ -8,7 +8,7 @@ Midaz is a **source-available core banking platform** written in Go, built aroun
 
 | Aspect | Detail |
 |--------|--------|
-| Language | Go 1.26.4 |
+| Language | Go 1.27.0 |
 | Module | `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`) |
 | License | Elastic License 2.0 |
 | Architecture | Hexagonal + CQRS |
@@ -51,7 +51,10 @@ components/ledger/internal/crm/         → CRM package tree (holders/instrument
   services/                       → Holder/instrument use cases
   services/encryption/            → FieldEncryptor seam + EncryptionService (encrypt/decrypt PII, search tokens)
   (CRM HTTP handlers + routes live in components/ledger/internal/adapters/http/in/:
-   crm_routes.go, composition_routes.go, holder.go, holder_accounts.go, instrument.go — midaz namespace.
+   routes:   holder_routes.go, instrument_routes.go, encryption_routes.go, audit_routes.go,
+             holder_accounts_routes.go, composition_routes.go — midaz namespace.
+   handlers: holder_handler.go, instrument_handler.go, encryption_handler.go, audit_handler.go,
+             composition_handler.go; cores in the matching *_core.go.
    Encryption/protection routes (envelope mode only, midaz ns): POST .../encryption/provision,
    GET .../encryption/status, GET .../protection/audit)
 
@@ -92,6 +95,15 @@ account create. Honored skips persist to audit columns (`transaction.fees_skippe
 `transaction.tracer_skipped`, `account.holder_check_skipped`). Invariant: an honored skip
 adds **zero** downstream work (short-circuits before the control's lookup); reverts always
 re-run the tracer; idempotency replay returns the first outcome.
+
+Both seams the skips gate are **`/v2` contracts**: a `/v1` transaction create never reaches
+the fee engine and a `/v1` account create never reaches the holder seam, so a `skip` object
+in a `/v1` body is inert and can never raise the 422. A `/v1` account create links no holder
+(`holder_id` stays NULL) and its response withholds `holderId` + `holderCheckSkipped`. The
+Outside the seam on both contracts: organization create (neither contract writes a CRM
+self-holder — the idempotent backfill runner is the only provisioning path), the
+asset-created external account (bypasses `CreateAccount`, no holder) and account update
+(`holderId` is immutable). See `docs/api/SCOPING.md`.
 
 ## CRM Field Encryption (KMS)
 

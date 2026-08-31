@@ -60,7 +60,7 @@ func validationPayloadForActor(t *testing.T) []byte {
 		"requestId":            uuid.New().String(),
 		"transactionType":      "PIX",
 		"amount":               "10.00",
-		"currency":             "BRL",
+		"asset":                "BRL",
 		"transactionTimestamp": testutil.FixedTime().Format(time.RFC3339),
 		"account": map[string]any{
 			"accountId": "550e8400-e29b-41d4-a716-446655440001",

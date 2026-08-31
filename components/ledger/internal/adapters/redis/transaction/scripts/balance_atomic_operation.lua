@@ -239,7 +239,7 @@ local function rollback(rollbackBalances, ttl)
 end
 
 local function main()
-    local ttl = 3600 -- 1 hour
+    local ttl = 86400 -- 1 day
 
     local groupSize = 24
     local returnBalances = {}
@@ -407,10 +407,12 @@ local function main()
                     result = sub_decimal(balance.Available, amount)
                 end
             elseif operation == "DEBIT" and transactionStatus == "PENDING" and isDebitDirection then
-                -- Legacy pending overdraft companion: the user-facing source
-                -- is an ON_HOLD, but the internal direction=debit companion
-                -- receives a synthetic DEBIT so liability state matches the
-                -- one-phase overdraft path.
+                -- Pending overdraft companion. Holds no longer draw overdraft,
+                -- so no new pending emits this leg; the branch is retained
+                -- because a pending created under an earlier build may still
+                -- replay through the backup consumer. It grows a
+                -- direction=debit balance, so it never reaches the accrual
+                -- block below.
                 result = add_decimal(balance.Available, amount)
             elseif operation == "ON_HOLD" and transactionStatus == "PENDING" and routeValidationEnabled == 1 then
                 -- Double-entry: ON_HOLD only increments OnHold.
@@ -498,8 +500,33 @@ local function main()
         -- concurrent transaction already reduced OverdraftUsed), the whole
         -- batch rolls back with 0174 so the caller re-reads state and
         -- retries with a consistent split.
+        --
+        -- DEFERRED destination legs are excluded. A two-phase transaction
+        -- carries its destination CREDIT into every batch of the lifecycle, but
+        -- the leg only POSTS on the commit. On the create and on the cancel the
+        -- ladder above matches no branch, so `result` stays at the untouched
+        -- Available; repaying from it would subtract from a balance that never
+        -- received the credit, pushing `result` negative so the floor block
+        -- below re-accrues the deficit on top of the outstanding OverdraftUsed
+        -- and DOUBLES it on a leg that moved no money.
+        --
+        -- Enumerating the ladder, a CREDIT on a direction=credit balance posts
+        -- to Available in exactly two cases: CANCELED with route validation ON
+        -- (the source restore) and APPROVED (the commit). There is no
+        -- CREDIT+PENDING branch at all, and the CANCELED+isDebitDirection branch
+        -- cannot reach here because the repayment requires not isDebitDirection.
+        -- So the deferred legs are PENDING, and CANCELED with route validation
+        -- OFF — a shape only the destination leg can have, because in a cancel
+        -- batch the source restore is the RELEASE branch in the legacy shape and
+        -- the route-validated CREDIT in the other. The Go enrichment layer gates
+        -- refund collection on the SAME rule so the two sides cannot drift.
+        local isDeferredCreditLeg = isPending == 1 and
+            (transactionStatus == "PENDING" or
+                (transactionStatus == "CANCELED" and routeValidationEnabled == 0))
+
         if operation == "CREDIT" and not isDebitDirection and
             balance.AccountType ~= "external" and
+            not isDeferredCreditLeg and
             isPositive(balance.OverdraftUsed) then
             local sameBatchCancelCredit = operation == "CREDIT" and transactionStatus == "CANCELED" and
                 routeValidationEnabled == 1 and tonumber(balance.Version) == (tonumber(incomingVersion) + 1)
@@ -538,15 +565,33 @@ local function main()
             result = sub_decimal(result, repay)
         end
 
+        -- A HOLD never draws overdraft. Debt is created only by CONCLUSIVE
+        -- operations — the direct create, and the revert that is shaped like
+        -- one — so a pending create that would overdraw falls through to the
+        -- 0018 rejection below and moves nothing, on every route version.
+        --
+        -- Only the source hold can go negative in a PENDING batch: the legacy
+        -- shape's single ON_HOLD and the route-validated shape's DEBIT leg both
+        -- subtract from Available. Nothing else there reaches this block — the
+        -- pending companion DEBIT lands on a direction=debit balance and grows
+        -- it, and the deferred destination credit leaves Available untouched.
+        --
+        -- This gates the CREATE side only. A pending that already drew overdraft
+        -- under an earlier build still has to be committed or canceled, so the
+        -- unwind branches above (the pending companion, the RELEASE overdraft
+        -- reversal, the same-batch cancel credit) are deliberately retained.
+        local isHold = transactionStatus == "PENDING"
+
         if startsWithMinus(result) and balance.AccountType ~= "external" then
             -- Direction-aware overdraft: credit-direction balances with
             -- AllowOverdraft=1 may go temporarily negative. The shortfall
             -- is floored at zero in Available and accrued in OverdraftUsed,
             -- subject to OverdraftLimit when enabled.
             --
-            -- Debit-direction balances and credit-direction balances without
-            -- AllowOverdraft fall through to the legacy 0018 rejection.
-            if balance.Direction == "credit" and (balance.AllowOverdraft or 0) == 1 then
+            -- Debit-direction balances, credit-direction balances without
+            -- AllowOverdraft, and every hold fall through to the legacy 0018
+            -- rejection.
+            if balance.Direction == "credit" and (balance.AllowOverdraft or 0) == 1 and not isHold then
                 -- deficit = abs(result). Because result is negative,
                 -- sub_decimal("0", result) produces the absolute value.
                 local deficit = sub_decimal("0", result)

@@ -105,11 +105,14 @@ func TestIntegration_CompositionConcurrentTenantIsolation(t *testing.T) {
 
 	logger := &libLog.GoLogger{}
 
-	pgContainer := postgrestestutil.SetupContainer(t)
-	mongoContainer := mongotestutil.SetupContainer(t)
+	tenantAPG := postgrestestutil.SetupMigratedContainer(t, "onboarding")
+	tenantBPG := postgrestestutil.SetupMigratedContainer(t, "onboarding")
+	mongoContainer := mongotestutil.SetupReusableContainer(t)
+	tenantAMongo := mongotestutil.CreateOwnedDatabase(t, mongoContainer)
+	tenantBMongo := mongotestutil.CreateOwnedDatabase(t, mongoContainer)
 
-	tenantA := newCompositionTenant(t, pgContainer, mongoContainer, "tenanta", "comp_onb_a", "comp_crm_a")
-	tenantB := newCompositionTenant(t, pgContainer, mongoContainer, "tenantb", "comp_onb_b", "comp_crm_b")
+	tenantA := newCompositionTenant(t, tenantAPG, mongoContainer, "tenanta", tenantAMongo.Name())
+	tenantB := newCompositionTenant(t, tenantBPG, mongoContainer, "tenantb", tenantBMongo.Name())
 
 	tenants := map[string]*compositionTenant{
 		tenantA.tenantID: tenantA,
@@ -123,7 +126,7 @@ func TestIntegration_CompositionConcurrentTenantIsolation(t *testing.T) {
 	// Mongo manager (module=crm-api) each resolve their own slice of the same
 	// per-tenant config blob. Resolution is keyed by module, not service, so one
 	// blob serves both managers.
-	tmServer := newFakeTenantManagerCrossStore(t, pgContainer, mongoContainer, tenants)
+	tmServer := newFakeTenantManagerCrossStore(t, tenantAPG, mongoContainer, tenants)
 	defer tmServer.Close()
 
 	tenantClient, err := tmclient.NewClient(tmServer.URL, logger,
@@ -218,7 +221,7 @@ func TestIntegration_CompositionConcurrentTenantIsolation(t *testing.T) {
 			compositionTenantMiddleware.WithTenantDB,
 		},
 	}
-	mountCompositionHuma(app, auth, compositionHandler, routeOptions)
+	mountCompositionRoutes(app, auth, compositionHandler, routeOptions)
 
 	// Concurrent composition POSTs, one per tenant, each with an instrument.
 	var g errgroup.Group
@@ -276,22 +279,11 @@ func TestIntegration_CompositionConcurrentTenantIsolation(t *testing.T) {
 // (migrated, with org + ledger + asset seeded) and a fresh CRM-Mongo database
 // (with a holder seeded via the real CRM use case, so the instrument-create
 // holder gate passes). It returns the scaffolding the gate asserts against.
-func newCompositionTenant(t *testing.T, pgContainer *postgrestestutil.ContainerResult, mongoContainer *mongotestutil.ContainerResult, tenantID, pgDBName, mongoDBName string) *compositionTenant {
+func newCompositionTenant(t *testing.T, pgContainer *postgrestestutil.ContainerResult, mongoContainer *mongotestutil.ContainerResult, tenantID, mongoDBName string) *compositionTenant {
 	t.Helper()
 
-	// --- onboarding PG: create + migrate the tenant database, seed fixtures ---
-	_, err := pgContainer.DB.Exec("CREATE DATABASE " + pgDBName)
-	require.NoErrorf(t, err, "failed to create onboarding PG database %s", pgDBName)
-
-	tenantDSN := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		pgContainer.Host, pgContainer.Port, pgContainer.Config.DBUser, pgContainer.Config.DBPassword, pgDBName)
-
-	tenantPGDB, err := sql.Open("pgx", tenantDSN)
-	require.NoError(t, err, "failed to open tenant onboarding PG connection")
-	t.Cleanup(func() { _ = tenantPGDB.Close() })
-	require.NoError(t, tenantPGDB.Ping(), "failed to ping tenant onboarding PG")
-
-	postgrestestutil.ApplyOnboardingSchema(t, tenantPGDB)
+	// --- onboarding PG: seed the isolated database cloned from the migrated template ---
+	tenantPGDB := pgContainer.DB
 
 	orgID := postgrestestutil.CreateTestOrganization(t, tenantPGDB)
 	ledgerID := postgrestestutil.CreateTestLedger(t, tenantPGDB, orgID)
@@ -327,7 +319,7 @@ func newCompositionTenant(t *testing.T, pgContainer *postgrestestutil.ContainerR
 
 	return &compositionTenant{
 		tenantID:    tenantID,
-		pgDBName:    pgDBName,
+		pgDBName:    pgContainer.Config.DBName,
 		pgDB:        tenantPGDB,
 		orgID:       orgID,
 		ledgerID:    ledgerID,

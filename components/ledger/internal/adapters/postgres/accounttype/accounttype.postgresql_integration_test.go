@@ -34,11 +34,9 @@ var fixedIntegrationTime = time.Date(2026, 1, 2, 3, 4, 5, 654321*1000, time.UTC)
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *AccountTypePostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	return NewAccountTypePostgreSQLRepository(conn)
 }
@@ -49,7 +47,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Acco
 
 func TestIntegration_AccountTypeRepository_FindByID_ReturnsAccountType(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -81,7 +79,7 @@ func TestIntegration_AccountTypeRepository_FindByID_ReturnsAccountType(t *testin
 }
 
 func TestIntegration_AccountTypeRepository_FindByID_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -101,7 +99,7 @@ func TestIntegration_AccountTypeRepository_FindByID_ReturnsErrNotFound(t *testin
 }
 
 func TestIntegration_AccountTypeRepository_FindByID_IgnoresDeletedAccountType(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -133,7 +131,7 @@ func TestIntegration_AccountTypeRepository_FindByID_IgnoresDeletedAccountType(t 
 // ============================================================================
 
 func TestIntegration_AccountTypeRepository_FindByKey_ReturnsAccountType(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -160,7 +158,7 @@ func TestIntegration_AccountTypeRepository_FindByKey_ReturnsAccountType(t *testi
 }
 
 func TestIntegration_AccountTypeRepository_FindByKey_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -179,7 +177,7 @@ func TestIntegration_AccountTypeRepository_FindByKey_ReturnsErrNotFound(t *testi
 }
 
 func TestIntegration_AccountTypeRepository_FindByKey_CaseInsensitive(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -209,7 +207,7 @@ func TestIntegration_AccountTypeRepository_FindByKey_CaseInsensitive(t *testing.
 // ============================================================================
 
 func TestIntegration_AccountTypeRepository_Create(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -246,7 +244,7 @@ func TestIntegration_AccountTypeRepository_Create(t *testing.T) {
 }
 
 func TestIntegration_AccountTypeRepository_Create_DuplicateKeyValueFails(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -286,7 +284,7 @@ func TestIntegration_AccountTypeRepository_Create_DuplicateKeyValueFails(t *test
 }
 
 func TestIntegration_AccountTypeRepository_Create_RoundTripsDefaultDirection(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -321,7 +319,7 @@ func TestIntegration_AccountTypeRepository_Create_RoundTripsDefaultDirection(t *
 }
 
 func TestIntegration_AccountTypeRepository_Create_DefaultsDirectionToCredit(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -362,7 +360,7 @@ func TestIntegration_AccountTypeRepository_Create_DefaultsDirectionToCredit(t *t
 // repository guards — which coerce or validate the direction upstream — by inserting an
 // invalid value with a raw SQL exec, then asserts the CHECK-violation SQLSTATE (23514).
 func TestIntegration_AccountTypeRepository_Create_RejectsOutOfDomainDirection(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	// createRepository runs the onboarding migrations, so the CHECK is in place.
 	createRepository(t, container)
@@ -401,7 +399,7 @@ func TestIntegration_AccountTypeRepository_Create_RejectsOutOfDomainDirection(t 
 // ============================================================================
 
 func TestIntegration_AccountTypeRepository_Update_ChangesNameAndDescription(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -445,7 +443,7 @@ func TestIntegration_AccountTypeRepository_Update_ChangesNameAndDescription(t *t
 }
 
 func TestIntegration_AccountTypeRepository_Update_ChangesDefaultDirectionOnlyWhenSet(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -485,7 +483,7 @@ func TestIntegration_AccountTypeRepository_Update_ChangesDefaultDirectionOnlyWhe
 }
 
 func TestIntegration_AccountTypeRepository_Update_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -512,7 +510,7 @@ func TestIntegration_AccountTypeRepository_Update_ReturnsErrNotFound(t *testing.
 // ============================================================================
 
 func TestIntegration_AccountTypeRepository_FindAll_ReturnsAccountTypes(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -545,7 +543,7 @@ func TestIntegration_AccountTypeRepository_FindAll_ReturnsAccountTypes(t *testin
 }
 
 func TestIntegration_AccountTypeRepository_FindAll_EmptyForNonExistentLedger(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -563,7 +561,7 @@ func TestIntegration_AccountTypeRepository_FindAll_EmptyForNonExistentLedger(t *
 }
 
 func TestIntegration_AccountTypeRepository_FindAll_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -610,7 +608,7 @@ func TestIntegration_AccountTypeRepository_FindAll_Pagination(t *testing.T) {
 }
 
 func TestIntegration_AccountTypeRepository_FindAll_FiltersByDateRange(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -655,7 +653,7 @@ func TestIntegration_AccountTypeRepository_FindAll_FiltersByDateRange(t *testing
 // ============================================================================
 
 func TestIntegration_AccountTypeRepository_ListByIDs_ReturnsMatchingAccountTypes(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -701,7 +699,7 @@ func TestIntegration_AccountTypeRepository_ListByIDs_ReturnsMatchingAccountTypes
 }
 
 func TestIntegration_AccountTypeRepository_ListByIDs_EmptyForNonExistentIDs(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -720,7 +718,7 @@ func TestIntegration_AccountTypeRepository_ListByIDs_EmptyForNonExistentIDs(t *t
 }
 
 func TestIntegration_AccountTypeRepository_ListByIDs_IgnoresDeletedAccountTypes(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -761,7 +759,7 @@ func TestIntegration_AccountTypeRepository_ListByIDs_IgnoresDeletedAccountTypes(
 // ============================================================================
 
 func TestIntegration_AccountTypeRepository_Delete_SoftDeletesAccountType(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -796,7 +794,7 @@ func TestIntegration_AccountTypeRepository_Delete_SoftDeletesAccountType(t *test
 }
 
 func TestIntegration_AccountTypeRepository_Delete_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -815,7 +813,7 @@ func TestIntegration_AccountTypeRepository_Delete_ReturnsErrNotFound(t *testing.
 }
 
 func TestIntegration_AccountTypeRepository_Delete_AllowsReusingSameKeyValue(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 

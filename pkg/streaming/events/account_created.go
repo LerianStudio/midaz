@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
@@ -21,7 +21,7 @@ import (
 // compensating-delete window) and the CreateOnboardingMetadata call
 // (pre-metadata-write, so a Mongo metadata failure cannot block the
 // event). IMPORTANT posture: emit failures MUST NOT fail the request;
-// durability is owned by PG + (follow-up task) the outbox subsystem.
+// durability is owned by the persisted database mutation.
 var AccountCreatedDefinition = Definition{
 	ResourceType:  "account",
 	EventType:     "created",
