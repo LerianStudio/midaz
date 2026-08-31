@@ -199,10 +199,10 @@ func operationDescriptionKey(alias, opType string) string {
 // the v1↔v2 parity envelope, every field on it feeds sortOperationRows' total order and
 // assertOperationSetsEqual's comparison, and a description is not one of the economic
 // quantities those assertions are about.
-func fetchOperationDescriptions(t *testing.T, db *sql.DB, txID uuid.UUID) map[string]string {
+func fetchOperationDescriptions(ctx context.Context, t *testing.T, db *sql.DB, txID uuid.UUID) map[string]string {
 	t.Helper()
 
-	rows, err := db.Query(`
+	rows, err := db.QueryContext(ctx, `
 		SELECT account_alias, type, description
 		FROM operation
 		WHERE transaction_id = $1
@@ -3017,7 +3017,7 @@ func TestIntegration_TransactionV2Direct_PerLegOperationDescriptions(t *testing.
 	assert.Equal(t, "v2 transaction-level note", resp["description"],
 		"the transaction keeps its own description; the legs describe their operations")
 
-	got := fetchOperationDescriptions(t, infra.pgContainer.DB, txID)
+	got := fetchOperationDescriptions(t.Context(), t, infra.pgContainer.DB, txID)
 
 	assert.Equal(t, map[string]string{
 		operationDescriptionKey("@srcA", cn.DEBIT):  "srcA leg note",
@@ -3054,7 +3054,7 @@ func TestIntegration_TransactionV2Direct_LegsWithoutDescriptionInheritTheTransac
 	txID := uuid.MustParse(resp["id"].(string))
 	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID))
 
-	got := fetchOperationDescriptions(t, infra.pgContainer.DB, txID)
+	got := fetchOperationDescriptions(t.Context(), t, infra.pgContainer.DB, txID)
 
 	assert.Equal(t, map[string]string{
 		operationDescriptionKey("@srcA", cn.DEBIT):  "v2 advanced multi-leg",
@@ -3091,7 +3091,7 @@ func TestIntegration_TransactionV2Hold_PerLegOperationDescriptions(t *testing.T)
 	assert.Equal(t, cn.PENDING, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
 		"the hold action opens the transaction as PENDING")
 
-	got := fetchOperationDescriptions(t, infra.pgContainer.DB, txID)
+	got := fetchOperationDescriptions(t.Context(), t, infra.pgContainer.DB, txID)
 
 	assert.Equal(t, "srcA leg note", got[operationDescriptionKey("@srcA", cn.ONHOLD)],
 		"the @srcA reservation must carry the @srcA leg's own description")
