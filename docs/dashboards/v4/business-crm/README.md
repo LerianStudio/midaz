@@ -9,6 +9,7 @@
 - Are transactions and accounts actually being created?
 - Which domain operations run, and which fail?
 - Is the bulk recorder losing writes?
+- Is the balance sync pipeline persisting, stalling, or dropping deltas?
 - Are reads being served by the replica or the primary?
 - Is CRM field encryption running, in which mode, and is it failing?
 
@@ -25,6 +26,17 @@ dictionary's `calls_total` entry.
 
 **Mode resolution** — `legacy` versus `envelope` CRM encryption, selected by `KMS_VENDOR`.
 Under migration to envelope mode, "Legacy-format reads" should trend to zero.
+
+**Sync staleness** — age of the last balance batch sync that ran to completion, from
+`balance_sync_last_success_timestamp_seconds`. This is the panel that catches a silent
+stall, where nothing fails because nothing runs — the failure counters are blind to it.
+The gauge only exists for a scope that has completed a batch since the pod booted, so "No
+data" is expected right after boot and on builds that predate the metric.
+
+**Deltas lost (expired)** — `balance_sync_orphan_dropped_total{reason="expired"}`. Like the
+insertion gap, this is a correctness check, not an activity chart: each expired orphan is a
+pending balance delta whose Redis value expired before the flush and is unrecoverable. Red
+at 1.
 
 ## Reading it correctly
 
@@ -48,3 +60,8 @@ them again.
 
 The insertion-gap panel is the first candidate for an alert once this dashboard is
 promoted to production, since a nonzero value is unambiguous data loss.
+
+Recommended alert rules for the balance sync panels exist, but live with the operational
+runbooks rather than in this repository — runbooks carry deployment-specific thresholds
+and response procedures that are not versioned with the service. The panel thresholds here
+are starting points, not agreed SLOs.

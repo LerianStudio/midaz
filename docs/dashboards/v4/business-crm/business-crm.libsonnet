@@ -186,12 +186,99 @@ d.dashboard(
       { unit: 'ms', decimals: 1, description: 'p95 time to write one batch.' }
     ),
 
-    d.row('Data Access', 41),
+    d.row('Balance Sync', 41),
+
+    d.stat(
+      'Sync staleness',
+      'time() - max(balance_sync_last_success_timestamp_seconds{%s})' % app,
+      pos(0, 42, 6, 4),
+      {
+        unit: 's',
+        decimals: 0,
+        description: 'Age of the last batch sync that ran to completion, from the heartbeat gauge the worker stamps per scope. A failure counter cannot see a silent stall — nothing fails because nothing runs — which is exactly what this panel exists to show. "No data" is expected until the first completed batch since pod boot, and on builds that predate the gauge. Thresholds are starting points, not SLOs: pair with backlog before treating staleness as an incident — an idle environment with nothing scheduled is legitimately stale.',
+        steps: [
+          { color: 'green', value: null },
+          { color: 'orange', value: 900 },
+          { color: 'red', value: 3600 },
+        ],
+      }
+    ),
+
+    d.stat(
+      'Deltas lost (expired)',
+      'round(sum(increase(balance_sync_orphan_dropped_total{%s, reason="expired"}[$__range])))' % app,
+      pos(6, 42, 6, 4),
+      {
+        decimals: 0,
+        description: 'Scheduled sync keys whose Redis value expired before the flush. Each one is a pending balance delta that was never persisted and is unrecoverable — this is data loss, not noise. reason="unparseable" (a key-format regression) is charted on the panel below but excluded here so this stat stays a pure loss signal.',
+        steps: [
+          { color: 'green', value: null },
+          { color: 'red', value: 1 },
+        ],
+      }
+    ),
+
+    d.stat(
+      'Batch failures',
+      'round(%s)' % rangeTotal('balance_sync_batch_failures_total'),
+      pos(12, 42, 6, 4),
+      {
+        decimals: 0,
+        description: 'Batch sync failures over the selected period. Each failure is a batch of balances not persisted to PostgreSQL: reads served from PostgreSQL fall behind until a later batch succeeds. The counter only materialises after its first increment, so blank means "never failed since boot", not "not deployed".',
+        steps: [
+          { color: 'green', value: null },
+          { color: 'red', value: 1 },
+        ],
+      }
+    ),
+
+    d.stat(
+      'Tenant skips',
+      'round(%s)' % rangeTotal('balance_sync_tenant_skip_total'),
+      pos(18, 42, 6, 4),
+      {
+        decimals: 0,
+        description: 'Tenants the multi-tenant worker skipped because their database connection could not be resolved. A tenant counted here is not syncing at all. Always zero (or absent) in single-tenant deployments.',
+        steps: [
+          { color: 'green', value: null },
+          { color: 'red', value: 1 },
+        ],
+      }
+    ),
+
+    d.timeSeries(
+      'Synced vs dropped',
+      [
+        d.promTarget(windowed('balance_synced_total'), 'synced', 'A'),
+        d.promTarget(windowedBy('reason', 'balance_sync_orphan_dropped_total'), 'dropped ({{reason}})', 'B'),
+      ],
+      pos(0, 46, 12, 8),
+      {
+        fill: 0,
+        description: 'Balances persisted versus scheduled keys dropped without persisting. dropped(expired) is lost data; dropped(unparseable) is a key-format regression. Both should sit at zero while the synced line follows write volume.',
+      }
+    ),
+
+    d.timeSeries(
+      'Failure counters',
+      [
+        d.promTarget(windowed('balance_sync_batch_failures_total'), 'batch failures', 'A'),
+        d.promTarget(windowed('balance_sync_cleanup_failures_total'), 'cleanup failures', 'B'),
+        d.promTarget(windowed('balance_sync_tenant_skip_total'), 'tenant skips', 'C'),
+      ],
+      pos(12, 46, 12, 8),
+      {
+        fill: 0,
+        description: 'Cleanup failures mean keys the flush had finished with were not removed from the schedule, so the next cycle reprocesses them — wasteful, not incorrect, and NOT proof the balances were persisted: the all-orphans path also cleans up without writing. Read alongside "Synced vs dropped" to tell the two apart.',
+      }
+    ),
+
+    d.row('Data Access', 54),
 
     d.timeSeries(
       'Reads by source',
       [d.promTarget(windowedBy('source', 'db_read_source_total'), '{{source}}')],
-      pos(0, 42, 12, 8),
+      pos(0, 55, 12, 8),
       {
         stack: true,
         description: 'Read origin, primary versus replica. A drop in replica reads pushes load onto the primary.',
@@ -201,19 +288,19 @@ d.dashboard(
     d.timeSeries(
       'Redis backup queue depth',
       [d.promTarget('redis_backup_queue_depth_ratio{%s}' % app, '{{k8s_pod_name}}')],
-      pos(12, 42, 12, 8),
+      pos(12, 55, 12, 8),
       {
         fill: 4,
         description: 'Despite the _ratio suffix inherited from WithUnit("1"), this value is an absolute count of queued items. Sustained growth means a stalled consumer.',
       }
     ),
 
-    d.row('CRM Protection / KMS', 50),
+    d.row('CRM Protection / KMS', 63),
 
     d.timeSeries(
       'Protection status',
       [d.promTarget(ratedBy('status', 'crm_protection_status_total'), '{{status}}')],
-      pos(0, 51, 12, 8),
+      pos(0, 64, 12, 8),
       {
         unit: 'reqps',
         stack: true,
@@ -224,7 +311,7 @@ d.dashboard(
     d.timeSeries(
       'Mode resolution',
       [d.promTarget(ratedBy('mode', 'crm_protection_mode_resolution_total'), '{{mode}}')],
-      pos(12, 51, 12, 8),
+      pos(12, 64, 12, 8),
       {
         unit: 'reqps',
         stack: true,
@@ -235,7 +322,7 @@ d.dashboard(
     d.timeSeries(
       'Encrypt / decrypt operations',
       [d.promTarget(ratedBy('outcome', 'crm_protection_encrypt_decrypt_total'), '{{outcome}}')],
-      pos(0, 59, 12, 8),
+      pos(0, 72, 12, 8),
       {
         unit: 'reqps',
         stack: true,
@@ -246,7 +333,7 @@ d.dashboard(
     d.timeSeries(
       'Legacy-format reads',
       [d.promTarget('sum(rate(crm_protection_legacy_read_total{%s}[$__rate_interval]))' % app, 'legacy reads')],
-      pos(12, 59, 12, 8),
+      pos(12, 72, 12, 8),
       {
         unit: 'reqps',
         description: 'Reads still served from the legacy format by the unified ledger binary. Under migration to envelope mode this line should trend to zero.',
