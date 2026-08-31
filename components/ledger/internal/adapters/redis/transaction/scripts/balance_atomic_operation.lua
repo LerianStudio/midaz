@@ -498,8 +498,19 @@ local function main()
         -- concurrent transaction already reduced OverdraftUsed), the whole
         -- batch rolls back with 0174 so the caller re-reads state and
         -- retries with a consistent split.
+        --
+        -- A destination CREDIT on a PENDING create is excluded: that leg is
+        -- DEFERRED to the commit, so the ladder above leaves `result` at the
+        -- untouched Available. Repaying here would subtract from a balance
+        -- that never received the credit, pushing `result` negative so the
+        -- floor block below re-accrues the deficit on top of the outstanding
+        -- OverdraftUsed. The repayment belongs to the APPROVED transition,
+        -- where the credit actually posts.
+        local isDeferredPendingLeg = isPending == 1 and transactionStatus == "PENDING"
+
         if operation == "CREDIT" and not isDebitDirection and
             balance.AccountType ~= "external" and
+            not isDeferredPendingLeg and
             isPositive(balance.OverdraftUsed) then
             local sameBatchCancelCredit = operation == "CREDIT" and transactionStatus == "CANCELED" and
                 routeValidationEnabled == 1 and tonumber(balance.Version) == (tonumber(incomingVersion) + 1)

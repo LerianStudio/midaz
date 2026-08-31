@@ -292,6 +292,56 @@ func TestEnrichOverdraftOperations_PendingRouteValidationOnHoldDoesNotDoubleSpli
 	require.Len(t, companionFromTos, 1, "route-validation ON_HOLD leg must not create a duplicate companion")
 }
 
+// TestEnrichOverdraftOperations_PendingDestinationCreditIsNotRefunded locks the
+// deferred-leg rule: a destination CREDIT carrying TransactionType=PENDING is
+// the leg a pending create defers to the commit. It posts nothing now, so
+// mirroring a repayment onto the companion would settle a liability the atomic
+// script leaves untouched — and the same amount would be repaid again when the
+// commit posts the credit for real.
+func TestEnrichOverdraftOperations_PendingDestinationCreditIsNotRefunded(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	destination := overdraftEnabledBalance(t, "@bob", decimal.Zero, "100")
+	destination.OverdraftUsed = decimal.NewFromInt(50)
+
+	primary := mmodel.BalanceOperation{
+		Balance: destination,
+		Alias:   "0#@bob#default",
+		Amount: mtransaction.Amount{
+			Asset:           "BRL",
+			Value:           decimal.NewFromInt(60),
+			Operation:       libConstants.CREDIT,
+			TransactionType: constant.PENDING,
+			Direction:       constant.DirectionCredit,
+		},
+		InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@bob#default"),
+	}
+
+	loaderCalled := false
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		loaderCalled = true
+
+		return []*mmodel.Balance{companionOverdraftBalance("@bob")}, nil
+	}
+
+	validate := &mtransaction.Responses{
+		To:           map[string]mtransaction.Amount{"0#@bob#default": primary.Amount},
+		Destinations: []string{"@bob#default"},
+		Aliases:      []string{"@bob#default"},
+	}
+
+	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{primary}, validate, loader)
+	require.NoError(t, err)
+
+	assert.False(t, loaderCalled, "a deferred credit must not even trigger a companion lookup")
+	require.Len(t, enriched, 1, "no repayment companion may be appended for a deferred credit")
+	assert.Empty(t, companionFromTos)
+	assert.NotContains(t, validate.Destinations, "@bob#"+constant.OverdraftBalanceKey)
+}
+
 // TestEnrichOverdraftOperations_NoSplitForNonOverflow guards the common path:
 // when the debit fits within the available balance, no enrichment happens and
 // the loader is not called.

@@ -510,7 +510,7 @@ func collectOverdraftRefundSplits(balanceOps []mmodel.BalanceOperation) []overdr
 			continue
 		}
 
-		if op.Amount.Operation != libConstants.CREDIT || isCancelOverdraftOverride(op.Amount) {
+		if !isOverdraftRefundSplitCandidate(op.Amount) {
 			continue
 		}
 
@@ -532,6 +532,21 @@ func collectOverdraftRefundSplits(balanceOps []mmodel.BalanceOperation) []overdr
 	}
 
 	return refunds
+}
+
+// isOverdraftRefundSplitCandidate reports whether an operation is a credit that
+// actually posts to Available and may therefore repay outstanding overdraft.
+//
+// A CREDIT carrying TransactionType=PENDING is the deferred destination leg of a
+// pending create: it moves no funds until the commit, so mirroring a repayment
+// onto the companion would settle a liability the atomic script left untouched.
+// The cancel override is excluded because collectOverdraftCancelSplits owns it.
+func isOverdraftRefundSplitCandidate(amount mtransaction.Amount) bool {
+	if amount.Operation != libConstants.CREDIT || amount.TransactionType == constant.PENDING {
+		return false
+	}
+
+	return !isCancelOverdraftOverride(amount)
 }
 
 type overdraftCancel struct {
