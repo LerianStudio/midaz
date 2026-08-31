@@ -372,7 +372,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 	// Route ONLY the pre-write balance reads to the primary via a dedicated ctx:
 	// their result seeds the authoritative balance via the NX-seed, so a stale
 	// replica read here corrupts money. The mark lives on readCtx, scoped to the
-	// direct balance read and the cancel overdraft-enrichment read; the unmarked
+	// direct balance read and the overdraft-enrichment read; the unmarked
 	// ctx flows to everything else (validation, Redis seed, balance processing,
 	// write) so those keep their default routing. The flag governs the effect; the
 	// mark is unconditional.
@@ -391,13 +391,21 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 	balanceOps := buildBalanceOperations(ctx, organizationID, ledgerID, validate, balances)
 	balanceOps = annotateCanceledOverdraftAmounts(balanceOps, tran)
 
+	// Both transitions move funds on the overdrafted balance, so both need the
+	// companion mirrored: a cancel restores the held capacity, and a commit posts
+	// the destination credit that repays outstanding overdraft. Enriching here is
+	// what puts the companion leg in front of ValidateAccountingRules (so the
+	// route's overdraft rubric is enforced), into the atomic batch (so the
+	// companion balance moves in lock-step with the primary's repayment) and into
+	// BuildOperations (so the overdraft leg is persisted).
 	var companionFromTos []mtransaction.FromTo
-	if transactionStatus == constant.CANCELED {
+
+	if transactionStatus == constant.APPROVED || transactionStatus == constant.CANCELED {
 		balanceOps, companionFromTos, err = enrichOverdraftOperations(readCtx, organizationID, ledgerID, balanceOps,
 			validate, handler.Query.GetBalances)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to enrich canceled overdraft operations", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to enrich canceled overdraft operations", libLog.Err(err))
+			libOpentelemetry.HandleSpanError(span, "Failed to enrich overdraft operations", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to enrich overdraft operations", libLog.Err(err))
 
 			deleteLockOnError()
 
