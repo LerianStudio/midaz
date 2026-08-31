@@ -23,6 +23,7 @@ import (
 	"github.com/LerianStudio/lib-observability/v2/metrics"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -196,6 +197,38 @@ func (w *BalanceSyncWorker) emitTenantSkip(ctx context.Context, tenantID string)
 
 	if addErr := counter.WithLabels(map[string]string{"tenant_id": tenantID}).AddOne(ctx); addErr != nil {
 		w.logger.Log(ctx, libLog.LevelDebug, "Failed to emit tenant skip counter", libLog.Err(addErr))
+	}
+}
+
+// recordSyncSuccess stamps the last-successful-sync gauge for the scope. A failure
+// counter cannot see a stall in which nothing fails because nothing runs, so this is
+// what a staleness alert reads via `time() - metric`.
+// Best-effort: a metric failure never affects the worker.
+func (w *BalanceSyncWorker) recordSyncSuccess(
+	ctx context.Context,
+	metricFactory *metrics.MetricsFactory,
+	organizationID, ledgerID uuid.UUID,
+	tenantID string,
+) {
+	if metricFactory == nil {
+		return
+	}
+
+	gauge, err := metricFactory.Gauge(utils.BalanceSyncLastSuccessTimestamp)
+	if err != nil {
+		w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create last-success gauge",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
+
+		return
+	}
+
+	if setErr := gauge.WithLabels(map[string]string{
+		"organization_id": organizationID.String(),
+		"ledger_id":       ledgerID.String(),
+		"tenant_id":       tenantID,
+	}).Set(ctx, time.Now().Unix()); setErr != nil {
+		w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit last-success gauge",
+			libLog.String("tenant_id", tenantID), libLog.Err(setErr))
 	}
 }
 
@@ -673,18 +706,26 @@ func (w *BalanceSyncWorker) groupKeysByOrgLedger(ctx context.Context, keys []red
 
 	grouped := make(map[groupKey][]redisTransaction.SyncKey, 1) // typically 1 group in single-tenant
 
+	// Empty in single-tenant. This function maps in memory and opens no span, so the
+	// tenant has to ride the log line itself.
+	tenantID := tmcore.GetTenantIDContext(ctx)
+
 	for _, key := range keys {
 		orgID, ledgerID, err := w.extractIDsFromMember(key.Key)
 		if err != nil {
 			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to extract IDs from key, removing from schedule",
-				libLog.String("key", key.Key), libLog.Err(err))
+				libLog.String("key", key.Key),
+				libLog.String("tenant_id", tenantID),
+				libLog.Err(err))
 
 			// Clean up the claimed entry to prevent it from becoming a poison record.
 			// Uses the batch variant with a single element so the conditional ZREM
 			// and lock cleanup run through the same Lua script path.
 			if _, remErr := w.useCase.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(ctx, []redisTransaction.SyncKey{key}); remErr != nil {
 				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to remove unparseable key",
-					libLog.String("key", key.Key), libLog.Err(remErr))
+					libLog.String("key", key.Key),
+					libLog.String("tenant_id", tenantID),
+					libLog.Err(remErr))
 			}
 
 			continue
@@ -728,10 +769,14 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 	// existing single-tenant series keep their identity.
 	tenantID := tmcore.GetTenantIDContext(ctx)
 
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.tenant_id", tenantID),
+	)
+
 	result, err := w.useCase.SyncBalancesBatch(ctx, organizationID, ledgerID, keys)
 	if err != nil {
-		// The worker's span carries no scope IDs, so a stuck tenant is not
-		// locatable from the log line without them.
 		w.logger.Log(ctx, libLog.LevelError, "BalanceSyncWorker: batch sync failed",
 			libLog.String("tenant_id", tenantID),
 			libLog.String("organization_id", organizationID.String()),
@@ -741,31 +786,40 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 		// Emit failure metric for monitoring
 		counter, counterErr := metricFactory.Counter(utils.BalanceSyncBatchFailures)
 		if counterErr != nil {
-			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create failure counter", libLog.Err(counterErr))
+			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create failure counter",
+				libLog.String("tenant_id", tenantID), libLog.Err(counterErr))
 		} else {
 			if metricErr := counter.WithLabels(map[string]string{
 				"organization_id": organizationID.String(),
 				"ledger_id":       ledgerID.String(),
 				"tenant_id":       tenantID,
 			}).AddOne(ctx); metricErr != nil {
-				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit failure counter", libLog.Err(metricErr))
+				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit failure counter",
+					libLog.String("tenant_id", tenantID), libLog.Err(metricErr))
 			}
 		}
 
 		return false
 	}
 
+	// A batch that ran to completion is a sign of life even when it synced nothing,
+	// so the timestamp is recorded before the synced-count branch.
+	w.recordSyncSuccess(ctx, metricFactory, organizationID, ledgerID, tenantID)
+
 	if result.BalancesSynced > 0 {
 		counter, counterErr := metricFactory.Counter(utils.BalanceSynced)
 		if counterErr != nil {
-			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create synced counter", libLog.Err(counterErr))
+			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create synced counter",
+				libLog.String("tenant_id", tenantID), libLog.Err(counterErr))
 		} else {
 			if metricErr := counter.WithLabels(map[string]string{
 				"organization_id": organizationID.String(),
 				"ledger_id":       ledgerID.String(),
+				"tenant_id":       tenantID,
 				"mode":            "batch",
 			}).Add(ctx, result.BalancesSynced); metricErr != nil {
-				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit synced counter", libLog.Err(metricErr))
+				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit synced counter",
+					libLog.String("tenant_id", tenantID), libLog.Err(metricErr))
 			}
 		}
 	}

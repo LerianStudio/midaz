@@ -49,6 +49,11 @@ instrument type and unit:
 | `readyz_check_duration_ms` | `ms` | Histogram | `readyz_check_duration_ms_milliseconds` |
 | `bulk_recorder_bulk_duration_ms` | `ms` | Histogram | `bulk_recorder_bulk_duration_ms_milliseconds` |
 | `redis_backup_queue_depth` | `1` | Gauge | `redis_backup_queue_depth_ratio` |
+| `balance_sync_batch_failures_total` | `1` | Counter | `balance_sync_batch_failures_total` |
+| `balance_sync_cleanup_failures_total` | `1` | Counter | `balance_sync_cleanup_failures_total` |
+| `balance_sync_tenant_skip_total` | `1` | Counter | `balance_sync_tenant_skip_total` |
+| `balance_sync_orphan_dropped_total` | `1` | Counter | `balance_sync_orphan_dropped_total` |
+| `balance_sync_last_success_timestamp` | `s` | Gauge | `balance_sync_last_success_timestamp_seconds` |
 
 Two consequences worth internalising:
 
@@ -56,6 +61,10 @@ Two consequences worth internalising:
   `_ms` still receives the unit suffix.
 - `redis_backup_queue_depth_ratio` is **not a ratio.** It is an absolute count of queued
   items; the `_ratio` suffix is an artefact of `Unit: "1"` on a gauge.
+- A name that already ends in `_total` is **not** doubled, which is why the four
+  `balance_sync_*_total` counters reach Mimir unchanged. The unit suffix has no such
+  dedup, so `balance_sync_last_success_timestamp` is declared **without** `_seconds`:
+  spelling it in Go would land the series as `..._seconds_seconds`.
 
 ## Environment and scope selectors
 
@@ -138,16 +147,100 @@ domain layer — see the `calls_total` note on span status below.
 ### balance_synced_total
 
 ```yaml
-declared_at: pkg/utils/metrics.go:85
+declared_at: pkg/utils/metrics.go:87
 declared_name: balance_synced
 description: Number of balances synced by the balance sync worker.
-labels: [organization_id, ledger_id]
+labels: [organization_id, ledger_id, tenant_id, mode]
 label_cardinality_estimate: unbounded
 live_observed: true
 unit: "1"
 ```
 
-Carries UUID labels. Aggregate without them.
+Carries UUID labels. Aggregate without them. `tenant_id` is empty in single-tenant, which
+Prometheus treats as absent, so the pre-existing single-tenant series keep their identity.
+
+### balance_sync_batch_failures_total
+
+```yaml
+declared_at: pkg/utils/metrics.go:95
+declared_name: balance_sync_batch_failures_total
+description: Total batch sync operation failures.
+labels: [organization_id, ledger_id, tenant_id]
+label_cardinality_estimate: unbounded
+live_observed: unknown
+unit: "1"
+```
+
+The primary failure signal for the sync pipeline, but blind to a stall in which nothing fails
+because nothing runs — see `balance_sync_last_success_timestamp_seconds`.
+
+### balance_sync_cleanup_failures_total
+
+```yaml
+declared_at: pkg/utils/metrics.go:105
+declared_name: balance_sync_cleanup_failures_total
+description: Total balance sync schedule cleanup failures.
+labels: [organization_id, ledger_id, tenant_id]
+label_cardinality_estimate: unbounded
+live_observed: unknown
+unit: "1"
+```
+
+Rising here means keys the flush had finished with were not removed from the schedule, so the
+next cycle reprocesses them. Wasteful, not incorrect.
+
+It does **not** imply the balances were persisted. Two paths emit it: after a successful
+database write, and the all-orphans early return, which cleans up expired or unparseable keys
+without writing anything. Read it alongside `balance_sync_orphan_dropped_total` to tell them
+apart.
+
+### balance_sync_tenant_skip_total
+
+```yaml
+declared_at: pkg/utils/metrics.go:113
+declared_name: balance_sync_tenant_skip_total
+description: Total tenants skipped by the balance sync worker due to connection resolution failure.
+labels: [tenant_id]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+Bounded by the tenant set. A tenant appearing here is not syncing at all.
+
+### balance_sync_orphan_dropped_total
+
+```yaml
+declared_at: pkg/utils/metrics.go:141
+declared_name: balance_sync_orphan_dropped_total
+description: Total scheduled balance sync keys dropped without persisting (value expired or unparseable).
+labels: [organization_id, ledger_id, tenant_id, reason]
+label_values_observed:
+  reason: [expired, unparseable]
+label_cardinality_estimate: unbounded
+live_observed: unknown
+unit: "1"
+```
+
+`reason="expired"` is data loss: the pending delta is unrecoverable. `reason="unparseable"` is
+a key-format regression. Alert on them separately — the rules and the response procedure live
+in the runbooks repository, under `midaz/troubleshooting/balance-sync-alerting.md`.
+
+### balance_sync_last_success_timestamp_seconds
+
+```yaml
+declared_at: pkg/utils/metrics.go:131
+declared_name: balance_sync_last_success_timestamp
+description: Unix timestamp of the last successful balance batch sync.
+labels: [organization_id, ledger_id, tenant_id]
+label_cardinality_estimate: unbounded
+live_observed: unknown
+unit: "s"
+```
+
+Absolute unix timestamp, not an age — query with `time() - metric` so no periodic re-emission
+is needed. The series only exists for a scope that has completed a batch since the pod booted,
+so a staleness alert cannot rest on an absent series.
 
 ### db_read_source_total
 
@@ -226,7 +319,7 @@ unit: "1"
 ### bulk_recorder_bulk_size_total
 
 ```yaml
-declared_at: pkg/utils/metrics.go:238
+declared_at: pkg/utils/metrics.go:272
 declared_name: bulk_recorder_bulk_size
 description: Number of messages per bulk processing batch.
 labels: []
@@ -305,7 +398,7 @@ unit: ms
 ### readyz_check_duration_ms_milliseconds
 
 ```yaml
-declared_at: pkg/utils/metrics.go:261
+declared_at: pkg/utils/metrics.go:295
 declared_name: readyz_check_duration_ms
 boundaries_source: default
 description: Duration of individual health check probes. A dependency slowing here precedes timeouts on real requests.
@@ -317,7 +410,7 @@ unit: ms
 ### bulk_recorder_bulk_duration_ms_milliseconds
 
 ```yaml
-declared_at: pkg/utils/metrics.go:245
+declared_at: pkg/utils/metrics.go:279
 declared_name: bulk_recorder_bulk_duration_ms
 boundaries_source: default
 description: Time taken for one bulk processing batch.
@@ -337,7 +430,7 @@ sub-second latencies would truncate to zero in seconds. Reasoning recorded at
 ### redis_backup_queue_depth_ratio
 
 ```yaml
-declared_at: pkg/utils/metrics.go:116
+declared_at: pkg/utils/metrics.go:150
 declared_name: redis_backup_queue_depth
 description: Number of records currently in the Redis transaction backup queue. An absolute count despite the _ratio suffix. Sustained growth means a stalled consumer.
 instrument_type: Int64Gauge (synchronous, MetricsFactory.Gauge().Set)
