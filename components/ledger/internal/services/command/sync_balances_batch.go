@@ -10,6 +10,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -96,6 +97,10 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	// or unparseable. They must be removed from the schedule to prevent poison records.
 	orphanedKeys := make([]redisTransaction.SyncKey, 0)
 
+	// Per-reason tally of the drops, emitted once after the loop so a single
+	// emission point covers every exit path below.
+	var orphanCounts orphanDropCounts
+
 	// Track all Redis keys that map to each composite key so dedup losers
 	// are also removed from the ZSET schedule (not just the winner).
 	compositeToRedisKeys := make(map[string][]string)
@@ -103,10 +108,14 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	for _, key := range plainKeys {
 		balance := balanceMap[key]
 		if balance == nil {
-			// Value expired in Redis (TTL) between ZADD and MGET — mark as orphaned for cleanup.
-			logger.Log(ctx, libLog.LevelDebug, "Balance key has no data (expired), marking as orphaned",
+			// Value expired in Redis (TTL) between ZADD and MGET. The pending delta is
+			// unrecoverable — no PostgreSQL re-read restores it — so the drop is a data
+			// loss event and must be visible, not a Debug line.
+			logger.Log(ctx, libLog.LevelWarn, "Balance key expired before sync, dropping scheduled flush",
 				libLog.String("key", key),
 				libLog.String("tenant_id", tenantID))
+
+			orphanCounts.expired++
 
 			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
 
@@ -120,6 +129,8 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 				libLog.String("key", key),
 				libLog.String("tenant_id", tenantID),
 				libLog.Err(parseErr))
+
+			orphanCounts.unparseable++
 
 			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
 
@@ -153,6 +164,8 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	}
 
 	span.SetAttributes(attribute.Int("app.balance_sync.orphaned_keys", len(orphanedKeys)))
+
+	emitOrphanDropped(ctx, logger, metricFactory, organizationID, ledgerID, tenantID, orphanCounts)
 
 	aggregator := redisBalance.NewInMemorySyncAggregator()
 	deduplicated := aggregator.Aggregate(ctx, aggregatedBalances)
@@ -266,4 +279,60 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	)
 
 	return result, nil
+}
+
+// Reasons a scheduled sync key is dropped without persisting, used as the
+// `reason` label of BalanceSyncOrphanDropped. Bounded at two values.
+const (
+	orphanReasonExpired     = "expired"
+	orphanReasonUnparseable = "unparseable"
+)
+
+// orphanDropCounts tallies, per reason, the scheduled keys a single batch dropped
+// without persisting.
+type orphanDropCounts struct {
+	expired     int
+	unparseable int
+}
+
+// emitOrphanDropped records the dropped scheduled keys, one data point per reason
+// with a non-zero tally. Best-effort: a metric failure is logged and never affects
+// the sync outcome.
+func emitOrphanDropped(
+	ctx context.Context,
+	logger libLog.Logger,
+	metricFactory *metrics.MetricsFactory,
+	organizationID, ledgerID uuid.UUID,
+	tenantID string,
+	counts orphanDropCounts,
+) {
+	tallies := []struct {
+		reason string
+		count  int
+	}{
+		{orphanReasonExpired, counts.expired},
+		{orphanReasonUnparseable, counts.unparseable},
+	}
+
+	for _, tally := range tallies {
+		if tally.count == 0 {
+			continue
+		}
+
+		counter, err := metricFactory.Counter(utils.BalanceSyncOrphanDropped)
+		if err != nil {
+			logger.Log(ctx, libLog.LevelWarn, "Failed to create orphan drop counter", libLog.Err(err))
+
+			return
+		}
+
+		if metricErr := counter.WithLabels(map[string]string{
+			"organization_id": organizationID.String(),
+			"ledger_id":       ledgerID.String(),
+			"tenant_id":       tenantID,
+			"reason":          tally.reason,
+		}).Add(ctx, int64(tally.count)); metricErr != nil {
+			logger.Log(ctx, libLog.LevelWarn, "Failed to emit orphan drop counter", libLog.Err(metricErr))
+		}
+	}
 }

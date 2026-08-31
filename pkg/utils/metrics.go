@@ -111,6 +111,16 @@ var (
 		Description: "Total tenants skipped by the balance sync worker due to connection resolution failure.",
 	}
 
+	// BalanceSyncOrphanDropped counts scheduled sync keys dropped without
+	// persisting: the Redis value expired (or the key was unparseable) before
+	// the flush, so the pending delta was lost. Labels: organization_id,
+	// ledger_id, tenant_id (empty in single-tenant), reason (expired|unparseable).
+	BalanceSyncOrphanDropped = metrics.Metric{
+		Name:        "balance_sync_orphan_dropped_total",
+		Unit:        "1",
+		Description: "Total scheduled balance sync keys dropped without persisting (value expired or unparseable).",
+	}
+
 	// Redis backup-queue (poison record) observability metrics.
 
 	// RedisBackupQueueDepth is the number of records currently in the backup queue.
