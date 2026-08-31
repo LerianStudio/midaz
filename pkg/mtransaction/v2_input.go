@@ -78,11 +78,21 @@ type CreateTransactionV2Input struct {
 
 // V2LegInput is one leg of a transaction side. Exactly ONE value expression per leg:
 // an explicit Amount or a Share of the transaction total. The leg exposes no
-// balance key, chart of accounts, description or metadata.
+// balance key, chart of accounts or metadata.
 type V2LegInput struct {
 	// Alias is the leg's account alias. The obligation is enforced BOTH by this tag and by
 	// an imperative check in Translate; see buildLeg for why the two are complementary.
 	Alias string `json:"alias" validate:"required"`
+
+	// Description is the leg's own operation description, persisted on the operation this leg
+	// produces. A leg that omits it produces an operation carrying the TRANSACTION-level
+	// description instead — the same inheritance rule the v1 surface has always applied, decided
+	// downstream by the operation builders rather than here.
+	//
+	// `max=256` bounds the value at the decode boundary so an oversized string is a clean 400
+	// naming the field rather than a persistence-layer failure; `maxLength` publishes that bound
+	// in the contract so a client reads it instead of discovering it by rejection.
+	Description string `json:"description,omitempty" validate:"max=256" maxLength:"256"`
 
 	// OrganizationID is the organization the leg's account belongs to. The `required` tag
 	// makes an absent value a clean 400 at decode; the `uuid` tag does the same for a
@@ -410,6 +420,7 @@ func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef 
 
 	built := FromTo{
 		AccountAlias: leg.Alias,
+		Description:  leg.Description,
 		RouteID:      cloneStringPtr(route),
 		IsFrom:       isFrom,
 	}
