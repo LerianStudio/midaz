@@ -194,12 +194,16 @@ func TestEnrichOverdraftOperations_SourceDebitSplit(t *testing.T) {
 	assert.True(t, ft.IsFrom, "debit enrichment companion lives on the source side")
 }
 
-func TestEnrichOverdraftOperations_PendingLegacyOnHoldSplit(t *testing.T) {
+// TestEnrichOverdraftOperations_PendingLegacyOnHoldDoesNotDraw locks the product
+// rule on the enrichment side: a HOLD never draws overdraft, so the legacy
+// single-ON_HOLD pending shape produces no draw companion however far the hold
+// exceeds Available. The atomic script rejects such a hold outright, so there is
+// no balance movement to mirror.
+func TestEnrichOverdraftOperations_PendingLegacyOnHoldDoesNotDraw(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
 	source := overdraftEnabledBalance(t, "@alice", decimal.NewFromInt(50), "100")
-	companion := companionOverdraftBalance("@alice")
 
 	primary := mmodel.BalanceOperation{
 		Balance: source,
@@ -215,10 +219,12 @@ func TestEnrichOverdraftOperations_PendingLegacyOnHoldSplit(t *testing.T) {
 		InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@alice#default"),
 	}
 
-	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
-		assert.Equal(t, []string{"@alice#overdraft"}, aliases)
+	loaderCalled := false
 
-		return []*mmodel.Balance{companion}, nil
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		loaderCalled = true
+
+		return []*mmodel.Balance{companionOverdraftBalance("@alice")}, nil
 	}
 
 	validate := &mtransaction.Responses{
@@ -232,27 +238,22 @@ func TestEnrichOverdraftOperations_PendingLegacyOnHoldSplit(t *testing.T) {
 	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
-	require.Len(t, enriched, 2)
 
-	companionOp := enriched[1]
-	assert.Equal(t, libConstants.DEBIT, companionOp.Amount.Operation,
-		"pending legacy hold must still debit the direction=debit companion")
-	assert.Equal(t, constant.DirectionDebit, companionOp.Amount.Direction)
-	assert.True(t, companionOp.Amount.Value.Equal(decimal.NewFromInt(50)))
-	assert.Equal(t, constant.PENDING, companionOp.Amount.TransactionType)
-
-	require.Len(t, companionFromTos, 1)
-	assert.Equal(t, "0#@alice#overdraft", companionFromTos[0].AccountAlias)
-	assert.True(t, companionFromTos[0].IsFrom)
-	assert.Contains(t, validate.Sources, "@alice#overdraft")
+	assert.False(t, loaderCalled, "a hold must not even trigger a companion lookup")
+	require.Len(t, enriched, 1, "a hold must not produce a draw companion")
+	assert.Empty(t, companionFromTos)
+	assert.NotContains(t, validate.Sources, "@alice#"+constant.OverdraftBalanceKey)
 }
 
-func TestEnrichOverdraftOperations_PendingRouteValidationOnHoldDoesNotDoubleSplit(t *testing.T) {
+// TestEnrichOverdraftOperations_PendingRouteValidationDoesNotDraw is the
+// route-validated sibling: the double-entry hold arrives as a DEBIT plus an
+// ON_HOLD, and neither leg may draw. The DEBIT leg is the one that moves
+// Available, so it is the one that used to produce the companion.
+func TestEnrichOverdraftOperations_PendingRouteValidationDoesNotDraw(t *testing.T) {
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
 	source := overdraftEnabledBalance(t, "@alice", decimal.NewFromInt(50), "100")
-	companion := companionOverdraftBalance("@alice")
 
 	debit := mmodel.BalanceOperation{
 		Balance: source,
@@ -270,8 +271,12 @@ func TestEnrichOverdraftOperations_PendingRouteValidationOnHoldDoesNotDoubleSpli
 	onHold.Amount.Operation = constant.ONHOLD
 	onHold.Amount.Direction = constant.DirectionCredit
 
+	loaderCalled := false
+
 	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
-		return []*mmodel.Balance{companion}, nil
+		loaderCalled = true
+
+		return []*mmodel.Balance{companionOverdraftBalance("@alice")}, nil
 	}
 
 	validate := &mtransaction.Responses{
@@ -286,10 +291,224 @@ func TestEnrichOverdraftOperations_PendingRouteValidationOnHoldDoesNotDoubleSpli
 		[]mmodel.BalanceOperation{debit, onHold}, validate, loader)
 	require.NoError(t, err)
 
-	require.Len(t, enriched, 3, "only the generated DEBIT leg may create a companion")
-	assert.Equal(t, libConstants.DEBIT, enriched[2].Amount.Operation)
-	assert.True(t, enriched[2].Amount.Value.Equal(decimal.NewFromInt(50)))
-	require.Len(t, companionFromTos, 1, "route-validation ON_HOLD leg must not create a duplicate companion")
+	assert.False(t, loaderCalled, "neither hold leg may trigger a companion lookup")
+	require.Len(t, enriched, 2, "neither hold leg may produce a draw companion")
+	assert.Empty(t, companionFromTos)
+	assert.NotContains(t, validate.Sources, "@alice#"+constant.OverdraftBalanceKey)
+}
+
+// TestEnrichOverdraftOperations_PendingDestinationCreditIsNotRefunded locks the
+// deferred-leg rule: a destination CREDIT carrying TransactionType=PENDING is
+// the leg a pending create defers to the commit. It posts nothing now, so
+// mirroring a repayment onto the companion would settle a liability the atomic
+// script leaves untouched — and the same amount would be repaid again when the
+// commit posts the credit for real.
+func TestEnrichOverdraftOperations_PendingDestinationCreditIsNotRefunded(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	destination := overdraftEnabledBalance(t, "@bob", decimal.Zero, "100")
+	destination.OverdraftUsed = decimal.NewFromInt(50)
+
+	primary := mmodel.BalanceOperation{
+		Balance: destination,
+		Alias:   "0#@bob#default",
+		Amount: mtransaction.Amount{
+			Asset:           "BRL",
+			Value:           decimal.NewFromInt(60),
+			Operation:       libConstants.CREDIT,
+			TransactionType: constant.PENDING,
+			Direction:       constant.DirectionCredit,
+		},
+		InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@bob#default"),
+	}
+
+	loaderCalled := false
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		loaderCalled = true
+
+		return []*mmodel.Balance{companionOverdraftBalance("@bob")}, nil
+	}
+
+	validate := &mtransaction.Responses{
+		To:           map[string]mtransaction.Amount{"0#@bob#default": primary.Amount},
+		Destinations: []string{"@bob#default"},
+		Aliases:      []string{"@bob#default"},
+	}
+
+	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{primary}, validate, loader)
+	require.NoError(t, err)
+
+	assert.False(t, loaderCalled, "a deferred credit must not even trigger a companion lookup")
+	require.Len(t, enriched, 1, "no repayment companion may be appended for a deferred credit")
+	assert.Empty(t, companionFromTos)
+	assert.NotContains(t, validate.Destinations, "@bob#"+constant.OverdraftBalanceKey)
+}
+
+// TestEnrichOverdraftOperations_CanceledDestinationCreditIsNotRefunded locks the
+// cancel half of the deferred-leg rule. A cancel batch still carries the
+// destination CREDIT, and that leg is as deferred on a cancel as on the create:
+// the destination never received the pending credit, so a cancel must not repay
+// its overdraft. Mirroring one drains the companion while the primary keeps its
+// overdraft, and persists an overdraft operation row claiming a repayment that
+// never happened.
+//
+// The leg is identified by route validation being off, which is what separates
+// it from the source restore — see the route-validated counterpart below.
+func TestEnrichOverdraftOperations_CanceledDestinationCreditIsNotRefunded(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	destination := overdraftEnabledBalance(t, "@bob", decimal.Zero, "100")
+	destination.OverdraftUsed = decimal.NewFromInt(50)
+
+	primary := mmodel.BalanceOperation{
+		Balance: destination,
+		Alias:   "0#@bob#default",
+		Amount: mtransaction.Amount{
+			Asset:           "BRL",
+			Value:           decimal.NewFromInt(60),
+			Operation:       libConstants.CREDIT,
+			TransactionType: constant.CANCELED,
+			Direction:       constant.DirectionCredit,
+			// Destination legs are never marked by PropagateRouteValidation, and
+			// carry no annotated overdraft amount (only source legs are annotated).
+			RouteValidationEnabled: false,
+			OverdraftAmount:        decimal.Zero,
+		},
+		InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@bob#default"),
+	}
+
+	loaderCalled := false
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		loaderCalled = true
+
+		return []*mmodel.Balance{companionOverdraftBalance("@bob")}, nil
+	}
+
+	validate := &mtransaction.Responses{
+		To:           map[string]mtransaction.Amount{"0#@bob#default": primary.Amount},
+		Destinations: []string{"@bob#default"},
+		Aliases:      []string{"@bob#default"},
+	}
+
+	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{primary}, validate, loader)
+	require.NoError(t, err)
+
+	assert.False(t, loaderCalled, "a deferred cancel credit must not even trigger a companion lookup")
+	require.Len(t, enriched, 1, "no repayment companion may be appended for a deferred cancel credit")
+	assert.Empty(t, companionFromTos)
+	assert.NotContains(t, validate.Destinations, "@bob#"+constant.OverdraftBalanceKey)
+}
+
+// TestEnrichOverdraftOperations_CanceledRouteValidatedSourceCreditStillRefunds is
+// the counterpart bound on the rule above: the cancel's SOURCE restore comes
+// through as a route-validated CREDIT, and the atomic script does repay from it
+// when the balance carries overdraft the pending itself did not draw (so no
+// annotated overdraft amount routes it through the cancel-override path). The
+// companion must stay in lock-step with that repayment, so a route-validated
+// CANCELED credit remains a refund candidate. Rejecting every CANCELED credit
+// would desync the companion here.
+func TestEnrichOverdraftOperations_CanceledRouteValidatedSourceCreditStillRefunds(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	source := overdraftEnabledBalance(t, "@alice", decimal.Zero, "100")
+	source.OverdraftUsed = decimal.NewFromInt(50)
+
+	companion := companionOverdraftBalance("@alice")
+	companion.Available = decimal.NewFromInt(50)
+
+	primary := mmodel.BalanceOperation{
+		Balance: source,
+		Alias:   "0#@alice#default",
+		Amount: mtransaction.Amount{
+			Asset:           "BRL",
+			Value:           decimal.NewFromInt(60),
+			Operation:       libConstants.CREDIT,
+			TransactionType: constant.CANCELED,
+			Direction:       constant.DirectionCredit,
+			// PropagateRouteValidation marks every source leg, which is what makes
+			// this the restore rather than the deferred destination leg.
+			RouteValidationEnabled: true,
+			OverdraftAmount:        decimal.Zero,
+		},
+		InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@alice#default"),
+	}
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		return []*mmodel.Balance{companion}, nil
+	}
+
+	validate := &mtransaction.Responses{
+		To:           map[string]mtransaction.Amount{"0#@alice#default": primary.Amount},
+		Destinations: []string{"@alice#default"},
+		Aliases:      []string{"@alice#default"},
+	}
+
+	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{primary}, validate, loader)
+	require.NoError(t, err)
+
+	require.Len(t, enriched, 2, "the route-validated cancel restore must keep its repayment companion")
+	assert.Equal(t, libConstants.CREDIT, enriched[1].Amount.Operation)
+	assert.True(t, enriched[1].Amount.Value.Equal(decimal.NewFromInt(50)),
+		"repayment is capped at the outstanding overdraft; got %s", enriched[1].Amount.Value)
+	assert.Len(t, companionFromTos, 1)
+}
+
+// TestEnrichOverdraftOperations_CommitConsumptionDebitIsNotSplit locks the
+// commit-side guard: a DEBIT carrying TransactionType=APPROVED consumes the
+// OnHold the pending create reserved, so it never touches Available. Available
+// is routinely zero at that point (the funds sit in OnHold), which the deficit
+// detector would otherwise read as a fresh overdraft draw and mirror as a
+// companion debit for capacity nobody used.
+func TestEnrichOverdraftOperations_CommitConsumptionDebitIsNotSplit(t *testing.T) {
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	source := overdraftEnabledBalance(t, "@alice", decimal.Zero, "100")
+	source.OnHold = decimal.NewFromInt(100)
+
+	primary := mmodel.BalanceOperation{
+		Balance: source,
+		Alias:   "0#@alice#default",
+		Amount: mtransaction.Amount{
+			Asset:           "BRL",
+			Value:           decimal.NewFromInt(100),
+			Operation:       libConstants.DEBIT,
+			TransactionType: constant.APPROVED,
+			Direction:       constant.DirectionDebit,
+		},
+		InternalKey: utils.BalanceInternalKey(orgID, ledgerID, "@alice#default"),
+	}
+
+	loaderCalled := false
+
+	loader := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+		loaderCalled = true
+
+		return []*mmodel.Balance{companionOverdraftBalance("@alice")}, nil
+	}
+
+	validate := &mtransaction.Responses{
+		From:    map[string]mtransaction.Amount{"0#@alice#default": primary.Amount},
+		Sources: []string{"@alice#default"},
+		Aliases: []string{"@alice#default"},
+	}
+
+	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+		[]mmodel.BalanceOperation{primary}, validate, loader)
+	require.NoError(t, err)
+
+	assert.False(t, loaderCalled, "a commit consumption debit must not even trigger a companion lookup")
+	require.Len(t, enriched, 1, "no companion debit may be appended for a commit consumption debit")
+	assert.Empty(t, companionFromTos)
+	assert.NotContains(t, validate.Sources, "@alice#"+constant.OverdraftBalanceKey)
 }
 
 // TestEnrichOverdraftOperations_NoSplitForNonOverflow guards the common path:
