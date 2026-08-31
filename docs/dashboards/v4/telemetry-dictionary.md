@@ -234,7 +234,7 @@ declared_name: balance_sync_last_success_timestamp
 description: Unix timestamp of the last successful balance batch sync.
 labels: [organization_id, ledger_id, tenant_id]
 label_cardinality_estimate: unbounded
-live_observed: unknown
+live_observed: true
 unit: "s"
 ```
 
