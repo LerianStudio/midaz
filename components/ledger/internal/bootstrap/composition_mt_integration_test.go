@@ -14,6 +14,7 @@ import (
 	stdhttp "net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -184,6 +185,11 @@ func TestIntegration_CompositionMultiTenantStores(t *testing.T) {
 	t.Run("concurrent_tenants_each_write_all_four_of_their_own_stores", func(t *testing.T) {
 		var g errgroup.Group
 
+		// created is written from the errgroup workers and read after Wait, so the
+		// writes are mutex-guarded: two goroutines assigning into the same map is a
+		// data race regardless of the keys being distinct.
+		var createdMu sync.Mutex
+
 		created := make(map[string]string, len(tenants))
 
 		for _, tn := range []*compositionTenant{tenantA, tenantB} {
@@ -203,7 +209,9 @@ func TestIntegration_CompositionMultiTenantStores(t *testing.T) {
 					return fmt.Errorf("tenant %s: %w", tn.tenantID, err)
 				}
 
+				createdMu.Lock()
 				created[tn.tenantID] = accountID
+				createdMu.Unlock()
 
 				return nil
 			})
