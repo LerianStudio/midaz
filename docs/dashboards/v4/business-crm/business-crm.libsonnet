@@ -190,12 +190,12 @@ d.dashboard(
 
     d.stat(
       'Sync staleness',
-      'time() - max(balance_sync_last_success_timestamp_seconds{%s})' % app,
+      'max(time() - balance_sync_last_success_timestamp_seconds{%s})' % app,
       pos(0, 42, 6, 4),
       {
         unit: 's',
         decimals: 0,
-        description: 'Age of the last batch sync that ran to completion, from the heartbeat gauge the worker stamps per scope. A failure counter cannot see a silent stall — nothing fails because nothing runs — which is exactly what this panel exists to show. "No data" is expected until the first completed batch since pod boot, and on builds that predate the gauge. Thresholds are starting points, not SLOs: pair with backlog before treating staleness as an incident — an idle environment with nothing scheduled is legitimately stale.',
+        description: 'Age of the STALEST scope\'s last completed batch sync, from the heartbeat gauge the worker stamps per scope: age is computed per series before max(), so one stalled scope shows even while others keep syncing. A failure counter cannot see a silent stall — nothing fails because nothing runs — which is exactly what this panel exists to show. "No data" is expected until the first completed batch since pod boot, and on builds that predate the gauge. Thresholds are starting points, not SLOs: pair with backlog before treating staleness as an incident — an idle scope with nothing scheduled is legitimately stale.',
         steps: [
           { color: 'green', value: null },
           { color: 'orange', value: 900 },

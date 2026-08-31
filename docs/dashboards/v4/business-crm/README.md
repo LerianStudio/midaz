@@ -27,9 +27,11 @@ dictionary's `calls_total` entry.
 **Mode resolution** — `legacy` versus `envelope` CRM encryption, selected by `KMS_VENDOR`.
 Under migration to envelope mode, "Legacy-format reads" should trend to zero.
 
-**Sync staleness** — age of the last balance batch sync that ran to completion, from
-`balance_sync_last_success_timestamp_seconds`. This is the panel that catches a silent
-stall, where nothing fails because nothing runs — the failure counters are blind to it.
+**Sync staleness** — age of the stalest scope's last completed batch sync, from
+`balance_sync_last_success_timestamp_seconds` (age computed per series, then max, so one
+stalled scope surfaces even while others keep syncing). This is the panel that catches a
+silent stall, where nothing fails because nothing runs — the failure counters are blind to
+it.
 The gauge only exists for a scope that has completed a batch since the pod booted, so "No
 data" is expected right after boot and on builds that predate the metric.
 
