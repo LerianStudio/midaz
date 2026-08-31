@@ -4622,6 +4622,9 @@ components:
           type: string
         amount:
           type: string
+        description:
+          maxLength: 256
+          type: string
         ledgerId:
           examples:
             - 00000000-0000-0000-0000-000000000000

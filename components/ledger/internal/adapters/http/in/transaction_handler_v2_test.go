@@ -685,6 +685,50 @@ func TestDecodeAndBuildV2Transaction_AdvancedFormAcrossActions(t *testing.T) {
 	}
 }
 
+// v2PerLegDescriptionBody spells a v2 body whose transaction description differs from every
+// leg's, and whose last credit leg names none at all. The three values are distinct so a seam
+// that collapsed them onto one — or onto the transaction's — cannot pass.
+const v2PerLegDescriptionBody = `{"description":"v2 transaction note","asset":"BRL","amount":"100",` +
+	`"debits":[{"alias":"@srcA",` + v2ScopeJSON + `,"amount":"60","description":"srcA leg note"},` +
+	`{"alias":"@srcB",` + v2ScopeJSON + `,"amount":"40","description":"srcB leg note"}],` +
+	`"credits":[{"alias":"@dstA",` + v2ScopeJSON + `,"amount":"70","description":"dstA leg note"},` +
+	`{"alias":"@dstB",` + v2ScopeJSON + `,"amount":"30"}]}`
+
+// TestDecodeAndBuildV2Transaction_CarriesPerLegDescriptions proves a v2 body carrying a
+// `description` on its legs clears the decode boundary — a field the struct does not publish is
+// answered with a 400, so acceptance is worth pinning — and that each leg's own value reaches the
+// transaction the funnel is handed, keyed to the leg that spelled it.
+//
+// The leg that names none stays EMPTY here: the transaction-level description is substituted by
+// the operation builders downstream, and filling it at this seam would make an inherited
+// description indistinguishable from an authored one.
+func TestDecodeAndBuildV2Transaction_CarriesPerLegDescriptions(t *testing.T) {
+	t.Parallel()
+
+	var probe mtransaction.CreateTransactionV2Input
+
+	_, decodeErr := pkgHTTP.DecodeAndValidate([]byte(v2PerLegDescriptionBody), &probe)
+	require.NoError(t, decodeErr, "a per-leg description must not be answered as an unknown field")
+
+	tx, _, err := decodeAndBuildV2Transaction([]byte(v2PerLegDescriptionBody), false, "")
+	require.NoError(t, err)
+
+	assert.Equal(t, "v2 transaction note", tx.Description,
+		"the transaction keeps its own description alongside the legs'")
+
+	from := tx.Send.Source.From
+	to := tx.Send.Distribute.To
+
+	require.Len(t, from, 2)
+	require.Len(t, to, 2)
+
+	assert.Equal(t, "srcA leg note", from[0].Description)
+	assert.Equal(t, "srcB leg note", from[1].Description)
+	assert.Equal(t, "dstA leg note", to[0].Description)
+	assert.Empty(t, to[1].Description,
+		"a leg naming no description reaches the operation builders empty, which is what makes the fallback theirs to apply")
+}
+
 // TestDecodeV2Body_RemainingLegRejectionIsSpellingSensitive pins what the decode boundary
 // ACTUALLY does with a `remaining` key on a v2 leg. The v2 leg publishes no such field, so
 // the intended answer is the unknown-field rejection (0053) — and that is what the truthy
