@@ -186,13 +186,16 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 				counter, counterErr := metricFactory.Counter(utils.BalanceSyncCleanupFailures)
 				if counterErr != nil {
-					logger.Log(ctx, libLog.LevelWarn, "Failed to create cleanup failure counter", libLog.Err(counterErr))
+					logger.Log(ctx, libLog.LevelWarn, "Failed to create cleanup failure counter",
+						libLog.String("tenant_id", tenantID), libLog.Err(counterErr))
 				} else {
 					if metricErr := counter.WithLabels(map[string]string{
 						"organization_id": organizationID.String(),
 						"ledger_id":       ledgerID.String(),
+						"tenant_id":       tenantID,
 					}).AddOne(ctx); metricErr != nil {
-						logger.Log(ctx, libLog.LevelWarn, "Failed to emit cleanup failure counter", libLog.Err(metricErr))
+						logger.Log(ctx, libLog.LevelWarn, "Failed to emit cleanup failure counter",
+							libLog.String("tenant_id", tenantID), libLog.Err(metricErr))
 					}
 				}
 			}
@@ -257,13 +260,16 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 		counter, counterErr := metricFactory.Counter(utils.BalanceSyncCleanupFailures)
 		if counterErr != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Failed to create cleanup failure counter", libLog.Err(counterErr))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to create cleanup failure counter",
+				libLog.String("tenant_id", tenantID), libLog.Err(counterErr))
 		} else {
 			if metricErr := counter.WithLabels(map[string]string{
 				"organization_id": organizationID.String(),
 				"ledger_id":       ledgerID.String(),
+				"tenant_id":       tenantID,
 			}).AddOne(ctx); metricErr != nil {
-				logger.Log(ctx, libLog.LevelWarn, "Failed to emit cleanup failure counter", libLog.Err(metricErr))
+				logger.Log(ctx, libLog.LevelWarn, "Failed to emit cleanup failure counter",
+					libLog.String("tenant_id", tenantID), libLog.Err(metricErr))
 			}
 		}
 	}
@@ -321,7 +327,8 @@ func emitOrphanDropped(
 
 		counter, err := metricFactory.Counter(utils.BalanceSyncOrphanDropped)
 		if err != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Failed to create orphan drop counter", libLog.Err(err))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to create orphan drop counter",
+				libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 			return
 		}
@@ -332,7 +339,8 @@ func emitOrphanDropped(
 			"tenant_id":       tenantID,
 			"reason":          tally.reason,
 		}).Add(ctx, int64(tally.count)); metricErr != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Failed to emit orphan drop counter", libLog.Err(metricErr))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to emit orphan drop counter",
+				libLog.String("tenant_id", tenantID), libLog.Err(metricErr))
 		}
 	}
 }

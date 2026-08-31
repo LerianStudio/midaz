@@ -82,6 +82,8 @@ func RecordDomainOperation(ctx context.Context, factory *metrics.MetricsFactory,
 }
 
 var (
+	// BalanceSynced counts balances written to the database, labelled by
+	// organization_id, ledger_id, tenant_id (empty in single-tenant) and mode.
 	BalanceSynced = metrics.Metric{
 		Name:        "balance_synced",
 		Unit:        "1",
@@ -96,7 +98,8 @@ var (
 		Description: "Total batch sync operation failures.",
 	}
 
-	// BalanceSyncCleanupFailures counts schedule cleanup failures after successful DB sync.
+	// BalanceSyncCleanupFailures counts schedule cleanup failures, labelled by
+	// organization_id, ledger_id and tenant_id (empty in single-tenant).
 	BalanceSyncCleanupFailures = metrics.Metric{
 		Name:        "balance_sync_cleanup_failures_total",
 		Unit:        "1",

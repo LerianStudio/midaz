@@ -754,14 +754,16 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 		// Emit failure metric for monitoring
 		counter, counterErr := metricFactory.Counter(utils.BalanceSyncBatchFailures)
 		if counterErr != nil {
-			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create failure counter", libLog.Err(counterErr))
+			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create failure counter",
+				libLog.String("tenant_id", tenantID), libLog.Err(counterErr))
 		} else {
 			if metricErr := counter.WithLabels(map[string]string{
 				"organization_id": organizationID.String(),
 				"ledger_id":       ledgerID.String(),
 				"tenant_id":       tenantID,
 			}).AddOne(ctx); metricErr != nil {
-				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit failure counter", libLog.Err(metricErr))
+				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit failure counter",
+					libLog.String("tenant_id", tenantID), libLog.Err(metricErr))
 			}
 		}
 
@@ -771,14 +773,17 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 	if result.BalancesSynced > 0 {
 		counter, counterErr := metricFactory.Counter(utils.BalanceSynced)
 		if counterErr != nil {
-			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create synced counter", libLog.Err(counterErr))
+			w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create synced counter",
+				libLog.String("tenant_id", tenantID), libLog.Err(counterErr))
 		} else {
 			if metricErr := counter.WithLabels(map[string]string{
 				"organization_id": organizationID.String(),
 				"ledger_id":       ledgerID.String(),
+				"tenant_id":       tenantID,
 				"mode":            "batch",
 			}).Add(ctx, result.BalancesSynced); metricErr != nil {
-				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit synced counter", libLog.Err(metricErr))
+				w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit synced counter",
+					libLog.String("tenant_id", tenantID), libLog.Err(metricErr))
 			}
 		}
 	}

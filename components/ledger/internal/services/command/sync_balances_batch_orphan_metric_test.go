@@ -261,3 +261,75 @@ func TestSyncBalancesBatch_OrphanDropCounter(t *testing.T) {
 		assert.Empty(t, values, "a batch with no orphans must not emit a zero-valued series")
 	})
 }
+
+// TestSyncBalancesBatch_CleanupFailureCounterCarriesTenantID verifies the cleanup
+// counter is attributable per tenant like every other balance-sync counter — a
+// schedule that will not drain has to point at the tenant it belongs to.
+func TestSyncBalancesBatch_CleanupFailureCounterCarriesTenantID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	expiredKey := "balance:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":@acc1#default"
+
+	mockRedis := redis.NewMockRedisRepository(ctrl)
+	mockRedis.EXPECT().
+		GetBalancesByKeys(gomock.Any(), []string{expiredKey}).
+		Return(map[string]*mmodel.BalanceRedis{expiredKey: nil}, nil).
+		Times(1)
+	mockRedis.EXPECT().
+		RemoveBalanceSyncKeysBatch(gomock.Any(), gomock.Any()).
+		Return(int64(0), errors.New("redis: connection refused")).
+		Times(1)
+
+	reader, factory := newReaderFactory(t)
+	ctx := libObservability.ContextWithMetricFactory(context.Background(), factory)
+	ctx = tmcore.ContextWithTenantID(ctx, "acme")
+
+	uc := UseCase{TransactionRedisRepo: mockRedis}
+
+	_, err := uc.SyncBalancesBatch(ctx, organizationID, ledgerID, toSyncKeys([]string{expiredKey}))
+	require.NoError(t, err, "a cleanup failure must not fail the batch")
+
+	labels := cleanupFailureLabels(t, reader)
+	require.Len(t, labels, 1)
+	assert.Equal(t, organizationID.String(), labels[0]["organization_id"])
+	assert.Equal(t, ledgerID.String(), labels[0]["ledger_id"])
+	require.Contains(t, labels[0], "tenant_id",
+		"the cleanup counter must carry the tenant like the failure and orphan counters")
+	assert.Equal(t, "acme", labels[0]["tenant_id"])
+}
+
+// cleanupFailureLabels returns the label sets recorded on the cleanup-failure counter.
+func cleanupFailureLabels(t *testing.T, reader *sdkmetric.ManualReader) []map[string]string {
+	t.Helper()
+
+	var rm metricdata.ResourceMetrics
+
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+
+	var out []map[string]string
+
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != utils.BalanceSyncCleanupFailures.Name {
+				continue
+			}
+
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			require.True(t, ok, "cleanup counter data type must be Sum[int64], got %T", m.Data)
+
+			for _, dp := range sum.DataPoints {
+				labels := make(map[string]string, dp.Attributes.Len())
+				for _, kv := range dp.Attributes.ToSlice() {
+					labels[string(kv.Key)] = kv.Value.AsString()
+				}
+
+				out = append(out, labels)
+			}
+		}
+	}
+
+	return out
+}
