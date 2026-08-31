@@ -98,12 +98,14 @@ var (
 		Description: "Total batch sync operation failures.",
 	}
 
-	// BalanceSyncCleanupFailures counts schedule cleanup failures, labelled by
-	// organization_id, ledger_id and tenant_id (empty in single-tenant).
+	// BalanceSyncCleanupFailures counts failures to remove keys from the sync
+	// schedule, labelled by organization_id, ledger_id and tenant_id (empty in
+	// single-tenant). It does NOT imply balances were persisted: the all-orphans
+	// path cleans up without writing to the database at all.
 	BalanceSyncCleanupFailures = metrics.Metric{
 		Name:        "balance_sync_cleanup_failures_total",
 		Unit:        "1",
-		Description: "Total schedule cleanup failures after successful balance sync.",
+		Description: "Total balance sync schedule cleanup failures.",
 	}
 
 	// BalanceSyncTenantSkip counts tenants skipped by the balance sync worker when

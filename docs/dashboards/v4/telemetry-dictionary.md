@@ -177,22 +177,27 @@ because nothing runs — see `balance_sync_last_success_timestamp_seconds`.
 ### balance_sync_cleanup_failures_total
 
 ```yaml
-declared_at: pkg/utils/metrics.go:103
+declared_at: pkg/utils/metrics.go:105
 declared_name: balance_sync_cleanup_failures_total
-description: Total schedule cleanup failures after successful balance sync.
+description: Total balance sync schedule cleanup failures.
 labels: [organization_id, ledger_id, tenant_id]
 label_cardinality_estimate: unbounded
 live_observed: unknown
 unit: "1"
 ```
 
-Rising here means keys persisted to PostgreSQL but were not removed from the schedule, so the
+Rising here means keys the flush had finished with were not removed from the schedule, so the
 next cycle reprocesses them. Wasteful, not incorrect.
+
+It does **not** imply the balances were persisted. Two paths emit it: after a successful
+database write, and the all-orphans early return, which cleans up expired or unparseable keys
+without writing anything. Read it alongside `balance_sync_orphan_dropped_total` to tell them
+apart.
 
 ### balance_sync_tenant_skip_total
 
 ```yaml
-declared_at: pkg/utils/metrics.go:111
+declared_at: pkg/utils/metrics.go:113
 declared_name: balance_sync_tenant_skip_total
 description: Total tenants skipped by the balance sync worker due to connection resolution failure.
 labels: [tenant_id]
@@ -206,7 +211,7 @@ Bounded by the tenant set. A tenant appearing here is not syncing at all.
 ### balance_sync_orphan_dropped_total
 
 ```yaml
-declared_at: pkg/utils/metrics.go:135
+declared_at: pkg/utils/metrics.go:141
 declared_name: balance_sync_orphan_dropped_total
 description: Total scheduled balance sync keys dropped without persisting (value expired or unparseable).
 labels: [organization_id, ledger_id, tenant_id, reason]
@@ -224,7 +229,7 @@ in the runbooks repository, under `midaz/troubleshooting/balance-sync-alerting.m
 ### balance_sync_last_success_timestamp_seconds
 
 ```yaml
-declared_at: pkg/utils/metrics.go:129
+declared_at: pkg/utils/metrics.go:131
 declared_name: balance_sync_last_success_timestamp
 description: Unix timestamp of the last successful balance batch sync.
 labels: [organization_id, ledger_id, tenant_id]
@@ -314,7 +319,7 @@ unit: "1"
 ### bulk_recorder_bulk_size_total
 
 ```yaml
-declared_at: pkg/utils/metrics.go:238
+declared_at: pkg/utils/metrics.go:272
 declared_name: bulk_recorder_bulk_size
 description: Number of messages per bulk processing batch.
 labels: []
@@ -393,7 +398,7 @@ unit: ms
 ### readyz_check_duration_ms_milliseconds
 
 ```yaml
-declared_at: pkg/utils/metrics.go:261
+declared_at: pkg/utils/metrics.go:295
 declared_name: readyz_check_duration_ms
 boundaries_source: default
 description: Duration of individual health check probes. A dependency slowing here precedes timeouts on real requests.
@@ -405,7 +410,7 @@ unit: ms
 ### bulk_recorder_bulk_duration_ms_milliseconds
 
 ```yaml
-declared_at: pkg/utils/metrics.go:245
+declared_at: pkg/utils/metrics.go:279
 declared_name: bulk_recorder_bulk_duration_ms
 boundaries_source: default
 description: Time taken for one bulk processing batch.
@@ -425,7 +430,7 @@ sub-second latencies would truncate to zero in seconds. Reasoning recorded at
 ### redis_backup_queue_depth_ratio
 
 ```yaml
-declared_at: pkg/utils/metrics.go:116
+declared_at: pkg/utils/metrics.go:150
 declared_name: redis_backup_queue_depth
 description: Number of records currently in the Redis transaction backup queue. An absolute count despite the _ratio suffix. Sustained growth means a stalled consumer.
 instrument_type: Int64Gauge (synchronous, MetricsFactory.Gauge().Set)
