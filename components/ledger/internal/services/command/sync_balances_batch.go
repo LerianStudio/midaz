@@ -7,10 +7,12 @@ package command
 import (
 	"context"
 
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	redisBalance "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction/balance"
@@ -51,6 +53,16 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	ctx, span := tracer.Start(ctx, "command.sync_balances_batch")
 	defer span.End()
 
+	// Empty in single-tenant. It is the operational search axis in MT, so it rides
+	// both the span and every failure log of this batch.
+	tenantID := tmcore.GetTenantIDContext(ctx)
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.tenant_id", tenantID),
+	)
+
 	result := &SyncBalancesBatchResult{
 		KeysProcessed: len(keys),
 	}
@@ -73,7 +85,8 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	balanceMap, err := uc.TransactionRedisRepo.GetBalancesByKeys(ctx, plainKeys)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get balances by keys", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get balances by keys", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get balances by keys",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil, err
 	}
@@ -92,7 +105,8 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		if balance == nil {
 			// Value expired in Redis (TTL) between ZADD and MGET — mark as orphaned for cleanup.
 			logger.Log(ctx, libLog.LevelDebug, "Balance key has no data (expired), marking as orphaned",
-				libLog.String("key", key))
+				libLog.String("key", key),
+				libLog.String("tenant_id", tenantID))
 
 			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
 
@@ -103,7 +117,9 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		if parseErr != nil {
 			// Key format is unrecognizable — treat as orphaned to prevent poison record.
 			logger.Log(ctx, libLog.LevelWarn, "Failed to parse composite key, marking as orphaned",
-				libLog.String("key", key), libLog.Err(parseErr))
+				libLog.String("key", key),
+				libLog.String("tenant_id", tenantID),
+				libLog.Err(parseErr))
 
 			orphanedKeys = append(orphanedKeys, redisTransaction.SyncKey{Key: key, Score: scoreMap[key]})
 
@@ -136,6 +152,8 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		})
 	}
 
+	span.SetAttributes(attribute.Int("app.balance_sync.orphaned_keys", len(orphanedKeys)))
+
 	aggregator := redisBalance.NewInMemorySyncAggregator()
 	deduplicated := aggregator.Aggregate(ctx, aggregatedBalances)
 	result.BalancesAggregated = len(deduplicated)
@@ -148,7 +166,10 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 			removed, cleanupErr := uc.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(ctx, orphanedKeys)
 			if cleanupErr != nil {
-				logger.Log(ctx, libLog.LevelWarn, "Failed to remove orphaned keys from schedule", libLog.Err(cleanupErr))
+				logger.Log(ctx, libLog.LevelWarn, "Failed to remove orphaned keys from schedule",
+					libLog.String("tenant_id", tenantID),
+					libLog.Int("orphaned", len(orphanedKeys)),
+					libLog.Err(cleanupErr))
 
 				counter, counterErr := metricFactory.Counter(utils.BalanceSyncCleanupFailures)
 				if counterErr != nil {
@@ -193,7 +214,8 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	synced, syncErr := uc.BalanceRepo.UpdateMany(ctx, organizationID, ledgerID, balancesToSync)
 	if syncErr != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to sync batch to database", syncErr)
-		logger.Log(ctx, libLog.LevelError, "Failed to sync batch to database", libLog.Err(syncErr))
+		logger.Log(ctx, libLog.LevelError, "Failed to sync batch to database",
+			libLog.String("tenant_id", tenantID), libLog.Err(syncErr))
 
 		// Still clean up orphaned keys even though DB failed — these are expired/unparseable
 		// entries that would otherwise become permanent poison records in the ZSET.
@@ -201,7 +223,8 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 		if len(orphanedKeys) > 0 {
 			removed, cleanupErr := uc.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(ctx, orphanedKeys)
 			if cleanupErr != nil {
-				logger.Log(ctx, libLog.LevelWarn, "Failed to remove orphaned keys after DB error", libLog.Err(cleanupErr))
+				logger.Log(ctx, libLog.LevelWarn, "Failed to remove orphaned keys after DB error",
+					libLog.String("tenant_id", tenantID), libLog.Err(cleanupErr))
 			} else {
 				result.KeysRemoved = removed
 				logger.Log(ctx, libLog.LevelDebug, "Cleaned up orphaned keys despite DB error",
@@ -216,7 +239,8 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 
 	removed, err := uc.TransactionRedisRepo.RemoveBalanceSyncKeysBatch(ctx, keysToRemove)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Failed to remove synced keys from schedule", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to remove synced keys from schedule",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		counter, counterErr := metricFactory.Counter(utils.BalanceSyncCleanupFailures)
 		if counterErr != nil {
