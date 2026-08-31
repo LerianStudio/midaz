@@ -82,6 +82,8 @@ func RecordDomainOperation(ctx context.Context, factory *metrics.MetricsFactory,
 }
 
 var (
+	// BalanceSynced counts balances written to the database, labelled by
+	// organization_id, ledger_id, tenant_id (empty in single-tenant) and mode.
 	BalanceSynced = metrics.Metric{
 		Name:        "balance_synced",
 		Unit:        "1",
@@ -96,11 +98,14 @@ var (
 		Description: "Total batch sync operation failures.",
 	}
 
-	// BalanceSyncCleanupFailures counts schedule cleanup failures after successful DB sync.
+	// BalanceSyncCleanupFailures counts failures to remove keys from the sync
+	// schedule, labelled by organization_id, ledger_id and tenant_id (empty in
+	// single-tenant). It does NOT imply balances were persisted: the all-orphans
+	// path cleans up without writing to the database at all.
 	BalanceSyncCleanupFailures = metrics.Metric{
 		Name:        "balance_sync_cleanup_failures_total",
 		Unit:        "1",
-		Description: "Total schedule cleanup failures after successful balance sync.",
+		Description: "Total balance sync schedule cleanup failures.",
 	}
 
 	// BalanceSyncTenantSkip counts tenants skipped by the balance sync worker when
@@ -109,6 +114,34 @@ var (
 		Name:        "balance_sync_tenant_skip_total",
 		Unit:        "1",
 		Description: "Total tenants skipped by the balance sync worker due to connection resolution failure.",
+	}
+
+	// BalanceSyncLastSuccessTimestamp records the unix timestamp of the last batch
+	// sync that ran to completion, by organization_id, ledger_id and tenant_id
+	// (empty in single-tenant). Alert on `time() - metric`: a failure counter cannot
+	// see a silent stall, where nothing fails because nothing runs. The series only
+	// exists for a scope that has completed a batch since the pod booted, so a
+	// staleness rule needs a backlog guard to not rest on an absent series.
+	//
+	// The declared name carries NO unit suffix: the OTLP-to-Prometheus translation
+	// appends one from Unit, so this reaches Mimir as
+	// `balance_sync_last_success_timestamp_seconds`. Spelling `_seconds` here would
+	// land it as `..._seconds_seconds`, the same double-suffix the `_ms` histograms
+	// carry (docs/dashboards/v4/telemetry-dictionary.md).
+	BalanceSyncLastSuccessTimestamp = metrics.Metric{
+		Name:        "balance_sync_last_success_timestamp",
+		Unit:        "s",
+		Description: "Unix timestamp of the last successful balance batch sync.",
+	}
+
+	// BalanceSyncOrphanDropped counts scheduled sync keys dropped without
+	// persisting: the Redis value expired (or the key was unparseable) before
+	// the flush, so the pending delta was lost. Labels: organization_id,
+	// ledger_id, tenant_id (empty in single-tenant), reason (expired|unparseable).
+	BalanceSyncOrphanDropped = metrics.Metric{
+		Name:        "balance_sync_orphan_dropped_total",
+		Unit:        "1",
+		Description: "Total scheduled balance sync keys dropped without persisting (value expired or unparseable).",
 	}
 
 	// Redis backup-queue (poison record) observability metrics.

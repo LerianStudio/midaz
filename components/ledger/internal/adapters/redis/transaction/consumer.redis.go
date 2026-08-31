@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	tmvalkey "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/valkey"
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -1256,10 +1257,14 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	ctx, span := tracer.Start(ctx, "redis.get_balance_sync_keys")
 	defer span.End()
 
+	tenantID := tmcore.GetTenantIDContext(ctx)
+	span.SetAttributes(attribute.String("app.tenant_id", tenantID))
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get redis client", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get redis client",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil, err
 	}
@@ -1267,7 +1272,8 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace schedule key", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace schedule key", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace schedule key",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil, err
 	}
@@ -1275,7 +1281,8 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace lock prefix", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace lock prefix", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace lock prefix",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil, err
 	}
@@ -1288,7 +1295,8 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	res, err := claimBalanceSyncScript.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to run claim_balance_sync_keys.lua", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil, err
 	}
@@ -1296,7 +1304,8 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeys(ctx context.Context, limit
 	out, err := parseSyncKeysFromLuaResult(res, logger, ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse claim script result", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to parse claim script result", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to parse claim script result",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil, err
 	}
@@ -1317,10 +1326,14 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 	ctx, span := tracer.Start(ctx, "redis.get_balance_sync_keys_legacy")
 	defer span.End()
 
+	tenantID := tmcore.GetTenantIDContext(ctx)
+	span.SetAttributes(attribute.String("app.tenant_id", tenantID))
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get redis client", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get redis client",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil, err
 	}
@@ -1328,7 +1341,8 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKeyLegacy)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace legacy schedule key", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace legacy schedule key", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace legacy schedule key",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil, err
 	}
@@ -1336,7 +1350,8 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace lock prefix", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace lock prefix", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to namespace lock prefix",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil, err
 	}
@@ -1346,7 +1361,8 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 	res, err := claimBalanceSyncScript.Run(ctx, rds, []string{prefixedScheduleKey}, limit, claimTTLSeconds, prefixedLockPrefix).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to run claim_balance_sync_keys.lua (legacy)", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua (legacy)", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to run claim_balance_sync_keys.lua (legacy)",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil, err
 	}
@@ -1354,7 +1370,8 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 	out, err := parseSyncKeysFromLuaResult(res, logger, ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to parse legacy claim script result", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to parse legacy claim script result", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to parse legacy claim script result",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return nil, err
 	}
@@ -1403,7 +1420,9 @@ func parseSyncKeysFromLuaResult(res any, logger libLog.Logger, ctx context.Conte
 		score, parseErr := strconv.ParseFloat(raw[i+1], 64)
 		if parseErr != nil {
 			logger.Log(ctx, libLog.LevelWarn, "Failed to parse score for claimed key",
-				libLog.String("key", raw[i]), libLog.Err(parseErr))
+				libLog.String("key", raw[i]),
+				libLog.String("tenant_id", tmcore.GetTenantIDContext(ctx)),
+				libLog.Err(parseErr))
 
 			continue
 		}
@@ -1429,11 +1448,15 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 	ctx, span := tracer.Start(ctx, "redis.schedule_balance_sync_batch")
 	defer span.End()
 
+	tenantID := tmcore.GetTenantIDContext(ctx)
+	span.SetAttributes(attribute.String("app.tenant_id", tenantID))
+
 	client, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return err
 	}
@@ -1441,7 +1464,8 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return err
 	}
@@ -1477,7 +1501,8 @@ func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context,
 		if err := cmd.Err(); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to batch schedule balance sync", err)
 
-			logger.Log(ctx, libLog.LevelError, "Failed to batch schedule balance sync", libLog.Err(err))
+			logger.Log(ctx, libLog.LevelError, "Failed to batch schedule balance sync",
+				libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 			return err
 		}
@@ -1820,11 +1845,15 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 	ctx, span := tracer.Start(ctx, "redis.remove_balance_sync_keys_batch")
 	defer span.End()
 
+	tenantID := tmcore.GetTenantIDContext(ctx)
+	span.SetAttributes(attribute.String("app.tenant_id", tenantID))
+
 	client, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return 0, err
 	}
@@ -1832,7 +1861,8 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return 0, err
 	}
@@ -1840,7 +1870,8 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 	prefixedLockPrefix, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncLockPrefix)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 		return 0, err
 	}
@@ -1864,7 +1895,8 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to batch remove balance sync keys", err)
 
-			logger.Log(ctx, libLog.LevelError, "Failed to batch remove balance sync keys", libLog.Err(err))
+			logger.Log(ctx, libLog.LevelError, "Failed to batch remove balance sync keys",
+				libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 			return totalRemoved, err
 		}
@@ -1875,7 +1907,9 @@ func (rr *RedisConsumerRepository) RemoveBalanceSyncKeysBatch(ctx context.Contex
 
 			libOpentelemetry.HandleSpanError(span, "Unexpected result type", err)
 
-			logger.Log(ctx, libLog.LevelError, "Unexpected result type from remove script", libLog.String("type", fmt.Sprintf("%T", result)))
+			logger.Log(ctx, libLog.LevelError, "Unexpected result type from remove script",
+				libLog.String("type", fmt.Sprintf("%T", result)),
+				libLog.String("tenant_id", tenantID))
 
 			return totalRemoved, err
 		}

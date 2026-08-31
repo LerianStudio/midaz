@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -107,7 +108,11 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetch
 
 		keys, err := fetchKeys(ctx, int64(remaining))
 		if err != nil {
-			c.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncCollector: fetch keys error", libLog.Err(err))
+			// Empty in single-tenant; in MT the collector context carries the tenant the
+			// dead collector belongs to, which is what attributes the stall.
+			c.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncCollector: fetch keys error",
+				libLog.String("tenant_id", tmcore.GetTenantIDContext(ctx)),
+				libLog.Err(err))
 
 			// If the buffer already has items, skip the sleep and re-enter the
 			// draining path so the timeout trigger can still flush on time.
