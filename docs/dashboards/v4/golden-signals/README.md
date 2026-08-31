@@ -46,3 +46,8 @@ working set" from cAdvisor for that. Both are on the dashboard so they can be co
 No alert rules are wired to these panels. Alerting on a dev environment with this traffic
 profile would be noise. The availability and dependency-health panels are the two that
 would carry alerts first in staging or production.
+
+Recommended rules do exist for one subsystem outside this dashboard: the balance sync
+pipeline. They live with the operational runbooks rather than here — runbooks are not
+versioned with the service. Those are recommendations too; what actually fires is whatever
+each deployment provisions.

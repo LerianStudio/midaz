@@ -200,6 +200,38 @@ func (w *BalanceSyncWorker) emitTenantSkip(ctx context.Context, tenantID string)
 	}
 }
 
+// recordSyncSuccess stamps the last-successful-sync gauge for the scope. A failure
+// counter cannot see a stall in which nothing fails because nothing runs, so this is
+// what a staleness alert reads via `time() - metric`.
+// Best-effort: a metric failure never affects the worker.
+func (w *BalanceSyncWorker) recordSyncSuccess(
+	ctx context.Context,
+	metricFactory *metrics.MetricsFactory,
+	organizationID, ledgerID uuid.UUID,
+	tenantID string,
+) {
+	if metricFactory == nil {
+		return
+	}
+
+	gauge, err := metricFactory.Gauge(utils.BalanceSyncLastSuccessTimestamp)
+	if err != nil {
+		w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to create last-success gauge",
+			libLog.String("tenant_id", tenantID), libLog.Err(err))
+
+		return
+	}
+
+	if setErr := gauge.WithLabels(map[string]string{
+		"organization_id": organizationID.String(),
+		"ledger_id":       ledgerID.String(),
+		"tenant_id":       tenantID,
+	}).Set(ctx, time.Now().Unix()); setErr != nil {
+		w.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncWorker: failed to emit last-success gauge",
+			libLog.String("tenant_id", tenantID), libLog.Err(setErr))
+	}
+}
+
 // isMTReady returns true when the worker is configured for MT (multi-tenant)
 // dispatching. mtEnabled, pgResolver, and tenantCache must all be set;
 // if any is missing the worker falls back to default (single-tenant) behavior.
@@ -769,6 +801,10 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 
 		return false
 	}
+
+	// A batch that ran to completion is a sign of life even when it synced nothing,
+	// so the timestamp is recorded before the synced-count branch.
+	w.recordSyncSuccess(ctx, metricFactory, organizationID, ledgerID, tenantID)
 
 	if result.BalancesSynced > 0 {
 		counter, counterErr := metricFactory.Counter(utils.BalanceSynced)
