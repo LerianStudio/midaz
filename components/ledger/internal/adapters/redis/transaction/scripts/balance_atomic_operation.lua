@@ -499,18 +499,32 @@ local function main()
         -- batch rolls back with 0174 so the caller re-reads state and
         -- retries with a consistent split.
         --
-        -- A destination CREDIT on a PENDING create is excluded: that leg is
-        -- DEFERRED to the commit, so the ladder above leaves `result` at the
-        -- untouched Available. Repaying here would subtract from a balance
-        -- that never received the credit, pushing `result` negative so the
-        -- floor block below re-accrues the deficit on top of the outstanding
-        -- OverdraftUsed. The repayment belongs to the APPROVED transition,
-        -- where the credit actually posts.
-        local isDeferredPendingLeg = isPending == 1 and transactionStatus == "PENDING"
+        -- DEFERRED destination legs are excluded. A two-phase transaction
+        -- carries its destination CREDIT into every batch of the lifecycle, but
+        -- the leg only POSTS on the commit. On the create and on the cancel the
+        -- ladder above matches no branch, so `result` stays at the untouched
+        -- Available; repaying from it would subtract from a balance that never
+        -- received the credit, pushing `result` negative so the floor block
+        -- below re-accrues the deficit on top of the outstanding OverdraftUsed
+        -- and DOUBLES it on a leg that moved no money.
+        --
+        -- Enumerating the ladder, a CREDIT on a direction=credit balance posts
+        -- to Available in exactly two cases: CANCELED with route validation ON
+        -- (the source restore) and APPROVED (the commit). There is no
+        -- CREDIT+PENDING branch at all, and the CANCELED+isDebitDirection branch
+        -- cannot reach here because the repayment requires not isDebitDirection.
+        -- So the deferred legs are PENDING, and CANCELED with route validation
+        -- OFF — a shape only the destination leg can have, because in a cancel
+        -- batch the source restore is the RELEASE branch in the legacy shape and
+        -- the route-validated CREDIT in the other. The Go enrichment layer gates
+        -- refund collection on the SAME rule so the two sides cannot drift.
+        local isDeferredCreditLeg = isPending == 1 and
+            (transactionStatus == "PENDING" or
+                (transactionStatus == "CANCELED" and routeValidationEnabled == 0))
 
         if operation == "CREDIT" and not isDebitDirection and
             balance.AccountType ~= "external" and
-            not isDeferredPendingLeg and
+            not isDeferredCreditLeg and
             isPositive(balance.OverdraftUsed) then
             local sameBatchCancelCredit = operation == "CREDIT" and transactionStatus == "CANCELED" and
                 routeValidationEnabled == 1 and tonumber(balance.Version) == (tonumber(incomingVersion) + 1)

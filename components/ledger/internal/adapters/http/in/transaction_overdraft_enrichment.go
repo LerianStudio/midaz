@@ -545,12 +545,31 @@ func collectOverdraftRefundSplits(balanceOps []mmodel.BalanceOperation) []overdr
 // isOverdraftRefundSplitCandidate reports whether an operation is a credit that
 // actually posts to Available and may therefore repay outstanding overdraft.
 //
-// A CREDIT carrying TransactionType=PENDING is the deferred destination leg of a
-// pending create: it moves no funds until the commit, so mirroring a repayment
-// onto the companion would settle a liability the atomic script left untouched.
+// A two-phase transaction carries its destination CREDIT into every batch of the
+// lifecycle, but the leg only posts on the commit. On the create and on the
+// cancel it is DEFERRED, and mirroring a repayment onto the companion would
+// settle a liability the atomic script leaves untouched — the companion would
+// drain while the primary kept its overdraft, and a spurious overdraft operation
+// row would claim a repayment that never happened.
+//
+// This mirrors the deferred-leg rule the atomic script applies to the same ops:
+// PENDING, and CANCELED with route validation off. That second shape can only be
+// the destination leg, because in a cancel batch the source restore is a RELEASE
+// in the legacy shape and a route-validated CREDIT in the other — so a
+// route-validated CANCELED credit stays a candidate, keeping the source restore's
+// repayment in lock-step with its companion.
+//
 // The cancel override is excluded because collectOverdraftCancelSplits owns it.
 func isOverdraftRefundSplitCandidate(amount mtransaction.Amount) bool {
-	if amount.Operation != libConstants.CREDIT || amount.TransactionType == constant.PENDING {
+	if amount.Operation != libConstants.CREDIT {
+		return false
+	}
+
+	if amount.TransactionType == constant.PENDING {
+		return false
+	}
+
+	if amount.TransactionType == constant.CANCELED && !amount.RouteValidationEnabled {
 		return false
 	}
 

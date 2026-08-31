@@ -379,6 +379,27 @@ func TestOverdraftRouteFlow_PendingCreateDefersDestinationRepayment(t *testing.T
 	assert.NotContains(t, result.validate.Destinations, "@bob#"+constant.OverdraftBalanceKey)
 }
 
+// TestOverdraftRouteFlow_CancelDefersDestinationRepayment is the cancel sibling
+// of the pending case: a cancel batch still carries the destination CREDIT, but
+// the destination never received the pending credit, so the cancel must enrich no
+// repayment companion for it. Only the source restore may repay on a cancel.
+func TestOverdraftRouteFlow_CancelDefersDestinationRepayment(t *testing.T) {
+	result := runOverdraftRouteFlow(t, overdraftRouteFlowOptions{
+		balances:          overdraftFlowDestinationBalances(t, decimal.NewFromInt(100)),
+		companion:         overdraftFlowCompanion("@bob", decimal.NewFromInt(50)),
+		transactionStatus: constant.CANCELED,
+		pending:           true,
+		bidirectional:     true,
+	})
+
+	require.NoError(t, result.err)
+	assert.Empty(t, result.companionOps(),
+		"a cancel must not enrich a repayment companion for the destination it never credited")
+	assert.Empty(t, result.companionFromTos,
+		"no overdraft operation record may be built for a deferred cancel credit")
+	assert.NotContains(t, result.validate.Destinations, "@bob#"+constant.OverdraftBalanceKey)
+}
+
 // TestOverdraftRouteFlow_CommitRepaysDestinationOverdraft is the commit half of
 // the two-phase lifecycle: the destination credit posts on APPROVED, so that is
 // where the repayment companion is enriched, registered on the To side, and
