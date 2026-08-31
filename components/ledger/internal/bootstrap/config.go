@@ -1488,6 +1488,10 @@ type unifiedRouteSetup struct {
 	// holderAccountsTenantMiddleware is the holder-accounts tenant middleware
 	// instance, exposed on the same terms as feesTenantMiddleware.
 	holderAccountsTenantMiddleware *tmmiddleware.TenantMiddleware
+
+	// compositionTenantMiddleware is the holder-account composition tenant
+	// middleware instance, exposed on the same terms as feesTenantMiddleware.
+	compositionTenantMiddleware *tmmiddleware.TenantMiddleware
 }
 
 func buildUnifiedRouteSetup(
@@ -1599,33 +1603,46 @@ func buildUnifiedRouteSetup(
 	)
 	setup.feesTenantMiddleware = feesTenantMiddleware
 
-	// Composition tenant middleware is its own SEPARATE instance spanning BOTH
-	// stores the holder-account composition touches: the onboarding PostgreSQL
-	// (module-keyed) for the account write AND the CRM Mongo (generic key) for
-	// the instrument write. It is attached ONLY to composition routes via
-	// compositionRouteOptions below — never global, never on ledger routes.
-	// Mounting it globally (or on the onboarding/transaction middleware) would
-	// bleed the generic CRM Mongo key onto ledger routes and overwrite the
-	// tenant Mongo that ledger handlers resolve, leaking one tenant's CRM DB
-	// into a concurrent ledger request — the precise cross-store leak this
-	// instance exists to prevent.
+	// Composition tenant middleware is its own SEPARATE instance carrying every
+	// store the holder-account composition writes or reads. It is attached ONLY
+	// to composition routes via compositionRouteOptions below — never global,
+	// never on ledger routes. Mounting it globally (or on the
+	// onboarding/transaction middleware) would bleed the generic CRM Mongo key
+	// onto ledger routes and overwrite the tenant Mongo that ledger handlers
+	// resolve, leaking one tenant's CRM DB into a concurrent ledger request —
+	// the precise cross-store leak this instance exists to prevent.
 	//
-	// WithPG carries constant.ModuleOnboarding because composition writes the
-	// account through the onboarding account repo, which resolves the
-	// module-keyed PG context. WithMB is called WITHOUT a module name
-	// (single-manager mode), matching the CRM block above: the CRM instrument
-	// repo reads tmcore.GetMBContext(ctx) on the GENERIC key. Route scoping
-	// keeps that generic-key write from colliding with the module-keyed
-	// onboarding/transaction injection on ledger routes. The transaction PG
-	// manager is DELIBERATELY excluded: composition writes the onboarding
-	// account and the CRM instrument only and never touches the transaction PG.
+	// The composition POST reaches four stores, and each key below answers one:
+	//
+	//  1. onboarding PG (module-keyed) — the account row, plus the ledger
+	//     settings and parent/alias reads the create path performs.
+	//  2. transaction PG (module-keyed) — CreateAccount ALWAYS creates the
+	//     default balance, and the balance repo resolves the transaction module
+	//     key with requireTenant set, so a missing injection is a hard 500.
+	//  3. onboarding Mongo (module-keyed) — the account metadata write. The
+	//     metadata repo looks the module key up FIRST and falls back to the
+	//     generic key, so omitting it would send the write to whichever store
+	//     owns the generic key (the CRM Mongo below): a silent cross-store write,
+	//     not an error.
+	//  4. CRM Mongo (generic key) — the instrument write and the holder-existence
+	//     read, which predate module-keyed resolution and read
+	//     tmcore.GetMBContext(ctx) on the GENERIC key. Route scoping keeps that
+	//     generic-key write from colliding with the module-keyed
+	//     onboarding/transaction injection on ledger routes.
+	//
+	// Nothing on the path resolves a tenant Valkey: the ledger-settings cache is
+	// best-effort over the static client, so no cache manager is registered here.
+	//
 	// Same tenantCache/tenantLoader are reused (no second cache/loader).
 	compositionTenantMiddleware := tmmiddleware.NewTenantMiddleware(
 		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithPG(transactionPGManager, constant.ModuleTransaction),
+		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
 		tmmiddleware.WithMB(crmMongoManager),
 		tmmiddleware.WithTenantCache(tenantCache),
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
+	setup.compositionTenantMiddleware = compositionTenantMiddleware
 
 	// The holder-accounts listing reads onboarding stores only: the account rows
 	// come from the onboarding PG account repo and their metadata from the
