@@ -6,24 +6,25 @@ package redis
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // settingsUpdateStubClient is a test double for redis.UniversalClient that
-// captures GET and SET calls for UpdateBalanceCacheSettings assertions. It
-// supports per-key Get responses (including redis.Nil for cache misses) and
-// records every SET so the test can inspect both the key and the marshalled
-// BalanceRedis payload written back.
+// captures GET calls for UpdateBalanceCacheSettings assertions. It supports
+// per-key Get responses (including redis.Nil for cache misses). The CAS
+// write path (EVAL) is exercised against a real Redis in the integration
+// suite (consumer_settings_cas_stress_integration_test.go and the CAS-direct
+// tests alongside it) since a stub cannot reproduce Lua semantics; this stub
+// only needs to cover the pre-EVAL GET short-circuits (cache miss, transport
+// error) that UpdateBalanceCacheSettings resolves before ever building a CAS
+// call.
 type settingsUpdateStubClient struct {
 	redis.UniversalClient
 
@@ -32,9 +33,6 @@ type settingsUpdateStubClient struct {
 		err error
 	}
 	getCalls []string
-
-	setCalls []recordedSetCall
-	setErr   error
 }
 
 func (c *settingsUpdateStubClient) Get(ctx context.Context, key string) *redis.StringCmd {
@@ -61,143 +59,10 @@ func (c *settingsUpdateStubClient) Get(ctx context.Context, key string) *redis.S
 	return cmd
 }
 
-func (c *settingsUpdateStubClient) Set(ctx context.Context, key string, value any, expiration time.Duration) *redis.StatusCmd {
-	c.setCalls = append(c.setCalls, recordedSetCall{Key: key, Value: value, TTL: expiration})
-
-	cmd := redis.NewStatusCmd(ctx)
-	if c.setErr != nil {
-		cmd.SetErr(c.setErr)
-
-		return cmd
-	}
-
-	cmd.SetVal("OK")
-
-	return cmd
-}
-
-// TestUpdateBalanceCacheSettings_PreservesLiveTransactionalState is the HARD
-// GATE for the settings-only rewrite: it pins the invariant that the repo
-// method MUST NOT touch Available, OnHold, Version, or OverdraftUsed — those
-// fields are owned by the atomic Lua script and may be ahead of PostgreSQL
-// while sync is pending. Deleting the key or overwriting those fields would
-// lose in-flight mutations and was the bug motivating this test's existence.
-func TestUpdateBalanceCacheSettings_PreservesLiveTransactionalState(t *testing.T) {
-	t.Parallel()
-
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-
-	// Seed the cache with a balance that has live transactional state
-	// "ahead" of PostgreSQL: higher Version, mutated Available, OverdraftUsed
-	// incurred by a previous transaction. Any settings rewrite MUST keep all
-	// of these fields intact.
-	cached := mmodel.BalanceRedis{
-		ID:                    "balance-id",
-		Alias:                 "@alice",
-		Key:                   "default",
-		AccountID:             "account-id",
-		AssetCode:             "USD",
-		Available:             decimal.NewFromInt(7777),
-		OnHold:                decimal.NewFromInt(123),
-		Version:               42,
-		AccountType:           "liability",
-		AllowSending:          1,
-		AllowReceiving:        1,
-		Direction:             "credit",
-		OverdraftUsed:         "250.50",
-		AllowOverdraft:        0, // currently disabled — the update will enable it
-		OverdraftLimitEnabled: 0,
-		OverdraftLimit:        "0",
-		BalanceScope:          mmodel.BalanceScopeTransactional,
-	}
-
-	cachedJSON, err := json.Marshal(&cached)
-	require.NoError(t, err)
-
-	// The repo builds "balance:{transactions}:<org>:<ledger>:@alice#default".
-	expectedKey := "balance:{transactions}:" +
-		organizationID.String() + ":" + ledgerID.String() + ":@alice#default"
-
-	stub := &settingsUpdateStubClient{
-		getResponses: map[string]struct {
-			val string
-			err error
-		}{
-			expectedKey: {val: string(cachedJSON)},
-		},
-	}
-
-	rr := &RedisConsumerRepository{conn: &staticRedisProvider{client: stub}}
-
-	// New settings: enable overdraft with a concrete limit and keep scope
-	// transactional. This is the same payload shape the command layer
-	// forwards verbatim from UpdateBalance.Settings.
-	limit := "1000.00"
-	newSettings := &mmodel.BalanceSettings{
-		BalanceScope:          mmodel.BalanceScopeTransactional,
-		AllowOverdraft:        true,
-		OverdraftLimitEnabled: true,
-		OverdraftLimit:        &limit,
-	}
-
-	err = rr.UpdateBalanceCacheSettings(context.Background(), organizationID, ledgerID, "@alice#default", newSettings)
-	require.NoError(t, err)
-
-	// Exactly one GET (read current) and one SET (write back) — no DEL.
-	require.Len(t, stub.getCalls, 1, "must read the cache exactly once")
-	require.Len(t, stub.setCalls, 1, "must write the cache back exactly once")
-	assert.Equal(t, expectedKey, stub.getCalls[0])
-	assert.Equal(t, expectedKey, stub.setCalls[0].Key)
-	assert.Equal(t, balanceCacheSettingsTTL, stub.setCalls[0].TTL,
-		"TTL must match the Lua script's 1-day canonical value to avoid silent lifetime drift")
-
-	// Decode the written payload and pin every invariant.
-	raw, ok := stub.setCalls[0].Value.(string)
-	require.True(t, ok, "SET value must be a string (JSON-encoded BalanceRedis)")
-
-	var written mmodel.BalanceRedis
-
-	require.NoError(t, json.Unmarshal([]byte(raw), &written))
-
-	// Settings-derived fields MUST be updated from the new settings payload.
-	assert.Equal(t, 1, written.AllowOverdraft,
-		"AllowOverdraft must reflect the new settings")
-	assert.Equal(t, 1, written.OverdraftLimitEnabled,
-		"OverdraftLimitEnabled must reflect the new settings")
-	assert.Equal(t, "1000.00", written.OverdraftLimit,
-		"OverdraftLimit must be copied from the settings pointer")
-	assert.Equal(t, mmodel.BalanceScopeTransactional, written.BalanceScope,
-		"BalanceScope must reflect the new settings (or default)")
-
-	// Live transactional state MUST be untouched — this is the whole point
-	// of replacing Del with a settings-only rewrite.
-	assert.True(t, written.Available.Equal(decimal.NewFromInt(7777)),
-		"Available must be preserved verbatim")
-	assert.True(t, written.OnHold.Equal(decimal.NewFromInt(123)),
-		"OnHold must be preserved verbatim")
-	assert.Equal(t, int64(42), written.Version,
-		"Version must be preserved (losing it corrupts optimistic concurrency)")
-	assert.Equal(t, "250.50", written.OverdraftUsed,
-		"OverdraftUsed is transactional state and must not be reset by a settings update")
-
-	// Identity + non-settings fields MUST also survive the rewrite so the
-	// next Lua read sees a well-formed BalanceRedis payload.
-	assert.Equal(t, "balance-id", written.ID)
-	assert.Equal(t, "@alice", written.Alias)
-	assert.Equal(t, "default", written.Key)
-	assert.Equal(t, "account-id", written.AccountID)
-	assert.Equal(t, "USD", written.AssetCode)
-	assert.Equal(t, "liability", written.AccountType)
-	assert.Equal(t, 1, written.AllowSending)
-	assert.Equal(t, 1, written.AllowReceiving)
-	assert.Equal(t, "credit", written.Direction)
-}
-
 // TestUpdateBalanceCacheSettings_CacheMissIsNoOp verifies that a missing
 // Redis key is treated as a silent no-op: the next transaction's SETNX path
 // will load the freshly-persisted settings from PostgreSQL, so there is
-// nothing for this method to rewrite.
+// nothing for this method to rewrite. No CAS attempt is made.
 func TestUpdateBalanceCacheSettings_CacheMissIsNoOp(t *testing.T) {
 	t.Parallel()
 
@@ -214,14 +79,13 @@ func TestUpdateBalanceCacheSettings_CacheMissIsNoOp(t *testing.T) {
 
 	require.NoError(t, err, "cache miss must be a silent no-op")
 	require.Len(t, stub.getCalls, 1, "the single GET that discovered the miss is expected")
-	assert.Empty(t, stub.setCalls, "no SET must fire when the key is absent")
 }
 
 // TestUpdateBalanceCacheSettings_GetErrorIsPropagated verifies that a Redis
-// connectivity failure on the read path bubbles up so the command layer can
-// decide whether to swallow (best-effort) or escalate. The repo itself must
-// not silently swallow infrastructure errors — that decision belongs to the
-// caller.
+// connectivity failure on the read path bubbles up immediately (not retried)
+// so the command layer can decide whether to swallow (best-effort) or
+// escalate. Only a CAS conflict (-1) triggers a retry; a transport error is
+// a technical failure the repo does not swallow internally.
 func TestUpdateBalanceCacheSettings_GetErrorIsPropagated(t *testing.T) {
 	t.Parallel()
 
@@ -247,180 +111,137 @@ func TestUpdateBalanceCacheSettings_GetErrorIsPropagated(t *testing.T) {
 	err := rr.UpdateBalanceCacheSettings(context.Background(), organizationID, ledgerID, "@alice#default",
 		&mmodel.BalanceSettings{AllowOverdraft: true})
 
-	require.ErrorIs(t, err, boom, "transport errors on GET must propagate unchanged")
-	assert.Empty(t, stub.setCalls, "no SET must fire when the GET failed")
+	require.ErrorIs(t, err, boom, "transport errors on GET must propagate unchanged, not be retried")
+	assert.Len(t, stub.getCalls, 1, "a transport error must not trigger a retry")
 }
 
-// TestUpdateBalanceCacheSettings_NilSettingsResetsToDefaults verifies that
+// TestApplySettingsToCachedBalance_FullSettings pins the happy path: every
+// settings-derived field is overwritten from a fully-populated
+// BalanceSettings, and live transactional state is left untouched.
+func TestApplySettingsToCachedBalance_FullSettings(t *testing.T) {
+	t.Parallel()
+
+	limit := "1000.00"
+	cached := map[string]any{
+		"ID":            "balance-id",
+		"Alias":         "@alice",
+		"Available":     "7777",
+		"OnHold":        "123",
+		"Version":       float64(42),
+		"OverdraftUsed": "250.50",
+	}
+
+	applySettingsToCachedBalance(cached, &mmodel.BalanceSettings{
+		BalanceScope:          mmodel.BalanceScopeTransactional,
+		AllowOverdraft:        true,
+		OverdraftLimitEnabled: true,
+		OverdraftLimit:        &limit,
+	})
+
+	assert.Equal(t, 1, cached["AllowOverdraft"])
+	assert.Equal(t, 1, cached["OverdraftLimitEnabled"])
+	assert.Equal(t, "1000.00", cached["OverdraftLimit"])
+	assert.Equal(t, mmodel.BalanceScopeTransactional, cached["BalanceScope"])
+
+	// Live transactional state and identity fields are untouched.
+	assert.Equal(t, "balance-id", cached["ID"])
+	assert.Equal(t, "@alice", cached["Alias"])
+	assert.Equal(t, "7777", cached["Available"])
+	assert.Equal(t, "123", cached["OnHold"])
+	assert.Equal(t, float64(42), cached["Version"])
+	assert.Equal(t, "250.50", cached["OverdraftUsed"])
+}
+
+// TestApplySettingsToCachedBalance_PartialSettings covers the two documented
+// partial-payload cases: OverdraftLimit == nil collapses to the Lua-compatible
+// "0" placeholder, and an empty BalanceScope defaults to transactional.
+func TestApplySettingsToCachedBalance_PartialSettings(t *testing.T) {
+	t.Parallel()
+
+	cached := map[string]any{"Available": "100"}
+
+	applySettingsToCachedBalance(cached, &mmodel.BalanceSettings{
+		AllowOverdraft:        true,
+		OverdraftLimitEnabled: false,
+		OverdraftLimit:        nil,
+		BalanceScope:          "",
+	})
+
+	assert.Equal(t, 1, cached["AllowOverdraft"])
+	assert.Equal(t, 0, cached["OverdraftLimitEnabled"])
+	assert.Equal(t, "0", cached["OverdraftLimit"],
+		"a nil OverdraftLimit must collapse to the Lua-compatible placeholder")
+	assert.Equal(t, mmodel.BalanceScopeTransactional, cached["BalanceScope"],
+		"an empty BalanceScope must default to transactional")
+}
+
+// TestApplySettingsToCachedBalance_NilSettingsResetsToDefaults verifies that
 // passing nil Settings collapses the cached entry to the Lua-compatible
 // zero-state used by buildBalanceAtomicOperationPlan for balances without
-// Settings. This keeps the cache and the plan-builder in lock-step on the
-// "no settings" interpretation.
-func TestUpdateBalanceCacheSettings_NilSettingsResetsToDefaults(t *testing.T) {
+// Settings, while leaving non-settings fields untouched.
+func TestApplySettingsToCachedBalance_NilSettingsResetsToDefaults(t *testing.T) {
 	t.Parallel()
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-
-	// Start with overdraft enabled so we can observe the reset taking effect.
-	cached := mmodel.BalanceRedis{
-		ID:                    "balance-id",
-		Alias:                 "@alice",
-		Key:                   "default",
-		Available:             decimal.NewFromInt(100),
-		OnHold:                decimal.Zero,
-		Version:               1,
-		AllowOverdraft:        1,
-		OverdraftLimitEnabled: 1,
-		OverdraftLimit:        "500.00",
-		BalanceScope:          mmodel.BalanceScopeInternal,
-		OverdraftUsed:         "42.00",
+	cached := map[string]any{
+		"AllowOverdraft":        1,
+		"OverdraftLimitEnabled": 1,
+		"OverdraftLimit":        "500.00",
+		"BalanceScope":          mmodel.BalanceScopeInternal,
+		"OverdraftUsed":         "42.00",
+		"Version":               float64(1),
 	}
 
-	cachedJSON, err := json.Marshal(&cached)
-	require.NoError(t, err)
+	applySettingsToCachedBalance(cached, nil)
 
-	expectedKey := "balance:{transactions}:" +
-		organizationID.String() + ":" + ledgerID.String() + ":@alice#default"
+	assert.Equal(t, 0, cached["AllowOverdraft"])
+	assert.Equal(t, 0, cached["OverdraftLimitEnabled"])
+	assert.Equal(t, "0", cached["OverdraftLimit"])
+	assert.Equal(t, mmodel.BalanceScopeTransactional, cached["BalanceScope"])
 
-	stub := &settingsUpdateStubClient{
-		getResponses: map[string]struct {
-			val string
-			err error
-		}{
-			expectedKey: {val: string(cachedJSON)},
-		},
-	}
-
-	rr := &RedisConsumerRepository{conn: &staticRedisProvider{client: stub}}
-
-	err = rr.UpdateBalanceCacheSettings(context.Background(), organizationID, ledgerID, "@alice#default", nil)
-	require.NoError(t, err)
-
-	require.Len(t, stub.setCalls, 1)
-
-	raw, ok := stub.setCalls[0].Value.(string)
-	require.True(t, ok)
-
-	var written mmodel.BalanceRedis
-
-	require.NoError(t, json.Unmarshal([]byte(raw), &written))
-
-	assert.Equal(t, 0, written.AllowOverdraft)
-	assert.Equal(t, 0, written.OverdraftLimitEnabled)
-	assert.Equal(t, "0", written.OverdraftLimit)
-	assert.Equal(t, mmodel.BalanceScopeTransactional, written.BalanceScope)
-
-	// Transactional state still preserved even when settings are reset.
-	assert.Equal(t, "42.00", written.OverdraftUsed,
-		"OverdraftUsed is not a settings field and must survive a nil-settings reset")
-	assert.Equal(t, int64(1), written.Version)
+	// Non-settings fields are not part of the reset.
+	assert.Equal(t, "42.00", cached["OverdraftUsed"])
+	assert.Equal(t, float64(1), cached["Version"])
 }
 
-// TestUpdateBalanceCacheSettings_WritesLuaCompatibleCasing pins the invariant
-// that the cache JSON produced by the Go-side settings rewrite uses CamelCase
-// field names (AllowOverdraft, OverdraftLimit, …) to match what the Lua
-// atomic script emits via cjson.encode and reads via balance.<Field>.
-//
-// Lua table access is case-sensitive: a camelCase field name (allowOverdraft)
-// would yield `balance.AllowOverdraft == nil` on the next cjson.decode, and
-// arithmetic helpers that touch the balance would explode with
-// "attempt to compare nil with number" in scripts/balance_atomic_operation.lua.
-// The regression reproduced end-to-end as a 500 on the first overdraft-enabled
-// debit after a settings PATCH.
-//
-// This test also covers the cleanup of legacy camelCase keys left behind by
-// pre-fix writers: writing a second time must produce exactly one casing for
-// each field so Lua never sees a stale duplicate.
-func TestUpdateBalanceCacheSettings_WritesLuaCompatibleCasing(t *testing.T) {
+// TestApplySettingsToCachedBalance_DedupesLegacyCasing covers the cleanup of
+// legacy camelCase keys left behind by pre-fix writers: applying a settings
+// mutation over a document carrying both the legacy camelCase and Lua-native
+// CamelCase spellings must converge to exactly one casing per field, so Lua
+// never sees a stale duplicate alongside the fresh CamelCase write.
+func TestApplySettingsToCachedBalance_DedupesLegacyCasing(t *testing.T) {
 	t.Parallel()
 
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-
-	// Seed the cache with a legacy document that has the camelCase spellings
-	// emitted by the pre-fix code path, mixed with CamelCase transactional
-	// state the Lua script would have written. The rewrite must converge
-	// both to a single, Lua-native CamelCase key per field.
-	legacy := map[string]any{
-		"ID":             "balance-id",
-		"Alias":          "@alice",
-		"Key":            "default",
-		"AccountID":      "account-id",
-		"AssetCode":      "USD",
-		"Available":      "100",
-		"OnHold":         "0",
-		"Version":        3,
-		"AccountType":    "deposit",
-		"AllowSending":   1,
-		"AllowReceiving": 1,
-		"Direction":      "credit",
-		"OverdraftUsed":  "0",
+	limit := "500.00"
+	cached := map[string]any{
+		"ID":        "balance-id",
+		"Direction": "credit",
 		// Legacy camelCase keys from a pre-fix Go writer that must be dropped.
 		"allowOverdraft":        0,
 		"overdraftLimitEnabled": 0,
 		"overdraftLimit":        "0",
 		"balanceScope":          "transactional",
 	}
-	legacyJSON, err := json.Marshal(legacy)
-	require.NoError(t, err)
 
-	expectedKey := "balance:{transactions}:" +
-		organizationID.String() + ":" + ledgerID.String() + ":@alice#default"
+	applySettingsToCachedBalance(cached, &mmodel.BalanceSettings{
+		BalanceScope:          mmodel.BalanceScopeTransactional,
+		AllowOverdraft:        true,
+		OverdraftLimitEnabled: true,
+		OverdraftLimit:        &limit,
+	})
 
-	stub := &settingsUpdateStubClient{
-		getResponses: map[string]struct {
-			val string
-			err error
-		}{
-			expectedKey: {val: string(legacyJSON)},
-		},
-	}
+	// Lua-native CamelCase keys must be present with the new values.
+	assert.Equal(t, 1, cached["AllowOverdraft"])
+	assert.Equal(t, 1, cached["OverdraftLimitEnabled"])
+	assert.Equal(t, "500.00", cached["OverdraftLimit"])
+	assert.Equal(t, mmodel.BalanceScopeTransactional, cached["BalanceScope"])
 
-	rr := &RedisConsumerRepository{conn: &staticRedisProvider{client: stub}}
-
-	limit := "500.00"
-	err = rr.UpdateBalanceCacheSettings(context.Background(), organizationID, ledgerID, "@alice#default",
-		&mmodel.BalanceSettings{
-			BalanceScope:          mmodel.BalanceScopeTransactional,
-			AllowOverdraft:        true,
-			OverdraftLimitEnabled: true,
-			OverdraftLimit:        &limit,
-		})
-	require.NoError(t, err)
-
-	require.Len(t, stub.setCalls, 1)
-	raw, ok := stub.setCalls[0].Value.(string)
-	require.True(t, ok)
-
-	// Decode into a generic map so we can assert exact JSON keys — the
-	// CamelCase-vs-camelCase distinction is invisible through BalanceRedis
-	// because Go's json.Unmarshal matches struct fields case-insensitively.
-	var written map[string]any
-	require.NoError(t, json.Unmarshal([]byte(raw), &written))
-
-	// Lua-native CamelCase keys MUST be present with the new values.
-	assert.EqualValues(t, 1, written["AllowOverdraft"],
-		"AllowOverdraft must use CamelCase so the Lua script can read it")
-	assert.EqualValues(t, 1, written["OverdraftLimitEnabled"],
-		"OverdraftLimitEnabled must use CamelCase so the Lua script can read it")
-	assert.Equal(t, "500.00", written["OverdraftLimit"],
-		"OverdraftLimit must use CamelCase so the Lua script can read it")
-	assert.Equal(t, mmodel.BalanceScopeTransactional, written["BalanceScope"],
-		"BalanceScope must use CamelCase so the Lua script can read it")
-
-	// Legacy camelCase keys MUST be purged so Lua never sees a stale duplicate
-	// alongside the fresh CamelCase write.
+	// Legacy camelCase keys must be purged.
 	for _, legacyKey := range []string{"allowOverdraft", "overdraftLimitEnabled", "overdraftLimit", "balanceScope"} {
-		_, present := written[legacyKey]
+		_, present := cached[legacyKey]
 		assert.False(t, present, "legacy camelCase key %q must be removed from the cache document", legacyKey)
 	}
 
-	// Identity + transactional state MUST be preserved under their existing
-	// CamelCase spellings. These fields pass through the rewrite untouched.
-	assert.Equal(t, "balance-id", written["ID"])
-	assert.Equal(t, "credit", written["Direction"])
-	assert.Equal(t, "100", written["Available"])
-	assert.Equal(t, "0", written["OverdraftUsed"])
-	assert.EqualValues(t, 3, written["Version"])
+	// Untouched identity fields survive.
+	assert.Equal(t, "balance-id", cached["ID"])
+	assert.Equal(t, "credit", cached["Direction"])
 }
