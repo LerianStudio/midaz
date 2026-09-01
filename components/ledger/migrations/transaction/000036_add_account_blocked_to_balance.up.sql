@@ -1,0 +1,21 @@
+-- Add the denormalized account-level block flag to the balance table.
+--
+-- account_blocked mirrors the account's block state into the balance read
+-- model. The balance row is the only structure the hot transaction validation
+-- path already loads, so carrying the flag here lets validation reject a
+-- blocked account without a second lookup. The account remains the source of
+-- truth; this column is a read-model projection of it (TRD ADR-003).
+--
+-- FALSE is the backward-compatible default: every pre-existing balance belongs
+-- to an account that is not blocked under the current behavior, and the prior
+-- application version keeps working because it simply never reads the column.
+--
+-- This is a metadata-only ALTER on PostgreSQL 11+ (non-volatile constant
+-- default). No table rewrite is triggered; pre-existing rows read FALSE
+-- without physical update. IF NOT EXISTS keeps the ALTER idempotent for
+-- multi-tenant re-runs.
+--
+-- No index is created: the flag is read from an already-loaded balance row and
+-- is never filtered on in isolation, so an index would only add write
+-- amplification on the transaction hot path.
+ALTER TABLE balance ADD COLUMN IF NOT EXISTS account_blocked BOOLEAN NOT NULL DEFAULT FALSE;
