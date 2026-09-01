@@ -1,5 +1,10 @@
 # Midaz Changelog
 
+## [Unreleased]
+
+Breaking Changes:
+- Removed `POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl`. Send the transaction to `POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json` instead: it expresses the same intent as a JSON body rather than an uploaded grammar file. (@andreimatiazi)
+
 ## [3.8.3](https://github.com/LerianStudio/midaz/releases/tag/v3.8.3)
 
 Fixes:

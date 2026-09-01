@@ -14,7 +14,6 @@ check_command() {
 }
 
 check_command go "Install Go from https://golang.org/doc/install"
-check_command npm "Install Node.js and npm from https://nodejs.org/"
 
 # Print header
 echo "------------------------------------------"
@@ -26,29 +25,11 @@ echo "Starting tests at $(date)"
 start_time=$(date +%s)
 overall_exit_code=0
 
-# Run core package tests
-echo -e "\nRunning tests on pkg kernel..."
-go test -v ./pkg || overall_exit_code=1
-
-echo -e "\nRunning component tests..."
-
-# Test onboarding component
-echo -e "\nTesting onboarding component..."
-if [ -d "components/onboarding" ]; then
-    (cd components/onboarding && make test) || {
-        overall_exit_code=1
-        echo "[error] Onboarding component tests failed."
-    }
-fi
-
-# Test transaction component
-echo -e "\nTesting transaction component..."
-if [ -d "components/transaction" ]; then
-    (cd components/transaction && make test) || {
-        overall_exit_code=1
-        echo "[error] Transaction component tests failed."
-    }
-fi
+# Midaz is a single Go module rooted at PROJECT_ROOT, so `go test ./...`
+# covers ledger + tracer + reporter + pkg in one pass. Flags mirror
+# mk/tests.mk test-unit (-race -count=1) so behaviour stays consistent.
+echo -e "\nRunning go test ./... from $PROJECT_ROOT ..."
+(cd "$PROJECT_ROOT" && go test -race -count=1 ./...) || overall_exit_code=$?
 
 # Calculate duration and print summary
 end_time=$(date +%s)
@@ -62,7 +43,7 @@ echo "----------------------------------------"
 if [ $overall_exit_code -eq 0 ]; then
     echo "[ok] All tests passed successfully ✔️"
 else
-    echo "[error] Some tests failed. Please check the output above for details."
+    echo "[error] Some tests failed (go test exited $overall_exit_code). Please check the output above for details."
 fi
 
 exit $overall_exit_code

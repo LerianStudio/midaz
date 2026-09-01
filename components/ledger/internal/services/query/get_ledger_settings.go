@@ -9,14 +9,13 @@ import (
 	"encoding/json"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // SettingsCacheTTL is the TTL for cached ledger settings (5 minutes).
@@ -31,7 +30,7 @@ const SettingsCacheTTL = 5 * time.Minute
 // miss, and populates the cache after a successful DB read. Cache errors are
 // non-blocking -- only the DB fetch is required to succeed.
 func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (map[string]any, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_ledger_settings")
 	defer span.End()

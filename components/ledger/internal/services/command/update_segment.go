@@ -7,28 +7,36 @@ package command
 import (
 	"context"
 	"errors"
+	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // UpdateSegmentByID updates a segment from the repository by the given ID.
-func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *mmodel.UpdateSegmentInput) (*mmodel.Segment, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *mmodel.UpdateSegmentInput) (_ *mmodel.Segment, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_segment_by_id")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_segment", start, err)
+	}()
 
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -99,8 +107,7 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 // emitSegmentUpdatedEvent publishes the segment.updated event for a
 // successfully persisted update. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
-// Durability of the event is owned by PG and (follow-up task) the
-// outbox subsystem + DLQ, not by the synchronous Emit call.
+// The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked between the SegmentRepo.Update success branch and the
 // metadata-write call in UpdateSegmentByID, so a downstream Mongo
@@ -113,7 +120,7 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 // Wire-format mapping lives in pkg/streaming/events/segment_updated.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitSegmentUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, s *mmodel.Segment) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.SegmentUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.SegmentUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewSegmentUpdated(s).ToEmitRequest(tenantID, s.UpdatedAt)
 		})

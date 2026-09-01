@@ -9,13 +9,14 @@ import (
 	"errors"
 	"testing"
 
-	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libPointers "github.com/LerianStudio/lib-commons/v6/commons/pointers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 func TestListAccountsByAlias(t *testing.T) {

@@ -4,27 +4,186 @@
 
 package utils
 
-import "github.com/LerianStudio/lib-observability/metrics"
+import (
+	"context"
+	"time"
+
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+)
 
 var (
+	// DomainOperationsTotal counts business-operation outcomes across all
+	// components (D6 mandate). Labels: component, operation, result — all
+	// bounded sets (result is success|business_error|technical_error).
+	DomainOperationsTotal = metrics.Metric{
+		Name:        "domain_operations_total",
+		Unit:        "1",
+		Description: "Count of business operations by component, operation and result.",
+	}
+
+	// DomainOperationDuration tracks business-operation latency. Labels:
+	// component, operation.
+	DomainOperationDuration = metrics.Metric{
+		Name:        "domain_operation_duration_ms",
+		Unit:        "ms",
+		Description: "Business operation duration in milliseconds by component and operation.",
+	}
+)
+
+// RecordDomainOperation emits the D6 domain metrics for one business-operation
+// completion. Call it at the single exit boundary of a use case (typically via
+// defer with a named error). A nil factory is a no-op so single binaries can
+// run with metrics disabled; emit failures log at Debug per T11 and never
+// affect the operation.
+func RecordDomainOperation(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, component, operation string, start time.Time, err error) {
+	if factory == nil {
+		return
+	}
+
+	result := "success"
+
+	switch {
+	case err == nil:
+	case pkg.IsBusinessError(err):
+		result = "business_error"
+	default:
+		result = "technical_error"
+	}
+
+	counter, cErr := factory.Counter(DomainOperationsTotal)
+	if cErr == nil {
+		cErr = counter.WithLabels(map[string]string{
+			"component": component,
+			"operation": operation,
+			"result":    result,
+		}).Add(ctx, 1)
+	}
+
+	histogram, hErr := factory.Histogram(DomainOperationDuration)
+	if hErr == nil {
+		hErr = histogram.WithLabels(map[string]string{
+			"component": component,
+			"operation": operation,
+		}).Record(ctx, time.Since(start).Milliseconds())
+	}
+
+	if logger != nil {
+		if cErr != nil {
+			logger.Log(ctx, libLog.LevelDebug, "Failed to emit domain operation counter", libLog.Err(cErr))
+		}
+
+		if hErr != nil {
+			logger.Log(ctx, libLog.LevelDebug, "Failed to emit domain operation histogram", libLog.Err(hErr))
+		}
+	}
+}
+
+var (
+	// BalanceSynced counts balances written to the database, labelled by
+	// organization_id, ledger_id, tenant_id (empty in single-tenant) and mode.
 	BalanceSynced = metrics.Metric{
 		Name:        "balance_synced",
 		Unit:        "1",
 		Description: "Measures the number of balances synced.",
 	}
 
-	// BalanceSyncBatchFailures counts batch sync operation failures.
+	// BalanceSyncBatchFailures counts batch sync operation failures, labelled by
+	// organization_id, ledger_id and tenant_id (empty in single-tenant).
 	BalanceSyncBatchFailures = metrics.Metric{
 		Name:        "balance_sync_batch_failures_total",
 		Unit:        "1",
 		Description: "Total batch sync operation failures.",
 	}
 
-	// BalanceSyncCleanupFailures counts schedule cleanup failures after successful DB sync.
+	// BalanceSyncCleanupFailures counts failures to remove keys from the sync
+	// schedule, labelled by organization_id, ledger_id and tenant_id (empty in
+	// single-tenant). It does NOT imply balances were persisted: the all-orphans
+	// path cleans up without writing to the database at all.
 	BalanceSyncCleanupFailures = metrics.Metric{
 		Name:        "balance_sync_cleanup_failures_total",
 		Unit:        "1",
-		Description: "Total schedule cleanup failures after successful balance sync.",
+		Description: "Total balance sync schedule cleanup failures.",
+	}
+
+	// BalanceSyncTenantSkip counts tenants skipped by the balance sync worker when
+	// their PostgreSQL connection cannot be resolved for a cycle.
+	BalanceSyncTenantSkip = metrics.Metric{
+		Name:        "balance_sync_tenant_skip_total",
+		Unit:        "1",
+		Description: "Total tenants skipped by the balance sync worker due to connection resolution failure.",
+	}
+
+	// BalanceSyncLastSuccessTimestamp records the unix timestamp of the last batch
+	// sync that ran to completion, by organization_id, ledger_id and tenant_id
+	// (empty in single-tenant). Alert on `time() - metric`: a failure counter cannot
+	// see a silent stall, where nothing fails because nothing runs. The series only
+	// exists for a scope that has completed a batch since the pod booted, so a
+	// staleness rule needs a backlog guard to not rest on an absent series.
+	//
+	// The declared name carries NO unit suffix: the OTLP-to-Prometheus translation
+	// appends one from Unit, so this reaches Mimir as
+	// `balance_sync_last_success_timestamp_seconds`. Spelling `_seconds` here would
+	// land it as `..._seconds_seconds`, the same double-suffix the `_ms` histograms
+	// carry (docs/dashboards/v4/telemetry-dictionary.md).
+	BalanceSyncLastSuccessTimestamp = metrics.Metric{
+		Name:        "balance_sync_last_success_timestamp",
+		Unit:        "s",
+		Description: "Unix timestamp of the last successful balance batch sync.",
+	}
+
+	// BalanceSyncOrphanDropped counts scheduled sync keys dropped without
+	// persisting: the Redis value expired (or the key was unparseable) before
+	// the flush, so the pending delta was lost. Labels: organization_id,
+	// ledger_id, tenant_id (empty in single-tenant), reason (expired|unparseable).
+	BalanceSyncOrphanDropped = metrics.Metric{
+		Name:        "balance_sync_orphan_dropped_total",
+		Unit:        "1",
+		Description: "Total scheduled balance sync keys dropped without persisting (value expired or unparseable).",
+	}
+
+	// Redis backup-queue (poison record) observability metrics.
+
+	// RedisBackupQueueDepth is the number of records currently in the backup queue.
+	RedisBackupQueueDepth = metrics.Metric{
+		Name:        "redis_backup_queue_depth",
+		Unit:        "1",
+		Description: "Number of records currently in the Redis transaction backup queue.",
+	}
+
+	// RedisBackupQueueOldestAgeSeconds is the age of the oldest record in the backup queue.
+	RedisBackupQueueOldestAgeSeconds = metrics.Metric{
+		Name:        "redis_backup_queue_oldest_age_seconds",
+		Unit:        "s",
+		Description: "Age in seconds of the oldest record in the Redis transaction backup queue.",
+	}
+
+	// RedisBackupQuarantineTotal counts poison records moved to the durable quarantine table.
+	RedisBackupQuarantineTotal = metrics.Metric{
+		Name:        "redis_backup_quarantine_total",
+		Unit:        "1",
+		Description: "Total poison backup records moved to the Postgres quarantine table.",
+	}
+
+	// RedisBackupReplayRecomputedBalancesAfterTotal counts backup-replay records
+	// whose operation audit rows were rebuilt without Lua's authoritative
+	// after-balances, so overdraft transactions may carry naive before-amount
+	// arithmetic (audit divergence tracked under T-006.1 / T-009).
+	RedisBackupReplayRecomputedBalancesAfterTotal = metrics.Metric{
+		Name:        "redis_backup_replay_recomputed_balances_after_total",
+		Unit:        "1",
+		Description: "Total backup-replay records whose after-balances were recomputed rather than replayed from Lua, risking overdraft audit divergence.",
+	}
+
+	// DBReadSourceTotal counts read-routing decisions by the source that served
+	// the read. Counter. Single bounded label: source (primary|replica).
+	// Per-operation granularity is the span (db.read_source attribute), not a label.
+	DBReadSourceTotal = metrics.Metric{
+		Name:        "db_read_source_total",
+		Unit:        "1",
+		Description: "Count of read-routing decisions by served source (primary|replica).",
 	}
 
 	// CircuitBreakerState indicates the current state of the RabbitMQ circuit breaker.

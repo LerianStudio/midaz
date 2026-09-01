@@ -26,8 +26,6 @@ import (
 // For companion rows on `@account#overdraft`, the snapshot mirrors the DEFAULT
 // balance's before/after — same values appear on both the primary and companion
 // rows so the lifecycle is visible from either.
-//
-// @Description Per-operation state snapshot. Read-only, system-generated. Always populated.
 type OperationSnapshot struct {
 	// String-encoded decimal of the default balance's overdraftUsed BEFORE this operation mutated it.
 	// "0" when the operation does not participate in the overdraft lifecycle.
@@ -35,7 +33,7 @@ type OperationSnapshot struct {
 	// String-encoded decimal of the default balance's overdraftUsed AFTER this operation committed.
 	// "0" when the operation does not participate in the overdraft lifecycle.
 	OverdraftUsedAfter string `json:"overdraftUsedAfter" example:"130"`
-} // @name OperationSnapshot
+}
 
 // OperationRedis is a flat Redis cache representation of an operation.
 // It mirrors the essential fields from the internal operation.Operation type
@@ -76,4 +74,9 @@ type OperationRedis struct {
 	// values rather than absent fields, matching the always-populated wire-
 	// shape contract.
 	Snapshot OperationSnapshot `json:"snapshot"`
+	// AccountType is the type of the account the operation moved. It is not
+	// persisted with the operation row, so the backup envelope is what carries
+	// it across a replay; omitempty keeps envelopes written before this field
+	// existed decoding unchanged.
+	AccountType string `json:"accountType,omitempty"`
 }

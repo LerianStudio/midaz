@@ -1,5 +1,6 @@
-# ---------------------------------------------------------------------------
-# CVE-2025-57319 — withdrawn npm advisory (fast-redact prototype pollution).
-# Not applicable to this Go repository; retained from prior configuration.
-# ---------------------------------------------------------------------------
-CVE-2025-57319
+# Trivy CVE suppressions. Intentionally empty.
+#
+# Every entry must carry: why it is not exploitable here, and an exp: date so the
+# suppression expires instead of rotting. Re-check before adding one — the last two
+# entries (CVE-2025-57319 fast-redact, CVE-2026-45045 gofiber/fiber v2) both outlived
+# the finding they suppressed.

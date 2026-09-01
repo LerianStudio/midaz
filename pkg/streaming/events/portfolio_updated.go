@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // PortfolioUpdatedDefinition is the routing contract for portfolio.updated.

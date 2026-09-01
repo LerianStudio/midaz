@@ -1,0 +1,182 @@
+# Access-Manager RI (Responsibility Inversion) declaration manifest.
+#
+# Identity (service slug): "midaz" — the core ledger + embedded CRM. This is the
+# FIRST argument of every auth.Authorize("midaz", resource, verb) guard in
+# components/ledger/internal/adapters/http/in/ (const midazName, routes.go:15;
+# the CRM routes reuse it via protectedMidaz too).
+# Keys mirror the yaml tags on lib-auth/v3 auth/declaration.DeclarationManifest
+# (auth/declaration/manifest.go).
+#
+# The (resource, action) tuples below are the EXACT authorization surface the
+# ledger routes enforce at runtime. Every entry traces to a real
+# protectedMidaz(auth, resource, verb) route registration (= auth.Authorize(
+# "midaz", resource, verb)); the file:line on each group header points at the
+# registration. `resource` is written BARE — the central reconciler composes the
+# "midaz/" prefix. The `action` is the HTTP verb the guard authorizes under
+# (get/post/put/patch/delete/head), preserved VERBATIM: lib-auth's HTTP-verb
+# deny-list was removed (lib-auth #145 / identity #310), and the manifest action
+# MUST match what the middleware checks, so a granted role's permission lines up
+# with the runtime enforce — NOT a semantic create/read/update rename.
+#
+# ROLE MODEL IS CONFIRMED against the central Access Manager. The code carries no
+# role data (Authorize takes only subject/resource/action), but the editor/viewer
+# split below is the confirmed convention applied across this midaz manifest (fee
+# resources are embedded here, no separate fees manifest): editor gets read plus
+# every mutating verb the routes use (get/post/put/patch/delete/head — asset-rates
+# uses put), viewer gets read-only (get/head), aligned with the Access Manager
+# editor/viewer role model (midaz-editor-permission / midaz-viewer-permission). The
+# granted_to group bindings under `roles:` are likewise confirmed against the
+# central Access Manager seed (see below).
+service: midaz
+version: 1
+permissions:
+  # account-types (account_type_routes.go registerAccountTypeRoutesToApp)
+  - { resource: account-types, action: post,   effect: allow, roles: [editor] }
+  - { resource: account-types, action: patch,  effect: allow, roles: [editor] }
+  - { resource: account-types, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: account-types, action: delete, effect: allow, roles: [editor] }
+
+  # accounts (account_routes.go registerAccountRoutesToApp)
+  - { resource: accounts, action: post,   effect: allow, roles: [editor] }
+  - { resource: accounts, action: patch,  effect: allow, roles: [editor] }
+  - { resource: accounts, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: accounts, action: delete, effect: allow, roles: [editor] }
+  - { resource: accounts, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # asset-rates (asset_rate_routes.go registerAssetRateRoutesToApp)
+  - { resource: asset-rates, action: put, effect: allow, roles: [editor] }
+  - { resource: asset-rates, action: get, effect: allow, roles: [editor, viewer] }
+
+  # assets (asset_routes.go registerAssetRoutesToApp)
+  - { resource: assets, action: post,   effect: allow, roles: [editor] }
+  - { resource: assets, action: patch,  effect: allow, roles: [editor] }
+  - { resource: assets, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: assets, action: delete, effect: allow, roles: [editor] }
+  - { resource: assets, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # balances (balance_routes.go registerBalanceRoutesToApp)
+  - { resource: balances, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: balances, action: patch,  effect: allow, roles: [editor] }
+  - { resource: balances, action: delete, effect: allow, roles: [editor] }
+  - { resource: balances, action: post,   effect: allow, roles: [editor] }
+
+  # billing-calculate — billing calculate dry-run (billing_calculate_routes.go registerBillingCalculateRoutesToApp)
+  - { resource: billing-calculate, action: post, effect: allow, roles: [editor] }
+
+  # billing-packages (billing_package_routes.go registerBillingPackageRoutesToApp)
+  - { resource: billing-packages, action: post,   effect: allow, roles: [editor] }
+  - { resource: billing-packages, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: billing-packages, action: patch,  effect: allow, roles: [editor] }
+  - { resource: billing-packages, action: delete, effect: allow, roles: [editor] }
+
+  # encryption (encryption_routes.go registerEncryptionRoutesToApp)
+  - { resource: encryption, action: post, effect: allow, roles: [editor] }
+  - { resource: encryption, action: get,  effect: allow, roles: [editor, viewer] }
+
+  # estimates — fee estimate dry-run (fee_estimate_routes.go registerFeeEstimateRoutesToApp)
+  - { resource: estimates, action: post, effect: allow, roles: [editor] }
+
+  # holders (holder_routes.go registerHolderRoutesToApp)
+  - { resource: holders, action: post,   effect: allow, roles: [editor] }
+  - { resource: holders, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: holders, action: patch,  effect: allow, roles: [editor] }
+  - { resource: holders, action: delete, effect: allow, roles: [editor] }
+
+  # instruments (instrument_routes.go registerInstrumentRoutesToApp)
+  - { resource: instruments, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: instruments, action: post,   effect: allow, roles: [editor] }
+  - { resource: instruments, action: patch,  effect: allow, roles: [editor] }
+  - { resource: instruments, action: delete, effect: allow, roles: [editor] }
+
+  # ledgers (ledger_routes.go registerLedgerRoutesToApp)
+  - { resource: ledgers, action: post,   effect: allow, roles: [editor] }
+  - { resource: ledgers, action: patch,  effect: allow, roles: [editor] }
+  - { resource: ledgers, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: ledgers, action: delete, effect: allow, roles: [editor] }
+  - { resource: ledgers, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # operation-routes (operation_route_routes.go registerOperationRouteRoutesToApp)
+  - { resource: operation-routes, action: post,   effect: allow, roles: [editor] }
+  - { resource: operation-routes, action: patch,  effect: allow, roles: [editor] }
+  - { resource: operation-routes, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: operation-routes, action: delete, effect: allow, roles: [editor] }
+
+  # operations (operation_routes.go registerOperationRoutesToApp)
+  - { resource: operations, action: get,   effect: allow, roles: [editor, viewer] }
+  - { resource: operations, action: patch, effect: allow, roles: [editor] }
+
+  # organizations (organization_routes.go registerOrganizationRoutesToApp)
+  - { resource: organizations, action: post,   effect: allow, roles: [editor] }
+  - { resource: organizations, action: patch,  effect: allow, roles: [editor] }
+  - { resource: organizations, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: organizations, action: delete, effect: allow, roles: [editor] }
+  - { resource: organizations, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # packages — fee packages (fee_package_routes.go registerPackageRoutesToApp)
+  - { resource: packages, action: post,   effect: allow, roles: [editor] }
+  - { resource: packages, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: packages, action: patch,  effect: allow, roles: [editor] }
+  - { resource: packages, action: delete, effect: allow, roles: [editor] }
+
+  # portfolios (portfolio_routes.go registerPortfolioRoutesToApp)
+  - { resource: portfolios, action: post,   effect: allow, roles: [editor] }
+  - { resource: portfolios, action: patch,  effect: allow, roles: [editor] }
+  - { resource: portfolios, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: portfolios, action: delete, effect: allow, roles: [editor] }
+  - { resource: portfolios, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # protection — CRM audit-trail read (audit_routes.go registerAuditRoutesToApp)
+  - { resource: protection, action: get, effect: allow, roles: [editor, viewer] }
+
+  # segments (segment_routes.go registerSegmentRoutesToApp)
+  - { resource: segments, action: post,   effect: allow, roles: [editor] }
+  - { resource: segments, action: patch,  effect: allow, roles: [editor] }
+  - { resource: segments, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: segments, action: delete, effect: allow, roles: [editor] }
+  - { resource: segments, action: head,   effect: allow, roles: [editor, viewer] }
+
+  # settings — entity metadata (metadata_routes.go registerMetadataIndexRoutesToApp)
+  - { resource: settings, action: post,   effect: allow, roles: [editor] }
+  - { resource: settings, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: settings, action: delete, effect: allow, roles: [editor] }
+
+  # streaming-manifest — event catalog (streaming_manifest_routes.go RegisterStreamingManifestRouteToApp)
+  - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
+
+  # transaction-routes (transaction_route_routes.go registerTransactionRouteRoutesToApp)
+  - { resource: transaction-routes, action: post,   effect: allow, roles: [editor] }
+  - { resource: transaction-routes, action: patch,  effect: allow, roles: [editor] }
+  - { resource: transaction-routes, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: transaction-routes, action: delete, effect: allow, roles: [editor] }
+
+  # transactions (transaction_routes.go RegisterTransactionHumaRoutesToApp;
+  # v2 at transaction_routes_v2.go RegisterTransactionV2RoutesToApp and
+  # transaction_mirror_register_v2.go RegisterTransactionMirrorV2RoutesToApp)
+  - { resource: transactions, action: post,  effect: allow, roles: [editor] }
+  - { resource: transactions, action: patch, effect: allow, roles: [editor] }
+  - { resource: transactions, action: get,   effect: allow, roles: [editor, viewer] }
+  - { resource: transactions, action: head,  effect: allow, roles: [editor, viewer] }
+
+roles:
+  # Group bindings are CONFIRMED against the central Access Manager seed
+  # (plugin-access-manager, components/auth/init/casdoor/init_data.json): the real
+  # groups are midaz-{editor,contributor,viewer}-group. The manifest only
+  # REFERENCES pre-existing groups, it never creates them — a name absent from the
+  # seed reconciles into a role with zero members. The seed also carries
+  # midaz-contributor-group, but this manifest declares no `contributor` role, so
+  # that group stays unbound here.
+  - name: editor
+    granted_to:
+      - group: midaz-editor-group
+  - name: viewer
+    granted_to:
+      - group: midaz-viewer-group
+
+m2m:
+  # EXPORT: midaz exposes its M2M editor surface so a peer service that declares a
+  # `needs: [midaz]` edge can reconcile against it.
+  exposed: true
+  # IMPORT: the ledger calls tracer's reservation API (TRACER_BASE_URL) over the
+  # gRPC/mTLS reservation seam, authorized by tracer's own `reservations`
+  # permission (tracer-inbound authz). This is NOT an RI declaration M2M edge, so
+  # midaz declares no `needs`.

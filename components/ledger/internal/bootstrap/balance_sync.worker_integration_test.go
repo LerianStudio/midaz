@@ -12,16 +12,17 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
+	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
 // =============================================================================
@@ -38,8 +39,8 @@ func TestIntegration_BalanceSyncSchedule_FullFlow(t *testing.T) {
 	}
 
 	// Setup Redis container
-	container := redistestutil.SetupContainer(t)
-	conn := redistestutil.CreateConnection(t, container.Addr)
+	container := redistestutil.SetupReusableContainer(t)
+	conn := redistestutil.CreateConnectionWithDB(t, container.Addr, container.DB)
 
 	repo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "should create Redis repository")
@@ -126,7 +127,7 @@ func TestIntegration_BalanceSyncWorker_TTLBehavior(t *testing.T) {
 	}
 
 	// Setup Redis container
-	container := redistestutil.SetupContainer(t)
+	container := redistestutil.SetupReusableContainer(t)
 
 	ctx := context.Background()
 	testKey := "test:ttl:behavior:" + uuid.Must(libCommons.GenerateUUIDv7()).String()
@@ -173,8 +174,8 @@ func TestIntegration_BalanceSyncSchedule_FutureKeys(t *testing.T) {
 	}
 
 	// Setup Redis container
-	container := redistestutil.SetupContainer(t)
-	conn := redistestutil.CreateConnection(t, container.Addr)
+	container := redistestutil.SetupReusableContainer(t)
+	conn := redistestutil.CreateConnectionWithDB(t, container.Addr, container.DB)
 
 	repo, err := redis.NewConsumerRedis(conn)
 	require.NoError(t, err, "should create Redis repository")

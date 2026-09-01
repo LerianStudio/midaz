@@ -9,20 +9,19 @@ import (
 	"fmt"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	libConstants "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // companionBalanceLoader abstracts the lookup used by overdraft enrichment to
@@ -44,7 +43,7 @@ type companionBalanceLoader func(ctx context.Context, organizationID, ledgerID u
 // no-op for brand-new transactions — this helper fills the gap by enforcing
 // the same invariant once GetBalances has returned.
 func rejectInternalScopeBalances(ctx context.Context, balances []*mmodel.Balance) error {
-	logger := libObs.NewLoggerFromContext(ctx)
+	logger := libObservability.NewLoggerFromContext(ctx)
 
 	for _, b := range balances {
 		if b == nil || b.Settings == nil {
@@ -129,7 +128,7 @@ func enrichOverdraftOperations(
 	validate *mtransaction.Responses,
 	loader companionBalanceLoader,
 ) ([]mmodel.BalanceOperation, []mtransaction.FromTo, error) {
-	logger := libObs.NewLoggerFromContext(ctx)
+	logger := libObservability.NewLoggerFromContext(ctx)
 
 	debits := collectOverdraftDebitSplits(balanceOps)
 	refunds := collectOverdraftRefundSplits(balanceOps)
@@ -310,9 +309,10 @@ func registerCompanionInValidate(validate *mtransaction.Responses, _ mmodel.Bala
 		validate.From = make(map[string]mtransaction.Amount, 1)
 	}
 
-	// First-wins: double-entry splits can produce two source ops on the same
-	// alias (e.g. DEBIT + ONHOLD for PENDING). Both would lead us here but
-	// only one companion entry is needed — the amount is identical.
+	// First-wins: a batch can carry two source legs on the same alias (a
+	// route-validated cancel splits the restore into RELEASE + CREDIT). Both
+	// would lead us here but only one companion entry is needed — the amount is
+	// identical.
 	if _, exists := validate.From[companionOp.Alias]; !exists {
 		validate.From[companionOp.Alias] = companionOp.Amount
 	}
@@ -433,21 +433,43 @@ func collectOverdraftDebitSplits(balanceOps []mmodel.BalanceOperation) []overdra
 	return splits
 }
 
+// isOverdraftDebitSplitCandidate reports whether an operation is a debit that
+// draws against Available and may therefore open a fresh overdraft.
+//
+// Only CONCLUSIVE operations create debt: the direct create, and the revert that
+// is shaped like one. Two shapes are therefore excluded, on every route version:
+//
+//   - PENDING — a hold never draws overdraft. A pending create that would
+//     overdraw is rejected outright by the atomic script, so there is no draw to
+//     mirror onto the companion. This covers both pending shapes: the legacy
+//     single ON_HOLD and the route-validated double-entry DEBIT leg.
+//   - APPROVED — a commit consumes the OnHold the pending already reserved, so it
+//     never touches Available. The amount-versus-available comparison downstream
+//     would otherwise misread the drained Available (funds sit in OnHold at that
+//     point) as a new deficit and mirror a companion debit for capacity that was
+//     never drawn.
+//
+// Repayment is unaffected and keeps its own candidacy rules
+// (isOverdraftRefundSplitCandidate); unwinding a pending that drew overdraft
+// under an earlier build is likewise unaffected and stays with
+// collectOverdraftCancelSplits.
 func isOverdraftDebitSplitCandidate(amount mtransaction.Amount) bool {
-	if amount.Operation == libConstants.DEBIT {
-		return true
+	if amount.Operation != libConstants.DEBIT {
+		return false
 	}
 
-	return amount.Operation == constant.ONHOLD &&
-		amount.TransactionType == constant.PENDING &&
-		!amount.RouteValidationEnabled
+	return amount.TransactionType != constant.PENDING &&
+		amount.TransactionType != constant.APPROVED
 }
 
 // buildCompanionDebitOp constructs the BalanceOperation that mirrors the
 // overdraft deficit onto the direction=debit companion balance. The operation
-// inherits transaction metadata (TransactionType, route ids, pending flag)
-// from the source op so downstream consumers (aggregation, accounting entries)
-// treat the companion as part of the same logical transaction.
+// inherits transaction metadata (TransactionType, route ids) from the source op
+// so downstream consumers (aggregation, accounting entries) treat the companion
+// as part of the same logical transaction.
+//
+// Only conclusive source debits reach here — a hold never draws overdraft, so
+// this is never built for a pending create.
 //
 // Direction is set to debit explicitly: the companion balance is always
 // direction=debit (TRD 2.2 table row 2), and passing the direction lets the
@@ -511,7 +533,7 @@ func collectOverdraftRefundSplits(balanceOps []mmodel.BalanceOperation) []overdr
 			continue
 		}
 
-		if op.Amount.Operation != libConstants.CREDIT || isCancelOverdraftOverride(op.Amount) {
+		if !isOverdraftRefundSplitCandidate(op.Amount) {
 			continue
 		}
 
@@ -533,6 +555,40 @@ func collectOverdraftRefundSplits(balanceOps []mmodel.BalanceOperation) []overdr
 	}
 
 	return refunds
+}
+
+// isOverdraftRefundSplitCandidate reports whether an operation is a credit that
+// actually posts to Available and may therefore repay outstanding overdraft.
+//
+// A two-phase transaction carries its destination CREDIT into every batch of the
+// lifecycle, but the leg only posts on the commit. On the create and on the
+// cancel it is DEFERRED, and mirroring a repayment onto the companion would
+// settle a liability the atomic script leaves untouched — the companion would
+// drain while the primary kept its overdraft, and a spurious overdraft operation
+// row would claim a repayment that never happened.
+//
+// This mirrors the deferred-leg rule the atomic script applies to the same ops:
+// PENDING, and CANCELED with route validation off. That second shape can only be
+// the destination leg, because in a cancel batch the source restore is a RELEASE
+// in the legacy shape and a route-validated CREDIT in the other — so a
+// route-validated CANCELED credit stays a candidate, keeping the source restore's
+// repayment in lock-step with its companion.
+//
+// The cancel override is excluded because collectOverdraftCancelSplits owns it.
+func isOverdraftRefundSplitCandidate(amount mtransaction.Amount) bool {
+	if amount.Operation != libConstants.CREDIT {
+		return false
+	}
+
+	if amount.TransactionType == constant.PENDING {
+		return false
+	}
+
+	if amount.TransactionType == constant.CANCELED && !amount.RouteValidationEnabled {
+		return false
+	}
+
+	return !isCancelOverdraftOverride(amount)
 }
 
 type overdraftCancel struct {
@@ -622,7 +678,7 @@ func buildCompanionCreditOp(organizationID, ledgerID uuid.UUID, r overdraftRefun
 // BuildOperations to emit an Operation record for the companion balance.
 // Without this entry, the `balances × fromTo` loop in BuildOperations never
 // matches the companion (its alias is not in the user-submitted transaction
-// DSL) and the persisted audit trail is missing the overdraft leg — the
+// body) and the persisted audit trail is missing the overdraft leg — the
 // failure mode observed in the feature before this fix: DB balances correct,
 // response.operations incomplete, Postgres `operation` table missing rows.
 //
@@ -670,7 +726,7 @@ func buildCompanionFromTo(primary mmodel.BalanceOperation, companionOp mmodel.Ba
 
 	if primary.Balance != nil {
 		// There is no Route/ChartOfAccounts on the Balance type directly —
-		// those live on the user's DSL entry. For companion entries we
+		// those live on the user's FromTo entry. For companion entries we
 		// currently leave them empty so they do not leak user-facing
 		// accounting rubrics onto the system-managed companion op. Future
 		// work (T-008 AccountingEntries Extension) may fill these in from

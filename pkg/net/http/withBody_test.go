@@ -9,12 +9,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 type SimpleStruct struct {
@@ -159,16 +160,46 @@ func TestParseUUIDPathParameters(t *testing.T) {
 			t.Parallel()
 
 			app := fiber.New()
-			app.Get(tc.route, ParseUUIDPathParameters(tc.middleware), func(c *fiber.Ctx) error {
+			app.Get(tc.route, ParseUUIDPathParameters(tc.middleware), func(c fiber.Ctx) error {
 				return c.SendStatus(fiber.StatusOK)
 			})
 
 			req := httptest.NewRequest("GET", tc.requestPath, nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedStatus, resp.StatusCode)
 		})
 	}
+}
+
+// TestParseUUIDPathParameters_RouteWithoutParameters records what the middleware does on a
+// route that declares NO path parameter: it walks the route's declared parameter names, so an
+// empty list leaves it with nothing to parse and the request continues to the next handler.
+//
+// It is pinned because callers decide whether to keep the middleware on a chain by this
+// behaviour, and the three possible answers — pass through, reject, panic — are not
+// distinguishable by reading the signature.
+func TestParseUUIDPathParameters_RouteWithoutParameters(t *testing.T) {
+	t.Parallel()
+
+	app := fiber.New()
+
+	reached := false
+
+	app.Post("/v2/transactions/direct", ParseUUIDPathParameters("transaction"), func(c fiber.Ctx) error {
+		reached = true
+
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest(fiber.MethodPost, "/v2/transactions/direct", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.True(t, reached, "a parameterless route must reach the next handler")
+	assert.Equal(t, fiber.StatusOK, resp.StatusCode, "a parameterless route must not be rejected")
 }
 
 func TestFindUnknownFields(t *testing.T) {
@@ -323,6 +354,55 @@ func TestFindUnknownFields(t *testing.T) {
 				"extraField": "not allowed",
 			},
 		},
+		{
+			// A bool field set to its zero value is dropped by json omitempty,
+			// exactly like numeric zero; it is present-and-default, not unknown.
+			name: "boolean false omitted by omitempty is not an unknown field",
+			original: map[string]any{
+				"name": "John",
+				"fees": false,
+			},
+			marshaled: map[string]any{
+				"name": "John",
+			},
+			expected: map[string]any{},
+		},
+		{
+			// The per-call skip flags live in a nested object; an explicit
+			// skip.fees=false must not be flagged as an unexpected field.
+			name: "nested boolean false skip flag is not an unknown field",
+			original: map[string]any{
+				"skip": map[string]any{"fees": false, "tracer": false},
+			},
+			marshaled: map[string]any{
+				"skip": map[string]any{},
+			},
+			expected: map[string]any{},
+		},
+		{
+			// A bool sent as true is present in the marshaled output and equal,
+			// so it produces no diff (sanity that the guard is zero-only).
+			name: "boolean true present in both is not a diff",
+			original: map[string]any{
+				"fees": true,
+			},
+			marshaled: map[string]any{
+				"fees": true,
+			},
+			expected: map[string]any{},
+		},
+		{
+			// Documented tradeoff: a zero-valued unknown field is tolerated for
+			// bools just as it already is for numerics (e.g. {"garbage": 0}).
+			// Accepting an unmapped zero is harmless — it binds to no struct
+			// field — and keeps the bool and numeric guards consistent.
+			name: "unknown bool field at zero value is tolerated like numeric zero",
+			original: map[string]any{
+				"garbage": false,
+			},
+			marshaled: map[string]any{},
+			expected:  map[string]any{},
+		},
 	}
 
 	for _, tc := range tests {
@@ -463,7 +543,8 @@ func TestMetadataValidation_KeyMaxLength(t *testing.T) {
 		},
 	}
 
-	v, _ := newValidator()
+	v, _, err := newValidator()
+	require.NoError(t, err)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -538,7 +619,8 @@ func TestMetadataValidation_ValueMaxLength(t *testing.T) {
 		},
 	}
 
-	v, _ := newValidator()
+	v, _, err := newValidator()
+	require.NoError(t, err)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -593,7 +675,8 @@ func TestMetadataValidation_NestedValues(t *testing.T) {
 		},
 	}
 
-	v, _ := newValidator()
+	v, _, err := newValidator()
+	require.NoError(t, err)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -639,7 +722,8 @@ func TestMetadataValidation_Combined(t *testing.T) {
 		},
 	}
 
-	v, _ := newValidator()
+	v, _, err := newValidator()
+	require.NoError(t, err)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

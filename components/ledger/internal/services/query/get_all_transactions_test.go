@@ -10,18 +10,340 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
+
+// overdraftPendingBody builds a persisted transaction body whose submitted
+// destination is a single account, plus a system-managed overdraft companion
+// and an alias carrying a "#balanceKey" suffix. It exercises the alias-parity
+// contract of the Body-derived destination: the companion must be filtered
+// (mirrors filterCompanionAliases) and the "#key" suffix stripped (mirrors
+// getAliasWithoutKey), yielding exactly the bare submitted alias.
+func overdraftPendingBody() mtransaction.Transaction {
+	return mtransaction.Transaction{
+		Pending: true,
+		Send: mtransaction.Send{
+			Distribute: mtransaction.Distribute{
+				To: []mtransaction.FromTo{
+					{AccountAlias: "@merchant", BalanceKey: constant.DefaultBalanceKey},
+					{AccountAlias: "@companion", BalanceKey: constant.OverdraftBalanceKey},
+					{AccountAlias: "@suffixed#default", BalanceKey: constant.DefaultBalanceKey},
+				},
+			},
+		},
+	}
+}
+
+// TestGetOperationsByTransaction_PendingOverdraftDerivesDestinationFromBody pins
+// the fix for the cache-vs-DB divergence: a PENDING overdraft transaction has
+// only source-side operations (DEBIT + ON_HOLD + OVERDRAFT) and NO CREDIT leg,
+// so operation-based reconstruction yields an empty Destination. The read path
+// must fall back to the submitted destination persisted in the body, in the same
+// bare-alias form the write path caches.
+func TestGetOperationsByTransaction_PendingOverdraftDerivesDestinationFromBody(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.New()
+	filter := http.QueryHeader{Limit: 10, Page: 1, SortOrder: "asc"}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockOpRepo := operation.NewMockRepository(ctrl)
+	mockMetaRepo := mongodb.NewMockRepository(ctrl)
+
+	// Only source-side legs are persisted before commit: the real DEBIT plus the
+	// ON_HOLD and OVERDRAFT system legs. None classify onto Destination.
+	ops := []*operation.Operation{
+		{
+			ID:            uuid.New().String(),
+			TransactionID: transactionID.String(),
+			Type:          constant.DEBIT,
+			AccountAlias:  "@alice",
+		},
+		{
+			ID:            uuid.New().String(),
+			TransactionID: transactionID.String(),
+			Type:          constant.ONHOLD,
+			AccountAlias:  "@alice",
+		},
+		{
+			ID:            uuid.New().String(),
+			TransactionID: transactionID.String(),
+			Type:          constant.OVERDRAFT,
+			AccountAlias:  "@alice",
+		},
+	}
+
+	mockOpRepo.EXPECT().
+		FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
+		Return(ops, libHTTP.CursorPagination{}, nil).
+		Times(1)
+
+	mockMetaRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), "Operation", gomock.Any()).
+		Return(nil, nil).
+		Times(1)
+
+	uc := UseCase{
+		OperationRepo:           mockOpRepo,
+		TransactionMetadataRepo: mockMetaRepo,
+	}
+
+	tran := &transaction.Transaction{
+		ID:             transactionID.String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         transaction.Status{Code: constant.PENDING},
+		Body:           overdraftPendingBody(),
+	}
+
+	result, err := uc.GetOperationsByTransaction(context.Background(), organizationID, ledgerID, tran, filter)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	// Source is reconstructed from the DEBIT leg exactly as before.
+	assert.Equal(t, []string{"@alice"}, result.Source)
+
+	// Destination is derived from the submitted body: the overdraft companion is
+	// filtered and the "#default" suffix stripped, matching the cache-hit format.
+	assert.Equal(t, []string{"@merchant", "@suffixed"}, result.Destination)
+	assert.NotContains(t, result.Destination, "@companion", "overdraft companion must be filtered")
+	assert.NotContains(t, result.Destination, "@suffixed#default", "alias key suffix must be stripped")
+}
+
+// TestGetOperationsByTransaction_PendingOverdraftNoSubmittedDestinationStaysEmpty
+// pins the empty branch of the Body-derived fallback: when the reconstructed
+// destination is empty AND the submitted body carries no usable destination
+// (either an empty To list or only the system-managed overdraft companion), the
+// read path must NOT fabricate a destination — Destination stays empty.
+func TestGetOperationsByTransaction_PendingOverdraftNoSubmittedDestinationStaysEmpty(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	filter := http.QueryHeader{Limit: 10, Page: 1, SortOrder: "asc"}
+
+	tests := []struct {
+		name string
+		body mtransaction.Transaction
+	}{
+		{
+			name: "empty submitted destination",
+			body: mtransaction.Transaction{
+				Pending: true,
+				Send: mtransaction.Send{
+					Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{}},
+				},
+			},
+		},
+		{
+			name: "only overdraft companion submitted",
+			body: mtransaction.Transaction{
+				Pending: true,
+				Send: mtransaction.Send{
+					Distribute: mtransaction.Distribute{
+						To: []mtransaction.FromTo{
+							{AccountAlias: "@companion", BalanceKey: constant.OverdraftBalanceKey},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			transactionID := uuid.New()
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockOpRepo := operation.NewMockRepository(ctrl)
+			mockMetaRepo := mongodb.NewMockRepository(ctrl)
+
+			// Source-only legs: reconstruction produces no destination, so the
+			// Body-derived fallback is exercised on an input that yields nothing.
+			ops := []*operation.Operation{
+				{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.DEBIT, AccountAlias: "@alice"},
+				{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.ONHOLD, AccountAlias: "@alice"},
+				{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.OVERDRAFT, AccountAlias: "@alice"},
+			}
+
+			mockOpRepo.EXPECT().
+				FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
+				Return(ops, libHTTP.CursorPagination{}, nil).
+				Times(1)
+
+			mockMetaRepo.EXPECT().
+				FindByEntityIDs(gomock.Any(), "Operation", gomock.Any()).
+				Return(nil, nil).
+				Times(1)
+
+			uc := UseCase{
+				OperationRepo:           mockOpRepo,
+				TransactionMetadataRepo: mockMetaRepo,
+			}
+
+			tran := &transaction.Transaction{
+				ID:             transactionID.String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Status:         transaction.Status{Code: constant.PENDING},
+				Body:           tt.body,
+			}
+
+			result, err := uc.GetOperationsByTransaction(context.Background(), organizationID, ledgerID, tran, filter)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, []string{"@alice"}, result.Source)
+			assert.Empty(t, result.Destination, "no usable submitted destination must not fabricate a destination")
+		})
+	}
+}
+
+// TestGetAllTransactions_PendingOverdraftDerivesDestinationFromBody is the listing
+// counterpart: GET-listing and GET-individual must agree, so the same Body-derived
+// fallback applies when a listed PENDING overdraft transaction has no CREDIT leg.
+func TestGetAllTransactions_PendingOverdraftDerivesDestinationFromBody(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.New()
+	filter := http.QueryHeader{Limit: 10, Page: 1, SortOrder: "asc"}
+	mockCur := libHTTP.CursorPagination{Next: "next", Prev: "prev"}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	ops := []*operation.Operation{
+		{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.DEBIT, AccountAlias: "@alice"},
+		{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.ONHOLD, AccountAlias: "@alice"},
+		{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.OVERDRAFT, AccountAlias: "@alice"},
+	}
+
+	trans := []*transaction.Transaction{
+		{
+			ID:             transactionID.String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Status:         transaction.Status{Code: constant.PENDING},
+			Operations:     ops,
+			Body:           overdraftPendingBody(),
+		},
+	}
+
+	mockTransactionRepo.EXPECT().
+		FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, gomock.Any()).
+		Return(trans, mockCur, nil).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), "Transaction", []string{transactionID.String()}).
+		Return([]*mongodb.Metadata{}, nil).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), "Operation", gomock.Any()).
+		Return([]*mongodb.Metadata{}, nil).
+		Times(1)
+
+	uc := UseCase{
+		TransactionRepo:         mockTransactionRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
+
+	result, _, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, []string{"@alice"}, result[0].Source)
+	assert.Equal(t, []string{"@merchant", "@suffixed"}, result[0].Destination)
+}
+
+// TestGetOperationsByTransaction_CreditDestinationNotOverwrittenByBody is the
+// non-regression guard: an APPROVED transaction carries a real CREDIT leg, so the
+// Destination must be reconstructed from that operation and NEVER overwritten or
+// duplicated by the submitted body — even when the body is present.
+func TestGetOperationsByTransaction_CreditDestinationNotOverwrittenByBody(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionID := uuid.New()
+	filter := http.QueryHeader{Limit: 10, Page: 1, SortOrder: "asc"}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockOpRepo := operation.NewMockRepository(ctrl)
+	mockMetaRepo := mongodb.NewMockRepository(ctrl)
+
+	ops := []*operation.Operation{
+		{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.DEBIT, AccountAlias: "@alice"},
+		{ID: uuid.New().String(), TransactionID: transactionID.String(), Type: constant.CREDIT, AccountAlias: "@merchant"},
+	}
+
+	mockOpRepo.EXPECT().
+		FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
+		Return(ops, libHTTP.CursorPagination{}, nil).
+		Times(1)
+
+	mockMetaRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), "Operation", gomock.Any()).
+		Return(nil, nil).
+		Times(1)
+
+	uc := UseCase{
+		OperationRepo:           mockOpRepo,
+		TransactionMetadataRepo: mockMetaRepo,
+	}
+
+	tran := &transaction.Transaction{
+		ID:             transactionID.String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         transaction.Status{Code: constant.APPROVED},
+		// A stale/foreign body must not leak onto a committed destination.
+		Body: mtransaction.Transaction{
+			Send: mtransaction.Send{
+				Distribute: mtransaction.Distribute{
+					To: []mtransaction.FromTo{{AccountAlias: "@ghost", BalanceKey: constant.DefaultBalanceKey}},
+				},
+			},
+		},
+	}
+
+	result, err := uc.GetOperationsByTransaction(context.Background(), organizationID, ledgerID, tran, filter)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, []string{"@merchant"}, result.Destination, "credit-derived destination must win over the body")
+	assert.NotContains(t, result.Destination, "@ghost", "body must not overwrite a reconstructed destination")
+}
 
 func TestGetAllTransactions(t *testing.T) {
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7())

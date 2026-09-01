@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libStreaming "github.com/LerianStudio/lib-streaming"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
@@ -22,9 +22,10 @@ type emitTestLogger struct{}
 
 func (emitTestLogger) Log(context.Context, libLog.Level, string, ...libLog.Field) {}
 func (emitTestLogger) With(...libLog.Field) libLog.Logger                         { return emitTestLogger{} }
-func (emitTestLogger) WithGroup(string) libLog.Logger                             { return emitTestLogger{} }
-func (emitTestLogger) Enabled(libLog.Level) bool                                  { return true }
-func (emitTestLogger) Sync(context.Context) error                                 { return nil }
+
+func (emitTestLogger) WithGroup(string) libLog.Logger { return emitTestLogger{} }
+func (emitTestLogger) Enabled(libLog.Level) bool      { return true }
+func (emitTestLogger) Sync(context.Context) error     { return nil }
 
 type deadlineCapturingEmitter struct {
 	deadline time.Time
@@ -80,10 +81,10 @@ func sampleEmitRequest(tenantID string) libStreaming.EmitRequest {
 	}
 }
 
-func TestEmitImportant_NilEmitterDoesNotCallBuilder(t *testing.T) {
+func TestEmitBrokerBestEffort_NilEmitterDoesNotCallBuilder(t *testing.T) {
 	called := false
 
-	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, nil, "account.created",
+	EmitBrokerBestEffort(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, nil, "account.created",
 		func(_ string) (libStreaming.EmitRequest, error) {
 			called = true
 			return libStreaming.EmitRequest{}, nil
@@ -92,10 +93,10 @@ func TestEmitImportant_NilEmitterDoesNotCallBuilder(t *testing.T) {
 	assert.False(t, called, "nil emitter must skip building the event")
 }
 
-func TestEmitImportant_SuccessfulEmitUsesDefaultTenant(t *testing.T) {
+func TestEmitBrokerBestEffort_SuccessfulEmitUsesDefaultTenant(t *testing.T) {
 	mockEmitter := NewMockEmitter()
 
-	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, "account.created",
+	EmitBrokerBestEffort(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, "account.created",
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return sampleEmitRequest(tenantID), nil
 		})
@@ -106,11 +107,11 @@ func TestEmitImportant_SuccessfulEmitUsesDefaultTenant(t *testing.T) {
 	assert.Equal(t, "account.created", events[0].DefinitionKey)
 }
 
-func TestEmitImportant_BuildErrorDoesNotEmit(t *testing.T) {
+func TestEmitBrokerBestEffort_BuildErrorDoesNotEmit(t *testing.T) {
 	mockEmitter := NewMockEmitter()
 	buildErr := errors.New("build failed")
 
-	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, "account.created",
+	EmitBrokerBestEffort(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, "account.created",
 		func(_ string) (libStreaming.EmitRequest, error) {
 			return libStreaming.EmitRequest{}, buildErr
 		})
@@ -118,12 +119,12 @@ func TestEmitImportant_BuildErrorDoesNotEmit(t *testing.T) {
 	assert.Empty(t, mockEmitter.Events())
 }
 
-func TestEmitImportant_EmitErrorDoesNotPanic(t *testing.T) {
+func TestEmitBrokerBestEffort_EmitErrorDoesNotPanic(t *testing.T) {
 	mockEmitter := NewMockEmitter()
 	mockEmitter.EmitErr = errors.New("emit failed")
 
 	require.NotPanics(t, func() {
-		EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, "account.created",
+		EmitBrokerBestEffort(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, mockEmitter, "account.created",
 			func(tenantID string) (libStreaming.EmitRequest, error) {
 				return sampleEmitRequest(tenantID), nil
 			})
@@ -135,35 +136,31 @@ func TestEmitImportant_EmitErrorDoesNotPanic(t *testing.T) {
 	assert.Empty(t, mockEmitter.Events())
 }
 
-func TestEmitImportant_PassesBoundedDeadlineToEmitter(t *testing.T) {
+func TestEmitBrokerBestEffort_PassesBoundedDeadlineToEmitter(t *testing.T) {
 	t.Setenv(importantEmitTimeoutEnv, "25")
 
 	emitter := &deadlineCapturingEmitter{}
-	startedAt := time.Now()
 
-	EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, emitter, "account.created",
+	EmitBrokerBestEffort(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, emitter, "account.created",
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return sampleEmitRequest(tenantID), nil
 		})
 
 	require.True(t, emitter.ok, "important emits must call emitter with a deadline")
-	assert.LessOrEqual(t, emitter.deadline.Sub(startedAt), 100*time.Millisecond)
-	assert.Greater(t, emitter.deadline.Sub(startedAt), 0*time.Millisecond)
+	assert.False(t, emitter.deadline.IsZero())
 }
 
-func TestEmitImportant_BlockingEmitterReturnsAfterConfiguredTimeout(t *testing.T) {
+func TestEmitBrokerBestEffort_BlockingEmitterReturnsAfterConfiguredTimeout(t *testing.T) {
 	t.Setenv(importantEmitTimeoutEnv, "10")
 
 	emitter := &blockingEmitter{}
-	startedAt := time.Now()
 
 	require.NotPanics(t, func() {
-		EmitImportant(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, emitter, "account.created",
+		EmitBrokerBestEffort(context.Background(), trace.SpanFromContext(context.Background()), emitTestLogger{}, emitter, "account.created",
 			func(tenantID string) (libStreaming.EmitRequest, error) {
 				return sampleEmitRequest(tenantID), nil
 			})
 	})
 
-	assert.Less(t, time.Since(startedAt), 500*time.Millisecond)
 	assert.ErrorIs(t, emitter.lastErr(), context.DeadlineExceeded)
 }

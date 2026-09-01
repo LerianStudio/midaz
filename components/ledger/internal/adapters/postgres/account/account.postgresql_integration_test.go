@@ -8,21 +8,24 @@ package account
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v5/commons/pointers"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v6/commons/pointers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
 // createRepository creates an AccountRepository connected to the test database.
@@ -30,11 +33,9 @@ import (
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *AccountPostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	return NewAccountPostgreSQLRepository(conn)
 }
@@ -45,7 +46,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Acco
 
 func TestIntegration_AccountRepository_Find_ReturnsAccount(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	// Create repository - lib-commons auto-runs migrations via MigrationsPath
 	repo := createRepository(t, container)
@@ -67,7 +68,7 @@ func TestIntegration_AccountRepository_Find_ReturnsAccount(t *testing.T) {
 	ctx := context.Background()
 
 	// Act
-	account, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	account, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err, "Find should not return error for existing account")
@@ -86,7 +87,7 @@ func TestIntegration_AccountRepository_Find_ReturnsAccount(t *testing.T) {
 }
 
 func TestIntegration_AccountRepository_Find_ReturnsEntityNotFoundError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -121,7 +122,7 @@ func TestIntegration_AccountRepository_Find_ReturnsEntityNotFoundError(t *testin
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Act
-			account, err := repo.Find(context.Background(), orgID, ledgerID, nil, tt.accountID)
+			account, err := repo.Find(context.Background(), orgID, ledgerID, nil, tt.accountID, mmodel.HolderOnV2)
 
 			// Assert
 			require.Error(t, err, "Find should return error")
@@ -142,7 +143,7 @@ func TestIntegration_AccountRepository_Find_ReturnsEntityNotFoundError(t *testin
 
 func TestIntegration_AccountRepository_Find_FiltersCorrectlyByOrgAndLedger(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -167,17 +168,17 @@ func TestIntegration_AccountRepository_Find_FiltersCorrectlyByOrgAndLedger(t *te
 	ctx := context.Background()
 
 	// Act & Assert: should find with correct org/ledger
-	account, err := repo.Find(ctx, org1ID, ledger1ID, nil, accountID)
+	account, err := repo.Find(ctx, org1ID, ledger1ID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "should find account with correct org/ledger")
 	assert.NotNil(t, account)
 
 	// Act & Assert: should NOT find with wrong organization
-	account, err = repo.Find(ctx, org2ID, ledger1ID, nil, accountID)
+	account, err = repo.Find(ctx, org2ID, ledger1ID, nil, accountID, mmodel.HolderOnV2)
 	require.Error(t, err, "should not find account with wrong organization")
 	assert.Nil(t, account)
 
 	// Act & Assert: should NOT find with wrong ledger
-	account, err = repo.Find(ctx, org1ID, ledger2ID, nil, accountID)
+	account, err = repo.Find(ctx, org1ID, ledger2ID, nil, accountID, mmodel.HolderOnV2)
 	require.Error(t, err, "should not find account with wrong ledger")
 	assert.Nil(t, account)
 }
@@ -188,7 +189,7 @@ func TestIntegration_AccountRepository_Find_FiltersCorrectlyByOrgAndLedger(t *te
 
 func TestIntegration_AccountRepository_Create_InsertsAccount(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -228,7 +229,7 @@ func TestIntegration_AccountRepository_Create_InsertsAccount(t *testing.T) {
 
 	// Verify it can be retrieved
 	parsedID, _ := uuid.Parse(created.ID)
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	assert.Equal(t, created.ID, found.ID)
 }
@@ -248,7 +249,7 @@ func TestIntegration_AccountRepository_Create_InsertsAccount(t *testing.T) {
 // The repository must handle unknown columns gracefully (SELECT specific columns, not SELECT *).
 func TestIntegration_AccountRepository_Find_BackwardCompatible_ExtraColumns(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -277,7 +278,7 @@ func TestIntegration_AccountRepository_Find_BackwardCompatible_ExtraColumns(t *t
 	ctx := context.Background()
 
 	// Act - The old code (current repository) tries to read the account
-	account, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	account, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 
 	// Assert - Must NOT break, even with unknown columns in the table
 	require.NoError(t, err, "Find must not break when table has extra columns (backward compatibility)")
@@ -298,7 +299,7 @@ func TestIntegration_AccountRepository_Find_BackwardCompatible_ExtraColumns(t *t
 // values for columns the application doesn't know about.
 func TestIntegration_AccountRepository_Create_BackwardCompatible_ExtraColumns(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -341,7 +342,7 @@ func TestIntegration_AccountRepository_Create_BackwardCompatible_ExtraColumns(t 
 
 	// Verify the account was actually persisted
 	parsedID, _ := uuid.Parse(created.ID)
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID, mmodel.HolderOnV2)
 	require.NoError(t, err, "should be able to retrieve the created account")
 	assert.Equal(t, created.ID, found.ID)
 
@@ -360,7 +361,7 @@ func TestIntegration_AccountRepository_Create_BackwardCompatible_ExtraColumns(t 
 
 func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -383,7 +384,7 @@ func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testi
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
@@ -398,7 +399,7 @@ func TestIntegration_AccountRepository_FindAll_ReturnsPaginatedAccounts(t *testi
 
 func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -421,15 +422,15 @@ func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *tes
 
 	// Act - Get all 3 pages
 	baseFilter.Page = 1
-	page1, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
+	page1, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter, mmodel.HolderOnV2)
 	require.NoError(t, err)
 
 	baseFilter.Page = 2
-	page2, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
+	page2, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter, mmodel.HolderOnV2)
 	require.NoError(t, err)
 
 	baseFilter.Page = 3
-	page3, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter)
+	page3, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, baseFilter, mmodel.HolderOnV2)
 	require.NoError(t, err)
 
 	// Assert - Correct counts per page
@@ -452,7 +453,7 @@ func TestIntegration_AccountRepository_FindAll_PaginatesWithoutDuplicates(t *tes
 
 func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -475,7 +476,7 @@ func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T)
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -488,7 +489,7 @@ func TestIntegration_AccountRepository_FindAll_ExcludesSoftDeleted(t *testing.T)
 
 func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -511,7 +512,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) 
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, &portfolioID, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, &portfolioID, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -525,7 +526,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByPortfolio(t *testing.T) 
 
 func TestIntegration_AccountRepository_FindAll_FiltersBySegment(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -552,7 +553,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersBySegment(t *testing.T) {
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, &segmentID, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, &segmentID, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -570,7 +571,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersBySegment(t *testing.T) {
 
 func TestIntegration_AccountRepository_FindWithDeleted_ReturnsDeletedAccount(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -584,11 +585,11 @@ func TestIntegration_AccountRepository_FindWithDeleted_ReturnsDeletedAccount(t *
 	ctx := context.Background()
 
 	// Act - Find should fail
-	_, errFind := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	_, errFind := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.Error(t, errFind, "Find should not return soft-deleted account")
 
 	// Act - FindWithDeleted should succeed
-	account, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID)
+	account, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err, "FindWithDeleted should return soft-deleted account")
@@ -600,7 +601,7 @@ func TestIntegration_AccountRepository_FindWithDeleted_ReturnsDeletedAccount(t *
 
 func TestIntegration_AccountRepository_FindWithDeleted_ReturnsActiveAccount(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -612,7 +613,7 @@ func TestIntegration_AccountRepository_FindWithDeleted_ReturnsActiveAccount(t *t
 	ctx := context.Background()
 
 	// Act
-	account, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID)
+	account, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -627,7 +628,7 @@ func TestIntegration_AccountRepository_FindWithDeleted_ReturnsActiveAccount(t *t
 
 func TestIntegration_AccountRepository_FindAlias_ReturnsAccountByAlias(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -640,7 +641,7 @@ func TestIntegration_AccountRepository_FindAlias_ReturnsAccountByAlias(t *testin
 	ctx := context.Background()
 
 	// Act
-	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, alias)
+	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, alias, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err, "FindAlias should find account by alias")
@@ -652,7 +653,7 @@ func TestIntegration_AccountRepository_FindAlias_ReturnsAccountByAlias(t *testin
 
 func TestIntegration_AccountRepository_FindAlias_ReturnsErrorForNonExistent(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -662,7 +663,7 @@ func TestIntegration_AccountRepository_FindAlias_ReturnsErrorForNonExistent(t *t
 	ctx := context.Background()
 
 	// Act
-	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, "@nonexistent")
+	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, "@nonexistent", mmodel.HolderOnV2)
 
 	// Assert
 	require.Error(t, err, "FindAlias should return error for non-existent alias")
@@ -671,7 +672,7 @@ func TestIntegration_AccountRepository_FindAlias_ReturnsErrorForNonExistent(t *t
 
 func TestIntegration_AccountRepository_FindAlias_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -685,7 +686,7 @@ func TestIntegration_AccountRepository_FindAlias_ExcludesSoftDeleted(t *testing.
 	ctx := context.Background()
 
 	// Act
-	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, alias)
+	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, alias, mmodel.HolderOnV2)
 
 	// Assert
 	require.Error(t, err, "FindAlias should not find soft-deleted account")
@@ -707,7 +708,7 @@ func TestIntegration_AccountRepository_FindAlias_ExcludesSoftDeleted(t *testing.
 // account.
 func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -725,7 +726,7 @@ func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *te
 	ctx := context.Background()
 
 	// Act & Assert: fetch by ID.
-	byID, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	byID, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "custom external account must be fetchable by ID")
 	require.NotNil(t, byID)
 	assert.Equal(t, accountID.String(), byID.ID)
@@ -733,7 +734,7 @@ func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *te
 	assert.Equal(t, customAlias, *byID.Alias, "custom alias should be persisted verbatim")
 
 	// Act & Assert: fetch by alias (the generic alias lookup, not external-by-code).
-	byAlias, err := repo.FindAlias(ctx, orgID, ledgerID, nil, customAlias)
+	byAlias, err := repo.FindAlias(ctx, orgID, ledgerID, nil, customAlias, mmodel.HolderOnV2)
 	require.NoError(t, err, "custom external account must be fetchable by its custom alias")
 	require.NotNil(t, byAlias)
 	assert.Equal(t, accountID.String(), byAlias.ID)
@@ -747,7 +748,7 @@ func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *te
 		Page:      1,
 		SortOrder: "asc",
 	}
-	listed, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	listed, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 	require.NoError(t, err, "FindAll should not error")
 
 	var found *mmodel.Account
@@ -768,7 +769,7 @@ func TestIntegration_AccountRepository_CustomExternal_FetchableAndListable(t *te
 // the @external/<asset> alias (the same lookup GetAccountExternalByCode drives).
 func TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatible(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -786,7 +787,7 @@ func TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatibl
 	ctx := context.Background()
 
 	// Act: GetAccountExternalByCode resolves "@external/<code>" via FindAlias.
-	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, canonicalAlias)
+	account, err := repo.FindAlias(ctx, orgID, ledgerID, nil, canonicalAlias, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err, "canonical external-by-code alias must resolve")
@@ -797,7 +798,7 @@ func TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatibl
 
 	// A code with no provisioned external account still yields not-found,
 	// preserving the pre-existing 404 behavior.
-	missing, err := repo.FindAlias(ctx, orgID, ledgerID, nil, constant.DefaultExternalAccountAliasPrefix+"EUR")
+	missing, err := repo.FindAlias(ctx, orgID, ledgerID, nil, constant.DefaultExternalAccountAliasPrefix+"EUR", mmodel.HolderOnV2)
 	require.Error(t, err, "unprovisioned external code must remain not-found")
 	assert.Nil(t, missing)
 }
@@ -808,7 +809,7 @@ func TestIntegration_AccountRepository_CanonicalExternalByCode_BackwardCompatibl
 
 func TestIntegration_AccountRepository_FindByAlias_ReturnsTrueIfExists(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -830,7 +831,7 @@ func TestIntegration_AccountRepository_FindByAlias_ReturnsTrueIfExists(t *testin
 
 func TestIntegration_AccountRepository_FindByAlias_ReturnsFalseIfNotExists(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -849,7 +850,7 @@ func TestIntegration_AccountRepository_FindByAlias_ReturnsFalseIfNotExists(t *te
 
 func TestIntegration_AccountRepository_FindByAlias_IgnoresSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -876,7 +877,7 @@ func TestIntegration_AccountRepository_FindByAlias_IgnoresSoftDeleted(t *testing
 
 func TestIntegration_AccountRepository_Update_UpdatesName(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -898,14 +899,81 @@ func TestIntegration_AccountRepository_Update_UpdatesName(t *testing.T) {
 	require.NotNil(t, updated)
 
 	// Verify via Find
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Name", found.Name)
 }
 
+// TestIntegration_AccountRepository_Update_PreservesHolderLink proves the holder link is
+// IMMUTABLE through Update: neither holder_id nor holder_check_skipped appears in the
+// squirrel SET list (nor in applyNullableFields' NullFields set), so an update cannot
+// write or clear them.
+//
+// This is the guard that keeps the /v1 account contract honest. A /v1 PATCH answers with
+// the projection that WITHHOLDS both keys, so if a later change added holder_id to the SET
+// list, a /v1 update would silently clear a holder established on /v2 — and the response
+// that hides the field could not show the damage. The update input carries no holderId by
+// design (mmodel.UpdateAccountInput has no such field, and unknown body fields are a 400),
+// so the domain account reaching Update always has a nil HolderID: exactly the value that
+// must NOT be persisted.
+func TestIntegration_AccountRepository_Update_PreservesHolderLink(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	ctx := context.Background()
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+	holderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	alias := fmt.Sprintf("@holder-immutable-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+
+	created, err := repo.Create(ctx, &mmodel.Account{
+		Name:               "Holder Owned",
+		AssetCode:          "USD",
+		OrganizationID:     orgID.String(),
+		LedgerID:           ledgerID.String(),
+		Status:             mmodel.Status{Code: "ACTIVE"},
+		Alias:              &alias,
+		Type:               "deposit",
+		Blocked:            &blocked,
+		HolderID:           &holderID,
+		HolderCheckSkipped: true,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created.HolderID)
+
+	accountID, err := uuid.Parse(created.ID)
+	require.NoError(t, err)
+
+	// Act: the shape the update use case builds — a nil HolderID and a false
+	// HolderCheckSkipped alongside the fields the caller actually changed.
+	updated, err := repo.Update(ctx, orgID, ledgerID, nil, accountID, &mmodel.Account{
+		Name:   "Renamed",
+		Status: mmodel.Status{Code: "INACTIVE"},
+	})
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
+	require.NoError(t, err)
+
+	assert.Equal(t, "Renamed", found.Name, "the requested change must land")
+	require.NotNil(t, found.HolderID, "Update must not clear holder_id")
+	assert.Equal(t, holderID, *found.HolderID, "Update must not rewrite holder_id")
+	assert.True(t, found.HolderCheckSkipped, "Update must not clear the holder_check_skipped audit flag")
+}
+
 func TestIntegration_AccountRepository_Update_UpdatesStatus(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -928,7 +996,7 @@ func TestIntegration_AccountRepository_Update_UpdatesStatus(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	assert.Equal(t, "BLOCKED", found.Status.Code)
 	assert.NotNil(t, found.Status.Description)
@@ -937,7 +1005,7 @@ func TestIntegration_AccountRepository_Update_UpdatesStatus(t *testing.T) {
 
 func TestIntegration_AccountRepository_Update_UpdatesBlocked(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -958,7 +1026,7 @@ func TestIntegration_AccountRepository_Update_UpdatesBlocked(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 
-	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, found.Blocked)
 	assert.True(t, *found.Blocked)
@@ -966,7 +1034,7 @@ func TestIntegration_AccountRepository_Update_UpdatesBlocked(t *testing.T) {
 
 func TestIntegration_AccountRepository_Update_ReturnsErrorForNonExistent(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -987,7 +1055,7 @@ func TestIntegration_AccountRepository_Update_ReturnsErrorForNonExistent(t *test
 
 func TestIntegration_AccountRepository_Update_CannotUpdateSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1014,7 +1082,7 @@ func TestIntegration_AccountRepository_Update_CannotUpdateSoftDeleted(t *testing
 
 func TestIntegration_AccountRepository_Delete_SoftDeletesAccount(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1025,7 +1093,7 @@ func TestIntegration_AccountRepository_Delete_SoftDeletesAccount(t *testing.T) {
 	ctx := context.Background()
 
 	// Verify account exists before delete
-	_, err := repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	_, err := repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "account should exist before delete")
 
 	// Act
@@ -1035,11 +1103,11 @@ func TestIntegration_AccountRepository_Delete_SoftDeletesAccount(t *testing.T) {
 	require.NoError(t, err, "Delete should not return error")
 
 	// Find should fail now
-	_, err = repo.Find(ctx, orgID, ledgerID, nil, accountID)
+	_, err = repo.Find(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.Error(t, err, "Find should not return soft-deleted account")
 
 	// FindWithDeleted should still work
-	found, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID)
+	found, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	assert.NotNil(t, found.DeletedAt, "deleted_at should be set")
@@ -1062,7 +1130,7 @@ func TestIntegration_AccountRepository_Delete_SoftDeletesAccount(t *testing.T) {
 
 func TestIntegration_AccountRepository_Delete_IsIdempotent(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1084,14 +1152,14 @@ func TestIntegration_AccountRepository_Delete_IsIdempotent(t *testing.T) {
 	require.NoError(t, err2, "second delete should be idempotent (no error)")
 
 	// Verify account is still soft-deleted (only once)
-	found, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID)
+	found, err := repo.FindWithDeleted(ctx, orgID, ledgerID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err)
 	assert.NotNil(t, found.DeletedAt, "account should remain soft-deleted")
 }
 
 func TestIntegration_AccountRepository_Delete_RespectsOrgLedgerIsolation(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1113,7 +1181,7 @@ func TestIntegration_AccountRepository_Delete_RespectsOrgLedgerIsolation(t *test
 	require.NoError(t, err, "delete with wrong org/ledger should not error (no-op)")
 
 	// Critical assertion: Account must still exist in org1 (isolation preserved)
-	found, err := repo.Find(ctx, org1ID, ledger1ID, nil, accountID)
+	found, err := repo.Find(ctx, org1ID, ledger1ID, nil, accountID, mmodel.HolderOnV2)
 	require.NoError(t, err, "account should still exist in original org/ledger")
 	require.NotNil(t, found, "account should not be nil")
 	assert.Equal(t, accountID.String(), found.ID, "account ID should match")
@@ -1126,7 +1194,7 @@ func TestIntegration_AccountRepository_Delete_RespectsOrgLedgerIsolation(t *test
 
 func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1140,7 +1208,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *test
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2}, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1156,7 +1224,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsMatchingAccounts(t *test
 
 func TestIntegration_AccountRepository_ListByIDs_FiltersBySegment(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1175,7 +1243,7 @@ func TestIntegration_AccountRepository_ListByIDs_FiltersBySegment(t *testing.T) 
 	ctx := context.Background()
 
 	// Act: ListByIDs with all 3 IDs but segment filter should exclude id3.
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, &segmentID, []uuid.UUID{id1, id2, id3})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, &segmentID, []uuid.UUID{id1, id2, id3}, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1189,7 +1257,7 @@ func TestIntegration_AccountRepository_ListByIDs_FiltersBySegment(t *testing.T) 
 
 func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1203,7 +1271,7 @@ func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{id1, id2}, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1213,7 +1281,7 @@ func TestIntegration_AccountRepository_ListByIDs_ExcludesSoftDeleted(t *testing.
 
 func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1223,7 +1291,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testi
 	ctx := context.Background()
 
 	// Act
-	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
+	accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())}, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1236,7 +1304,7 @@ func TestIntegration_AccountRepository_ListByIDs_ReturnsEmptyForNoMatch(t *testi
 
 func TestIntegration_AccountRepository_ListAccountsByAlias_ReturnsMatchingAccounts(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1269,7 +1337,7 @@ func TestIntegration_AccountRepository_ListAccountsByAlias_ReturnsMatchingAccoun
 
 func TestIntegration_AccountRepository_ListAccountsByAlias_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1298,7 +1366,7 @@ func TestIntegration_AccountRepository_ListAccountsByAlias_ExcludesSoftDeleted(t
 
 func TestIntegration_AccountRepository_ListExternalAccountsByAssetCode_ReturnsOnlyLiveExternals(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1361,7 +1429,7 @@ func TestIntegration_AccountRepository_ListExternalAccountsByAssetCode_ReturnsOn
 
 func TestIntegration_AccountRepository_ListExternalAccountsByAssetCode_ReturnsEmptyWhenNone(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1420,7 +1488,7 @@ func TestIntegration_AccountRepository_Count_Scenarios(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			container := pgtestutil.SetupContainer(t)
+			container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 			repo := createRepository(t, container)
 
@@ -1454,7 +1522,7 @@ func TestIntegration_AccountRepository_Count_Scenarios(t *testing.T) {
 
 func TestIntegration_AccountRepository_Count_IsolatesByOrgLedger(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1484,13 +1552,114 @@ func TestIntegration_AccountRepository_Count_IsolatesByOrgLedger(t *testing.T) {
 	assert.Equal(t, int64(1), count2, "org2 should have 1 account")
 }
 
+// createHolderAccount persists an active (or soft-deleted) account owned by
+// holderID via repo.Create, then optionally soft-deletes it, so CountByHolderID
+// can be exercised against real holder_id-bearing rows.
+func createHolderAccount(t *testing.T, repo *AccountPostgreSQLRepository, orgID, ledgerID uuid.UUID, holderID, alias string, deleted bool) {
+	t.Helper()
+
+	hid := holderID
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+
+	acc := &mmodel.Account{
+		Name:           "Holder Account",
+		AssetCode:      "USD",
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		Alias:          &alias,
+		Type:           "deposit",
+		HolderID:       &hid,
+		Blocked:        &blocked,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	created, err := repo.Create(context.Background(), acc)
+	require.NoError(t, err)
+
+	if deleted {
+		parsedID, perr := uuid.Parse(created.ID)
+		require.NoError(t, perr)
+		require.NoError(t, repo.Delete(context.Background(), orgID, ledgerID, nil, parsedID))
+	}
+}
+
+func TestIntegration_AccountRepository_CountByHolderID_CountsActiveOwned(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	otherHolderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+
+	// 2 active accounts for the target holder.
+	createHolderAccount(t, repo, orgID, ledgerID, holderID, "@own1-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	createHolderAccount(t, repo, orgID, ledgerID, holderID, "@own2-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	// 1 soft-deleted account for the target holder (must NOT count).
+	createHolderAccount(t, repo, orgID, ledgerID, holderID, "@owndel-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], true)
+	// 1 active account for a different holder (must NOT count).
+	createHolderAccount(t, repo, orgID, ledgerID, otherHolderID, "@other-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+
+	holderUUID, err := uuid.Parse(holderID)
+	require.NoError(t, err)
+
+	// Act
+	count, err := repo.CountByHolderID(context.Background(), orgID, holderUUID)
+
+	// Assert: only the 2 active accounts owned by the target holder count.
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count)
+}
+
+func TestIntegration_AccountRepository_CountByHolderID_IsolatesByOrg(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	org1ID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1ID := pgtestutil.CreateTestLedger(t, container.DB, org1ID)
+
+	org2ID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger2ID := pgtestutil.CreateTestLedger(t, container.DB, org2ID)
+
+	// Same holder id value appears under two organizations; the count must be
+	// scoped to the organization passed in.
+	holderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+
+	createHolderAccount(t, repo, org1ID, ledger1ID, holderID, "@o1-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	createHolderAccount(t, repo, org2ID, ledger2ID, holderID, "@o2a-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+	createHolderAccount(t, repo, org2ID, ledger2ID, holderID, "@o2b-"+uuid.Must(libCommons.GenerateUUIDv7()).String()[:8], false)
+
+	holderUUID, err := uuid.Parse(holderID)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Act
+	count1, err1 := repo.CountByHolderID(ctx, org1ID, holderUUID)
+	count2, err2 := repo.CountByHolderID(ctx, org2ID, holderUUID)
+
+	// Assert
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	assert.Equal(t, int64(1), count1, "org1 should count 1 owned account")
+	assert.Equal(t, int64(2), count2, "org2 should count 2 owned accounts")
+}
+
 // ============================================================================
 // FindAll Filter Tests (Phase 1 - Account Filters)
 // ============================================================================
 
 func TestIntegration_AccountRepository_FindAll_FiltersByStatus(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1534,7 +1703,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByStatus(t *testing.T) {
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1547,7 +1716,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByStatus(t *testing.T) {
 
 func TestIntegration_AccountRepository_FindAll_FiltersByType(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1591,7 +1760,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByType(t *testing.T) {
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1604,7 +1773,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByType(t *testing.T) {
 
 func TestIntegration_AccountRepository_FindAll_FiltersByAssetCode(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1648,7 +1817,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAssetCode(t *testing.T) 
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1661,7 +1830,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAssetCode(t *testing.T) 
 
 func TestIntegration_AccountRepository_FindAll_CombinesMultipleFiltersWithAND(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1721,7 +1890,7 @@ func TestIntegration_AccountRepository_FindAll_CombinesMultipleFiltersWithAND(t 
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1735,7 +1904,7 @@ func TestIntegration_AccountRepository_FindAll_CombinesMultipleFiltersWithAND(t 
 
 func TestIntegration_AccountRepository_FindAll_EmptyFilterReturnsAll(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1771,7 +1940,7 @@ func TestIntegration_AccountRepository_FindAll_EmptyFilterReturnsAll(t *testing.
 	}
 
 	// Act - empty filter (no filters applied)
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1784,7 +1953,7 @@ func TestIntegration_AccountRepository_FindAll_EmptyFilterReturnsAll(t *testing.
 
 func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1819,7 +1988,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix(t *testing.T)
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1832,7 +2001,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix(t *testing.T)
 
 func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_CaseInsensitive(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1858,7 +2027,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_CaseInsensiti
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1868,7 +2037,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_CaseInsensiti
 
 func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1903,7 +2072,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix(t *testing.T
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1917,7 +2086,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix(t *testing.T
 
 func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix_CaseInsensitive(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1953,7 +2122,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix_CaseInsensit
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -1967,7 +2136,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByAliasPrefix_CaseInsensit
 
 func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_NoMiddleWordMatch(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1993,7 +2162,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_NoMiddleWordM
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2002,7 +2171,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByNamePrefix_NoMiddleWordM
 
 func TestIntegration_AccountRepository_FindAll_FiltersByName_WildcardInjection(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2041,7 +2210,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByName_WildcardInjection(t
 				Name:      &nameFilter,
 			}
 
-			accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+			accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 			require.NoError(t, err)
 			assert.Len(t, accounts, tt.expected, "wildcard injection '%s' should return %d results", tt.filter, tt.expected)
@@ -2051,7 +2220,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByName_WildcardInjection(t
 
 func TestIntegration_AccountRepository_FindAll_FiltersByName_LiteralSpecialChars(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2077,7 +2246,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByName_LiteralSpecialChars
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2087,7 +2256,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByName_LiteralSpecialChars
 
 func TestIntegration_AccountRepository_FindAll_CombinesNameAndAliasFilters(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2127,7 +2296,7 @@ func TestIntegration_AccountRepository_FindAll_CombinesNameAndAliasFilters(t *te
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2139,7 +2308,7 @@ func TestIntegration_AccountRepository_FindAll_CombinesNameAndAliasFilters(t *te
 
 func TestIntegration_AccountRepository_FindAll_FiltersByEntityID(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2184,7 +2353,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByEntityID(t *testing.T) {
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2198,7 +2367,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByEntityID(t *testing.T) {
 
 func TestIntegration_AccountRepository_FindAll_FiltersByBlocked(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2245,7 +2414,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByBlocked(t *testing.T) {
 	}
 
 	// Act
-	blockedAccounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filterBlocked)
+	blockedAccounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filterBlocked, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2268,7 +2437,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByBlocked(t *testing.T) {
 	}
 
 	// Act
-	activeAccounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filterNotBlocked)
+	activeAccounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filterNotBlocked, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2282,7 +2451,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByBlocked(t *testing.T) {
 
 func TestIntegration_AccountRepository_FindAll_FiltersByParentAccountID(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -2332,7 +2501,7 @@ func TestIntegration_AccountRepository_FindAll_FiltersByParentAccountID(t *testi
 	}
 
 	// Act
-	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter)
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
 
 	// Assert
 	require.NoError(t, err)
@@ -2342,4 +2511,503 @@ func TestIntegration_AccountRepository_FindAll_FiltersByParentAccountID(t *testi
 		require.NotNil(t, acc.ParentAccountID, "account parent_account_id should not be nil")
 		assert.Equal(t, parentAccountID.String(), *acc.ParentAccountID, "all returned accounts should have the correct parent_account_id")
 	}
+}
+
+// ============================================================================
+// EPIC 4.2: PER-CALL SKIP AUDIT ROUND-TRIP (holder_check_skipped)
+// ============================================================================
+//
+// Runtime proof that the honored holder-check skip flag survives a real squirrel
+// INSERT (column alignment) and reads back true through TWO distinct Scan sites:
+// the single-row Find and the list-derived ListByIDs. A column-order regression
+// in either the INSERT VALUES list or a SELECT/Scan corrupts the flag silently;
+// unit tests cannot catch it because they do not exercise PostgreSQL.
+//
+// Out of integration scope here (already unit-covered, NOT re-proven at this
+// level): the gate's zero-downstream-call invariant (holder existence check
+// never reached) and the settings-read-count==1 invariant. Those are asserted by:
+//   - TestCreateAccountHolderSkip
+//     (components/ledger/internal/services/command/create_account_holder_test.go)
+//     -> honored holder skip means holderReader.calls==0 and
+//        settingsReader.calls==1 (the skip gate rides the single settings read).
+//   - TestResolveSkipForTruthTable / TestResolveSkipForUnauthorizedIs422
+//     (pkg/skip/skip_test.go) -> two-key gate truth table + unauthorized 422.
+
+// TestIntegration_AccountRepository_SkipAudit_RoundTrip proves that
+// HolderCheckSkipped persists through repo.Create (squirrel INSERT) and reads
+// back true via BOTH repo.Find (single-row scan) and repo.ListByIDs (list scan),
+// with a false control account confirming the flag is not spuriously set.
+func TestIntegration_AccountRepository_SkipAudit_RoundTrip(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	ctx := context.Background()
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Skipped account: holder check skip honored.
+	skippedAlias := fmt.Sprintf("@skip-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+	createdSkipped, err := repo.Create(ctx, &mmodel.Account{
+		Name:               "Skip Audit Honored",
+		AssetCode:          "USD",
+		OrganizationID:     orgID.String(),
+		LedgerID:           ledgerID.String(),
+		Status:             mmodel.Status{Code: "ACTIVE"},
+		Alias:              &skippedAlias,
+		Type:               "deposit",
+		Blocked:            &blocked,
+		HolderCheckSkipped: true,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	})
+	require.NoError(t, err, "Create with holder_check_skipped should succeed")
+	assert.True(t, createdSkipped.HolderCheckSkipped, "Create should echo holder_check_skipped=true")
+
+	// False control: skip flag not set.
+	controlAlias := fmt.Sprintf("@noskip-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+	createdControl, err := repo.Create(ctx, &mmodel.Account{
+		Name:           "Skip Audit Control",
+		AssetCode:      "USD",
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		Alias:          &controlAlias,
+		Type:           "deposit",
+		Blocked:        &blocked,
+		// HolderCheckSkipped left at zero value (false).
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	require.NoError(t, err, "Create control should succeed")
+	assert.False(t, createdControl.HolderCheckSkipped, "control holder_check_skipped should be false")
+
+	skippedID, err := uuid.Parse(createdSkipped.ID)
+	require.NoError(t, err)
+	controlID, err := uuid.Parse(createdControl.ID)
+	require.NoError(t, err)
+
+	t.Run("Find single-row scan reads the flag back", func(t *testing.T) {
+		foundSkipped, err := repo.Find(ctx, orgID, ledgerID, nil, skippedID, mmodel.HolderOnV2)
+		require.NoError(t, err)
+		assert.True(t, foundSkipped.HolderCheckSkipped, "Find: skipped account holder_check_skipped should round-trip true")
+
+		foundControl, err := repo.Find(ctx, orgID, ledgerID, nil, controlID, mmodel.HolderOnV2)
+		require.NoError(t, err)
+		assert.False(t, foundControl.HolderCheckSkipped, "Find: control holder_check_skipped should round-trip false")
+	})
+
+	t.Run("ListByIDs list scan reads the flag back", func(t *testing.T) {
+		// ListByIDs exercises a DIFFERENT Scan call site than Find, so the
+		// list-derived column order is proven independently here.
+		accounts, err := repo.ListByIDs(ctx, orgID, ledgerID, nil, nil, []uuid.UUID{skippedID, controlID}, mmodel.HolderOnV2)
+		require.NoError(t, err)
+		require.Len(t, accounts, 2)
+
+		byID := make(map[string]*mmodel.Account, len(accounts))
+		for i := range accounts {
+			byID[accounts[i].ID] = accounts[i]
+		}
+
+		require.Contains(t, byID, createdSkipped.ID)
+		require.Contains(t, byID, createdControl.ID)
+		assert.True(t, byID[createdSkipped.ID].HolderCheckSkipped, "ListByIDs: skipped account holder_check_skipped should round-trip true")
+		assert.False(t, byID[createdControl.ID].HolderCheckSkipped, "ListByIDs: control holder_check_skipped should round-trip false")
+	})
+}
+
+// ============================================================================
+// HolderID Round-Trip and Filter Tests (F1-T03, F1-T12)
+// ============================================================================
+
+// TestIntegration_AccountRepository_Create_RoundTripsHolderID validates that an account
+// created with a holder_id persists the value and reads it back via both Find and FindAll
+// (F1-T03: persistence round-trip through INSERT, the column list, and ToEntity/FromEntity).
+func TestIntegration_AccountRepository_Create_RoundTripsHolderID(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	ctx := context.Background()
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	alias := fmt.Sprintf("@holder-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+
+	newAccount := &mmodel.Account{
+		Name:           "Account With Holder",
+		AssetCode:      "USD",
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		Alias:          &alias,
+		Type:           "deposit",
+		HolderID:       &holderID,
+		Blocked:        &blocked,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	// Act: create persists holder_id
+	created, err := repo.Create(ctx, newAccount)
+
+	// Assert: create returns the holder_id
+	require.NoError(t, err, "Create should not return error")
+	require.NotNil(t, created, "created account should not be nil")
+	require.NotNil(t, created.HolderID, "created account holder_id should not be nil")
+	assert.Equal(t, holderID, *created.HolderID, "created account holder_id should match")
+
+	// Assert: Find reads the holder_id back
+	parsedID, err := uuid.Parse(created.ID)
+	require.NoError(t, err)
+
+	found, err := repo.Find(ctx, orgID, ledgerID, nil, parsedID, mmodel.HolderOnV2)
+	require.NoError(t, err, "Find should not return error")
+	require.NotNil(t, found.HolderID, "found account holder_id should not be nil")
+	assert.Equal(t, holderID, *found.HolderID, "found account holder_id should round-trip")
+
+	// Assert: FindAll reads the holder_id back
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: now.Add(-24 * time.Hour),
+		EndDate:   now.Add(24 * time.Hour),
+	}
+
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
+	require.NoError(t, err, "FindAll should not return error")
+	require.Len(t, accounts, 1, "should return the single created account")
+	require.NotNil(t, accounts[0].HolderID, "listed account holder_id should not be nil")
+	assert.Equal(t, holderID, *accounts[0].HolderID, "listed account holder_id should round-trip")
+}
+
+// TestIntegration_AccountRepository_FindAll_FiltersByHolderID validates that the
+// FindAll holder_id filter returns only accounts owned by the requested holder
+// (F1-T12: guarded holder_id = ? clause).
+func TestIntegration_AccountRepository_FindAll_FiltersByHolderID(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	ctx := context.Background()
+
+	holderA := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderB := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	blocked := false
+	now := time.Now().Truncate(time.Microsecond)
+
+	// Two accounts owned by holderA, one by holderB.
+	for i := 0; i < 2; i++ {
+		alias := fmt.Sprintf("@holderA-%d-%s", i, uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+		_, err := repo.Create(ctx, &mmodel.Account{
+			Name:           fmt.Sprintf("Holder A Account %d", i),
+			AssetCode:      "USD",
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			Status:         mmodel.Status{Code: "ACTIVE"},
+			Alias:          &alias,
+			Type:           "deposit",
+			HolderID:       &holderA,
+			Blocked:        &blocked,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		})
+		require.NoError(t, err, "Create holderA account should not return error")
+	}
+
+	aliasB := fmt.Sprintf("@holderB-%s", uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+	_, err := repo.Create(ctx, &mmodel.Account{
+		Name:           "Holder B Account",
+		AssetCode:      "USD",
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		Alias:          &aliasB,
+		Type:           "deposit",
+		HolderID:       &holderB,
+		Blocked:        &blocked,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+	require.NoError(t, err, "Create holderB account should not return error")
+
+	filter := http.QueryHeader{
+		Limit:     10,
+		Page:      1,
+		SortOrder: "asc",
+		StartDate: now.Add(-24 * time.Hour),
+		EndDate:   now.Add(24 * time.Hour),
+		HolderID:  &holderA,
+	}
+
+	// Act
+	accounts, err := repo.FindAll(ctx, orgID, ledgerID, nil, nil, filter, mmodel.HolderOnV2)
+
+	// Assert
+	require.NoError(t, err, "FindAll should not return error")
+	assert.Len(t, accounts, 2, "should return only accounts owned by holderA")
+
+	for _, acc := range accounts {
+		require.NotNil(t, acc.HolderID, "account holder_id should not be nil")
+		assert.Equal(t, holderA, *acc.HolderID, "all returned accounts should be owned by holderA")
+	}
+}
+
+// ============================================================================
+// FindAllByHolder Tests
+// ============================================================================
+
+// holderListFilter returns a query header for a holder listing page.
+func holderListFilter(limit, page int, sortOrder string) http.QueryHeader {
+	return http.QueryHeader{Limit: limit, Page: page, SortOrder: sortOrder}
+}
+
+// seedHolderAccount inserts a live account owned by holderID in the given ledger
+// and returns its alias, which the assertions use as the row's identity.
+func seedHolderAccount(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, holderID *uuid.UUID, prefix string, deletedAt *time.Time, createdAt *time.Time) (uuid.UUID, string) {
+	t.Helper()
+
+	alias := fmt.Sprintf("@%s-%s", prefix, uuid.Must(libCommons.GenerateUUIDv7()).String()[:8])
+
+	params := pgtestutil.DefaultAccountParams()
+	params.Alias = alias
+	params.Name = prefix
+	params.HolderID = holderID
+	params.DeletedAt = deletedAt
+	params.CreatedAt = createdAt
+
+	id := pgtestutil.CreateTestAccountWithParams(t, db, orgID, ledgerID, params)
+
+	return id, alias
+}
+
+// idsOf projects a result set onto its ids, in result order.
+func idsOf(accounts []*mmodel.Account) []string {
+	out := make([]string, 0, len(accounts))
+	for _, a := range accounts {
+		out = append(out, a.ID)
+	}
+
+	return out
+}
+
+// aliasesOf projects a result set onto its aliases, for set comparison.
+func aliasesOf(accounts []*mmodel.Account) []string {
+	out := make([]string, 0, len(accounts))
+	for _, a := range accounts {
+		if a.Alias != nil {
+			out = append(out, *a.Alias)
+		}
+	}
+
+	return out
+}
+
+func TestIntegration_AccountRepository_FindAllByHolder_CrossLedger_ReturnsAllLedgers(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1ID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	ledger2ID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	otherHolderID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	deletedAt := time.Now().Truncate(time.Microsecond)
+
+	// Two accounts in ledger 1 and one in ledger 2 for the target holder.
+	_, a1 := seedHolderAccount(t, container.DB, orgID, ledger1ID, &holderID, "l1a", nil, nil)
+	_, a2 := seedHolderAccount(t, container.DB, orgID, ledger1ID, &holderID, "l1b", nil, nil)
+	_, a3 := seedHolderAccount(t, container.DB, orgID, ledger2ID, &holderID, "l2a", nil, nil)
+	// Must not appear: another holder, and a soft-deleted account of the target holder.
+	_, _ = seedHolderAccount(t, container.DB, orgID, ledger1ID, &otherHolderID, "other", nil, nil)
+	_, _ = seedHolderAccount(t, container.DB, orgID, ledger2ID, &holderID, "gone", &deletedAt, nil)
+
+	// Act
+	accounts, err := repo.FindAllByHolder(context.Background(), orgID, holderID, nil, holderListFilter(10, 1, "asc"), mmodel.HolderOnV2)
+
+	// Assert
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{a1, a2, a3}, aliasesOf(accounts))
+
+	ledgers := map[string]bool{}
+	for _, a := range accounts {
+		ledgers[a.LedgerID] = true
+
+		require.NotNil(t, a.HolderID)
+		assert.Equal(t, holderID.String(), *a.HolderID)
+	}
+
+	assert.Truef(t, ledgers[ledger1ID.String()] && ledgers[ledger2ID.String()],
+		"result must span both ledgers, got %v", ledgers)
+}
+
+func TestIntegration_AccountRepository_FindAllByHolder_LedgerIDNarrows(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1ID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	ledger2ID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	_, a1 := seedHolderAccount(t, container.DB, orgID, ledger1ID, &holderID, "l1a", nil, nil)
+	_, a2 := seedHolderAccount(t, container.DB, orgID, ledger1ID, &holderID, "l1b", nil, nil)
+	_, _ = seedHolderAccount(t, container.DB, orgID, ledger2ID, &holderID, "l2a", nil, nil)
+
+	ctx := context.Background()
+	unknownLedger := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// Act
+	narrowed, err := repo.FindAllByHolder(ctx, orgID, holderID, &ledger1ID, holderListFilter(10, 1, "asc"), mmodel.HolderOnV2)
+	require.NoError(t, err)
+
+	empty, err := repo.FindAllByHolder(ctx, orgID, holderID, &unknownLedger, holderListFilter(10, 1, "asc"), mmodel.HolderOnV2)
+	require.NoError(t, err)
+
+	// Assert
+	assert.ElementsMatch(t, []string{a1, a2}, aliasesOf(narrowed))
+	assert.Empty(t, empty, "an unknown ledger narrows to nothing, without erroring")
+}
+
+func TestIntegration_AccountRepository_FindAllByHolder_IsolatesByOrg(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	org1ID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger1ID := pgtestutil.CreateTestLedger(t, container.DB, org1ID)
+
+	org2ID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledger2ID := pgtestutil.CreateTestLedger(t, container.DB, org2ID)
+
+	// The same holder id value under two organizations.
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	_, own := seedHolderAccount(t, container.DB, org1ID, ledger1ID, &holderID, "o1", nil, nil)
+	_, _ = seedHolderAccount(t, container.DB, org2ID, ledger2ID, &holderID, "o2a", nil, nil)
+	_, _ = seedHolderAccount(t, container.DB, org2ID, ledger2ID, &holderID, "o2b", nil, nil)
+
+	ctx := context.Background()
+
+	// Act
+	fromOrg1, err := repo.FindAllByHolder(ctx, org1ID, holderID, nil, holderListFilter(10, 1, "asc"), mmodel.HolderOnV2)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, []string{own}, aliasesOf(fromOrg1))
+}
+
+// TestIntegration_AccountRepository_FindAllByHolder_PaginationUnion_IdenticalCreatedAt
+// pins the ORDER BY tiebreaker: with every row sharing one created_at, created_at
+// alone is not a total order, so paging could repeat a row on one page and drop it
+// from another. The id tiebreaker makes the order total, which is what lets the
+// pages partition the set and makes descending the exact reverse of ascending.
+func TestIntegration_AccountRepository_FindAllByHolder_PaginationUnion_IdenticalCreatedAt(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	sharedCreatedAt := time.Date(2026, 2, 3, 4, 5, 6, 0, time.UTC)
+
+	seeded := make([]string, 0, 7)
+	for i := 0; i < 7; i++ {
+		id, _ := seedHolderAccount(t, container.DB, orgID, ledgerID, &holderID, fmt.Sprintf("tie%d", i), nil, &sharedCreatedAt)
+		seeded = append(seeded, id.String())
+	}
+
+	page := func(sortOrder string, n int) []string {
+		accounts, err := repo.FindAllByHolder(context.Background(), orgID, holderID, nil, holderListFilter(3, n, sortOrder), mmodel.HolderOnV2)
+		require.NoError(t, err)
+
+		return idsOf(accounts)
+	}
+
+	// Act & Assert
+	assertPagedTotalOrder(t, seeded, page)
+}
+
+// TestIntegration_AccountRepository_FindAll_PaginationUnion_IdenticalCreatedAt is
+// the ledger-scoped sibling of the holder pagination pin.
+func TestIntegration_AccountRepository_FindAll_PaginationUnion_IdenticalCreatedAt(t *testing.T) {
+	// Arrange
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	sharedCreatedAt := time.Date(2026, 2, 3, 4, 5, 6, 0, time.UTC)
+
+	seeded := make([]string, 0, 7)
+	for i := 0; i < 7; i++ {
+		id, _ := seedHolderAccount(t, container.DB, orgID, ledgerID, nil, fmt.Sprintf("flat%d", i), nil, &sharedCreatedAt)
+		seeded = append(seeded, id.String())
+	}
+
+	page := func(sortOrder string, n int) []string {
+		accounts, err := repo.FindAll(context.Background(), orgID, ledgerID, nil, nil, holderListFilter(3, n, sortOrder), mmodel.HolderOnV2)
+		require.NoError(t, err)
+
+		return idsOf(accounts)
+	}
+
+	// Act & Assert
+	assertPagedTotalOrder(t, seeded, page)
+}
+
+// assertPagedTotalOrder walks a 7-row set three at a time in both directions and
+// asserts the listing is a total order on id: ascending pages must come back in id
+// order, and descending must be the exact reverse. Without the id tiebreaker the
+// two directions return the same physical order, which this catches.
+func assertPagedTotalOrder(t *testing.T, seeded []string, page func(sortOrder string, n int) []string) {
+	t.Helper()
+
+	wantAsc := slices.Clone(seeded)
+	slices.Sort(wantAsc)
+
+	wantDesc := slices.Clone(wantAsc)
+	slices.Reverse(wantDesc)
+
+	walk := func(sortOrder string) []string {
+		var got []string
+		for n := 1; n <= 3; n++ {
+			got = append(got, page(sortOrder, n)...)
+		}
+
+		return got
+	}
+
+	gotAsc, gotDesc := walk("asc"), walk("desc")
+
+	assert.Equal(t, wantAsc, gotAsc, "ascending pages must walk the set in id order")
+	assert.Equal(t, wantDesc, gotDesc, "descending pages must be the exact reverse of ascending")
+	assert.ElementsMatch(t, seeded, gotAsc, "paging must be a partition of the result set")
 }

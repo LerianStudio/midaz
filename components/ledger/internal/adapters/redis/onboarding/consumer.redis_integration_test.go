@@ -20,12 +20,13 @@ import (
 	"testing"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/google/uuid"
 	redisv9 "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
 // =============================================================================
@@ -45,10 +46,10 @@ func setupOnboardingRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
 	// Start a Valkey container (valkey/valkey:8 image from DefaultContainerConfig).
-	redisContainer := redistestutil.SetupContainer(t)
+	redisContainer := redistestutil.SetupReusableContainer(t)
 
 	// Build lib-commons RedisConnection from the mapped address.
-	conn := redistestutil.CreateConnection(t, redisContainer.Addr)
+	conn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 
 	repo := &RedisConsumerRepository{
 		conn: conn,

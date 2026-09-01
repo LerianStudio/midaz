@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // AccountDeletedDefinition is the routing contract for account.deleted.
@@ -18,7 +19,7 @@ import (
 // components/ledger/internal/services/command/delete_account.go,
 // immediately after AccountRepo.Delete succeeds (post-commit).
 // IMPORTANT posture: emit failures MUST NOT fail the request;
-// durability is owned by PG + (follow-up task) the outbox subsystem.
+// durability is owned by the persisted database mutation.
 //
 // External-type accounts cannot be deleted and never reach this anchor.
 // The cascade DeleteAllBalancesByAccountID step earlier in the use case

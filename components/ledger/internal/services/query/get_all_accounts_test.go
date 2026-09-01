@@ -9,11 +9,11 @@ import (
 	"errors"
 	"testing"
 
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -58,7 +58,7 @@ func TestGetAllAccount(t *testing.T) {
 				bFalse := false
 				bTrue := true
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter, mmodel.HolderOnV2).
 					Return([]*mmodel.Account{
 						{ID: "acc1", Blocked: &bFalse},
 						{ID: "acc2", Blocked: &bTrue},
@@ -91,7 +91,7 @@ func TestGetAllAccount(t *testing.T) {
 			segmentID:   &segmentID,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, &segmentID, filter).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, &segmentID, filter, mmodel.HolderOnV2).
 					Return([]*mmodel.Account{
 						{ID: "acc1"},
 					}, nil).
@@ -115,7 +115,7 @@ func TestGetAllAccount(t *testing.T) {
 			segmentID:   nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter, mmodel.HolderOnV2).
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
@@ -128,7 +128,7 @@ func TestGetAllAccount(t *testing.T) {
 			segmentID:   nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter, mmodel.HolderOnV2).
 					Return(nil, errors.New("failed to retrieve accounts")).
 					Times(1)
 			},
@@ -141,7 +141,7 @@ func TestGetAllAccount(t *testing.T) {
 			segmentID:   nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, gomock.Nil(), filter, mmodel.HolderOnV2).
 					Return([]*mmodel.Account{
 						{ID: "acc1"},
 						{ID: "acc2"},
@@ -162,7 +162,7 @@ func TestGetAllAccount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
 
-			result, err := uc.GetAllAccount(ctx, organizationID, ledgerID, tt.portfolioID, tt.segmentID, filter)
+			result, err := uc.GetAllAccount(ctx, organizationID, ledgerID, tt.portfolioID, tt.segmentID, filter, mmodel.HolderOnV2)
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)

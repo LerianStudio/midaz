@@ -33,8 +33,9 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -56,12 +57,11 @@ type countByFiltersInfra struct {
 func setupCountByFiltersInfra(t *testing.T) *countByFiltersInfra {
 	t.Helper()
 
-	pgContainer := pgtestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	repo := NewTransactionPostgreSQLRepository(conn)
 

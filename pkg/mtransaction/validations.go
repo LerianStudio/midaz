@@ -10,14 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/lib-commons/v5/commons"
-	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/lib-commons/v6/commons"
+	constant "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/shopspring/decimal"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // CheckTransactionDate validates the transactionDate field and returns the
@@ -149,21 +150,23 @@ func AliasKey(alias, balanceKey string) string {
 		balanceKey = "default"
 	}
 
-	return alias + "#" + balanceKey
+	return alias + AliasSeparatorString + balanceKey
 }
 
 // SplitAlias function to split alias with index
 func SplitAlias(alias string) string {
-	if strings.Contains(alias, "#") {
-		return strings.Split(alias, "#")[1]
+	if strings.Contains(alias, AliasSeparatorString) {
+		return strings.Split(alias, AliasSeparatorString)[1]
 	}
 
 	return alias
 }
 
-// ConcatAlias function to concat alias with index
+// ConcatAlias prefixes the entry index onto an alias that already carries its balance key,
+// producing the "index#alias#balanceKey" entry key. The FromTo.ConcatAlias method builds the same
+// form from an entry's own fields instead.
 func ConcatAlias(i int, alias string) string {
-	return strconv.Itoa(i) + "#" + alias
+	return strconv.Itoa(i) + AliasSeparatorString + alias
 }
 
 // OperateBalances Function to sum or sub two balances and Normalize the scale.

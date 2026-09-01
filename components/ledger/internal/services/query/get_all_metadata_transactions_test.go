@@ -10,16 +10,17 @@ import (
 	"testing"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/mock/gomock"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // TestGetAllMetadataTransactions is responsible to test GetAllMetadataTransactions with success and error
@@ -479,6 +480,91 @@ func TestGetAllMetadataTransactionsWithMixedOperations(t *testing.T) {
 	assert.NotContains(t, result[0].Destination, "block-source")
 	assert.NotContains(t, result[0].Source, "normal-destination")
 	assert.NotContains(t, result[0].Source, "unblock-destination")
+}
+
+// TestGetAllMetadataTransactions_PendingOverdraftDerivesDestinationFromBody pins
+// the Body-derived destination fallback in the metadata read path so it agrees
+// with the listing and individual paths: a PENDING overdraft transaction carries
+// only source-side operations (DEBIT + ON_HOLD + OVERDRAFT) and no CREDIT leg, so
+// operation-based reconstruction yields an empty Destination and the read path
+// must fall back to the submitted destination persisted in the body, in the same
+// bare-alias form the write path caches. Reverting the resolveDestination call in
+// GetAllMetadataTransactions makes this test fail.
+func TestGetAllMetadataTransactions_PendingOverdraftDerivesDestinationFromBody(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+
+	filter := http.QueryHeader{
+		Metadata: &bson.M{"key": "value"},
+		Limit:    10,
+		Page:     1,
+	}
+
+	metadataList := []*mongodb.Metadata{
+		{
+			ID:       bson.NewObjectID(),
+			EntityID: txID.String(),
+			Data:     map[string]any{"key": "value"},
+		},
+	}
+
+	// Only source-side legs are persisted before commit: the real DEBIT plus the
+	// ON_HOLD and OVERDRAFT system legs. None classify onto Destination.
+	ops := []*operation.Operation{
+		{ID: uuid.New().String(), Type: constant.DEBIT, AccountAlias: "@alice"},
+		{ID: uuid.New().String(), Type: constant.ONHOLD, AccountAlias: "@alice"},
+		{ID: uuid.New().String(), Type: constant.OVERDRAFT, AccountAlias: "@alice"},
+	}
+
+	transactions := []*transaction.Transaction{
+		{
+			ID:         txID.String(),
+			Operations: ops,
+			Body:       overdraftPendingBody(),
+		},
+	}
+
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), constant.EntityTransaction, gomock.Cond(func(qh http.QueryHeader) bool {
+			return isWindowed(qh.StartDate, qh.EndDate)
+		})).
+		Return(metadataList, nil)
+
+	mockTransactionRepo.EXPECT().
+		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID}, gomock.Cond(func(p http.Pagination) bool {
+			return isWindowed(p.StartDate, p.EndDate)
+		})).
+		Return(transactions, libHTTP.CursorPagination{}, nil)
+
+	mockMetadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), constant.EntityOperation, gomock.Any()).
+		Return([]*mongodb.Metadata{}, nil)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo,
+	}
+
+	result, _, err := uc.GetAllMetadataTransactions(context.Background(), orgID, ledgerID, filter)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+
+	// Source is reconstructed from the DEBIT leg exactly as before.
+	assert.Equal(t, []string{"@alice"}, result[0].Source)
+
+	// Destination is derived from the submitted body: the overdraft companion is
+	// filtered and the "#default" suffix stripped, matching the cache-hit format.
+	assert.Equal(t, []string{"@merchant", "@suffixed"}, result[0].Destination)
+	assert.NotContains(t, result[0].Destination, "@companion", "overdraft companion must be filtered")
+	assert.NotContains(t, result[0].Destination, "@suffixed#default", "alias key suffix must be stripped")
 }
 
 // TestGetAllMetadataTransactions_NoMetadata ensures that when metadata lookup

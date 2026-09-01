@@ -8,13 +8,14 @@ import (
 	"context"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability"
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	libObs "github.com/LerianStudio/lib-observability/v2"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/shopspring/decimal"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
 // SendBalanceChangedEvents emits one generic, domain-agnostic balance.changed
@@ -22,7 +23,7 @@ import (
 //
 // Fire-and-forget: emission failures are logged/span-recorded but never
 // propagate — this MUST NOT fail the parent transaction (mirrors the
-// EmitImportant contract). Emission happens whenever streaming is enabled:
+// EmitBrokerBestEffort contract). Emission happens whenever streaming is enabled:
 // when STREAMING_ENABLED=false the streaming client is a NoopEmitter, so this
 // simply becomes a no-op — the same posture as balance.created.
 //
@@ -78,7 +79,7 @@ func (uc *UseCase) SendBalanceChangedEvents(ctx context.Context, tran *transacti
 			return events.NewBalanceChanged(src).ToEmitRequest(tenantID, src.OccurredAt)
 		}
 
-		pkgStreaming.EmitImportant(ctxSend, span, logger, uc.Streaming, events.BalanceChangedDefinition.Key(), buildFn)
+		pkgStreaming.EmitBrokerBestEffort(ctxSend, span, logger, uc.Streaming, events.BalanceChangedDefinition.Key(), buildFn)
 	}
 }
 

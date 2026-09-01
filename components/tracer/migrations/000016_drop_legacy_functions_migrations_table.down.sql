@@ -1,0 +1,1 @@
+-- intentionally empty: recreating the legacy tracking table would be useless.

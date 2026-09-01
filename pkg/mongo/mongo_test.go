@@ -7,7 +7,7 @@ package mongo
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/tests/utils/stubs"
+	"github.com/LerianStudio/midaz/v4/tests/utils/stubs"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -122,10 +122,10 @@ func TestBuildDocumentToPatch(t *testing.T) {
 			wantUnset:      bson.M{"addresses.primary": "addresses.primary"},
 		},
 		{
-			// mongo-driver v2 decodes nested documents as bson.D, not bson.M.
-			// flattenBSONM must recurse into bson.D as well, otherwise the
-			// nested document is kept whole.
-			name: "v2 nested bson.D flattens to dot notation",
+			// A nested document represented as bson.D must flatten to the same dotted
+			// paths as the equivalent bson.M, so flattening does not depend on which
+			// representation the decoder produced.
+			name: "nested bson.D flattens to dot notation",
 			updateDocument: bson.M{
 				"metadata": bson.D{
 					{Key: "key1", Value: "v1"},
@@ -137,11 +137,20 @@ func TestBuildDocumentToPatch(t *testing.T) {
 			wantUnset:      nil,
 		},
 		{
-			// Regression: with metadata as bson.D and a single-key removal, the
-			// $set must carry only the surviving dotted key — never the whole
-			// "metadata" object — or MongoDB rejects the update with
-			// "would create a conflict at 'metadata'".
-			name: "v2 nested bson.D with metadata key removal avoids parent conflict",
+			name: "deeply nested bson.D flattens to dot notation",
+			updateDocument: bson.M{
+				"a": bson.D{
+					{Key: "b", Value: bson.D{
+						{Key: "c", Value: "deep"},
+					}},
+				},
+			},
+			fieldsToRemove: nil,
+			wantSet:        bson.M{"a.b.c": "deep"},
+			wantUnset:      nil,
+		},
+		{
+			name: "nested bson.D field removal excludes parent and children from set",
 			updateDocument: bson.M{
 				"metadata": bson.D{
 					{Key: "key1", Value: "v1"},
@@ -246,6 +255,37 @@ func TestFlattenBSONM(t *testing.T) {
 			},
 			prefix: "root",
 			want:   bson.M{"root.child.grandchild": "value"},
+		},
+		{
+			name: "nested bson.D recurses like bson.M",
+			input: bson.M{
+				"outer": bson.D{
+					{Key: "inner", Value: "value"},
+				},
+			},
+			prefix: "",
+			want:   bson.M{"outer.inner": "value"},
+		},
+		{
+			name: "deeply nested bson.D",
+			input: bson.M{
+				"a": bson.D{
+					{Key: "b", Value: bson.D{
+						{Key: "c", Value: "deep"},
+					}},
+				},
+			},
+			prefix: "",
+			want:   bson.M{"a.b.c": "deep"},
+		},
+		{
+			name: "mixed bson.M and bson.D nesting",
+			input: bson.M{
+				"m": bson.M{"x": 1},
+				"d": bson.D{{Key: "y", Value: 2}},
+			},
+			prefix: "",
+			want:   bson.M{"m.x": 1, "d.y": 2},
 		},
 	}
 

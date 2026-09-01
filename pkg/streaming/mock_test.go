@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

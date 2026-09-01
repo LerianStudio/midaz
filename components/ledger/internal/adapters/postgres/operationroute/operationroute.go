@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -49,7 +49,7 @@ func (m *OperationRoutePostgreSQLModel) ToEntity() *mmodel.OperationRoute {
 		LedgerID:       m.LedgerID,
 		Title:          m.Title,
 		Description:    m.Description,
-		Code:           codeValue,
+		Code:           codeValue, //nolint:staticcheck // legacy Code field kept for backward compatibility; rubric codes are canonical
 		OperationType:  m.OperationType,
 		CreatedAt:      m.CreatedAt,
 		UpdatedAt:      m.UpdatedAt,

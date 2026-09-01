@@ -10,11 +10,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
@@ -371,7 +371,7 @@ func TestCreateAdditionalBalance_AllowOverdraft_CreatesCompanionBeforeParent(t *
 	assert.Equal(t, "balance.created", emitted[0].DefinitionKey)
 	assert.Equal(t, result.ID, emitted[0].Subject)
 
-	assert.Equal(t, "balance.config-changed", emitted[1].DefinitionKey)
+	assert.Equal(t, "balance.config_changed", emitted[1].DefinitionKey)
 	assert.NotEmpty(t, emitted[1].Subject)
 	assert.NotEqual(t, result.ID, emitted[1].Subject,
 		"config_changed subject MUST be the companion, not the parent")
@@ -488,6 +488,9 @@ func TestCreateAdditionalBalance_AllowOverdraft_CompanionRaceIsBenign(t *testing
 		Key:            constant.OverdraftBalanceKey,
 		AssetCode:      "USD",
 		Direction:      constant.DirectionDebit,
+		Settings: &mmodel.BalanceSettings{
+			BalanceScope: mmodel.BalanceScopeInternal,
+		},
 	}
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
@@ -799,5 +802,5 @@ func TestCreateAdditionalBalance_AllowOverdraft_WithLimit(t *testing.T) {
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 2, "companion provisioning with a limit still emits both events")
 	assert.Equal(t, "balance.created", emitted[0].DefinitionKey)
-	assert.Equal(t, "balance.config-changed", emitted[1].DefinitionKey)
+	assert.Equal(t, "balance.config_changed", emitted[1].DefinitionKey)
 }

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/crypto/kms/vault"
+	"github.com/LerianStudio/midaz/v4/pkg/crypto/kms/vault"
 	vaultapi "github.com/hashicorp/vault/api"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"

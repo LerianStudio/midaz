@@ -21,11 +21,12 @@ import (
 	"testing"
 	"time"
 
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmrabbitmq "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/rabbitmq"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmrabbitmq "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/rabbitmq"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+
+	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
@@ -61,8 +62,9 @@ type multiTenantTestInfra struct {
 func setupMultiTenantInfra(t *testing.T, tenantIDs []string) *multiTenantTestInfra {
 	t.Helper()
 
-	// Start RabbitMQ container
-	rmqContainer := rmqtestutil.SetupContainer(t)
+	// Reuse the package-scoped RabbitMQ process while giving each test its own
+	// base vhost. Additional tenants receive vhosts owned by this test as well.
+	rmqContainer := rmqtestutil.SetupReusableContainer(t)
 
 	exchange := "test-exchange"
 	routingKey := "test.routing.key"
@@ -71,12 +73,16 @@ func setupMultiTenantInfra(t *testing.T, tenantIDs []string) *multiTenantTestInf
 	// Create a vhost, permissions, exchange and queue for each tenant
 	tenants := make(map[string]*tenantVHost, len(tenantIDs))
 
-	for _, tenantID := range tenantIDs {
-		vhostName := tenantID
+	for index, tenantID := range tenantIDs {
+		vhostName := rmqContainer.VHost
+		if index > 0 {
+			vhostName = fmt.Sprintf("%s_%d", rmqContainer.VHost, index)
 
-		// Create vhost via RabbitMQ management API
-		createVHost(t, rmqContainer, vhostName)
-		setVHostPermissions(t, rmqContainer, vhostName, rmqtestutil.DefaultUser)
+			// Create each additional tenant vhost via RabbitMQ management API.
+			createVHost(t, rmqContainer, vhostName)
+			setVHostPermissions(t, rmqContainer, vhostName, rmqtestutil.DefaultUser)
+			t.Cleanup(func() { deleteVHost(t, rmqContainer, vhostName) })
+		}
 
 		// Connect to the vhost for queue inspection
 		vhostURI := fmt.Sprintf("amqp://%s:%s@%s:%s/%s",
@@ -127,7 +133,8 @@ func setupMultiTenantInfra(t *testing.T, tenantIDs []string) *multiTenantTestInf
 	})
 
 	// Create tmrabbitmq.Manager using the client
-	manager := tmrabbitmq.NewManager(client, "ledger",
+	manager := tmrabbitmq.NewManager(
+		client, "ledger",
 		tmrabbitmq.WithLogger(logger),
 		tmrabbitmq.WithModule("transaction"),
 	)
@@ -152,22 +159,22 @@ func setupMultiTenantInfra(t *testing.T, tenantIDs []string) *multiTenantTestInf
 }
 
 // newMockTenantManagerServer creates an httptest server that serves tenant configs.
-// Responds to GET /tenants/{tenantID}/services/{service}/settings with the
+// Responds to GET /v1/tenants/{tenantID}/associations/{service}/connections with the
 // RabbitMQ connection details for the tenant's vhost.
 func newMockTenantManagerServer(t *testing.T, rmqContainer *rmqtestutil.ContainerResult, tenants map[string]*tenantVHost) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/tenants/", func(w http.ResponseWriter, r *http.Request) {
-		// Path format: /tenants/{tenantID}/services/{service}/settings
-		// splitPath returns: ["tenants", tenantID, "services", service, "settings"]
+	mux.HandleFunc("/v1/tenants/", func(w http.ResponseWriter, r *http.Request) {
+		// Path format: /v1/tenants/{tenantID}/associations/{service}/connections
+		// splitPath returns: ["v1", "tenants", tenantID, "associations", service, "connections"]
 		parts := splitPath(r.URL.Path)
-		if len(parts) < 5 || parts[0] != "tenants" || parts[2] != "services" {
+		if len(parts) < 6 || parts[0] != "v1" || parts[1] != "tenants" || parts[3] != "associations" || parts[5] != "connections" {
 			http.Error(w, "invalid path format", http.StatusBadRequest)
 			return
 		}
 
-		tenantID := parts[1]
+		tenantID := parts[2]
 
 		tenant, ok := tenants[tenantID]
 		if !ok {
@@ -276,10 +283,41 @@ func createVHost(t *testing.T, rmq *rmqtestutil.ContainerResult, vhost string) {
 func setVHostPermissions(t *testing.T, rmq *rmqtestutil.ContainerResult, vhost, user string) {
 	t.Helper()
 
-	managementAPICall(t, rmq,
+	managementAPICall(
+		t, rmq,
 		fmt.Sprintf("/api/permissions/%s/%s", vhost, user),
 		`{"configure":".*","write":".*","read":".*"}`,
 	)
+}
+
+// deleteVHost drops an additional tenant vhost and verifies that it no longer
+// exists. The reusable fixture owns and audits the base vhost separately.
+func deleteVHost(t *testing.T, rmq *rmqtestutil.ContainerResult, vhost string) {
+	t.Helper()
+
+	managementURL := fmt.Sprintf("http://%s:%s/api/vhosts/%s", rmq.Host, rmq.MgmtPort, vhost)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
+	}
+
+	request := func(method string) int {
+		req, err := http.NewRequestWithContext(context.Background(), method, managementURL, nil)
+		require.NoError(t, err)
+		req.SetBasicAuth(rmqtestutil.DefaultUser, rmqtestutil.DefaultPassword)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		return resp.StatusCode
+	}
+
+	require.Equal(t, http.StatusNoContent, request(http.MethodDelete), "additional tenant vhost must be dropped")
+	require.Equal(t, http.StatusNotFound, request(http.MethodGet), "additional tenant vhost leaked after cleanup")
 }
 
 // =============================================================================

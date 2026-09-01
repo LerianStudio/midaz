@@ -1,0 +1,27 @@
+version: v2
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+  except:
+    # The proto package follows the lerian.midaz.<resource>.<version> convention,
+    # which buf's default PACKAGE_DIRECTORY_MATCH would otherwise flag because
+    # the proto lives under proto/reservation/v1 (no leading "lerian/midaz").
+    - PACKAGE_DIRECTORY_MATCH
+    # Reserve's response is named ReserveResult (not ReserveResponse) to mirror
+    # the ledger-side Go type ReserveResult field-for-field, per the seam plan.
+    - RPC_RESPONSE_STANDARD_NAME
+breaking:
+  use:
+    - FILE
+  ignore_only:
+    # Reservation field 4 was renamed currency -> asset (same field number, same
+    # wire type). This is an intentional, coordinated break: renaming the field
+    # changes both its name and its (default) JSON name, so FILE flags it under
+    # BOTH FIELD_SAME_NAME and FIELD_SAME_JSON_NAME. Each is scoped to just this
+    # file so both rules still guard every other proto.
+    FIELD_SAME_NAME:
+      - proto/reservation/v1/reservation.proto
+    FIELD_SAME_JSON_NAME:
+      - proto/reservation/v1/reservation.proto

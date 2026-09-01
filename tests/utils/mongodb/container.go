@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 
 	"github.com/moby/moby/api/types/container"
 
-	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
+	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -97,7 +97,7 @@ func SetupContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResu
 	client, err := mongo.Connect(clientOpts)
 	require.NoError(tb, err, "failed to connect to MongoDB container")
 
-	// Verify connection
+	// Connect is lazy; Ping forces the connection round-trip to verify reachability.
 	err = client.Ping(ctx, nil)
 	require.NoError(tb, err, "failed to ping MongoDB container")
 

@@ -8,12 +8,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
 var (
@@ -37,10 +38,11 @@ func minimalOverdraftSource() events.BalanceOverdraftSource {
 }
 
 func TestBalanceOverdraftDefinitions_Keys(t *testing.T) {
-	// Hyphen-spelled event types satisfy the lib-streaming route-key regex.
-	assert.Equal(t, "balance.overdraft-drawn", events.BalanceOverdraftDrawnDefinition.Key())
-	assert.Equal(t, "balance.overdraft-repaid", events.BalanceOverdraftRepaidDefinition.Key())
-	assert.Equal(t, "balance.overdraft-cleared", events.BalanceOverdraftClearedDefinition.Key())
+	// The underscored event types reach the wire verbatim: this key is the
+	// consumer's dispatch selector inside the ledger stream, not a topic name.
+	assert.Equal(t, "balance.overdraft_drawn", events.BalanceOverdraftDrawnDefinition.Key())
+	assert.Equal(t, "balance.overdraft_repaid", events.BalanceOverdraftRepaidDefinition.Key())
+	assert.Equal(t, "balance.overdraft_cleared", events.BalanceOverdraftClearedDefinition.Key())
 
 	for _, def := range []events.Definition{
 		events.BalanceOverdraftDrawnDefinition,
@@ -110,7 +112,7 @@ func TestBalanceOverdraftPayload_ToEmitRequest_AssemblesStreamingEvents(t *testi
 			emit: func(p events.BalanceOverdraftPayload) (libStreaming.EmitRequest, error) {
 				return p.ToEmitRequestDrawn("tenant-x", fixedTime)
 			},
-			expectKey: "balance.overdraft-drawn",
+			expectKey: "balance.overdraft_drawn",
 		},
 		{
 			name:    "repaid",
@@ -118,7 +120,7 @@ func TestBalanceOverdraftPayload_ToEmitRequest_AssemblesStreamingEvents(t *testi
 			emit: func(p events.BalanceOverdraftPayload) (libStreaming.EmitRequest, error) {
 				return p.ToEmitRequestRepaid("tenant-x", fixedTime)
 			},
-			expectKey: "balance.overdraft-repaid",
+			expectKey: "balance.overdraft_repaid",
 		},
 		{
 			name:    "cleared",
@@ -126,7 +128,7 @@ func TestBalanceOverdraftPayload_ToEmitRequest_AssemblesStreamingEvents(t *testi
 			emit: func(p events.BalanceOverdraftPayload) (libStreaming.EmitRequest, error) {
 				return p.ToEmitRequestCleared("tenant-x", fixedTime)
 			},
-			expectKey: "balance.overdraft-cleared",
+			expectKey: "balance.overdraft_cleared",
 		},
 	}
 
@@ -172,4 +174,6 @@ func TestBalanceOverdraftPayload_JSONShape_IncludesAllRequiredFields(t *testing.
 
 	_, hasScale := generic["scale"]
 	assert.False(t, hasScale, "scale is intentionally omitted from the wire payload")
+
+	assert.Lenf(t, generic, 11, "expected 11 top-level fields, got %d (drift?)", len(generic))
 }

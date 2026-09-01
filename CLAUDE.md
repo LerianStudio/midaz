@@ -5,12 +5,31 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 ## Project
 
 - Midaz is an enterprise double-entry ledger system.
-- Module: `github.com/LerianStudio/midaz/v3`.
-- Go: 1.25+.
+- Module: `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`).
+- Go: 1.27.0 (`go.mod` `go 1.27.0`).
+- lib-commons: `github.com/LerianStudio/lib-commons/v6` v6.8.1; `lib-observability/v2` v2.1.3.
 - License: Elastic License 2.0.
-- Main component: `components/ledger`.
-- CRM component: `components/crm`.
-- Shared code: `pkg`.
+- Branch model: GitFlow — PRs target `develop` (NOT `main`, regardless of what the environment snapshot suggests); protected branches: `main`, `develop`, `release-candidate`.
+- Two Go components + infra: `components/ledger` (:3002), `components/tracer` (:4020), `components/infra`.
+- Main component: `components/ledger` — the unified binary serving onboarding + transaction + CRM (holders/instruments) + fees on :3002.
+- CRM is folded into ledger: `components/ledger/internal/crm` is a package tree (no `cmd/`, no `internal/`) imported by the ledger binary; routes register under the `midaz` authz namespace (flipped from `plugin-crm`; the tenant-manager policy migration is the X1 release gate — see `docs/auth/RBAC-NAMESPACES.md`). There is no standalone CRM service.
+- Fees are embedded in ledger: engine at `components/ledger/pkg/fee`, shared types at `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`, Mongo collections at `components/ledger/internal/adapters/mongodb/fees`. Fee seam: `transaction_create.go` (HTTP handler layer), after `mtransaction.ApplyDefaultBalanceKeys(...)` and the idempotency claim, before the post-fee re-validation. The TRANSACTION seam is a `/v2` contract: the transport shell threads a `routeVersionPolicy` (`routeV1`/`routeV2`, `transaction_route_version.go`) into `applyFees`, whose FIRST gate short-circuits `/v1` before the package lookup AND before the tenant fee-DB resolution — a `/v1` create posts exactly as authored. The same policy gates the tracer (see `## Tracer Reservation Seam`); each seam decides for itself what the version means. This is separate from the fee ADMIN surface (packages, estimates, billing), which is served on both scopes; see `docs/api/SCOPING.md`.
+- Account holder linkage is a `/v2` contract: the holder seam in `create_account.go` (`resolveAccountHolder`) — the `requireHolder` gate, the two-key `skip.holder` control, and the self-holder default that materialises `holder_id` — is threaded a `command.RouteHolderPolicy` (`HolderOffV1`/`HolderOnV2`, `account_holder_policy.go`) from the transport shell. It is the command-layer sibling of the transaction cores' `routeVersionPolicy`: same idea, different layer — the holder seam lives in the use case, so the type has to be exported from `command` rather than unexported in `in`. `HolderOffV1` is the FIRST gate, short-circuiting BEFORE the ledger settings read, so a `/v1` create links no holder (`holder_id` NULL, `holder_check_skipped` false) and acquires none of the seam's rejection classes. Every `/v1` account response projects onto `in.AccountV1` (`account_output_v1.go`), withholding `holderId` + `holderCheckSkipped`; `ledgerSchemaNamer` publishes that projection under the canonical `Account` component name so v1 SDKs do not churn, which puts the holder-bearing `mmodel.Account` on `AccountV2`. Composition (`/v2` only) passes `HolderOnV2`. Organization create is outside the seam on BOTH contracts: neither writes a CRM self-holder, and the idempotent backfill runner (`components/ledger/cmd/backfill`) is the only path by which an organization acquires its deterministic self-holder — the derivation (`DeriveSelfHolderID`, `holder_ports.go`) stays because the account-create default and the backfill both read it. The organization wire shape carries no holder field and no organization op is version-specific, so both contracts bind the same handler methods and differ only in the operation IDs they publish (`opSuffix`). Outside the seam on BOTH contracts: the asset-created external account (built directly via `AccountRepo.Create`, bypassing `CreateAccount`) and the account update path (`holderId` is immutable — not on `UpdateAccountInput`, and absent from the update SET list). See `docs/api/SCOPING.md`.
+- Tracer is a co-located but separate Go service deploy unit at `components/tracer` (:4020); it integrates with ledger over the reservation seam (gRPC/mTLS — see `docs/architecture/`).
+- Shared code: `pkg` (root; `pkg/mtransaction` was formerly `pkg/transaction`) and `tests` (root).
+
+## Tracer Reservation Seam
+
+The reservation lifecycle is a `/v2` contract, gated by the SAME `routeVersionPolicy` the fee seam reads (`routeV1`/`routeV2`, `transaction_route_version.go`) — threaded from the transport shell because the cores are transport-agnostic and cannot read the request path. Three seams, all in `components/ledger/internal/adapters/http/in/transaction_reservation_anchor.go`, each gating `routeV1` as their FIRST statement so a `/v1` request returns before a reserve request is built or a connection dialled:
+
+- `reserveTransaction` — create (all six modes) and revert. Called immediately before `ProcessBalanceOperations` on FEE-INCLUSIVE amounts. Has NO `isRevert` gate (unlike `applyFees`), which is why `createRevertTransaction` carries the policy in rather than fixing it: a `/v2` revert must still reserve.
+- `confirmReservationsByTransaction` / `releaseReservationsByTransaction` — commit / cancel, addressed by transaction id because the create-pending handle does not survive the separate request.
+
+Beyond the route gate the seams answer three more axes: nil `TracerReserver` (`TRACER_BASE_URL` unset), per-ledger `tracer.mode` (`off`/`advisory`/`enforce`, default `off`), and an honored per-call `skip.tracer`. Under `enforce` a denial is `0177`/422 and an unavailable tracer branches on `failPosture` (`open` → proceed, `closed` → `0178`/**503**); `advisory` never blocks. There is NO tracer readiness prober in `bootstrap/readyz.go`, so an unavailable tracer under enforce+closed produces 503s with a green `/readyz`.
+
+`app.transaction.tracer_route_eligible` is a span attribute only. Do NOT fold it into `tracer_skipped`, which is a persisted column (`tracer_skipped`, migration `000035`) recording a skip the CLIENT asked for — marking it on every `/v1` create would record a claim never made. Same rule as `fees_route_eligible`.
+
+Known gap, documented in `docs/api/SCOPING.md`: a PENDING created on `/v2` and committed through `/v1` never receives its confirm — the by-transaction call cannot tell whether reservations exist, so the route gate drops it and the TTL reaper releases the capacity instead of counting it. Mixing mounts across one lifecycle is unsupported. Closing it needs create-time reservation state persisted on the transaction row.
 
 ## Architecture
 
@@ -28,10 +47,11 @@ Flow: HTTP handlers -> command/query use cases -> repository interfaces -> adapt
 
 ## Dependencies
 
-- lib-commons v5 (`github.com/LerianStudio/lib-commons/v5/commons/...`, currently v5.8.0): app config, env/security/pointer helpers (`libCommons`), Redis, HTTP helpers (`libHTTP`, non-observability), circuit breaker, tenant managers (`tm*`).
-- Observability is a separate module `github.com/LerianStudio/lib-observability`: `log` (`libLog`), `zap` (`libZap`), `tracing` (`libOpentelemetry`), `metrics`, `middleware` (`libMid`: `NewTelemetryMiddleware`, `WithHTTPLogging`). Context helpers (`NewTrackingFromContext`, `NewLoggerFromContext`, `ContextWith*`) live in the `lib-observability` root package. `NewTrackingFromContext` returns `(log.Logger, trace.Tracer, string, *metrics.MetricsFactory)`.
+- lib-commons v6 (`github.com/LerianStudio/lib-commons/v6/commons/...`, currently v6.5.1): app config, env/security/pointer helpers (`libCommons`), Redis, HTTP helpers (`libHTTP`, non-observability), circuit breaker, tenant managers (`tm*`).
+- Observability is a separate module `github.com/LerianStudio/lib-observability/v2`: `log` (`libLog`), `zap` (`libZap`), `tracing` (`libOpentelemetry`), `metrics`, `middleware` (`libMid`: `NewTelemetryMiddleware`, `WithHTTPLogging`). Context helpers (`NewTrackingFromContext`, `NewLoggerFromContext`, `ContextWith*`) live in the `lib-observability` root package. `NewTrackingFromContext` returns `(log.Logger, trace.Tracer, string, *metrics.MetricsFactory)`.
 - TLS enforcement: the postgres/mongo/redis/rabbitmq constructors enforce TLS by the security tier derived from `ENV_NAME` and refuse plaintext dependencies unless `ALLOW_INSECURE_TLS=true` (parsed as a bool via `commons.AllowInsecureTLS`). Set in the `.env.example` files; connection-building unit tests set it in their `TestMain`.
 - MongoDB driver: `go.mongodb.org/mongo-driver/v2`. `bson/primitive` is consolidated into `bson` (`bson.ObjectID`, `bson.NewObjectID`). v2 decodes nested documents into `bson.D` (ordered), not `bson.M`; code that type-asserts nested values as `bson.M` must also handle `bson.D` (`bson.D` has no `.Map()`).
+- CRM field encryption (envelope mode): `github.com/hashicorp/vault/api` v1.23.0 (Vault Transit KMS client) and `github.com/tink-crypto/tink-go/v2` v2.7.0 (Tink AEAD + PRF keysets for field encryption / search tokens). See `## CRM Field Encryption / KMS`.
 
 ## Key Files
 
@@ -90,6 +110,8 @@ Documentation rules:
 
 ## Logging
 
+Binding standard: `docs/standards/telemetry.md` (T6 structured logging, T7 log levels, T8 single-point logging). The rules below are the quick reference; the standard governs on any conflict.
+
 Use structured logs:
 
 ```go
@@ -116,6 +138,8 @@ Avoid repeating broad scope IDs (`organization_id`, `ledger_id`, tenant IDs) on 
 
 ## Observability
 
+Binding standard: `docs/standards/telemetry.md` (T1–T13). The span-error helper is chosen by error CLASS (T5): business/4xx errors use `HandleSpanBusinessErrorEvent` (span stays green), technical/5xx errors use `HandleSpanError` (span flips red). The rules below are the quick reference; the standard governs on any conflict.
+
 Span lifecycle:
 
 - Always `defer span.End()` immediately after `tracer.Start`.
@@ -141,6 +165,8 @@ spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
 ## Errors
 
+Binding standard: `docs/standards/error-handling.md` (E1–E14). One error platform in `pkg/errors.go` + `pkg/constant/errors.go`; the canonical sentinel registry is numeric only (the `FEE-`/`TRC-`/`TPL-`/`REP-` prefixed families are retired). The rules below are the quick reference; the standard governs on any conflict.
+
 - API errors use typed errors from `pkg/errors.go` and constants from `pkg/constant/errors.go`.
 - Use `pkg.ValidateBusinessError(constant.Err..., constant.Entity...)`.
 - Not found maps to `EntityNotFoundError` / HTTP 404.
@@ -150,7 +176,9 @@ spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
 ## HTTP
 
-- Framework: Fiber v2.
+- HTTP layer runs Huma v2 (OAS 3.1) over Fiber v3: Fiber is the runtime router / auth chain / middleware; Huma sits on top to generate the API contract and validate requests via typed request/response structs. Each resource is split in three: `<resource>_core.go` holds the handler struct and its transport-agnostic cores (span, service call, metric), `<resource>_handler.go` holds the Huma transport — the `<Op>Request`/`<Op>Response` envelopes and the handler methods — and `<resource>_routes.go` holds the registrars: the `Register<R>Routes` Huma terminals, the `Register<R>RoutesToApp` / `Register<R>V2RoutesToApp` mounts and the `register<R>RoutesToApp` body carrying the Fiber guard chain. A `_v2` variant is suffixed, not prefixed (`transaction_routes_v2.go`, `transaction_handler_v2.go`), so it sorts beside its v1 sibling. Cores take primitive args, so nothing transport-shaped reaches them.
+- The error envelope is a function of the ROUTE VERSION, resolved by the `versionEnvelopes` registry in `components/ledger/internal/adapters/http/in/middleware/envelope.go`. `>= /v2` gets the RFC 9457 `application/problem+json` document `WithError`/`HumaProblem` produce (`type`, `title`, `status`, `detail`, `instance`, plus `code` and `entityType`); `/v1` gets the legacy `{entityType?, title, message, code, fields?}` body at `application/json`, restored because v3 clients in production parse it. The `ErrorEnvelope` middleware reshapes on the way out — producers never learn about versions. The `(code, HTTP status)` tuple is identical across versions.
+- The ledger does NOT scrub `>=500` title/detail: it calls `midazhttp.DisableHighStatusScrub()` so a 5xx carries its sentinel's registry text, because several 5xx codes describe a caller mistake and `"internal error"` masked them. Tracer keeps the scrub. The bound: a `>=500` message may interpolate CALLER-supplied values only — never `err.Error()` or an internal ID.
 - All routes use `http.ProtectedRouteChain()`.
 - Route protection includes auth, optional post-auth middlewares, body parsing, UUID path validation, and handler.
 - Use existing route helpers and middleware patterns in `components/ledger/internal/adapters/http/in`.
@@ -159,26 +187,28 @@ spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
 - Hierarchy: Organization -> Ledger -> Assets/Portfolios/Segments -> Accounts -> Transactions -> Operations -> Balances.
 - Status common codes: `ACTIVE`, `INACTIVE`, `DELETED`, `PENDING`, `CANCELLED`.
-- Transaction creation modes: JSON, DSL, inflow, outflow, annotation.
+- Transaction creation modes: JSON, inflow, outflow, annotation.
 - Pending transactions can be committed/cancelled; revert creates a reverse transaction.
 - Async transaction processing is controlled by `RABBITMQ_TRANSACTION_ASYNC`.
 - Balance fields: `Available`, `OnHold`, `Scale`, `Version`.
 
 ## Streaming (lib-streaming events)
 
-Producer is `github.com/LerianStudio/lib-streaming`. Wire format: CloudEvents 1.0 binary mode on Kafka. Topic: `lerian.streaming.<service>_<resource>.<event>` (service = component: `ledger` or `crm`; hyphens in the resource/event become underscores in the topic name only). ce-type is auto-prefixed by lib-streaming as `studio.lerian.<resource>.<event>`. The route key / DefinitionKey and ce-type stay hyphenated (e.g. `operation-route`, `related-party-deleted`); only the Kafka topic uses underscores. The canonical wire contract lives in code under `pkg/streaming/events/`; the JSONShape unit test in that package locks it against drift.
+Producer is `github.com/LerianStudio/lib-streaming/v3`. Wire format: CloudEvents 1.0 binary mode on Kafka. ONE TOPIC PER PRODUCING APPLICATION: every event an application emits — every resource type, every event type, every schema version — rides `lerian.streaming.<app>`, where `<app>` is the application's ce-source, with `lerian.streaming.<app>.dlq` as its single dead-letter topic. `<app>` is `ledger` from the ledger binary (which encompasses ledger, fee, and crm events — fees keep a `fee_` ResourceType prefix, which is what namespaces them inside the application's event space) or `tracer` from the tracer service, so the topics are `lerian.streaming.ledger(.dlq)` and `lerian.streaming.tracer(.dlq)`. Topic names come from `libStreaming.AppTopic(source)` / `AppDLQTopic(source)`; there is no per-event topic and no `.v<major>` suffix — `ce-schemaversion` is the ONLY version carrier on the wire. A `lerian.streaming.<app>.commands` queue exists in the contract for service-to-service commands, but midaz emits FACTS only and has none — do not provision one. ce-type is `studio.lerian.<app>.<resource>.<event>` (e.g. `studio.lerian.ledger.account.created`, `studio.lerian.tracer.rule.created`): the app segment is what stops two services emitting byte-identical ce-type values for same-named events — a homonym collision a consumer reading only ce-type could not detect, and one a shared per-application topic makes reachable in practice. `Definition.Key()` = `<resource>.<event>` is the consumer's dispatch key inside the app stream, and `Definition.Key()` / ResourceType / EventType / ce-type are all underscore-preserving (e.g. `operation_route`, `fee_packages`, `related_party_deleted`); route keys accept underscores, so nothing is folded to hyphens anywhere. ce-source is STRICT: ONE dot-free lowercase segment matching `^[a-z0-9][a-z0-9_-]*$`, at most 223 bytes, REJECTED at startup rather than normalized — dotted (`lerian.midaz.ledger`) and URI (`//lerian.midaz/ledger`) values no longer parse. The resolved `STREAMING_CLOUDEVENTS_SOURCE` drives THREE things at once (the ce-source header, the derived topic, and what the streaming manifest advertises), so a Kafka ACL grants an application only its OWN names (its topic and `.dlq`) instead of a prefix over an open per-event namespace. It is also PINNED: `BuildStreamingEmitter` refuses boot (`pkgStreaming.RequireRosterSource`) unless the resolved source equals the roster constant (`ledger`/`tracer`), whether or not streaming is enabled. The tenant-manager grants WRITE+DESCRIBE on LITERAL topic names derived from the roster name alone — literal so a grant cannot reach a neighbouring app — so any other source, however grammar-legal, publishes to a topic that neither exists nor is granted; the IMPORTANT posture would swallow that as a Warn while pods stayed Ready. Single-tenant deployments key every event to the literal tenant `default`, so the whole app stream lands on ONE partition: a throughput ceiling (ordering only gets stronger), pending the platform partition-key default in lib-streaming. Do NOT wire a local `Builder.PartitionKey` override. The rule is unconditional and has no exceptions: `lerian.streaming.<app>` and its `.dlq` are a binary's entire write surface, and no event is routed anywhere else. The ledger and tracer binaries each serve `GET /v1/streaming/manifest` (catalog-only, manifest wire version `1.0.0`: `topic`/`dlqTopic` at DOCUMENT level, each event carrying `eventKey` + `class`, always `fact` for midaz). The canonical wire contract lives in code under `pkg/streaming/events/`; the JSONShape unit test in that package locks it against drift.
 
 ### Producer conventions
 
-- Import aliases: `libStreaming` for `github.com/LerianStudio/lib-streaming`; `pkgStreaming` for `github.com/LerianStudio/midaz/v3/pkg/streaming`. Keep both distinct.
+- Import aliases: `libStreaming` for `github.com/LerianStudio/lib-streaming/v3`; `pkgStreaming` for `github.com/LerianStudio/midaz/v4/pkg/streaming`. Keep both distinct.
 - Build config via `libStreaming.LoadConfig()` (reads `STREAMING_*` env with correct franz-go defaults). NEVER construct `libStreaming.Config{}` manually. Master flag stays in midaz `Config.StreamingEnabled`.
-- The CloudEvents `Source` lives on the **Builder**, not the UseCase. Set it once at bootstrap via `libStreaming.NewBuilder().Source(streamingCfg.CloudEventsSource)...`; `LoadConfig()` reads it from `STREAMING_CLOUDEVENTS_SOURCE`. The `UseCase` carries ONLY `Streaming libStreaming.Emitter` — there is **no** `StreamingSource` field, and event builders take **no** `source` argument.
-- Tenant value from `pkgStreaming.ResolveTenantID(ctx)` — returns the multi-tenant context value or `pkgStreaming.DefaultTenantID` (literal `"default"`). Reference the constant, not the literal. NEVER hardcode tenants or call `tmcore.GetTenantIDContext` at emit sites. For IMPORTANT events, `pkgStreaming.EmitImportant` resolves the tenant internally and passes it to the typed event builder closure.
+- Broker security is lib-streaming's: hand the loaded config to `builder.TLSFromConfig(streamingCfg)` and `builder.SASLFromConfig(streamingCfg)`. NEVER bind `STREAMING_TLS_*` / `STREAMING_SASL_*` onto a midaz `Config` struct and NEVER build a franz-go `sasl.Mechanism` by hand — the tracer did, and the duplicate struct simply had no TLS field, so `STREAMING_TLS_ENABLED` had no reader at all and a TLS broker was unreachable while every authenticated deployment was pushed through the unsafe plaintext opt-in. With `DEPLOYMENT_MODE=saas` an ENABLED producer additionally REQUIRES `STREAMING_TLS_ENABLED=true`: a plaintext broker dial REFUSES BOOT (`ValidateSaaSStreamingTLS` in each component's bootstrap, called right after `LoadConfig` — the first point where the flag exists), matching the gate Postgres/Mongo/Redis/RabbitMQ already answer to. BYOC and local keep their plaintext brokers, and `STREAMING_ENABLED=false` never reaches the gate because no broker connection is opened.
+- `STREAMING_ENABLED=true` with an empty `STREAMING_BROKERS` REFUSES BOOT (`pkgStreaming.RequireBrokers`, which validates only the broker list). The tracer additionally refuses boot on an empty event registry via a separate inline check in its `BuildStreamingEmitter`; the ledger has no such catalog gate. There is exactly ONE noop path left: `STREAMING_ENABLED=false`. The tracer's `/readyz` reports that one as `skipped`; the ledger has no streaming readiness prober, so its `/readyz` carries no streaming check in either mode. An enabled producer that fell back to `NoopEmitter` discarded every event while the noop answered the readiness probe healthy: total loss, green dashboards, the same failure class the roster source gate exists to kill.
+- `CloudEventsSource` is owned by the producer Builder at construction (`libStreaming.NewBuilder().Source(cfg.CloudEventsSource)` in bootstrap), not held on the UseCase and not passed per emit. Emit sites never set `Source`; the `EmitRequest` carries only `DefinitionKey`/`TenantID`/`Subject`/`Timestamp`/`Payload`.
+- Tenant value from `pkgStreaming.ResolveTenantID(ctx)` — returns the multi-tenant context value or `pkgStreaming.DefaultTenantID` (literal `"default"`). Reference the constant, not the literal. NEVER hardcode tenants or call `tmcore.GetTenantIDContext` at emit sites. For IMPORTANT events, `pkgStreaming.EmitBrokerBestEffort` resolves the tenant internally and passes it to the typed event builder closure.
 - Service code depends on `libStreaming.Emitter` INTERFACE, never `*libStreaming.Producer`. Nil emitter means "disabled" — guard with `if uc.Streaming != nil`. When `STREAMING_ENABLED=false`, bootstrap injects `libStreaming.NewNoopEmitter()`.
-- IMPORTANT-posture direct emits MUST go through `pkgStreaming.EmitImportant`. Build/emit failures MUST NOT fail the request: log Warn, span-record, return success. `EmitImportant` bounds direct emit latency with `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS` (default 5s) so broker issues cannot hold HTTP responses until client timeout. No outbox is wired today (`WithOutboxRepository` is not passed at build), so ALL events are IMPORTANT direct-emit; outbox durability and CRITICAL outbox-only posture are aspirational until the outbox lands.
-- Emit POST-COMMIT and PRE-METADATA-WRITE — never at HTTP handlers. `ce-subject` is the aggregate ID, set as `libStreaming.EmitRequest.Subject` inside `ToEmitRequest`.
+- IMPORTANT-posture broker publication MUST go through `pkgStreaming.EmitBrokerBestEffort`. Build/emit failures MUST NOT fail the request: log Warn, span-record, return success. `EmitBrokerBestEffort` bounds the `Emitter.Emit` call with `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS` (default 5s) so broker issues cannot hold HTTP responses until client timeout. It delegates policy and any configured fallback to lib-streaming; Midaz currently wires neither an outbox writer/repository nor a relay, so it provides no product-local transactional fallback or delivery guarantee.
+- Emit POST-COMMIT and PRE-METADATA-WRITE — never at HTTP handlers. `ce-subject` is the aggregate ID, passed as `libStreaming.EmitRequest.Subject`.
 - Register the producer's `Close()` as `libCommons.RunApp("Streaming Producer", ...)` so it drains on SIGTERM (mirror `eventListenerRunnable`).
-- Build the emitter with the Builder API: `libStreaming.NewBuilder().Source(...).Catalog(catalog).Routes(routes...).Target(...).Build(ctx)` (lib-streaming v1.4.0+ exports `Catalog`/`Routes`/`EventDefinition`/`RouteDefinition`). A single `midazEventDefinitions()` / `crmEventDefinitions()` slice is the one registration point feeding both `buildCatalog` and `buildRoutes`. Route/event-type keys use hyphens, never underscores (the route-key regex rejects `_`), e.g. `alias.related-party-deleted`. Pass `WithOutboxRepository(repo)` to the Builder when the outbox lands.
+- lib-streaming is pinned at v3.1.0 (module path `.../lib-streaming/v3`), which exports the Catalog/policy constants (e.g. `BuildManifest`, `DefaultDeliveryPolicy`, `ResolveDeliveryPolicy`) plus the topic derivations `AppTopic` / `AppDLQTopic`. The producer is assembled with `libStreaming.NewBuilder()` (`.Source()/.Catalog()/.Routes()/.Target()`) around ONE catch-all route to the app topic (empty `DefinitionKey`), and midaz registers no per-definition route override: every event takes that one route. Midaz currently does not pass `WithOutboxRepository` or `WithOutboxWriter`, and does not register an outbox relay; delivery behavior remains lib-streaming's configured policy.
 
 ### Event modeling (`pkg/streaming/events`)
 
@@ -187,13 +217,13 @@ One file per event. Use cases NEVER build payload maps inline. Required shape pe
 1. **Definition var** — `<Event>Definition = events.Definition{ResourceType, EventType, SchemaVersion}`.
 2. **Payload struct** — wire JSON fields, typed INDEPENDENTLY of `mmodel.*` (mirror nested types explicitly so domain evolution doesn't leak onto the wire).
 3. **Constructor** — `New<Event>(domain *mmodel.X) <Event>Payload`. Place for PII redaction, derived fields, contract-locked defaults.
-4. **ToEmitRequest method** — `(p <Event>Payload) ToEmitRequest(tenantID string, ts time.Time) (libStreaming.EmitRequest, error)`. Marshals the payload and assembles `libStreaming.EmitRequest{DefinitionKey: <Event>Definition.Key(), TenantID: tenantID, Subject: p.ID, Timestamp: ts, Payload: data}`. **No `source` param** — the Builder owns the CloudEvents source. Wrapped `json.Marshal` errors so the caller picks Warn (IMPORTANT) vs fail (CRITICAL).
+4. **ToEmitRequest method** — `(p <Event>Payload) ToEmitRequest(tenantID string, ts time.Time) (libStreaming.EmitRequest, error)`. Marshals payload + sets `DefinitionKey`, `TenantID`, `Subject`, `Timestamp`. `Source` is NOT on the request (owned by the Builder); `ResourceType`/`EventType`/`SchemaVersion` resolve from the Catalog by `DefinitionKey`. Wrapped `json.Marshal` errors so caller picks Warn (IMPORTANT) vs fail (CRITICAL).
 
 Required unit tests: Definition key lock, minimal-domain mapping, all-optional-fields mapping, ToEmitRequest assembly, JSON shape lock (top-level key set + field count).
 
 ### IMPORTANT emission helper pattern
 
-The use-case body MUST NOT inline emission mechanics. Delegate to a private `emit<Event>Event` method on the same UseCase; that method MUST call `pkgStreaming.EmitImportant` for IMPORTANT-posture events:
+The use-case body MUST NOT inline emission mechanics. Delegate to a private `emit<Event>Event` method on the same UseCase; that method MUST call `pkgStreaming.EmitBrokerBestEffort` for IMPORTANT-posture events:
 
 ```go
 // in CreateAccount, at the emission anchor:
@@ -201,24 +231,24 @@ uc.emitAccountCreatedEvent(ctx, span, logger, acc)
 
 // helper alongside other private UseCase methods:
 func (uc *UseCase) emitAccountCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, acc *mmodel.Account) {
-    pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.AccountCreatedDefinition.Key(),
+    pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.AccountCreatedDefinition.Key(),
         func(tenantID string) (libStreaming.EmitRequest, error) {
             return events.NewAccountCreated(acc).ToEmitRequest(tenantID, acc.CreatedAt)
         })
 }
 ```
 
-`EmitImportant` owns the common IMPORTANT-posture mechanics: nil-emitter guard, tenant resolution, bounded emit context, `libOpentelemetry.HandleSpanError` (not `HandleSpanBusinessErrorEvent`), Warn logging with `libLog.Err(err)`, and non-propagation of build/emit failures. The 6-arg `EmitImportant(ctx, span, logger, emitter, eventKey, build)` builder closure takes only `tenantID`. Use-case helpers remain explicit only about the typed payload constructor, event definition key, subject, and timestamp (the CloudEvents source is the Builder's concern, set at bootstrap).
+`EmitBrokerBestEffort` owns the common IMPORTANT-posture mechanics: nil-emitter guard, tenant resolution, bounded emit context, `libOpentelemetry.HandleSpanError` (build/emit failures are technical, so per T5 they flip the span red — not `HandleSpanBusinessErrorEvent`), Warn logging with `libLog.Err(err)`, and non-propagation of build/emit failures. Use-case helpers remain explicit only about the typed payload constructor, event definition key, subject, and timestamp.
 
-Naming: `emit<Event>Event` (unexported) — the trailing `Event` disambiguates from emitting the domain object itself. Signature: `(ctx, span, logger, <domain>)` — pass span and logger so `EmitImportant` records into the SAME span the use case opened. Return type: none (IMPORTANT posture never propagates).
+Naming: `emit<Event>Event` (unexported) — the trailing `Event` disambiguates from emitting the domain object itself. Signature: `(ctx, span, logger, <domain>)` — pass span and logger so `EmitBrokerBestEffort` records into the SAME span the use case opened. Return type: none (IMPORTANT posture never propagates).
 
 Drift discipline: wire-contract change updates (a) Payload struct, (b) constructor, (c) JSONShape test field count — all in the same PR.
 
 ### Local testing
 
-- Run any Kafka-compatible broker (Redpanda recommended). Bind host port `19092`; join `infra-network` so it's reachable from both host (`localhost:19092`) and containers (`<container>:9092`).
-- Pre-provision topics explicitly. Don't rely on auto-create — typos become silent ghost topics.
-- Local debug: `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:19092`, `STREAMING_CLOUDEVENTS_SOURCE=lerian.midaz.<component>`. If local broker startup is slow, tune `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS`; keep it below the HTTP client timeout.
+- Run any Kafka-compatible broker (Redpanda recommended). The local compose stack binds host port `19092` by default; set `REDPANDA_EXTERNAL_PORT` in `components/infra/.env` when another process owns that port. Join `infra-network` so the broker is reachable from both host (`localhost:<external-port>`) and containers (`<container>:9092`).
+- Since lib-streaming v3.1.0 the producer creates the application's OWN two topics at construction — `lerian.streaming.<app>` and `lerian.streaming.<app>.dlq`, derived from the resolved ce-source — so a local broker needs no pre-provisioning for them. A CreateTopics call that the ACL refuses logs a WARN and startup continues; `STREAMING_TOPIC_AUTO_PROVISION=false` opts out for environments that provision through IaC. Those two topics are all a binary writes, so nothing else needs pre-provisioning. There is no per-event topic list.
+- Local debug: `STREAMING_ENABLED=true`, `STREAMING_BROKERS=localhost:<external-port>` (matching `REDPANDA_EXTERNAL_PORT`, default `19092`), `STREAMING_CLOUDEVENTS_SOURCE=<app>` (the application name — `ledger` or `tracer`). If local broker startup is slow, tune `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS`; keep it below the HTTP client timeout.
 
 ## Multi-Tenancy
 
@@ -227,6 +257,17 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 - Tenant DB resolution uses tenant middleware and lib-commons tenant managers.
 - Modules `onboarding` and `transaction` have independent PostgreSQL and MongoDB managers.
 - Multi-tenant code uses `MT` suffix for names (`NewFooMT`, `runFooMT`, `mtEnabled`, `isMTReady`). Single-tenant code uses no qualifier.
+- Under CRM envelope encryption, key material is per-organization; a single shared Vault Transit engine holds all KEKs and tenant isolation lives in the key NAME (`{tenant}_org-{id}`), not in per-tenant mounts. See `## CRM Field Encryption / KMS`.
+
+## CRM Field Encryption / KMS
+
+CRM encrypts holder/instrument PII at rest. The seam is the `FieldEncryptor` interface (`components/ledger/internal/crm/services/encryption`), which the holder/instrument Mongo adapters call to encrypt/decrypt fields and to generate deterministic HMAC search tokens for equality lookups over ciphertext. Deep doc: `docs/architecture/crm-field-encryption.md`.
+
+- Mode is selected by `KMS_VENDOR`: unset/`none` -> legacy (lib-commons symmetric crypto, no KMS); `hashicorp-vault` -> envelope (HashiCorp Vault Transit KEK wrapping per-organization Tink DEKs).
+- Shared-engine + tenant-scoped-key-name model: one mode-derived Transit engine (`transit-mt` MT / `transit-st` ST) holds all KEKs; the KEK key name carries scope (`{tenant}_org-{id}` MT, `org-{id}` ST). No per-tenant mounts.
+- Envelope-mode routes (midaz namespace, unregistered in legacy mode): `POST .../encryption/provision`, `GET .../encryption/status`, `GET .../protection/audit`.
+- Env: `KMS_VENDOR`, `KMS_VAULT_ADDR`, `KMS_VAULT_ROLE_ID`, `KMS_VAULT_SECRET_ID`, `KMS_VAULT_AUTH_METHOD` (`approle`|`token`), `DEPLOYMENT_MODE` (gates the dev root token to `local` only). Legacy AES/HMAC keys: `LCRYPTO_ENCRYPT_SECRET_KEY`, `LCRYPTO_HASH_SECRET_KEY` (live cipher in legacy mode, imported for reads in envelope mode).
+- Key rotation is scaffolded, not yet active.
 
 ## Commands
 
@@ -253,12 +294,12 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 - Do not use non-request span attributes for input data.
 - Do not log SQL args, payload values, secrets, balances, financial values, or PII.
 - Do not build `libStreaming.Config{}` manually; call `libStreaming.LoadConfig()` so franz-go defaults are applied.
-- Do not hardcode tenant IDs or call `tmcore.GetTenantIDContext` at streaming emit sites; use `pkgStreaming.EmitImportant` for IMPORTANT events or `pkgStreaming.ResolveTenantID(ctx)` inside non-IMPORTANT streaming infrastructure.
+- Do not hardcode tenant IDs or call `tmcore.GetTenantIDContext` at streaming emit sites; use `pkgStreaming.EmitBrokerBestEffort` for IMPORTANT events or `pkgStreaming.ResolveTenantID(ctx)` inside non-IMPORTANT streaming infrastructure.
 - Do not emit streaming events at HTTP handlers; emit at the post-commit, pre-metadata-write slot inside the command UseCase.
-- Do not inline the build-emit-log block in the use-case body; delegate to a dedicated `uc.emit<Event>Event(ctx, span, logger, domain)` helper on the same UseCase, and have that helper call `pkgStreaming.EmitImportant` for IMPORTANT events.
+- Do not inline the build-emit-log block in the use-case body; delegate to a dedicated `uc.emit<Event>Event(ctx, span, logger, domain)` helper on the same UseCase, and have that helper call `pkgStreaming.EmitBrokerBestEffort` for IMPORTANT events.
 - Do not fail HTTP requests on streaming emit errors for IMPORTANT-posture events; log Warn and continue.
 - Do not depend on `*libStreaming.Producer` in service code; depend on `libStreaming.Emitter` interface.
 - Do not build payload maps or call `json.Marshal` inline in use cases; route every payload through `pkg/streaming/events/<event>.go` (`New<Event>(...).ToEmitRequest(...)`).
 - Do not embed `mmodel.*` types directly in event Payload structs; mirror the shape explicitly so domain evolution does not leak onto the wire.
-- Do not import `github.com/LerianStudio/lib-streaming` without the `libStreaming` alias, and do not import `github.com/LerianStudio/midaz/v3/pkg/streaming` without the `pkgStreaming` alias.
+- Do not import `github.com/LerianStudio/lib-streaming/v3` without the `libStreaming` alias, and do not import `github.com/LerianStudio/midaz/v4/pkg/streaming` without the `pkgStreaming` alias.
 - Do not add comments that narrate refactor history or describe the behavior of code being called (e.g. "X now does Y", "the Z call short-circuits W"). They rot when the referenced code changes. Comment WHAT the code does and WHY it has to be that way — let the referenced code speak for itself.

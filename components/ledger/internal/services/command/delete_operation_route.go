@@ -9,27 +9,34 @@ import (
 	"errors"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // DeleteOperationRouteByID deletes an operation route by ID.
-func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) error {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID) (err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_operation_route_by_id")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "delete_operation_route", start, err)
+	}()
 
 	span.SetAttributes(
 		attribute.String("app.request.organization_id", organizationID.String()),
@@ -47,7 +54,8 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to check transaction route links", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to check transaction route links",
+		logger.Log(
+			ctx, libLog.LevelError, "Failed to check transaction route links",
 			libLog.Err(err),
 			libLog.String("operation_route_id", id.String()),
 		)
@@ -60,7 +68,8 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route is linked to transaction routes", err)
 
-		logger.Log(ctx, libLog.LevelWarn, "Operation route is linked to transaction routes",
+		logger.Log(
+			ctx, libLog.LevelWarn, "Operation route is linked to transaction routes",
 			libLog.String("operation_route_id", id.String()),
 		)
 
@@ -73,7 +82,8 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route not found", err)
 
-			logger.Log(ctx, libLog.LevelWarn, "Operation route not found",
+			logger.Log(
+				ctx, libLog.LevelWarn, "Operation route not found",
 				libLog.String("operation_route_id", id.String()),
 			)
 
@@ -82,7 +92,8 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 
 		libOpentelemetry.HandleSpanError(span, "Failed to delete operation route", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to delete operation route",
+		logger.Log(
+			ctx, libLog.LevelError, "Failed to delete operation route",
 			libLog.Err(err),
 			libLog.String("operation_route_id", id.String()),
 		)
@@ -99,8 +110,7 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 // event for a successfully soft-deleted operation route. IMPORTANT
 // posture: build and emit failures are span-recorded and logged at
 // Warn, never returned. Durability of the event is owned by PG and
-// (follow-up task) the outbox subsystem + DLQ, not by the synchronous
-// Emit call.
+// the persisted database mutation; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after OperationRouteRepo.Delete succeeds
 // (post-link-check). OperationRouteRepo.Delete does not return the
@@ -113,7 +123,7 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 // Wire-format mapping lives in pkg/streaming/events/operation_route_deleted.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitOperationRouteDeletedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, id, organizationID, ledgerID string, deletedAt time.Time) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.OperationRouteDeletedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.OperationRouteDeletedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewOperationRouteDeleted(id, organizationID, ledgerID, deletedAt).ToEmitRequest(tenantID, deletedAt)
 		})

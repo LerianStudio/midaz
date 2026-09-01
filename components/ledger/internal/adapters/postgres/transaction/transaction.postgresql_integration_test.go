@@ -8,18 +8,21 @@ package transaction
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/bxcodec/dbresolver/v2"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -99,14 +102,12 @@ type networkChaosTestInfra struct {
 func setupIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
-	// Setup PostgreSQL container
-	pgContainer := pgtestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	// Create lib-commons PostgreSQL connection
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(pgContainer.Host, pgContainer.Port, pgContainer.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	// Create repository
 	repo := NewTransactionPostgreSQLRepository(conn)
@@ -133,7 +134,7 @@ func setupChaosInfra(t *testing.T) *chaosTestInfra {
 	t.Helper()
 
 	// Setup PostgreSQL container
-	pgContainer := pgtestutil.SetupContainer(t)
+	pgContainer := pgtestutil.SetupContainerWithFixedPort(t)
 
 	// Create lib-commons PostgreSQL connection
 	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
@@ -601,9 +602,7 @@ func TestIntegration_Transaction_GracefulDegradation(t *testing.T) {
 
 // TestChaos_Transaction_PostgresRestart tests that the repository recovers
 // after a PostgreSQL container restart.
-// SKIPPED: lib-commons PostgreSQL connection pool does not recover after restart.
 func TestIntegration_Chaos_Transaction_PostgresRestart(t *testing.T) {
-	t.Skip("skipping: lib-commons connection pool does not recover after PostgreSQL restart")
 	skipIfNotChaos(t)
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
@@ -628,7 +627,16 @@ func TestIntegration_Chaos_Transaction_PostgresRestart(t *testing.T) {
 	err = infra.chaosOrch.WaitForContainerRunning(ctx, containerID, 60*time.Second)
 	require.NoError(t, err, "container should be running after restart")
 
-	// Wait for database to be ready again
+	mappedPort, err := infra.pgContainer.Container.MappedPort(ctx, "5432/tcp")
+	require.NoError(t, err, "resolve PostgreSQL endpoint after restart")
+	require.Equal(t, infra.pgContainer.Port, mappedPort.Port(),
+		"restart must preserve the endpoint; otherwise this is endpoint discovery, not reconnect recovery")
+
+	// Prove the original DSN becomes ready before exercising the repository.
+	chaos.AssertRecoveryWithin(t, func() error {
+		return infra.pgContainer.DB.PingContext(ctx)
+	}, 30*time.Second, "original PostgreSQL DSN should become ready after restart")
+
 	chaos.AssertRecoveryWithin(t, func() error {
 		_, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
 		return err
@@ -791,8 +799,8 @@ func TestIntegration_Chaos_Transaction_NetworkPartition(t *testing.T) {
 	t.Log("Chaos test passed: network partition handled gracefully")
 }
 
-// TestChaos_Transaction_PacketLoss tests that the repository handles
-// packet loss gracefully with retries.
+// TestChaos_Transaction_PacketLoss tests that a silent network loss is bounded
+// by the caller context and that the repository recovers without losing data.
 func TestIntegration_Chaos_Transaction_PacketLoss(t *testing.T) {
 	skipIfNotChaos(t)
 	if testing.Short() {
@@ -808,33 +816,35 @@ func TestIntegration_Chaos_Transaction_PacketLoss(t *testing.T) {
 	tx := infra.createTestTransaction(t, "Pre-packet-loss transaction")
 	t.Logf("Created transaction %s before packet loss", tx.ID)
 
-	// Add 10% packet loss
-	t.Log("Chaos: Adding 10% packet loss")
-	err := infra.proxy.AddPacketLoss(10)
+	// Drop every downstream packet. Unlike a disconnected socket, this is a
+	// silent failure and therefore proves that request cancellation is honored.
+	t.Log("Chaos: Dropping downstream packets")
+	err := infra.proxy.AddPacketLoss(100)
 	require.NoError(t, err, "failed to add packet loss")
 	defer infra.proxy.RemoveAllToxics()
 
-	// Execute multiple operations - some may fail, but overall should be resilient
-	// 10 attempts is statistically sufficient to verify resilience with 10% packet loss
-	successCount := 0
-	errorCount := 0
-	totalAttempts := 10
+	lossCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	_, lossErr := infra.repo.Find(lossCtx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
+	cancel()
+	require.Error(t, lossErr, "silent packet loss must not be reported as a successful read")
 
-	for i := 0; i < totalAttempts; i++ {
-		_, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
-		if err != nil {
-			errorCount++
-		} else {
-			successCount++
+	require.NoError(t, infra.proxy.RemoveAllToxics(), "failed to restore network after packet loss")
+	chaos.AssertRecoveryWithin(t, func() error {
+		attemptCtx, attemptCancel := context.WithTimeout(ctx, 2*time.Second)
+		defer attemptCancel()
+
+		found, findErr := infra.repo.Find(attemptCtx, infra.orgID, infra.ledgerID, parseID(t, tx.ID))
+		if findErr != nil {
+			return findErr
 		}
-	}
+		if found.ID != tx.ID {
+			return fmt.Errorf("recovered transaction ID = %s, want %s", found.ID, tx.ID)
+		}
 
-	t.Logf("Packet loss test: %d/%d operations succeeded", successCount, totalAttempts)
+		return nil
+	}, 30*time.Second, "repository should recover after packet loss")
 
-	// Most operations should succeed despite packet loss
-	assert.Greater(t, successCount, totalAttempts/2, "majority of operations should succeed despite packet loss")
-
-	t.Log("Chaos test passed: packet loss handled with acceptable success rate")
+	t.Log("Chaos test passed: packet loss was bounded and recovery preserved data")
 }
 
 // TestChaos_Transaction_IntermittentFailure tests that the repository handles
@@ -970,6 +980,7 @@ func TestIntegration_Transaction_FindByParentID(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
 
 	infra := setupIntegrationInfra(t)
 
@@ -1392,6 +1403,260 @@ func TestIntegration_Transaction_SoftDelete_Excluded(t *testing.T) {
 }
 
 // =============================================================================
+// EPIC 4.2: PER-CALL SKIP AUDIT ROUND-TRIP (fees_skipped / tracer_skipped)
+// =============================================================================
+//
+// Runtime proof that the honored per-call skip flags survive a real squirrel
+// INSERT and read back through the variadic Scan column order on TWO distinct
+// scan sites: the single-row Find and the list-derived FindAll. A column-order
+// regression in either INSERT or SELECT/Scan corrupts these flags silently;
+// unit tests cannot catch it because they do not exercise PostgreSQL.
+//
+// Out of integration scope here (already unit-covered, NOT re-proven at this
+// level): the gate's zero-downstream-call invariant (no Mongo / gRPC-Reserve /
+// CRM-Exists) and the settings-read-count==1 invariant. Those are exhaustively
+// asserted by:
+//   - TestApplyFees_NoOpWhenSkipHonored and
+//     TestApplyFees_SkipHonoredTouchesNoFeeDependency
+//     (components/ledger/internal/adapters/http/in/transaction_fee_application_test.go)
+//     -> honored fee skip means zero fakeFeeApplier.CalculateFee calls.
+//   - TestCreateAccountHolderSkip
+//     (components/ledger/internal/services/command/create_account_holder_test.go)
+//     -> honored holder skip means holderReader.calls==0 and
+//        settingsReader.calls==1 (the gate rides the single settings read).
+//   - TestResolveSkipForTruthTable / TestResolveSkipForUnauthorizedIs422
+//     (pkg/skip/skip_test.go) -> two-key gate truth table + unauthorized 422.
+
+// TestIntegration_Transaction_SkipAudit_RoundTrip proves that FeesSkipped and
+// TracerSkipped persist through repo.Create (squirrel INSERT) and read back true
+// via BOTH repo.Find (single-row scan) and repo.FindAll (list scan), with a
+// false control transaction confirming the flags are not spuriously set.
+func TestIntegration_Transaction_SkipAudit_RoundTrip(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+
+	// Skipped transaction: both audit flags honored.
+	skippedTx := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Skip audit - both honored",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(1000),
+		AssetCode:      "USD",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+		FeesSkipped:    true,
+		TracerSkipped:  true,
+	}
+
+	createdSkipped, err := infra.repo.Create(ctx, skippedTx)
+	require.NoError(t, err, "Create with skip flags should succeed")
+	assert.True(t, createdSkipped.FeesSkipped, "Create should echo fees_skipped=true")
+	assert.True(t, createdSkipped.TracerSkipped, "Create should echo tracer_skipped=true")
+
+	// False control: neither flag set.
+	controlTx := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Skip audit - false control",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(1000),
+		AssetCode:      "USD",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+		// FeesSkipped and TracerSkipped left at zero value (false).
+	}
+
+	createdControl, err := infra.repo.Create(ctx, controlTx)
+	require.NoError(t, err, "Create control should succeed")
+	assert.False(t, createdControl.FeesSkipped, "control fees_skipped should be false")
+	assert.False(t, createdControl.TracerSkipped, "control tracer_skipped should be false")
+
+	t.Run("Find single-row scan reads both flags back", func(t *testing.T) {
+		foundSkipped, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, createdSkipped.ID))
+		require.NoError(t, err)
+		assert.True(t, foundSkipped.FeesSkipped, "Find: skipped tx fees_skipped should round-trip true")
+		assert.True(t, foundSkipped.TracerSkipped, "Find: skipped tx tracer_skipped should round-trip true")
+
+		foundControl, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, createdControl.ID))
+		require.NoError(t, err)
+		assert.False(t, foundControl.FeesSkipped, "Find: control fees_skipped should round-trip false")
+		assert.False(t, foundControl.TracerSkipped, "Find: control tracer_skipped should round-trip false")
+	})
+
+	t.Run("FindAll list scan reads both flags back", func(t *testing.T) {
+		// FindAll exercises a DIFFERENT Scan call site than Find, so the variadic
+		// column order is proven independently here.
+		transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.Pagination{Limit: 100})
+		require.NoError(t, err)
+
+		byID := make(map[string]*Transaction, len(transactions))
+		for i := range transactions {
+			byID[transactions[i].ID] = transactions[i]
+		}
+
+		listedSkipped, ok := byID[createdSkipped.ID]
+		require.True(t, ok, "FindAll should return the skipped transaction")
+		assert.True(t, listedSkipped.FeesSkipped, "FindAll: skipped tx fees_skipped should round-trip true")
+		assert.True(t, listedSkipped.TracerSkipped, "FindAll: skipped tx tracer_skipped should round-trip true")
+
+		listedControl, ok := byID[createdControl.ID]
+		require.True(t, ok, "FindAll should return the control transaction")
+		assert.False(t, listedControl.FeesSkipped, "FindAll: control fees_skipped should round-trip false")
+		assert.False(t, listedControl.TracerSkipped, "FindAll: control tracer_skipped should round-trip false")
+	})
+
+	t.Run("ListByIDs list scan reads both flags back", func(t *testing.T) {
+		// ListByIDs is a third, independent Scan site over the same column list.
+		transactions, err := infra.repo.ListByIDs(ctx, infra.orgID, infra.ledgerID,
+			[]uuid.UUID{parseID(t, createdSkipped.ID), parseID(t, createdControl.ID)})
+		require.NoError(t, err)
+		require.Len(t, transactions, 2)
+
+		byID := make(map[string]*Transaction, len(transactions))
+		for i := range transactions {
+			byID[transactions[i].ID] = transactions[i]
+		}
+
+		assert.True(t, byID[createdSkipped.ID].FeesSkipped, "ListByIDs: skipped tx fees_skipped should round-trip true")
+		assert.True(t, byID[createdSkipped.ID].TracerSkipped, "ListByIDs: skipped tx tracer_skipped should round-trip true")
+		assert.False(t, byID[createdControl.ID].FeesSkipped, "ListByIDs: control fees_skipped should round-trip false")
+		assert.False(t, byID[createdControl.ID].TracerSkipped, "ListByIDs: control tracer_skipped should round-trip false")
+	})
+
+	// The join-scan readers (FindWithOperations / FindOrListAllWithOperations) use
+	// an INNER JOIN against the operation table, so they only return rows for a
+	// transaction that has at least one operation. Their skip-audit scan order —
+	// where fees_skipped/tracer_skipped sit mid-slice between the transaction and
+	// operation columns — is proven in the sibling test
+	// TestIntegration_Transaction_SkipAudit_RoundTrip_WithOperations below.
+}
+
+// TestIntegration_Transaction_SkipAudit_RoundTrip_WithOperations closes the
+// join-scan gap: it proves FeesSkipped/TracerSkipped survive the operation-join
+// readers (FindWithOperations / FindOrListAllWithOperations), where the two audit
+// pointers sit mid-slice between the transaction columns and the operation columns
+// — the most position-sensitive scan site. Each transaction is seeded with one
+// operation so the INNER JOIN returns it; a false control confirms the flags are
+// not spuriously set.
+func TestIntegration_Transaction_SkipAudit_RoundTrip_WithOperations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+	opRepo := operation.NewOperationPostgreSQLRepository(infra.conn)
+
+	// Skipped transaction: both audit flags honored, plus one operation.
+	skippedTx := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Join-scan skip audit - both honored",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(1000),
+		AssetCode:      "USD",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+		FeesSkipped:    true,
+		TracerSkipped:  true,
+	}
+	createdSkipped, err := infra.repo.Create(ctx, skippedTx)
+	require.NoError(t, err, "Create with skip flags should succeed")
+	infra.createJoinedOperation(t, opRepo, createdSkipped.ID)
+
+	// False control: neither flag set, plus one operation.
+	controlTx := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Join-scan skip audit - false control",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(1000),
+		AssetCode:      "USD",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+	}
+	createdControl, err := infra.repo.Create(ctx, controlTx)
+	require.NoError(t, err, "Create control should succeed")
+	infra.createJoinedOperation(t, opRepo, createdControl.ID)
+
+	t.Run("FindWithOperations carries the flags through the join scan", func(t *testing.T) {
+		foundSkipped, err := infra.repo.FindWithOperations(ctx, infra.orgID, infra.ledgerID, parseID(t, createdSkipped.ID))
+		require.NoError(t, err)
+		require.NotEmpty(t, foundSkipped.ID, "INNER JOIN must return the tx (it has an operation)")
+		require.GreaterOrEqual(t, len(foundSkipped.Operations), 1, "join must surface the seeded operation")
+		assert.True(t, foundSkipped.FeesSkipped, "join scan: skipped fees_skipped should round-trip true")
+		assert.True(t, foundSkipped.TracerSkipped, "join scan: skipped tracer_skipped should round-trip true")
+
+		foundControl, err := infra.repo.FindWithOperations(ctx, infra.orgID, infra.ledgerID, parseID(t, createdControl.ID))
+		require.NoError(t, err)
+		require.NotEmpty(t, foundControl.ID)
+		assert.False(t, foundControl.FeesSkipped, "join scan: control fees_skipped should round-trip false")
+		assert.False(t, foundControl.TracerSkipped, "join scan: control tracer_skipped should round-trip false")
+	})
+
+	t.Run("FindOrListAllWithOperations carries the flags through the list join scan", func(t *testing.T) {
+		transactions, _, err := infra.repo.FindOrListAllWithOperations(ctx, infra.orgID, infra.ledgerID, nil, http.Pagination{Limit: 100})
+		require.NoError(t, err)
+
+		byID := make(map[string]*Transaction, len(transactions))
+		for i := range transactions {
+			byID[transactions[i].ID] = transactions[i]
+		}
+
+		listedSkipped, ok := byID[createdSkipped.ID]
+		require.True(t, ok, "list-with-ops should return the skipped transaction")
+		assert.True(t, listedSkipped.FeesSkipped, "list join scan: skipped fees_skipped should round-trip true")
+		assert.True(t, listedSkipped.TracerSkipped, "list join scan: skipped tracer_skipped should round-trip true")
+
+		listedControl, ok := byID[createdControl.ID]
+		require.True(t, ok, "list-with-ops should return the control transaction")
+		assert.False(t, listedControl.FeesSkipped, "list join scan: control fees_skipped should round-trip false")
+		assert.False(t, listedControl.TracerSkipped, "list join scan: control tracer_skipped should round-trip false")
+	})
+}
+
+// createJoinedOperation seeds one minimal valid operation linked to txID so the
+// operation-join readers return the parent transaction. The fixture mirrors the
+// known-good shape in the operation package's integration tests; timestamps are
+// fixed (not time.Now) per the project's test conventions.
+func (infra *integrationTestInfra) createJoinedOperation(t *testing.T, opRepo *operation.OperationPostgreSQLRepository, txID string) {
+	t.Helper()
+
+	fixed := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	amount := decimal.NewFromInt(100)
+	available := decimal.NewFromInt(900)
+	onHold := decimal.Zero
+	version := int64(1)
+	statusDesc := "Operation approved"
+
+	op := &operation.Operation{
+		ID:              uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		TransactionID:   txID,
+		Description:     "join-scan fixture operation",
+		Type:            "DEBIT",
+		AssetCode:       "USD",
+		ChartOfAccounts: "1000",
+		Amount:          operation.Amount{Value: &amount},
+		Balance:         operation.Balance{Available: &available, OnHold: &onHold, Version: &version},
+		BalanceAfter:    operation.Balance{Available: &available, OnHold: &onHold, Version: &version},
+		Status:          operation.Status{Code: "APPROVED", Description: &statusDesc},
+		AccountID:       infra.accountID.String(),
+		AccountAlias:    "@join-scan-account",
+		BalanceKey:      "default",
+		BalanceID:       infra.balanceID.String(),
+		OrganizationID:  infra.orgID.String(),
+		LedgerID:        infra.ledgerID.String(),
+		BalanceAffected: true,
+		CreatedAt:       fixed,
+		UpdatedAt:       fixed,
+	}
+
+	_, err := opRepo.Create(context.Background(), op)
+	require.NoError(t, err, "seeding join operation should succeed")
+}
+
+// =============================================================================
 // IS-1: getDB returns valid DB handle from real PostgreSQL (static fallback)
 // =============================================================================
 
@@ -1519,25 +1784,19 @@ func TestIntegration_GetDB_CreateAndFindRoundTrip(t *testing.T) {
 //   - If getDB correctly returns the tenant DB, the data is found.
 //   - If getDB incorrectly falls back to static, the data is NOT found (test fails).
 
-// setupTenantContainer starts a second PostgreSQL container with migrations applied
+// setupTenantContainer allocates a second PostgreSQL database from the migrated template
 // and returns both the ContainerResult and a dbresolver.DB wrapper suitable for
 // injection into tenant context.
 func setupTenantContainer(t *testing.T) (*pgtestutil.ContainerResult, dbresolver.DB) {
 	t.Helper()
 
-	tenantContainer := pgtestutil.SetupContainer(t)
-
-	// Run migrations on the tenant container by creating a temporary
-	// PostgresConnection and letting the constructor trigger migration.
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
+	tenantContainer := pgtestutil.SetupMigratedContainer(t, "transaction")
 	connStr := pgtestutil.BuildConnectionString(tenantContainer.Host, tenantContainer.Port, tenantContainer.Config)
 
-	// Create a temporary connection to apply migrations (the constructor runs them).
-	tempConn := pgtestutil.CreatePostgresClient(t, connStr, connStr, tenantContainer.Config.DBName, migrationsPath)
+	tempConn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
-	// Trigger migration by calling GetDB (same as constructor does).
 	db, err := tempConn.Resolver(context.Background())
-	require.NoError(t, err, "failed to initialize tenant container database with migrations")
+	require.NoError(t, err, "failed to initialize tenant database")
 
 	// Close the temporary connection pool so it does not leak.
 	t.Cleanup(func() {

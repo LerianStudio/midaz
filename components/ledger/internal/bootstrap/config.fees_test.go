@@ -1,0 +1,125 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package bootstrap
+
+import (
+	"reflect"
+	"testing"
+
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+)
+
+// newFeeMongoSlice builds a feesMongoComponents with mock repos (no real Mongo).
+// initFees only holds the repos behind use cases — it does not touch them — so
+// bare mocks are sufficient to prove the wiring is sound.
+func newFeeMongoSlice(t *testing.T) *feesMongoComponents {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	return &feesMongoComponents{
+		packageRepo:        pack.NewMockRepository(ctrl),
+		billingPackageRepo: billing_package.NewMockRepository(ctrl),
+	}
+}
+
+// TestInitFees_ConstructsReachableUseCases proves the composition root can build
+// the fee use cases from the fee Mongo slice + the ledger query.UseCase, and
+// that the resulting fees.UseCase / billing services are reachable and non-nil.
+// This is the P4-T09 bootstrap wiring acceptance: a non-nil fees.UseCase the
+// transaction handler and fee CRUD handler can later consume.
+func TestInitFees_ConstructsReachableUseCases(t *testing.T) {
+	t.Parallel()
+
+	logger := &libLog.GoLogger{}
+
+	emitter := libStreaming.NewNoopEmitter()
+
+	fees, err := initFees(newFeeMongoSlice(t), &query.UseCase{}, logger, emitter)
+	require.NoError(t, err, "initFees must succeed with valid dependencies")
+	require.NotNil(t, fees, "fees components must be non-nil")
+
+	require.NotNil(t, fees.useCase, "fee package use case must be reachable")
+	require.NotNil(t, fees.useCase.PackageRepo(), "fee use case must hold the package repo")
+	require.NotNil(t, fees.useCase.Resolver(), "fee use case must hold the in-process resolver")
+
+	require.NotNil(t, fees.billingPackageService, "billing package service must be reachable")
+	require.NotNil(t, fees.billingCalculateService, "billing calculate service must be reachable")
+
+	assert.Same(t, emitter, fees.useCase.Streaming,
+		"fee use case must receive the ledger emitter instance")
+	assert.Same(t, emitter, fees.billingPackageService.Streaming,
+		"billing package service must receive the ledger emitter instance")
+}
+
+// TestInitFees_RejectsNilDependencies asserts initFees fails fast on missing
+// dependencies rather than constructing a half-wired fee slice.
+func TestInitFees_RejectsNilDependencies(t *testing.T) {
+	t.Parallel()
+
+	logger := &libLog.GoLogger{}
+
+	t.Run("nil_fee_mongo", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := initFees(nil, &query.UseCase{}, logger, libStreaming.NewNoopEmitter())
+		require.Error(t, err, "initFees must reject a nil fee Mongo slice")
+	})
+
+	t.Run("nil_query_use_case", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := initFees(newFeeMongoSlice(t), nil, logger, libStreaming.NewNoopEmitter())
+		require.Error(t, err, "initFees must reject a nil query use case")
+	})
+}
+
+// TestFeesConfigFields_PresentWithCorrectTags locks the merged fee config
+// surface (P4-T17/T20): the FeesPrefixed* Mongo block must exist with the exact
+// env tags, or the merged binary silently fails to load fee config at runtime
+// (R17).
+func TestFeesConfigFields_PresentWithCorrectTags(t *testing.T) {
+	t.Parallel()
+
+	expectedFields := map[string]string{
+		"FeesPrefixedMongoURI":          "MONGO_FEES_URI",
+		"FeesPrefixedMongoDBHost":       "MONGO_FEES_HOST",
+		"FeesPrefixedMongoDBName":       "MONGO_FEES_NAME",
+		"FeesPrefixedMongoDBUser":       "MONGO_FEES_USER",
+		"FeesPrefixedMongoDBPassword":   "MONGO_FEES_PASSWORD",
+		"FeesPrefixedMongoDBPort":       "MONGO_FEES_PORT",
+		"FeesPrefixedMongoDBParameters": "MONGO_FEES_PARAMETERS",
+		"FeesPrefixedMaxPoolSize":       "MONGO_FEES_MAX_POOL_SIZE",
+		"FeesPrefixedMongoTLSCACert":    "MONGO_FEES_TLS_CA_CERT",
+	}
+
+	for fieldName, expectedTag := range expectedFields {
+		field, found := reflect.TypeOf(Config{}).FieldByName(fieldName)
+		require.True(t, found, "Config must have fee field %s", fieldName)
+		assert.Equal(t, expectedTag, field.Tag.Get("env"),
+			"field %s must have env tag %q", fieldName, expectedTag)
+	}
+}
+
+// TestModuleFeesProvisioningName locks the tenant-manager module name. The value
+// MUST match what tenant-manager provisions for the fee module, or per-tenant fee
+// DB resolution silently misses. The auth/RBAC namespace is a separate literal
+// (the shared midaz slug) and is NOT covered by this test.
+func TestModuleFeesProvisioningName(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "fees-api", constant.ModuleFees,
+		"ModuleFees MUST equal 'fees-api' to match tenant-manager provisioning")
+}

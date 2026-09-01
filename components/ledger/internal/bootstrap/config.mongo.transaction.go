@@ -11,15 +11,16 @@ import (
 	"strings"
 	"time"
 
-	libMongo "github.com/LerianStudio/lib-commons/v5/commons/mongo"
-	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	pkgMongo "github.com/LerianStudio/midaz/v3/pkg/mongo"
+	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
+	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgMongo "github.com/LerianStudio/midaz/v4/pkg/mongo"
 )
 
 // transactionMongoComponents holds MongoDB-related components for the transaction domain.
@@ -138,7 +139,7 @@ func ensureTransactionMongoIndexes(conn *libMongo.Client, logger libLog.Logger) 
 	collections := []string{"operation", "transaction", "operation_route", "transaction_route"}
 	for _, collection := range collections {
 		if err := conn.EnsureIndexes(ctx, collection, indexModel); err != nil {
-			logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to ensure indexes for collection %s: %v", collection, err))
+			logger.Log(ctx, libLog.LevelWarn, "Failed to ensure indexes for collection", libLog.String("collection", collection), libLog.Err(err))
 		}
 	}
 }

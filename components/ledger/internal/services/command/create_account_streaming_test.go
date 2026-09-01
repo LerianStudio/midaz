@@ -10,20 +10,21 @@ import (
 	"errors"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 // streamingFailingEmitter is a tiny Emitter that returns a publish error
@@ -55,6 +56,12 @@ func newStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libS
 	mockLedgerRepo.EXPECT().
 		GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, nil).AnyTimes()
+
+	// Best-effort account-type default-direction lookup (non-external path).
+	// A miss degrades gracefully to no type default -> credit fallback.
+	mockAccountTypeRepo.EXPECT().
+		FindByKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, errors.New("not found")).AnyTimes()
 
 	mockAssetRepo.EXPECT().
 		FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -116,7 +123,7 @@ func TestCreateAccount_EmitsAccountCreatedEvent(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(ctx, orgID, ledgerID, input, "Bearer test")
+	acc, err := uc.CreateAccount(ctx, orgID, ledgerID, input, "Bearer test", HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 
@@ -160,15 +167,14 @@ func TestCreateAccount_NoopEmitterDoesNotPanic(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test")
+	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test", HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 }
 
 // TestCreateAccount_EmitFailureDoesNotFailRequest verifies the IMPORTANT
 // posture: when Emit returns an error, CreateAccount must still return the
-// successfully-persisted account because durability is owned by PG +
-// future DLQ/outbox, not by the synchronous Emit call.
+// successfully-persisted account because the persisted database mutation is durable; this helper does not make broker delivery transactional.
 func TestCreateAccount_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -181,7 +187,7 @@ func TestCreateAccount_EmitFailureDoesNotFailRequest(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test")
+	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test", HolderOnV2)
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, acc)
 }
@@ -201,7 +207,7 @@ func TestCreateAccount_NilStreamingDoesNotPanic(t *testing.T) {
 		AssetCode: "USD",
 	}
 
-	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test")
+	acc, err := uc.CreateAccount(context.Background(), uuid.New(), uuid.New(), input, "Bearer test", HolderOnV2)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 }

@@ -7,29 +7,6 @@ package mmodel
 import "time"
 
 // CreateOrganizationInput is a struct designed to encapsulate request create payload data.
-//
-// swagger:model CreateOrganizationInput
-//
-//	@Description	Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such. Organizations are the top-level entities in the hierarchy and contain ledgers, which in turn contain accounts and assets.
-//
-//	@example		{
-//	  "legalName": "Lerian Financial Services Ltd.",
-//	  "legalDocument": "123456789012345",
-//	  "doingBusinessAs": "Lerian FS",
-//	  "address": {
-//	    "line1": "123 Financial Avenue",
-//	    "line2": "Suite 1500",
-//	    "zipCode": "10001",
-//	    "city": "New York",
-//	    "state": "NY",
-//	    "country": "US"
-//	  },
-//	  "metadata": {
-//	    "industry": "Financial Services",
-//	    "founded": 2020,
-//	    "employees": 150
-//	  }
-//	}
 type CreateOrganizationInput struct {
 	// Official legal name of the organization
 	// required: true
@@ -66,35 +43,9 @@ type CreateOrganizationInput struct {
 	// required: false
 	// example: {"industry": "Financial Services", "founded": 2020, "employees": 150}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} //	@name	CreateOrganizationInput
+}
 
 // UpdateOrganizationInput is a struct designed to encapsulate request update payload data.
-//
-// swagger:model UpdateOrganizationInput
-//
-//	@Description	Request payload for updating an existing organization. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
-//
-//	@example		{
-//	  "legalName": "Lerian Financial Group Ltd.",
-//	  "doingBusinessAs": "Lerian Group",
-//	  "address": {
-//	    "line1": "456 Corporate Plaza",
-//	    "line2": "Floor 20",
-//	    "zipCode": "10002",
-//	    "city": "New York",
-//	    "state": "NY",
-//	    "country": "US"
-//	  },
-//	  "status": {
-//	    "code": "ACTIVE"
-//	  },
-//	  "metadata": {
-//	    "industry": "Financial Technology",
-//	    "founded": 2020,
-//	    "employees": 200,
-//	    "headquarters": "New York"
-//	  }
-//	}
 type UpdateOrganizationInput struct {
 	// Updated legal name of the organization
 	// required: false
@@ -125,38 +76,9 @@ type UpdateOrganizationInput struct {
 	// required: false
 	// example: {"industry": "Financial Technology", "founded": 2020, "employees": 200, "headquarters": "New York"}
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-} //	@name	UpdateOrganizationInput
+}
 
 // Organization is a struct designed to encapsulate response payload data.
-//
-// swagger:model Organization
-//
-//	@Description	Complete organization entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for organization operations. Organizations are the top-level entities in the Midaz platform hierarchy.
-//
-//	@example		{
-//	  "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
-//	  "legalName": "Lerian Financial Services Ltd.",
-//	  "doingBusinessAs": "Lerian FS",
-//	  "legalDocument": "123456789012345",
-//	  "address": {
-//	    "line1": "123 Financial Avenue",
-//	    "line2": "Suite 1500",
-//	    "zipCode": "10001",
-//	    "city": "New York",
-//	    "state": "NY",
-//	    "country": "US"
-//	  },
-//	  "status": {
-//	    "code": "ACTIVE"
-//	  },
-//	  "createdAt": "2022-04-15T09:30:00Z",
-//	  "updatedAt": "2022-04-15T09:30:00Z",
-//	  "metadata": {
-//	    "industry": "Financial Services",
-//	    "founded": 2020,
-//	    "employees": 150
-//	  }
-//	}
 type Organization struct {
 	// Unique identifier for the organization (UUID format)
 	// example: 00000000-0000-0000-0000-000000000000
@@ -207,13 +129,9 @@ type Organization struct {
 	// Custom key-value pairs for extending the organization information
 	// example: {"industry": "Financial Services", "founded": 2020, "employees": 150}
 	Metadata map[string]any `json:"metadata,omitempty"`
-} //	@name	Organization
+}
 
 // Address structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Address
-//
-//	@Description	Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes). Used for organization physical locations and other address needs.
 type Address struct {
 	// Primary address line (street address or PO Box)
 	// example: 123 Financial Avenue
@@ -250,7 +168,7 @@ type Address struct {
 	// example: Home
 	// maxLength: 100
 	Description *string `json:"description,omitempty" validate:"omitempty,max=100" example:"Home" maxLength:"100"`
-} //	@name	Address
+}
 
 // IsEmpty method determines if an Address is empty or nil in all fields
 //
@@ -260,39 +178,6 @@ func (a Address) IsEmpty() bool {
 }
 
 // Organizations struct to return paginated list of organizations.
-//
-// swagger:model Organizations
-//
-//	@Description	Paginated list of organizations with metadata about the current page, limit, and the organization items themselves. Used for list operations.
-//
-//	@example		{
-//	  "items": [
-//	    {
-//	      "id": "a1b2c3d4-e5f6-7890-abcd-1234567890ab",
-//	      "legalName": "Lerian Financial Services Ltd.",
-//	      "doingBusinessAs": "Lerian FS",
-//	      "legalDocument": "123456789012345",
-//	      "status": {
-//	        "code": "ACTIVE"
-//	      },
-//	      "createdAt": "2022-04-15T09:30:00Z",
-//	      "updatedAt": "2022-04-15T09:30:00Z"
-//	    },
-//	    {
-//	      "id": "b2c3d4e5-f6a1-7890-bcde-2345678901cd",
-//	      "legalName": "Global Finance Partners",
-//	      "doingBusinessAs": "GFP",
-//	      "legalDocument": "987654321012345",
-//	      "status": {
-//	        "code": "ACTIVE"
-//	      },
-//	      "createdAt": "2022-03-10T14:15:00Z",
-//	      "updatedAt": "2022-03-10T14:15:00Z"
-//	    }
-//	  ],
-//	  "page": 1,
-//	  "limit": 10
-//	}
 type Organizations struct {
 	// Array of organization records returned in this page
 	// example: [{"id":"00000000-0000-0000-0000-000000000000","legalName":"Lerian Financial Services Ltd.","status":{"code":"ACTIVE"}}]
@@ -308,44 +193,20 @@ type Organizations struct {
 	// minimum: 1
 	// maximum: 100
 	Limit int `json:"limit" example:"10" minimum:"1" maximum:"100"`
-} //	@name	Organizations
+}
 
 // OrganizationResponse represents a success response containing a single organization.
-//
-// swagger:response OrganizationResponse
-//
-//	@Description	Successful response containing a single organization entity.
 type OrganizationResponse struct {
-	// in: body
 	Body Organization
 }
 
 // OrganizationsResponse represents a success response containing a paginated list of organizations.
-//
-// swagger:response OrganizationsResponse
-//
-//	@Description	Successful response containing a paginated list of organizations.
 type OrganizationsResponse struct {
-	// in: body
 	Body Organizations
 }
 
 // OrganizationErrorResponse represents an error response for organization operations.
-//
-// swagger:response OrganizationErrorResponse
-//
-//	@Description	Error response for organization operations with error code and message.
-//
-//	@example		{
-//	  "code": 400001,
-//	  "message": "Invalid input: field 'legalName' is required",
-//	  "details": {
-//	    "field": "legalName",
-//	    "violation": "required"
-//	  }
-//	}
 type OrganizationErrorResponse struct {
-	// in: body
 	Body struct {
 		// Error code identifying the specific error
 		// example: 400001

@@ -10,18 +10,19 @@ import (
 	"testing"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 // updateBalanceStreamingFixture wraps the inputs the test scenarios
@@ -112,10 +113,10 @@ func TestUpdateBalance_EmitsConfigChangedSettingsUpdated(t *testing.T) {
 
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1, "expected exactly one Emit call when no overdraft transition occurs")
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "config-changed")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "balance", "config_changed")
 
 	evt := emitted[0]
-	assert.Equal(t, "balance.config-changed", evt.DefinitionKey)
+	assert.Equal(t, "balance.config_changed", evt.DefinitionKey)
 	assert.Equal(t, fixture.updated.ID, evt.Subject)
 
 	var payload map[string]any
@@ -218,7 +219,7 @@ func TestUpdateBalance_EmitsTwoEventsOnOverdraftTransition(t *testing.T) {
 	// Event 0: companion's config_changed{overdraft_enabled}
 	var payload0 map[string]any
 	require.NoError(t, json.Unmarshal(emitted[0].Payload, &payload0))
-	assert.Equal(t, "balance.config-changed", emitted[0].DefinitionKey)
+	assert.Equal(t, "balance.config_changed", emitted[0].DefinitionKey)
 	assert.Equal(t, companionID, emitted[0].Subject, "first event must be for the COMPANION balance")
 	assert.Equal(t, "overdraft_enabled", payload0["changeType"])
 	assert.Equal(t, constant.OverdraftBalanceKey, payload0["key"])
@@ -226,7 +227,7 @@ func TestUpdateBalance_EmitsTwoEventsOnOverdraftTransition(t *testing.T) {
 	// Event 1: parent's config_changed{settings_updated}
 	var payload1 map[string]any
 	require.NoError(t, json.Unmarshal(emitted[1].Payload, &payload1))
-	assert.Equal(t, "balance.config-changed", emitted[1].DefinitionKey)
+	assert.Equal(t, "balance.config_changed", emitted[1].DefinitionKey)
 	assert.Equal(t, id, emitted[1].Subject, "second event must be for the PARENT balance")
 	assert.Equal(t, "settings_updated", payload1["changeType"])
 }

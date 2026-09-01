@@ -12,12 +12,6 @@ import (
 // Date is a custom date type that accepts both "2025-01-23" (date only)
 // and "2025-01-23T00:00:00Z" (RFC3339) formats during JSON unmarshaling.
 // It outputs date-only format ("2025-01-23") during marshaling.
-//
-// swagger:model Date
-// @Description Date in YYYY-MM-DD format (e.g., "2025-06-15") or null
-// @type string
-// @format date
-// @example "2025-06-15"
 type Date struct {
 	time.Time
 }

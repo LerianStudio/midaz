@@ -1,3 +1,5 @@
+//go:build property
+
 // Copyright (c) 2026 Lerian Studio. All rights reserved.
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
@@ -8,12 +10,13 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
 // TestProperty_RedisQueueConsumer_PredicateEqualsEnabledAndPGManagerNonNil verifies
@@ -82,7 +85,7 @@ func TestProperty_NewRedisQueueConsumerMultiTenant_PreservesBaseFields(t *testin
 			mgr = pgMgr
 		}
 
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, enabled, consumerCache, mgr, "transaction")
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, enabled, consumerCache, mgr)
 
 		// Property: constructor never returns nil.
 		if consumer == nil {
@@ -185,7 +188,7 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 		}
 
 		// Property: NewRedisQueueConsumerMultiTenant must never panic.
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, consumerEnabled, cTenantCache, cPGManager, "transaction")
+		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, consumerEnabled, cTenantCache, cPGManager)
 		if consumer == nil {
 			return false
 		}

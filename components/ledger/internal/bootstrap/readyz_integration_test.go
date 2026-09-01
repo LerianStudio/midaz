@@ -13,37 +13,32 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/gofiber/fiber/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	mongoContainer "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
-	pgContainer "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
-	redisContainer "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	mongoContainer "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
+	pgContainer "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	redisContainer "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
-// newReadyHandler creates a ReadyzHandler and marks it as ready for testing.
-// This is needed because HandleReadyz now checks lifecycle state before running checks.
-func newReadyHandler(cfg ReadyzHandlerConfig) *ReadyzHandler {
-	handler := NewReadyzHandler(cfg)
-	handler.SetServerReady()
-
-	return handler
-}
+// newReadyHandler (the shared ready-handler test helper) is defined once in
+// readyz_test.go and reused here.
 
 func TestReadyz_Integration_AllDependenciesHealthy(t *testing.T) {
 	t.Parallel()
 
 	// Start containers
-	pg := pgContainer.SetupContainer(t)
-	mongo := mongoContainer.SetupContainer(t)
-	redis := redisContainer.SetupContainer(t)
+	pg := pgContainer.SetupMigratedContainer(t, "onboarding")
+	mongo := mongoContainer.SetupReusableContainer(t)
+	redis := redisContainer.SetupReusableContainer(t)
 
 	// Create lib-commons wrappers
 	mongoClient := mongoContainer.CreateConnection(t, mongo.URI, mongo.DBName)
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	// Create checkers using raw *sql.DB for PostgreSQL
 	// and lib-commons clients for MongoDB and Redis
@@ -64,7 +59,7 @@ func TestReadyz_Integration_AllDependenciesHealthy(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, 10000) // 10s timeout for containers
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true}) // 10s timeout for containers
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -95,11 +90,11 @@ func TestReadyz_Integration_PostgresDown(t *testing.T) {
 	t.Parallel()
 
 	// Start only Redis and MongoDB
-	mongo := mongoContainer.SetupContainer(t)
-	redis := redisContainer.SetupContainer(t)
+	mongo := mongoContainer.SetupReusableContainer(t)
+	redis := redisContainer.SetupReusableContainer(t)
 
 	mongoClient := mongoContainer.CreateConnection(t, mongo.URI, mongo.DBName)
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	// Create a Postgres checker with nil db (simulating down)
 	checkers := []DependencyChecker{
@@ -119,7 +114,7 @@ func TestReadyz_Integration_PostgresDown(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, 10000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true})
 	require.NoError(t, err)
 
 	// Should return 200 since nil checker returns "skipped" not "down"
@@ -144,12 +139,12 @@ func TestReadyz_Integration_TLSDetection(t *testing.T) {
 	t.Parallel()
 
 	// Test that TLS detection works correctly with real containers (all non-TLS)
-	pg := pgContainer.SetupContainer(t)
-	mongo := mongoContainer.SetupContainer(t)
-	redis := redisContainer.SetupContainer(t)
+	pg := pgContainer.SetupMigratedContainer(t, "onboarding")
+	mongo := mongoContainer.SetupReusableContainer(t)
+	redis := redisContainer.SetupReusableContainer(t)
 
 	mongoClient := mongoContainer.CreateConnection(t, mongo.URI, mongo.DBName)
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	checkers := []DependencyChecker{
 		NewSQLDBChecker("postgres_onboarding", pg.DB, false),
@@ -168,7 +163,7 @@ func TestReadyz_Integration_TLSDetection(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, 10000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true})
 	require.NoError(t, err)
 
 	body, err := io.ReadAll(resp.Body)
@@ -188,10 +183,10 @@ func TestReadyz_Integration_TLSDetection(t *testing.T) {
 func TestReadyz_Integration_LatencyMeasurement(t *testing.T) {
 	t.Parallel()
 
-	pg := pgContainer.SetupContainer(t)
-	redis := redisContainer.SetupContainer(t)
+	pg := pgContainer.SetupMigratedContainer(t, "onboarding")
+	redis := redisContainer.SetupReusableContainer(t)
 
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	checkers := []DependencyChecker{
 		NewSQLDBChecker("postgres", pg.DB, false),
@@ -211,7 +206,7 @@ func TestReadyz_Integration_LatencyMeasurement(t *testing.T) {
 	// Run multiple times to verify latency is measured each time
 	for i := range 3 {
 		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-		resp, err := app.Test(req, 10000)
+		resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true})
 		require.NoError(t, err, "iteration %d failed", i)
 
 		body, err := io.ReadAll(resp.Body)
@@ -240,8 +235,8 @@ func TestReadyz_Integration_ConcurrentRequests(t *testing.T) {
 	t.Parallel()
 
 	// Test with only Redis to verify concurrent request handling
-	redis := redisContainer.SetupContainer(t)
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redis := redisContainer.SetupReusableContainer(t)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	// Create a checker that will respond quickly
 	checkers := []DependencyChecker{
@@ -265,7 +260,7 @@ func TestReadyz_Integration_ConcurrentRequests(t *testing.T) {
 	for range numRequests {
 		go func() {
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-			resp, err := app.Test(req, 5000) // 5s timeout
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000 * time.Millisecond, FailOnTimeout: true}) // 5s timeout
 			if err != nil {
 				results <- -1
 				return
@@ -289,11 +284,11 @@ func TestReadyz_Integration_MixedHealthStatus(t *testing.T) {
 	t.Parallel()
 
 	// Start only working containers
-	mongo := mongoContainer.SetupContainer(t)
-	redis := redisContainer.SetupContainer(t)
+	mongo := mongoContainer.SetupReusableContainer(t)
+	redis := redisContainer.SetupReusableContainer(t)
 
 	mongoClient := mongoContainer.CreateConnection(t, mongo.URI, mongo.DBName)
-	redisClient := redisContainer.CreateConnection(t, redis.Addr)
+	redisClient := redisContainer.CreateConnectionWithDB(t, redis.Addr, redis.DB)
 
 	// Mix of healthy and skipped checkers
 	checkers := []DependencyChecker{
@@ -313,7 +308,7 @@ func TestReadyz_Integration_MixedHealthStatus(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, 10000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true})
 	require.NoError(t, err)
 
 	// Should be healthy since skipped does not count as unhealthy
@@ -336,7 +331,7 @@ func TestReadyz_Integration_ClosedConnection(t *testing.T) {
 	t.Parallel()
 
 	// Start container
-	redis := redisContainer.SetupContainer(t)
+	redis := redisContainer.SetupReusableContainer(t)
 
 	// Create connection and then close it before using
 	conn, err := redis.Client.Ping(context.Background()).Result()
@@ -361,7 +356,7 @@ func TestReadyz_Integration_ClosedConnection(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, 5000)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 5000 * time.Millisecond, FailOnTimeout: true})
 	require.NoError(t, err)
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode) // skipped counts as healthy

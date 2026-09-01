@@ -5,220 +5,78 @@
 package in
 
 import (
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libHTTP "github.com/LerianStudio/lib-commons/v5/commons/net/http"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libObsMiddleware "github.com/LerianStudio/lib-observability/middleware"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	_ "github.com/LerianStudio/midaz/v3/components/ledger/api"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	"github.com/gofiber/fiber/v3"
+
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
+// This file holds the primitives every per-resource <resource>_routes.go file
+// builds its Fiber guard chain from: the "midaz" authz appName, the
+// protectedMidaz chain constructor, and the routeXxx helpers that work around
+// Fiber v3's variadic handler signature. The route surfaces themselves live one
+// file per resource, next to that resource's Huma registrar.
+
 const midazName = "midaz"
+
+// Operation-ID version suffixes. The ledger serves every family it hosts — onboarding,
+// transaction, CRM and composition — on the /v1 and /v2 version groups of ONE OpenAPI
+// document. huma.OpenAPI.AddOperation scans the whole document and panics on a duplicate
+// operation ID, so a v1 op and its v2 twin — same handler, same path shape under a
+// different version prefix — MUST carry distinct operation IDs or the ledger panics at
+// boot. The V2 suffix makes that disjunction a boot invariant; it secondarily keeps IDs
+// unique across the ledger<->tracer hub-spec join. The v1 suffix is empty so the /v1
+// operation IDs — the ones published SDKs already bind to — stay exactly what they were.
+//
+// One pair serves every family, because every family needs the same two values. A family
+// that ever needs a different suffix declares its own rather than changing these, since
+// editing a value here moves the operation IDs of everything at once.
+const (
+	v1OpSuffix = ""
+	v2OpSuffix = "V2"
+)
 
 // SettingsMaxPayloadSize defines the maximum payload size for settings endpoints (64KB).
 const SettingsMaxPayloadSize = 64 * 1024
 
-// NewRouter registers routes for the ledger component HTTP server.
-func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, mdi *MetadataIndexHandler) *fiber.App {
-	f := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-			return libHTTP.FiberErrorHandler(ctx, err)
-		},
-	})
-
-	tlMid := libObsMiddleware.NewTelemetryMiddleware(tl)
-
-	f.Use(tlMid.WithTelemetry(tl))
-	f.Use(cors.New())
-	f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
-	// Register metadata index routes
-	RegisterMetadataRoutesToApp(f, auth, mdi, nil)
-
-	// Health
-	f.Get("/health", libHTTP.Ping)
-
-	// Version
-	f.Get("/version", libHTTP.Version)
-
-	// Doc
-	f.Get("/swagger", func(c *fiber.Ctx) error {
-		return c.Redirect("/swagger/index.html", fiber.StatusMovedPermanently)
-	})
-	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.FiberWrapHandler(
-		fiberSwagger.InstanceName("swagger"),
-	))
-
-	f.Use(tlMid.EndTracingSpans)
-
-	return f
-}
-
-// RegisterMetadataRoutesToApp registers ledger routes (metadata indexes) to an existing Fiber app.
-// This is used by the unified ledger server to consolidate all routes in a single port.
-func RegisterMetadataRoutesToApp(f fiber.Router, auth *middleware.AuthClient, mdi *MetadataIndexHandler, routeOptions *http.ProtectedRouteOptions) {
-	// Metadata Indexes
-	f.Post("/v1/settings/metadata-indexes/entities/:entity_name",
-		protectedMidaz(
-			auth, "settings", "post", routeOptions,
-			http.WithBody(new(mmodel.CreateMetadataIndexInput), mdi.CreateMetadataIndex),
-		)...)
-
-	f.Get("/v1/settings/metadata-indexes",
-		protectedMidaz(
-			auth, "settings", "get", routeOptions,
-			mdi.GetAllMetadataIndexes,
-		)...)
-
-	f.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key",
-		protectedMidaz(
-			auth, "settings", "delete", routeOptions,
-			mdi.DeleteMetadataIndex,
-		)...)
-}
-
-// CreateRouteRegistrar returns a function that registers ledger routes to an existing Fiber app.
-// This is used by the unified ledger server to consolidate all routes in a single port.
-func CreateRouteRegistrar(auth *middleware.AuthClient, mdi *MetadataIndexHandler, routeOptions *http.ProtectedRouteOptions) func(fiber.Router) {
-	return func(fiberRouter fiber.Router) {
-		RegisterMetadataRoutesToApp(fiberRouter, auth, mdi, routeOptions)
-	}
-}
-
-// RegisterOnboardingRoutesToApp registers onboarding routes to an existing Fiber app.
-// This is used by the unified ledger server to consolidate all routes in a single port.
-// The app should already have middleware configured (telemetry, cors, logging).
-func RegisterOnboardingRoutesToApp(f fiber.Router, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler, ath *AccountTypeHandler, routeOptions *http.ProtectedRouteOptions) {
-	// Organizations
-	f.Post("/v1/organizations", protectedMidaz(auth, "organizations", "post", routeOptions, http.WithBody(new(mmodel.CreateOrganizationInput), oh.CreateOrganization))...)
-	f.Patch("/v1/organizations/:id", protectedMidaz(auth, "organizations", "patch", routeOptions, http.ParseUUIDPathParameters("organization"), http.WithBody(new(mmodel.UpdateOrganizationInput), oh.UpdateOrganization))...)
-	f.Get("/v1/organizations", protectedMidaz(auth, "organizations", "get", routeOptions, oh.GetAllOrganizations)...)
-	f.Get("/v1/organizations/:id", protectedMidaz(auth, "organizations", "get", routeOptions, http.ParseUUIDPathParameters("organization"), oh.GetOrganizationByID)...)
-	f.Delete("/v1/organizations/:id", protectedMidaz(auth, "organizations", "delete", routeOptions, http.ParseUUIDPathParameters("organization"), oh.DeleteOrganizationByID)...)
-	f.Head("/v1/organizations/metrics/count", protectedMidaz(auth, "organizations", "head", routeOptions, oh.CountOrganizations)...)
-
-	// Ledgers
-	f.Post("/v1/organizations/:organization_id/ledgers", protectedMidaz(auth, "ledgers", "post", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBody(new(mmodel.CreateLedgerInput), lh.CreateLedger))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "patch", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBody(new(mmodel.UpdateLedgerInput), lh.UpdateLedger))...)
-	f.Get("/v1/organizations/:organization_id/ledgers", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetAllLedgers)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetLedgerByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", protectedMidaz(auth, "ledgers", "get", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.GetLedgerSettings)...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/settings", protectedMidaz(auth, "ledgers", "patch", routeOptions, http.ParseUUIDPathParameters("ledger"), http.WithBodyLimit(SettingsMaxPayloadSize), http.WithBody(new(map[string]any), lh.UpdateLedgerSettings))...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id", protectedMidaz(auth, "ledgers", "delete", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.DeleteLedgerByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/metrics/count", protectedMidaz(auth, "ledgers", "head", routeOptions, http.ParseUUIDPathParameters("ledger"), lh.CountLedgers)...)
-
-	// Assets
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", protectedMidaz(auth, "assets", "post", routeOptions, http.ParseUUIDPathParameters("asset"), http.WithBody(new(mmodel.CreateAssetInput), ih.CreateAsset))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", protectedMidaz(auth, "assets", "patch", routeOptions, http.ParseUUIDPathParameters("asset"), http.WithBody(new(mmodel.UpdateAssetInput), ih.UpdateAsset))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", protectedMidaz(auth, "assets", "get", routeOptions, http.ParseUUIDPathParameters("asset"), ih.GetAllAssets)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", protectedMidaz(auth, "assets", "get", routeOptions, http.ParseUUIDPathParameters("asset"), ih.GetAssetByID)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", protectedMidaz(auth, "assets", "delete", routeOptions, http.ParseUUIDPathParameters("asset"), ih.DeleteAssetByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/metrics/count", protectedMidaz(auth, "assets", "head", routeOptions, http.ParseUUIDPathParameters("asset"), ih.CountAssets)...)
-
-	// Portfolios
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", protectedMidaz(auth, "portfolios", "post", routeOptions, http.ParseUUIDPathParameters("portfolio"), http.WithBody(new(mmodel.CreatePortfolioInput), ph.CreatePortfolio))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", protectedMidaz(auth, "portfolios", "patch", routeOptions, http.ParseUUIDPathParameters("portfolio"), http.WithBody(new(mmodel.UpdatePortfolioInput), ph.UpdatePortfolio))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", protectedMidaz(auth, "portfolios", "get", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.GetAllPortfolios)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", protectedMidaz(auth, "portfolios", "get", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.GetPortfolioByID)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", protectedMidaz(auth, "portfolios", "delete", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.DeletePortfolioByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/metrics/count", protectedMidaz(auth, "portfolios", "head", routeOptions, http.ParseUUIDPathParameters("portfolio"), ph.CountPortfolios)...)
-
-	// Segment
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", protectedMidaz(auth, "segments", "post", routeOptions, http.ParseUUIDPathParameters("segment"), http.WithBody(new(mmodel.CreateSegmentInput), sh.CreateSegment))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", protectedMidaz(auth, "segments", "patch", routeOptions, http.ParseUUIDPathParameters("segment"), http.WithBody(new(mmodel.UpdateSegmentInput), sh.UpdateSegment))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", protectedMidaz(auth, "segments", "get", routeOptions, http.ParseUUIDPathParameters("segment"), sh.GetAllSegments)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", protectedMidaz(auth, "segments", "get", routeOptions, http.ParseUUIDPathParameters("segment"), sh.GetSegmentByID)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", protectedMidaz(auth, "segments", "delete", routeOptions, http.ParseUUIDPathParameters("segment"), sh.DeleteSegmentByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/metrics/count", protectedMidaz(auth, "segments", "head", routeOptions, http.ParseUUIDPathParameters("segment"), sh.CountSegments)...)
-
-	// Accounts
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", protectedMidaz(auth, "accounts", "post", routeOptions, http.ParseUUIDPathParameters("account"), http.WithBody(new(mmodel.CreateAccountInput), ah.CreateAccount))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", protectedMidaz(auth, "accounts", "patch", routeOptions, http.ParseUUIDPathParameters("account"), http.WithBody(new(mmodel.UpdateAccountInput), ah.UpdateAccount))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAllAccounts)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAccountByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAccountByAlias)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code", protectedMidaz(auth, "accounts", "get", routeOptions, http.ParseUUIDPathParameters("account"), ah.GetAccountExternalByCode)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", protectedMidaz(auth, "accounts", "delete", routeOptions, http.ParseUUIDPathParameters("account"), ah.DeleteAccountByID)...)
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/metrics/count", protectedMidaz(auth, "accounts", "head", routeOptions, http.ParseUUIDPathParameters("account"), ah.CountAccounts)...)
-
-	// Account Types
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", protectedMidaz(auth, "account-types", "post", routeOptions, http.ParseUUIDPathParameters("account_type"), http.WithBody(new(mmodel.CreateAccountTypeInput), ath.CreateAccountType))...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", protectedMidaz(auth, "account-types", "patch", routeOptions, http.ParseUUIDPathParameters("account_type"), http.WithBody(new(mmodel.UpdateAccountTypeInput), ath.UpdateAccountType))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", protectedMidaz(auth, "account-types", "get", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.GetAccountTypeByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types", protectedMidaz(auth, "account-types", "get", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.GetAllAccountTypes)...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id", protectedMidaz(auth, "account-types", "delete", routeOptions, http.ParseUUIDPathParameters("account_type"), ath.DeleteAccountTypeByID)...)
-}
-
-// RegisterTransactionRoutesToApp registers transaction routes to an existing Fiber app.
-// This is used by the unified ledger server to consolidate all routes in a single port.
-// The app should already have middleware configured (telemetry, cors, logging).
-func RegisterTransactionRoutesToApp(f fiber.Router, auth *middleware.AuthClient, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler, orh *OperationRouteHandler, trh *TransactionRouteHandler, routeOptions *http.ProtectedRouteOptions) {
-	// Transactions
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CreateTransactionDSL)...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInput), th.CreateTransactionJSON))...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/inflow", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInflowInput), th.CreateTransactionInflow))...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/outflow", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionOutflowInput), th.CreateTransactionOutflow))...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/annotation", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInput), th.CreateTransactionAnnotation))...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/block", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInput), th.CreateTransactionBlock))...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/unblock", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(mtransaction.CreateTransactionInput), th.CreateTransactionUnblock))...)
-
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CommitTransaction)...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CancelTransaction)...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert", protectedMidaz(auth, "transactions", "post", routeOptions, http.ParseUUIDPathParameters("transaction"), th.RevertTransaction)...)
-
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", protectedMidaz(auth, "transactions", "patch", routeOptions, http.ParseUUIDPathParameters("transaction"), http.WithBody(new(transaction.UpdateTransactionInput), th.UpdateTransaction))...)
-
-	f.Head("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/metrics/count", protectedMidaz(auth, "transactions", "head", routeOptions, http.ParseUUIDPathParameters("transaction"), th.CountTransactionsByFilters)...)
-
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", protectedMidaz(auth, "transactions", "get", routeOptions, http.ParseUUIDPathParameters("transaction"), th.GetTransaction)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", protectedMidaz(auth, "transactions", "get", routeOptions, http.ParseUUIDPathParameters("transaction"), th.GetAllTransactions)...)
-
-	// Operations
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", protectedMidaz(auth, "operations", "get", routeOptions, http.ParseUUIDPathParameters("operation"), oh.GetAllOperationsByAccount)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id", protectedMidaz(auth, "operations", "get", routeOptions, http.ParseUUIDPathParameters("operation"), oh.GetOperationByAccount)...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", protectedMidaz(auth, "operations", "patch", routeOptions, http.ParseUUIDPathParameters("operation"), http.WithBody(new(operation.UpdateOperationInput), oh.UpdateOperation))...)
-
-	// Asset-rate
-	f.Put("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates", protectedMidaz(auth, "asset-rates", "put", routeOptions, http.ParseUUIDPathParameters("asset-rate"), http.WithBody(new(assetrate.CreateAssetRateInput), ah.CreateOrUpdateAssetRate))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id", protectedMidaz(auth, "asset-rates", "get", routeOptions, http.ParseUUIDPathParameters("asset-rate"), ah.GetAssetRateByExternalID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code", protectedMidaz(auth, "asset-rates", "get", routeOptions, http.ParseUUIDPathParameters("asset-rate"), ah.GetAllAssetRatesByAssetCode)...)
-
-	// Balance
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", protectedMidaz(auth, "balances", "patch", routeOptions, http.ParseUUIDPathParameters("balance"), http.WithBody(new(mmodel.UpdateBalance), bh.UpdateBalance))...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", protectedMidaz(auth, "balances", "delete", routeOptions, http.ParseUUIDPathParameters("balance"), bh.DeleteBalanceByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetAllBalances)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetBalanceByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetBalanceAtTimestamp)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetAllBalancesByAccountID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetAccountBalancesAtTimestamp)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias/balances", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetBalancesByAlias)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/external/:code/balances", protectedMidaz(auth, "balances", "get", routeOptions, http.ParseUUIDPathParameters("balance"), bh.GetBalancesExternalByCode)...)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances", protectedMidaz(auth, "balances", "post", routeOptions, http.ParseUUIDPathParameters("balance"), http.WithBody(new(mmodel.CreateAdditionalBalance), bh.CreateAdditionalBalance))...)
-
-	// Operation-route
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes", protectedMidaz(auth, "operation-routes", "post", routeOptions, http.ParseUUIDPathParameters("operation_route"), http.WithBody(new(mmodel.CreateOperationRouteInput), orh.CreateOperationRoute))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", protectedMidaz(auth, "operation-routes", "get", routeOptions, http.ParseUUIDPathParameters("operation_route"), orh.GetOperationRouteByID)...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", protectedMidaz(auth, "operation-routes", "patch", routeOptions, http.ParseUUIDPathParameters("operation_route"), http.WithBody(new(mmodel.UpdateOperationRouteInput), orh.UpdateOperationRoute))...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id", protectedMidaz(auth, "operation-routes", "delete", routeOptions, http.ParseUUIDPathParameters("operation_route"), orh.DeleteOperationRouteByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes", protectedMidaz(auth, "operation-routes", "get", routeOptions, http.ParseUUIDPathParameters("operation_route"), orh.GetAllOperationRoutes)...)
-
-	// Transaction-route
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", protectedMidaz(auth, "transaction-routes", "post", routeOptions, http.ParseUUIDPathParameters("transaction_route"), http.WithBody(new(mmodel.CreateTransactionRouteInput), trh.CreateTransactionRoute))...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", protectedMidaz(auth, "transaction-routes", "get", routeOptions, http.ParseUUIDPathParameters("transaction_route"), trh.GetTransactionRouteByID)...)
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", protectedMidaz(auth, "transaction-routes", "patch", routeOptions, http.ParseUUIDPathParameters("transaction_route"), http.WithBody(new(mmodel.UpdateTransactionRouteInput), trh.UpdateTransactionRoute))...)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes/:transaction_route_id", protectedMidaz(auth, "transaction-routes", "delete", routeOptions, http.ParseUUIDPathParameters("transaction_route"), trh.DeleteTransactionRouteByID)...)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-routes", protectedMidaz(auth, "transaction-routes", "get", routeOptions, http.ParseUUIDPathParameters("transaction_route"), trh.GetAllTransactionRoutes)...)
-}
-
 func protectedMidaz(auth *middleware.AuthClient, resource, action string, routeOptions *http.ProtectedRouteOptions, handlers ...fiber.Handler) []fiber.Handler {
 	return http.ProtectedRouteChain(auth.Authorize(midazName, resource, action), routeOptions, handlers...)
+}
+
+// registerRoute registers a protected handler chain on a Fiber v3 router. Fiber
+// v3's route methods take (handler any, handlers ...any) and a []fiber.Handler
+// cannot be spread into ...any, so the chain is split across the fixed first
+// handler and the variadic tail. The chain always carries at least the auth
+// handler, so index 0 is safe.
+func registerRoute(r fiber.Router, method, path string, chain []fiber.Handler) {
+	tail := make([]any, len(chain)-1)
+	for i, h := range chain[1:] {
+		tail[i] = h
+	}
+
+	r.Add([]string{method}, path, chain[0], tail...)
+}
+
+func routePost(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodPost, path, chain)
+}
+
+func routeGet(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodGet, path, chain)
+}
+
+func routePatch(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodPatch, path, chain)
+}
+
+func routePut(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodPut, path, chain)
+}
+
+func routeDelete(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodDelete, path, chain)
+}
+
+func routeHead(r fiber.Router, path string, chain []fiber.Handler) {
+	registerRoute(r, fiber.MethodHead, path, chain)
 }

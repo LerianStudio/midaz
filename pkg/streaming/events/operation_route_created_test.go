@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,8 +55,8 @@ func operationRouteWithAccountingEntries() *mmodel.OperationRoute {
 }
 
 func TestOperationRouteCreatedDefinition_Key(t *testing.T) {
-	assert.Equal(t, "operation-route.created", events.OperationRouteCreatedDefinition.Key())
-	assert.Equal(t, "operation-route", events.OperationRouteCreatedDefinition.ResourceType)
+	assert.Equal(t, "operation_route.created", events.OperationRouteCreatedDefinition.Key())
+	assert.Equal(t, "operation_route", events.OperationRouteCreatedDefinition.ResourceType)
 	assert.Equal(t, "created", events.OperationRouteCreatedDefinition.EventType)
 	assert.Equal(t, "1.0.0", events.OperationRouteCreatedDefinition.SchemaVersion)
 }

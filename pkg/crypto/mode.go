@@ -2,6 +2,12 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
+// Package crypto selects the CRM field-encryption strategy from configuration.
+// KMS_VENDOR drives the EncryptionMode: unset or "none" yields legacy (local
+// symmetric keys, no external KMS), "hashicorp-vault" yields envelope (per-org
+// Tink data keys wrapped by a KMS-managed key). The subpackages supply the
+// primitives — tink for AEAD/PRF keysets and KMS wrapping, kms/vault for the
+// Transit key-encryption client.
 package crypto
 
 // Environment variable constants for KMS configuration.

@@ -12,29 +12,28 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
 // createRepository creates a BalanceRepository connected to the test database.
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *BalancePostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "transaction")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
-	return NewBalancePostgreSQLRepository(conn)
+	return NewBalancePostgreSQLRepository(conn, false)
 }
 
 // createTestAccountForBalance inserts a minimal account directly for balance tests.
@@ -49,7 +48,7 @@ func createTestAccountID() uuid.UUID {
 
 func TestIntegration_BalanceRepository_Find_ReturnsBalance(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -94,7 +93,7 @@ func TestIntegration_BalanceRepository_Find_ReturnsBalance(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_Find_ReturnsEntityNotFoundError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -118,7 +117,7 @@ func TestIntegration_BalanceRepository_Find_ReturnsEntityNotFoundError(t *testin
 }
 
 func TestIntegration_BalanceRepository_Find_IgnoresDeletedBalance(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -156,7 +155,7 @@ func TestIntegration_BalanceRepository_Find_IgnoresDeletedBalance(t *testing.T) 
 // ============================================================================
 
 func TestIntegration_BalanceRepository_Create_Success(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -204,7 +203,7 @@ func TestIntegration_BalanceRepository_Create_Success(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_Create_ForwardCompat_NewColumns(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -254,7 +253,7 @@ func TestIntegration_BalanceRepository_Create_ForwardCompat_NewColumns(t *testin
 // ============================================================================
 
 func TestIntegration_BalanceRepository_SchemaDefaults(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -330,7 +329,7 @@ func TestIntegration_BalanceRepository_SchemaDefaults(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_BalanceRepository_ListAllByAccountID_ReturnsBalances(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -362,7 +361,7 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_ReturnsBalances(t *tes
 }
 
 func TestIntegration_BalanceRepository_ListAllByAccountID_EmptyForNonExistentAccount(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -381,7 +380,7 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_EmptyForNonExistentAcc
 }
 
 func TestIntegration_BalanceRepository_ListAllByAccountID_FiltersByDateRange(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -420,7 +419,7 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_FiltersByDateRange(t *
 }
 
 func TestIntegration_BalanceRepository_ListAllByAccountID_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -483,7 +482,7 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_Pagination(t *testing.
 }
 
 func TestIntegration_BalanceRepository_ListAllByAccountID_PreservesLargePrecision(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -511,7 +510,7 @@ func TestIntegration_BalanceRepository_ListAllByAccountID_PreservesLargePrecisio
 // ============================================================================
 
 func TestIntegration_BalanceRepository_Delete_SoftDeletesBalance(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -544,7 +543,7 @@ func TestIntegration_BalanceRepository_Delete_SoftDeletesBalance(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_Delete_ReturnsErrorForNonExistent(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -569,7 +568,7 @@ func TestIntegration_BalanceRepository_Delete_ReturnsErrorForNonExistent(t *test
 // ============================================================================
 
 func TestIntegration_BalanceRepository_Update_ReturnsUpdatedBalance(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -619,7 +618,7 @@ func TestIntegration_BalanceRepository_Update_ReturnsUpdatedBalance(t *testing.T
 }
 
 func TestIntegration_BalanceRepository_Update_ReturnedBalanceMatchesPersistedData(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -670,7 +669,7 @@ func TestIntegration_BalanceRepository_Update_ReturnedBalanceMatchesPersistedDat
 }
 
 func TestIntegration_BalanceRepository_Update_ReturnsEntityNotFoundError(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -697,7 +696,7 @@ func TestIntegration_BalanceRepository_Update_ReturnsEntityNotFoundError(t *test
 }
 
 func TestIntegration_BalanceRepository_Update_ChangesAllowFlags(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -751,7 +750,7 @@ func TestIntegration_BalanceRepository_Update_ChangesAllowFlags(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -759,6 +758,7 @@ func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID1 := createTestAccountID()
 	accountID2 := createTestAccountID()
+	accountID3 := createTestAccountID()
 
 	// Create balances with different aliases
 	params1 := pgtestutil.DefaultBalanceParams()
@@ -769,10 +769,12 @@ func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *
 	params2.Alias = "@bob"
 	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID2, params2)
 
-	// Create @charlie to verify it's excluded from results
+	// Create @charlie to verify it's excluded from results.
+	// Use a distinct account so it does not collide with @alice on the
+	// (org, ledger, account_id, asset_code, key) unique index.
 	params3 := pgtestutil.DefaultBalanceParams()
 	params3.Alias = "@charlie"
-	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID1, params3)
+	pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID3, params3)
 
 	ctx := context.Background()
 
@@ -792,7 +794,7 @@ func TestIntegration_BalanceRepository_ListByAliases_ReturnsMatchingBalances(t *
 }
 
 func TestIntegration_BalanceRepository_ListByAliases_PreservesLargePrecision(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -816,7 +818,7 @@ func TestIntegration_BalanceRepository_ListByAliases_PreservesLargePrecision(t *
 }
 
 func TestIntegration_BalanceRepository_ListByAliases_EmptyForNonExistentAlias(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -838,7 +840,7 @@ func TestIntegration_BalanceRepository_ListByAliases_EmptyForNonExistentAlias(t 
 // ============================================================================
 
 func TestIntegration_BalanceRepository_FindByAccountIDAndKey_ReturnsBalance(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -864,7 +866,7 @@ func TestIntegration_BalanceRepository_FindByAccountIDAndKey_ReturnsBalance(t *t
 }
 
 func TestIntegration_BalanceRepository_FindByAccountIDAndKey_ReturnsErrorForWrongKey(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -895,40 +897,44 @@ func TestIntegration_BalanceRepository_FindByAccountIDAndKey_ReturnsErrorForWron
 // ============================================================================
 
 func TestIntegration_BalanceRepository_UpdateMany_UpdatesMultipleBalances(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-	accountID := createTestAccountID()
+	accountID1 := createTestAccountID()
+	accountID2 := createTestAccountID()
 
-	// Create two balances
+	// Create two balances on distinct accounts so they do not collide on the
+	// (org, ledger, account_id, asset_code, key) unique index.
 	params1 := pgtestutil.DefaultBalanceParams()
 	params1.Alias = "@batch-1"
 	params1.Available = decimal.NewFromInt(100)
-	balanceID1 := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params1)
+	balanceID1 := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID1, params1)
 
 	params2 := pgtestutil.DefaultBalanceParams()
 	params2.Alias = "@batch-2"
 	params2.Available = decimal.NewFromInt(200)
-	balanceID2 := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params2)
+	balanceID2 := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID2, params2)
 
 	ctx := context.Background()
 
 	// Batch of balances to sync
 	balances := []mmodel.BalanceRedis{
 		{
-			ID:        balanceID1.String(),
-			Available: decimal.NewFromInt(500),
-			OnHold:    decimal.NewFromInt(10),
-			Version:   10,
+			ID:            balanceID1.String(),
+			Available:     decimal.NewFromInt(500),
+			OnHold:        decimal.NewFromInt(10),
+			Version:       10,
+			OverdraftUsed: "0",
 		},
 		{
-			ID:        balanceID2.String(),
-			Available: decimal.NewFromInt(600),
-			OnHold:    decimal.NewFromInt(20),
-			Version:   10,
+			ID:            balanceID2.String(),
+			Available:     decimal.NewFromInt(600),
+			OnHold:        decimal.NewFromInt(20),
+			Version:       10,
+			OverdraftUsed: "0",
 		},
 	}
 
@@ -953,7 +959,7 @@ func TestIntegration_BalanceRepository_UpdateMany_UpdatesMultipleBalances(t *tes
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_IgnoresOlderVersions(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -999,7 +1005,7 @@ func TestIntegration_BalanceRepository_UpdateMany_IgnoresOlderVersions(t *testin
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_EmptyBatchReturnsZero(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1017,13 +1023,14 @@ func TestIntegration_BalanceRepository_UpdateMany_EmptyBatchReturnsZero(t *testi
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_PartialUpdate(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := createTestAccountID()
+	accountID2 := createTestAccountID()
 
 	// Create balance with version 5
 	params := pgtestutil.DefaultBalanceParams()
@@ -1031,13 +1038,15 @@ func TestIntegration_BalanceRepository_UpdateMany_PartialUpdate(t *testing.T) {
 	params.Available = decimal.NewFromInt(100)
 	balanceID := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, params)
 
-	// Create another balance with version 10 (via direct insert)
+	// Create another balance with version 10 (via direct insert) on a distinct
+	// account so it does not collide on the
+	// (org, ledger, account_id, asset_code, key) unique index.
 	balanceID2 := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
 	_, err := container.DB.Exec(`
 		INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, key, asset_code, available, on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-	`, balanceID2, orgID, ledgerID, accountID, "@partial-high", "default", "USD",
+	`, balanceID2, orgID, ledgerID, accountID2, "@partial-high", "default", "USD",
 		decimal.NewFromInt(200), decimal.Zero, 10, "deposit", true, true, now, now)
 	require.NoError(t, err)
 
@@ -1046,16 +1055,18 @@ func TestIntegration_BalanceRepository_UpdateMany_PartialUpdate(t *testing.T) {
 	// Batch: first one newer (should update), second one older (should skip)
 	balances := []mmodel.BalanceRedis{
 		{
-			ID:        balanceID.String(),
-			Available: decimal.NewFromInt(500),
-			OnHold:    decimal.NewFromInt(10),
-			Version:   10, // higher than default (1), should update
+			ID:            balanceID.String(),
+			Available:     decimal.NewFromInt(500),
+			OnHold:        decimal.NewFromInt(10),
+			Version:       10, // higher than default (1), should update
+			OverdraftUsed: "0",
 		},
 		{
-			ID:        balanceID2.String(),
-			Available: decimal.NewFromInt(600),
-			OnHold:    decimal.NewFromInt(20),
-			Version:   5, // lower than 10, should skip
+			ID:            balanceID2.String(),
+			Available:     decimal.NewFromInt(600),
+			OnHold:        decimal.NewFromInt(20),
+			Version:       5, // lower than 10, should skip
+			OverdraftUsed: "0",
 		},
 	}
 
@@ -1079,7 +1090,7 @@ func TestIntegration_BalanceRepository_UpdateMany_PartialUpdate(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_RespectsContextCancellation(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1110,7 +1121,7 @@ func TestIntegration_BalanceRepository_UpdateMany_RespectsContextCancellation(t 
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_InvalidUUID(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1139,7 +1150,7 @@ func TestIntegration_BalanceRepository_UpdateMany_InvalidUUID(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_UpdateMany_LargeBatch(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1169,10 +1180,11 @@ func TestIntegration_BalanceRepository_UpdateMany_LargeBatch(t *testing.T) {
 	balances := make([]mmodel.BalanceRedis, 150)
 	for i := range 150 {
 		balances[i] = mmodel.BalanceRedis{
-			ID:        balanceIDs[i].String(),
-			Available: decimal.NewFromInt(int64(1000 + i)),
-			OnHold:    decimal.NewFromInt(int64(i)),
-			Version:   100, // Higher than initial version (1)
+			ID:            balanceIDs[i].String(),
+			Available:     decimal.NewFromInt(int64(1000 + i)),
+			OnHold:        decimal.NewFromInt(int64(i)),
+			Version:       100, // Higher than initial version (1)
+			OverdraftUsed: "0",
 		}
 	}
 
@@ -1197,7 +1209,7 @@ func TestIntegration_BalanceRepository_UpdateMany_LargeBatch(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_BalanceRepository_ListAll_ReturnsBalances(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1228,7 +1240,7 @@ func TestIntegration_BalanceRepository_ListAll_ReturnsBalances(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_ListAll_FiltersByDateRange(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1268,7 +1280,7 @@ func TestIntegration_BalanceRepository_ListAll_FiltersByDateRange(t *testing.T) 
 }
 
 func TestIntegration_BalanceRepository_ListAll_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1330,7 +1342,7 @@ func TestIntegration_BalanceRepository_ListAll_Pagination(t *testing.T) {
 }
 
 func TestIntegration_BalanceRepository_ListAll_EmptyForNonExistentLedger(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1348,7 +1360,7 @@ func TestIntegration_BalanceRepository_ListAll_EmptyForNonExistentLedger(t *test
 }
 
 func TestIntegration_BalanceRepository_ListAll_PreservesLargePrecision(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1425,7 +1437,7 @@ func TestIntegration_BalancesUpdate_OptimisticLock_HighestVersionWins(t *testing
 	// Each goroutine sets Available = version * 100, so we can verify
 	// which version actually got persisted by checking the final Available value.
 
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1493,7 +1505,7 @@ func TestIntegration_BalancesUpdate_ParallelUpdates_DifferentBalances(t *testing
 	// This test verifies that parallel updates to DIFFERENT balances
 	// do not interfere with each other.
 
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1564,7 +1576,7 @@ func TestIntegration_BalancesUpdate_ParallelUpdates_DifferentBalances(t *testing
 func TestIntegration_BalancesUpdate_SequentialVersioning(t *testing.T) {
 	// This test verifies that sequential updates with incrementing versions work correctly.
 
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1619,7 +1631,7 @@ func TestIntegration_BalancesUpdate_SequentialVersioning(t *testing.T) {
 func TestIntegration_BalancesUpdate_EmptySlice_NoError(t *testing.T) {
 	// Verify that updating with an empty slice doesn't cause errors
 
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 
@@ -1635,7 +1647,7 @@ func TestIntegration_BalancesUpdate_EmptySlice_NoError(t *testing.T) {
 func TestIntegration_BalancesUpdate_BatchUpdate_AllSucceed(t *testing.T) {
 	// Test batch update of multiple balances in a single call
 
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
 
 	repo := createRepository(t, container)
 

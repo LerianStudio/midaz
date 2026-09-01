@@ -26,9 +26,6 @@ const (
 // BalanceSettings captures the optional per-balance configuration introduced by
 // the overdraft feature. It is stored as a JSONB column on the balance row and
 // propagated through the transaction engine via Balance.Settings.
-//
-// swagger:model BalanceSettings
-// @Description Optional per-balance configuration controlling overdraft behavior and balance scope.
 type BalanceSettings struct {
 	// BalanceScope identifies how the balance participates in transactions.
 	// Allowed values: "transactional" (default), "internal". Empty string is

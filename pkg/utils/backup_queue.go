@@ -5,8 +5,8 @@
 package utils
 
 import (
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // ExpectedBackupStatusForCleanup returns the status that should be used when

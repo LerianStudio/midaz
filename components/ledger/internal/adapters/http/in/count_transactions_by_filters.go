@@ -5,19 +5,15 @@
 package in
 
 import (
-	"fmt"
+	"context"
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
+	"github.com/google/uuid"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/gofiber/fiber/v2"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // validTransactionStatuses contains the allowlist of valid transaction statuses for filtering.
@@ -29,85 +25,22 @@ var validTransactionStatuses = map[string]bool{
 	constant.NOTED:    true,
 }
 
-// CountTransactionsByFilters counts transactions matching optional filters.
-//
-//	@Summary		Count Transactions by Filters
-//	@Description	Count transactions matching optional filters (route, status, date range)
-//	@Tags			Transactions
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"	format(uuid)
-//	@Param			ledger_id		path		string	true	"Ledger ID"			format(uuid)
-//	@Param			route			query		string	false	"Filter by transaction route"
-//	@Param			status			query		string	false	"Filter by transaction status"	Enums(CREATED, APPROVED, PENDING, CANCELED, NOTED)
-//	@Param			start_date		query		string	false	"Start of date range (RFC 3339, defaults to today 00:00:00 UTC)"	format(date-time)
-//	@Param			end_date		query		string	false	"End of date range (RFC 3339, defaults to today 23:59:59 UTC)"	format(date-time)
-//	@Success		204
-//	@Header			204	{integer}	X-Total-Count	"Total count of matching transactions"
-//	@Failure		400	{object}	mmodel.Error
-//	@Failure		401	{object}	mmodel.Error
-//	@Failure		403	{object}	mmodel.Error
-//	@Failure		500	{object}	mmodel.Error
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/metrics/count [head]
-func (handler *TransactionHandler) CountTransactionsByFilters(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.count_transactions_by_filters")
-	defer span.End()
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	filter, err := parseCountFilter(c)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid query parameters", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid query parameters: %v", err))
-
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Counting transactions for organization %s and ledger %s with filters: route=%s, status=%s",
-		organizationID, ledgerID, filter.Route, filter.Status,
-	))
-
-	count, err := handler.Query.CountTransactionsByFilters(ctx, organizationID, ledgerID, filter)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count transactions by filters", err)
-
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error counting transactions: %v", err))
-
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf(
-		"Successfully counted transactions for organization %s and ledger %s: %d",
-		organizationID, ledgerID, count,
-	))
-
-	c.Set(constant.XTotalCount, fmt.Sprintf("%d", count))
-	c.Set(constant.ContentLength, "0")
-
-	return http.NoContent(c)
+// countTransactionsByFilters counts the transactions matching filter within the
+// org+ledger scope.
+func (handler *TransactionHandler) countTransactionsByFilters(ctx context.Context, organizationID, ledgerID uuid.UUID, filter transaction.CountFilter) (int64, error) {
+	return handler.Query.CountTransactionsByFilters(ctx, organizationID, ledgerID, filter)
 }
 
-// parseCountFilter extracts and validates optional query parameters for the count endpoint.
-func parseCountFilter(c *fiber.Ctx) (transaction.CountFilter, error) {
+// buildCountFilter validates and assembles a CountFilter from raw query values. It
+// is the sole validator of the count query filters: an out-of-allowlist status, a
+// non-RFC-3339 date, or an inverted range yields a canonical business error rather
+// than a native Huma 422. Missing dates default to today's UTC day.
+func buildCountFilter(routeStr, statusStr, startDateStr, endDateStr string) (transaction.CountFilter, error) {
 	var filter transaction.CountFilter
 
-	filter.Route = strings.TrimSpace(c.Query("route"))
+	filter.Route = strings.TrimSpace(routeStr)
 
-	status := strings.TrimSpace(c.Query("status"))
+	status := strings.TrimSpace(statusStr)
 	if status != "" {
 		upper := strings.ToUpper(status)
 		if !validTransactionStatuses[upper] {
@@ -119,7 +52,7 @@ func parseCountFilter(c *fiber.Ctx) (transaction.CountFilter, error) {
 
 	now := time.Now().UTC()
 
-	startDateStr := strings.TrimSpace(c.Query("start_date"))
+	startDateStr = strings.TrimSpace(startDateStr)
 	if startDateStr != "" {
 		parsed, err := time.Parse(time.RFC3339, startDateStr)
 		if err != nil {
@@ -131,7 +64,7 @@ func parseCountFilter(c *fiber.Ctx) (transaction.CountFilter, error) {
 		filter.StartDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	}
 
-	endDateStr := strings.TrimSpace(c.Query("end_date"))
+	endDateStr = strings.TrimSpace(endDateStr)
 	if endDateStr != "" {
 		parsed, err := time.Parse(time.RFC3339, endDateStr)
 		if err != nil {

@@ -9,44 +9,32 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/shopspring/decimal"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // TransactionPostedDefinition is the routing contract for
 // transaction.posted.
 //
 // Emission anchor: components/ledger/internal/services/command/send_transaction_events.go,
-// inside SendTransactionEvents alongside the legacy
-// transaction.transaction_events rabbit publish. Fires when a freshly
+// inside SendTransactionEvents. Fires when a freshly
 // created transaction (no parent) has been committed to PostgreSQL AND
 // all its operations have been persisted. Distinguished from
 // transaction.reverted by tran.ParentTransactionID == nil.
 //
-// Anchor placement note: the original instrumentation map pinned this
-// event to CreateOrUpdateTransaction:193, but emitting there would fire
-// BEFORE the operations loop persists operation rows
-// (create_balance_transaction_operations_async.go:115-148). The
-// SendTransactionEvents call site at L150 of the same file fires only
-// after the full ops loop succeeds, which matches the safety contract
-// the legacy rabbit publish has always honoured. Single-transaction
-// async, single-transaction sync (write_transaction.go:154 →
-// CreateBalanceTransactionOperationsAsync), and the bulk path
-// (create_bulk_transaction_operations_async.go:555) all reach
+// Anchor placement: SendTransactionEvents fires only after the
+// operations loop persists operation rows
+// (create_balance_transaction_operations_async.go). Single-transaction
+// async, single-transaction sync (write_transaction.go →
+// CreateBalanceTransactionOperationsAsync) and the bulk path
+// (create_bulk_transaction_operations_async.go) all reach
 // SendTransactionEvents, so this anchor covers every code path.
 //
-// Cutover window: this event coexists with the legacy
-// transaction.transaction_events rabbit publish. The rabbit publish is
-// removed in a follow-up task once consumer migration is verified. The
-// disabled flag RABBITMQ_TRANSACTION_EVENTS_ENABLED=false short-circuits
-// BOTH transports during cutover.
-//
-// Posture note: the catalog marks this event CRITICAL (outbox: always,
-// direct: skip). The outbox subsystem is NOT yet wired in midaz, so
-// emission today goes through pkgStreaming.EmitImportant (direct emit,
-// no atomic guarantee). When the outbox lands the call site is the only
-// place that needs to switch helpers; the Definition stays unchanged.
+// Delivery policy is resolved by lib-streaming when this wire definition is
+// emitted. This definition only declares the event contract; Midaz does not add
+// a product-local transactional outbox or relay at this layer.
 var TransactionPostedDefinition = Definition{
 	ResourceType:  "transaction",
 	EventType:     "posted",
@@ -64,7 +52,7 @@ var TransactionPostedDefinition = Definition{
 // CreateOrUpdateTransaction's return value: phase=="updated" + status
 // APPROVED → committed; phase=="created" + status APPROVED → posted.
 //
-// Same cutover and posture caveats as TransactionPostedDefinition.
+// Same delivery policy as TransactionPostedDefinition.
 var TransactionCommittedDefinition = Definition{
 	ResourceType:  "transaction",
 	EventType:     "committed",
@@ -80,7 +68,7 @@ var TransactionCommittedDefinition = Definition{
 // Same anchor as transaction.committed but distinguished by the
 // terminal status code.
 //
-// Same cutover and posture caveats as TransactionPostedDefinition.
+// Same delivery policy as TransactionPostedDefinition.
 var TransactionCanceledDefinition = Definition{
 	ResourceType:  "transaction",
 	EventType:     "canceled",
@@ -101,7 +89,7 @@ var TransactionCanceledDefinition = Definition{
 // The new child transaction id is the idempotency key; consumers
 // correlate to the original via parentTransactionId.
 //
-// Same cutover and posture caveats as TransactionPostedDefinition.
+// Same delivery policy as TransactionPostedDefinition.
 var TransactionRevertedDefinition = Definition{
 	ResourceType:  "transaction",
 	EventType:     "reverted",
@@ -122,10 +110,7 @@ var TransactionRevertedDefinition = Definition{
 // (which lives behind an internal/ boundary). The caller —
 // emitTransactionLifecycleEvent in services/command/send_transaction_events.go
 // — marshals each *operation.Operation once and passes the RawMessage
-// slice in. The wire bytes are byte-identical to what the legacy
-// transaction.transaction_events rabbit publish emits (which also
-// marshals operations as-is), easing consumer migration during the
-// cutover window.
+// slice in.
 //
 // Scale is intentionally OMITTED for the same reason as the balance.*
 // payloads: it is an asset-level property, not a transaction-level one.
@@ -156,6 +141,8 @@ type TransactionPayload struct {
 	RouteID                  *string           `json:"routeId,omitempty"`
 	Operations               []json.RawMessage `json:"operations"`
 	Metadata                 map[string]any    `json:"metadata,omitempty"`
+	FeesSkipped              bool              `json:"feesSkipped"`
+	TracerSkipped            bool              `json:"tracerSkipped"`
 	CreatedAt                string            `json:"createdAt"`
 	UpdatedAt                string            `json:"updatedAt"`
 }
@@ -186,6 +173,8 @@ type TransactionSource struct {
 	RouteID                  *string
 	Operations               []json.RawMessage
 	Metadata                 map[string]any
+	FeesSkipped              bool
+	TracerSkipped            bool
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 }
@@ -215,6 +204,8 @@ func newTransactionPayload(src TransactionSource) TransactionPayload {
 		RouteID:                  src.RouteID,
 		Operations:               src.Operations,
 		Metadata:                 src.Metadata,
+		FeesSkipped:              src.FeesSkipped,
+		TracerSkipped:            src.TracerSkipped,
 		CreatedAt:                src.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:                src.UpdatedAt.Format(time.RFC3339),
 	}

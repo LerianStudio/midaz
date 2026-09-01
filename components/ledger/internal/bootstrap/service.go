@@ -10,14 +10,14 @@ import (
 	"os/signal"
 	"syscall"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	tmconsumer "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/consumer"
-	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/metrics"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libsd "github.com/LerianStudio/lib-service-discovery"
-	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	tmconsumer "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/consumer"
+	tmevent "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/event"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+
+	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
 
 // Service is the unified ledger service that owns all infrastructure directly.
@@ -45,10 +45,25 @@ type Service struct {
 	// to register the producer-shutdown Launcher app.
 	StreamingEnabled bool
 
-	// ServiceDiscovery is the lib-service-discovery Manager. It is always
+	// DeclarationStops holds the stop() hook of each RI permission-declaration
+	// publisher that started successfully. It is empty when declaration is
+	// disabled or every publisher was fail-open skipped, so the shutdown runnable
+	// is registered only when there is something to drain. Each stop() cancels its
+	// publisher's context and waits for its goroutine, preventing a leak on SIGTERM.
+	DeclarationStops []func()
+
+	// TracerClose is the close hook for the tracer reservation client's
+	// persistent connection (the gRPC client holds a grpc.ClientConn).
+	// It is nil when the active transport needs no teardown (the REST
+	// client) so Run() can skip registering a no-op Launcher app. Non-nil
+	// only for transports that expose Close() error.
+	TracerClose func() error
+	// ServiceDiscovery is the service-discovery Manager wrapper. It is always
 	// non-nil (a working no-op when discovery is disabled), so callers can
-	// invoke Register/Deregister/Resolve unconditionally.
-	ServiceDiscovery *libsd.Manager
+	// invoke Register/Deregister/Resolve unconditionally. The concrete Manager
+	// is a no-op in the default build and wraps lib-service-discovery only under
+	// //go:build libsd (see pkg/servicediscovery TODO(3482)).
+	ServiceDiscovery *pkgsd.Manager
 	// ServiceDiscoveryEnabled mirrors SD_ENABLED so Run() can decide whether
 	// to register the discovery register/deregister Launcher app.
 	ServiceDiscoveryEnabled bool
@@ -56,7 +71,7 @@ type Service struct {
 	// built at wiring time only when discovery is enabled (so a malformed
 	// SERVER_ADDRESS never aborts boot with discovery off) and reused by the
 	// service-discovery runnable. It is zero-value when discovery is disabled.
-	ServiceDescriptor libsd.Service
+	ServiceDescriptor pkgsd.Descriptor
 	// ServiceDiscoveryMetrics records SD register/deregister metrics through the
 	// discovery runnable. It is a NopMetricsRecorder when discovery is disabled,
 	// so no SD metrics are emitted with SD off.
@@ -68,11 +83,12 @@ type Service struct {
 func (s *Service) Run() {
 	s.Logger.Log(context.Background(), libLog.LevelInfo, "Running unified ledger service with single-port mode")
 
-	launcherOpts := []libCommons.LauncherOption{
-		libCommons.WithLogger(s.Logger),
-	}
+	apps := s.launcherApps()
 
-	for _, app := range s.launcherApps() {
+	launcherOpts := make([]libCommons.LauncherOption, 0, 1+len(apps))
+	launcherOpts = append(launcherOpts, libCommons.WithLogger(s.Logger))
+
+	for _, app := range apps {
 		launcherOpts = append(launcherOpts, libCommons.RunApp(app.name, app.app))
 	}
 
@@ -159,7 +175,59 @@ func (s *Service) launcherApps() []launcherApp {
 		})
 	}
 
+	// RI declaration publishers: register only when at least one publisher
+	// started. Empty means declaration is off or every publisher was fail-open
+	// skipped, so no runnable / goroutine is added.
+	if len(s.DeclarationStops) > 0 {
+		apps = append(apps, launcherApp{
+			"RI Declaration Publishers",
+			&declarationPublisherRunnable{stops: s.DeclarationStops},
+		})
+	}
+
+	// Tracer reservation client: register only when the active transport
+	// exposes a close hook. The REST client needs no teardown and leaves
+	// TracerClose nil, so the Launcher app list stays lean.
+	if s.TracerClose != nil {
+		apps = append(apps, launcherApp{
+			"Tracer Reservation Client",
+			&tracerCloseRunnable{close: s.TracerClose, logger: s.Logger},
+		})
+	}
+
 	return apps
+}
+
+// tracerCloseRunnable adapts the tracer reservation client's Close hook to the
+// libCommons.App interface. It blocks until SIGINT/SIGTERM and then drains the
+// persistent gRPC connection so it is released before the process exits.
+type tracerCloseRunnable struct {
+	close  func() error
+	logger libLog.Logger
+}
+
+// Run blocks until SIGINT/SIGTERM and then invokes the tracer client close hook.
+// A non-nil return is logged but not propagated because at shutdown the Launcher
+// cannot meaningfully react.
+func (r *tracerCloseRunnable) Run(_ *libCommons.Launcher) error {
+	if r == nil || r.close == nil {
+		return nil
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	<-ctx.Done()
+
+	if err := r.close(); err != nil && r.logger != nil {
+		r.logger.Log(
+			context.Background(), libLog.LevelWarn,
+			"tracer reservation client Close returned error",
+			libLog.String("error", err.Error()),
+		)
+	}
+
+	return nil
 }
 
 // streamingProducerRunnable adapts the lib-streaming Producer's Close hook

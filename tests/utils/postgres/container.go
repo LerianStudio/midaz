@@ -11,12 +11,14 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
+	"net/netip"
 	"testing"
 	"time"
 
-	testutils "github.com/LerianStudio/midaz/v3/tests/utils"
+	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 
 	"github.com/moby/moby/api/types/container"
+	mobynetwork "github.com/moby/moby/api/types/network"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -70,8 +72,27 @@ func SetupContainer(t *testing.T) *ContainerResult {
 	return SetupContainerWithConfig(t, DefaultContainerConfig())
 }
 
+// SetupContainerWithFixedPort starts PostgreSQL on a host port that remains
+// stable across container restarts. Lifecycle tests must use this variant:
+// Docker may reassign an ephemeral published port during restart, which changes
+// the endpoint rather than exercising client reconnection.
+func SetupContainerWithFixedPort(t *testing.T) *ContainerResult {
+	t.Helper()
+
+	hostPort, err := freeHostPort()
+	require.NoError(t, err, "failed to reserve PostgreSQL host port")
+
+	return setupContainerWithConfig(t, DefaultContainerConfig(), hostPort)
+}
+
 // SetupContainerWithConfig starts a PostgreSQL container with custom configuration.
 func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResult {
+	t.Helper()
+
+	return setupContainerWithConfig(t, cfg, "")
+}
+
+func setupContainerWithConfig(t *testing.T, cfg ContainerConfig, fixedHostPort string) *ContainerResult {
 	t.Helper()
 
 	ctx := context.Background()
@@ -84,11 +105,23 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 			"POSTGRES_USER":     cfg.DBUser,
 			"POSTGRES_PASSWORD": cfg.DBPassword,
 		},
-		WaitingFor: wait.ForLog("database system is ready to accept connections").
-			WithOccurrence(2).
-			WithStartupTimeout(180 * time.Second),
+		WaitingFor: wait.ForAll(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2),
+			wait.ForListeningPort("5432/tcp"),
+		).WithDeadline(180 * time.Second),
 		HostConfigModifier: func(hc *container.HostConfig) {
 			testutils.ApplyResourceLimits(hc, cfg.MemoryMB, cfg.CPULimit)
+
+			if fixedHostPort != "" {
+				if hc.PortBindings == nil {
+					hc.PortBindings = mobynetwork.PortMap{}
+				}
+
+				hc.PortBindings[mobynetwork.MustParsePort("5432/tcp")] = []mobynetwork.PortBinding{
+					{HostIP: netip.MustParseAddr("0.0.0.0"), HostPort: fixedHostPort},
+				}
+			}
 		},
 	}
 
@@ -162,6 +195,20 @@ func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResul
 		DSN:       dsn,
 		Config:    cfg,
 	}
+}
+
+func freeHostPort() (string, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%d", port), nil
 }
 
 // BuildConnectionString builds a PostgreSQL connection string from host, port and config.

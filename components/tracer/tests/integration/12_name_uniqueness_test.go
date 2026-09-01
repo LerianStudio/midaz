@@ -1,0 +1,650 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+//go:build integration
+
+package integration
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+)
+
+// =============================================================================
+// Rules & Limits Name Uniqueness Tests
+//
+// These tests verify:
+// 1. Creating a rule with a duplicate name in the same context returns HTTP 409 + 0441 (ErrRuleNameAlreadyExistsInCtx)
+// 2. Creating a rule with the same name in a DIFFERENT context returns HTTP 201
+// 3. Creating a rule with a name that was previously soft-deleted returns HTTP 201
+// 4. Creating a limit with a duplicate name (globally unique) returns HTTP 409 + 0442 (ErrLimitNameAlreadyExists)
+// 5. Creating a limit with a name that was previously soft-deleted returns HTTP 201
+//
+// Implementation complete:
+// - Unique indexes on rules(context_id, name) and limits(name) with NULLS NOT DISTINCT
+// - 0441 and 0442 error codes for duplicate names (title is the humanized sentinel name; human text in RFC 9457 detail)
+// - Context-scoped uniqueness for rules (via context_id derived from first scope's segmentId)
+// - Global uniqueness for limits (name must be unique across all non-deleted limits)
+// TODO: update limit tests to include rule_id when limits become rule-scoped
+// =============================================================================
+
+// nameUniquenessRuleRequest is a helper struct for rule creation
+type nameUniquenessRuleRequest struct {
+	Name       string                `json:"name"`
+	Expression string                `json:"expression"`
+	Action     string                `json:"action"`
+	Scopes     []testutil.ScopeInput `json:"scopes,omitempty"`
+}
+
+// nameUniquenessLimitRequest is a helper struct for limit creation
+type nameUniquenessLimitRequest struct {
+	Name      string                `json:"name"`
+	LimitType string                `json:"limitType"`
+	MaxAmount decimal.Decimal       `json:"maxAmount"`
+	Asset     string                `json:"asset"`
+	Scopes    []testutil.ScopeInput `json:"scopes"`
+	RuleID    *string               `json:"ruleId,omitempty"` // Future field for rule association
+}
+
+// nameUniquenessErrorResponse represents the error response structure
+type nameUniquenessErrorResponse struct {
+	Code    string `json:"code"`
+	Title   string `json:"title"`
+	Detail  string `json:"detail"`
+	Message string `json:"message"`
+}
+
+// =============================================================================
+// Test 1: CreateRule_DuplicateName_Returns409
+// Same name + same context -> 409 + 0441
+// =============================================================================
+
+func TestCreateRule_DuplicateName_Returns409(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	// Use deterministic UUIDs for test reproducibility (12000+ range to avoid conflicts with other test suites)
+	contextID := testutil.MustDeterministicUUID(12001).String()
+	ruleName := "duplicate rule name test " + testutil.RandomSuffix()
+
+	// Create the first rule (should succeed)
+	reqBody1 := nameUniquenessRuleRequest{
+		Name:       ruleName,
+		Expression: "amount > 100",
+		Action:     "DENY",
+		Scopes: []testutil.ScopeInput{
+			{SegmentID: testutil.StringPtr(contextID)}, // Using segmentId as context
+		},
+	}
+
+	body1, err := json.Marshal(reqBody1)
+	require.NoError(t, err)
+
+	req1, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body1))
+	require.NoError(t, err)
+	req1.Header.Set("X-API-Key", apiKey)
+	req1.Header.Set("Content-Type", "application/json")
+
+	resp1, err := testutil.HTTPClient.Do(req1)
+	require.NoError(t, err)
+	defer resp1.Body.Close()
+
+	respBody1, err := io.ReadAll(resp1.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First rule creation should succeed: %s", string(respBody1))
+
+	var result1 map[string]any
+	err = json.Unmarshal(respBody1, &result1)
+	require.NoError(t, err)
+
+	firstRuleID, ok := result1["ruleId"].(string)
+	require.True(t, ok, "expected ruleId to be a string")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, firstRuleID)
+	})
+
+	// Create the second rule with the SAME name and SAME context (should fail with 409)
+	reqBody2 := nameUniquenessRuleRequest{
+		Name:       ruleName, // Same name as first rule
+		Expression: "amount > 200",
+		Action:     "ALLOW",
+		Scopes: []testutil.ScopeInput{
+			{SegmentID: testutil.StringPtr(contextID)}, // Same context as first rule
+		},
+	}
+
+	body2, err := json.Marshal(reqBody2)
+	require.NoError(t, err)
+
+	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body2))
+	require.NoError(t, err)
+	req2.Header.Set("X-API-Key", apiKey)
+	req2.Header.Set("Content-Type", "application/json")
+
+	resp2, err := testutil.HTTPClient.Do(req2)
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	respBody2, err := io.ReadAll(resp2.Body)
+	require.NoError(t, err)
+
+	// Verify duplicate rule name in same context returns 409 + 0441
+	assert.Equal(t, http.StatusConflict, resp2.StatusCode, "Duplicate rule name in same context should return 409: %s", string(respBody2))
+
+	if resp2.StatusCode == http.StatusConflict {
+		var errResp nameUniquenessErrorResponse
+		err = json.Unmarshal(respBody2, &errResp)
+		require.NoError(t, err)
+
+		assert.Equal(t, "0441", errResp.Code, "Error code should be 0441 (ErrRuleNameAlreadyExistsInCtx) for duplicate rule name in same context")
+		assert.Equal(t, "Rule Name Already Exists In Ctx", errResp.Title, "Error title is the humanized sentinel name")
+		// message field is retired under RFC 9457; the human text now lives in `detail`.
+		assert.Empty(t, errResp.Message, "message retired; RFC 9457 detail carries the human text")
+		require.NotEmpty(t, errResp.Detail, "RFC 9457 detail must carry the human-readable conflict text")
+		assert.Equal(t, "Rule name already exists in this context.", errResp.Detail, "detail should state the rule-name conflict")
+	}
+}
+
+// =============================================================================
+// Test 2: CreateRule_DuplicateName_DifferentContext_Returns201
+// Same name + different context -> 201
+// =============================================================================
+
+func TestCreateRule_DuplicateName_DifferentContext_Returns201(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	// Use deterministic UUIDs for test reproducibility
+	contextID1 := testutil.MustDeterministicUUID(12003).String()
+	contextID2 := testutil.MustDeterministicUUID(12004).String()
+	ruleName := "same name different context " + testutil.RandomSuffix()
+
+	// Create the first rule in context 1
+	reqBody1 := nameUniquenessRuleRequest{
+		Name:       ruleName,
+		Expression: "amount > 100",
+		Action:     "DENY",
+		Scopes: []testutil.ScopeInput{
+			{SegmentID: testutil.StringPtr(contextID1)}, // Context 1
+		},
+	}
+
+	body1, err := json.Marshal(reqBody1)
+	require.NoError(t, err)
+
+	req1, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body1))
+	require.NoError(t, err)
+	req1.Header.Set("X-API-Key", apiKey)
+	req1.Header.Set("Content-Type", "application/json")
+
+	resp1, err := testutil.HTTPClient.Do(req1)
+	require.NoError(t, err)
+	defer resp1.Body.Close()
+
+	respBody1, err := io.ReadAll(resp1.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First rule creation should succeed: %s", string(respBody1))
+
+	var result1 map[string]any
+	err = json.Unmarshal(respBody1, &result1)
+	require.NoError(t, err)
+
+	firstRuleID, ok := result1["ruleId"].(string)
+	require.True(t, ok, "expected ruleId to be a string")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, firstRuleID)
+	})
+
+	// Create the second rule with the SAME name but DIFFERENT context (should succeed)
+	reqBody2 := nameUniquenessRuleRequest{
+		Name:       ruleName, // Same name as first rule
+		Expression: "amount > 200",
+		Action:     "ALLOW",
+		Scopes: []testutil.ScopeInput{
+			{SegmentID: testutil.StringPtr(contextID2)}, // Different context
+		},
+	}
+
+	body2, err := json.Marshal(reqBody2)
+	require.NoError(t, err)
+
+	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body2))
+	require.NoError(t, err)
+	req2.Header.Set("X-API-Key", apiKey)
+	req2.Header.Set("Content-Type", "application/json")
+
+	resp2, err := testutil.HTTPClient.Do(req2)
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	respBody2, err := io.ReadAll(resp2.Body)
+	require.NoError(t, err)
+
+	// Verify same name in different context is allowed (context-scoped uniqueness)
+	assert.Equal(t, http.StatusCreated, resp2.StatusCode, "Same name in different context should be allowed (201): %s", string(respBody2))
+
+	if resp2.StatusCode == http.StatusCreated {
+		var result2 map[string]any
+		err = json.Unmarshal(respBody2, &result2)
+		require.NoError(t, err)
+
+		secondRuleID, ok := result2["ruleId"].(string)
+		require.True(t, ok, "expected ruleId to be a string")
+		t.Cleanup(func() {
+			testutil.CleanupRule(t, secondRuleID)
+		})
+
+		// Verify both rules exist with the same name
+		assert.NotEqual(t, firstRuleID, secondRuleID, "Rule IDs should be different")
+	}
+}
+
+// =============================================================================
+// Test 3: CreateRule_DeletedNameReuse_Returns201
+// Create -> soft-delete -> create same name -> 201
+// =============================================================================
+
+func TestCreateRule_DeletedNameReuse_Returns201(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	// Use deterministic UUIDs for test reproducibility
+	contextID := testutil.MustDeterministicUUID(12006).String()
+	ruleName := "deleted name reuse " + testutil.RandomSuffix()
+
+	// Create the first rule
+	reqBody1 := nameUniquenessRuleRequest{
+		Name:       ruleName,
+		Expression: "amount > 100",
+		Action:     "DENY",
+		Scopes: []testutil.ScopeInput{
+			{SegmentID: testutil.StringPtr(contextID)},
+		},
+	}
+
+	body1, err := json.Marshal(reqBody1)
+	require.NoError(t, err)
+
+	req1, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body1))
+	require.NoError(t, err)
+	req1.Header.Set("X-API-Key", apiKey)
+	req1.Header.Set("Content-Type", "application/json")
+
+	resp1, err := testutil.HTTPClient.Do(req1)
+	require.NoError(t, err)
+	defer resp1.Body.Close()
+
+	respBody1, err := io.ReadAll(resp1.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First rule creation should succeed: %s", string(respBody1))
+
+	var result1 map[string]any
+	err = json.Unmarshal(respBody1, &result1)
+	require.NoError(t, err)
+
+	firstRuleID, ok := result1["ruleId"].(string)
+	require.True(t, ok, "expected ruleId to be a string")
+
+	// Soft-delete the first rule (deactivate + delete)
+	testutil.DeactivateRule(t, firstRuleID)
+	testutil.DeleteRuleViaAPI(t, firstRuleID)
+
+	// Create a NEW rule with the SAME name (should succeed because old one is soft-deleted)
+	reqBody2 := nameUniquenessRuleRequest{
+		Name:       ruleName, // Same name as the deleted rule
+		Expression: "amount > 500",
+		Action:     "REVIEW",
+		Scopes: []testutil.ScopeInput{
+			{SegmentID: testutil.StringPtr(contextID)}, // Same context
+		},
+	}
+
+	body2, err := json.Marshal(reqBody2)
+	require.NoError(t, err)
+
+	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body2))
+	require.NoError(t, err)
+	req2.Header.Set("X-API-Key", apiKey)
+	req2.Header.Set("Content-Type", "application/json")
+
+	resp2, err := testutil.HTTPClient.Do(req2)
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	respBody2, err := io.ReadAll(resp2.Body)
+	require.NoError(t, err)
+
+	// Verify soft-deleted names can be reused (partial index excludes DELETED)
+	assert.Equal(t, http.StatusCreated, resp2.StatusCode, "Reusing soft-deleted rule name should succeed (201): %s", string(respBody2))
+
+	if resp2.StatusCode == http.StatusCreated {
+		var result2 map[string]any
+		err = json.Unmarshal(respBody2, &result2)
+		require.NoError(t, err)
+
+		secondRuleID, ok := result2["ruleId"].(string)
+		require.True(t, ok, "expected ruleId to be a string")
+		t.Cleanup(func() {
+			testutil.CleanupRule(t, secondRuleID)
+		})
+
+		// Verify the new rule was created with the reused name
+		assert.NotEmpty(t, secondRuleID, "New rule ID should not be empty")
+	}
+}
+
+// =============================================================================
+// Test 4: CreateLimit_DuplicateName_Returns409
+// Same name (globally unique) -> 409 + 0442
+// =============================================================================
+
+func TestCreateLimit_DuplicateName_Returns409(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	// Use deterministic UUIDs for test reproducibility
+	accountID := testutil.MustDeterministicUUID(12008).String()
+	limitName := "duplicate limit name test " + testutil.RandomSuffix()
+
+	// Create the first limit
+	reqBody1 := nameUniquenessLimitRequest{
+		Name:      limitName,
+		LimitType: "DAILY",
+		MaxAmount: decimal.RequireFromString("1000"),
+		Asset:     "BRL",
+		Scopes: []testutil.ScopeInput{
+			{AccountID: testutil.StringPtr(accountID)},
+		},
+	}
+
+	body1, err := json.Marshal(reqBody1)
+	require.NoError(t, err)
+
+	req1, err := http.NewRequest(http.MethodPost, baseURL+"/v1/limits", bytes.NewReader(body1))
+	require.NoError(t, err)
+	req1.Header.Set("X-API-Key", apiKey)
+	req1.Header.Set("Content-Type", "application/json")
+
+	resp1, err := testutil.HTTPClient.Do(req1)
+	require.NoError(t, err)
+	defer resp1.Body.Close()
+
+	respBody1, err := io.ReadAll(resp1.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First limit creation should succeed: %s", string(respBody1))
+
+	var result1 map[string]any
+	err = json.Unmarshal(respBody1, &result1)
+	require.NoError(t, err)
+
+	firstLimitID, ok := result1["limitId"].(string)
+	require.True(t, ok, "expected limitId to be a string")
+	t.Cleanup(func() {
+		testutil.CleanupLimit(t, firstLimitID)
+	})
+
+	// Create the second limit with the SAME name (should fail with 409)
+	// Note: Limit names are globally unique among non-deleted limits
+	reqBody2 := nameUniquenessLimitRequest{
+		Name:      limitName, // Same name as first limit
+		LimitType: "DAILY",
+		MaxAmount: decimal.RequireFromString("2000"),
+		Asset:     "BRL",
+		Scopes: []testutil.ScopeInput{
+			{AccountID: testutil.StringPtr(accountID)},
+		},
+	}
+
+	body2, err := json.Marshal(reqBody2)
+	require.NoError(t, err)
+
+	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/limits", bytes.NewReader(body2))
+	require.NoError(t, err)
+	req2.Header.Set("X-API-Key", apiKey)
+	req2.Header.Set("Content-Type", "application/json")
+
+	resp2, err := testutil.HTTPClient.Do(req2)
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	respBody2, err := io.ReadAll(resp2.Body)
+	require.NoError(t, err)
+
+	// Verify duplicate limit name returns 409 + 0442
+	assert.Equal(t, http.StatusConflict, resp2.StatusCode, "Duplicate limit name should return 409: %s", string(respBody2))
+
+	if resp2.StatusCode == http.StatusConflict {
+		var errResp nameUniquenessErrorResponse
+		err = json.Unmarshal(respBody2, &errResp)
+		require.NoError(t, err)
+
+		assert.Equal(t, "0442", errResp.Code, "Error code should be 0442 (ErrLimitNameAlreadyExists) for duplicate limit name")
+		assert.Equal(t, "Limit Name Already Exists", errResp.Title, "Error title is the humanized sentinel name")
+		// message field is retired under RFC 9457; the human text now lives in `detail`.
+		assert.Empty(t, errResp.Message, "message retired; RFC 9457 detail carries the human text")
+		require.NotEmpty(t, errResp.Detail, "RFC 9457 detail must carry the human-readable conflict text")
+		assert.Equal(t, "Limit name already exists.", errResp.Detail, "detail should state the limit-name conflict")
+	}
+}
+
+// =============================================================================
+// Test 5: CreateLimit_DeletedNameReuse_Returns201
+// Create -> soft-delete -> create same name -> 201
+// =============================================================================
+
+func TestCreateLimit_DeletedNameReuse_Returns201(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	// Use deterministic UUIDs for test reproducibility
+	accountID := testutil.MustDeterministicUUID(12010).String()
+	limitName := "deleted limit name reuse " + testutil.RandomSuffix()
+
+	// Create the first limit
+	reqBody1 := nameUniquenessLimitRequest{
+		Name:      limitName,
+		LimitType: "DAILY",
+		MaxAmount: decimal.RequireFromString("1000"),
+		Asset:     "BRL",
+		Scopes: []testutil.ScopeInput{
+			{AccountID: testutil.StringPtr(accountID)},
+		},
+	}
+
+	body1, err := json.Marshal(reqBody1)
+	require.NoError(t, err)
+
+	req1, err := http.NewRequest(http.MethodPost, baseURL+"/v1/limits", bytes.NewReader(body1))
+	require.NoError(t, err)
+	req1.Header.Set("X-API-Key", apiKey)
+	req1.Header.Set("Content-Type", "application/json")
+
+	resp1, err := testutil.HTTPClient.Do(req1)
+	require.NoError(t, err)
+	defer resp1.Body.Close()
+
+	respBody1, err := io.ReadAll(resp1.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, resp1.StatusCode, "First limit creation should succeed: %s", string(respBody1))
+
+	var result1 map[string]any
+	err = json.Unmarshal(respBody1, &result1)
+	require.NoError(t, err)
+
+	firstLimitID, ok := result1["limitId"].(string)
+	require.True(t, ok, "expected limitId to be a string")
+
+	// Activate and then soft-delete the first limit
+	testutil.ActivateLimit(t, firstLimitID)
+	testutil.CleanupLimit(t, firstLimitID) // This deactivates and deletes
+
+	// Create a NEW limit with the SAME name (should succeed because old one is soft-deleted)
+	reqBody2 := nameUniquenessLimitRequest{
+		Name:      limitName, // Same name as the deleted limit
+		LimitType: "MONTHLY",
+		MaxAmount: decimal.RequireFromString("5000"),
+		Asset:     "BRL",
+		Scopes: []testutil.ScopeInput{
+			{AccountID: testutil.StringPtr(accountID)},
+		},
+	}
+
+	body2, err := json.Marshal(reqBody2)
+	require.NoError(t, err)
+
+	req2, err := http.NewRequest(http.MethodPost, baseURL+"/v1/limits", bytes.NewReader(body2))
+	require.NoError(t, err)
+	req2.Header.Set("X-API-Key", apiKey)
+	req2.Header.Set("Content-Type", "application/json")
+
+	resp2, err := testutil.HTTPClient.Do(req2)
+	require.NoError(t, err)
+	defer resp2.Body.Close()
+
+	respBody2, err := io.ReadAll(resp2.Body)
+	require.NoError(t, err)
+
+	// Verify soft-deleted limit names can be reused (partial index excludes DELETED)
+	assert.Equal(t, http.StatusCreated, resp2.StatusCode, "Reusing soft-deleted limit name should succeed (201): %s", string(respBody2))
+
+	if resp2.StatusCode == http.StatusCreated {
+		var result2 map[string]any
+		err = json.Unmarshal(respBody2, &result2)
+		require.NoError(t, err)
+
+		secondLimitID, ok := result2["limitId"].(string)
+		require.True(t, ok, "expected limitId to be a string")
+		t.Cleanup(func() {
+			testutil.CleanupLimit(t, secondLimitID)
+		})
+
+		// Verify the new limit was created with the reused name
+		assert.NotEmpty(t, secondLimitID, "New limit ID should not be empty")
+	}
+}
+
+// =============================================================================
+// Test 6: CreateRule_CaseSensitiveName_Returns201
+// Same context, two names differing ONLY by case -> BOTH 201, two distinct rules.
+//
+// Rule-name uniqueness is case-sensitive (parity with limits): "Foo Rule" and
+// "FOO RULE" are DISTINCT names and must both persist in the same context. This
+// pins the contract so a future LOWER()/citext regression that collapses case
+// into a single name is caught.
+// =============================================================================
+
+func TestCreateRule_CaseSensitiveName_Returns201(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	// Use deterministic UUIDs for test reproducibility (12000+ range to avoid
+	// conflicts with the other tests in this suite).
+	contextID := testutil.MustDeterministicUUID(12012).String()
+
+	// Two names identical up to letter case. ToUpper guarantees they differ ONLY
+	// by case; NotEqual guards against a suffix with no letters collapsing them.
+	lowerName := "Foo Rule " + testutil.RandomSuffix()
+	upperName := strings.ToUpper(lowerName)
+	require.NotEqual(t, lowerName, upperName, "the two names must differ only by case")
+
+	// createRule posts a rule in the shared context and returns (status, id, name).
+	createRule := func(name, expression, action string) (int, string, string) {
+		reqBody := nameUniquenessRuleRequest{
+			Name:       name,
+			Expression: expression,
+			Action:     action,
+			Scopes: []testutil.ScopeInput{
+				{SegmentID: testutil.StringPtr(contextID)},
+			},
+		}
+
+		body, err := json.Marshal(reqBody)
+		require.NoError(t, err)
+
+		req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body))
+		require.NoError(t, err)
+		req.Header.Set("X-API-Key", apiKey)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := testutil.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(respBody, &result))
+
+		id, _ := result["ruleId"].(string)
+		gotName, _ := result["name"].(string)
+
+		return resp.StatusCode, id, gotName
+	}
+
+	// getRuleName fetches a rule by ID and returns (status, name) so we can assert
+	// both rules are retrievable with their verbatim (case-preserved) names.
+	getRuleName := func(ruleID string) (int, string) {
+		req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/rules/"+ruleID, nil)
+		require.NoError(t, err)
+		req.Header.Set("X-API-Key", apiKey)
+
+		resp, err := testutil.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(respBody, &result))
+
+		gotName, _ := result["name"].(string)
+
+		return resp.StatusCode, gotName
+	}
+
+	// Create the first rule (mixed-case name).
+	status1, firstRuleID, createdName1 := createRule(lowerName, "amount > 100", "DENY")
+	require.Equal(t, http.StatusCreated, status1, "First rule creation should succeed")
+	require.NotEmpty(t, firstRuleID, "expected ruleId to be a non-empty string")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, firstRuleID)
+	})
+
+	// Create the second rule differing ONLY by case, in the SAME context. Because
+	// uniqueness is case-sensitive, this must succeed (201) rather than collide (409).
+	status2, secondRuleID, createdName2 := createRule(upperName, "amount > 200", "ALLOW")
+	require.Equal(t, http.StatusCreated, status2, "Case-only-different rule name in same context should be allowed (201); a 409 means case-sensitive uniqueness regressed")
+	require.NotEmpty(t, secondRuleID, "expected ruleId to be a non-empty string")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, secondRuleID)
+	})
+
+	// Two distinct rules exist with case-only-different names.
+	assert.NotEqual(t, firstRuleID, secondRuleID, "case-only-different names must produce two distinct rules")
+
+	// Names are stored verbatim (case preserved) on the way in.
+	assert.Equal(t, lowerName, createdName1, "first rule must keep its submitted casing")
+	assert.Equal(t, upperName, createdName2, "second rule must keep its submitted casing")
+
+	// Both rules are retrievable with their verbatim names.
+	getStatus1, fetchedName1 := getRuleName(firstRuleID)
+	assert.Equal(t, http.StatusOK, getStatus1, "first rule should be retrievable")
+	assert.Equal(t, lowerName, fetchedName1, "GET must return the first rule's verbatim name")
+
+	getStatus2, fetchedName2 := getRuleName(secondRuleID)
+	assert.Equal(t, http.StatusOK, getStatus2, "second rule should be retrievable")
+	assert.Equal(t, upperName, fetchedName2, "GET must return the second rule's verbatim name")
+}

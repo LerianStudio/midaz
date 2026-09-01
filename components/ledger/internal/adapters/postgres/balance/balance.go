@@ -10,10 +10,11 @@ import (
 	"log"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/shopspring/decimal"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // BalancePostgreSQLModel represents the entity Balance into SQL context in Database

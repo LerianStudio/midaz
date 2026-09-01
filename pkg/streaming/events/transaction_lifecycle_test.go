@@ -8,14 +8,15 @@ import (
 	"encoding/json"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
 var (
@@ -61,8 +62,8 @@ func minimalTransactionSource() events.TransactionSource {
 }
 
 func TestTransactionLifecycleDefinitions_Keys(t *testing.T) {
-	// All four event_types are single-word and pass the lib-streaming
-	// route-key regex (^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$).
+	// All four event types are single-word. The key is the consumer's dispatch
+	// selector inside the ledger stream, not a topic name.
 	assert.Equal(t, "transaction.posted", events.TransactionPostedDefinition.Key())
 	assert.Equal(t, "transaction.committed", events.TransactionCommittedDefinition.Key())
 	assert.Equal(t, "transaction.canceled", events.TransactionCanceledDefinition.Key())
@@ -193,13 +194,45 @@ func TestTransactionPayload_JSONShape_OmitsScale(t *testing.T) {
 	var generic map[string]any
 	require.NoError(t, json.Unmarshal(data, &generic))
 
-	for _, key := range []string{
-		"id", "organizationId", "ledgerId", "status", "amount",
-		"assetCode", "operations", "createdAt", "updatedAt",
-	} {
+	// Fail-closed exact-set for the minimal posted payload: the marshaled
+	// key set must EQUAL this expected set. The minimal source leaves
+	// parentTransactionId, routeId and metadata unset (all omitempty), so
+	// they are absent here; every other field is populated and present.
+	// An unexpected new top-level key fails just as a missing one does, so
+	// additive drift cannot slip onto the wire unnoticed.
+	expectedKeys := map[string]struct{}{
+		"id":                       {},
+		"organizationId":           {},
+		"ledgerId":                 {},
+		"status":                   {},
+		"amount":                   {},
+		"assetCode":                {},
+		"chartOfAccountsGroupName": {},
+		"description":              {},
+		"source":                   {},
+		"destination":              {},
+		"route":                    {},
+		"operations":               {},
+		"feesSkipped":              {},
+		"tracerSkipped":            {},
+		"createdAt":                {},
+		"updatedAt":                {},
+	}
+
+	// No unexpected key (fail-closed): every actual key must be expected.
+	for key := range generic {
+		_, ok := expectedKeys[key]
+		assert.Truef(t, ok, "wire payload has unexpected top-level key %q (drift?)", key)
+	}
+
+	// No missing key: every expected key must be present.
+	for key := range expectedKeys {
 		_, ok := generic[key]
 		assert.Truef(t, ok, "wire payload must include %q", key)
 	}
+
+	// Pin the count so additive drift is caught here too.
+	assert.Lenf(t, generic, 16, "expected 16 top-level fields, got %d (drift?)", len(generic))
 
 	_, hasParent := generic["parentTransactionId"]
 	assert.False(t, hasParent, "parentTransactionId must omitempty when nil")

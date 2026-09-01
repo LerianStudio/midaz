@@ -1,0 +1,12 @@
+version: v2
+managed:
+  enabled: true
+plugins:
+  # Pinned plugin versions — keep in sync with go.mod (google.golang.org/protobuf,
+  # google.golang.org/grpc/cmd/protoc-gen-go-grpc) and the Makefile `proto` target.
+  - remote: buf.build/protocolbuffers/go:v1.36.11
+    out: pkg/proto
+    opt: paths=source_relative
+  - remote: buf.build/grpc/go:v1.5.1
+    out: pkg/proto
+    opt: paths=source_relative

@@ -7,44 +7,48 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
-	"reflect"
+	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
 	"github.com/google/uuid"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
+
 	// GetAccountByID get an Account from the repository by given id.
-	libLog "github.com/LerianStudio/lib-observability/log"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 )
 
-func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, holderPolicy mmodel.HolderPolicy) (_ *mmodel.Account, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_account_by_id")
 	defer span.End()
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Retrieving account for id: %s", id))
+	start := time.Now()
 
-	account, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, portfolioID, id)
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "get_account", start, err)
+	}()
+
+	account, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, portfolioID, id, holderPolicy)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error getting account on repo by id: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Error getting account on repo by id", libLog.Err(err))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
 		}
 
 		return nil, err
 	}
 
 	if account != nil {
-		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String())
+		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, constant.EntityAccount, id.String())
 		if err != nil {
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error get metadata on mongodb account: %v", err))
+			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb account", libLog.Err(err))
 
 			return nil, err
 		}

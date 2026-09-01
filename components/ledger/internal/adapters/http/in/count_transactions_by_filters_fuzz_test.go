@@ -5,10 +5,9 @@
 package in
 
 // =============================================================================
-// FUZZ TESTS — parseCountFilter Input Parsing
+// FUZZ TESTS — count filter input parsing
 //
-// These tests exercise the parseCountFilter function with fuzzer-generated
-// inputs to verify:
+// These tests exercise buildCountFilter with fuzzer-generated inputs to verify:
 //   1. No panics on any combination of route, status, start_date, end_date.
 //   2. Validation errors are returned correctly for invalid inputs.
 //   3. No SQL injection vectors pass through validation.
@@ -22,19 +21,17 @@ package in
 
 import (
 	"fmt"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 )
 
-// fuzzParseCountFilter is a test helper that creates a Fiber context with the
-// given query parameters and calls parseCountFilter. It returns the error (if
-// any) and a boolean indicating whether the function panicked.
+// fuzzParseCountFilter encodes the given values into a query string, re-parses it
+// the way the Huma binder does (url.Values), and calls buildCountFilter. It returns
+// the error (if any) and a boolean indicating whether the call panicked.
 func fuzzParseCountFilter(t *testing.T, route, status, startDate, endDate string) (err error, panicked bool) {
 	t.Helper()
 
@@ -44,15 +41,6 @@ func fuzzParseCountFilter(t *testing.T, route, status, startDate, endDate string
 			err = fmt.Errorf("panic: %v", r)
 		}
 	}()
-
-	app := fiber.New()
-
-	var capturedErr error
-
-	app.Get("/test", func(c *fiber.Ctx) error {
-		_, capturedErr = parseCountFilter(c)
-		return c.SendStatus(200)
-	})
 
 	qv := url.Values{}
 	if route != "" {
@@ -71,19 +59,20 @@ func fuzzParseCountFilter(t *testing.T, route, status, startDate, endDate string
 		qv.Set("end_date", endDate)
 	}
 
-	target := "/test"
-	if len(qv) > 0 {
-		target += "?" + qv.Encode()
+	// Round-trip through encode/decode so the fuzzer exercises the exact values a
+	// wire query yields, which is what the Huma binder reads.
+	decoded, parseErr := url.ParseQuery(qv.Encode())
+	if parseErr != nil {
+		return parseErr, false
 	}
 
-	req := httptest.NewRequest("GET", target, nil)
-	_, _ = app.Test(req)
+	_, capturedErr := buildCountFilter(decoded.Get("route"), decoded.Get("status"), decoded.Get("start_date"), decoded.Get("end_date"))
 
 	return capturedErr, false
 }
 
 // FuzzParseCountFilter_Route fuzzes the route query parameter to verify
-// parseCountFilter never panics regardless of input.
+// buildCountFilter never panics regardless of input.
 //
 // Invariants verified:
 //   - No panic on any input
@@ -106,7 +95,7 @@ func FuzzParseCountFilter_Route(f *testing.F) {
 		}
 
 		err, panicked := fuzzParseCountFilter(t, route, "", "", "")
-		assert.False(t, panicked, "parseCountFilter must not panic for route=%q", route)
+		assert.False(t, panicked, "buildCountFilter must not panic for route=%q", route)
 
 		// Route has no validation (any string is accepted).
 		// The only error source is date parsing, and we provide no dates.
@@ -141,9 +130,9 @@ func FuzzParseCountFilter_Status(f *testing.F) {
 		}
 
 		err, panicked := fuzzParseCountFilter(t, "", status, "", "")
-		assert.False(t, panicked, "parseCountFilter must not panic for status=%q", status)
+		assert.False(t, panicked, "buildCountFilter must not panic for status=%q", status)
 
-		// parseCountFilter trims the status before checking.
+		// buildCountFilter trims the status before checking.
 		// If the trimmed result is empty, no filter is applied (valid).
 		trimmed := strings.TrimSpace(status)
 		if trimmed == "" {
@@ -201,9 +190,9 @@ func FuzzParseCountFilter_Dates(f *testing.F) {
 		}
 
 		err, panicked := fuzzParseCountFilter(t, "", "", startDate, endDate)
-		assert.False(t, panicked, "parseCountFilter must not panic for dates start=%q end=%q", startDate, endDate)
+		assert.False(t, panicked, "buildCountFilter must not panic for dates start=%q end=%q", startDate, endDate)
 
-		// parseCountFilter trims whitespace from both dates.
+		// buildCountFilter trims whitespace from both dates.
 		// If the trimmed result is empty, defaults are used (valid).
 		trimmedStart := strings.TrimSpace(startDate)
 		trimmedEnd := strings.TrimSpace(endDate)
@@ -225,7 +214,7 @@ func FuzzParseCountFilter_Dates(f *testing.F) {
 		}
 
 		// Both parseable or empty — enforce start <= end invariant.
-		// parseCountFilter defaults missing dates to today's UTC range,
+		// buildCountFilter defaults missing dates to today's UTC range,
 		// so we must compute the effective dates the same way.
 		now := time.Now().UTC()
 		var effectiveStart, effectiveEnd time.Time
@@ -282,7 +271,7 @@ func FuzzParseCountFilter_AllParams(f *testing.F) {
 		}
 
 		err1, panicked := fuzzParseCountFilter(t, route, status, startDate, endDate)
-		assert.False(t, panicked, "parseCountFilter must not panic")
+		assert.False(t, panicked, "buildCountFilter must not panic")
 
 		// Determinism: same input must produce same result
 		err2, panicked2 := fuzzParseCountFilter(t, route, status, startDate, endDate)

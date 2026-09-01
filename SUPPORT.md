@@ -6,7 +6,7 @@ Use the Discussions tab in our repository to share opinions, ideas, and report b
 
 ### Channels
 
-1. **GitHub:** Join the [Discussions](https://github.com/LerianStudio/midaz-private/discussions).
+1. **GitHub:** Join the [Discussions](https://github.com/LerianStudio/midaz/discussions).
 2. **Discord:** Join our [Discord](https://discord.gg/DnhqKwkGv3).
 
 **Pick an Issue, Share Ideas and Questions:** Check out open issues labeled for beginners or propose your own project.

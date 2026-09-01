@@ -8,26 +8,34 @@ import (
 	"context"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
+
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // CreateOperationRoute creates a new operation route.
-func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput) (*mmodel.OperationRoute, error) {
+func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, ledgerID uuid.UUID, payload *mmodel.CreateOperationRouteInput) (_ *mmodel.OperationRoute, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_operation_route")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_operation_route", start, err)
+	}()
 
 	now := time.Now()
 
@@ -81,8 +89,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 // event for a successfully persisted operation route. IMPORTANT
 // posture: build and emit failures are span-recorded and logged at
 // Warn, never returned. Durability of the event is owned by PG and
-// (follow-up task) the outbox subsystem + DLQ, not by the synchronous
-// Emit call.
+// the persisted database mutation; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after OperationRouteRepo.Create succeeds
 // and before the metadata-write call in CreateOperationRoute, so a
@@ -91,7 +98,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 // Wire-format mapping lives in pkg/streaming/events/operation_route_created.go;
 // changes to the payload contract belong there, not here.
 func (uc *UseCase) emitOperationRouteCreatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, o *mmodel.OperationRoute) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.OperationRouteCreatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.OperationRouteCreatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewOperationRouteCreated(o).ToEmitRequest(tenantID, o.CreatedAt)
 		})

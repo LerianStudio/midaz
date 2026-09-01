@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 )
 
 // HolderDeletedDefinition is the routing contract for holder.deleted.
 // IMPORTANT posture: emit failures MUST NOT fail the request; durability is
-// owned by PG + (follow-up task) the outbox subsystem.
+// owned by the persisted database mutation.
 var HolderDeletedDefinition = Definition{
 	ResourceType:  "holder",
 	EventType:     "deleted",

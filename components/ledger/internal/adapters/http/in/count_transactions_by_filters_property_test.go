@@ -1,4 +1,4 @@
-//go:build integration
+//go:build property
 
 // Copyright (c) 2026 Lerian Studio. All rights reserved.
 // Use of this source code is governed by the Elastic License 2.0
@@ -7,13 +7,13 @@
 package in
 
 // =============================================================================
-// PROPERTY-BASED TESTS — CountTransactionsByFilters Domain Invariants
+// PROPERTY-BASED TESTS — count filter domain invariants
 //
 // These tests verify that domain invariants of the count filter parsing hold
 // across hundreds of automatically-generated inputs. They use testing/quick.
 //
 // Invariants verified:
-//   1. Count is non-negative: parseCountFilter never produces a filter that
+//   1. Count is non-negative: buildCountFilter never produces a filter that
 //      could yield a negative count.
 //   2. Date range validity: start_date > end_date always returns an error.
 //   3. Status allowlist: only CREATED, APPROVED, PENDING, CANCELED, NOTED are
@@ -29,14 +29,12 @@ package in
 
 import (
 	"fmt"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"testing/quick"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,16 +48,9 @@ func boundString(s string, maxLen int) string {
 	return s
 }
 
-// callParseCountFilter creates a Fiber context with given query params and calls
-// parseCountFilter, returning the result.
-func callParseCountFilter(route, status, startDate, endDate string) (errResult error) {
-	app := fiber.New()
-
-	app.Get("/prop", func(c *fiber.Ctx) error {
-		_, errResult = parseCountFilter(c)
-		return c.SendStatus(200)
-	})
-
+// callParseCountFilter encodes the given query params, re-parses them the way the
+// Huma binder does, and calls buildCountFilter, returning the result.
+func callParseCountFilter(route, status, startDate, endDate string) error {
 	qv := url.Values{}
 	if route != "" {
 		qv.Set("route", route)
@@ -77,19 +68,18 @@ func callParseCountFilter(route, status, startDate, endDate string) (errResult e
 		qv.Set("end_date", endDate)
 	}
 
-	target := "/prop"
-	if len(qv) > 0 {
-		target += "?" + qv.Encode()
+	decoded, err := url.ParseQuery(qv.Encode())
+	if err != nil {
+		return err
 	}
 
-	req := httptest.NewRequest("GET", target, nil)
-	_, _ = app.Test(req)
+	_, err = buildCountFilter(decoded.Get("route"), decoded.Get("status"), decoded.Get("start_date"), decoded.Get("end_date"))
 
-	return errResult
+	return err
 }
 
 // TestProperty_ParseCountFilter_DateRangeInvalidity verifies that whenever
-// start_date is strictly after end_date, parseCountFilter always returns an error.
+// start_date is strictly after end_date, buildCountFilter always returns an error.
 // This property must hold for ANY pair of valid RFC 3339 timestamps.
 func TestProperty_ParseCountFilter_DateRangeInvalidity(t *testing.T) {
 	t.Parallel()
@@ -160,7 +150,7 @@ func TestProperty_ParseCountFilter_StatusAllowlist(t *testing.T) {
 	require.NoError(t, err, "property violated: invalid status must always produce error")
 }
 
-// TestProperty_ParseCountFilter_Determinism verifies that calling parseCountFilter
+// TestProperty_ParseCountFilter_Determinism verifies that calling buildCountFilter
 // twice with the same input always produces the same result (error or success).
 func TestProperty_ParseCountFilter_Determinism(t *testing.T) {
 	t.Parallel()
@@ -184,11 +174,11 @@ func TestProperty_ParseCountFilter_Determinism(t *testing.T) {
 	}
 
 	err := quick.Check(f, cfg)
-	require.NoError(t, err, "property violated: parseCountFilter must be deterministic")
+	require.NoError(t, err, "property violated: buildCountFilter must be deterministic")
 }
 
 // TestProperty_ParseCountFilter_ValidDateRangeAccepted verifies that when both
-// dates are valid RFC 3339 and start <= end, and status is empty, parseCountFilter
+// dates are valid RFC 3339 and start <= end, and status is empty, buildCountFilter
 // always succeeds (returns no error).
 func TestProperty_ParseCountFilter_ValidDateRangeAccepted(t *testing.T) {
 	t.Parallel()

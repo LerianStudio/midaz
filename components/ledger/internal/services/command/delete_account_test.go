@@ -9,14 +9,15 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 func TestDeleteAccountByID(t *testing.T) {
@@ -49,7 +50,7 @@ func TestDeleteAccountByID(t *testing.T) {
 			portfolioID: &portfolioID,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), organizationID, ledgerID, nil, accountID).
+					Find(gomock.Any(), organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1).
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
 					Times(1)
 
@@ -71,7 +72,7 @@ func TestDeleteAccountByID(t *testing.T) {
 			portfolioID: nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), organizationID, ledgerID, nil, accountID).
+					Find(gomock.Any(), organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1).
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
@@ -82,7 +83,7 @@ func TestDeleteAccountByID(t *testing.T) {
 			portfolioID: nil,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), organizationID, ledgerID, nil, accountID).
+					Find(gomock.Any(), organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1).
 					Return(&mmodel.Account{ID: accountID.String(), Type: "external"}, nil).
 					Times(1)
 			},
@@ -93,7 +94,7 @@ func TestDeleteAccountByID(t *testing.T) {
 			portfolioID: &portfolioID,
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					Find(gomock.Any(), organizationID, ledgerID, nil, accountID).
+					Find(gomock.Any(), organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1).
 					Return(&mmodel.Account{ID: accountID.String()}, nil).
 					Times(1)
 

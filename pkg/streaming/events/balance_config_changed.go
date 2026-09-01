@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // BalanceConfigChangeType discriminates the two source branches that
@@ -59,17 +60,12 @@ const (
 // (rejected by the scope guard in UseCase.Update). The companion
 // auto-create runs from the system, not the public PATCH path.
 //
-// IMPORTANT posture: emit failures MUST NOT fail the request.
-// EventType uses the HYPHEN form `config-changed` because the
-// lib-streaming route-key regex `^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)+$`
-// rejects underscores. The wire topic is
-// `lerian.streaming.ledger_balance.config_changed` (hyphens in the route
-// key become underscores in the topic name only). Payload field VALUES
-// (e.g. changeType="settings_updated") may keep snake_case because
-// they are payload data, not routing identifiers.
+// IMPORTANT posture: emit failures MUST NOT fail the request. Payload field
+// VALUES (e.g. changeType="settings_updated") stay snake_case: they are
+// payload data, not routing identifiers.
 var BalanceConfigChangedDefinition = Definition{
 	ResourceType:  "balance",
-	EventType:     "config-changed",
+	EventType:     "config_changed",
 	SchemaVersion: "1.0.0",
 }
 
@@ -83,10 +79,12 @@ var BalanceConfigChangedDefinition = Definition{
 // signal. Money movement lives inside transaction.{posted,committed,...}
 // in the transaction-engine segment.
 //
-// Settings uses the *BalanceSettings pointer because the wire shape
-// distinguishes "settings was cleared" (settings:null) from "settings
-// was left unchanged on this PATCH" (consumers cannot disambiguate that
-// from this event alone — they must merge with the prior known state).
+// Settings is a *BalanceSettingsPayload carrying omitempty, so a nil
+// pointer is OMITTED from the payload — the key never reaches the wire as
+// settings:null. "Settings was cleared" and "settings was left untouched by
+// this PATCH" are therefore indistinguishable from this event alone;
+// consumers must merge the payload with the prior known state instead of
+// reading an absent settings as a clear.
 type BalanceConfigChangedPayload struct {
 	ID             string                  `json:"id"`
 	OrganizationID string                  `json:"organizationId"`
@@ -97,7 +95,7 @@ type BalanceConfigChangedPayload struct {
 	AllowSending   bool                    `json:"allowSending"`
 	AllowReceiving bool                    `json:"allowReceiving"`
 	Direction      string                  `json:"direction,omitempty"`
-	Settings       *mmodel.BalanceSettings `json:"settings,omitempty"`
+	Settings       *BalanceSettingsPayload `json:"settings,omitempty"`
 	ChangeType     string                  `json:"changeType"`
 	UpdatedAt      string                  `json:"updatedAt"`
 }
@@ -124,7 +122,7 @@ func NewBalanceConfigChanged(b *mmodel.Balance, changeType string) BalanceConfig
 		AllowSending:   b.AllowSending,
 		AllowReceiving: b.AllowReceiving,
 		Direction:      b.Direction,
-		Settings:       b.Settings,
+		Settings:       newBalanceSettingsPayload(b.Settings),
 		ChangeType:     changeType,
 		UpdatedAt:      b.UpdatedAt.Format(time.RFC3339),
 	}

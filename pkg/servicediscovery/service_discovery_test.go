@@ -8,53 +8,9 @@ import (
 	"errors"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libsd "github.com/LerianStudio/lib-service-discovery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestBuildManager_DisabledReturnsNoopManager(t *testing.T) {
-	t.Setenv("SD_ENABLED", "")
-	t.Setenv("SERVICE_DISCOVERY_ENABLED", "")
-	t.Setenv("SD_ADVERTISE_ADDRESS", "")
-	t.Setenv("SERVICE_ADVERTISE_ADDR", "")
-
-	manager, enabled, err := BuildManager(libLog.NewNop())
-
-	require.NoError(t, err)
-	require.NotNil(t, manager)
-	require.False(t, enabled)
-}
-
-func TestBuildManager_EnabledWithoutAdvertiseAddrFailsFast(t *testing.T) {
-	t.Setenv("SD_ENABLED", "true")
-	t.Setenv("SD_EXTERNAL_ADDRESS", "")
-	t.Setenv("SD_INTERNAL_ADDRESS", "")
-	t.Setenv("SD_ADVERTISE_ADDRESS", "")
-	t.Setenv("SERVICE_ADVERTISE_ADDR", "")
-
-	manager, enabled, err := BuildManager(libLog.NewNop())
-
-	require.Error(t, err)
-	require.Nil(t, manager)
-	require.True(t, enabled)
-	require.True(t, errors.Is(err, libsd.ErrNoEndpoint))
-}
-
-func TestBuildManager_EnabledWithInternalOnlyAdvertisePasses(t *testing.T) {
-	t.Setenv("SD_ENABLED", "true")
-	t.Setenv("SD_INTERNAL_ADDRESS", "internal-host:9000")
-	t.Setenv("SD_EXTERNAL_ADDRESS", "")
-	t.Setenv("SD_ADVERTISE_ADDRESS", "")
-	t.Setenv("SERVICE_ADVERTISE_ADDR", "")
-
-	manager, enabled, err := BuildManager(libLog.NewNop())
-
-	require.NoError(t, err)
-	require.NotNil(t, manager)
-	require.True(t, enabled)
-}
 
 func TestParseServerPort(t *testing.T) {
 	t.Parallel()
@@ -114,9 +70,9 @@ func TestBuildServiceDescriptor(t *testing.T) {
 		wantID      string
 	}{
 		{name: "ledger", svcName: "midaz-ledger", port: 3002, hostname: "testhost", wantID: "midaz-ledger-testhost-3002"},
-		{name: "crm", svcName: "midaz-crm", port: 4003, hostname: "testhost", wantID: "midaz-crm-testhost-4003"},
+		{name: "tracer", svcName: "midaz-tracer", port: 4020, hostname: "testhost", wantID: "midaz-tracer-testhost-4020"},
 		{name: "hostname error falls back to legacy scheme", svcName: "midaz-ledger", port: 3002, hostnameErr: errors.New("boom"), wantID: "midaz-ledger-3002"},
-		{name: "empty hostname falls back to legacy scheme", svcName: "midaz-crm", port: 4003, hostname: "", wantID: "midaz-crm-4003"},
+		{name: "empty hostname falls back to legacy scheme", svcName: "midaz-tracer", port: 4020, hostname: "", wantID: "midaz-tracer-4020"},
 	}
 
 	for _, tc := range tests {
@@ -128,12 +84,7 @@ func TestBuildServiceDescriptor(t *testing.T) {
 			assert.Equal(t, tc.wantID, svc.ID)
 			assert.Equal(t, tc.svcName, svc.Name)
 			assert.Equal(t, tc.port, svc.Port)
-			require.NotNil(t, svc.HealthCheck)
-			assert.Equal(t, "30s", svc.HealthCheck.TTL)
-			// Address/Scheme are left empty: Manager.Register fills them from
-			// SD_EXTERNAL_ADDRESS.
-			assert.Empty(t, svc.Address)
-			assert.Empty(t, svc.Scheme)
+			assert.Equal(t, "30s", svc.HealthCheckTTL)
 		})
 	}
 }

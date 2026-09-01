@@ -142,6 +142,40 @@ services:
     networks:
       - infra-network
 
+  # One-shot database provisioner. postgres only auto-runs
+  # /docker-entrypoint-initdb.d/*.sql on a FRESH data volume, so an existing
+  # volume that predates a newly-added database (e.g. tracer) never receives it
+  # and that service crash-loops on `database "..." does not exist`. This sidecar
+  # re-applies the idempotent init.sql against the healthy primary on every
+  # `make up`, provisioning any missing role/slot/database without touching
+  # existing data. Runs once, then exits.
+  #
+  # App services (ledger/tracer) live in separate compose files, so they cannot
+  # depend on this sidecar's completion. On a stale volume they may briefly race
+  # it and hit 3D000 before it finishes; their own restart policy / readiness
+  # retry rides out that one-time window — strictly better than the DB never
+  # existing.
+  midaz-postgres-init:
+    container_name: midaz-postgres-init
+    image: postgres:17
+    depends_on:
+      midaz-postgres-primary:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${DB_PASSWORD}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        psql -v ON_ERROR_STOP=1 \
+          -h midaz-postgres-primary -p ${DB_PORT} -U ${DB_USER} -d postgres \
+          -f /init.sql
+    volumes:
+      - ./postgres/init.sql:/init.sql:ro
+    restart: "no"
+    networks:
+      - infra-network
+
   midaz-otel-lgtm:
     container_name: midaz-otel-lgtm
     image: grafana/otel-lgtm:latest
@@ -175,6 +209,70 @@ services:
       - ./rabbitmq/etc/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
       - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
       - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
+    networks:
+      - infra-network
+
+  # Redpanda (Kafka-compatible) broker for lib-streaming local development.
+  # Single-node dev mode. Dual listener so both host (localhost:19092) and
+  # in-network containers (midaz-redpanda:9092) can reach it on infra-network.
+  midaz-redpanda:
+    container_name: midaz-redpanda
+    image: redpandadata/redpanda:v24.2.7
+    restart: always
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --default-log-level=info
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://midaz-redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092"
+      - "127.0.0.1:8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - infra-network
+
+  # One-shot topic provisioner for lib-streaming. lib-streaming has no
+  # client-side topic auto-create, so every topic the platform emits to must be
+  # pre-created or emits fail on a healthy broker AND trip the producer circuit
+  # breaker, poisoning every later emit. Runs once after the broker is healthy,
+  # creates every topic idempotently ("|| true"), then exits.
+  #
+  # ONE TOPIC PER PRODUCING APPLICATION. The topic name is
+  # "lerian.streaming.{app}" where {app} is the application's ce-source
+  # (STREAMING_CLOUDEVENTS_SOURCE): "ledger" for the ledger binary and "tracer"
+  # for tracer. Every event an application emits rides its single topic, whatever
+  # the resource or event type — the per-event topic shape is gone, so this list
+  # no longer has to track the event registry by hand.
+  #
+  # Each application also owns a ".dlq" where a failed publish is copied. In
+  # production provision it with max.message.bytes at or above its source topic's:
+  # a DLQ record is strictly larger than the record it quarantines, so a near-cap
+  # record that fails could otherwise never fit.
+  midaz-redpanda-init:
+    container_name: midaz-redpanda-init
+    image: redpandadata/redpanda:v24.2.7
+    depends_on:
+      midaz-redpanda:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        # ledger (ce-source "ledger"): whole catalog — ledger core, fees, CRM
+        rpk topic create lerian.streaming.ledger -r 1 -p 1 --brokers midaz-redpanda:9092 || true
+        rpk topic create lerian.streaming.ledger.dlq -r 1 -p 1 --brokers midaz-redpanda:9092 || true
+        # tracer (ce-source "tracer"): whole catalog — rule and limit lifecycles
+        rpk topic create lerian.streaming.tracer -r 1 -p 1 --brokers midaz-redpanda:9092 || true
+        rpk topic create lerian.streaming.tracer.dlq -r 1 -p 1 --brokers midaz-redpanda:9092 || true
     networks:
       - infra-network
 

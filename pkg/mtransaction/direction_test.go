@@ -7,11 +7,12 @@ package mtransaction
 import (
 	"testing"
 
-	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
+	constant "github.com/LerianStudio/lib-commons/v6/commons/constants"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // TestOperateBalances_DirectionAwareArithmetic verifies that the balance

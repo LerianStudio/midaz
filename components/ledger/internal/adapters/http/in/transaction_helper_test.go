@@ -6,19 +6,18 @@ package in
 
 import (
 	"context"
-	"encoding/json"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 func TestBuildParentTransactionID(t *testing.T) {
@@ -33,7 +32,7 @@ func TestBuildParentTransactionID(t *testing.T) {
 	t.Run("returns string pointer when parent id exists", func(t *testing.T) {
 		t.Parallel()
 
-		parentID := uuid.New()
+		parentID := uuid.Must(libCommons.GenerateUUIDv7())
 		result := buildParentTransactionID(parentID)
 
 		require.NotNil(t, result)
@@ -53,75 +52,6 @@ func TestGetAliasWithoutKey(t *testing.T) {
 	result := getAliasWithoutKey(input)
 
 	assert.Equal(t, []string{"origin", "destination", "third"}, result)
-}
-
-func TestReadPathParams(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns scope with transaction id when present", func(t *testing.T) {
-		t.Parallel()
-
-		organizationID := uuid.New()
-		ledgerID := uuid.New()
-		transactionID := uuid.New()
-
-		app := fiber.New()
-		app.Get("/scope", func(c *fiber.Ctx) error {
-			c.SetUserContext(context.Background())
-			c.Locals("organization_id", organizationID)
-			c.Locals("ledger_id", ledgerID)
-			c.Locals("transaction_id", transactionID)
-
-			scope, err := readPathParams(c)
-			if err != nil {
-				return err
-			}
-
-			return c.JSON(scope)
-		})
-
-		resp, err := app.Test(httptest.NewRequest(fiber.MethodGet, "/scope", nil))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		var scope transactionPathParams
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&scope))
-
-		assert.Equal(t, organizationID, scope.OrganizationID)
-		assert.Equal(t, ledgerID, scope.LedgerID)
-		assert.Equal(t, transactionID, scope.TransactionID)
-	})
-
-	t.Run("returns nil transaction id when absent", func(t *testing.T) {
-		t.Parallel()
-
-		organizationID := uuid.New()
-		ledgerID := uuid.New()
-
-		app := fiber.New()
-		app.Get("/scope", func(c *fiber.Ctx) error {
-			c.Locals("organization_id", organizationID)
-			c.Locals("ledger_id", ledgerID)
-
-			scope, err := readPathParams(c)
-			if err != nil {
-				return err
-			}
-
-			return c.JSON(scope)
-		})
-
-		resp, err := app.Test(httptest.NewRequest(fiber.MethodGet, "/scope", nil))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		var scope transactionPathParams
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&scope))
-
-		assert.Equal(t, organizationID, scope.OrganizationID)
-		assert.Equal(t, ledgerID, scope.LedgerID)
-		assert.Equal(t, uuid.Nil, scope.TransactionID)
-	})
 }
 
 func TestApplyDefaultBalanceKeys(t *testing.T) {
@@ -162,8 +92,8 @@ func TestBuildBalanceOperations(t *testing.T) {
 
 		balances := []*mmodel.Balance{
 			{
-				ID:             uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
@@ -204,8 +134,8 @@ func TestBuildBalanceOperations(t *testing.T) {
 
 		balances := []*mmodel.Balance{
 			{
-				ID:             uuid.New().String(),
-				AccountID:      uuid.New().String(),
+				ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				AccountID:      uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				OrganizationID: organizationID.String(),
 				LedgerID:       ledgerID.String(),
 				Alias:          "alias1",
@@ -248,12 +178,12 @@ func TestBuildBalanceOperations(t *testing.T) {
 
 		balances := []*mmodel.Balance{
 			{
-				ID:    uuid.New().String(),
+				ID:    uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias: "zeta",
 				Key:   "default",
 			},
 			{
-				ID:    uuid.New().String(),
+				ID:    uuid.Must(libCommons.GenerateUUIDv7()).String(),
 				Alias: "alpha",
 				Key:   "default",
 			},

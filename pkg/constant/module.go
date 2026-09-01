@@ -9,4 +9,12 @@ const (
 	ModuleOnboarding = "onboarding"
 	// ModuleTransaction is the module name for transaction database schemas.
 	ModuleTransaction = "transaction"
+	// ModuleCRM is the tenant-manager module name for CRM (holder/alias) database
+	// schemas. The value MUST be "crm-api" to match tenant-manager provisioning.
+	ModuleCRM = "crm-api"
+	// ModuleFees is the tenant-manager module name for fee/billing-package database
+	// schemas. The value MUST be "fees-api" to match tenant-manager provisioning.
+	// This Mongo module name is a separate literal from the fee auth/RBAC slug,
+	// which is the shared "midaz" namespace (fees fold).
+	ModuleFees = "fees-api"
 )

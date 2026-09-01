@@ -6,194 +6,123 @@ package in
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	"github.com/gofiber/fiber/v2"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/skip"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// CommitTransaction method that commit transaction created before
-//
-//	@Summary		Commit a Transaction
-//	@Description	Commit a previously created transaction
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit [Post]
-func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
-	ctx := c.UserContext()
+// revertIdempotencyReplayedLogMessage is the Warn message the revert core records when the
+// idempotency slot answers with a cached reverse instead of a new one.
+const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse transaction"
 
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// commitTransaction is the transport-neutral commit/cancel core: it opens the
+// per-action span (commit_transaction / cancel_transaction, derived from the target
+// status), fetches the transaction (write-behind cache first, DB fallback), then
+// delegates to the commitOrCancelTransaction state machine.
+func (handler *TransactionHandler) commitTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, policy routeVersionPolicy) (*transaction.Transaction, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
+	spanName := "handler.commit_transaction"
+	if transactionStatus == constant.CANCELED {
+		spanName = "handler.cancel_transaction"
 	}
 
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	_, span := tracer.Start(ctx, "handler.commit_transaction")
+	_, span := tracer.Start(ctx, spanName)
 	defer span.End()
 
 	tran, err := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+		// Load the operations with the transaction: cancel needs them to unwind an
+		// overdraft hold. The write-behind cache is cleared once the create persists,
+		// so this fallback carries the transaction into commitOrCancelTransaction and
+		// its annotateCanceledOverdraftAmounts step, which reads tran.Operations to
+		// size the overdraft deficit. A row-only read leaves Operations empty and the
+		// cancel restores the full hold to available instead of only the non-overdraft
+		// portion.
+		tran, err = handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
+			handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
+			return nil, err
+		}
 
-			return http.WithError(c, err)
+		// FindWithOperations joins on operations, so a transaction with no rows comes
+		// back as an empty value with no error. Fall back to the row-only read, which
+		// reports not-found for a missing transaction and returns the real row for an
+		// operation-less one — either way commitOrCancelTransaction never parses an
+		// empty organization id.
+		if tran == nil || tran.ID == "" {
+			tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+			if err != nil {
+				handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
+
+				return nil, err
+			}
 		}
 	}
 
-	return handler.commitOrCancelTransaction(c, tran, constant.APPROVED)
+	return handler.commitOrCancelTransaction(ctx, tran, transactionStatus, policy)
 }
 
-// CancelTransaction method that cancel pre transaction created before
+// KNOWN DEFECT — REVERT IDEMPOTENCY IS NOT SCOPED BY ORIGIN.
 //
-//	@Summary		Cancel a pre transaction
-//	@Description	Cancel a previously created pre transaction
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		201				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel [Post]
-func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	_, span := tracer.Start(ctx, "handler.cancel_transaction")
-	defer span.End()
-
-	tran, err := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
-	if err != nil {
-		tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
-
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
-
-			return http.WithError(c, err)
-		}
-	}
-
-	return handler.commitOrCancelTransaction(c, tran, constant.CANCELED)
-}
-
-// RevertTransaction method that revert transaction created before
+// Revert sends no X-Idempotency header, so CreateOrCheckTransactionIdempotency falls back to
+// key = HashSHA256(preimage), and with no override resolveIdempotencyHashSource serialises the
+// reversal payload. TransactionRevert() copies only the origin's economic content
+// (description, asset, amount, legs, route, metadata) and NEVER the origin id, so two
+// economically-identical origins in the same ledger derive the SAME key and share ONE slot:
+// the second revert loses the SetNX, is handed the FIRST origin's cached reverse, and answers
+// 201 while its own origin is never reverted. Silently — no error, no distinguishable status.
 //
-//	@Summary		Revert a Transaction
-//	@Description	Revert a Transaction with Transaction ID only
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string	false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			transaction_id	path		string	true	"Transaction ID"
-//	@Success		200				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
-//	@Failure		422				{object}	mmodel.Error	"Unprocessable Entity, validation errors"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert [post]
-func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
-
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
+// The fix is an origin-scoped preimage. It is deliberately NOT applied here: v1 revert is
+// released, and changing the preimage changes the Redis key shape, so a revert retried across
+// a rolling-deploy boundary would land on a different slot and could double-revert. It re-lands
+// together with the idempotency keyspace separation, which re-shapes the key anyway, behind a
+// dual-write/dual-read migration — one coordinated deploy window instead of two.
+//
+// Until then the ONLY control is detection: the replayed flag below, its Warn, and the
+// X-Idempotency-Replayed header the transports project. Do not treat that as a fix.
+// The integration reproduction re-lands together with the fix in the money-path layer
+// (the fail-closed integration gate forbids carrying it here as a permanent skip).
+//
+// revertTransaction is the transport-neutral revert core: it runs the full revert
+// eligibility gate (no-parent, not-already-a-revert, APPROVED status, non-empty reversal,
+// all bidirectional routes) then delegates to the untouched createRevertTransaction core.
+// The parent transaction id passed to createRevertTransaction is the reverted
+// transaction's id (from the route), so the reversal links back to its origin. Revert
+// sends no idempotency headers, so the key is empty (the core keys on the reversal hash)
+// and the TTL defaults to ParseIdempotencyTTL("") == 300s (an absent X-TTL resolves to
+// 300, never 0; a hardcoded 0 would make the Redis idempotency slot permanent). It
+// returns the idempotency `replayed` flag alongside the reverse transaction so the
+// transport sets X-Idempotency-Replayed itself.
+func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, policy routeVersionPolicy) (*transaction.Transaction, bool, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
 
 	parent, err := handler.Query.GetParentByTransactionID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Parent Transaction on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve Parent Transaction on query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Parent Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
-
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	if parent != nil {
@@ -201,18 +130,14 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err))
-
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
-
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	if tran.ParentTransactionID != nil {
@@ -220,9 +145,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err))
-
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	if tran.Status.Code != constant.APPROVED {
@@ -230,9 +153,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction CantRevert Transaction", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Transaction CantRevert Transaction with ID: %s, Error: %s", transactionID.String(), err))
-
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	transactionReverted := tran.TransactionRevert()
@@ -241,9 +162,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction can't be reverted", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Parent Transaction can't be reverted with ID: %s, Error: %s", transactionID.String(), err))
-
-		return http.WithError(c, err)
+		return nil, false, err
 	}
 
 	// Validate bidirectional routes: operations with a route_id require
@@ -259,18 +178,14 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid routeId format on operation during revert validation", parseValidationErr)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Invalid routeId %s on operation during revert validation: %v", *op.RouteID, parseErr))
-
-			return http.WithError(c, parseValidationErr)
+			return nil, false, parseValidationErr
 		}
 
 		operationRoute, routeErr := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, routeUUID)
 		if routeErr != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve operation route for revert validation", routeErr)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve operation route %s for revert validation: %v", *op.RouteID, routeErr))
-
-			return http.WithError(c, routeErr)
+			return nil, false, routeErr
 		}
 
 		if operationRoute != nil && operationRoute.OperationType != "bidirectional" {
@@ -278,95 +193,71 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route is not bidirectional", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Operation route %s is not bidirectional (type: %s), cannot revert transaction %s",
-				*op.RouteID, operationRoute.OperationType, transactionID.String()))
-
-			return http.WithError(c, err)
+			return nil, false, err
 		}
 	}
 
-	response := handler.createRevertTransaction(c, transactionReverted, constant.CREATED)
+	params := &transactionPathParams{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
 
-	return response
+	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), policy)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if replayed {
+		// A replay is an outcome this span observed, not an input, so it belongs outside the
+		// app.request.* namespace (T4). It is also not an error: the span stays green.
+		span.SetAttributes(attribute.Bool("app.response.idempotency_replayed", true))
+
+		// Warn — deliberately louder than the create paths, which treat a replay as routine.
+		// A create replay is what the caller asked for: they sent X-Idempotency, so a cached
+		// answer is the contract. Revert carries no caller key, so nobody asked for this one;
+		// it means the caller's revert did NOT happen and the 201 alone cannot tell them so.
+		// While the origin-agnostic key above stands, the cached reverse may not
+		// even belong to this origin, so this is the only operator-visible trace of the
+		// defect — Debug, typically not collected in production, could not carry it.
+		logger.Log(ctx, libLog.LevelWarn, revertIdempotencyReplayedLogMessage, libLog.String("transaction_id", transactionID.String()))
+	}
+
+	return tranReverted, replayed, nil
 }
 
-// UpdateTransaction method that patch transaction created before
-//
-//	@Summary		Update a Transaction
-//	@Description	Update a Transaction with the input payload
-//	@Tags			Transactions
-//	@Accept			json
-//	@Produce		json
-//	@Param			Authorization	header		string					false	"Bearer token authentication. Format: Bearer {access_token}. Only required when auth plugin is enabled."
-//	@Param			X-Request-Id	header		string					false	"Request ID"
-//	@Param			organization_id	path		string					true	"Organization ID"
-//	@Param			ledger_id		path		string					true	"Ledger ID"
-//	@Param			transaction_id	path		string					true	"Transaction ID"
-//	@Param			transaction		body		transaction.UpdateTransactionInput	true	"Transaction Input"
-//	@Success		200				{object}	Transaction
-//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
-//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
-//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
-//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
-//	@Failure		500				{object}	mmodel.Error	"Internal server error"
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [patch]
-func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+// updateTransaction is the transport-neutral update core: it records the safe payload
+// shape on the span, runs command.UpdateTransaction, then re-reads the transaction via query.GetTransactionByID
+// (mutable fields only — amounts/accounts/status are immutable).
+func (handler *TransactionHandler) updateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, payload *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction")
 	defer span.End()
 
-	organizationID, err := http.GetUUIDFromLocals(c, "organization_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	ledgerID, err := http.GetUUIDFromLocals(c, "ledger_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	transactionID, err := http.GetUUIDFromLocals(c, "transaction_id")
-	if err != nil {
-		return http.WithError(c, err)
-	}
-
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Initiating update of Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String()))
-
-	payload := p.(*transaction.UpdateTransactionInput)
-	logSafePayload(ctx, logger, "Request to update a transaction", payload)
-
 	recordSafePayloadAttributes(span, payload)
 
-	_, err = handler.Command.UpdateTransaction(ctx, organizationID, ledgerID, transactionID, payload)
+	_, err := handler.Command.UpdateTransaction(ctx, organizationID, ledgerID, transactionID, payload)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction on command", err)
+		handleSpanByErrorClass(span, "Failed to update transaction on command", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	trans, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve transaction on query", err)
+		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error()))
-
-		return http.WithError(c, err)
+		return nil, err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String()))
-
-	return http.OK(c, trans)
+	return trans, nil
 }
 
+// commitOrCancelTransaction is the transport-neutral state-transition core (the tracer
+// two-phase confirm/release-by-transaction, balance ProcessBalanceOperations, backup
+// seeding, and BuildOperations/WriteTransaction). It returns the updated transaction so
+// the caller writes its own response.
+//
 //nolint:gocyclo // State machine with branches per status × action combination; refactor candidate.
-func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran *transaction.Transaction, transactionStatus string) error {
-	ctx := c.UserContext()
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context, tran *transaction.Transaction, transactionStatus string, policy routeVersionPolicy) (*transaction.Transaction, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.commit_or_cancel_transaction")
 	defer span.End()
@@ -382,26 +273,26 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to set on redis", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to set on redis: %v", err))
+		logger.Log(ctx, libLog.LevelError, "Failed to set pending transaction lock on redis", libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if !success {
-		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
+		err := pkg.ValidateBusinessError(constant.ErrPendingTransactionLocked, "ValidateTransactionNotPending")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is locked", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed, Transaction: %s is locked, Error: %s", tran.ID, err.Error()))
+		logger.Log(ctx, libLog.LevelWarn, "Transaction is locked", libLog.String("transaction_id", tran.ID), libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	deleteLockOnError := func() {
 		if delErr := handler.Command.TransactionRedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete pending transaction lock", delErr)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to delete pending transaction lock key: %v", delErr))
+			logger.Log(ctx, libLog.LevelError, "Failed to delete pending transaction lock key", libLog.Err(delErr))
 		}
 	}
 
@@ -424,24 +315,31 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is not pending", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed, Transaction: %s is not pending, Error: %s", tran.ID, err.Error()))
+		logger.Log(ctx, libLog.LevelWarn, "Transaction is not pending", libLog.String("transaction_id", tran.ID), libLog.Err(err))
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
+	// No fee seam here (P4-T13). tran.Body was persisted by the create path
+	// (executeCreateTransaction), which already applied fees and persisted the
+	// fee legs as real operations. So transactionInput == tran.Body is already
+	// fee-inclusive, and this validate runs over the fee-inclusive shape.
+	// Calling applyFees on commit/cancel would charge the fee a second time
+	// (double-charge). Cancel routes the held legs — including fees — back via
+	// the cancel/refund path (P4-T14), not a re-charge. Do NOT call applyFees.
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, transactionStatus)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to validate send source and distribute: %s", err.Error()))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	ledgerSettings, err := handler.Query.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
@@ -451,42 +349,67 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	if ledgerSettings.Accounting.ValidateRoutes {
 		mtransaction.PropagateRouteValidation(ctx, validate, transactionStatus)
 	}
 
+	// Re-resolve the per-call tracer skip from the persisted body so an honored
+	// create-time skip also short-circuits the by-transaction confirm/release
+	// below, instead of relocating the gRPC cost from create to this transition.
+	// Authorization was already enforced at create, so a no-longer-permitted skip
+	// (the opt-in was revoked between create and commit) is treated as
+	// not-honored here — the error is intentionally discarded, never a 422.
+	honoredTracerSkip, _ := skip.ResolveSkipFor("tracer", tran.Body.Skip != nil && tran.Body.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
+
 	action := constant.ActionCommit
 	if transactionStatus == constant.CANCELED {
 		action = constant.ActionCancel
 	}
 
-	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate.Aliases)
+	// Route ONLY the pre-write balance reads to the primary via a dedicated ctx:
+	// their result seeds the authoritative balance via the NX-seed, so a stale
+	// replica read here corrupts money. The mark lives on readCtx, scoped to the
+	// direct balance read and the overdraft-enrichment read; the unmarked
+	// ctx flows to everything else (validation, Redis seed, balance processing,
+	// write) so those keep their default routing. The flag governs the effect; the
+	// mark is unconditional.
+	readCtx := readrouting.WithPrimaryRead(ctx)
+
+	balances, err := handler.Query.GetBalances(readCtx, organizationID, ledgerID, validate.Aliases)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get balances", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to get balances", libLog.Err(err))
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	balanceOps := buildBalanceOperations(ctx, organizationID, ledgerID, validate, balances)
 	balanceOps = annotateCanceledOverdraftAmounts(balanceOps, tran)
 
+	// Both transitions move funds on the overdrafted balance, so both need the
+	// companion mirrored: a cancel restores the held capacity, and a commit posts
+	// the destination credit that repays outstanding overdraft. Enriching here is
+	// what puts the companion leg in front of ValidateAccountingRules (so the
+	// route's overdraft rubric is enforced), into the atomic batch (so the
+	// companion balance moves in lock-step with the primary's repayment) and into
+	// BuildOperations (so the overdraft leg is persisted).
 	var companionFromTos []mtransaction.FromTo
-	if transactionStatus == constant.CANCELED {
-		balanceOps, companionFromTos, err = enrichOverdraftOperations(ctx, organizationID, ledgerID, balanceOps,
+
+	if transactionStatus == constant.APPROVED || transactionStatus == constant.CANCELED {
+		balanceOps, companionFromTos, err = enrichOverdraftOperations(readCtx, organizationID, ledgerID, balanceOps,
 			validate, handler.Query.GetBalances)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to enrich canceled overdraft operations", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to enrich canceled overdraft operations", libLog.Err(err))
+			libOpentelemetry.HandleSpanError(span, "Failed to enrich overdraft operations", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to enrich overdraft operations", libLog.Err(err))
 
 			deleteLockOnError()
 
-			return http.WithError(c, err)
+			return nil, err
 		}
 	}
 
@@ -497,7 +420,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	ctxBackupSeed, spanBackupSeed := tracer.Start(ctx, "handler.commit_or_cancel_transaction.pre_seed_backup")
@@ -505,13 +428,13 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	if backupErr := handler.Command.SendTransactionToRedisQueue(ctxBackupSeed, organizationID, ledgerID, tran.IDtoUUID(), transactionInput, validate, transactionStatus, action, time.Now(), nil); backupErr != nil {
 		libOpentelemetry.HandleSpanError(spanBackupSeed, "Failed to pre-seed transaction backup cache", backupErr)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to pre-seed commit/cancel transaction backup cache: %v", backupErr))
+		logger.Log(ctx, libLog.LevelError, "Failed to pre-seed commit/cancel transaction backup cache", libLog.Err(backupErr))
 
 		spanBackupSeed.End()
 
 		deleteLockOnError()
 
-		return http.WithError(c, pkg.ValidateBusinessError(backupErr, constant.EntityTransaction))
+		return nil, pkg.ValidateBusinessError(backupErr, constant.EntityTransaction)
 	}
 
 	spanBackupSeed.End()
@@ -533,7 +456,21 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
+	}
+
+	// Reservation phase two by transaction (F3-T15, PENDING lifecycle). The
+	// PENDING create path reserved capacity but deferred the confirm/release to
+	// this state transition; /commit and /cancel carry only the transaction id, so
+	// the tracer is addressed by transaction id and flips every RESERVED
+	// reservation the transaction holds. Non-blocking: a transport failure never
+	// fails the request — the TTL reaper reconciles. The long-lived TTL hint set
+	// at create-pending keeps these reservations alive until this transition.
+	switch transactionStatus {
+	case constant.APPROVED:
+		handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
+	case constant.CANCELED:
+		handler.releaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
 	}
 
 	balancesBefore, balancesAfter := result.Before, result.After
@@ -560,7 +497,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		deleteLockOnError()
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	tran.Source = getAliasWithoutKey(filterCompanionAliases(validate.Sources))
@@ -572,7 +509,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 	if backupErr := handler.Command.SendTransactionToRedisQueue(ctxBackup, organizationID, ledgerID, tran.IDtoUUID(), transactionInput, validate, transactionStatus, action, time.Now(), preBalances); backupErr != nil {
 		libOpentelemetry.HandleSpanError(spanBackup, "Failed to send transaction to backup cache", backupErr)
 
-		logger.Log(ctx, libLog.LevelWarn, fmt.Sprintf("Failed to send commit/cancel transaction to backup cache: %v", backupErr))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to send commit/cancel transaction to backup cache", libLog.Err(backupErr))
 	}
 
 	spanBackup.End()
@@ -587,7 +524,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		if err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction status synchronously", err)
 
-			logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Failed to update transaction status synchronously for Transaction: %s, Error: %s", tran.ID, err.Error()))
+			logger.Log(ctx, libLog.LevelError, "Failed to update transaction status synchronously", libLog.String("transaction_id", tran.ID), libLog.Err(err))
 		}
 	}
 
@@ -597,9 +534,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "failed to update BTO", err)
 
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("failed to update BTO - transaction: %s - Error: %v", tran.ID, err))
+		logger.Log(ctx, libLog.LevelError, "Failed to update BTO", libLog.String("transaction_id", tran.ID), libLog.Err(err))
 
-		return http.WithError(c, err)
+		return nil, err
 	}
 
 	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
@@ -610,5 +547,5 @@ func (handler *TransactionHandler) commitOrCancelTransaction(c *fiber.Ctx, tran 
 		go handler.Command.UpdateWriteBehindTransaction(tenantCtx, organizationID, ledgerID, tran)
 	}
 
-	return http.Created(c, tran)
+	return tran, nil
 }

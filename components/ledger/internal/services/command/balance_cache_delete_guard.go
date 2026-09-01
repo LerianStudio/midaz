@@ -8,11 +8,11 @@ import (
 	"context"
 	"time"
 
-	libObs "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -54,7 +54,7 @@ func deleteMarkerKeyFor(organizationID, ledgerID uuid.UUID, balance *mmodel.Bala
 // The returned release closure Dels exactly the delete marker keys that were planted, for
 // defer-on-error rollback by the caller.
 func (uc *UseCase) plantBalanceDeleteMarkers(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) func() {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	spanCtx, span := tracer.Start(ctx, "exec.plant_balance_delete_markers")
 	defer span.End()
@@ -90,7 +90,7 @@ func (uc *UseCase) plantBalanceDeleteMarkers(ctx context.Context, organizationID
 // releaseBalanceDeleteMarkers Dels each previously planted delete marker key, logging a Warn on
 // error and continuing. A no-op Del on a missing key is safe.
 func (uc *UseCase) releaseBalanceDeleteMarkers(ctx context.Context, deleteMarkerKeys []string) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.release_balance_delete_markers")
 	defer span.End()
@@ -108,7 +108,7 @@ func (uc *UseCase) releaseBalanceDeleteMarkers(ctx context.Context, deleteMarker
 // lingering cache key after a persisted delete is the bug this guards against, so a failed
 // Del is Warn-worthy but must not fail the already-committed delete.
 func (uc *UseCase) evictBalanceCaches(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) {
-	logger, tracer, _, _ := libObs.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.evict_balance_caches")
 	defer span.End()

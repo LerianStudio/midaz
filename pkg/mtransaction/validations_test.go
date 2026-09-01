@@ -10,14 +10,16 @@ import (
 	"testing"
 	"testing/quick"
 
-	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
-	commons "github.com/LerianStudio/lib-observability"
-	"github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
+	constant "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	"github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // codeFromError extracts the business error code from the structured error types
@@ -44,9 +46,9 @@ func TestValidateBalancesRules(t *testing.T) {
 	// Create a context with logger and tracer
 	ctx := context.Background()
 	logger := &log.GoLogger{Level: log.LevelInfo}
-	ctx = commons.ContextWithLogger(ctx, logger)
+	ctx = libObservability.ContextWithLogger(ctx, logger)
 	tracer := otel.Tracer("test")
-	ctx = commons.ContextWithTracer(ctx, tracer)
+	ctx = libObservability.ContextWithTracer(ctx, tracer)
 
 	tests := []struct {
 		name        string
@@ -1970,4 +1972,48 @@ func TestSplitDoubleEntryOps(t *testing.T) {
 		assert.True(t, op1.Value.Equal(amt.Value))
 		assert.True(t, op2.Value.Equal(amt.Value))
 	})
+}
+
+// TestValidateSendSourceAndDistribute_DoesNotRejectEmptyAsset is a documented negative: this
+// validator performs no asset-emptiness check, so an empty send.asset has to be stopped by the
+// `required` struct tags at body validation and by the fee engine's own guard. If asset
+// validation is ever added here, this test fails.
+func TestValidateSendSourceAndDistribute_DoesNotRejectEmptyAsset(t *testing.T) {
+	t.Parallel()
+
+	tx := Transaction{
+		Send: Send{
+			Asset: "",
+			Value: decimal.NewFromInt(100),
+			Source: Source{
+				From: []FromTo{
+					{
+						AccountAlias: "@account1",
+						Amount: &Amount{
+							Asset: "USD",
+							Value: decimal.NewFromInt(100),
+						},
+					},
+				},
+			},
+			Distribute: Distribute{
+				To: []FromTo{
+					{
+						AccountAlias: "@account2",
+						Amount: &Amount{
+							Asset: "USD",
+							Value: decimal.NewFromInt(100),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resp, err := ValidateSendSourceAndDistribute(context.Background(), tx, constant.CREATED)
+
+	require.NoError(t, err, "this validator does not check asset emptiness; a balanced transaction passes without one")
+	require.NotNil(t, resp, "a passing validation must return a response to inspect")
+	assert.Empty(t, resp.Asset, "the empty asset is copied through to the response unchanged")
+	assert.True(t, resp.Total.Equal(decimal.NewFromInt(100)), "the balance check passed on its own terms")
 }

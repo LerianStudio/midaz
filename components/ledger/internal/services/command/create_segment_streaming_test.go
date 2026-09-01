@@ -9,14 +9,15 @@ import (
 	"encoding/json"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 // newCreateSegmentStreamingTestUseCase wires a happy-path UseCase
@@ -113,7 +114,7 @@ func TestCreateSegment_NoopEmitterDoesNotPanic(t *testing.T) {
 // TestCreateSegment_EmitFailureDoesNotFailRequest verifies the IMPORTANT
 // posture: when Emit returns an error, CreateSegment must still return
 // the successfully-persisted segment because durability is owned by
-// PG + future DLQ/outbox, not by the synchronous Emit call.
+// PG + the configured lib-streaming policy, not by the synchronous Emit call.
 func TestCreateSegment_EmitFailureDoesNotFailRequest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

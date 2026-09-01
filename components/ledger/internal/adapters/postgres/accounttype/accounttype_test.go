@@ -9,11 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// fixedTestTime is a deterministic UTC instant used by the mapping tests so the
+// timestamps stay reproducible instead of relying on time.Now().
+var fixedTestTime = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 
 func TestAccountTypePostgreSQLModel_ToEntity(t *testing.T) {
 	t.Run("with_all_fields_populated", func(t *testing.T) {
@@ -64,6 +68,25 @@ func TestAccountTypePostgreSQLModel_ToEntity(t *testing.T) {
 
 		require.NotNil(t, entity)
 		assert.Nil(t, entity.DeletedAt, "DeletedAt should be nil when Valid is false, even with non-zero Time")
+	})
+
+	t.Run("maps_default_direction", func(t *testing.T) {
+		model := &AccountTypePostgreSQLModel{
+			ID:               uuid.New(),
+			OrganizationID:   uuid.New(),
+			LedgerID:         uuid.New(),
+			Name:             "Debit Type",
+			Description:      "Testing default_direction mapping",
+			KeyValue:         "debit-type",
+			DefaultDirection: "debit",
+			CreatedAt:        fixedTestTime,
+			UpdatedAt:        fixedTestTime,
+		}
+
+		entity := model.ToEntity()
+
+		require.NotNil(t, entity)
+		assert.Equal(t, "debit", entity.DefaultDirection, "DefaultDirection should be copied to the entity")
 	})
 }
 
@@ -116,6 +139,25 @@ func TestAccountTypePostgreSQLModel_FromEntity(t *testing.T) {
 
 		assert.False(t, model.DeletedAt.Valid, "DeletedAt.Valid should be false when entity.DeletedAt is nil")
 		assert.True(t, model.DeletedAt.Time.IsZero(), "DeletedAt.Time should be zero when entity.DeletedAt is nil")
+	})
+
+	t.Run("maps_default_direction", func(t *testing.T) {
+		entity := &mmodel.AccountType{
+			ID:               uuid.New(),
+			OrganizationID:   uuid.New(),
+			LedgerID:         uuid.New(),
+			Name:             "Debit Type",
+			Description:      "Testing default_direction mapping",
+			KeyValue:         "debit-type",
+			DefaultDirection: "debit",
+			CreatedAt:        fixedTestTime,
+			UpdatedAt:        fixedTestTime,
+		}
+
+		var model AccountTypePostgreSQLModel
+		model.FromEntity(entity)
+
+		assert.Equal(t, "debit", model.DefaultDirection, "DefaultDirection should be copied from the entity")
 	})
 
 	t.Run("converts_keyvalue_to_lowercase", func(t *testing.T) {

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/stretchr/testify/require"
 )
 

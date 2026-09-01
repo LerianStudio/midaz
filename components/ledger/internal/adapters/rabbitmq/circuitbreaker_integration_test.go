@@ -18,11 +18,12 @@ import (
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v5/commons/rabbitmq"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	rmqtestutil "github.com/LerianStudio/midaz/v3/tests/utils/rabbitmq"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -101,9 +102,24 @@ type circuitBreakerTestMessage struct {
 // setupCircuitBreakerTestInfra creates test infrastructure with CircuitBreakerProducer.
 func setupCircuitBreakerTestInfra(t *testing.T, cbConfig CircuitBreakerConfig) *circuitBreakerTestInfra {
 	t.Helper()
+	return setupCircuitBreakerTestInfraWithPorts(t, cbConfig, false)
+}
 
-	// Setup RabbitMQ container
-	rmqContainer := rmqtestutil.SetupContainer(t)
+// setupCircuitBreakerTestInfraWithPorts builds the circuit breaker test infrastructure,
+// optionally pinning the container to fixed host ports. Tests that stop and restart the
+// container (full lifecycle recovery) must use fixed ports so the captured connection URI
+// still points at RabbitMQ after restart — Docker reassigns ephemeral host ports on start.
+func setupCircuitBreakerTestInfraWithPorts(t *testing.T, cbConfig CircuitBreakerConfig, fixedPorts bool) *circuitBreakerTestInfra {
+	t.Helper()
+
+	// Setup RabbitMQ container. Fixed host ports keep the connection URI valid across a
+	// container stop/start; ephemeral ports are fine for tests that never restart it.
+	setupContainer := rmqtestutil.SetupReusableContainer
+	if fixedPorts {
+		setupContainer = rmqtestutil.SetupContainerWithFixedPorts
+	}
+
+	rmqContainer := setupContainer(t)
 
 	// Setup exchange and queue
 	exchange := "cb-test-exchange"
@@ -288,7 +304,7 @@ func TestIntegration_Chaos_CircuitBreaker_OpensOnFailure(t *testing.T) {
 	}
 
 	// Use aggressive config to open circuit quickly
-	infra := setupCircuitBreakerTestInfra(t, aggressiveCircuitBreakerConfig())
+	infra := setupCircuitBreakerTestInfraWithPorts(t, aggressiveCircuitBreakerConfig(), true)
 	ctx := context.Background()
 
 	// Step 1: Verify baseline - publish one message successfully
@@ -353,21 +369,23 @@ func TestIntegration_Chaos_CircuitBreaker_OpensOnFailure(t *testing.T) {
 	assert.NotEqual(t, libCircuitBreaker.StateClosed, state,
 		"circuit should not be closed after failures")
 
-	// Verify state change was recorded
-	records := infra.stateChangeListener.GetRecords()
-	assert.NotEmpty(t, records,
-		"state change should have been recorded")
+	// State listeners are notified asynchronously after the breaker changes.
+	// Require the exact transition within a bounded delivery window.
+	var openTransition *cbStateChangeRecord
+	require.Eventually(t, func() bool {
+		for _, record := range infra.stateChangeListener.GetRecords() {
+			if record.To == libCircuitBreaker.StateOpen {
+				recordCopy := record
+				openTransition = &recordCopy
 
-	// Find the state change to open
-	foundOpenTransition := false
-	for _, record := range records {
-		if record.To == libCircuitBreaker.StateOpen {
-			foundOpenTransition = true
-			t.Logf("State change recorded: %s -> %s at %v",
-				record.From, record.To, record.Timestamp)
+				return true
+			}
 		}
-	}
-	assert.True(t, foundOpenTransition, "should have recorded transition to open state")
+
+		return false
+	}, 2*time.Second, 10*time.Millisecond, "state change to open should have been recorded")
+	t.Logf("State change recorded: %s -> %s at %v",
+		openTransition.From, openTransition.To, openTransition.Timestamp)
 
 	t.Log("Chaos test passed: circuit opens on consecutive failures")
 }
@@ -380,7 +398,7 @@ func TestIntegration_Chaos_CircuitBreaker_FastFailWhenOpen(t *testing.T) {
 		t.Skip("skipping chaos integration test in short mode")
 	}
 
-	infra := setupCircuitBreakerTestInfra(t, aggressiveCircuitBreakerConfig())
+	infra := setupCircuitBreakerTestInfraWithPorts(t, aggressiveCircuitBreakerConfig(), true)
 	ctx := context.Background()
 
 	// Step 1: Stop container and open circuit
@@ -487,7 +505,9 @@ func TestIntegration_Chaos_CircuitBreaker_FullLifecycle(t *testing.T) {
 		HealthCheckTimeout:  500 * time.Millisecond,
 	}
 
-	infra := setupCircuitBreakerTestInfra(t, config)
+	// Fixed ports so the connection URI survives the stop/start in Phase 4 — Docker
+	// reassigns ephemeral host ports on start, which would strand the captured URI.
+	infra := setupCircuitBreakerTestInfraWithPorts(t, config, true)
 	ctx := context.Background()
 	chaosOrch := chaos.NewOrchestrator(t)
 	defer func() {

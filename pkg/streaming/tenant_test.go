@@ -8,9 +8,10 @@ import (
 	"context"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/stretchr/testify/assert"
+
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 // TestResolveTenantID_MultiTenantPopulated verifies that when a tenant ID is

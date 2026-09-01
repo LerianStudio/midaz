@@ -16,11 +16,12 @@ import (
 	"strings"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
-	cn "github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
-	postgrestestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
+	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -91,7 +92,7 @@ func postTransactionJSON(t *testing.T, infra *testInfra, sourceAlias, destAlias,
 		bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := infra.app.Test(req, -1)
+	resp, err := infra.app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err, "HTTP request should not fail")
 
 	raw, err := io.ReadAll(resp.Body)

@@ -1,0 +1,70 @@
+name: Docker Hub Visibility
+
+# Docker Hub creates a repository on first push with the organization's default
+# visibility (private), and the shared release pipeline never changes it, so every
+# new image ships unpullable until someone flips it by hand. Callable from the
+# release pipeline as a pre-push gate, and dispatchable to repair the images that
+# already went out private.
+on:
+  workflow_call:
+    inputs:
+      strict:
+        description: 'Fail the job, and any release gated on it, when an image cannot be made public.'
+        type: boolean
+        default: false
+    secrets:
+      DOCKER_USERNAME:
+        required: true
+      DOCKERHUB_IMAGE_PUSH_TOKEN:
+        required: true
+      # Changing visibility is an administrative operation the push token is not
+      # scoped for (it answers 403 on the write). Set this to an organization access
+      # token with repo:admin to let the job actually fix an image.
+      DOCKERHUB_REPO_ADMIN_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      strict:
+        description: 'Fail the run when an image cannot be made public.'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  ensure-public:
+    name: Ensure released images are public
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    # Serialize runs: a release run and a manual repair run racing the same 404 both
+    # POST /repositories/ and the loser fails on a non-201. Job-level (not workflow-level)
+    # because a called reusable workflow only honors concurrency on its jobs.
+    concurrency:
+      group: dockerhub-visibility-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Ensure Docker Hub repositories are public
+        id: visibility
+        # Non-strict callers report the problem without blocking the release: while the
+        # credential lacks repo:admin every run would fail here, and a red gate that
+        # cannot publish anything is worse than a release with a loud warning.
+        continue-on-error: ${{ !inputs.strict }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_REPO_ADMIN_TOKEN || secrets.DOCKERHUB_IMAGE_PUSH_TOKEN }}
+        run: ./scripts/ensure-dockerhub-public.sh
+
+      - name: Warn that images are not public
+        # An if without a status function gets an implicit success(), which is false
+        # when strict mode lets the failure through; !cancelled() keeps the warning
+        # in both modes.
+        if: ${{ !cancelled() && steps.visibility.outcome == 'failure' }}
+        run: |
+          echo "::warning::Released images are not all public (see the step above and the job summary). \
+          Give DOCKERHUB_REPO_ADMIN_TOKEN an organization access token with repo:admin, then set strict: true in release.yml to gate releases on this."

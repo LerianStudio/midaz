@@ -21,7 +21,7 @@ var UUIDPathParameters = []string{
 	"operation_route_id",
 	"transaction_route_id",
 	"holder_id",
-	"alias_id",
+	"instrument_id",
 	"related_party_id",
 }
 

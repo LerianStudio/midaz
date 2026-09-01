@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
 // newTestLogger creates a real logger for tests (no-op by using high log level filtering)
@@ -177,7 +178,7 @@ func TestWaitOrDone(t *testing.T) {
 				cancel()
 			}
 
-			result := waitOrDone(ctx, tt.duration, newTestLogger())
+			result := waitOrDone(ctx, tt.duration)
 
 			assert.Equal(t, tt.expectedResult, result)
 		})

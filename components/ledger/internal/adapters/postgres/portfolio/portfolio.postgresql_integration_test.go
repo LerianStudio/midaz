@@ -11,26 +11,25 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
 // createRepository creates a PortfolioPostgreSQLRepository connected to the test database.
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *PortfolioPostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	return NewPortfolioPostgreSQLRepository(conn)
 }
@@ -40,7 +39,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Port
 // ============================================================================
 
 func TestIntegration_PortfolioRepository_Find_ReturnsPortfolio(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -72,7 +71,7 @@ func TestIntegration_PortfolioRepository_Find_ReturnsPortfolio(t *testing.T) {
 }
 
 func TestIntegration_PortfolioRepository_Find_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -95,7 +94,7 @@ func TestIntegration_PortfolioRepository_Find_ReturnsErrNotFound(t *testing.T) {
 }
 
 func TestIntegration_PortfolioRepository_Find_IgnoresDeletedPortfolio(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -126,7 +125,7 @@ func TestIntegration_PortfolioRepository_Find_IgnoresDeletedPortfolio(t *testing
 // ============================================================================
 
 func TestIntegration_PortfolioRepository_FindByIDEntity_ReturnsPortfolio(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -156,7 +155,7 @@ func TestIntegration_PortfolioRepository_FindByIDEntity_ReturnsPortfolio(t *test
 }
 
 func TestIntegration_PortfolioRepository_FindByIDEntity_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -182,7 +181,7 @@ func TestIntegration_PortfolioRepository_FindByIDEntity_ReturnsErrNotFound(t *te
 // ============================================================================
 
 func TestIntegration_PortfolioRepository_Create_InsertsAndReturnsPortfolio(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -226,7 +225,7 @@ func TestIntegration_PortfolioRepository_Create_InsertsAndReturnsPortfolio(t *te
 // ============================================================================
 
 func TestIntegration_PortfolioRepository_Update_ChangesNameAndStatus(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -272,7 +271,7 @@ func TestIntegration_PortfolioRepository_Update_ChangesNameAndStatus(t *testing.
 }
 
 func TestIntegration_PortfolioRepository_Update_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -301,7 +300,7 @@ func TestIntegration_PortfolioRepository_Update_ReturnsErrNotFound(t *testing.T)
 // ============================================================================
 
 func TestIntegration_PortfolioRepository_FindAll_ReturnsPortfolios(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -334,7 +333,7 @@ func TestIntegration_PortfolioRepository_FindAll_ReturnsPortfolios(t *testing.T)
 }
 
 func TestIntegration_PortfolioRepository_FindAll_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -408,7 +407,7 @@ func TestIntegration_PortfolioRepository_FindAll_Pagination(t *testing.T) {
 }
 
 func TestIntegration_PortfolioRepository_FindAll_ExcludesDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -449,7 +448,7 @@ func TestIntegration_PortfolioRepository_FindAll_ExcludesDeleted(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_PortfolioRepository_ListByIDs_ReturnsMatchingPortfolios(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -484,7 +483,7 @@ func TestIntegration_PortfolioRepository_ListByIDs_ReturnsMatchingPortfolios(t *
 }
 
 func TestIntegration_PortfolioRepository_ListByIDs_ReturnsEmptyForNoMatches(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -507,7 +506,7 @@ func TestIntegration_PortfolioRepository_ListByIDs_ReturnsEmptyForNoMatches(t *t
 // ============================================================================
 
 func TestIntegration_PortfolioRepository_Delete_SoftDeletesPortfolio(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -542,7 +541,7 @@ func TestIntegration_PortfolioRepository_Delete_SoftDeletesPortfolio(t *testing.
 }
 
 func TestIntegration_PortfolioRepository_Delete_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -567,7 +566,7 @@ func TestIntegration_PortfolioRepository_Delete_ReturnsErrNotFound(t *testing.T)
 // ============================================================================
 
 func TestIntegration_PortfolioRepository_Count_ReturnsCorrectCount(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -596,7 +595,7 @@ func TestIntegration_PortfolioRepository_Count_ReturnsCorrectCount(t *testing.T)
 }
 
 func TestIntegration_PortfolioRepository_Count_ExcludesDeletedPortfolios(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -628,7 +627,7 @@ func TestIntegration_PortfolioRepository_Count_ExcludesDeletedPortfolios(t *test
 }
 
 func TestIntegration_PortfolioRepository_Count_ReturnsZeroForEmptyLedger(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 

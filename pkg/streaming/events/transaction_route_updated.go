@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
-// TransactionRouteUpdatedDefinition is the routing contract for transaction-route.updated.
+// TransactionRouteUpdatedDefinition is the routing contract for transaction_route.updated.
 // Emission anchor: components/ledger/internal/services/command/update_transaction_route.go,
 // immediately after TransactionRouteRepo.Update succeeds (and the
 // post-update operation-route hydration completes) and before the
@@ -25,15 +26,15 @@ import (
 // mutation; consumers safe-deduping on that pair can replay this event
 // without effect.
 var TransactionRouteUpdatedDefinition = Definition{
-	ResourceType:  "transaction-route",
+	ResourceType:  "transaction_route",
 	EventType:     "updated",
 	SchemaVersion: "1.0.0",
 }
 
-// TransactionRouteUpdatedPayload is the wire payload for transaction-route.updated.
+// TransactionRouteUpdatedPayload is the wire payload for transaction_route.updated.
 // The payload carries the full mutable surface (title, description,
 // operationRouteIds) so consumers don't need to join against
-// transaction-route.created to render the row. CreatedAt is
+// transaction_route.created to render the row. CreatedAt is
 // intentionally omitted — pinned at create time and not part of the
 // update fact.
 //

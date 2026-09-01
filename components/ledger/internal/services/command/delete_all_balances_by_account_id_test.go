@@ -11,17 +11,18 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	redis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	midazpkg "github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	midazpkg "github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // expectDeleteMarkerPlant expects the delete marker SetNX write that precedes the funds guard.
@@ -131,10 +132,10 @@ func TestDeleteAllBalancesByAccountID(t *testing.T) {
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 
-		var validationErr midazpkg.ValidationError
+		var conflictErr midazpkg.EntityConflictError
 		assert.Error(t, err)
-		assert.True(t, errors.As(err, &validationErr))
-		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
+		assert.True(t, errors.As(err, &conflictErr))
+		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), conflictErr.Code)
 	})
 
 	t.Run("toggle balance transfers error", func(t *testing.T) {
@@ -457,10 +458,10 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 				return
 			}
 
-			var validationErr midazpkg.ValidationError
+			var conflictErr midazpkg.EntityConflictError
 			assert.Error(t, err)
-			assert.True(t, errors.As(err, &validationErr))
-			assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
+			assert.True(t, errors.As(err, &conflictErr))
+			assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), conflictErr.Code)
 		})
 	}
 
@@ -501,10 +502,10 @@ func TestDeleteAllBalancesByAccountIDCacheMissFundsGuard(t *testing.T) {
 
 		err := uc.DeleteAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, requestID.String())
 
-		var validationErr midazpkg.ValidationError
+		var conflictErr midazpkg.EntityConflictError
 		assert.Error(t, err)
-		assert.True(t, errors.As(err, &validationErr))
-		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), validationErr.Code)
+		assert.True(t, errors.As(err, &conflictErr))
+		assert.Equal(t, constant.ErrBalancesCantBeDeleted.Error(), conflictErr.Code)
 	})
 }
 

@@ -9,16 +9,17 @@ import (
 	"errors"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // validateUpdateSettings runs the BalanceSettings contract check before any
@@ -247,7 +248,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		if isUniqueViolation(cerr) {
 			reloaded, reloadErr := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.OverdraftBalanceKey)
 			if reloadErr == nil && reloaded != nil {
-				logger.Log(ctx, libLog.LevelInfo, "Overdraft balance created concurrently by peer request, treating as idempotent success", libLog.String("accountID", current.AccountID))
+				logger.Log(ctx, libLog.LevelDebug, "Overdraft balance created concurrently by peer request, treating as idempotent success", libLog.String("account_id", current.AccountID))
 
 				return nil, nil
 			}
@@ -262,7 +263,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		return nil, cerr
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, "Auto-created overdraft balance", libLog.String("accountID", current.AccountID))
+	logger.Log(ctx, libLog.LevelDebug, "Auto-created overdraft balance", libLog.String("account_id", current.AccountID))
 
 	return created, nil
 }

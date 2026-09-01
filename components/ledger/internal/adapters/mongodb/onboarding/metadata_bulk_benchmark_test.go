@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	mongotestutil "github.com/LerianStudio/midaz/v3/tests/utils/mongodb"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
+
+	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 )
 
 // benchSink prevents compiler optimization of benchmark results.

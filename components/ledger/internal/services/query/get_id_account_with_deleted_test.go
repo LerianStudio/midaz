@@ -9,10 +9,10 @@ import (
 	"errors"
 	"testing"
 
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -49,7 +49,7 @@ func TestGetAccountByIDWithDeleted(t *testing.T) {
 			mockSetup: func() {
 				accountID := uuid.New()
 				mockAccountRepo.EXPECT().
-					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOnV2).
 					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -71,7 +71,7 @@ func TestGetAccountByIDWithDeleted(t *testing.T) {
 			accountID:      uuid.New(),
 			mockSetup: func() {
 				mockAccountRepo.EXPECT().
-					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOnV2).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:      true,
@@ -86,7 +86,7 @@ func TestGetAccountByIDWithDeleted(t *testing.T) {
 			mockSetup: func() {
 				accountID := uuid.New()
 				mockAccountRepo.EXPECT().
-					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					FindWithDeleted(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), mmodel.HolderOnV2).
 					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -102,7 +102,7 @@ func TestGetAccountByIDWithDeleted(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAccountByIDWithDeleted(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.accountID)
+			result, err := uc.GetAccountByIDWithDeleted(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.accountID, mmodel.HolderOnV2)
 
 			if tt.expectErr {
 				assert.Error(t, err)

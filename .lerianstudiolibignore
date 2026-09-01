@@ -1,2 +1,7 @@
 # Lerian libraries to exclude from automated dependency bumps.
-# Currently empty: no libs need pinning.
+#
+# Format:
+#   lib-name/vN                        -> skip entirely (permanent)
+#   lib-name/vN@vX.Y.Z                 -> pin: only fail if current < pinned target
+#   lib-name/vN|ttl:YYYY-MM-DD         -> skip until TTL date
+#   lib-name/vN@vX.Y.Z|ttl:YYYY-MM-DD  -> pin until TTL date

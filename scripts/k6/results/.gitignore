@@ -1,0 +1,3 @@
+# k6 run artifacts — keep the dir, ignore the JSON dumps
+*.json
+!.gitignore

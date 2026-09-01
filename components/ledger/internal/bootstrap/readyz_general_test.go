@@ -17,9 +17,9 @@ import (
 	"testing"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/gofiber/fiber/v2"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -251,7 +251,7 @@ func TestReadyzHandler_ConcurrentRequests(t *testing.T) {
 			defer wg.Done()
 
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			if err != nil {
 				t.Logf("request error: %v", err)
 				results <- -1
@@ -299,7 +299,7 @@ func TestReadyzHandler_CheckerTimeoutRespected(t *testing.T) {
 
 	start := time.Now()
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, 3000) // 3 second test timeout
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 3000 * time.Millisecond, FailOnTimeout: true}) // 3 second test timeout
 	elapsed := time.Since(start)
 
 	require.NoError(t, err)
@@ -353,7 +353,7 @@ func TestReadyzHandler_RaceConditionSafety(t *testing.T) {
 
 			for range 10 {
 				req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-				resp, err := app.Test(req, -1)
+				resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 				if err == nil {
 					_, _ = io.Copy(io.Discard, resp.Body)
 					_ = resp.Body.Close()

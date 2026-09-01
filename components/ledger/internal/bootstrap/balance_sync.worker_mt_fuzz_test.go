@@ -7,10 +7,11 @@ package bootstrap
 import (
 	"testing"
 
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
 // FuzzNewBalanceSyncWorkerMT fuzzes the mtEnabled flag and serviceName
@@ -64,10 +65,10 @@ func FuzzNewBalanceSyncWorkerMT(f *testing.F) {
 		}
 
 		// Property: isMTReady() equals the conjunction of all three conditions.
-		expectedReady := mtEnabled && worker.pgManager != nil && worker.tenantCache != nil
+		expectedReady := mtEnabled && worker.pgResolver != nil && worker.tenantCache != nil
 		if worker.isMTReady() != expectedReady {
-			t.Fatalf("isMTReady() = %v, want %v (mtEnabled=%v, pgManager=%v, tenantCache=%v)",
-				worker.isMTReady(), expectedReady, mtEnabled, worker.pgManager != nil, worker.tenantCache != nil)
+			t.Fatalf("isMTReady() = %v, want %v (mtEnabled=%v, pgResolver=%v, tenantCache=%v)",
+				worker.isMTReady(), expectedReady, mtEnabled, worker.pgResolver != nil, worker.tenantCache != nil)
 		}
 	})
 }

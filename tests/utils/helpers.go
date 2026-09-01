@@ -9,7 +9,7 @@ package testutils
 //
 // Example:
 //
-//	alias := &mmodel.Alias{
+//	instrument := &mmodel.Instrument{
 //	    Document: testutils.Ptr("12345678901"),
 //	    Type:     testutils.Ptr("NATURAL_PERSON"),
 //	}

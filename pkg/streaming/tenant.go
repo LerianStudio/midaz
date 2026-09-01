@@ -14,7 +14,7 @@ package streaming
 import (
 	"context"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 )
 
 // DefaultTenantID is the literal tenant ID stamped onto outbound CloudEvents
@@ -23,9 +23,24 @@ import (
 //
 // Convention: the value "default" signals "no specific tenant scope" to
 // downstream consumers. Real multi-tenant deployments emit a resolved UUID;
-// the literal "default" can never collide with one. Stamping an explicit
-// "default" keeps every emission carrying a stable, greppable ce-tenantid
-// header rather than an empty one.
+// the literal "default" can never collide with one. midaz stamps this
+// explicit marker rather than leaving the tenant empty so every emission
+// carries a self-describing ce-tenantid header.
+//
+// THROUGHPUT CEILING, single-tenant deployments only. lib-streaming's partition
+// key falls back system → tenant → subject → event id, so in single-tenant mode
+// every event carries this one literal tenant and the whole application stream
+// hashes to ONE partition of lerian.streaming.<app>. Consumer parallelism on that
+// stream is therefore capped at one, however many partitions the topic has.
+//
+// This is a ceiling, not a correctness defect: a single partition makes ordering
+// STRONGER (total order across the stream rather than per-tenant), and no event is
+// lost or misrouted. Multi-tenant deployments spread across partitions by resolved
+// tenant already. The fix belongs in lib-streaming as a platform-wide default —
+// tenant+subject is the likely shape — and is being decided there rather than
+// worked around per service, which is why midaz wires no Builder.PartitionKey
+// override: a local override would fragment the fleet's partitioning contract for
+// the sake of one deployment mode.
 const DefaultTenantID = "default"
 
 // ResolveTenantID returns the request-scoped tenant ID for streaming

@@ -9,19 +9,20 @@ import (
 	"encoding/json"
 	"testing"
 
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 // newCreateTransactionRouteStreamingTestUseCase wires a happy-path
-// UseCase suitable for exercising the transaction-route.created
+// UseCase suitable for exercising the transaction_route.created
 // emission.
 //
 // OperationRouteRepo.FindByIDs echoes the input IDs as a slice of
@@ -74,7 +75,7 @@ func newCreateTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Co
 
 // TestCreateTransactionRoute_EmitsTransactionRouteCreatedEvent verifies
 // that a successful CreateTransactionRoute call publishes exactly one
-// transaction-route.created event with the expected resource/event
+// transaction_route.created event with the expected resource/event
 // types, tenant ID, subject and payload fields.
 func TestCreateTransactionRoute_EmitsTransactionRouteCreatedEvent(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -103,10 +104,10 @@ func TestCreateTransactionRoute_EmitsTransactionRouteCreatedEvent(t *testing.T) 
 	emitted := mockEmitter.Events()
 	require.Len(t, emitted, 1, "expected exactly one Emit call")
 
-	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction-route", "created")
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction_route", "created")
 
 	evt := emitted[0]
-	assert.Equal(t, "transaction-route.created", evt.DefinitionKey, "DefinitionKey must match the catalog key")
+	assert.Equal(t, "transaction_route.created", evt.DefinitionKey, "DefinitionKey must match the catalog key")
 	assert.Equal(t, "default", evt.TenantID, "TenantID must come from ResolveTenantID (default fallback when no multi-tenant context)")
 	assert.Equal(t, tr.ID.String(), evt.Subject, "Subject must be the new transaction route ID")
 

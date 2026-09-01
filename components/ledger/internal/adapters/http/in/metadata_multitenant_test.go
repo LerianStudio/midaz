@@ -5,21 +5,14 @@
 package in
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"net/http/httptest"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
-	"github.com/LerianStudio/midaz/v3/pkg/mbootstrap"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/gofiber/fiber/v2"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 func TestMetadataIndexHandler_MongoManagerSelection(t *testing.T) {
@@ -109,109 +102,4 @@ func TestMetadataIndexHandler_ContextForRepoGroup_NoTenantWithManagerPresent(t *
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "tenant id is required")
-}
-
-func TestMetadataIndexHandler_MultiTenantContextResolutionErrors(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name           string
-		method         string
-		url            string
-		body           any
-		registerRoute  func(*fiber.App, *MetadataIndexHandler, any)
-		expectedStatus int
-	}{
-		{
-			name:   "create metadata index returns 500 when tenant mongo manager is missing",
-			method: fiber.MethodPost,
-			url:    "/v1/settings/metadata-indexes/entities/transaction",
-			body: &mmodel.CreateMetadataIndexInput{
-				MetadataKey: "tier",
-			},
-			registerRoute: func(app *fiber.App, handler *MetadataIndexHandler, payload any) {
-				app.Post("/v1/settings/metadata-indexes/entities/:entity_name", func(c *fiber.Ctx) error {
-					c.SetUserContext(tmcore.ContextWithTenantID(context.Background(), "tenant-1"))
-
-					return handler.CreateMetadataIndex(payload, c)
-				})
-			},
-			expectedStatus: fiber.StatusInternalServerError,
-		},
-		{
-			name:           "get metadata indexes by entity returns 500 when tenant mongo manager is missing",
-			method:         fiber.MethodGet,
-			url:            "/v1/settings/metadata-indexes?entity_name=transaction",
-			registerRoute:  registerGetAllMetadataRoute,
-			expectedStatus: fiber.StatusInternalServerError,
-		},
-		{
-			name:           "get all metadata indexes returns 500 when tenant mongo manager is missing",
-			method:         fiber.MethodGet,
-			url:            "/v1/settings/metadata-indexes",
-			registerRoute:  registerGetAllMetadataRoute,
-			expectedStatus: fiber.StatusInternalServerError,
-		},
-		{
-			name:           "delete metadata index returns 500 when tenant mongo manager is missing",
-			method:         fiber.MethodDelete,
-			url:            "/v1/settings/metadata-indexes/entities/transaction/key/tier",
-			registerRoute:  registerDeleteMetadataRoute,
-			expectedStatus: fiber.StatusInternalServerError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctrl := gomock.NewController(t)
-			t.Cleanup(ctrl.Finish)
-
-			handler := &MetadataIndexHandler{
-				OnboardingMetadataRepo:  mbootstrap.NewMockMetadataIndexRepository(ctrl),
-				TransactionMetadataRepo: mbootstrap.NewMockMetadataIndexRepository(ctrl),
-			}
-
-			app := newMetadataHandlerTestApp(func(app *fiber.App) {
-				tt.registerRoute(app, handler, tt.body)
-			})
-
-			var reqBody *bytes.Reader
-			if tt.body != nil {
-				body, err := json.Marshal(tt.body)
-				require.NoError(t, err)
-				reqBody = bytes.NewReader(body)
-			} else {
-				reqBody = bytes.NewReader(nil)
-			}
-
-			req := httptest.NewRequest(tt.method, tt.url, reqBody)
-			req.Header.Set("Content-Type", "application/json")
-
-			resp, err := app.Test(req)
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				_ = resp.Body.Close()
-			})
-			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
-			assertJSONErrorResponse(t, resp)
-		})
-	}
-}
-
-func registerGetAllMetadataRoute(app *fiber.App, handler *MetadataIndexHandler, _ any) {
-	app.Get("/v1/settings/metadata-indexes", func(c *fiber.Ctx) error {
-		c.SetUserContext(tmcore.ContextWithTenantID(context.Background(), "tenant-1"))
-
-		return handler.GetAllMetadataIndexes(c)
-	})
-}
-
-func registerDeleteMetadataRoute(app *fiber.App, handler *MetadataIndexHandler, _ any) {
-	app.Delete("/v1/settings/metadata-indexes/entities/:entity_name/key/:index_key", func(c *fiber.Ctx) error {
-		c.SetUserContext(tmcore.ContextWithTenantID(context.Background(), "tenant-1"))
-
-		return handler.DeleteMetadataIndex(c)
-	})
 }

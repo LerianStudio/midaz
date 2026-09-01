@@ -11,26 +11,25 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
 // createRepository creates an AssetPostgreSQLRepository connected to the test database.
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *AssetPostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	return NewAssetPostgreSQLRepository(conn)
 }
@@ -40,7 +39,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Asse
 // ============================================================================
 
 func TestIntegration_AssetRepository_Find_ReturnsAsset(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -74,7 +73,7 @@ func TestIntegration_AssetRepository_Find_ReturnsAsset(t *testing.T) {
 }
 
 func TestIntegration_AssetRepository_Find_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -97,7 +96,7 @@ func TestIntegration_AssetRepository_Find_ReturnsErrNotFound(t *testing.T) {
 }
 
 func TestIntegration_AssetRepository_Find_IgnoresDeletedAsset(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -129,7 +128,7 @@ func TestIntegration_AssetRepository_Find_IgnoresDeletedAsset(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsTrueForDuplicateName(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -155,7 +154,7 @@ func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsTrueForDuplicateNam
 }
 
 func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsTrueForDuplicateCode(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -181,7 +180,7 @@ func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsTrueForDuplicateCod
 }
 
 func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsFalseWhenNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -203,7 +202,7 @@ func TestIntegration_AssetRepository_FindByNameOrCode_ReturnsFalseWhenNotFound(t
 // ============================================================================
 
 func TestIntegration_AssetRepository_Create(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -250,7 +249,7 @@ func TestIntegration_AssetRepository_Create(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_AssetRepository_Update_ChangesNameAndStatus(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -297,7 +296,7 @@ func TestIntegration_AssetRepository_Update_ChangesNameAndStatus(t *testing.T) {
 }
 
 func TestIntegration_AssetRepository_Update_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -326,7 +325,7 @@ func TestIntegration_AssetRepository_Update_ReturnsErrNotFound(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_AssetRepository_FindAll_ReturnsAssets(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -361,7 +360,7 @@ func TestIntegration_AssetRepository_FindAll_ReturnsAssets(t *testing.T) {
 }
 
 func TestIntegration_AssetRepository_FindAll_EmptyForNonExistentLedger(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -379,7 +378,7 @@ func TestIntegration_AssetRepository_FindAll_EmptyForNonExistentLedger(t *testin
 }
 
 func TestIntegration_AssetRepository_FindAll_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -454,7 +453,7 @@ func TestIntegration_AssetRepository_FindAll_Pagination(t *testing.T) {
 }
 
 func TestIntegration_AssetRepository_FindAll_FiltersByDateRange(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -502,7 +501,7 @@ func TestIntegration_AssetRepository_FindAll_FiltersByDateRange(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_AssetRepository_ListByIDs_ReturnsMatchingAssets(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -537,7 +536,7 @@ func TestIntegration_AssetRepository_ListByIDs_ReturnsMatchingAssets(t *testing.
 }
 
 func TestIntegration_AssetRepository_ListByIDs_EmptyForNonExistentIDs(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -556,7 +555,7 @@ func TestIntegration_AssetRepository_ListByIDs_EmptyForNonExistentIDs(t *testing
 }
 
 func TestIntegration_AssetRepository_ListByIDs_IgnoresDeletedAssets(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -590,7 +589,7 @@ func TestIntegration_AssetRepository_ListByIDs_IgnoresDeletedAssets(t *testing.T
 // ============================================================================
 
 func TestIntegration_AssetRepository_Delete_SoftDeletesAsset(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -626,7 +625,7 @@ func TestIntegration_AssetRepository_Delete_SoftDeletesAsset(t *testing.T) {
 }
 
 func TestIntegration_AssetRepository_Delete_ReturnsErrNotFound(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -651,7 +650,7 @@ func TestIntegration_AssetRepository_Delete_ReturnsErrNotFound(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_AssetRepository_Count_ReturnsCorrectCount(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -681,7 +680,7 @@ func TestIntegration_AssetRepository_Count_ReturnsCorrectCount(t *testing.T) {
 }
 
 func TestIntegration_AssetRepository_Count_ExcludesDeletedAssets(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -713,7 +712,7 @@ func TestIntegration_AssetRepository_Count_ExcludesDeletedAssets(t *testing.T) {
 }
 
 func TestIntegration_AssetRepository_Count_ReturnsZeroForEmptyLedger(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 

@@ -5,25 +5,33 @@
 package command
 
 import (
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	onbMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	txMongo "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/accounttype"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/assetrate"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/balance"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/operationroute"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/transactionroute"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/rabbitmq"
-	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
-	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
+	"context"
+
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	"go.opentelemetry.io/otel/trace"
+
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
+	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
 )
 
 // UseCase is a struct that aggregates all repositories for both onboarding and transaction
@@ -104,4 +112,40 @@ type UseCase struct {
 	// disabled" by every call site — never required for the request to
 	// succeed.
 	Streaming libStreaming.Emitter
+
+	// --- Holder ownership (CRM seam, wired at bootstrap) ---
+
+	// HolderReader asserts holder existence for the RequireHolder gate on the
+	// create path. Org-scoped; satisfied by an adapter over the CRM holder
+	// service so command never imports the CRM package. A nil value disables the
+	// gate (the check only runs when RequireHolder is true and a HolderID is set).
+	HolderReader HolderReader
+
+	// SettingsReader reads cached, parsed ledger settings for the RequireHolder
+	// gate without importing the query package. A nil value falls back to default
+	// settings (RequireHolder false), preserving permissive behaviour.
+	SettingsReader SettingsReader
+
+	// --- Observability (D6) ---
+
+	// MetricsFactory emits the bounded domain_operations_total /
+	// domain_operation_duration_ms metrics for every state-mutating command
+	// entrypoint via utils.RecordDomainOperation. A nil value is a no-op so
+	// the binary runs with telemetry disabled.
+	MetricsFactory *metrics.MetricsFactory
+}
+
+// recordCommandError records err on span and logs it with the helper and level that
+// match its class: business/4xx keeps the span green and logs at Warn (T5, T7); technical/5xx
+// flips the span red and logs at Error so it feeds error-rate SLOs and pages an operator.
+func recordCommandError(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error) {
+	if pkg.IsBusinessError(err) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+		logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
+
+		return
+	}
+
+	libOpentelemetry.HandleSpanError(span, message, err)
+	logger.Log(ctx, libLog.LevelError, message, libLog.Err(err))
 }

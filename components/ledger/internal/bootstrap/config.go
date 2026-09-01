@@ -6,40 +6,47 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/lib-auth/v2/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v5/commons/circuitbreaker"
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
-	tmclient "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	tmevent "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/event"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/middleware"
-	tmmongo "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/mongo"
-	tmpostgres "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/postgres"
-	tmredis "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/redis"
-	"github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/tenantcache"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/LerianStudio/lib-observability/metrics"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libZap "github.com/LerianStudio/lib-observability/zap"
-	libsd "github.com/LerianStudio/lib-service-discovery"
-	httpin "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/http/in"
-	onbRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/onboarding"
-	txRedis "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services/query"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	midazhttp "github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pkgsd "github.com/LerianStudio/midaz/v3/pkg/servicediscovery"
-	"github.com/gofiber/fiber/v2"
+	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
+	libRedis "github.com/LerianStudio/lib-commons/v6/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmevent "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/event"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/middleware"
+	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
+	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	tmredis "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/redis"
+	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
+	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
 
 const ApplicationName = "ledger"
@@ -56,7 +63,7 @@ type Config struct {
 	DeploymentMode  string `env:"DEPLOYMENT_MODE"`
 
 	// Server configuration - unified port for all APIs
-	ServerAddress string `env:"SERVER_ADDRESS" envDefault:":3002"`
+	ServerAddress string `env:"SERVER_ADDRESS" default:":3002"`
 
 	// OpenTelemetry configuration
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
@@ -70,6 +77,16 @@ type Config struct {
 	AuthEnabled bool   `env:"PLUGIN_AUTH_ENABLED"`
 	AuthHost    string `env:"PLUGIN_AUTH_HOST"`
 	JWKAddress  string `env:"CASDOOR_JWK_ADDRESS"`
+
+	// Resource-inventory (RI) permission declaration against the IdP (identity, :4001),
+	// distinct from PLUGIN_AUTH_HOST (auth, :4000). RI is OPTIONAL and fail-open: an unset
+	// or invalid IDP_DECLARATION_ENABLED decodes to false (safe), and empty host/credentials
+	// never block boot — the publisher handles incomplete config fail-open. IDPM2MClientSecret
+	// MUST NOT be logged, span-attached, or serialized.
+	DeclarationEnabled bool   `env:"IDP_DECLARATION_ENABLED"`
+	IDPHost            string `env:"IDP_HOST"`
+	IDPM2MClientID     string `env:"IDP_M2M_CLIENT_ID"`
+	IDPM2MClientSecret string `env:"IDP_M2M_CLIENT_SECRET"`
 
 	// Redis configuration (shared across domains)
 	// Defaults are applied programmatically by applyConfigDefaults after env loading.
@@ -144,6 +161,8 @@ type Config struct {
 	TxnPrefixedMaxOpenConnections int `env:"DB_TRANSACTION_MAX_OPEN_CONNS"`
 	TxnPrefixedMaxIdleConnections int `env:"DB_TRANSACTION_MAX_IDLE_CONNS"`
 
+	RouteTransactionalReadsToPrimary bool `env:"DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY"`
+
 	// --- Onboarding MongoDB fields (MONGO_ONBOARDING_* env tags) ---
 	OnbPrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
 	OnbPrefixedMongoDBHost       string `env:"MONGO_ONBOARDING_HOST"`
@@ -165,6 +184,50 @@ type Config struct {
 	TxnPrefixedMongoDBParameters string `env:"MONGO_TRANSACTION_PARAMETERS"`
 	TxnPrefixedMaxPoolSize       int    `env:"MONGO_TRANSACTION_MAX_POOL_SIZE"`
 	TxnPrefixedMongoTLSCACert    string `env:"MONGO_TRANSACTION_TLS_CA_CERT"`
+
+	// --- CRM MongoDB fields (MONGO_CRM_* env tags) ---
+	// CRM (holder/alias) collapsed into the unified ledger binary.
+	CrmPrefixedMongoURI          string `env:"MONGO_CRM_URI"`
+	CrmPrefixedMongoDBHost       string `env:"MONGO_CRM_HOST"`
+	CrmPrefixedMongoDBName       string `env:"MONGO_CRM_NAME"`
+	CrmPrefixedMongoDBUser       string `env:"MONGO_CRM_USER"`
+	CrmPrefixedMongoDBPassword   string `env:"MONGO_CRM_PASSWORD"`
+	CrmPrefixedMongoDBPort       string `env:"MONGO_CRM_PORT"`
+	CrmPrefixedMongoDBParameters string `env:"MONGO_CRM_PARAMETERS"`
+	CrmPrefixedMaxPoolSize       int    `env:"MONGO_CRM_MAX_POOL_SIZE"`
+	CrmPrefixedMongoTLSCACert    string `env:"MONGO_CRM_TLS_CA_CERT"`
+
+	// --- CRM crypto keys (holder/alias PII at-rest encryption) ---
+	// These keep the BARE LCRYPTO_* env names (no CRM prefix) so the EXACT key
+	// VALUES used by the standalone CRM service carry over unchanged. Changing
+	// either value renders existing holder/alias PII undecryptable.
+	CrmHashSecretKey    string `env:"LCRYPTO_HASH_SECRET_KEY"`
+	CrmEncryptSecretKey string `env:"LCRYPTO_ENCRYPT_SECRET_KEY"`
+
+	// --- CRM KMS / field-encryption (envelope) config ---
+	// KMS_VENDOR selects the encryption mode: "none" (or empty) keeps legacy
+	// lib-commons crypto; "hashicorp-vault" enables KMS-backed envelope encryption
+	// for holder/instrument fields. The Vault fields are required only for envelope
+	// mode and validated then; legacy mode ignores them.
+	KMSVendor       string `env:"KMS_VENDOR"`
+	VaultAddr       string `env:"KMS_VAULT_ADDR"`
+	VaultRoleID     string `env:"KMS_VAULT_ROLE_ID"`
+	VaultSecretID   string `env:"KMS_VAULT_SECRET_ID"`
+	VaultAuthMethod string `env:"KMS_VAULT_AUTH_METHOD"`
+
+	// --- Fees MongoDB fields (MONGO_FEES_* env tags) ---
+	// Fee/billing-package collections collapsed into the unified ledger binary
+	// (P4). Namespaced MONGO_FEES_* to avoid colliding with the standalone fees
+	// service's bare MONGO_* surface and ledger's MONGO_ONBOARDING_/MONGO_TRANSACTION_.
+	FeesPrefixedMongoURI          string `env:"MONGO_FEES_URI"`
+	FeesPrefixedMongoDBHost       string `env:"MONGO_FEES_HOST"`
+	FeesPrefixedMongoDBName       string `env:"MONGO_FEES_NAME"`
+	FeesPrefixedMongoDBUser       string `env:"MONGO_FEES_USER"`
+	FeesPrefixedMongoDBPassword   string `env:"MONGO_FEES_PASSWORD"`
+	FeesPrefixedMongoDBPort       string `env:"MONGO_FEES_PORT"`
+	FeesPrefixedMongoDBParameters string `env:"MONGO_FEES_PARAMETERS"`
+	FeesPrefixedMaxPoolSize       int    `env:"MONGO_FEES_MAX_POOL_SIZE"`
+	FeesPrefixedMongoTLSCACert    string `env:"MONGO_FEES_TLS_CA_CERT"`
 
 	// --- RabbitMQ (transaction domain only) ---
 	RabbitURI                                string `env:"RABBITMQ_URI"`
@@ -219,6 +282,39 @@ type Config struct {
 	StreamingCompression       string `env:"STREAMING_COMPRESSION"`
 	StreamingRequiredAcks      string `env:"STREAMING_REQUIRED_ACKS"`
 	StreamingBatchLingerMs     int    `env:"STREAMING_BATCH_LINGER_MS"`
+
+	// Streaming SASL/TLS auth is owned by lib-streaming: it reads the
+	// STREAMING_SASL_* and STREAMING_TLS_* env vars via LoadConfig and wires
+	// the broker dial itself, so midaz does not parse those knobs here.
+
+	// --- Tracer reservation client ---
+	// TRACER_BASE_URL is the escape hatch for the tracer integration as a
+	// whole: empty (the default) injects a nil TracerReserver so the
+	// transaction create path stays unchanged. When set, the reservation HTTP
+	// client is constructed and injected. The per-ledger advisory/enforce gate
+	// is a tracer.mode setting read at the call site, not a global flag.
+	// TracerTimeoutMs bounds each reservation call so a slow tracer cannot hold
+	// the transaction create path open; it mirrors the tracer.timeoutMs setting
+	// default (250ms) and is overridden per-ledger by the call site.
+	// TracerTransport selects the reservation transport: "grpc" (default) or
+	// "rest". gRPC is the seam's production transport; REST is retained as a
+	// fallback, selectable by setting TRACER_TRANSPORT=rest. A deploy that wires
+	// the tracer (TRACER_BASE_URL set) without overriding this now speaks gRPC,
+	// so the tracer must expose its gRPC seam (TRACER_GRPC_PORT) and, under
+	// TRACER_TLS_MODE=mtls, both ends need cert material.
+	// TracerTLSMode secures the reservation seam: "mtls" presents a client
+	// certificate and verifies the tracer's server certificate against the CA
+	// (mutual TLS is the seam's identity — no shared secret); "mesh" (and the
+	// empty default) speaks plaintext to a local service-mesh sidecar that
+	// terminates mTLS. Under "mtls" the cert/key/CA paths are required when the
+	// integration is on, enforced by buildTracerReserver.
+	TracerBaseURL     string `env:"TRACER_BASE_URL"`
+	TracerTimeoutMs   int    `env:"TRACER_TIMEOUT_MS"`
+	TracerTransport   string `env:"TRACER_TRANSPORT"`
+	TracerTLSMode     string `env:"TRACER_TLS_MODE"`
+	TracerTLSCertFile string `env:"TRACER_TLS_CERT_FILE"`
+	TracerTLSKeyFile  string `env:"TRACER_TLS_KEY_FILE"`
+	TracerTLSCAFile   string `env:"TRACER_TLS_CA_FILE"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -247,6 +343,30 @@ func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }
 
+// validateBootAuthGates enforces the auth-presence invariants that must hold
+// before any infrastructure opens. It runs before the logger exists, so it
+// returns errors rather than logging. Two independent gates:
+//
+//  1. Multi-tenant mode requires auth in every environment — tenant identity
+//     comes from the JWT, so disabling auth allows cross-tenant data access.
+//  2. Production requires auth even single-tenant — lib-auth fail-opens when
+//     disabled, so a production deploy that forgets PLUGIN_AUTH_ENABLED=true
+//     would serve every business endpoint unauthenticated. Non-production
+//     (local/dev/staging) keeps Warn-free boot for developer onboarding.
+func validateBootAuthGates(cfg *Config) error {
+	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
+		return fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
+			"running multi-tenant mode without authentication allows cross-tenant data access")
+	}
+
+	if strings.EqualFold(strings.TrimSpace(cfg.EnvName), "production") && !cfg.AuthEnabled {
+		return fmt.Errorf("ENV_NAME=production requires PLUGIN_AUTH_ENABLED=true; " +
+			"a single-tenant production deployment without authentication serves every endpoint unauthenticated")
+	}
+
+	return nil
+}
+
 // InitServersWithOptions initializes the unified ledger service with optional dependency injection.
 // It directly initializes all infrastructure (PG, Mongo, Redis, RabbitMQ) instead of delegating
 // to onboarding/transaction sub-modules.
@@ -261,9 +381,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	applyConfigDefaults(cfg)
 
-	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
-		return nil, fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
-			"running multi-tenant mode without authentication allows cross-tenant data access")
+	if err := validateBootAuthGates(cfg); err != nil {
+		return nil, err
 	}
 
 	// Logger: use injected or create fresh
@@ -309,6 +428,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
+	}
+
+	// Domain-metrics factory (D6): derived once from telemetry (nil when
+	// telemetry is disabled) and shared across every use case so
+	// utils.RecordDomainOperation emits the bounded domain_operations_total /
+	// domain_operation_duration_ms series. Also threaded into CRM field-encryption
+	// wiring below (protection metrics) and reused for the readyz handler.
+	var metricsFactory *metrics.MetricsFactory
+	if telemetry != nil {
+		metricsFactory = telemetry.MetricsFactory
 	}
 
 	// Register telemetry providers as process-global so that the otelzap bridge
@@ -436,6 +565,41 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		addCleanup(func() { _ = txnMgo.connection.Close(context.Background()) })
 	}
 
+	// 4b. CRM MongoDB → holder/instrument repos + handlers (collapsed from the
+	// standalone CRM service in P3). Single-tenant builds a static client;
+	// multi-tenant builds a 3rd crm-api tenant Mongo manager. Field encryption
+	// (legacy or KMS envelope) is wired here and injected into the repos.
+	// metricsFactory (derived from telemetry above) feeds the encryption
+	// protection-metrics seam; the seam is nil-safe if telemetry is disabled.
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing CRM MongoDB...")
+
+	crmMgo, err := initCRM(internalOpts, cfg, metricsFactory, logger)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize CRM MongoDB: %w", err)
+	}
+
+	if crmMgo.connection != nil {
+		addCleanup(func() { _ = crmMgo.connection.Close(context.Background()) })
+	}
+
+	// 4c. Fees MongoDB → pack/billing-package repos (collapsed from the
+	// standalone fees service in P4). The constructors ensure the 11
+	// compound indexes on the static connection's DB at startup. In MT mode a
+	// fee tenant Mongo manager (module constant.ModuleFees) is also built; per-request
+	// DB resolution lands on tmcore via the route-scoped middleware.
+	logger.Log(context.Background(), libLog.LevelInfo, "Initializing fees MongoDB...")
+
+	feeMgo, err := initFeesMongo(internalOpts, cfg, logger)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize fees MongoDB: %w", err)
+	}
+
+	if feeMgo.connection != nil {
+		addCleanup(func() { _ = feeMgo.connection.Close(context.Background()) })
+	}
+
 	// 5. Redis (shared connection, two consumer repos)
 	logger.Log(context.Background(), libLog.LevelInfo, "Initializing Redis...")
 
@@ -478,6 +642,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		rmq.mongoManager = txnMgo.mongoManager
 	}
 
+	// Declared ahead of the worker section so the dispatcher callbacks below can
+	// reach it. They only run once Service.Run starts the event listener, long
+	// after the assignment.
+	var balanceSyncWorker *BalanceSyncWorker
+
 	// === Event Dispatcher & Listener (multi-tenant only) ===
 	// Created AFTER infrastructure init so the dispatcher receives the PG, Mongo, and RabbitMQ
 	// managers. This allows removeTenant to close infrastructure connections when a tenant is
@@ -486,6 +655,31 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		dispatcherOpts := []tmevent.DispatcherOption{
 			tmevent.WithDispatcherLogger(logger),
 			tmevent.WithCacheTTL(cacheTTL),
+			// Ownership signal for lib-commons' tenant.cache.invalidate handling: report a
+			// tenant as owned when midaz has a live consumer goroutine for it. Stats()
+			// reflects live goroutines, so this stays accurate even when the tier-1 cache
+			// entry has TTL-expired (the default cache-based check would miss it and skip
+			// the reload that restarts the consumer, leaving it stopped).
+			tmevent.WithTenantOwnershipChecker(func(tenantID string) bool {
+				// A balance-sync collector is as much a live consumer goroutine as a
+				// RabbitMQ one: without this a tenant whose only activity is balance
+				// sync would be reported unowned and its reload skipped.
+				if balanceSyncWorker != nil && balanceSyncWorker.HasCollector(tenantID) {
+					return true
+				}
+
+				if rmq == nil || rmq.multiTenantConsumer == nil {
+					return false
+				}
+
+				for _, id := range rmq.multiTenantConsumer.Stats().TenantIDs {
+					if id == tenantID {
+						return true
+					}
+				}
+
+				return false
+			}),
 			tmevent.WithOnTenantAdded(func(ctx context.Context, tenantID string) {
 				if tenantClient != nil {
 					_ = tenantClient.InvalidateConfig(ctx, tenantID, tenantServiceName)
@@ -498,6 +692,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 			tmevent.WithOnTenantRemoved(func(ctx context.Context, tenantID string) {
 				if rmq != nil && rmq.multiTenantConsumer != nil {
 					rmq.multiTenantConsumer.StopConsumer(tenantID)
+				}
+
+				// MUST precede the transaction PG close: stopping the collector drains
+				// its buffered keys, and that final flush needs a live pool.
+				if balanceSyncWorker != nil {
+					balanceSyncWorker.StopTenantCollector(tenantID)
 				}
 
 				// Close ALL postgres managers (onboarding + transaction)
@@ -515,7 +715,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 					}
 				}
 
-				// Close ALL mongo managers (onboarding + transaction)
+				// Close ALL mongo managers (onboarding + transaction + crm-api)
 				if onbMgo.mongoManager != nil {
 					if err := onbMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
 						logger.Log(ctx, libLog.LevelWarn, "failed to close onboarding Mongo connection",
@@ -526,6 +726,20 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 				if txnMgo.mongoManager != nil {
 					if err := txnMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
 						logger.Log(ctx, libLog.LevelWarn, "failed to close transaction Mongo connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				if crmMgo.mongoManager != nil {
+					if err := crmMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close crm-api Mongo connection",
+							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
+					}
+				}
+
+				if feeMgo.mongoManager != nil {
+					if err := feeMgo.mongoManager.CloseConnection(ctx, tenantID); err != nil {
+						logger.Log(ctx, libLog.LevelWarn, "failed to close fees Mongo connection",
 							libLog.String("tenant_id", tenantID), libLog.String("error", err.Error()))
 					}
 				}
@@ -617,6 +831,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Use cases ===
 
+	// Arm lib-observability's panic-observability trident so every
+	// libRuntime.SafeGo* call site (e.g. the Redis backup-consumer replay
+	// goroutines) emits the panic_recovered_total counter when a goroutine
+	// panics. Without this Init, SafeGo still recovers + logs + records the
+	// span event, but the metric is a no-op binary-wide. Called once here,
+	// after the metrics factory is resolved and before the workers spawn.
+	// Idempotent — subsequent calls are no-ops.
+	if metricsFactory != nil {
+		libRuntime.InitPanicMetrics(metricsFactory, logger)
+	}
+
 	commandUseCase := &command.UseCase{
 		// Onboarding domain
 		OrganizationRepo:       onbPG.organizationRepo,
@@ -640,6 +865,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionRedisRepo:    txnRedisRepo,
 		// Streaming
 		Streaming: streamingEmitter,
+		// Observability (D6)
+		MetricsFactory: metricsFactory,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -663,7 +890,61 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
+		// Observability (D6)
+		MetricsFactory: metricsFactory,
 	}
+
+	// === Holder ownership wiring (F1) ===
+	// The command UseCase reads cached settings and asserts holder existence
+	// through narrow ports so it never imports the query or CRM packages.
+	// HolderReader adapts the CRM holder service; SettingsReader is satisfied
+	// directly by the query UseCase (signatures match).
+	commandUseCase.HolderReader = holderReaderAdapter{service: crmMgo.holderHandler.Service}
+	commandUseCase.SettingsReader = queryUseCase
+
+	// === CRM domain metrics (D6) ===
+	// The holder and instrument handlers share the SAME CRM use-case instance,
+	// so setting the factory once covers every CRM entrypoint.
+	crmMgo.holderHandler.Service.MetricsFactory = metricsFactory
+
+	// === CRM streaming events ===
+	// Reuse the same lib-streaming Emitter the ledger command use case uses
+	// (NoopEmitter when STREAMING_ENABLED=false). The holder and instrument
+	// handlers share the SAME CRM use-case instance, so setting it once covers
+	// every CRM emit site (holder.*, instrument.*).
+	crmMgo.holderHandler.Service.Streaming = streamingEmitter
+
+	// === CRM idempotency ===
+	// Reuse the already-constructed transaction Redis repo (it satisfies the
+	// narrow crmservices.IdempotencyRepo port structurally). No second Redis
+	// client. Set once on the shared CRM use case.
+	crmMgo.holderHandler.Service.Idempotency = txnRedisRepo
+
+	// === CRM instrument referential validation ===
+	// CreateInstrument verifies the body-supplied ledger_id/account_id exist in
+	// the request org via a narrow adapter over the ledger query use case, so
+	// CRM never imports the query package. Set once on the shared CRM use case.
+	crmMgo.holderHandler.Service.LedgerAccounts = ledgerAccountReaderAdapter{query: queryUseCase}
+
+	// === Fee use cases ===
+	// Built from the fee Mongo slice + the ledger query.UseCase so fee
+	// account/segment/count reads run in-process. HTTP route mounting is
+	// deferred to the next chunk (P4-T10/T17); here the fee use cases are only
+	// constructed + held so they are not dead code.
+	fees, err := initFees(feeMgo, queryUseCase, logger, streamingEmitter)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize fee use cases: %w", err)
+	}
+
+	// === Fee domain metrics (D6) ===
+	fees.useCase.MetricsFactory = metricsFactory
+	fees.billingPackageService.MetricsFactory = metricsFactory
+	fees.billingCalculateService.MetricsFactory = metricsFactory
+
+	// Cache the per-(org,ledger) fee-package set so a transaction create on a
+	// ledger with no fee packages skips the Mongo lookup; invalidated on package CUD.
+	fees.useCase.PackageCache = txnRedisRepo
 
 	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
 	if err := rmq.wireConsumer(commandUseCase); err != nil {
@@ -682,8 +963,41 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	segmentHandler := &httpin.SegmentHandler{Command: commandUseCase, Query: queryUseCase}
 	accountTypeHandler := &httpin.AccountTypeHandler{Command: commandUseCase, Query: queryUseCase}
 
+	// === Tracer reservation client ===
+	// Built before the handler so the reserver is available for injection.
+	// When TRACER_BASE_URL is empty (the documented default) the helper returns
+	// a nil TracerReserver and the create path stays unchanged, mirroring the
+	// streaming NoopEmitter escape hatch.
+	tracerReserver, err := buildTracerReserver(cfg, logger)
+	if err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to initialize tracer reservation client: %w", err)
+	}
+
+	// Resolve the optional SIGTERM teardown hook for the tracer transport.
+	// The gRPC client holds a persistent grpc.ClientConn and exposes
+	// Close() error; the REST client does not implement the interface, so
+	// tracerClose stays nil and Run() registers no teardown app for it.
+	var tracerClose func() error
+	if closer, ok := tracerReserver.(interface{ Close() error }); ok {
+		tracerClose = closer.Close
+
+		// Register the transport teardown in the startup cleanup stack so the
+		// gRPC ClientConn is closed if a later startup step (route setup, readyz
+		// handler) fails — not only on the happy SIGTERM path via Run().
+		addCleanup(func() { _ = tracerClose() })
+	}
+
 	// Transaction handlers
-	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase}
+	transactionHandler := &httpin.TransactionHandler{
+		Command:            commandUseCase,
+		Query:              queryUseCase,
+		FeeApplier:         fees.useCase,
+		TracerReserver:     tracerReserver,
+		FeesMongoManager:   feeMgo.mongoManager,
+		MultiTenantEnabled: cfg.MultiTenantEnabled,
+	}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
 	balanceHandler := &httpin.BalanceHandler{Command: commandUseCase, Query: queryUseCase}
@@ -696,13 +1010,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		OnboardingMongoManager:  onbMgo.mongoManager,
 		TransactionMongoManager: txnMgo.mongoManager,
-	}
-
-	// Extract the metrics factory ONCE (nil when telemetry disabled) so it can
-	// back both the service-discovery recorder below and the readyz handler.
-	var metricsFactory *metrics.MetricsFactory
-	if telemetry != nil {
-		metricsFactory = telemetry.MetricsFactory
 	}
 
 	// Service discovery: build the Manager (no-op when disabled), parse the
@@ -729,30 +1036,83 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Multi-tenant middleware ===
 
-	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager, tenantCache, tenantLoader)
+	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager, crmMgo.mongoManager, feeMgo.mongoManager, tenantCache, tenantLoader)
 	if err != nil {
 		doCleanup()
 		return nil, err
 	}
 
-	// === Route registrars ===
-
-	onboardingRouteRegistrar := func(router fiber.Router) {
-		httpin.RegisterOnboardingRoutesToApp(router, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler, accountTypeHandler, routeSetup.onboardingRouteOptions)
+	// Wave-3 (additive) handlers are constructed here, BEFORE the HumaMountDeps that
+	// carries them, because MountV1/MountV2 wire their Huma terminals + Fiber auth
+	// chain on the shared contract.
+	//
+	// CRM uses the SAME auth client as ledger; only the authz resource namespace differs
+	// (midaz:{holders,instruments}, encoded in the route definitions). The CRM-scoped
+	// tenant middleware travels via routeSetup.crmRouteOptions. The holder-accounts
+	// handler reads ledger accounts through a thin adapter over the query UseCase so the
+	// CRM HTTP layer never imports ledger internals; because it reads onboarding stores
+	// rather than CRM ones, its route carries routeSetup.holderAccountsRouteOptions.
+	holderAccountsHandler := &httpin.HolderAccountsHandler{
+		Reader: holderAccountsReaderAdapter{query: queryUseCase},
 	}
 
-	transactionRouteRegistrar := func(router fiber.Router) {
-		httpin.RegisterTransactionRoutesToApp(router, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler, operationRouteHandler, transactionRouteHandler, routeSetup.transactionRouteOptions)
+	// Fee/billing handlers wire directly to the in-process fee use cases built by
+	// initFees (no reconstruction). The fee UseCase satisfies both the package CRUD and
+	// fee-estimate handler interfaces. Fees authorizes under the midaz namespace
+	// (encoded in the route definitions); its tenant middleware travels via
+	// routeSetup.feesRouteOptions.
+	feePackageHandler := &httpin.PackageHandler{Service: fees.useCase}
+	feeHandler := &httpin.FeeHandler{Service: fees.useCase}
+	billingPackageHandler := &httpin.BillingPackageHandler{Service: fees.billingPackageService}
+	billingCalculateHandler := &httpin.BillingCalculateHandler{Service: fees.billingCalculateService}
+
+	// Composition reuses the SAME account-create and instrument-create use-case instances
+	// the onboarding and CRM registrars already use — it composes them, it never
+	// reimplements them. The cross-store composition tenant middleware travels via
+	// routeSetup.compositionRouteOptions so it applies ONLY to the composition route.
+	compositionService := composition.NewService(commandUseCase, crmMgo.instrumentHandler.Service)
+	compositionHandler := &httpin.CompositionHandler{Service: compositionService}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server")
+
+	// humaMountDeps is the single mount list both contract versions build from. The
+	// per-registrar options rationale (why metadata-index takes ledgerRouteOptions
+	// without WithTenantDB, why the CRM/fee/composition tenant options stay distinct)
+	// lives on HumaMountDeps.MountV1 / MountV2 in the http/in package, next to the
+	// registrar calls it governs. buildHumaMountDeps threads handlers and route options
+	// by NAME so the CRM↔Fees tenant-option pairing cannot silently swap.
+	humaMountDeps := buildHumaMountDeps(
+		auth,
+		organizationHandler, ledgerHandler, portfolioHandler, segmentHandler, accountHandler, accountTypeHandler, metadataIndexHandler, assetHandler, assetRateHandler,
+		balanceHandler, operationHandler, operationRouteHandler, transactionRouteHandler,
+		transactionHandler,
+		crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler,
+		feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler,
+		compositionHandler,
+		routeSetup,
+	)
+
+	// Streaming manifest route (catalog-only lib-streaming manifest). Built
+	// DEGRADED-SAFE and INDEPENDENT of STREAMING_ENABLED: the manifest advertises
+	// the event taxonomy even with publication off. A build error logs at Warn and
+	// leaves the route unmounted (the hub sees 404), never failing ledger startup.
+	streamingManifestHandler, streamingManifestErr := BuildStreamingManifestHandler(cfg)
+	if streamingManifestErr != nil {
+		logger.Log(context.Background(), libLog.LevelWarn,
+			"Streaming manifest route disabled: failed to build manifest handler",
+			libLog.Err(streamingManifestErr))
 	}
 
-	ledgerRouteRegistrar := httpin.CreateRouteRegistrar(auth, metadataIndexHandler, routeSetup.ledgerRouteOptions)
+	streamingManifestRegistrar := func(router fiber.Router) {
+		httpin.RegisterStreamingManifestRouteToApp(router, auth, routeSetup.onboardingRouteOptions, streamingManifestHandler)
+	}
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Creating unified HTTP server on "+cfg.ServerAddress)
 
 	// === Readyz handler ===
 
-	// metricsFactory was extracted above (nil-safe: checked inside handler).
-	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, rmq, metricsFactory)
+	// metricsFactory derived once with the use cases (nil-safe: checked inside handler).
+	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, crmMgo, feeMgo, rmq, metricsFactory)
 	if err != nil {
 		doCleanup()
 
@@ -763,12 +1123,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	unifiedServer := NewUnifiedServer(
 		cfg.ServerAddress,
+		cfg.Version,
 		logger,
 		telemetry,
 		readyzHandler,
-		onboardingRouteRegistrar,
-		transactionRouteRegistrar,
-		ledgerRouteRegistrar,
+		humaMountDeps.MountV1,
+		humaMountDeps.MountV2,
+		streamingManifestRegistrar,
 	)
 
 	// === Workers ===
@@ -776,13 +1137,20 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// RedisQueueConsumer: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
 	if cfg.MultiTenantEnabled && tenantCache != nil {
-		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantCache, txnPG.pgManager, tenantServiceName)
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantCache, txnPG.pgManager)
 	} else {
 		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
 	}
 
+	// The quarantine repository is the durable sink for poison backup records;
+	// the metrics factory powers the backup-queue observability gauges/counter.
+	redisConsumer.
+		WithQuarantineRepository(txnPG.quarantineRepo).
+		WithMetricsFactory(metricsFactory)
+
 	// BalanceSyncWorker: multi-tenant or single-tenant
-	balanceSyncWorker := initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
+	balanceSyncWorker = initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
+	balanceSyncWorker.WithMetricsFactory(metricsFactory)
 
 	// Legacy drainer: drains pre-v3.6.2 ZSET entries (balance-sync key with seconds/microsecond scores).
 	// Uses relaxed timing (longer flush timeout, longer idle wait) since it only drains a finite backlog.
@@ -791,6 +1159,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		FlushTimeoutMs: 2000,
 		PollIntervalMs: 1000,
 	})
+
+	// SaaS TLS gate for the RI declaration publisher's IdP dial. Placed before the
+	// success log so an explicit http:// IDP_HOST under DEPLOYMENT_MODE=saas refuses
+	// boot rather than claiming a successful start. Mirrors the streaming TLS gate:
+	// no-op unless DEPLOYMENT_MODE=saas AND RI declaration is enabled AND IDP_HOST is
+	// an explicit cleartext http:// URL. It is a synchronous boot validation — it
+	// opens no connection and starts no goroutine.
+	if err := ValidateSaaSDeclarationTLS(cfg.DeploymentMode, cfg.DeclarationEnabled, cfg.IDPHost); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to validate RI declaration IdP TLS: %w", err)
+	}
 
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
@@ -815,6 +1195,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory:           rmq.metricsFactory,
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
+		DeclarationStops:         buildDeclarationPublishers(cfg, auth, logger),
+		TracerClose:              tracerClose,
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,
 		ServiceDescriptor:        sd.descriptor,
@@ -829,9 +1211,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 // unless discovery is enabled, upholding the invariant that SD off emits zero
 // SD metrics.
 type serviceDiscoveryWiring struct {
-	manager    *libsd.Manager
+	manager    *pkgsd.Manager
 	enabled    bool
-	descriptor libsd.Service
+	descriptor pkgsd.Descriptor
 	authHost   string
 	recorder   pkgsd.MetricsRecorder
 }
@@ -862,7 +1244,7 @@ func wireServiceDiscovery(cfg *Config, logger libLog.Logger, metricsFactory *met
 		recorder = pkgsd.NewMetricsFactoryRecorder(metricsFactory, logger)
 	}
 
-	var descriptor libsd.Service
+	var descriptor pkgsd.Descriptor
 
 	if enabled {
 		serverPort, portErr := pkgsd.ParseServerPort(cfg.ServerAddress)
@@ -1092,6 +1474,24 @@ type unifiedRouteSetup struct {
 	onboardingRouteOptions  *midazhttp.ProtectedRouteOptions
 	transactionRouteOptions *midazhttp.ProtectedRouteOptions
 	ledgerRouteOptions      *midazhttp.ProtectedRouteOptions
+	crmRouteOptions         *midazhttp.ProtectedRouteOptions
+	feesRouteOptions        *midazhttp.ProtectedRouteOptions
+	compositionRouteOptions *midazhttp.ProtectedRouteOptions
+
+	holderAccountsRouteOptions *midazhttp.ProtectedRouteOptions
+
+	// feesTenantMiddleware is the fee-route tenant middleware instance, exposed so
+	// its configured module managers stay pinnable by a same-package regression
+	// test. Nil in single-tenant mode, where no tenant middleware is built.
+	feesTenantMiddleware *tmmiddleware.TenantMiddleware
+
+	// holderAccountsTenantMiddleware is the holder-accounts tenant middleware
+	// instance, exposed on the same terms as feesTenantMiddleware.
+	holderAccountsTenantMiddleware *tmmiddleware.TenantMiddleware
+
+	// compositionTenantMiddleware is the holder-account composition tenant
+	// middleware instance, exposed on the same terms as feesTenantMiddleware.
+	compositionTenantMiddleware *tmmiddleware.TenantMiddleware
 }
 
 func buildUnifiedRouteSetup(
@@ -1101,6 +1501,8 @@ func buildUnifiedRouteSetup(
 	transactionPGManager *tmpostgres.Manager,
 	onboardingMongoManager *tmmongo.Manager,
 	transactionMongoManager *tmmongo.Manager,
+	crmMongoManager *tmmongo.Manager,
+	feesMongoManager *tmmongo.Manager,
 	tenantCache *tenantcache.TenantCache,
 	tenantLoader *tenantcache.TenantLoader,
 ) (*unifiedRouteSetup, error) {
@@ -1125,7 +1527,16 @@ func buildUnifiedRouteSetup(
 		return nil, fmt.Errorf("transaction multi-tenant MongoDB manager not available")
 	}
 
-	// Build unified tenant middleware with all module managers (PG + Mongo)
+	if crmMongoManager == nil {
+		return nil, fmt.Errorf("crm multi-tenant MongoDB manager not available")
+	}
+
+	if feesMongoManager == nil {
+		return nil, fmt.Errorf("fees multi-tenant MongoDB manager not available")
+	}
+
+	// Build the onboarding+transaction tenant middleware. CRM is DELIBERATELY
+	// excluded here: it gets its own instance below.
 	tenantMiddleware := tmmiddleware.NewTenantMiddleware(
 		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
 		tmmiddleware.WithPG(transactionPGManager, constant.ModuleTransaction),
@@ -1135,9 +1546,130 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
+	// CRM tenant middleware is a SEPARATE instance carrying ONLY the crm-api
+	// Mongo manager. This is the isolation-critical step: the CRM
+	// WithTenantDB MUST be attached only to CRM routes via crmRouteOptions
+	// below. Mounting it on the onboarding/transaction middleware (or globally
+	// via f.Use) would overwrite the tenant Mongo that ledger handlers resolve,
+	// leaking one tenant's CRM DB into a concurrent ledger request.
+	//
+	// WithMB is called WITHOUT a module name (single-manager mode) on purpose:
+	// the CRM holder/alias repos read tmcore.GetMBContext(ctx) on the GENERIC
+	// key (they predate module-keyed resolution). A module-keyed WithMB would
+	// write the crm-api key while the repos read the generic key, so MT CRM
+	// requests would fail DB resolution. Because this middleware instance only
+	// runs on CRM routes, writing the generic key here cannot collide with the
+	// module-keyed onboarding/transaction injection on ledger routes — isolation
+	// is preserved by route scoping. (The manager itself still carries
+	// WithModule(ModuleCRM) for tenant-manager DB resolution; that is a separate
+	// concern from the request-context key.) The same tenantCache/tenantLoader
+	// are reused (no second cache/loader).
+	crmTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithMB(crmMongoManager),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
+	)
+
+	// Fees tenant middleware is its own SEPARATE instance, attached only to fee
+	// routes via feesRouteOptions below (never global, never on ledger routes),
+	// for the same isolation reason as CRM: mounting a generic-key WithTenantDB
+	// globally would overwrite the tenant Mongo that ledger handlers resolve.
+	// Route scoping keeps every key this instance writes off ledger routes, so
+	// the generic-key fees MB write cannot collide with the module-keyed
+	// onboarding/transaction injection ledger routes carry.
+	//
+	// WithMB(feesMongoManager) stays WITHOUT a module name (generic key): the fee
+	// pack/billing_package repos read tmcore.GetMBContext(ctx) on the GENERIC key,
+	// so a module-keyed fees MB would fail their DB resolution.
+	//
+	// The module-keyed injections cover the stores the fee paths reach beyond the
+	// fee Mongo: fee package create/update and estimate validate account aliases
+	// through the onboarding account repo (onboarding PG); billing/calculate
+	// counts transactions through the transaction repo (transaction PG, volume
+	// branch); account enrichment reads the onboarding metadata repo (onboarding
+	// MB). These module keys are distinct from the generic key, so they coexist
+	// with the fees MB on this instance without collision.
+	//
+	// Fee routes therefore hard-depend on the tenant having both onboarding and
+	// transaction PG provisioning, because this middleware eagerly resolves every
+	// registered manager on each fee request.
+	feesTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithPG(transactionPGManager, constant.ModuleTransaction),
+		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
+		tmmiddleware.WithMB(feesMongoManager),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
+	)
+	setup.feesTenantMiddleware = feesTenantMiddleware
+
+	// Composition tenant middleware is its own SEPARATE instance carrying every
+	// store the holder-account composition writes or reads. It is attached ONLY
+	// to composition routes via compositionRouteOptions below — never global,
+	// never on ledger routes. Mounting it globally (or on the
+	// onboarding/transaction middleware) would bleed the generic CRM Mongo key
+	// onto ledger routes and overwrite the tenant Mongo that ledger handlers
+	// resolve, leaking one tenant's CRM DB into a concurrent ledger request —
+	// the precise cross-store leak this instance exists to prevent.
+	//
+	// The composition POST reaches four stores, and each key below answers one:
+	//
+	//  1. onboarding PG (module-keyed) — the account row, plus the ledger
+	//     settings and parent/alias reads the create path performs.
+	//  2. transaction PG (module-keyed) — CreateAccount ALWAYS creates the
+	//     default balance, and the balance repo resolves the transaction module
+	//     key with requireTenant set, so a missing injection is a hard 500.
+	//  3. onboarding Mongo (module-keyed) — the account metadata write. The
+	//     metadata repo looks the module key up FIRST and falls back to the
+	//     generic key, so omitting it would send the write to whichever store
+	//     owns the generic key (the CRM Mongo below): a silent cross-store write,
+	//     not an error.
+	//  4. CRM Mongo (generic key) — the instrument write and the holder-existence
+	//     read, which predate module-keyed resolution and read
+	//     tmcore.GetMBContext(ctx) on the GENERIC key. Route scoping keeps that
+	//     generic-key write from colliding with the module-keyed
+	//     onboarding/transaction injection on ledger routes.
+	//
+	// Nothing on the path resolves a tenant Valkey: the ledger-settings cache is
+	// best-effort over the static client, so no cache manager is registered here.
+	//
+	// Same tenantCache/tenantLoader are reused (no second cache/loader).
+	compositionTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithPG(transactionPGManager, constant.ModuleTransaction),
+		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
+		tmmiddleware.WithMB(crmMongoManager),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
+	)
+	setup.compositionTenantMiddleware = compositionTenantMiddleware
+
+	// The holder-accounts listing reads onboarding stores only: the account rows
+	// come from the onboarding PG account repo and their metadata from the
+	// onboarding Mongo metadata repo. Both are MODULE-keyed — the metadata repo
+	// looks up the module key first, so binding onboarding Mongo to the generic
+	// key instead would send the lookup to whichever store owns that key.
+	//
+	// The CRM Mongo manager is deliberately absent: this route never reads a CRM
+	// collection, and this middleware resolves every registered manager eagerly,
+	// so including it would make the listing depend on CRM provisioning it does
+	// not use. A holder-existence gate on this route would change that.
+	holderAccountsTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
+	)
+	setup.holderAccountsTenantMiddleware = holderAccountsTenantMiddleware
+
+	// Built from the module constants rather than spelled out: an operator provisions a
+	// tenant from this line, and a literal that drifts from constant.Module* hands them a
+	// database key the resolver will never look up.
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Tenant middleware configured",
-		libLog.String("modules", "onboarding,transaction"),
+		libLog.String("modules", strings.Join([]string{
+			constant.ModuleOnboarding, constant.ModuleTransaction, constant.ModuleCRM, constant.ModuleFees,
+		}, ",")),
 	)
 
 	authAssertion := midazhttp.MarkTrustedAuthAssertion()
@@ -1154,7 +1686,109 @@ func buildUnifiedRouteSetup(
 		PostAuthMiddlewares: []fiber.Handler{authAssertion},
 	}
 
+	// CRM routes get the CRM-only tenant middleware instance.
+	setup.crmRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmTenantMiddleware.WithTenantDB},
+	}
+
+	// Fee routes get the fees-only tenant middleware instance.
+	setup.feesRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, feesTenantMiddleware.WithTenantDB},
+	}
+
+	// Composition routes get the cross-store composition tenant middleware
+	// instance, scoping the onboarding-PG + CRM-Mongo injection to composition
+	// routes only.
+	setup.compositionRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, compositionTenantMiddleware.WithTenantDB},
+	}
+
+	// The holder-accounts route gets its own onboarding-only tenant middleware
+	// instance rather than the CRM one, which binds the CRM Mongo on the generic
+	// key and no onboarding PG at all.
+	setup.holderAccountsRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, holderAccountsTenantMiddleware.WithTenantDB},
+	}
+
 	return setup, nil
+}
+
+// buildHumaMountDeps assembles the single Huma mount list from the auth client, every resource
+// handler, and the route-scoped options in setup. It is a pure, named function so the
+// role -> ProtectedRouteOptions pairing is pinnable by pointer identity: the crm and fees options
+// both write the generic tenant-context key over different Mongo managers, so a swapped pairing
+// resolves CRM holder PII against the fees tenant database. In single-tenant mode setup is a zero
+// value and every option field is nil.
+func buildHumaMountDeps(
+	auth *middleware.AuthClient,
+	organizationHandler *httpin.OrganizationHandler,
+	ledgerHandler *httpin.LedgerHandler,
+	portfolioHandler *httpin.PortfolioHandler,
+	segmentHandler *httpin.SegmentHandler,
+	accountHandler *httpin.AccountHandler,
+	accountTypeHandler *httpin.AccountTypeHandler,
+	metadataIndexHandler *httpin.MetadataIndexHandler,
+	assetHandler *httpin.AssetHandler,
+	assetRateHandler *httpin.AssetRateHandler,
+	balanceHandler *httpin.BalanceHandler,
+	operationHandler *httpin.OperationHandler,
+	operationRouteHandler *httpin.OperationRouteHandler,
+	transactionRouteHandler *httpin.TransactionRouteHandler,
+	transactionHandler *httpin.TransactionHandler,
+	holderHandler *httpin.HolderHandler,
+	instrumentHandler *httpin.InstrumentHandler,
+	holderAccountsHandler *httpin.HolderAccountsHandler,
+	encryptionHandler *httpin.EncryptionHandler,
+	auditHandler *httpin.AuditHandler,
+	feePackageHandler *httpin.PackageHandler,
+	feeHandler *httpin.FeeHandler,
+	billingPackageHandler *httpin.BillingPackageHandler,
+	billingCalculateHandler *httpin.BillingCalculateHandler,
+	compositionHandler *httpin.CompositionHandler,
+	setup *unifiedRouteSetup,
+) httpin.HumaMountDeps {
+	return httpin.HumaMountDeps{
+		Auth: auth,
+
+		Organization:  organizationHandler,
+		Ledger:        ledgerHandler,
+		Portfolio:     portfolioHandler,
+		Segment:       segmentHandler,
+		Account:       accountHandler,
+		AccountType:   accountTypeHandler,
+		MetadataIndex: metadataIndexHandler,
+		Asset:         assetHandler,
+		AssetRate:     assetRateHandler,
+
+		Balance:          balanceHandler,
+		Operation:        operationHandler,
+		OperationRoute:   operationRouteHandler,
+		TransactionRoute: transactionRouteHandler,
+
+		Transaction: transactionHandler,
+
+		Holder:         holderHandler,
+		Instrument:     instrumentHandler,
+		HolderAccounts: holderAccountsHandler,
+		Encryption:     encryptionHandler,
+		Audit:          auditHandler,
+
+		FeePackage:       feePackageHandler,
+		Fee:              feeHandler,
+		BillingPackage:   billingPackageHandler,
+		BillingCalculate: billingCalculateHandler,
+
+		Composition: compositionHandler,
+
+		OnboardingOptions:  setup.onboardingRouteOptions,
+		LedgerOptions:      setup.ledgerRouteOptions,
+		TransactionOptions: setup.transactionRouteOptions,
+		CRMOptions:         setup.crmRouteOptions,
+		FeesOptions:        setup.feesRouteOptions,
+		CompositionOptions: setup.compositionRouteOptions,
+
+		HolderAccountsOptions: setup.holderAccountsRouteOptions,
+	}
 }
 
 // midazErrorMapper converts tenant-manager errors into Midaz-specific HTTP responses.
@@ -1162,7 +1796,7 @@ func buildUnifiedRouteSetup(
 // across all Midaz endpoints (code/title/message JSON envelope).
 //
 //nolint:unused // Will be wired into the multi-tenant middleware error handler.
-func midazErrorMapper(c *fiber.Ctx, err error, tenantID string) error {
+func midazErrorMapper(c fiber.Ctx, err error, tenantID string) error {
 	if err == nil {
 		return nil
 	}
@@ -1263,4 +1897,135 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceSyncBatchSize, 50)
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
+}
+
+// buildTracerReserver constructs the tracer reservation HTTP client when the
+// integration is configured (TRACER_BASE_URL set), or returns a nil
+// TracerReserver when it is not. Returning the interface type (rather than the
+// concrete *tracerclient.TracerClient) keeps the disabled case a genuine nil
+// interface so the call-site nil guard short-circuits correctly.
+//
+// This is pure DI: it wires the transport, not behavior. The per-ledger
+// advisory/enforce gate and the fail-posture branch live at the reserve anchor.
+func buildTracerReserver(cfg *Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+	baseURL := strings.TrimSpace(cfg.TracerBaseURL)
+	if baseURL == "" {
+		logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation integration disabled (TRACER_BASE_URL unset)")
+
+		return nil, nil
+	}
+
+	// Fail-fast guard: identity on the reservation seam is mutual TLS (the
+	// verified peer IS the credential — no shared secret). The discriminator is
+	// the transport's security, NOT tenancy: with the integration on and
+	// TRACER_TLS_MODE=mtls, the cert/key/CA material is mandatory, so a
+	// misconfigured deploy fails at boot rather than dialing an unverified seam.
+	// "mesh" trusts a local sidecar to originate mTLS (no app cert material).
+	// buildSeamClientTLSConfig names the failing knob; in mesh/empty mode it
+	// returns a nil config and both transports dial plaintext.
+	tlsConfig, err := buildSeamClientTLSConfig(cfg, seamServerName(baseURL))
+	if err != nil {
+		return nil, err
+	}
+
+	transport := strings.ToLower(strings.TrimSpace(cfg.TracerTransport))
+	if transport == "" {
+		transport = tracerTransportGRPC
+	}
+
+	switch transport {
+	case tracerTransportGRPC:
+		return buildTracerGRPCReserver(cfg, baseURL, tlsConfig, logger)
+	case tracerTransportREST:
+		return buildTracerRESTReserver(cfg, baseURL, tlsConfig, logger)
+	default:
+		return nil, fmt.Errorf("invalid TRACER_TRANSPORT %q: expected %q or %q", cfg.TracerTransport, tracerTransportGRPC, tracerTransportREST)
+	}
+}
+
+// Tracer reservation transports selected by TRACER_TRANSPORT.
+const (
+	tracerTransportGRPC = "grpc"
+	tracerTransportREST = "rest"
+)
+
+// buildTracerRESTReserver wires the HTTP reservation client. When tlsConfig is
+// non-nil (TRACER_TLS_MODE=mtls) it is applied to the client's transport so the
+// REST seam presents the ledger's client cert and verifies the tracer's server
+// cert; a nil config (mesh/empty mode) leaves the default plaintext transport.
+func buildTracerRESTReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
+		libLog.String("transport", tracerTransportREST))
+
+	opts := []tracerclient.TracerClientOption{}
+	if cfg.TracerTimeoutMs > 0 {
+		opts = append(opts, tracerclient.WithOperationTimeout(time.Duration(cfg.TracerTimeoutMs)*time.Millisecond))
+	}
+
+	if tlsConfig != nil {
+		opts = append(opts, tracerclient.WithTLSConfig(tlsConfig))
+	}
+
+	client, err := tracerclient.NewTracerClient(baseURL, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+// buildTracerGRPCReserver wires the gRPC reservation client. When tlsConfig is
+// non-nil (TRACER_TLS_MODE=mtls) it is injected as transport credentials
+// (credentials.NewTLS) so the gRPC seam presents the ledger's client cert and
+// verifies the tracer's server cert; a nil config (mesh/empty mode) leaves the
+// client's default insecure transport for a sidecar to secure. The target is the
+// same TRACER_BASE_URL value, stripped of any scheme so grpc.NewClient receives
+// a host:port authority.
+func buildTracerGRPCReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
+		libLog.String("transport", tracerTransportGRPC))
+
+	target := stripURLScheme(baseURL)
+
+	opts := []tracerclient.TracerGRPCClientOption{}
+	if cfg.TracerTimeoutMs > 0 {
+		opts = append(opts, tracerclient.WithGRPCOperationTimeout(time.Duration(cfg.TracerTimeoutMs)*time.Millisecond))
+	}
+
+	if tlsConfig != nil {
+		opts = append(opts, tracerclient.WithGRPCDialOptions(grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))))
+	}
+
+	client, err := tracerclient.NewTracerGRPCClient(target, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+// stripURLScheme removes an http:// or https:// scheme from a tracer endpoint so
+// the same TRACER_BASE_URL value feeds both the REST client (full URL) and the
+// gRPC client (host:port authority).
+func stripURLScheme(endpoint string) string {
+	if i := strings.Index(endpoint, "://"); i >= 0 {
+		return endpoint[i+len("://"):]
+	}
+
+	return endpoint
+}
+
+// seamServerName extracts the host (no port) the tracer's server certificate is
+// verified against in mtls mode. It tolerates both a full URL (https://host:port)
+// and a bare host:port authority; a parse failure falls back to the raw value so
+// the TLS layer surfaces the mismatch rather than this helper silently dropping
+// it.
+func seamServerName(endpoint string) string {
+	hostPort := stripURLScheme(endpoint)
+
+	if host, _, err := net.SplitHostPort(hostPort); err == nil {
+		return host
+	}
+
+	return hostPort
 }

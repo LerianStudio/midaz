@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	"github.com/gofiber/fiber/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -147,7 +147,7 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 			app.Get("/readyz", handler.HandleReadyz)
 
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
@@ -196,7 +196,7 @@ func TestReadyzHandler_TLSField(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	body, err := io.ReadAll(resp.Body)
@@ -231,7 +231,7 @@ func TestReadyzHandler_DeploymentModeDefault(t *testing.T) {
 	app.Get("/readyz", handler.HandleReadyz)
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-	resp, err := app.Test(req, -1)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 
 	body, err := io.ReadAll(resp.Body)
@@ -406,7 +406,7 @@ func TestReadyzHandler_DegradedStateAggregation(t *testing.T) {
 			app.Get("/readyz", handler.HandleReadyz)
 
 			req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
-			resp, err := app.Test(req, -1)
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantHTTPStatus, resp.StatusCode)

@@ -5,6 +5,10 @@ on:
     branches: [develop, release-candidate, main]
     types: [opened, edited, synchronize, reopened, ready_for_review]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   actions: read
   contents: read
@@ -15,14 +19,18 @@ permissions:
 
 jobs:
   validate:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.46.2
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.56.0
     with:
       enforce_source_branches: true
       allowed_source_branches: 'hotfix/*|release-candidate'
       target_branches_for_source_check: 'main'
+      # crm and fees are valid commit scopes even though both now live inside the
+      # ledger binary. Scope is warn-only (require_scope: false).
       pr_title_scopes: |
         crm
         ledger
+        tracer
+        fees
         api
         pkg
         infra
@@ -32,14 +40,21 @@ jobs:
         ci
         docs
         tests
-      go_version: "1.26.6"
-      golangci_lint_version: "v2.4.0"
+        release
+      go_version: "1.27.0"
+      golangci_lint_version: "v2.13.2"
       app_name_prefix: "midaz"
+      # Analysis-class filter: every component dir with in-tree Go code. CRM rolls
+      # up under components/ledger (a ledger package tree, not a standalone
+      # component); reporter was extracted out of this repo entirely.
       filter_paths: |
-        components/crm
         components/ledger
+        components/tracer
       go_private_modules: "github.com/LerianStudio/*"
       ignore_file: ".trivyignore"
+      # Default plus .coderabbit.yaml: it's a CodeRabbit-only config file,
+      # not something the Go analysis/security pipelines need to react to.
+      ignore_globs: "*.md docs/* .github/* LICENSE* .gitignore .coderabbit.yaml"
       shared_paths: |
         go.mod
         go.sum
@@ -47,3 +62,56 @@ jobs:
         pkg/
         Makefile
     secrets: inherit
+
+  # Required gate: regenerate OpenAPI/Swagger docs and fail if the committed
+  # artifacts under components/<c>/api and postman/specs are stale. The openapi.yaml
+  # step runs openapitools/openapi-generator-cli, which requires Docker on the runner.
+  check-docs:
+    name: Check Docs
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.0'
+          cache: true
+
+      - name: Install swag
+        run: |
+          go install github.com/swaggo/swag/cmd/swag@v1.16.6
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # check-docs.sh converts the Huma OAS dumps via node -e "require('js-yaml')"
+      # under NODE_PATH=postman/generator/node_modules. node_modules is gitignored,
+      # so the deps must be installed here or the require fails.
+      - name: Install doc generator deps
+        run: npm ci --prefix postman/generator
+
+      - name: Verify docs are up to date
+        run: CHECK_DOCS_REGEN=1 make check-docs
+
+  # Required gate: regenerate the gRPC stubs from proto/ and fail if the committed
+  # stubs under pkg/proto are stale. buf and the protoc plugins run via pinned
+  # remote plugins (BUF_VERSION + buf.gen.yaml), so no global install is needed.
+  check-proto:
+    name: Check Proto
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.0'
+          cache: true
+
+      - name: Verify protobuf stubs are up to date
+        run: make proto-check

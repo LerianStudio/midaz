@@ -7,11 +7,12 @@ package mtransaction
 import (
 	"testing"
 
-	pkgConstant "github.com/LerianStudio/midaz/v3/pkg/constant"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 
-	constant "github.com/LerianStudio/lib-commons/v5/commons/constants"
+	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
+
+	constant "github.com/LerianStudio/lib-commons/v6/commons/constants"
 )
 
 // TestCalculateRefundSplit verifies the pure-function credit-split helper

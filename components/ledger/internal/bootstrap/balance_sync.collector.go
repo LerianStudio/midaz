@@ -9,8 +9,10 @@ import (
 	"sync"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/log"
-	redisTransaction "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/redis/transaction"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+
+	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 )
 
 // BalanceSyncCollector accumulates Redis ZSET keys for batch processing.
@@ -106,7 +108,11 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetch
 
 		keys, err := fetchKeys(ctx, int64(remaining))
 		if err != nil {
-			c.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncCollector: fetch keys error", libLog.Err(err))
+			// Empty in single-tenant; in MT the collector context carries the tenant the
+			// dead collector belongs to, which is what attributes the stall.
+			c.logger.Log(ctx, libLog.LevelWarn, "BalanceSyncCollector: fetch keys error",
+				libLog.String("tenant_id", tmcore.GetTenantIDContext(ctx)),
+				libLog.Err(err))
 
 			// If the buffer already has items, skip the sleep and re-enter the
 			// draining path so the timeout trigger can still flush on time.
@@ -119,7 +125,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetch
 				continue
 			}
 
-			if waitOrDone(ctx, c.pollInterval, c.logger) {
+			if waitOrDone(ctx, c.pollInterval) {
 				return
 			}
 
@@ -156,12 +162,6 @@ func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisT
 	bufLen := len(c.buffer)
 	c.mu.Unlock()
 
-	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: fetched keys",
-		libLog.Int("fetched", len(keys)),
-		libLog.Int("buffer", bufLen),
-		libLog.Int("batch_size", c.batchSize),
-	)
-
 	// Start the flush timeout window when the first keys arrive in an empty buffer.
 	// The timer is NOT reset on subsequent fetches — otherwise a steady trickle of
 	// keys (few per poll) would keep pushing the deadline forward and the TIMEOUT
@@ -174,7 +174,8 @@ func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisT
 	// SIZE trigger: buffer full → flush immediately and reset the timeout
 	// window for the next batch cycle.
 	if bufLen >= c.batchSize {
-		c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: SIZE trigger fired, flushing now",
+		c.logger.Log(
+			ctx, libLog.LevelInfo, "BalanceSyncCollector: SIZE trigger fired, flushing now",
 			libLog.Int("buffer", bufLen),
 			libLog.Int("batch_size", c.batchSize),
 		)
@@ -199,7 +200,8 @@ func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen in
 	case <-ctx.Done():
 		return
 	case <-timer.C:
-		c.logger.Log(ctx, libLog.LevelInfo, "BalanceSyncCollector: TIMEOUT trigger fired, flushing now",
+		c.logger.Log(
+			ctx, libLog.LevelInfo, "BalanceSyncCollector: TIMEOUT trigger fired, flushing now",
 			libLog.String("flush_timeout", c.flushTimeout.String()),
 			libLog.Int("buffer", bufLen),
 		)
@@ -216,21 +218,19 @@ func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen in
 // via waitForNext until either new keys arrive or shutdown is requested.
 // Returns true if shutdown was requested during the wait.
 func (c *BalanceSyncCollector) handleIdleMode(ctx context.Context, timer *time.Timer, waitForNext WaitForNextFunc) bool {
-	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: idle mode, waiting for new keys")
 	stopAndDrain(timer)
 
 	if waitForNext(ctx) {
 		return true // shutdown requested
 	}
 
-	c.logger.Log(ctx, libLog.LevelDebug, "BalanceSyncCollector: woke up from idle, resuming polling")
 	timer.Reset(c.flushTimeout)
 
 	return false
 }
 
 // flushRemaining drains any leftover buffer on shutdown.
-// ctx carries context values (tenant ID, PG connection) needed by the flush callback.
+// ctx carries the context values (e.g. tenant ID) the flush callback needs.
 // The cancellation signal is stripped via context.WithoutCancel so the final flush
 // can complete even after the parent context has been cancelled.
 const shutdownFlushTimeout = 30 * time.Second
@@ -242,12 +242,13 @@ func (c *BalanceSyncCollector) flushRemaining(ctx context.Context) {
 	c.mu.Unlock()
 
 	if len(remaining) > 0 && c.flushFn != nil {
-		// Use WithoutCancel to preserve context values (tenant ID, PG connection)
-		// while removing the cancellation signal that already fired.
+		// Use WithoutCancel to preserve context values (e.g. tenant ID) while
+		// removing the cancellation signal that already fired.
 		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownFlushTimeout)
 		defer cancel()
 
-		c.logger.Log(flushCtx, libLog.LevelInfo, "BalanceSyncCollector: shutdown — final flush",
+		c.logger.Log(
+			flushCtx, libLog.LevelInfo, "BalanceSyncCollector: shutdown — final flush",
 			libLog.Int("remaining_keys", len(remaining)),
 		)
 

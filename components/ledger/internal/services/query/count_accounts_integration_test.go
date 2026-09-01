@@ -15,9 +15,9 @@ import (
 	"fmt"
 	"testing"
 
-	mongodb "github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/mongodb/onboarding"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/adapters/postgres/account"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,13 +28,12 @@ import (
 // as new accounts are created within a ledger.
 func TestIntegration_CountAccounts_Monotonic(t *testing.T) {
 	// Setup container
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	// Setup repository and use case
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	accountRepo := account.NewAccountPostgreSQLRepository(conn)
 
@@ -85,13 +84,12 @@ func TestIntegration_CountAccounts_Monotonic(t *testing.T) {
 // isolated by ledger - accounts from one ledger should not affect counts in another.
 func TestIntegration_CountAccounts_IsolatedByLedger(t *testing.T) {
 	// Setup container
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	// Setup repository and use case
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	accountRepo := account.NewAccountPostgreSQLRepository(conn)
 

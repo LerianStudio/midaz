@@ -7,21 +7,23 @@ package command
 import (
 	"context"
 	"errors"
+	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	libObservability "github.com/LerianStudio/lib-observability"
-	libLog "github.com/LerianStudio/lib-observability/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming"
-	"github.com/LerianStudio/midaz/v3/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v3/pkg"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	pkgStreaming "github.com/LerianStudio/midaz/v3/pkg/streaming"
-	"github.com/LerianStudio/midaz/v3/pkg/streaming/events"
-	"github.com/LerianStudio/midaz/v3/pkg/utils"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v3"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // UpdateOrganizationByID applies a partial update to the organization identified by id.
@@ -29,11 +31,17 @@ import (
 // It validates that parentOrganizationID is not self-referencing and that the address
 // country code is valid (when an address is provided). Metadata is updated separately
 // via MongoDB after the organization record is persisted.
-func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi *mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
+func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi *mmodel.UpdateOrganizationInput) (_ *mmodel.Organization, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_organization_by_id")
 	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_organization", start, err)
+	}()
 
 	if libCommons.IsNilOrEmpty(uoi.ParentOrganizationID) {
 		uoi.ParentOrganizationID = nil
@@ -99,7 +107,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 // successfully persisted update. IMPORTANT posture: build and emit failures are
 // span-recorded and logged at Warn, never returned.
 func (uc *UseCase) emitOrganizationUpdatedEvent(ctx context.Context, span trace.Span, logger libLog.Logger, org *mmodel.Organization) {
-	pkgStreaming.EmitImportant(ctx, span, logger, uc.Streaming, events.OrganizationUpdatedDefinition.Key(),
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.OrganizationUpdatedDefinition.Key(),
 		func(tenantID string) (libStreaming.EmitRequest, error) {
 			return events.NewOrganizationUpdated(org).ToEmitRequest(tenantID, org.UpdatedAt)
 		})

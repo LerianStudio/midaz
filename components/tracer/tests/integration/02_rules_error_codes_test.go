@@ -1,0 +1,687 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+//go:build integration
+
+package integration
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+)
+
+// =============================================================================
+// Error Code Tests for Rule Handler
+// =============================================================================
+// These tests verify the error codes returned by rule handler operations.
+//
+// Error code mapping:
+//   - Malformed JSON/invalid request body → 0094 (ErrInvalidRequestBody), title "Bad Request"
+//   - Validation errors (invalid field values) → specific numeric codes; human text lives in
+//     the RFC 9457 `detail` (the retired `message` field is empty)
+// =============================================================================
+
+// =============================================================================
+// POST /v1/rules - Create Rule Error Code Tests
+// =============================================================================
+
+// TestCreateRule_MalformedJSON_ReturnsError verifies that completely malformed JSON returns an error.
+// Returns 0094 (ErrInvalidRequestBody) for malformed JSON/invalid request body
+func TestCreateRule_MalformedJSON_ReturnsError(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	testCases := []struct {
+		name        string
+		body        string
+		description string
+	}{
+		{
+			name:        "missing_quotes_on_key",
+			body:        `{name: "test rule", expression: "true", action: "ALLOW"}`,
+			description: "JSON with unquoted keys",
+		},
+		{
+			name:        "trailing_comma",
+			body:        `{"name": "test rule", "expression": "true", "action": "ALLOW",}`,
+			description: "JSON with trailing comma",
+		},
+		{
+			name:        "unclosed_brace",
+			body:        `{"name": "test rule", "expression": "true", "action": "ALLOW"`,
+			description: "JSON with unclosed brace",
+		},
+		{
+			name:        "single_quotes",
+			body:        `{'name': 'test rule', 'expression': 'true', 'action': 'ALLOW'}`,
+			description: "JSON with single quotes instead of double quotes",
+		},
+		{
+			name:        "random_text",
+			body:        `this is not json at all`,
+			description: "Plain text instead of JSON",
+		},
+		{
+			name:        "xml_instead_of_json",
+			body:        `<rule><name>test</name></rule>`,
+			description: "XML instead of JSON",
+		},
+		{
+			name:        "incomplete_json_object",
+			body:        `{"name": "test`,
+			description: "Incomplete JSON string",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", strings.NewReader(tc.body))
+			require.NoError(t, err)
+			req.Header.Set("X-API-Key", apiKey)
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := testutil.HTTPClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Test case: %s - Response: %s", tc.description, string(respBody))
+
+			errResp := testutil.ParseErrorResponse(t, respBody)
+
+			assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 (ErrInvalidRequestBody) for malformed JSON", tc.description)
+			assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.description)
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail, "Test case: %s", tc.description)
+		})
+	}
+}
+
+// TestCreateRule_EmptyBody_ReturnsError verifies that an empty request body returns an error.
+// Returns a generic 400 (no domain error code) for empty request body
+func TestCreateRule_EmptyBody_ReturnsError(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", strings.NewReader(""))
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
+
+	errResp := testutil.ParseErrorResponse(t, respBody)
+
+	assert.Equal(t, "", errResp.Code, "Empty body returns a generic 400 with no domain error code")
+	assert.Equal(t, "Bad Request", errResp.Title)
+	assert.Equal(t, "", errResp.Message)
+}
+
+// TestCreateRule_NullBody_ReturnsError verifies that a null JSON body returns an error.
+// Returns 0353 (ErrRuleNameRequired) for null JSON body (valid JSON but missing required fields)
+func TestCreateRule_NullBody_ReturnsError(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", strings.NewReader("null"))
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
+
+	errResp := testutil.ParseErrorResponse(t, respBody)
+
+	// Note: "null" is valid JSON but missing required fields, so it's treated as a validation error
+	// With specific error codes, the first missing required field error is returned
+	assert.Equal(t, "0353", errResp.Code, "Expected 0353 (ErrRuleNameRequired) for null body")
+	assert.Equal(t, "Rule Name Required", errResp.Title)
+	assert.Equal(t, "Rule name is required.", errResp.Detail)
+}
+
+// TestCreateRule_ArrayInsteadOfObject_ReturnsError verifies that a JSON array instead of object returns an error.
+// Returns 0094 (ErrInvalidRequestBody) for array instead of object
+func TestCreateRule_ArrayInsteadOfObject_ReturnsError(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	// Valid JSON but wrong type (array instead of object)
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", strings.NewReader(`[{"name": "test"}]`))
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
+
+	errResp := testutil.ParseErrorResponse(t, respBody)
+
+	assert.Equal(t, "0094", errResp.Code, "Expected 0094 (ErrInvalidRequestBody) for array instead of object")
+	assert.Equal(t, "Bad Request", errResp.Title)
+	assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
+}
+
+// TestCreateRule_BinaryData_ReturnsError verifies that binary data returns an error.
+// Returns 0094 (ErrInvalidRequestBody) for binary data (not valid JSON)
+func TestCreateRule_BinaryData_ReturnsError(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	// Binary data that's not valid JSON
+	binaryData := []byte{0x00, 0x01, 0x02, 0xFF, 0xFE}
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(binaryData))
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
+
+	errResp := testutil.ParseErrorResponse(t, respBody)
+
+	assert.Equal(t, "0094", errResp.Code, "Expected 0094 (ErrInvalidRequestBody) for binary data")
+	assert.Equal(t, "Bad Request", errResp.Title)
+	assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
+}
+
+// =============================================================================
+// PATCH /v1/rules/{ruleId} - Update Rule Error Code Tests
+// =============================================================================
+
+// TestUpdateRule_InvalidBody_ReturnsError consolidates all PATCH body validation tests.
+// Creates a single rule and runs all subtests against it for better isolation and performance.
+func TestUpdateRule_InvalidBody_ReturnsError(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	// Create a single rule for all PATCH tests
+	ruleID := testutil.CreateTestRuleWithExpression(t, "rule for patch error tests "+testutil.RandomSuffix(), "true", "ALLOW")
+	t.Cleanup(func() {
+		testutil.CleanupRule(t, ruleID)
+	})
+
+	// Helper function to execute PATCH request and return response
+	doPatchRequest := func(t *testing.T, body string) (int, []byte) {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodPatch, baseURL+"/v1/rules/"+ruleID, strings.NewReader(body))
+		require.NoError(t, err)
+		req.Header.Set("X-API-Key", apiKey)
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := testutil.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, respBody
+	}
+
+	// Subtest: Malformed JSON cases (0094)
+	t.Run("malformed_json", func(t *testing.T) {
+		malformedCases := []struct {
+			name        string
+			body        string
+			description string
+		}{
+			{
+				name:        "missing_quotes_on_key",
+				body:        `{name: "updated rule"}`,
+				description: "JSON with unquoted keys",
+			},
+			{
+				name:        "trailing_comma",
+				body:        `{"name": "updated rule",}`,
+				description: "JSON with trailing comma",
+			},
+			{
+				name:        "unclosed_brace",
+				body:        `{"name": "updated rule"`,
+				description: "JSON with unclosed brace",
+			},
+			{
+				name:        "invalid_json",
+				body:        `not valid json`,
+				description: "Plain text instead of JSON",
+			},
+		}
+
+		for _, tc := range malformedCases {
+			t.Run(tc.name, func(t *testing.T) {
+				statusCode, respBody := doPatchRequest(t, tc.body)
+
+				assert.Equal(t, http.StatusBadRequest, statusCode, "Test case: %s - Response: %s", tc.description, string(respBody))
+
+				errResp := testutil.ParseErrorResponse(t, respBody)
+				assert.Equal(t, "0094", errResp.Code, "Test case: %s - Expected 0094 (ErrInvalidRequestBody) for malformed JSON", tc.description)
+				assert.Equal(t, "Bad Request", errResp.Title, "Test case: %s", tc.description)
+				assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail, "Test case: %s", tc.description)
+			})
+		}
+	})
+
+	// Subtest: Empty body (generic 400, no code)
+	t.Run("empty_body", func(t *testing.T) {
+		statusCode, respBody := doPatchRequest(t, "")
+
+		assert.Equal(t, http.StatusBadRequest, statusCode, "Response: %s", string(respBody))
+
+		errResp := testutil.ParseErrorResponse(t, respBody)
+		assert.Equal(t, "", errResp.Code, "Empty body returns a generic 400 with no domain error code")
+		assert.Equal(t, "Bad Request", errResp.Title)
+		assert.Equal(t, "", errResp.Message)
+	})
+
+	// Subtest: Empty JSON object (0183 ErrNothingToUpdate)
+	t.Run("empty_json_object", func(t *testing.T) {
+		statusCode, respBody := doPatchRequest(t, "{}")
+
+		assert.Equal(t, http.StatusBadRequest, statusCode, "Response: %s", string(respBody))
+
+		errResp := testutil.ParseErrorResponse(t, respBody)
+		// 0183 (ErrNothingToUpdate) for empty object (no fields to update)
+		assert.Equal(t, "0183", errResp.Code, "Expected 0183 (ErrNothingToUpdate) for empty object")
+		assert.Equal(t, "Nothing to Update", errResp.Title)
+		assert.Equal(t, "No updatable fields were provided. Please include at least one field to update.", errResp.Detail)
+	})
+}
+
+// =============================================================================
+// GET /v1/rules - List Rules Error Code Tests
+// =============================================================================
+
+// TestListRules_InvalidQueryParameters_ReturnsError verifies error codes for invalid query parameters.
+// Tests various validation scenarios for ListRules endpoint.
+func TestListRules_InvalidQueryParameters_ReturnsError(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	testCases := []struct {
+		name          string
+		queryParams   string
+		expectedCode  string
+		expectedTitle string
+		description   string
+	}{
+		{
+			name:          "invalid_action_filter_lowercase",
+			queryParams:   "action=allow",
+			expectedCode:  "0082",
+			expectedTitle: "Invalid Query Parameter",
+			description:   "Action filter with lowercase value",
+		},
+		{
+			name:          "invalid_action_filter_value",
+			queryParams:   "action=INVALID_ACTION",
+			expectedCode:  "0082",
+			expectedTitle: "Invalid Query Parameter",
+			description:   "Action filter with invalid enum value",
+		},
+		{
+			name:          "invalid_status_filter_lowercase",
+			queryParams:   "status=draft",
+			expectedCode:  "0082",
+			expectedTitle: "Invalid Query Parameter",
+			description:   "Status filter with lowercase value",
+		},
+		{
+			name:          "invalid_status_filter_value",
+			queryParams:   "status=INVALID_STATUS",
+			expectedCode:  "0082",
+			expectedTitle: "Invalid Query Parameter",
+			description:   "Status filter with invalid enum value",
+		},
+		{
+			name:          "deleted_status_not_allowed",
+			queryParams:   "status=DELETED",
+			expectedCode:  "0082",
+			expectedTitle: "Invalid Query Parameter",
+			description:   "DELETED status is not allowed in filter",
+		},
+		{
+			name:          "limit_zero",
+			queryParams:   "limit=0",
+			expectedCode:  "0331",
+			expectedTitle: "Pagination Limit Invalid",
+			description:   "Limit of 0 is invalid",
+		},
+		{
+			name:          "limit_negative",
+			queryParams:   "limit=-1",
+			expectedCode:  "0331",
+			expectedTitle: "Pagination Limit Invalid",
+			description:   "Negative limit is invalid",
+		},
+		{
+			name:          "limit_exceeds_max",
+			queryParams:   "limit=101",
+			expectedCode:  "0080",
+			expectedTitle: "Pagination Limit Exceeded",
+			description:   "Limit exceeds maximum of 100",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/rules?"+tc.queryParams, nil)
+			require.NoError(t, err)
+			req.Header.Set("X-API-Key", apiKey)
+
+			resp, err := testutil.HTTPClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Test case: %s - Response: %s", tc.description, string(respBody))
+
+			errResp := testutil.ParseErrorResponse(t, respBody)
+			assert.Equal(t, tc.expectedCode, errResp.Code, "Test case: %s - Expected %s", tc.description, tc.expectedCode)
+			assert.Equal(t, tc.expectedTitle, errResp.Title, "Test case: %s", tc.description)
+		})
+	}
+}
+
+// TestListRules_ValidLimitBoundary_Succeeds verifies that valid boundary limit values succeed.
+func TestListRules_ValidLimitBoundary_Succeeds(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	testCases := []struct {
+		name        string
+		queryParams string
+		description string
+	}{
+		{
+			name:        "limit_min",
+			queryParams: "limit=1",
+			description: "Minimum valid limit",
+		},
+		{
+			name:        "limit_max",
+			queryParams: "limit=100",
+			description: "Maximum valid limit",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/rules?"+tc.queryParams, nil)
+			require.NoError(t, err)
+			req.Header.Set("X-API-Key", apiKey)
+
+			resp, err := testutil.HTTPClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode, "Test case: %s - Response: %s", tc.description, string(respBody))
+		})
+	}
+}
+
+// TestListRules_InvalidCursor_ReturnsError verifies that invalid cursor returns proper error.
+func TestListRules_InvalidCursor_ReturnsError(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	testCases := []struct {
+		name         string
+		cursor       string
+		expectedCode string
+		description  string
+	}{
+		{
+			name:         "random_string",
+			cursor:       "not-a-valid-cursor",
+			expectedCode: "0333",
+			description:  "Random string as cursor",
+		},
+		{
+			name:         "invalid_base64",
+			cursor:       "!!invalid-base64!!",
+			expectedCode: "0333",
+			description:  "Invalid base64 string",
+		},
+		{
+			name:         "malformed_cursor",
+			cursor:       "YWJjZGVm", // valid base64 but not a valid cursor format
+			expectedCode: "0333",
+			description:  "Valid base64 but invalid cursor format",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/rules?cursor="+tc.cursor, nil)
+			require.NoError(t, err)
+			req.Header.Set("X-API-Key", apiKey)
+
+			resp, err := testutil.HTTPClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Test case: %s - Response: %s", tc.description, string(respBody))
+
+			errResp := testutil.ParseErrorResponse(t, respBody)
+			assert.Equal(t, tc.expectedCode, errResp.Code, "Test case: %s - Expected %s", tc.description, tc.expectedCode)
+			assert.Equal(t, "Invalid Cursor", errResp.Title, "Test case: %s", tc.description)
+			assert.Equal(t, "Invalid or corrupted pagination cursor.", errResp.Detail, "Test case: %s", tc.description)
+		})
+	}
+}
+
+// TestListRules_InvalidSortParameters_ReturnsError verifies that invalid sort parameters return proper errors.
+func TestListRules_InvalidSortParameters_ReturnsError(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	testCases := []struct {
+		name            string
+		queryParams     string
+		expectedCode    string
+		expectedTitle   string
+		expectedMessage string
+		description     string
+	}{
+		{
+			name:            "invalid_sort_column",
+			queryParams:     "sort_by=invalid_column",
+			expectedCode:    "0332",
+			expectedTitle:   "Invalid Sort Column",
+			expectedMessage: "Sort column not in allowed list.",
+			description:     "Invalid sort column",
+		},
+		{
+			name:            "invalid_sort_order",
+			queryParams:     "sort_order=INVALID",
+			expectedCode:    "0081",
+			expectedTitle:   "Invalid Sort Order",
+			expectedMessage: "The 'sort_order' field must be 'asc' or 'desc'. Please provide a valid sort order and try again.",
+			description:     "Invalid sort order",
+		},
+		// NOTE: lowercase sort orders (asc, desc) are accepted and normalized by the API,
+		// so they don't produce errors. We only test truly invalid values.
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/rules?"+tc.queryParams, nil)
+			require.NoError(t, err)
+			req.Header.Set("X-API-Key", apiKey)
+
+			resp, err := testutil.HTTPClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Test case: %s - Response: %s", tc.description, string(respBody))
+
+			errResp := testutil.ParseErrorResponse(t, respBody)
+			assert.Equal(t, tc.expectedCode, errResp.Code, "Test case: %s - Expected %s", tc.description, tc.expectedCode)
+			assert.Equal(t, tc.expectedTitle, errResp.Title, "Test case: %s", tc.description)
+			assert.Equal(t, tc.expectedMessage, errResp.Detail, "Test case: %s", tc.description)
+		})
+	}
+}
+
+// =============================================================================
+// Edge Case Tests for Error Handling
+// =============================================================================
+
+// TestCreateRule_ValidJSONWithInvalidTypes_ReturnsBadRequest verifies that
+// valid JSON with wrong types returns 0094 (ErrInvalidRequestBody), title "Bad Request", due to JSON type mismatch.
+func TestCreateRule_ValidJSONWithInvalidTypes_ReturnsBadRequest(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	testCases := []struct {
+		name    string
+		payload map[string]any
+	}{
+		{
+			name: "number_for_name",
+			payload: map[string]any{
+				"name":       123,
+				"expression": "true",
+				"action":     "ALLOW",
+			},
+		},
+		{
+			name: "boolean_for_expression",
+			payload: map[string]any{
+				"name":       "test rule",
+				"expression": true,
+				"action":     "ALLOW",
+			},
+		},
+		{
+			name: "array_for_action",
+			payload: map[string]any{
+				"name":       "test rule",
+				"expression": "true",
+				"action":     []string{"ALLOW"},
+			},
+		},
+		{
+			name: "object_for_name",
+			payload: map[string]any{
+				"name":       map[string]string{"value": "test"},
+				"expression": "true",
+				"action":     "ALLOW",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			body, err := json.Marshal(tc.payload)
+			require.NoError(t, err)
+
+			req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body))
+			require.NoError(t, err)
+			req.Header.Set("X-API-Key", apiKey)
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := testutil.HTTPClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			respBody, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
+
+			errResp := testutil.ParseErrorResponse(t, respBody)
+
+			// 0094 (ErrInvalidRequestBody) is returned for JSON type mismatch errors (bad request)
+			assert.Equal(t, "0094", errResp.Code, "Expected 0094 (ErrInvalidRequestBody) for type validation error")
+			assert.Equal(t, "Bad Request", errResp.Title)
+			assert.Equal(t, "The request body is malformed or contains invalid JSON. Please verify the syntax and try again.", errResp.Detail)
+		})
+	}
+}
+
+// TestCreateRule_LargePayload_HandlesCorrectly verifies handling of very large payloads.
+func TestCreateRule_LargePayload_HandlesCorrectly(t *testing.T) {
+	baseURL := testutil.GetBaseURL()
+	apiKey := testutil.GetAPIKey()
+
+	// Create a very large name (much larger than max allowed 255)
+	largeName := strings.Repeat("a", 10000)
+
+	payload := map[string]any{
+		"name":       largeName,
+		"expression": "true",
+		"action":     "ALLOW",
+	}
+
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/rules", bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := testutil.HTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Response: %s", string(respBody))
+
+	errResp := testutil.ParseErrorResponse(t, respBody)
+
+	// Validation error for name exceeding max length
+	assert.Equal(t, "0354", errResp.Code, "Expected 0354 (ErrRuleNameTooLong) for name too long")
+	assert.Equal(t, "Rule Name Too Long", errResp.Title)
+	assert.Equal(t, "Rule name exceeds max length (255).", errResp.Detail)
+}

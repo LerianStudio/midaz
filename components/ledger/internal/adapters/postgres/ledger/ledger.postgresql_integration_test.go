@@ -11,24 +11,23 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/pkg/net/http"
-	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
+	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
 // createRepository creates a LedgerRepository connected to the test database.
 func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *LedgerPostgreSQLRepository {
 	t.Helper()
 
-	migrationsPath := pgtestutil.FindMigrationsPath(t, "onboarding")
-
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 
-	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
+	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	return NewLedgerPostgreSQLRepository(conn)
 }
@@ -39,7 +38,7 @@ func createRepository(t *testing.T, container *pgtestutil.ContainerResult) *Ledg
 
 func TestIntegration_LedgerRepository_ListByIDs_ReturnsMatchingLedgers(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -77,7 +76,7 @@ func TestIntegration_LedgerRepository_ListByIDs_ReturnsMatchingLedgers(t *testin
 
 func TestIntegration_LedgerRepository_ListByIDs_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -107,7 +106,7 @@ func TestIntegration_LedgerRepository_ListByIDs_ExcludesSoftDeleted(t *testing.T
 
 func TestIntegration_LedgerRepository_ListByIDs_IsolatesByOrganization(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -152,7 +151,7 @@ func defaultQueryHeader(page, limit int) http.QueryHeader {
 }
 
 func TestIntegration_LedgerRepository_FindAll_Pagination(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -209,7 +208,7 @@ func TestIntegration_LedgerRepository_FindAll_Pagination(t *testing.T) {
 }
 
 func TestIntegration_LedgerRepository_FindAll_ExcludesSoftDeleted(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -240,7 +239,7 @@ func TestIntegration_LedgerRepository_FindAll_ExcludesSoftDeleted(t *testing.T) 
 }
 
 func TestIntegration_LedgerRepository_FindAll_IsolatesByOrganization(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -277,7 +276,7 @@ func TestIntegration_LedgerRepository_FindAll_IsolatesByOrganization(t *testing.
 // ============================================================================
 
 func TestIntegration_LedgerRepository_FindAll_FilterByName(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -312,7 +311,7 @@ func TestIntegration_LedgerRepository_FindAll_FilterByName(t *testing.T) {
 }
 
 func TestIntegration_LedgerRepository_FindAll_FilterByName_CaseInsensitive(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -335,7 +334,7 @@ func TestIntegration_LedgerRepository_FindAll_FilterByName_CaseInsensitive(t *te
 }
 
 func TestIntegration_LedgerRepository_FindAll_NilNameReturnsAll(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -357,7 +356,7 @@ func TestIntegration_LedgerRepository_FindAll_NilNameReturnsAll(t *testing.T) {
 }
 
 func TestIntegration_LedgerRepository_FindAll_PrefixMatchOnly(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -383,7 +382,7 @@ func TestIntegration_LedgerRepository_FindAll_PrefixMatchOnly(t *testing.T) {
 // ============================================================================
 
 func TestIntegration_LedgerRepository_FindAll_WildcardInjection(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -439,7 +438,7 @@ func TestIntegration_LedgerRepository_FindAll_WildcardInjection(t *testing.T) {
 }
 
 func TestIntegration_LedgerRepository_FindAll_LiteralSpecialCharsInName(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()
@@ -467,7 +466,7 @@ func TestIntegration_LedgerRepository_FindAll_LiteralSpecialCharsInName(t *testi
 // ============================================================================
 
 func TestIntegration_LedgerRepository_ListByIDs_EdgeCases(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
@@ -532,7 +531,7 @@ func TestIntegration_LedgerRepository_ListByIDs_EdgeCases(t *testing.T) {
 
 func TestIntegration_LedgerRepository_GetSettings_ReturnsExistingSettings(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -563,7 +562,7 @@ func TestIntegration_LedgerRepository_GetSettings_ReturnsExistingSettings(t *tes
 
 func TestIntegration_LedgerRepository_GetSettings_ReturnsEmptyMapWhenNoSettings(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -583,7 +582,7 @@ func TestIntegration_LedgerRepository_GetSettings_ReturnsEmptyMapWhenNoSettings(
 
 func TestIntegration_LedgerRepository_GetSettings_ReturnsErrorWhenLedgerNotFound(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -602,7 +601,7 @@ func TestIntegration_LedgerRepository_GetSettings_ReturnsErrorWhenLedgerNotFound
 
 func TestIntegration_LedgerRepository_GetSettings_IsolatesByOrganization(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -633,7 +632,7 @@ func TestIntegration_LedgerRepository_GetSettings_IsolatesByOrganization(t *test
 
 func TestIntegration_LedgerRepository_GetSettings_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -662,7 +661,7 @@ func TestIntegration_LedgerRepository_GetSettings_ExcludesSoftDeleted(t *testing
 
 func TestIntegration_LedgerRepository_UpdateSettings_CreatesNewSettings(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -695,7 +694,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_CreatesNewSettings(t *testi
 
 func TestIntegration_LedgerRepository_UpdateSettings_MergesWithExisting(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -730,7 +729,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_MergesWithExisting(t *testi
 
 func TestIntegration_LedgerRepository_UpdateSettings_ReturnsErrorWhenLedgerNotFound(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -749,7 +748,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_ReturnsErrorWhenLedgerNotFo
 
 func TestIntegration_LedgerRepository_UpdateSettings_IsolatesByOrganization(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -777,7 +776,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_IsolatesByOrganization(t *t
 
 func TestIntegration_LedgerRepository_UpdateSettings_ExcludesSoftDeleted(t *testing.T) {
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -808,7 +807,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_NestedObjectReplacement(t *
 	// Nested objects are REPLACED entirely, not deep-merged.
 
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -863,7 +862,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_DeeplyNestedThreeLevels(t *
 	// Test behavior with 3+ levels of nesting
 
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -927,7 +926,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_TypeMismatchObjectToScalar(
 	// Test what happens when a nested object is replaced with a scalar
 
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -967,7 +966,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_TypeMismatchScalarToObject(
 	// Test what happens when a scalar is replaced with a nested object
 
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1008,7 +1007,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_SpecialCharactersInKeys(t *
 	// Test that special characters in JSON keys are handled correctly
 
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1051,7 +1050,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_EmptyNestedObject(t *testin
 	// Test that empty nested objects are handled correctly
 
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1096,7 +1095,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_NullValueSetsNotRemoves(t *
 	// Test that setting a key to null sets the value to JSON null, not removes the key
 
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1143,7 +1142,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_ArrayValues(t *testing.T) {
 	// Test that array values are handled correctly
 
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1190,7 +1189,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_LargeNestedStructure(t *tes
 	// Test with a moderately large nested structure to verify performance/correctness
 
 	// Arrange
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 
@@ -1227,7 +1226,7 @@ func TestIntegration_LedgerRepository_UpdateSettings_LargeNestedStructure(t *tes
 // Create still works after a hypothetical future migration adds a column the
 // repository code does not know about. Backported from v3.5.4 hotfix #2111.
 func TestIntegration_LedgerRepository_Create_ForwardCompat_NewColumns(t *testing.T) {
-	container := pgtestutil.SetupContainer(t)
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
 	repo := createRepository(t, container)
 	ctx := context.Background()

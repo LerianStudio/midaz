@@ -14,12 +14,13 @@ import (
 	"testing"
 	"time"
 
-	libRedis "github.com/LerianStudio/lib-commons/v5/commons/redis"
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
-	"github.com/LerianStudio/midaz/v3/pkg/constant"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
-	redistestutil "github.com/LerianStudio/midaz/v3/tests/utils/redis"
+	libRedis "github.com/LerianStudio/lib-commons/v6/commons/redis"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
+	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -71,11 +72,31 @@ type networkChaosTestInfra struct {
 func setupRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
 	t.Helper()
 
-	// Setup Redis container
-	redisContainer := redistestutil.SetupContainer(t)
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupReusableContainer(t))
+}
+
+func setupFinancialRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
+	t.Helper()
+
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupReusableContainerWithConfig(
+		t, redistestutil.FinancialContainerConfig(),
+	))
+}
+
+func setupExclusiveRedisIntegrationInfra(t *testing.T) *integrationTestInfra {
+	t.Helper()
+
+	return setupRedisIntegrationInfraWithContainer(t, redistestutil.SetupContainer(t))
+}
+
+func setupRedisIntegrationInfraWithContainer(
+	t *testing.T,
+	redisContainer *redistestutil.ContainerResult,
+) *integrationTestInfra {
+	t.Helper()
 
 	// Create lib-commons Redis connection
-	conn := redistestutil.CreateConnection(t, redisContainer.Addr)
+	conn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 
 	// Create repository
 	repo := &RedisConsumerRepository{
@@ -343,6 +364,7 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 	// 1. Add multiple messages to queue
 	t.Log("Step 1: Adding messages to backup queue")
 	messageKeys := make([]string, numMessages)
+	messages := make(map[string][]byte, numMessages)
 	for i := 0; i < numMessages; i++ {
 		key := fmt.Sprintf("test-msg-%d-%s", i, uuid.New().String())
 		msg := []byte(fmt.Sprintf(`{"id":"%s","data":"test message %d"}`, key, i))
@@ -350,6 +372,7 @@ func TestIntegration_Redis_BackupQueueOperations(t *testing.T) {
 		err := infra.repo.AddMessageToQueue(ctx, key, msg)
 		require.NoError(t, err, "should add message %d to queue", i)
 		messageKeys[i] = key
+		messages[key] = msg
 	}
 	t.Logf("Added %d messages to backup queue", numMessages)
 
@@ -699,8 +722,6 @@ func TestIntegration_Chaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
 		t.Skip("skipping chaos test in short mode")
 	}
 
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
-
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()
 
@@ -770,8 +791,6 @@ func TestIntegration_Chaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping chaos test in short mode")
 	}
-
-	t.Skip("skipping: lib-commons RedisConnection.GetClient() fix")
 
 	infra := setupRedisChaosInfra(t)
 	defer infra.cleanup()
@@ -881,7 +900,8 @@ func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 	cancelledCtx, cancel := context.WithCancel(ctx)
 	cancel()
 
-	chaos.AssertGracefulDegradation(t,
+	chaos.AssertGracefulDegradation(
+		t,
 		func() error {
 			transactionID := uuid.New()
 			_, err := infra.repo.ProcessBalanceAtomicOperation(cancelledCtx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)

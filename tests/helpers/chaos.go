@@ -40,13 +40,13 @@ func runChaosTests(m *testing.M) int {
 			return 1
 		}
 
-		if err := runMake(root, "up-backend"); err != nil {
+		if err := runMake(root, "up"); err != nil {
 			log.Printf("chaos setup failed to start backend stack: %v", err)
 			return 1
 		}
 
 		defer func() {
-			if err := runMake(root, "down-backend"); err != nil {
+			if err := runMake(root, "down"); err != nil {
 				log.Printf("chaos teardown failed to stop backend stack: %v", err)
 			}
 		}()

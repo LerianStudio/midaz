@@ -1,3 +1,5 @@
+//go:build property
+
 // Copyright (c) 2026 Lerian Studio. All rights reserved.
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
@@ -32,7 +34,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/stretchr/testify/require"
 )
 
@@ -101,7 +103,6 @@ func TestProperty_GetDB_TenantConnectionReturned(t *testing.T) {
 		)
 
 		db, err := repo.getDB(ctx)
-
 		// getDB must succeed and return the injected tenant DB.
 		if err != nil {
 			return false
