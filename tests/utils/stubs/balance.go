@@ -96,6 +96,13 @@ func (s *BalanceRepoStub) UpdateAllByAccountID(_ context.Context, _, _, _ uuid.U
 	return nil
 }
 
+// UpdateAccountBlockedByAccountID is a no-op: the stub serves HTTP-layer
+// integration tests that never assert on the account_blocked projection. A test
+// that needs the propagation observed uses the real PostgreSQL adapter.
+func (s *BalanceRepoStub) UpdateAccountBlockedByAccountID(_ context.Context, _, _, _ uuid.UUID, _ bool) error {
+	return nil
+}
+
 func (s *BalanceRepoStub) ListByAccountID(_ context.Context, _, _, _ uuid.UUID) ([]*mmodel.Balance, error) {
 	return nil, nil
 }

@@ -84,6 +84,15 @@ type Repository interface {
 	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
 	UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error)
 	UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error
+	// UpdateAccountBlockedByAccountID drives the account_blocked projection of every
+	// live balance of one account to the desired state in a single atomic UPDATE.
+	//
+	// It takes a plain bool rather than mmodel.UpdateBalance on purpose: UpdateBalance
+	// is the operator-facing PATCH input, and exposing account_blocked there would
+	// make a read-model projection writable through the balance API. The block state
+	// has exactly one source of truth — account.blocked — and this method is the only
+	// way it reaches the hot read path.
+	UpdateAccountBlockedByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, blocked bool) error
 	ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAccountIDAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error)
 }
@@ -1619,6 +1628,58 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 
 		return err
 	}
+
+	return nil
+}
+
+// UpdateAccountBlockedByAccountID sets account_blocked on every live balance of the
+// account in ONE statement, so the read model can never be observed half-converged.
+//
+// Deliberately divergent from UpdateAllByAccountID in two ways:
+//
+//   - Zero rows affected is a SUCCESS, not ErrEntityNotFound. The caller has already
+//     proven the account exists; an account with no balances is a legitimate target and
+//     the projection has simply nothing to carry. Failing here would make the command's
+//     convergence retry impossible for exactly the accounts that need it least.
+//   - Re-applying the state already stored is a success too, which is what lets a
+//     partially-failed block/unblock be retried until account, balances and cache agree.
+func (r *BalancePostgreSQLRepository) UpdateAccountBlockedByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, blocked bool) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_account_blocked_by_account_id")
+	defer span.End()
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return err
+	}
+
+	_, spanExec := tracer.Start(ctx, "postgres.update_account_blocked_by_account_id.exec")
+	defer spanExec.End()
+
+	query := `UPDATE balance SET account_blocked = $1, updated_at = NOW() WHERE organization_id = $2 AND ledger_id = $3 AND account_id = $4 AND deleted_at IS NULL`
+
+	result, err := db.ExecContext(ctx, query, blocked, organizationID, ledgerID, accountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
+
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanExec, "Failed to get rows affected", err)
+
+		return err
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Propagated account block state to balances",
+		libLog.String("account_id", accountID.String()),
+		libLog.Bool("blocked", blocked),
+		libLog.Int("balances_updated", int(rowsAffected)),
+	)
 
 	return nil
 }

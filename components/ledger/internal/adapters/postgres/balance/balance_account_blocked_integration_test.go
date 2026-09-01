@@ -165,3 +165,109 @@ func TestIntegration_BalanceRepository_AccountBlocked_DefaultsToUnblocked(t *tes
 	assert.False(t, found.AccountBlocked,
 		"a row predating the column must read as not blocked")
 }
+
+// TestIntegration_BalanceRepository_UpdateAccountBlockedByAccountID_PropagatesToEveryBalance
+// proves consistency guarantee #1: one atomic UPDATE flips the projection on
+// every live balance of the account, in both directions, and never touches a
+// balance belonging to a different account.
+func TestIntegration_BalanceRepository_UpdateAccountBlockedByAccountID_PropagatesToEveryBalance(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	targetAccountID := createTestAccountID()
+	otherAccountID := createTestAccountID()
+	ctx := context.Background()
+
+	newBalance := func(accountID uuid.UUID, alias, key string) *mmodel.Balance {
+		return &mmodel.Balance{
+			ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      accountID.String(),
+			Alias:          alias,
+			Key:            key,
+			AssetCode:      "USD",
+			Available:      decimal.NewFromInt(100),
+			OnHold:         decimal.Zero,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+		}
+	}
+
+	for _, b := range []*mmodel.Balance{
+		newBalance(targetAccountID, "@propagate", "default"),
+		newBalance(targetAccountID, "@propagate", "savings"),
+		newBalance(otherAccountID, "@bystander", "default"),
+	} {
+		_, err := repo.Create(ctx, b)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, repo.UpdateAccountBlockedByAccountID(ctx, orgID, ledgerID, targetAccountID, true))
+
+	blocked, err := repo.ListByAccountID(ctx, orgID, ledgerID, targetAccountID)
+	require.NoError(t, err)
+	require.Len(t, blocked, 2)
+
+	for _, b := range blocked {
+		assert.True(t, b.AccountBlocked, "every balance of the account must carry the block state")
+	}
+
+	bystanders, err := repo.ListByAccountID(ctx, orgID, ledgerID, otherAccountID)
+	require.NoError(t, err)
+	require.Len(t, bystanders, 1)
+	assert.False(t, bystanders[0].AccountBlocked, "a sibling account must never be touched")
+
+	// The reverse direction has to converge just as completely.
+	require.NoError(t, repo.UpdateAccountBlockedByAccountID(ctx, orgID, ledgerID, targetAccountID, false))
+
+	unblocked, err := repo.ListByAccountID(ctx, orgID, ledgerID, targetAccountID)
+	require.NoError(t, err)
+	require.Len(t, unblocked, 2)
+
+	for _, b := range unblocked {
+		assert.False(t, b.AccountBlocked, "unblock must clear the projection on every balance")
+	}
+}
+
+// TestIntegration_BalanceRepository_UpdateAccountBlockedByAccountID_IsIdempotent
+// pins the retry contract: repeating the same desired state is a success, and
+// an account with no balances is a success too. Either one erroring would make
+// the command's convergence retry impossible.
+func TestIntegration_BalanceRepository_UpdateAccountBlockedByAccountID_IsIdempotent(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := createTestAccountID()
+	ctx := context.Background()
+
+	_, err := repo.Create(ctx, &mmodel.Balance{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		AccountID:      accountID.String(),
+		Alias:          "@idempotent",
+		Key:            "default",
+		AssetCode:      "USD",
+		Available:      decimal.NewFromInt(1),
+		OnHold:         decimal.Zero,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, repo.UpdateAccountBlockedByAccountID(ctx, orgID, ledgerID, accountID, true))
+	require.NoError(t, repo.UpdateAccountBlockedByAccountID(ctx, orgID, ledgerID, accountID, true),
+		"re-applying the same desired state must stay a success")
+
+	// An account with zero balances is a legitimate convergence target: the
+	// propagation has nothing to do and MUST NOT report a missing entity.
+	require.NoError(t, repo.UpdateAccountBlockedByAccountID(ctx, orgID, ledgerID, createTestAccountID(), true),
+		"an account with no balances must not fail the propagation")
+}

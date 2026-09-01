@@ -15,11 +15,10 @@ import (
 	time "time"
 
 	http "github.com/LerianStudio/lib-commons/v6/commons/net/http"
-	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
-
 	mmodel "github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	http0 "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	uuid "github.com/google/uuid"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRepository is a mock of Repository interface.
@@ -283,6 +282,20 @@ func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, i
 func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, ledgerID, id, balance any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, ledgerID, id, balance)
+}
+
+// UpdateAccountBlockedByAccountID mocks base method.
+func (m *MockRepository) UpdateAccountBlockedByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, blocked bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAccountBlockedByAccountID", ctx, organizationID, ledgerID, accountID, blocked)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateAccountBlockedByAccountID indicates an expected call of UpdateAccountBlockedByAccountID.
+func (mr *MockRepositoryMockRecorder) UpdateAccountBlockedByAccountID(ctx, organizationID, ledgerID, accountID, blocked any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccountBlockedByAccountID", reflect.TypeOf((*MockRepository)(nil).UpdateAccountBlockedByAccountID), ctx, organizationID, ledgerID, accountID, blocked)
 }
 
 // UpdateAllByAccountID mocks base method.

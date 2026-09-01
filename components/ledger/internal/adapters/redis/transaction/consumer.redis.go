@@ -94,6 +94,11 @@ type RedisRepository interface {
 	MGet(ctx context.Context, keys []string) (map[string]string, error)
 	// Del removes a key from Redis.
 	Del(ctx context.Context, key string) error
+	// DelMany removes several keys in a SINGLE DEL command, so a caller that must
+	// evict a related set of keys cannot be observed half-evicted. Every balance key
+	// carries the same {transactions} hash tag, so the set lands on one slot and the
+	// multi-key form is valid in cluster mode. An empty slice is a no-op.
+	DelMany(ctx context.Context, keys []string) error
 	// Incr atomically increments a key's integer value and returns the new value.
 	// Returns 0 on error (connection failure, namespace failure).
 	Incr(ctx context.Context, key string) int64
@@ -382,6 +387,67 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	}
 
 	logger.Log(ctx, libLog.LevelDebug, "Key deleted from Redis", libLog.Any("deleted_count", val))
+
+	return nil
+}
+
+// DelMany deletes every supplied key in one DEL round-trip. Redis executes a
+// single command atomically, so the whole set disappears together — that is the
+// property callers doing invalidate-first eviction depend on, and the reason
+// this is not a loop over Del.
+//
+// Large inputs are chunked at maxRedisBatchSize to keep the command payload
+// bounded, matching MGet. A chunked call is several atomic DELs rather than one;
+// the sets this serves (the balances of a single account) are orders of
+// magnitude below the threshold, so the guarantee holds in practice.
+func (rr *RedisConsumerRepository) DelMany(ctx context.Context, keys []string) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.del_many")
+	defer span.End()
+
+	if len(keys) == 0 {
+		libOpentelemetry.HandleSpanEvent(span, "del_many called with empty keys")
+
+		return nil
+	}
+
+	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis keys", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis keys", libLog.Err(err))
+
+		return err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to connect to Redis", libLog.Err(err))
+
+		return err
+	}
+
+	var deleted int64
+
+	for start := 0; start < len(prefixedKeys); start += maxRedisBatchSize {
+		end := min(start+maxRedisBatchSize, len(prefixedKeys))
+
+		val, err := rds.Del(ctx, prefixedKeys[start:end]...).Result()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to del many on redis", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to delete keys from Redis", libLog.Err(err))
+
+			return err
+		}
+
+		deleted += val
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Keys deleted from Redis",
+		libLog.Int("requested", len(keys)),
+		libLog.Int("deleted", int(deleted)),
+	)
 
 	return nil
 }
