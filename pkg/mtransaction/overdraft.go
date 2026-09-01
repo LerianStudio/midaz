@@ -7,7 +7,6 @@ package mtransaction
 import (
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v4/pkg"
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	constant "github.com/LerianStudio/lib-commons/v6/commons/constants"
@@ -31,29 +30,6 @@ func CalculateOverdraftSplit(available, debitAmount decimal.Decimal) (debitOnDef
 	debitOnOverdraft = debitAmount.Sub(debitOnDefault)
 
 	return debitOnDefault, debitOnOverdraft
-}
-
-// ValidateOverdraftLimit checks whether adding a deficit to the currently
-// consumed overdraft would breach the configured overdraft limit.
-//
-//   - When limitEnabled is false the balance is treated as having unlimited
-//     overdraft and the function always returns nil.
-//   - When the resulting cumulative usage (currentOverdraftUsed + deficit)
-//     is less than or equal to the limit the function returns nil.
-//   - Otherwise the function returns an error wrapping the canonical
-//     constant.ErrOverdraftLimitExceeded sentinel (code 0167) so callers
-//     can branch with errors.Is.
-func ValidateOverdraftLimit(currentOverdraftUsed, deficit, overdraftLimit decimal.Decimal, limitEnabled bool) error {
-	if !limitEnabled {
-		return nil
-	}
-
-	projected := currentOverdraftUsed.Add(deficit)
-	if projected.GreaterThan(overdraftLimit) {
-		return pkg.ValidateBusinessError(pkgConstant.ErrOverdraftLimitExceeded, pkgConstant.EntityTransaction)
-	}
-
-	return nil
 }
 
 // NOTE: Empty-direction balances (Direction="") return (false, decimal.Zero)
