@@ -82,6 +82,13 @@ type Balance struct {
 	// example: true
 	AllowReceiving bool `json:"allowReceiving" example:"true"`
 
+	// AccountBlocked mirrors the owning account's block state into the
+	// balance read model. The account remains the source of truth; this
+	// field is a projection kept in sync by propagation, never edited
+	// directly. False for accounts that are not blocked.
+	// example: false
+	AccountBlocked bool `json:"accountBlocked" example:"false"`
+
 	// Direction is the accounting direction of the balance. One of
 	// "credit" or "debit". Empty string denotes legacy rows predating the
 	// overdraft feature and is treated as "credit" by the engine.
@@ -268,6 +275,7 @@ func (b *Balance) ToTransactionBalance() (*mtransaction.Balance, error) {
 		AccountType:    b.AccountType,
 		AllowSending:   b.AllowSending,
 		AllowReceiving: b.AllowReceiving,
+		AccountBlocked: b.AccountBlocked,
 		Direction:      b.Direction,
 		OverdraftUsed:  b.OverdraftUsed,
 		CreatedAt:      b.CreatedAt,
@@ -403,6 +411,11 @@ type CreateBalanceInput struct {
 	// Whether the account should be allowed to receive funds to this balance
 	// example: true
 	AllowReceiving bool
+
+	// AccountBlocked is the owning account's block state, inherited by the
+	// balance at creation. False when the account is not blocked.
+	// example: false
+	AccountBlocked bool
 }
 
 // IDtoUUID is a func that convert UUID string to uuid.UUID
@@ -484,6 +497,11 @@ type BalanceRedis struct {
 
 	// Whether the account can receive funds (1=true, 0=false)
 	AllowReceiving int `json:"allowReceiving"`
+
+	// Whether the owning account is blocked (1=true, 0=false for Lua).
+	// Absent in cache entries written before this field existed; the
+	// zero value 0 keeps those entries valid and unblocked.
+	AccountBlocked int `json:"accountBlocked"`
 
 	// Accounting direction of the balance ("credit" or "debit")
 	Direction string `json:"direction"`

@@ -5,6 +5,7 @@
 package mmodel
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -459,4 +460,110 @@ func TestBalanceRedis_UnmarshalJSON_OtherFields(t *testing.T) {
 	assert.Equal(t, 1, br.AllowSending)
 	assert.Equal(t, 0, br.AllowReceiving)
 	assert.Equal(t, "merchant-reserve", br.Key)
+}
+
+func TestBalance_ToTransactionBalance_AccountBlocked(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		accountBlocked bool
+		want           bool
+	}{
+		{
+			name:           "blocked account propagates true",
+			accountBlocked: true,
+			want:           true,
+		},
+		{
+			name:           "unblocked account propagates false",
+			accountBlocked: false,
+			want:           false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			balance := &Balance{
+				ID:             "423e4567-e89b-12d3-a456-426614174003",
+				AccountID:      "account-blocked",
+				AssetCode:      "USD",
+				Available:      decimal.NewFromInt(100),
+				OnHold:         decimal.Zero,
+				AllowSending:   true,
+				AllowReceiving: true,
+				AccountBlocked: tt.accountBlocked,
+			}
+
+			got, err := balance.ToTransactionBalance()
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got.AccountBlocked)
+		})
+	}
+}
+
+func TestBalanceRedis_UnmarshalJSON_AccountBlocked(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  int
+	}{
+		{
+			name:  "legacy cache entry without accountBlocked defaults to 0",
+			input: `{"id":"bal-legacy","accountId":"acc-legacy","assetCode":"USD","available":1000,"onHold":0,"version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"key":"default","alias":"@legacy"}`,
+			want:  0,
+		},
+		{
+			name:  "cache entry with accountBlocked 1 decodes to 1",
+			input: `{"id":"bal-blocked","accountId":"acc-blocked","assetCode":"USD","available":1000,"onHold":0,"version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"key":"default","alias":"@blocked","accountBlocked":1}`,
+			want:  1,
+		},
+		{
+			name:  "cache entry with accountBlocked 0 decodes to 0",
+			input: `{"id":"bal-open","accountId":"acc-open","assetCode":"USD","available":1000,"onHold":0,"version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"key":"default","alias":"@open","accountBlocked":0}`,
+			want:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var br BalanceRedis
+			err := br.UnmarshalJSON([]byte(tt.input))
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, br.AccountBlocked)
+		})
+	}
+}
+
+func TestBalance_AccountBlocked_JSONTag(t *testing.T) {
+	t.Parallel()
+
+	data, err := json.Marshal(&Balance{AccountBlocked: true})
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(data, &decoded))
+
+	assert.Equal(t, true, decoded["accountBlocked"], "Balance MUST expose the flag as accountBlocked")
+}
+
+func TestCreateBalanceInput_AccountBlocked(t *testing.T) {
+	t.Parallel()
+
+	input := CreateBalanceInput{
+		Alias:          "@blocked",
+		AllowSending:   true,
+		AllowReceiving: true,
+		AccountBlocked: true,
+	}
+
+	assert.True(t, input.AccountBlocked)
 }

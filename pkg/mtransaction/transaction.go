@@ -29,6 +29,9 @@ type Balance struct {
 	AccountType    string          `json:"accountType" example:"creditCard"`
 	AllowSending   bool            `json:"allowSending" example:"true"`
 	AllowReceiving bool            `json:"allowReceiving" example:"true"`
+	// AccountBlocked mirrors the owning account's block state, projected
+	// onto the balance read model. False when the account is not blocked.
+	AccountBlocked bool `json:"accountBlocked" example:"false"`
 	// Direction is the accounting direction of the balance ("credit" or
 	// "debit"). Empty string denotes a legacy balance that predates the
 	// overdraft feature and is treated as "credit" by the engine.

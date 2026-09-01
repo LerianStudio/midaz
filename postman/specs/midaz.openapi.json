@@ -18565,6 +18565,12 @@
       "Balance": {
         "additionalProperties": false,
         "properties": {
+          "accountBlocked": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
           "accountId": {
             "examples": [
               "00000000-0000-0000-0000-000000000000"
@@ -18714,6 +18720,7 @@
           "accountType",
           "allowSending",
           "allowReceiving",
+          "accountBlocked",
           "overdraftUsed",
           "createdAt",
           "updatedAt",
