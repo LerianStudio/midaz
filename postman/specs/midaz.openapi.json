@@ -2755,6 +2755,146 @@
         ]
       }
     },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}/block": {
+      "post": {
+        "deprecated": true,
+        "description": "Blocks an account, stopping it from taking part in new transactions. The request takes no payload: record the reason for the block in the account's metadata via PATCH. Answers with the updated account. Requires the dedicated `account-blocks` permission. Returns 404 (code 0052) when the account does not exist and 422 (code 0074) for accounts of type `external`, which anchor value crossing the ledger boundary and may never be blocked. Repeating the call on an already-blocked account is safe.",
+        "operationId": "blockAccount",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Block an account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts (v1)"
+        ]
+      }
+    },
+    "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}/unblock": {
+      "post": {
+        "deprecated": true,
+        "description": "Unblocks an account, letting it take part in transactions again. The request takes no payload: record the reason for the release in the account's metadata via PATCH. Answers with the updated account. Requires the dedicated `account-blocks` permission — the same permission that governs blocking. Returns 404 (code 0052) when the account does not exist and 422 (code 0074) for accounts of type `external`. Repeating the call on an already-unblocked account is safe.",
+        "operationId": "unblockAccount",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyError"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Unblock an account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts (v1)"
+        ]
+      }
+    },
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
       "put": {
         "deprecated": true,
@@ -10800,6 +10940,144 @@
           }
         ],
         "summary": "Update an account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts (v2)"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}/block": {
+      "post": {
+        "description": "Blocks an account, stopping it from taking part in new transactions. The request takes no payload: record the reason for the block in the account's metadata via PATCH. Answers with the updated account. Requires the dedicated `account-blocks` permission. Returns 404 (code 0052) when the account does not exist and 422 (code 0074) for accounts of type `external`, which anchor value crossing the ledger boundary and may never be blocked. Repeating the call on an already-blocked account is safe.",
+        "operationId": "blockAccountV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountV2"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Block an account",
+        "tags": [
+          "Midaz_Ledger_API_Accounts (v2)"
+        ]
+      }
+    },
+    "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}/unblock": {
+      "post": {
+        "description": "Unblocks an account, letting it take part in transactions again. The request takes no payload: record the reason for the release in the account's metadata via PATCH. Answers with the updated account. Requires the dedicated `account-blocks` permission — the same permission that governs blocking. Returns 404 (code 0052) when the account does not exist and 422 (code 0074) for accounts of type `external`. Repeating the call on an already-unblocked account is safe.",
+        "operationId": "unblockAccountV2",
+        "parameters": [
+          {
+            "description": "Organization ID (UUID)",
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "description": "Organization ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ledger ID (UUID)",
+            "in": "path",
+            "name": "ledger_id",
+            "required": true,
+            "schema": {
+              "description": "Ledger ID (UUID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Account ID (UUID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Account ID (UUID)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountV2"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Unblock an account",
         "tags": [
           "Midaz_Ledger_API_Accounts (v2)"
         ]

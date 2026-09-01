@@ -252,6 +252,10 @@ POST	/v1/organizations/:organization_id/ledgers	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	4
+POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	3
+POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	1
+POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/unblock	3
+POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/unblock	1
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/assets	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios	4
@@ -284,6 +288,10 @@ POST	/v2/organizations/:organization_id/ledgers	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	4
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	3
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	1
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/unblock	3
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/unblock	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	4

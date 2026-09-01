@@ -24,7 +24,24 @@ const (
 	accountExternalPath = accountListPath + "/external/{code}"
 	accountCountPath    = accountListPath + "/metrics/count"
 	accountTag          = "Accounts"
+
+	// The two dedicated block-state ops. They hang off the by-id path and are
+	// governed by an authz resource of their own — see attachAccountRouteChain.
+	accountBlockPath   = accountIDPath + "/block"
+	accountUnblockPath = accountIDPath + "/unblock"
 )
+
+// accountBlockResource is the authz resource governing BOTH block-state directions.
+// One permission covers block and unblock deliberately: an operator who can freeze an
+// account must be able to release it, and splitting the two would strand accounts
+// frozen by an operator whose grant was later narrowed. It is separate from the
+// "accounts" resource so freezing an account can be granted without granting the power
+// to rewrite it.
+//
+// ⚠️ Deployment note: this resource MUST be registered in the Access Manager. Until it
+// is, both routes fail closed with 403 — which is the correct direction, but the
+// endpoints are unusable.
+const accountBlockResource = "account-blocks"
 
 // RegisterAccountRoutes registers the eight /v1 account operations on the shared Huma
 // API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber group, so
@@ -118,7 +135,46 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
 	}, h.CountAccounts)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "blockAccount" + opSuffix,
+		Method:      http.MethodPost,
+		Path:        accountBlockPath,
+		Summary:     "Block an account",
+		Description: accountBlockDescription,
+		Tags:        []string{accountTag},
+		Security:    secAccountBearer,
+	}, h.BlockAccount)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "unblockAccount" + opSuffix,
+		Method:      http.MethodPost,
+		Path:        accountUnblockPath,
+		Summary:     "Unblock an account",
+		Description: accountUnblockDescription,
+		Tags:        []string{accountTag},
+		Security:    secAccountBearer,
+	}, h.UnblockAccount)
 }
+
+// accountBlockDescription / accountUnblockDescription document the two block-state ops
+// for clients. They spell out the empty payload, the dedicated permission and the two
+// business errors the ops can return that the generic account errors do not cover:
+// 0052 (account not found) and 0074 (external accounts may never be manipulated).
+const (
+	accountBlockDescription = "Blocks an account, stopping it from taking part in new transactions. " +
+		"The request takes no payload: record the reason for the block in the account's metadata via PATCH. " +
+		"Answers with the updated account. Requires the dedicated `account-blocks` permission. " +
+		"Returns 404 (code 0052) when the account does not exist and 422 (code 0074) for accounts of type `external`, " +
+		"which anchor value crossing the ledger boundary and may never be blocked. " +
+		"Repeating the call on an already-blocked account is safe."
+
+	accountUnblockDescription = "Unblocks an account, letting it take part in transactions again. " +
+		"The request takes no payload: record the reason for the release in the account's metadata via PATCH. " +
+		"Answers with the updated account. Requires the dedicated `account-blocks` permission — the same permission " +
+		"that governs blocking. Returns 404 (code 0052) when the account does not exist and 422 (code 0074) for " +
+		"accounts of type `external`. Repeating the call on an already-unblocked account is safe."
+)
 
 // RegisterAccountV2Routes registers the eight /v2 account operations on the shared
 // Huma API. It is the /v2 half of RegisterAccountRoutes: identical paths, authz tuples,
@@ -208,6 +264,26 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
 	}, h.CountAccounts)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "blockAccount" + opSuffix,
+		Method:      http.MethodPost,
+		Path:        accountBlockPath,
+		Summary:     "Block an account",
+		Description: accountBlockDescription,
+		Tags:        []string{accountTag},
+		Security:    secAccountBearer,
+	}, h.BlockAccountV2)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "unblockAccount" + opSuffix,
+		Method:      http.MethodPost,
+		Path:        accountUnblockPath,
+		Summary:     "Unblock an account",
+		Description: accountUnblockDescription,
+		Tags:        []string{accountTag},
+		Security:    secAccountBearer,
+	}, h.UnblockAccountV2)
 }
 
 // RegisterAccountRoutesToApp wires the account surface onto the /v1 contract:
@@ -247,9 +323,32 @@ func attachAccountRouteChain(group fiber.Router, auth *middleware.AuthClient, ro
 		aliasPath    = listPath + "/alias/:alias"
 		externalPath = listPath + "/external/:code"
 		countPath    = listPath + "/metrics/count"
+		blockPath    = idPath + "/block"
+		unblockPath  = idPath + "/unblock"
 	)
 
 	parse := pkgHTTP.ParseUUIDPathParameters("account")
+
+	// The two block-state ops are the only account routes NOT guarded by the "accounts"
+	// resource: they carry accountBlockResource so freezing an account is a permission of
+	// its own, separate from the power to rewrite it. Both directions share the one tuple
+	// — see accountBlockResource.
+	//
+	// ⚠️ ORDER IS LOAD-BEARING, and this is the reason these two sit ABOVE the create POST
+	// rather than at the natural end of the list. Fiber keeps ONE route entry per method
+	// and collapses a new registration into the previous one when it repeats that method's
+	// most recent path; otherwise it opens a second entry. The create route relies on that
+	// collapse — its guard chain and its Huma terminal share a single 4-handler entry — and
+	// the terminals are all registered AFTER this function returns. Appending a POST here
+	// therefore makes blockPath, not listPath, the last POST path seen, which splits the
+	// pre-existing create entry in two.
+	//
+	// The split is behaviourally inert (the chain falls through to the terminal either way,
+	// which is how every GET on this surface already works), but it rewrites a committed row
+	// of testdata/route_table.golden for a route this change does not touch. Registering the
+	// block ops first keeps listPath last, so the golden gains rows and changes none.
+	routePost(group, blockPath, protectedMidaz(auth, accountBlockResource, "post", routeOptions, parse))
+	routePost(group, unblockPath, protectedMidaz(auth, accountBlockResource, "post", routeOptions, parse))
 
 	routePost(group, listPath, protectedMidaz(auth, "accounts", "post", routeOptions, parse))
 	routePatch(group, idPath, protectedMidaz(auth, "accounts", "patch", routeOptions, parse))

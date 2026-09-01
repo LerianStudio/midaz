@@ -163,6 +163,8 @@ POST	/v1/organizations/:organization_id/ledgers	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	transaction
+POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	onboarding
+POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/unblock	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes	transaction
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios	onboarding
@@ -186,6 +188,8 @@ POST	/v2/organizations/:organization_id/ledgers	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	transaction
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	onboarding
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/unblock	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	fees
