@@ -45,7 +45,7 @@ type Balance struct {
 	// Only meaningful when OverdraftLimitEnabled is true.
 	//
 	// Type asymmetry note: this field is decimal.Decimal for runtime
-	// arithmetic (comparison, subtraction in ValidateOverdraftLimit). The
+	// arithmetic (comparison against cumulative overdraft usage). The
 	// corresponding BalanceSettings.OverdraftLimit is *string to preserve
 	// JSON precision across marshal/unmarshal cycles. ToTransactionBalance()
 	// in pkg/mmodel/balance.go bridges the two: it parses the *string into

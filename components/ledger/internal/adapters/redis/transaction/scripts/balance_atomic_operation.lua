@@ -19,6 +19,53 @@ local function rtrim_zeros(frac)
     return (frac == "" and "0") or frac
 end
 
+-- cmp_decimal compares two decimal strings and returns -1, 0, or 1 for
+-- a<b, a==b, a>b. String-based (no tonumber) so magnitudes and scales
+-- beyond IEEE-754 double precision still compare correctly.
+local function cmp_decimal(a, b)
+    a = tostring(a)
+    b = tostring(b)
+    local ai, af, a_negative = split_decimal(a)
+    local bi, bf, b_negative = split_decimal(b)
+
+    if a_negative then ai = ai:sub(2) end
+    if b_negative then bi = bi:sub(2) end
+
+    ai = ai:gsub("^0+", "")
+    if ai == "" then ai = "0" end
+    bi = bi:gsub("^0+", "")
+    if bi == "" then bi = "0" end
+
+    -- Zero has no sign: -0, 0.00, and 0 all compare equal to zero.
+    if a_negative and ai == "0" and rtrim_zeros(af) == "0" then a_negative = false end
+    if b_negative and bi == "0" and rtrim_zeros(bf) == "0" then b_negative = false end
+
+    if a_negative ~= b_negative then
+        if a_negative then return -1 end
+        return 1
+    end
+
+    local maxFrac = math.max(#af, #bf)
+    local afPadded = af .. string.rep("0", maxFrac - #af)
+    local bfPadded = bf .. string.rep("0", maxFrac - #bf)
+
+    local unsigned
+    if #ai ~= #bi then
+        unsigned = (#ai < #bi) and -1 or 1
+    elseif ai ~= bi then
+        unsigned = (ai < bi) and -1 or 1
+    elseif afPadded ~= bfPadded then
+        unsigned = (afPadded < bfPadded) and -1 or 1
+    else
+        unsigned = 0
+    end
+
+    if a_negative then
+        return -unsigned
+    end
+    return unsigned
+end
+
 local sub_decimal
 
 local function add_decimal(a, b)
@@ -103,9 +150,7 @@ sub_decimal = function(a, b)
         return add_decimal(a, b:sub(2))
     end
 
-    local a_num = tonumber(a)
-    local b_num = tonumber(b)
-    if a_num < b_num then
+    if cmp_decimal(a, b) < 0 then
         local result = sub_decimal(b, a)
         return "-" .. result
     end
@@ -151,6 +196,12 @@ sub_decimal = function(a, b)
         int_res_tbl[i] = tostring(diff)
     end
 
+    -- cmp_decimal above guarantees a >= b at this point, so the integer loop
+    -- can never underflow past the most significant digit.
+    if borrow ~= 0 then
+        error("sub_decimal: borrow invariant violated")
+    end
+
     local res_int_rev = table.concat(int_res_tbl)
     local res_int = res_int_rev:reverse():gsub("^0+", "")
     if res_int == "" then
@@ -189,12 +240,12 @@ local function cloneBalance(tbl)
     return copy
 end
 
--- min_decimal returns the smaller of two decimal strings. Implemented via
--- sub_decimal so the caller does not need a numeric coercion step — this
--- keeps the precision behavior identical to add_decimal/sub_decimal for
--- values that overflow Lua's double representation.
+-- min_decimal returns the smaller of two decimal strings, comparing
+-- directly via cmp_decimal — no subtraction step — so precision matches
+-- add_decimal/sub_decimal for values that overflow Lua's double
+-- representation.
 local function min_decimal(a, b)
-    if startsWithMinus(sub_decimal(a, b)) then
+    if cmp_decimal(a, b) < 0 then
         return a
     end
     return b
