@@ -139,6 +139,10 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 			AccountType:    b.AccountType,
 			AllowSending:   b.AllowSending == 1,
 			AllowReceiving: b.AllowReceiving == 1,
+			// Same 1/0 mirror as the allow flags. A cache entry written
+			// before the field existed decodes to 0, so a legacy balance
+			// reads as not blocked instead of failing the lookup.
+			AccountBlocked: b.AccountBlocked == 1,
 			AssetCode:      b.AssetCode,
 			Direction:      b.Direction,
 			OverdraftUsed:  overdraftUsed,
