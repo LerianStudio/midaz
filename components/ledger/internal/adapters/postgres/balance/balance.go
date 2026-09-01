@@ -32,6 +32,11 @@ type BalancePostgreSQLModel struct {
 	AccountType    string
 	AllowSending   bool
 	AllowReceiving bool
+	// AccountBlocked mirrors the owning account's block state into the
+	// balance read model (column account_blocked, migration 000036). The
+	// account remains the source of truth; this column is a projection kept
+	// in sync by propagation and is never edited through the operator PATCH.
+	AccountBlocked bool            `db:"account_blocked"`
 	Direction      string          `db:"direction"`
 	OverdraftUsed  decimal.Decimal `db:"overdraft_used"`
 	Settings       []byte          `db:"settings"`
@@ -55,6 +60,7 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 		AccountType:    balance.AccountType,
 		AllowSending:   balance.AllowSending,
 		AllowReceiving: balance.AllowReceiving,
+		AccountBlocked: balance.AccountBlocked,
 		Direction:      balance.Direction,
 		OverdraftUsed:  balance.OverdraftUsed,
 		CreatedAt:      balance.CreatedAt,
@@ -102,6 +108,7 @@ func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
 		AccountType:    b.AccountType,
 		AllowSending:   b.AllowSending,
 		AllowReceiving: b.AllowReceiving,
+		AccountBlocked: b.AccountBlocked,
 		Direction:      b.Direction,
 		OverdraftUsed:  b.OverdraftUsed,
 		CreatedAt:      b.CreatedAt,
