@@ -644,6 +644,10 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 		AccountType:    b.AccountType,
 		AllowSending:   mapBalance.AllowSending,
 		AllowReceiving: mapBalance.AllowReceiving,
+		// Like the allow flags, the block state is authoritative on the
+		// balance the caller loaded from Postgres, not on the Lua payload:
+		// the script never computes it, it only carries it through the cache.
+		AccountBlocked: mapBalance.AccountBlocked,
 		AssetCode:      mapBalance.AssetCode,
 		OrganizationID: mapBalance.OrganizationID,
 		LedgerID:       mapBalance.LedgerID,
@@ -659,8 +663,14 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 // operation. It must match the stride used in the Lua script's parsing loop
 // (balance_atomic_operation.lua: `for i = 1, #ARGV, groupSize do`).
 //
-// Layout: 17 base fields + 7 overdraft fields = 24 total.
-const luaArgsPerOperation = 24
+// Layout: 17 base fields + 7 overdraft fields + 1 account-block field = 25 total.
+//
+// A new field is only ever APPENDED: every existing index is a positional
+// contract with the Lua script, and shifting one silently misreads every field
+// after it. Changing this constant therefore requires changing `groupSize` in
+// balance_atomic_operation.lua in the SAME commit — the two are asserted in
+// lock-step by TestLuaScript_StrideMatchesGoStride.
+const luaArgsPerOperation = 25
 
 func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.Context, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*balanceAtomicOperationPlan, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -719,7 +729,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 			}
 		}
 
-		// Each group of luaArgsPerOperation (24) values maps to one iteration
+		// Each group of luaArgsPerOperation (25) values maps to one iteration
 		// of the Lua script's `for i = 1, #ARGV, groupSize` loop.
 		// See: scripts/balance_atomic_operation.lua.
 		plan.args = append(
@@ -748,6 +758,11 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 			overdraftLimit,                              // ARGV[i+21] → balance.OverdraftLimit
 			balanceScope,                                // ARGV[i+22] → balance.BalanceScope
 			blcs.Amount.OverdraftAmount.String(),        // ARGV[i+23] → overdraft reversal amount
+			// Appended LAST on purpose: ARGV[i+0..23] are a positional contract
+			// with the Lua parsing loop, so a new field can only extend the
+			// group. Cache-only, like the allow flags — the script carries it
+			// through the balance table but never computes with it.
+			boolToInt(blcs.Balance.AccountBlocked), // ARGV[i+24] → balance.AccountBlocked (cache-only)
 		)
 
 		plan.mapBalances[blcs.Alias] = blcs.Balance
@@ -1570,6 +1585,9 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 		AccountType:    balanceRedis.AccountType,
 		AllowSending:   balanceRedis.AllowSending == 1,
 		AllowReceiving: balanceRedis.AllowReceiving == 1,
+		// Absent in cache entries written before the field existed; the zero
+		// value 0 keeps those entries valid and reads them as not blocked.
+		AccountBlocked: balanceRedis.AccountBlocked == 1,
 		Key:            balanceRedis.Key,
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),

@@ -292,7 +292,10 @@ end
 local function main()
     local ttl = 86400 -- 1 day
 
-    local groupSize = 24
+    -- Must equal luaArgsPerOperation in consumer.redis.go. The two are changed
+    -- in the same commit and asserted in lock-step by a Go unit test: a drift
+    -- makes every balance after the first in a batch read the wrong fields.
+    local groupSize = 25
     local returnBalances = {}
     local returnBalancesAfter = {}
     local rollbackBalances = {}
@@ -319,7 +322,7 @@ local function main()
     -- shares the balance key's {transactions} hash slot. Running this pre-pass
     -- ahead of the first SET below means a rejection here leaves zero side
     -- effects across the batch, so no rollback is required. The stride mirrors
-    -- the main loop below (groupSize=24; ARGV[i] is the balance key). A bounded
+    -- the main loop below (groupSize=25; ARGV[i] is the balance key). A bounded
     -- per-key EXISTS check early-returns on the first delete marker found, so the
     -- whole batch is rejected without unpacking a client-influenced number of keys.
     for i = 1, #ARGV, groupSize do
@@ -361,6 +364,9 @@ local function main()
         --   - AssetCode:      Used by ValidateIfBalanceExistsOnRedis for validation 0034
         --   - AllowSending:   Used by ValidateIfBalanceExistsOnRedis for validation 0024
         --   - AllowReceiving: Used by ValidateIfBalanceExistsOnRedis for validation 0024
+        --   - AccountBlocked: Owning account's block state, projected onto the
+        --                     balance so the validator rejects a blocked account
+        --                     without a second lookup
         --   - Key:            Used by ValidateIfBalanceExistsOnRedis for balance identification
         --
         -- WARNING: Do NOT remove the "cache-only" fields. They are essential for the
@@ -378,6 +384,10 @@ local function main()
             AssetCode = ARGV[i + 13],
             AllowSending = tonumber(ARGV[i + 14]),
             AllowReceiving = tonumber(ARGV[i + 15]),
+            -- Appended at the END of the ARGV group (i + 24). Every index
+            -- before it is a contract with the Go plan builder, so the new
+            -- field extends the group instead of shifting it.
+            AccountBlocked = tonumber(ARGV[i + 24]),
             Key = ARGV[i + 16],
             -- Overdraft fields
             Direction = ARGV[i + 17],
@@ -426,6 +436,13 @@ local function main()
             end
             if balance.BalanceScope == nil then
                 balance.BalanceScope = "transactional"
+            end
+            -- The decode above REPLACED the Go-provided table, so a field the
+            -- cached document does not carry is nil here and would be dropped
+            -- by every subsequent cjson.encode of the table. Backfilling it
+            -- keeps a pre-field entry valid and reads it as not blocked.
+            if balance.AccountBlocked == nil then
+                balance.AccountBlocked = 0
             end
         end
 

@@ -82,6 +82,7 @@ type cachedBalance struct {
 	AssetCode             string `json:"AssetCode"`
 	AllowSending          int    `json:"AllowSending"`
 	AllowReceiving        int    `json:"AllowReceiving"`
+	AccountBlocked        int    `json:"AccountBlocked"`
 	Key                   string `json:"Key"`
 	Direction             string `json:"Direction"`
 	OverdraftUsed         string `json:"OverdraftUsed"`
