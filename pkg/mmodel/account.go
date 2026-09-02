@@ -124,6 +124,12 @@ type UpdateAccountInput struct {
 	Status Status `json:"status"`
 
 	// Whether the account should be blocked
+	//
+	// Deprecated: use the dedicated POST /accounts/{id}/block and
+	// POST /accounts/{id}/unblock endpoints instead. The field is still honored
+	// and now drives the same propagation those endpoints do, but it carries no
+	// dedicated authorization of its own and cannot express intent in an audit
+	// trail. It will be removed in a future major version.
 	// required: false
 	Blocked *bool `json:"blocked"`
 

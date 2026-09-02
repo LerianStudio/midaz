@@ -65,6 +65,39 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, constant.EntityAccount)
 	}
 
+	// The deprecated blocked field travels the dedicated block/unblock code path
+	// instead of being folded into the generic SET list, so a PATCH gets exactly
+	// the guarantees the dedicated endpoints give: the account row moves first,
+	// every balance's account_blocked projection is realigned, and every cached
+	// balance key is evicted in one atomic DEL. Writing the column here as well
+	// would leave the balances and the cache serving the old state, which is the
+	// R11 divergence this closes.
+	//
+	// It runs BEFORE the generic update: if the generic update then fails, the
+	// block already converged and a retry re-applies both idempotently. The
+	// reverse order could leave a landed field change on top of an unpropagated
+	// block, which is the dangerous direction — a blocked account still
+	// transacting.
+	//
+	// Delegation is unconditional on `uai.Blocked != nil`. A value equal to the
+	// current state is not skipped here: the helper short-circuits the
+	// source-of-truth write itself and still re-propagates, which is what lets a
+	// partially failed earlier attempt converge.
+	//
+	// The staticcheck suppression is the point of the deprecation, not a
+	// workaround for it: this IS the compatibility shim that keeps the retired
+	// field working. Removing the read would break every client still sending it.
+	blockStateApplied := accFound
+
+	//nolint:staticcheck // SA1019: deprecated by design; this is the shim that still honors the field.
+	if uai.Blocked != nil {
+		//nolint:staticcheck // SA1019: same deprecated field, read once to drive the shared block path.
+		blockStateApplied, err = uc.setAccountBlockState(ctx, organizationID, ledgerID, id, *uai.Blocked, holderPolicy)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	account := &mmodel.Account{
 		Name:        uai.Name,
 		Status:      uai.Status,
@@ -73,7 +106,6 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		PortfolioID: uai.PortfolioID,
 		Metadata:    uai.Metadata,
 		NullFields:  uai.NullFields,
-		Blocked:     uai.Blocked,
 	}
 
 	accountUpdated, err := uc.AccountRepo.Update(ctx, organizationID, ledgerID, portfolioID, id, account)
@@ -96,7 +128,14 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	// AccountRepo.Update returns an input-derived record with bogus
 	// identity fields; mirror the SQL merge in-memory instead.
 	// Follow-up: fix the repo to RETURNING * so this dance is unneeded.
-	uc.emitAccountUpdatedEvent(ctx, span, logger, mergePatchAccount(accFound, account, accountUpdated.UpdatedAt))
+	//
+	// The merge starts from the post-block state so the single emitted event
+	// carries both halves of the PATCH. setAccountBlockState deliberately does
+	// not emit: one request produces one account.updated, never two for the same
+	// resource.
+	accountUpdated.Blocked = blockStateApplied.Blocked
+
+	uc.emitAccountUpdatedEvent(ctx, span, logger, mergePatchAccount(blockStateApplied, account, accountUpdated.UpdatedAt))
 
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityAccount, id.String(), uai.Metadata)
 	if err != nil {
