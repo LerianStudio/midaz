@@ -1303,6 +1303,16 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		return nil, false, err
 	}
 
+	// Account-block exception enrichment (RF-06/07/09/4B): produce block-bypass
+	// grants onto the matched sides of validate.From/To BEFORE ProcessBalanceOperations
+	// re-derives balances for ValidateBalancesRules. A common transaction (no
+	// operationalTypeCode) or one with no would-be-deny side returns nil with no
+	// I/O. A store failure fails closed (no grant) and the validators deny 0502/0024.
+	// The decision (first grant, deterministic order) is persisted on the record below.
+	appliedExceptionID := enrichAccountExceptionGrants(ctx, handler.Query.GetActiveAccountExceptions,
+		handler.Command.MetricsFactory, params.OrganizationID, params.LedgerID,
+		transactionInput.OperationalTypeCode, validate, balances)
+
 	balanceOps := buildBalanceOperations(ctx, params.OrganizationID, params.LedgerID, validate, balances)
 
 	// Overdraft enrichment: when a source debit exceeds available funds on a
@@ -1431,6 +1441,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		FeesSkipped:              honoredFeeSkip,
 		TracerSkipped:            honoredTracerSkip,
 		OperationalTypeCode:      transactionInput.OperationalTypeCode,
+		AppliedExceptionID:       appliedExceptionID,
 		Metadata:                 transactionInput.Metadata,
 		Status: transaction.Status{
 			Code:        transactionStatus,

@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
@@ -14,8 +15,11 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // ProcessBalanceOperationsInput groups all parameters required by
@@ -86,6 +90,14 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 			// Business validation failure (caller error) — warn, not error.
 			logger.Log(ctx, libLog.LevelWarn, "Balance rule validation failed", libLog.Err(err))
 
+			// TRD §10: a 0502 rejection (blocked account with no matching exception)
+			// is the observable outcome of the account-block feature at the money
+			// path. Non-0502 balance-rule failures (asset mismatch, ineligibility)
+			// are NOT counted here.
+			if isBlockedAccountRejection(err) {
+				utils.RecordBlockedAccountRejection(ctx, uc.MetricsFactory, logger, "ledger")
+			}
+
 			return nil, err
 		}
 	}
@@ -108,6 +120,18 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 	}
 
 	return result, nil
+}
+
+// isBlockedAccountRejection reports whether err is the 0502 account-block
+// transaction restriction, classified via the business-error family carrying the
+// canonical code. Any other balance-rule failure returns false.
+func isBlockedAccountRejection(err error) bool {
+	var uoe pkg.UnprocessableOperationError
+	if errors.As(err, &uoe) {
+		return uoe.Code == constant.ErrAccountBlockedTransactionRestriction.Error()
+	}
+
+	return false
 }
 
 // deduplicateBalances extracts unique balances from operations by alias.
