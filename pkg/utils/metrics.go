@@ -385,4 +385,36 @@ var (
 		Unit:        "1",
 		Description: "Total protection cache lookups by operation and result (hit/miss).",
 	}
+
+	// Account-block exception evaluation metrics (TRD §10). Declared here so the
+	// transaction-time enrichment (Task 2.3.4) can register and emit them; no emit
+	// site exists yet on the CRUD/cache path. Every label is a bounded, low-cardinality
+	// set — component and a fixed result enum — and NEVER a free identifier
+	// (accountID, exceptionID or the cache key), which would explode series cardinality.
+
+	// AccountExceptionEvaluationsTotal counts account-exception evaluations performed
+	// while enriching a transaction against a blocked account.
+	// Counter. Labels: component, result (granted|no_match|store_error).
+	AccountExceptionEvaluationsTotal = metrics.Metric{
+		Name:        "account_exception_evaluations_total",
+		Unit:        "1",
+		Description: "Total account exception evaluations by component and result (granted|no_match|store_error).",
+	}
+
+	// AccountExceptionEvaluationDuration tracks account-exception evaluation latency.
+	// Histogram (milliseconds). Label: component. Target p99 <= 5ms with a warm cache.
+	AccountExceptionEvaluationDuration = metrics.Metric{
+		Name:        "account_exception_evaluation_duration_ms",
+		Unit:        "ms",
+		Description: "Account exception evaluation duration in milliseconds by component.",
+	}
+
+	// BlockedAccountRejectionsTotal counts transactions rejected because a blocked
+	// account carried no matching exception.
+	// Counter. Label: component.
+	BlockedAccountRejectionsTotal = metrics.Metric{
+		Name:        "blocked_account_rejections_total",
+		Unit:        "1",
+		Description: "Total transactions rejected due to a blocked account with no matching exception, by component.",
+	}
 )

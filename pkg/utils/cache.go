@@ -201,6 +201,32 @@ func LedgerSettingsInternalKey(organizationID, ledgerID uuid.UUID) string {
 	return builder.String()
 }
 
+// AccountExceptionsInternalKey returns a key with the following format to be used on redis cluster:
+// "account_exceptions:{organizationID:ledgerID}:accountID"
+//
+// This is the first cache key owned by the account-block exception feature. It mirrors the
+// IdempotencyReverseKey shape: the {organizationID:ledgerID} hash tag co-locates a ledger's
+// exception keys on one Redis Cluster slot, while the accountID sits outside the tag as the
+// per-account discriminator. No hash tag {transactions} is used because no Lua multi-key
+// operation ever touches this key — it is only ever read, written or deleted individually.
+func AccountExceptionsInternalKey(organizationID, ledgerID, accountID uuid.UUID) string {
+	var builder strings.Builder
+
+	builder.Grow(131) // "account_exceptions:{" + 2×UUID + "}:" + UUID
+
+	builder.WriteString("account_exceptions")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(endKey)
+	builder.WriteString(keySeparator)
+	builder.WriteString(accountID.String())
+
+	return builder.String()
+}
+
 // WriteBehindTransactionKey returns a key with the following format to be used on redis cluster:
 // "wb_transaction:{organizationID:ledgerID:transactionID}"
 // This key is used to store transaction data in the write-behind cache before persistence.

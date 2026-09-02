@@ -361,3 +361,62 @@ func TestCacheKeyConstants(t *testing.T) {
 		assert.Equal(t, "lock:{transactions}:balance-sync:", BalanceSyncLockPrefix)
 	})
 }
+
+func TestAccountExceptionsInternalKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		accountID      uuid.UUID
+		expected       string
+	}{
+		{
+			name:           "standard account exceptions key",
+			organizationID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+			ledgerID:       uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
+			accountID:      uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a"),
+			expected:       "account_exceptions:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8}:01965ed9-7fa4-75b2-8872-fc9e8509ab0a",
+		},
+		{
+			name:           "nil UUIDs (zero value)",
+			organizationID: uuid.Nil,
+			ledgerID:       uuid.Nil,
+			accountID:      uuid.Nil,
+			expected:       "account_exceptions:{00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000}:00000000-0000-0000-0000-000000000000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := AccountExceptionsInternalKey(tt.organizationID, tt.ledgerID, tt.accountID)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestAccountExceptionsInternalKey_HashTagCoLocation asserts the {orgID:ledgerID}
+// hash tag frames the ledger scope so a ledger's exception keys share one Redis
+// Cluster slot, and that the accountID sits OUTSIDE the tag (the per-account
+// discriminator), mirroring IdempotencyReverseKey.
+func TestAccountExceptionsInternalKey_HashTagCoLocation(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	accountA := uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ab0a")
+	accountB := uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509abff")
+
+	keyA := AccountExceptionsInternalKey(organizationID, ledgerID, accountA)
+	keyB := AccountExceptionsInternalKey(organizationID, ledgerID, accountB)
+
+	tagA := keyA[len("account_exceptions:") : len(keyA)-len(accountA.String())-1]
+	tagB := keyB[len("account_exceptions:") : len(keyB)-len(accountB.String())-1]
+
+	assert.Equal(t, "{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8}", tagA)
+	assert.Equal(t, tagA, tagB, "same ledger scope must share one hash tag (one slot)")
+}
