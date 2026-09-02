@@ -149,8 +149,8 @@ func assertV2CreateBodiesTyped(t *testing.T, doc *huma.OpenAPI) {
 }
 
 // assertPrefixesCoexist is the readable gate for boot invariant F2 (AddOperation panics on
-// a duplicate ID): both version prefixes live in ONE document, the path-key totals are 57
-// under /v1 and 69 under /v2, and the /v1 and /v2 operation-ID sets are disjoint. CRM,
+// a duplicate ID): both version prefixes live in ONE document, the path-key totals are 59
+// under /v1 and 71 under /v2, and the /v1 and /v2 operation-ID sets are disjoint. CRM,
 // fees/billing and composition are /v2-only, so their path keys count toward /v2 and never /v1.
 // The account block/unblock ops are served on BOTH versions, so they contribute one path
 // key per direction to each total.
@@ -177,8 +177,8 @@ func assertPrefixesCoexist(t *testing.T, doc *huma.OpenAPI) {
 		}
 	}
 
-	require.Equal(t, 57, v1Keys, "path keys under /v1")
-	require.Equal(t, 69, v2Keys, "path keys under /v2")
+	require.Equal(t, 59, v1Keys, "path keys under /v1")
+	require.Equal(t, 71, v2Keys, "path keys under /v2")
 
 	var overlap []string
 

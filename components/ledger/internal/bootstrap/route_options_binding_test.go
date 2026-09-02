@@ -131,7 +131,7 @@ func TestRouteOptionsBinding(t *testing.T) {
 func buildHumaMountDepsWithNilHandlers(setup *unifiedRouteSetup) httpin.HumaMountDeps {
 	return buildHumaMountDeps(
 		&middleware.AuthClient{},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, nil,
 		nil,
 		nil, nil, nil, nil, nil,
@@ -313,7 +313,7 @@ func probeRouteRoles(t *testing.T) (map[string]string, []routeGroup) {
 	humaDeps := buildHumaMountDeps(
 		auth,
 		&httpin.OrganizationHandler{}, &httpin.LedgerHandler{}, &httpin.PortfolioHandler{}, &httpin.SegmentHandler{},
-		&httpin.AccountHandler{}, &httpin.AccountTypeHandler{}, &httpin.MetadataIndexHandler{}, &httpin.AssetHandler{},
+		&httpin.AccountHandler{}, &httpin.AccountExceptionHandler{}, &httpin.AccountTypeHandler{}, &httpin.MetadataIndexHandler{}, &httpin.AssetHandler{},
 		&httpin.AssetRateHandler{},
 		&httpin.BalanceHandler{}, &httpin.OperationHandler{}, &httpin.OperationRouteHandler{}, &httpin.TransactionRouteHandler{},
 		&httpin.TransactionHandler{},

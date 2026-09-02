@@ -11,6 +11,7 @@
 DELETE	/v1/organizations/:id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
+DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	transaction
@@ -25,6 +26,7 @@ DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instru
 DELETE	/v2/organizations/:organization_id/holders/:id	crm
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	transaction
@@ -44,6 +46,8 @@ GET	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onbo
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	transaction
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history	transaction
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions	onboarding
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	onboarding
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations	transaction
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id	transaction
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
@@ -85,6 +89,8 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onbo
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions	onboarding
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	onboarding
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
@@ -131,6 +137,7 @@ HEAD	/v2/organizations/metrics/count	onboarding
 PATCH	/v1/organizations/:id	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
+PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	transaction
@@ -146,6 +153,7 @@ PATCH	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instrum
 PATCH	/v2/organizations/:organization_id/holders/:id	crm
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	onboarding
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	transaction
@@ -163,6 +171,7 @@ POST	/v1/organizations/:organization_id/ledgers	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	transaction
+POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/unblock	onboarding
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding
@@ -188,6 +197,7 @@ POST	/v2/organizations/:organization_id/ledgers	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	transaction
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/unblock	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding

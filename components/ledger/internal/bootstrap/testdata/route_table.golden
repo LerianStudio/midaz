@@ -18,6 +18,7 @@
 DELETE	/v1/organizations/:id	4
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id	4
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	4
+DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	4
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	4
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id	4
 DELETE	/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	4
@@ -34,6 +35,7 @@ DELETE	/v2/organizations/:organization_id/holders/:holder_id/instruments/:instru
 DELETE	/v2/organizations/:organization_id/holders/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	4
+DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	4
 DELETE	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	4
@@ -63,6 +65,10 @@ GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/b
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	1
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history	3
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history	1
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions	3
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions	1
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	3
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	1
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations	3
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations	1
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id	3
@@ -142,6 +148,10 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/b
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances/history	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id	3
@@ -217,6 +227,7 @@ PATCH	/v1/organizations/:id	4
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id	3
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id	1
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	4
+PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	4
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	4
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id	4
 PATCH	/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	4
@@ -234,6 +245,7 @@ PATCH	/v2/organizations/:organization_id/holders/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	3
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id	1
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types/:id	4
+PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions/:exception_id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/assets/:id	4
 PATCH	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	4
@@ -252,6 +264,7 @@ POST	/v1/organizations/:organization_id/ledgers	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/account-types	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	4
+POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions	4
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	3
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	1
 POST	/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/unblock	3
@@ -288,6 +301,7 @@ POST	/v2/organizations/:organization_id/ledgers	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	4
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/exceptions	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	3
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/block	1
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:id/unblock	3

@@ -1005,6 +1005,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	balanceHandler := &httpin.BalanceHandler{Command: commandUseCase, Query: queryUseCase}
 	operationRouteHandler := &httpin.OperationRouteHandler{Command: commandUseCase, Query: queryUseCase}
 	transactionRouteHandler := &httpin.TransactionRouteHandler{Command: commandUseCase, Query: queryUseCase}
+	accountExceptionHandler := &httpin.AccountExceptionHandler{Command: commandUseCase, Query: queryUseCase}
 
 	// Metadata index handler (ledger-specific)
 	metadataIndexHandler := &httpin.MetadataIndexHandler{
@@ -1085,7 +1086,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// by NAME so the CRM↔Fees tenant-option pairing cannot silently swap.
 	humaMountDeps := buildHumaMountDeps(
 		auth,
-		organizationHandler, ledgerHandler, portfolioHandler, segmentHandler, accountHandler, accountTypeHandler, metadataIndexHandler, assetHandler, assetRateHandler,
+		organizationHandler, ledgerHandler, portfolioHandler, segmentHandler, accountHandler, accountExceptionHandler, accountTypeHandler, metadataIndexHandler, assetHandler, assetRateHandler,
 		balanceHandler, operationHandler, operationRouteHandler, transactionRouteHandler,
 		transactionHandler,
 		crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler,
@@ -1728,6 +1729,7 @@ func buildHumaMountDeps(
 	portfolioHandler *httpin.PortfolioHandler,
 	segmentHandler *httpin.SegmentHandler,
 	accountHandler *httpin.AccountHandler,
+	accountExceptionHandler *httpin.AccountExceptionHandler,
 	accountTypeHandler *httpin.AccountTypeHandler,
 	metadataIndexHandler *httpin.MetadataIndexHandler,
 	assetHandler *httpin.AssetHandler,
@@ -1752,15 +1754,16 @@ func buildHumaMountDeps(
 	return httpin.HumaMountDeps{
 		Auth: auth,
 
-		Organization:  organizationHandler,
-		Ledger:        ledgerHandler,
-		Portfolio:     portfolioHandler,
-		Segment:       segmentHandler,
-		Account:       accountHandler,
-		AccountType:   accountTypeHandler,
-		MetadataIndex: metadataIndexHandler,
-		Asset:         assetHandler,
-		AssetRate:     assetRateHandler,
+		Organization:     organizationHandler,
+		Ledger:           ledgerHandler,
+		Portfolio:        portfolioHandler,
+		Segment:          segmentHandler,
+		Account:          accountHandler,
+		AccountException: accountExceptionHandler,
+		AccountType:      accountTypeHandler,
+		MetadataIndex:    metadataIndexHandler,
+		Asset:            assetHandler,
+		AssetRate:        assetRateHandler,
 
 		Balance:          balanceHandler,
 		Operation:        operationHandler,

@@ -111,6 +111,83 @@ components:
         - updatedAt
         - deletedAt
       type: object
+    AccountException:
+      additionalProperties: false
+      properties:
+        accountId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          format: uuid
+          type: string
+        balanceKey:
+          examples:
+            - asset-freeze
+          maxLength: 100
+          type: string
+        context:
+          examples:
+            - Judicial order 12345/2026
+          maxLength: 256
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        effectiveAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        expiresAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        id:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          format: uuid
+          type: string
+        ledgerId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          format: uuid
+          type: string
+        operationalTypeCodes:
+          examples:
+            - - PIX_IN
+              - TED_OUT
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        organizationId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          format: uuid
+          type: string
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - id
+        - organizationId
+        - ledgerId
+        - accountId
+        - operationalTypeCodes
+        - context
+        - createdAt
+        - updatedAt
+      type: object
     AccountRule:
       additionalProperties: false
       properties:
@@ -982,6 +1059,42 @@ components:
             - john.doe@example.com
           maxLength: 256
           type: string
+      type: object
+    CreateAccountExceptionInput:
+      additionalProperties: false
+      properties:
+        balanceKey:
+          examples:
+            - asset-freeze
+          maxLength: 100
+          type: string
+        context:
+          examples:
+            - Judicial order 12345/2026
+          maxLength: 256
+          type: string
+        effectiveAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        expiresAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        operationalTypeCodes:
+          examples:
+            - - PIX_IN
+              - TED_OUT
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+      required:
+        - operationalTypeCodes
+        - context
       type: object
     CreateAccountInput:
       additionalProperties: false
@@ -4307,6 +4420,39 @@ components:
         - items
         - limit
       type: object
+    UpdateAccountExceptionInput:
+      additionalProperties: false
+      properties:
+        balanceKey:
+          examples:
+            - asset-freeze
+          maxLength: 100
+          type: string
+        context:
+          examples:
+            - Judicial order 12345/2026
+          maxLength: 256
+          type: string
+        effectiveAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        expiresAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        operationalTypeCodes:
+          examples:
+            - - PIX_IN
+              - TED_OUT
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+      type: object
     UpdateAccountInput:
       additionalProperties: false
       properties:
@@ -6046,6 +6192,287 @@ paths:
       summary: Get Account Balances history at date
       tags:
         - Balances (v1)
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/exceptions:
+    get:
+      deprecated: true
+      operationId: listAccountExceptions
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Max items per page (default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (default 10)
+            type: string
+        - description: Page number, 1-based
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number, 1-based
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Filter created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter created on/before this date (YYYY-MM-DD)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List account exceptions
+      tags:
+        - Account Exceptions (v1)
+    post:
+      deprecated: true
+      operationId: createAccountException
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountExceptionInput"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountException"
+          description: Created
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create an account exception
+      tags:
+        - Account Exceptions (v1)
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/exceptions/{exception_id}:
+    delete:
+      deprecated: true
+      operationId: deleteAccountException
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Account Exception ID (UUID)
+          in: path
+          name: exception_id
+          required: true
+          schema:
+            description: Account Exception ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an account exception
+      tags:
+        - Account Exceptions (v1)
+    get:
+      deprecated: true
+      operationId: getAccountExceptionByID
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Account Exception ID (UUID)
+          in: path
+          name: exception_id
+          required: true
+          schema:
+            description: Account Exception ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountException"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve a specific account exception
+      tags:
+        - Account Exceptions (v1)
+    patch:
+      deprecated: true
+      operationId: updateAccountException
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Account Exception ID (UUID)
+          in: path
+          name: exception_id
+          required: true
+          schema:
+            description: Account Exception ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountExceptionInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountException"
+          description: OK
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an account exception
+      tags:
+        - Account Exceptions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       deprecated: true
@@ -11301,6 +11728,282 @@ paths:
       summary: Get Account Balances history at date
       tags:
         - Balances (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/exceptions:
+    get:
+      operationId: listAccountExceptionsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Max items per page (default 10)
+          explode: false
+          in: query
+          name: limit
+          schema:
+            description: Max items per page (default 10)
+            type: string
+        - description: Page number, 1-based
+          explode: false
+          in: query
+          name: page
+          schema:
+            description: Page number, 1-based
+            type: string
+        - description: Sort direction (asc, desc)
+          explode: false
+          in: query
+          name: sort_order
+          schema:
+            description: Sort direction (asc, desc)
+            type: string
+        - description: Filter created on/after this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Filter created on/after this date (YYYY-MM-DD)
+            type: string
+        - description: Filter created on/before this date (YYYY-MM-DD)
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Filter created on/before this date (YYYY-MM-DD)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pagination"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: List account exceptions
+      tags:
+        - Account Exceptions (v2)
+    post:
+      operationId: createAccountExceptionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountExceptionInput"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountException"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create an account exception
+      tags:
+        - Account Exceptions (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/exceptions/{exception_id}:
+    delete:
+      operationId: deleteAccountExceptionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Account Exception ID (UUID)
+          in: path
+          name: exception_id
+          required: true
+          schema:
+            description: Account Exception ID (UUID)
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Delete an account exception
+      tags:
+        - Account Exceptions (v2)
+    get:
+      operationId: getAccountExceptionByIDV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Account Exception ID (UUID)
+          in: path
+          name: exception_id
+          required: true
+          schema:
+            description: Account Exception ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountException"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Retrieve a specific account exception
+      tags:
+        - Account Exceptions (v2)
+    patch:
+      operationId: updateAccountExceptionV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+        - description: Account Exception ID (UUID)
+          in: path
+          name: exception_id
+          required: true
+          schema:
+            description: Account Exception ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountExceptionInput"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountException"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Update an account exception
+      tags:
+        - Account Exceptions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       operationId: getAllOperationsByAccountV2
@@ -14785,6 +15488,8 @@ paths:
 servers:
   - url: /
 tags:
+  - name: Account Exceptions (v1)
+  - name: Account Exceptions (v2)
   - name: Account Types (v1)
   - name: Account Types (v2)
   - name: Accounts (v1)
@@ -14824,6 +15529,7 @@ tags:
 x-tagGroups:
   - name: V1 (deprecated)
     tags:
+      - Account Exceptions (v1)
       - Account Types (v1)
       - Accounts (v1)
       - Asset Rates (v1)
@@ -14840,6 +15546,7 @@ x-tagGroups:
       - Transactions (v1)
   - name: V2
     tags:
+      - Account Exceptions (v2)
       - Account Types (v2)
       - Accounts (v2)
       - Assets (v2)

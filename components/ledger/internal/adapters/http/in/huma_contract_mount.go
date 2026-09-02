@@ -33,15 +33,18 @@ type HumaMountDeps struct {
 	Auth *middleware.AuthClient
 
 	// Handlers on the onboarding policy group (see registerOnboardingRoutes).
-	Organization  *OrganizationHandler
-	Ledger        *LedgerHandler
-	Portfolio     *PortfolioHandler
-	Segment       *SegmentHandler
-	Account       *AccountHandler
-	AccountType   *AccountTypeHandler
-	MetadataIndex *MetadataIndexHandler
-	Asset         *AssetHandler
-	AssetRate     *AssetRateHandler
+	Organization *OrganizationHandler
+	Ledger       *LedgerHandler
+	Portfolio    *PortfolioHandler
+	Segment      *SegmentHandler
+	Account      *AccountHandler
+	AccountType  *AccountTypeHandler
+	// AccountException hangs off the account surface: exceptions carve auditable holes in an
+	// account block, so the resource is mounted alongside accounts under OnboardingOptions.
+	AccountException *AccountExceptionHandler
+	MetadataIndex    *MetadataIndexHandler
+	Asset            *AssetHandler
+	AssetRate        *AssetRateHandler
 
 	// Handlers on the money-read + routing policy group (see registerMoneyReadRoutes).
 	Balance          *BalanceHandler
@@ -126,6 +129,7 @@ func (d HumaMountDeps) registerOnboardingRoutes(group fiber.Router, api huma.API
 	RegisterPortfolioRoutesToApp(group, api, d.Auth, d.Portfolio, d.OnboardingOptions)
 	RegisterSegmentRoutesToApp(group, api, d.Auth, d.Segment, d.OnboardingOptions)
 	RegisterAccountRoutesToApp(group, api, d.Auth, d.Account, d.OnboardingOptions)
+	RegisterAccountExceptionRoutesToApp(group, api, d.Auth, d.AccountException, d.OnboardingOptions)
 	RegisterAccountTypeRoutesToApp(group, api, d.Auth, d.AccountType, d.OnboardingOptions)
 	RegisterMetadataIndexRoutesToApp(group, api, d.Auth, d.MetadataIndex, d.LedgerOptions)
 	RegisterAssetRoutesToApp(group, api, d.Auth, d.Asset, d.OnboardingOptions)
@@ -200,6 +204,7 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterPortfolioV2RoutesToApp(group, api, d.Auth, d.Portfolio, d.OnboardingOptions)
 	RegisterSegmentV2RoutesToApp(group, api, d.Auth, d.Segment, d.OnboardingOptions)
 	RegisterAccountV2RoutesToApp(group, api, d.Auth, d.Account, d.OnboardingOptions)
+	RegisterAccountExceptionV2RoutesToApp(group, api, d.Auth, d.AccountException, d.OnboardingOptions)
 	RegisterAccountTypeV2RoutesToApp(group, api, d.Auth, d.AccountType, d.OnboardingOptions)
 	RegisterMetadataIndexV2RoutesToApp(group, api, d.Auth, d.MetadataIndex, d.LedgerOptions)
 	RegisterAssetV2RoutesToApp(group, api, d.Auth, d.Asset, d.OnboardingOptions)
