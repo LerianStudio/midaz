@@ -1430,6 +1430,7 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 		RouteID:                  transactionInput.RouteID,
 		FeesSkipped:              honoredFeeSkip,
 		TracerSkipped:            honoredTracerSkip,
+		OperationalTypeCode:      transactionInput.OperationalTypeCode,
 		Metadata:                 transactionInput.Metadata,
 		Status: transaction.Status{
 			Code:        transactionStatus,

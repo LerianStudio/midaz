@@ -356,6 +356,7 @@ func (t Transaction) TransactionRevert() mtransaction.Transaction {
 		Route:                    t.Route, //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
 		RouteID:                  t.RouteID,
 		Send:                     send,
+		OperationalTypeCode:      t.OperationalTypeCode,
 	}
 
 	return transaction

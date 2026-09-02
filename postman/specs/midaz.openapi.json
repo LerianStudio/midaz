@@ -21055,6 +21055,13 @@
             "additionalProperties": {},
             "type": "object"
           },
+          "operationalTypeCode": {
+            "examples": [
+              "PIX_IN"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
           "route": {
             "examples": [
               "00000000-0000-0000-0000-000000000000"
@@ -21115,6 +21122,13 @@
           "metadata": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "operationalTypeCode": {
+            "examples": [
+              "PIX_IN"
+            ],
+            "maxLength": 100,
+            "type": "string"
           },
           "pending": {
             "default": false,
@@ -21184,6 +21198,13 @@
           "metadata": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "operationalTypeCode": {
+            "examples": [
+              "PIX_OUT"
+            ],
+            "maxLength": 100,
+            "type": "string"
           },
           "pending": {
             "default": false,
@@ -21302,6 +21323,13 @@
               "00000000-0000-0000-0000-000000000000"
             ],
             "format": "uuid",
+            "type": "string"
+          },
+          "operationalTypeCode": {
+            "examples": [
+              "PIX_IN"
+            ],
+            "maxLength": 100,
             "type": "string"
           },
           "routeId": {

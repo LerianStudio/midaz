@@ -13744,6 +13744,11 @@ components:
         metadata:
           additionalProperties: {}
           type: object
+        operationalTypeCode:
+          examples:
+            - PIX_IN
+          maxLength: 100
+          type: string
         route:
           examples:
             - 00000000-0000-0000-0000-000000000000
@@ -13787,6 +13792,11 @@ components:
         metadata:
           additionalProperties: {}
           type: object
+        operationalTypeCode:
+          examples:
+            - PIX_IN
+          maxLength: 100
+          type: string
         pending:
           default: false
           examples:
@@ -13836,6 +13846,11 @@ components:
         metadata:
           additionalProperties: {}
           type: object
+        operationalTypeCode:
+          examples:
+            - PIX_OUT
+          maxLength: 100
+          type: string
         pending:
           default: false
           examples:
@@ -13929,6 +13944,11 @@ components:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
+          type: string
+        operationalTypeCode:
+          examples:
+            - PIX_IN
+          maxLength: 100
           type: string
         routeId:
           examples:

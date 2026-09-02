@@ -294,6 +294,12 @@ type Transaction struct {
 	// while json persists it in the body JSONB so it survives commit/cancel
 	// re-resolution and propagates at runtime.
 	Skip *TransactionSkip `json:"skip,omitempty" swaggerignore:"true"`
+	// OperationalTypeCode carries the account-exception operational type code applied to
+	// this transaction. swaggerignore keeps it out of the TransactionInput request schema
+	// (the public input lives on the create DTOs; the public response is the entity field)
+	// while json persists it in the body JSONB so it survives commit/cancel re-resolution,
+	// participates in the idempotency body hash, and propagates at runtime.
+	OperationalTypeCode string `json:"operationalTypeCode,omitempty" swaggerignore:"true"`
 	// OperationTypeOverride overrides the persisted Operation.Type label
 	// (for example BLOCK/UNBLOCK) without changing accounting direction or amount.
 	// Internal field; populated during processing and excluded from the API contract.

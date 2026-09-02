@@ -74,6 +74,11 @@ type CreateTransactionV2Input struct {
 	// Metadata holds flat custom key-value attributes. Values must be flat
 	// (string, number, boolean) — no nested objects.
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+
+	// OperationalTypeCode is the account-exception operational type code applied to this
+	// transaction. Integrator-defined identifier (code, not prose): no whitespace, up to
+	// 100 characters, mirroring the account-exception key bound.
+	OperationalTypeCode string `json:"operationalTypeCode,omitempty" validate:"omitempty,nowhitespaces,max=100" example:"PIX_IN" maxLength:"100"`
 }
 
 // V2LegInput is one leg of a transaction side. Exactly ONE value expression per leg:
@@ -270,12 +275,13 @@ func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, V2Scope
 	}
 
 	return Transaction{
-		Description: in.Description,
-		Code:        in.Code,
-		Pending:     pending,
-		Metadata:    in.Metadata,
-		RouteID:     cloneStringPtr(in.RouteID),
-		Send:        send,
+		Description:         in.Description,
+		Code:                in.Code,
+		Pending:             pending,
+		Metadata:            in.Metadata,
+		RouteID:             cloneStringPtr(in.RouteID),
+		Send:                send,
+		OperationalTypeCode: in.OperationalTypeCode,
 	}, scope, nil
 }
 

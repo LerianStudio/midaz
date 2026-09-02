@@ -56,6 +56,11 @@ type CreateTransactionInput struct {
 
 	// Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.
 	Skip *TransactionSkip `json:"skip,omitempty"`
+
+	// Operational type code applied by an account exception. Integrator-defined identifier (code, not prose), mirroring the account-exception key bound: no whitespace, up to 100 characters.
+	// example: PIX_IN
+	// maxLength: 100
+	OperationalTypeCode string `json:"operationalTypeCode,omitempty" validate:"omitempty,nowhitespaces,max=100" example:"PIX_IN" maxLength:"100"`
 }
 
 // BuildTransaction converts a CreateTransactionInput to a Transaction.
@@ -81,6 +86,7 @@ func (cti *CreateTransactionInput) BuildTransaction() *Transaction {
 		RouteID:                  cti.RouteID,
 		Send:                     send,
 		Skip:                     cti.Skip,
+		OperationalTypeCode:      cti.OperationalTypeCode,
 	}
 }
 
@@ -133,6 +139,11 @@ type CreateTransactionInflowInput struct {
 
 	// Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.
 	Skip *TransactionSkip `json:"skip,omitempty"`
+
+	// Operational type code applied by an account exception. Integrator-defined identifier (code, not prose), mirroring the account-exception key bound: no whitespace, up to 100 characters.
+	// example: PIX_IN
+	// maxLength: 100
+	OperationalTypeCode string `json:"operationalTypeCode,omitempty" validate:"omitempty,nowhitespaces,max=100" example:"PIX_IN" maxLength:"100"`
 }
 
 // BuildInflowEntry converts a CreateTransactionInflowInput to a Transaction.
@@ -162,7 +173,8 @@ func (c *CreateTransactionInflowInput) BuildInflowEntry() *Transaction {
 				From: []FromTo{from},
 			},
 		},
-		Skip: c.Skip,
+		Skip:                c.Skip,
+		OperationalTypeCode: c.OperationalTypeCode,
 	}
 }
 
@@ -219,6 +231,11 @@ type CreateTransactionOutflowInput struct {
 
 	// Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.
 	Skip *TransactionSkip `json:"skip,omitempty"`
+
+	// Operational type code applied by an account exception. Integrator-defined identifier (code, not prose), mirroring the account-exception key bound: no whitespace, up to 100 characters.
+	// example: PIX_OUT
+	// maxLength: 100
+	OperationalTypeCode string `json:"operationalTypeCode,omitempty" validate:"omitempty,nowhitespaces,max=100" example:"PIX_OUT" maxLength:"100"`
 }
 
 // BuildOutflowEntry converts a CreateTransactionOutflowInput to a Transaction.
@@ -258,6 +275,7 @@ func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *Transaction {
 				To: []FromTo{to},
 			},
 		},
-		Skip: c.Skip,
+		Skip:                c.Skip,
+		OperationalTypeCode: c.OperationalTypeCode,
 	}
 }
