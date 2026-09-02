@@ -480,6 +480,13 @@ var (
 	// applied migrations. Retryable: the schema is applied out of band, so the
 	// same request succeeds once the migration runner reaches this database.
 	ErrSchemaMigrationPending = errors.New("0501")
+	// ErrAccountBlockedTransactionRestriction is returned when a transaction targets a
+	// source and/or destination account that is blocked (account_blocked = true). It is
+	// distinct from ErrAccountStatusTransactionRestriction (0024): 0024 reports a status
+	// that does not permit transactions, while 0502 reports an explicit account block that
+	// must be lifted (or covered by a registered exception) before the account can transact.
+	// Renders as UnprocessableOperationError (HTTP 422), the same contract family as 0024.
+	ErrAccountBlockedTransactionRestriction = errors.New("0502")
 )
 
 // List of CRM domain errors.

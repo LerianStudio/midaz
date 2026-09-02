@@ -618,6 +618,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Status Transaction Restriction",
 			Message:    "The current statuses of the source and/or destination accounts do not permit transactions. Change the account status(es) and try again.",
 		},
+		constant.ErrAccountBlockedTransactionRestriction: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockedTransactionRestriction.Error(),
+			Title:      "Account Blocked Transaction Restriction",
+			Message:    "The source and/or destination account is blocked and cannot process transactions. Unblock the account or register an applicable exception and try again.",
+		},
 		constant.ErrInsufficientAccountBalance: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrInsufficientAccountBalance.Error(),

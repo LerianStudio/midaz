@@ -657,6 +657,69 @@ func TestRealValidateBusinessError(t *testing.T) {
 	}
 }
 
+// TestValidateBusinessError_UnprocessableRendering pins the UnprocessableOperationError
+// (HTTP 422 family) rendering of two sibling account-restriction codes:
+//
+//   - 0502 ErrAccountBlockedTransactionRestriction is the new account-blocked code. It MUST
+//     render as UnprocessableOperationError carrying code 0502, its distinct title and a
+//     message that names the blocked account (RF-01), keeping the same status-422 contract as
+//     0024 so integrators branch on the code, not the HTTP status.
+//   - 0024 ErrAccountStatusTransactionRestriction is pinned byte-for-byte as a regression guard
+//     (RF-03): the account-status code MUST stay untouched by the introduction of 0502.
+//
+// The end-to-end HTTP 422 mapping for both codes is exercised by
+// TestGolden_BusinessErrorCodeStatus in pkg/net/http, which drives every registered sentinel
+// through the real WithError dispatcher; asserting the status here would require importing the
+// net/http layer that imports this package.
+func TestValidateBusinessError_UnprocessableRendering(t *testing.T) {
+	tests := []struct {
+		name            string
+		err             error
+		entityType      string
+		wantCode        string
+		wantTitle       string
+		wantMessage     string // exact match when set
+		wantMsgContains string // substring match when set
+	}{
+		{
+			name:            "0502 account blocked transaction restriction renders as 422 family",
+			err:             constant.ErrAccountBlockedTransactionRestriction,
+			entityType:      "Transaction",
+			wantCode:        "0502",
+			wantTitle:       "Account Blocked Transaction Restriction",
+			wantMsgContains: "blocked",
+		},
+		{
+			name:        "0024 account status transaction restriction unchanged (regression pin)",
+			err:         constant.ErrAccountStatusTransactionRestriction,
+			entityType:  "Transaction",
+			wantCode:    "0024",
+			wantTitle:   "Account Status Transaction Restriction",
+			wantMessage: "The current statuses of the source and/or destination accounts do not permit transactions. Change the account status(es) and try again.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ValidateBusinessError(tt.err, tt.entityType)
+
+			upErr, ok := result.(UnprocessableOperationError)
+			assert.Truef(t, ok, "expected UnprocessableOperationError (HTTP 422 family), got %T", result)
+			assert.Equal(t, tt.wantCode, upErr.Code)
+			assert.Equal(t, tt.wantTitle, upErr.Title)
+			assert.Equal(t, tt.entityType, upErr.EntityType)
+
+			if tt.wantMessage != "" {
+				assert.Equal(t, tt.wantMessage, upErr.Message)
+			}
+
+			if tt.wantMsgContains != "" {
+				assert.Contains(t, upErr.Message, tt.wantMsgContains)
+			}
+		})
+	}
+}
+
 func TestValidateInternalError(t *testing.T) {
 	tests := []struct {
 		name       string
