@@ -418,3 +418,67 @@ var (
 		Description: "Total transactions rejected due to a blocked account with no matching exception, by component.",
 	}
 )
+
+// RecordAccountExceptionEvaluation emits the account-exception evaluation counter
+// for ONE would-be-deny side evaluated during transaction-time enrichment.
+// `result` is a bounded enum (granted|no_match|store_error). A nil factory is a
+// no-op so single binaries can run with metrics disabled; emit failures log at
+// Debug and never affect the enrichment decision.
+func RecordAccountExceptionEvaluation(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, component, result string) {
+	if factory == nil {
+		return
+	}
+
+	counter, err := factory.Counter(AccountExceptionEvaluationsTotal)
+	if err == nil {
+		err = counter.WithLabels(map[string]string{
+			"component": component,
+			"result":    result,
+		}).Add(ctx, 1)
+	}
+
+	if logger != nil && err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Failed to emit account exception evaluation counter", libLog.Err(err))
+	}
+}
+
+// RecordAccountExceptionEvaluationDuration records the account-exception
+// enrichment latency histogram once per enrichment pass. A nil factory is a
+// no-op; emit failures log at Debug.
+func RecordAccountExceptionEvaluationDuration(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, component string, start time.Time) {
+	if factory == nil {
+		return
+	}
+
+	histogram, err := factory.Histogram(AccountExceptionEvaluationDuration)
+	if err == nil {
+		err = histogram.WithLabels(map[string]string{
+			"component": component,
+		}).Record(ctx, time.Since(start).Milliseconds())
+	}
+
+	if logger != nil && err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Failed to emit account exception evaluation duration", libLog.Err(err))
+	}
+}
+
+// RecordBlockedAccountRejection emits the blocked-account rejection counter when a
+// transaction is denied because a blocked account carried no matching exception
+// (0502 at balance-rule validation). A nil factory is a no-op; emit failures log
+// at Debug.
+func RecordBlockedAccountRejection(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, component string) {
+	if factory == nil {
+		return
+	}
+
+	counter, err := factory.Counter(BlockedAccountRejectionsTotal)
+	if err == nil {
+		err = counter.WithLabels(map[string]string{
+			"component": component,
+		}).Add(ctx, 1)
+	}
+
+	if logger != nil && err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Failed to emit blocked account rejection counter", libLog.Err(err))
+	}
+}
