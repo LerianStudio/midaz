@@ -49,6 +49,7 @@ type TransactionPostgreSQLModel struct {
 	FeesSkipped              bool                      // Honored per-call fee skip (audit trail)
 	TracerSkipped            bool                      // Honored per-call tracer skip (audit trail)
 	OperationalTypeCode      sql.NullString            // Operational type code applied by an account exception (nullable)
+	AppliedExceptionID       *string                   `db:"applied_exception_id"` // Account exception rule applied to this transaction (nullable UUID)
 	Metadata                 map[string]any            // Additional custom attributes
 }
 
@@ -180,6 +181,10 @@ type Transaction struct {
 	// maxLength: 100
 	OperationalTypeCode string `json:"operationalTypeCode,omitempty" example:"PIX_IN" maxLength:"100"`
 
+	// Identifier of the account exception rule applied to this transaction. Present only when an exception routed the transaction; absent otherwise.
+	// format: uuid
+	AppliedExceptionID *string `json:"appliedExceptionId,omitempty" format:"uuid"`
+
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -228,6 +233,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		FeesSkipped:              t.FeesSkipped,
 		TracerSkipped:            t.TracerSkipped,
 		OperationalTypeCode:      t.OperationalTypeCode.String,
+		AppliedExceptionID:       t.AppliedExceptionID,
 		CreatedAt:                t.CreatedAt,
 		UpdatedAt:                t.UpdatedAt,
 	}
@@ -272,6 +278,7 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		OrganizationID:           transaction.OrganizationID,
 		FeesSkipped:              transaction.FeesSkipped,
 		TracerSkipped:            transaction.TracerSkipped,
+		AppliedExceptionID:       transaction.AppliedExceptionID,
 		CreatedAt:                transaction.CreatedAt,
 		UpdatedAt:                transaction.UpdatedAt,
 	}

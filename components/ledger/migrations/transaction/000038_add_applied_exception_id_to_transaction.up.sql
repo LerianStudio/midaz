@@ -1,0 +1,25 @@
+-- Add the applied_exception_id column to the transaction table.
+--
+-- applied_exception_id records which account exception rule applied to a
+-- transaction. It is written per transaction (only when an exception applied)
+-- and read back per row on the extract path; it is present only when an
+-- exception routed the transaction, so the column is NULLABLE and historical
+-- rows read NULL (omitted from the JSON response under the frozen contract).
+--
+-- This is a metadata-only ALTER on PostgreSQL 11+: a nullable column with no
+-- fill value triggers no table rewrite, and pre-existing rows read NULL without
+-- physical update. IF NOT EXISTS keeps the ALTER idempotent for multi-tenant
+-- re-runs. The prior application version keeps working because it simply never
+-- reads the column.
+--
+-- No FK constraint is declared: the exception rule lives in the onboarding
+-- database, so a cross-database link is impossible; and the soft delete of a
+-- rule must never invalidate the historical trail of a transaction that already
+-- carried its identifier.
+--
+-- No index is created: the field is read from an already-loaded transaction row
+-- on the extract path and is never filtered on in isolation. Answering "which
+-- transactions passed through an exception" is an analytical query, not a hot
+-- path, so an index would only add write amplification on the transaction hot
+-- path.
+ALTER TABLE transaction ADD COLUMN IF NOT EXISTS applied_exception_id UUID;

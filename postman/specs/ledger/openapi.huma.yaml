@@ -4046,6 +4046,9 @@ components:
           type:
             - string
             - "null"
+        appliedExceptionId:
+          format: uuid
+          type: string
         assetCode:
           examples:
             - BRL
@@ -4309,6 +4312,9 @@ components:
           type:
             - string
             - "null"
+        appliedExceptionId:
+          format: uuid
+          type: string
         assetCode:
           examples:
             - BRL

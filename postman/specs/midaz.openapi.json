@@ -24462,6 +24462,10 @@
               "null"
             ]
           },
+          "appliedExceptionId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "assetCode": {
             "examples": [
               "BRL"
@@ -24837,6 +24841,10 @@
               "string",
               "null"
             ]
+          },
+          "appliedExceptionId": {
+            "format": "uuid",
+            "type": "string"
           },
           "assetCode": {
             "examples": [

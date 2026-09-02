@@ -69,6 +69,7 @@ var transactionColumnList = []string{
 	"fees_skipped",
 	"tracer_skipped",
 	"operational_type_code",
+	"applied_exception_id",
 }
 
 var transactionColumnListPrefixed = []string{
@@ -91,6 +92,7 @@ var transactionColumnListPrefixed = []string{
 	"t.fees_skipped",
 	"t.tracer_skipped",
 	"t.operational_type_code",
+	"t.applied_exception_id",
 }
 
 // operationColumnListPrefixed mirrors operation.operationColumnList with the "o."
@@ -219,7 +221,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
 	// migrations add columns to transaction. Do not collapse this to table-wide VALUES.
 	insertQuery := fmt.Sprintf(
-		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING %s`,
+		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING %s`,
 		transactionColumns, transactionColumns,
 	)
 
@@ -244,6 +246,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.FeesSkipped,
 		record.TracerSkipped,
 		record.OperationalTypeCode,
+		record.AppliedExceptionID,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -445,6 +448,7 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 			record.FeesSkipped,
 			record.TracerSkipped,
 			record.OperationalTypeCode,
+			record.AppliedExceptionID,
 		)
 	}
 
@@ -775,6 +779,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 			&transaction.FeesSkipped,
 			&transaction.TracerSkipped,
 			&transaction.OperationalTypeCode,
+			&transaction.AppliedExceptionID,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -885,6 +890,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&transaction.FeesSkipped,
 			&transaction.TracerSkipped,
 			&transaction.OperationalTypeCode,
+			&transaction.AppliedExceptionID,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -970,6 +976,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.FeesSkipped,
 		&transaction.TracerSkipped,
 		&transaction.OperationalTypeCode,
+		&transaction.AppliedExceptionID,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
@@ -1054,6 +1061,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		&transaction.FeesSkipped,
 		&transaction.TracerSkipped,
 		&transaction.OperationalTypeCode,
+		&transaction.AppliedExceptionID,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No transaction found", err)
@@ -1275,6 +1283,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&tran.FeesSkipped,
 			&tran.TracerSkipped,
 			&tran.OperationalTypeCode,
+			&tran.AppliedExceptionID,
 			&op.ID,
 			&op.TransactionID,
 			&op.Description,
@@ -1461,6 +1470,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&tran.FeesSkipped,
 			&tran.TracerSkipped,
 			&tran.OperationalTypeCode,
+			&tran.AppliedExceptionID,
 			&opID,
 			&opTransactionID,
 			&opDescription,
