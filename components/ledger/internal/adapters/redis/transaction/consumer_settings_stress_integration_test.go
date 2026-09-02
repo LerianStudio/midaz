@@ -124,10 +124,12 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 
 	debitAmount := decimal.NewFromInt(1)
 
-	// lastSettings is written only by the settings-updater goroutine and read
-	// only after wg.Wait(), so the sequential writes and the final read never
-	// race each other (happens-before via the WaitGroup).
+	// lastSettings and settingsErr are written only by the settings-updater
+	// goroutine and read only after wg.Wait(), so the sequential writes and
+	// the final reads never race each other (happens-before via the WaitGroup).
 	var lastSettings *mmodel.BalanceSettings
+
+	var settingsErr error
 
 	start := make(chan struct{})
 
@@ -173,8 +175,13 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 			// here can only be a genuine infrastructure failure (transport
 			// error or a corrupt cached blob) — there is no retry-exhaustion
 			// outcome to tolerate, so any error is a real test failure.
-			uErr := infra.repo.UpdateBalanceCacheSettings(ctx, orgID, ledgerID, balanceKey, settings)
-			require.NoError(t, uErr)
+			// FailNow must not run off the test goroutine, so the error is
+			// recorded here and asserted after wg.Wait().
+			if uErr := infra.repo.UpdateBalanceCacheSettings(ctx, orgID, ledgerID, balanceKey, settings); uErr != nil {
+				settingsErr = uErr
+
+				return
+			}
 
 			settingsCallsSucceeded.Add(1)
 			lastSettings = settings
@@ -184,6 +191,7 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 	close(start)
 	wg.Wait()
 
+	require.NoError(t, settingsErr, "settings update failed under debit storm")
 	require.Zero(t, debitErrs.Load(), "every debit is well within Available and must not be rejected")
 	require.NotNil(t, lastSettings)
 
