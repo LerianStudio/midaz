@@ -402,3 +402,100 @@ func FuzzValidateBalances_AccountBlocked(f *testing.F) {
 		check("to", toErr)
 	})
 }
+
+// FuzzValidateBalances_BlockBypassGranted fuzzes the account-exception grant threaded
+// through the matched Amount on both validator sides. The new BlockBypassGranted /
+// GrantedExceptionID fields are part of the fuzzed corpus/structure. It asserts, for an
+// internal account (external carve-out out of scope), for every generated combination:
+//
+//   - No panic on any input.
+//   - When the asset matches and granted=true, the grant transpasses BOTH the account-block
+//     gate (0502) and the allow-flag gate (0024) — the side returns no error at all.
+//   - When the asset matches and granted=false, the phase-1 verdict is preserved: 0502 when
+//     blocked, else 0024 when the allow flag is off, else approved.
+//   - When the asset does NOT match, 0034 wins regardless of the grant (the asset gate sits
+//     ahead of both the grant and the block gate).
+func FuzzValidateBalances_BlockBypassGranted(f *testing.F) {
+	// Seed corpus: (allow, blocked, granted, assetMatch) covering the meaningful corners.
+	f.Add(true, true, true, true)    // blocked + granted -> transpassed, no error
+	f.Add(false, false, true, true)  // allow off + granted -> transpassed, no error
+	f.Add(false, true, true, true)   // both blocks + granted -> transpassed, no error
+	f.Add(true, true, false, true)   // blocked, no grant -> 0502 (floor)
+	f.Add(false, false, false, true) // allow off, no grant -> 0024 (floor)
+	f.Add(true, false, true, true)   // not blocked + granted -> no error
+	f.Add(true, true, true, false)   // asset mismatch -> 0034 wins over grant
+
+	f.Fuzz(func(t *testing.T, allow, blocked, granted, assetMatch bool) {
+		const asset = "USD"
+
+		balanceAsset := asset
+		if !assetMatch {
+			balanceAsset = "EUR"
+		}
+
+		mkBalance := func() *Balance {
+			return &Balance{
+				ID:             "acc",
+				Alias:          "@acc",
+				Key:            "default",
+				AssetCode:      balanceAsset,
+				Available:      decimal.NewFromInt(100),
+				AllowSending:   allow,
+				AllowReceiving: allow,
+				AccountBlocked: blocked,
+				AccountType:    "internal",
+			}
+		}
+
+		exceptionID := ""
+		if granted {
+			exceptionID = "exc-fuzz"
+		}
+
+		entry := map[string]Amount{
+			"0#@acc#default": {Value: decimal.NewFromInt(10), BlockBypassGranted: granted, GrantedExceptionID: exceptionID},
+		}
+
+		fromErr := validateFromBalances(mkBalance(), entry, asset, false)
+		toErr := validateToBalances(mkBalance(), entry, asset)
+
+		check := func(side string, err error) {
+			if !assetMatch {
+				// The asset-mismatch check sits ahead of the grant and the block gate.
+				if err == nil || codeFromError(err) != constant.ErrAssetCodeNotFound.Error() {
+					t.Errorf("%s: asset mismatch must yield 0034, got %v", side, err)
+				}
+
+				return
+			}
+
+			if granted {
+				// INVARIANT: a granted side transpasses both block gates -> no error.
+				if err != nil {
+					t.Errorf("%s: granted side must transpass block/allow, got %v", side, err)
+				}
+
+				return
+			}
+
+			// No-grant floor: phase-1 precedence must be byte-identical.
+			switch {
+			case blocked:
+				if err == nil || codeFromError(err) != constant.ErrAccountBlockedTransactionRestriction.Error() {
+					t.Errorf("%s: no-grant blocked must yield 0502, got %v", side, err)
+				}
+			case !allow:
+				if err == nil || codeFromError(err) != constant.ErrAccountStatusTransactionRestriction.Error() {
+					t.Errorf("%s: no-grant allow-off must yield 0024, got %v", side, err)
+				}
+			default:
+				if err != nil {
+					t.Errorf("%s: no-grant unblocked+allowed must approve, got %v", side, err)
+				}
+			}
+		}
+
+		check("from", fromErr)
+		check("to", toErr)
+	})
+}

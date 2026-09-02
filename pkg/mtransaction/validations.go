@@ -88,7 +88,7 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 }
 
 func validateFromBalances(balance *Balance, from map[string]Amount, asset string, pending bool) error {
-	for key := range from {
+	for key, amt := range from {
 		balanceAliasKey := AliasKey(balance.Alias, balance.Key)
 		if key == balance.ID || SplitAliasWithKey(key) == balanceAliasKey {
 			if balance.AssetCode != asset {
@@ -96,14 +96,18 @@ func validateFromBalances(balance *Balance, from map[string]Amount, asset string
 			}
 
 			// Account block (0502) prevails over the status allow flag (0024):
-			// a blocked account cannot transact regardless of AllowSending. Kept as a
-			// single point immediately before the allow-check so phase 2 can turn it
-			// into `if balance.AccountBlocked && !grant` with a minimal diff.
-			if balance.AccountBlocked {
+			// a blocked account cannot transact regardless of AllowSending. An
+			// account-exception grant riding THIS side's Amount (amt.BlockBypassGranted)
+			// transpasses the block on the granted side only; the grant never leaks to
+			// the opposite side, never relaxes the asset-code check above, and never
+			// relaxes the pending/external on-hold carve-out below (RF-06).
+			if balance.AccountBlocked && !amt.BlockBypassGranted {
 				return pkg.ValidateBusinessError(pkgConstant.ErrAccountBlockedTransactionRestriction, "validateFromAccounts")
 			}
 
-			if !balance.AllowSending {
+			// The same grant transpasses the status allow-flag gate (0024) on the
+			// granted side; without a grant the phase-1 verdict is unchanged.
+			if !balance.AllowSending && !amt.BlockBypassGranted {
 				return pkg.ValidateBusinessError(pkgConstant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
 			}
 
@@ -118,21 +122,24 @@ func validateFromBalances(balance *Balance, from map[string]Amount, asset string
 
 func validateToBalances(balance *Balance, to map[string]Amount, asset string) error {
 	balanceAliasKey := AliasKey(balance.Alias, balance.Key)
-	for key := range to {
+	for key, amt := range to {
 		if key == balance.ID || SplitAliasWithKey(key) == balanceAliasKey {
 			if balance.AssetCode != asset {
 				return pkg.ValidateBusinessError(pkgConstant.ErrAssetCodeNotFound, "validateToAccounts")
 			}
 
 			// Account block (0502) prevails over the status allow flag (0024):
-			// a blocked account cannot transact regardless of AllowReceiving. Kept as a
-			// single point immediately before the allow-check so phase 2 can turn it
-			// into `if balance.AccountBlocked && !grant` with a minimal diff.
-			if balance.AccountBlocked {
+			// a blocked account cannot transact regardless of AllowReceiving. An
+			// account-exception grant riding THIS side's Amount (amt.BlockBypassGranted)
+			// transpasses the block on the granted side only; the grant never leaks to
+			// the opposite side and never relaxes the asset-code check above (RF-06).
+			if balance.AccountBlocked && !amt.BlockBypassGranted {
 				return pkg.ValidateBusinessError(pkgConstant.ErrAccountBlockedTransactionRestriction, "validateToAccounts")
 			}
 
-			if !balance.AllowReceiving {
+			// The same grant transpasses the status allow-flag gate (0024) on the
+			// granted side; without a grant the phase-1 verdict is unchanged.
+			if !balance.AllowReceiving && !amt.BlockBypassGranted {
 				return pkg.ValidateBusinessError(pkgConstant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
 			}
 		}

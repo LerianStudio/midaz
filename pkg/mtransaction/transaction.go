@@ -93,6 +93,17 @@ type Amount struct {
 	TransactionType        string `json:"transactionType,omitempty" swaggerignore:"true"`
 	Direction              string `json:"direction,omitempty" swaggerignore:"true"`
 	RouteValidationEnabled bool   `json:"routeValidationEnabled,omitempty" swaggerignore:"true"`
+	// BlockBypassGranted signals that an account-block exception grant applies to
+	// THIS side's amount. When true, the matched validator side transpasses BOTH the
+	// account-block gate (0502) and the status allow-flag gate (0024) for this entry
+	// only — the grant never leaks to the opposite side, and never relaxes the
+	// asset-code check or the pending/external on-hold carve-out. Internal field;
+	// populated during transaction processing, excluded from the API contract.
+	BlockBypassGranted bool `json:"blockBypassGranted,omitempty" swaggerignore:"true"`
+	// GrantedExceptionID carries the identifier of the account-exception grant that
+	// authorized the block bypass on this side. Empty when no grant applies. Internal
+	// field; populated during processing, excluded from the API contract.
+	GrantedExceptionID string `json:"grantedExceptionId,omitempty" swaggerignore:"true"`
 	// OverdraftAmount carries the exact overdraft delta for state-transition
 	// reversals. It is zero for normal transactions, where Lua derives the
 	// split from live balance state.

@@ -657,6 +657,293 @@ func TestValidateBalances_RF03_StatusRestrictionByteIdentical(t *testing.T) {
 	}
 }
 
+// TestValidateFromBalances_BlockBypassGranted covers the account-exception grant on the
+// SOURCE (debit) side. The grant rides the matched Amount value (validate.From[key]) and
+// transpasses BOTH block gates for that side only:
+//
+//   - (a) grant transpasses the account-block gate (0502) on the debit side;
+//   - (b) grant transpasses the status allow-flag gate (0024) on the debit side;
+//   - (c) grant transpasses BOTH simultaneously (blocked AND !AllowSending);
+//   - the grant NEVER relaxes the asset-code check (0034 still wins, it sits ahead);
+//   - the grant NEVER relaxes the pending/external on-hold carve-out (0098 preserved);
+//   - a false grant (no-grant floor) leaves the phase-1 0502 verdict byte-identical.
+func TestValidateFromBalances_BlockBypassGranted(t *testing.T) {
+	t.Parallel()
+
+	const exceptionID = "exc-0000-0000-0000-000000000001"
+
+	tests := []struct {
+		name        string
+		balance     *Balance
+		from        map[string]Amount
+		asset       string
+		pending     bool
+		expectError bool
+		errorCode   string
+	}{
+		{
+			name: "(a) grant transpasses account-block 0502 on debit",
+			balance: &Balance{
+				ID: "123", Alias: "@account1", Key: "default", AssetCode: "USD",
+				Available: decimal.NewFromInt(100), AllowSending: true,
+				AccountBlocked: true, AccountType: "internal",
+			},
+			from: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50), BlockBypassGranted: true, GrantedExceptionID: exceptionID},
+			},
+			asset:       "USD",
+			expectError: false,
+		},
+		{
+			name: "(b) grant transpasses allow-sending 0024 on debit",
+			balance: &Balance{
+				ID: "123", Alias: "@account1", Key: "default", AssetCode: "USD",
+				Available: decimal.NewFromInt(100), AllowSending: false,
+				AccountBlocked: false, AccountType: "internal",
+			},
+			from: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50), BlockBypassGranted: true, GrantedExceptionID: exceptionID},
+			},
+			asset:       "USD",
+			expectError: false,
+		},
+		{
+			name: "(c) grant transpasses BOTH block and allow-sending simultaneously",
+			balance: &Balance{
+				ID: "123", Alias: "@account1", Key: "default", AssetCode: "USD",
+				Available: decimal.NewFromInt(100), AllowSending: false,
+				AccountBlocked: true, AccountType: "internal",
+			},
+			from: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50), BlockBypassGranted: true, GrantedExceptionID: exceptionID},
+			},
+			asset:       "USD",
+			expectError: false,
+		},
+		{
+			name: "grant does NOT transpass asset mismatch (0034 wins)",
+			balance: &Balance{
+				ID: "123", Alias: "@account1", Key: "default", AssetCode: "EUR",
+				Available: decimal.NewFromInt(100), AllowSending: true,
+				AccountBlocked: true, AccountType: "internal",
+			},
+			from: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50), BlockBypassGranted: true, GrantedExceptionID: exceptionID},
+			},
+			asset:       "USD",
+			expectError: true,
+			errorCode:   "0034", // ErrAssetCodeNotFound: asset gate sits ahead of the grant
+		},
+		{
+			name: "grant does NOT transpass pending external on-hold carve-out (0098)",
+			balance: &Balance{
+				ID: "123", Alias: "@external", Key: "default", AssetCode: "USD",
+				Available: decimal.NewFromInt(100), AllowSending: true,
+				AccountBlocked: false, AccountType: constant.ExternalAccountType,
+			},
+			from: map[string]Amount{
+				"0#@external#default": {Value: decimal.NewFromInt(50), BlockBypassGranted: true, GrantedExceptionID: exceptionID},
+			},
+			asset:       "USD",
+			pending:     true,
+			expectError: true,
+			errorCode:   "0098", // ErrOnHoldExternalAccount: structural carve-out never relaxed by a grant
+		},
+		{
+			name: "no grant on blocked source still returns 0502 (regression floor)",
+			balance: &Balance{
+				ID: "123", Alias: "@account1", Key: "default", AssetCode: "USD",
+				Available: decimal.NewFromInt(100), AllowSending: true,
+				AccountBlocked: true, AccountType: "internal",
+			},
+			from: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50), BlockBypassGranted: false},
+			},
+			asset:       "USD",
+			expectError: true,
+			errorCode:   "0502", // ErrAccountBlockedTransactionRestriction: no grant, block prevails
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := validateFromBalances(tt.balance, tt.from, tt.asset, tt.pending)
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.errorCode != "" {
+					assert.Equal(t, tt.errorCode, codeFromError(err), "error code mismatch: %v", err)
+				}
+			} else {
+				require.NoError(t, err, "granted side must transpass the block/allow gates")
+			}
+		})
+	}
+}
+
+// TestValidateToBalances_BlockBypassGranted mirrors the grant coverage on the DESTINATION
+// (credit) side: the grant on validate.To[key] transpasses 0502 and the AllowReceiving
+// 0024 gate, never the asset-code check, and a false grant preserves the phase-1 0502.
+func TestValidateToBalances_BlockBypassGranted(t *testing.T) {
+	t.Parallel()
+
+	const exceptionID = "exc-0000-0000-0000-000000000002"
+
+	tests := []struct {
+		name        string
+		balance     *Balance
+		to          map[string]Amount
+		asset       string
+		expectError bool
+		errorCode   string
+	}{
+		{
+			name: "(a) grant transpasses account-block 0502 on credit",
+			balance: &Balance{
+				ID: "123", Alias: "@account1", Key: "default", AssetCode: "USD",
+				Available: decimal.NewFromInt(100), AllowReceiving: true,
+				AccountBlocked: true, AccountType: "internal",
+			},
+			to: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50), BlockBypassGranted: true, GrantedExceptionID: exceptionID},
+			},
+			asset:       "USD",
+			expectError: false,
+		},
+		{
+			name: "(b) grant transpasses allow-receiving 0024 on credit",
+			balance: &Balance{
+				ID: "123", Alias: "@account1", Key: "default", AssetCode: "USD",
+				Available: decimal.NewFromInt(100), AllowReceiving: false,
+				AccountBlocked: false, AccountType: "internal",
+			},
+			to: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50), BlockBypassGranted: true, GrantedExceptionID: exceptionID},
+			},
+			asset:       "USD",
+			expectError: false,
+		},
+		{
+			name: "(c) grant transpasses BOTH block and allow-receiving simultaneously",
+			balance: &Balance{
+				ID: "123", Alias: "@account1", Key: "default", AssetCode: "USD",
+				Available: decimal.NewFromInt(100), AllowReceiving: false,
+				AccountBlocked: true, AccountType: "internal",
+			},
+			to: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50), BlockBypassGranted: true, GrantedExceptionID: exceptionID},
+			},
+			asset:       "USD",
+			expectError: false,
+		},
+		{
+			name: "grant does NOT transpass asset mismatch (0034 wins)",
+			balance: &Balance{
+				ID: "123", Alias: "@account1", Key: "default", AssetCode: "EUR",
+				Available: decimal.NewFromInt(100), AllowReceiving: true,
+				AccountBlocked: true, AccountType: "internal",
+			},
+			to: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50), BlockBypassGranted: true, GrantedExceptionID: exceptionID},
+			},
+			asset:       "USD",
+			expectError: true,
+			errorCode:   "0034", // ErrAssetCodeNotFound: asset gate sits ahead of the grant
+		},
+		{
+			name: "no grant on blocked destination still returns 0502 (regression floor)",
+			balance: &Balance{
+				ID: "123", Alias: "@account1", Key: "default", AssetCode: "USD",
+				Available: decimal.NewFromInt(100), AllowReceiving: true,
+				AccountBlocked: true, AccountType: "internal",
+			},
+			to: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50), BlockBypassGranted: false},
+			},
+			asset:       "USD",
+			expectError: true,
+			errorCode:   "0502", // ErrAccountBlockedTransactionRestriction: no grant, block prevails
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := validateToBalances(tt.balance, tt.to, tt.asset)
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.errorCode != "" {
+					assert.Equal(t, tt.errorCode, codeFromError(err), "error code mismatch: %v", err)
+				}
+			} else {
+				require.NoError(t, err, "granted side must transpass the block/allow gates")
+			}
+		})
+	}
+}
+
+// TestValidateBalancesRules_BlockBypassGrant_AntiLeak is the MANDATORY anti-leak proof
+// (matrix case (d)): a grant attached to the FROM side's Amount MUST NOT suppress the
+// deny on the TO side. The source is blocked+granted (would otherwise return 0502) while
+// the destination is blocked with NO grant. Because ValidateBalancesRules evaluates both
+// sides, the un-granted blocked destination MUST still be rejected with 0502 — the grant
+// does not leak across sides.
+func TestValidateBalancesRules_BlockBypassGrant_AntiLeak(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	logger := &log.GoLogger{Level: log.LevelInfo}
+	ctx = libObservability.ContextWithLogger(ctx, logger)
+	tracer := otel.Tracer("test")
+	ctx = libObservability.ContextWithTracer(ctx, tracer)
+
+	transaction := Transaction{
+		Send: Send{
+			Asset:      "USD",
+			Value:      decimal.NewFromInt(100),
+			Source:     Source{From: []FromTo{{AccountAlias: "@account1"}}},
+			Distribute: Distribute{To: []FromTo{{AccountAlias: "@account2"}}},
+		},
+	}
+
+	validate := Responses{
+		Asset: "USD",
+		From: map[string]Amount{
+			// FROM side carries the grant: on its own this source would transpass 0502.
+			"0#@account1#default": {Value: decimal.NewFromInt(100), Operation: constant.DEBIT, TransactionType: constant.CREATED, BlockBypassGranted: true, GrantedExceptionID: "exc-from"},
+		},
+		To: map[string]Amount{
+			// TO side has NO grant: the blocked destination must stay denied.
+			"0#@account2#default": {Value: decimal.NewFromInt(100), Operation: constant.CREDIT, TransactionType: constant.CREATED},
+		},
+	}
+
+	balances := []*Balance{
+		{
+			ID: "123", Alias: "@account1", Key: "default", AssetCode: "USD",
+			Available: decimal.NewFromInt(200), AllowSending: true, AllowReceiving: true,
+			AccountBlocked: true, AccountType: "internal",
+		},
+		{
+			ID: "456", Alias: "@account2", Key: "default", AssetCode: "USD",
+			Available: decimal.NewFromInt(50), AllowSending: true, AllowReceiving: true,
+			AccountBlocked: true, AccountType: "internal",
+		},
+	}
+
+	err := ValidateBalancesRules(ctx, transaction, validate, balances)
+
+	require.Error(t, err, "anti-leak: a FROM-side grant must not suppress the TO-side block")
+	assert.Equal(t, "0502", codeFromError(err),
+		"anti-leak: the un-granted blocked destination must still be rejected with 0502")
+}
+
 func TestOperateBalances(t *testing.T) {
 	t.Parallel()
 

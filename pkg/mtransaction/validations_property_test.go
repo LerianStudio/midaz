@@ -702,3 +702,85 @@ func TestProperty_ValidateToBalances_BlockedAlwaysDenied(t *testing.T) {
 	require.NoError(t, quick.Check(property, &quick.Config{MaxCount: 1000}),
 		"deny-by-default violated: a blocked destination balance was not rejected with 0502")
 }
+
+// TestProperty_ValidateFromBalances_GrantTranspassesBlocks verifies the grant invariant on
+// the SOURCE side: for ANY combination of AccountBlocked and AllowSending, an internal
+// source whose matched Amount carries BlockBypassGranted=true is NEVER rejected with 0502
+// or 0024 — the grant transpasses both block gates on the granted side. The pending flag is
+// held false so the external carve-out (structural, never relaxed) is out of scope here; the
+// account is internal for the same reason.
+func TestProperty_ValidateFromBalances_GrantTranspassesBlocks(t *testing.T) {
+	t.Parallel()
+
+	property := func(blocked, allowSending bool) bool {
+		balance := &Balance{
+			ID:             "acc",
+			Alias:          "@acc",
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.NewFromInt(100),
+			AllowSending:   allowSending,
+			AccountBlocked: blocked,
+			AccountType:    "internal",
+		}
+
+		from := map[string]Amount{
+			"0#@acc#default": {Value: decimal.NewFromInt(10), BlockBypassGranted: true, GrantedExceptionID: "exc"},
+		}
+
+		err := validateFromBalances(balance, from, "USD", false)
+
+		// INVARIANT: a granted source never surfaces 0502 or 0024.
+		if err == nil {
+			return true
+		}
+
+		code := codeFromError(err)
+
+		return code != constant.ErrAccountBlockedTransactionRestriction.Error() &&
+			code != constant.ErrAccountStatusTransactionRestriction.Error()
+	}
+
+	require.NoError(t, quick.Check(property, &quick.Config{MaxCount: 1000}),
+		"grant invariant violated: a granted source surfaced 0502 or 0024")
+}
+
+// TestProperty_ValidateToBalances_GrantTranspassesBlocks verifies the same grant invariant
+// on the DESTINATION side: for ANY combination of AccountBlocked and AllowReceiving, a
+// destination whose matched Amount carries BlockBypassGranted=true is NEVER rejected with
+// 0502 or 0024.
+func TestProperty_ValidateToBalances_GrantTranspassesBlocks(t *testing.T) {
+	t.Parallel()
+
+	property := func(blocked, allowReceiving bool) bool {
+		balance := &Balance{
+			ID:             "acc",
+			Alias:          "@acc",
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.NewFromInt(100),
+			AllowReceiving: allowReceiving,
+			AccountBlocked: blocked,
+			AccountType:    "internal",
+		}
+
+		to := map[string]Amount{
+			"0#@acc#default": {Value: decimal.NewFromInt(10), BlockBypassGranted: true, GrantedExceptionID: "exc"},
+		}
+
+		err := validateToBalances(balance, to, "USD")
+
+		// INVARIANT: a granted destination never surfaces 0502 or 0024.
+		if err == nil {
+			return true
+		}
+
+		code := codeFromError(err)
+
+		return code != constant.ErrAccountBlockedTransactionRestriction.Error() &&
+			code != constant.ErrAccountStatusTransactionRestriction.Error()
+	}
+
+	require.NoError(t, quick.Check(property, &quick.Config{MaxCount: 1000}),
+		"grant invariant violated: a granted destination surfaced 0502 or 0024")
+}
