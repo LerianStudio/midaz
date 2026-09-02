@@ -14,6 +14,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accountexception"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
@@ -25,15 +26,16 @@ import (
 
 // onboardingPostgresComponents holds PostgreSQL-related components for the onboarding domain.
 type onboardingPostgresComponents struct {
-	connection       *libPostgres.Client
-	pgManager        *tmpostgres.Manager // nil in single-tenant mode; used by TenantMiddleware
-	organizationRepo *organization.OrganizationPostgreSQLRepository
-	ledgerRepo       *ledger.LedgerPostgreSQLRepository
-	accountRepo      *account.AccountPostgreSQLRepository
-	assetRepo        *asset.AssetPostgreSQLRepository
-	portfolioRepo    *portfolio.PortfolioPostgreSQLRepository
-	segmentRepo      *segment.SegmentPostgreSQLRepository
-	accountTypeRepo  *accounttype.AccountTypePostgreSQLRepository
+	connection           *libPostgres.Client
+	pgManager            *tmpostgres.Manager // nil in single-tenant mode; used by TenantMiddleware
+	organizationRepo     *organization.OrganizationPostgreSQLRepository
+	ledgerRepo           *ledger.LedgerPostgreSQLRepository
+	accountRepo          *account.AccountPostgreSQLRepository
+	assetRepo            *asset.AssetPostgreSQLRepository
+	portfolioRepo        *portfolio.PortfolioPostgreSQLRepository
+	segmentRepo          *segment.SegmentPostgreSQLRepository
+	accountTypeRepo      *accounttype.AccountTypePostgreSQLRepository
+	accountExceptionRepo *accountexception.AccountExceptionPostgreSQLRepository
 }
 
 // initOnboardingPostgres initializes PostgreSQL components for the onboarding domain.
@@ -77,15 +79,16 @@ func initOnboardingMultiTenantPostgres(opts *Options, cfg *Config, logger libLog
 	}
 
 	return &onboardingPostgresComponents{
-		connection:       conn,
-		pgManager:        pgMgr,
-		organizationRepo: organization.NewOrganizationPostgreSQLRepository(conn, true),
-		ledgerRepo:       ledger.NewLedgerPostgreSQLRepository(conn, true),
-		accountRepo:      account.NewAccountPostgreSQLRepository(conn, true),
-		assetRepo:        asset.NewAssetPostgreSQLRepository(conn, true),
-		portfolioRepo:    portfolio.NewPortfolioPostgreSQLRepository(conn, true),
-		segmentRepo:      segment.NewSegmentPostgreSQLRepository(conn, true),
-		accountTypeRepo:  accounttype.NewAccountTypePostgreSQLRepository(conn, true),
+		connection:           conn,
+		pgManager:            pgMgr,
+		organizationRepo:     organization.NewOrganizationPostgreSQLRepository(conn, true),
+		ledgerRepo:           ledger.NewLedgerPostgreSQLRepository(conn, true),
+		accountRepo:          account.NewAccountPostgreSQLRepository(conn, true),
+		assetRepo:            asset.NewAssetPostgreSQLRepository(conn, true),
+		portfolioRepo:        portfolio.NewPortfolioPostgreSQLRepository(conn, true),
+		segmentRepo:          segment.NewSegmentPostgreSQLRepository(conn, true),
+		accountTypeRepo:      accounttype.NewAccountTypePostgreSQLRepository(conn, true),
+		accountExceptionRepo: accountexception.NewAccountExceptionPostgreSQLRepository(conn, true),
 	}, nil
 }
 
@@ -97,14 +100,15 @@ func initOnboardingSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*onb
 	}
 
 	return &onboardingPostgresComponents{
-		connection:       conn,
-		organizationRepo: organization.NewOrganizationPostgreSQLRepository(conn),
-		ledgerRepo:       ledger.NewLedgerPostgreSQLRepository(conn),
-		accountRepo:      account.NewAccountPostgreSQLRepository(conn),
-		assetRepo:        asset.NewAssetPostgreSQLRepository(conn),
-		portfolioRepo:    portfolio.NewPortfolioPostgreSQLRepository(conn),
-		segmentRepo:      segment.NewSegmentPostgreSQLRepository(conn),
-		accountTypeRepo:  accounttype.NewAccountTypePostgreSQLRepository(conn),
+		connection:           conn,
+		organizationRepo:     organization.NewOrganizationPostgreSQLRepository(conn),
+		ledgerRepo:           ledger.NewLedgerPostgreSQLRepository(conn),
+		accountRepo:          account.NewAccountPostgreSQLRepository(conn),
+		assetRepo:            asset.NewAssetPostgreSQLRepository(conn),
+		portfolioRepo:        portfolio.NewPortfolioPostgreSQLRepository(conn),
+		segmentRepo:          segment.NewSegmentPostgreSQLRepository(conn),
+		accountTypeRepo:      accounttype.NewAccountTypePostgreSQLRepository(conn),
+		accountExceptionRepo: accountexception.NewAccountExceptionPostgreSQLRepository(conn),
 	}, nil
 }
 

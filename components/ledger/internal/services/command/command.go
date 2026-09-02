@@ -16,6 +16,7 @@ import (
 	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accountexception"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
@@ -59,6 +60,9 @@ type UseCase struct {
 
 	// AccountTypeRepo provides an abstraction on top of the account type data source.
 	AccountTypeRepo accounttype.Repository
+
+	// AccountExceptionRepo provides an abstraction on top of the account exception data source.
+	AccountExceptionRepo accountexception.Repository
 
 	// --- Transaction domain repos ---
 

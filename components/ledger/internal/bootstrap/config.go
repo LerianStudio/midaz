@@ -851,6 +851,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		AccountRepo:            onbPG.accountRepo,
 		AssetRepo:              onbPG.assetRepo,
 		AccountTypeRepo:        onbPG.accountTypeRepo,
+		AccountExceptionRepo:   onbPG.accountExceptionRepo,
 		OnboardingMetadataRepo: onbMgo.metadataRepo,
 		OnboardingRedisRepo:    onbRedisRepo,
 		// Transaction domain
@@ -878,6 +879,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		AccountRepo:            onbPG.accountRepo,
 		AssetRepo:              onbPG.assetRepo,
 		AccountTypeRepo:        onbPG.accountTypeRepo,
+		AccountExceptionRepo:   onbPG.accountExceptionRepo,
 		OnboardingMetadataRepo: onbMgo.metadataRepo,
 		OnboardingRedisRepo:    onbRedisRepo,
 		// Transaction domain
