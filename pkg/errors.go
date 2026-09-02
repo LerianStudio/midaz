@@ -1170,6 +1170,24 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Account Type Direction",
 			Message:    "The field 'defaultDirection' has an invalid value. Use one of the allowed values: credit or debit.",
 		},
+		constant.ErrAccountExceptionNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountExceptionNotFound.Error(),
+			Title:      "Account Exception Not Found",
+			Message:    "The account exception you are trying to access does not exist or has been removed.",
+		},
+		constant.ErrNoAccountExceptionsFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrNoAccountExceptionsFound.Error(),
+			Title:      "No Account Exceptions Found",
+			Message:    "No account exceptions were found in the search. Please review the search criteria and try again.",
+		},
+		constant.ErrInvalidAccountExceptionValidityWindow: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidAccountExceptionValidityWindow.Error(),
+			Title:      "Invalid Account Exception Validity Window",
+			Message:    "The field 'expiresAt' must be later than 'effectiveAt'. Please adjust the validity window and try again.",
+		},
 		constant.ErrSchemaMigrationPending: ServiceUnavailableError{
 			EntityType: entityType,
 			Code:       constant.ErrSchemaMigrationPending.Error(),

@@ -487,6 +487,21 @@ var (
 	// must be lifted (or covered by a registered exception) before the account can transact.
 	// Renders as UnprocessableOperationError (HTTP 422), the same contract family as 0024.
 	ErrAccountBlockedTransactionRestriction = errors.New("0502")
+	// ErrAccountExceptionNotFound is returned when a single account exception addressed by
+	// id does not exist under the given organization/ledger/account, or has been soft
+	// deleted. Renders as EntityNotFoundError (HTTP 404), the same contract family as 0109.
+	ErrAccountExceptionNotFound = errors.New("0503")
+	// ErrNoAccountExceptionsFound is returned when a listing of account exceptions matches
+	// no rows. Distinct from 0503 by cardinality, not by cause: 0503 is one missing
+	// resource, 0504 is an empty collection. Follows the repo-wide empty-list convention of
+	// ErrNoAccountsFound and ErrNoAccountTypesFound, and renders as EntityNotFoundError
+	// (HTTP 404) like them.
+	ErrNoAccountExceptionsFound = errors.New("0504")
+	// ErrInvalidAccountExceptionValidityWindow is returned when an account exception carries
+	// both bounds of its validity window and the expiration is not strictly after the start.
+	// A window is a caller-supplied field pair, so this renders as ValidationError
+	// (HTTP 400), the same contract family as 0500.
+	ErrInvalidAccountExceptionValidityWindow = errors.New("0505")
 )
 
 // List of CRM domain errors.
