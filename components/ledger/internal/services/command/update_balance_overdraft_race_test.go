@@ -124,6 +124,7 @@ func TestEnsureOverdraftBalance_ConcurrentCreate_ReturnsBenignSuccess(t *testing
 		Return(nil).AnyTimes()
 
 	uc := UseCase{
+		AccountRepo:          unblockedAccountRepo(t),
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -177,6 +178,7 @@ func TestEnsureOverdraftBalance_UniqueViolation_WithMissingRow_PropagatesError(t
 		Times(0)
 
 	uc := UseCase{
+		AccountRepo:          unblockedAccountRepo(t),
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -225,6 +227,7 @@ func TestEnsureOverdraftBalance_NonUniqueViolation_PropagatesError(t *testing.T)
 		Times(0)
 
 	uc := UseCase{
+		AccountRepo:          unblockedAccountRepo(t),
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
 	}

@@ -111,6 +111,10 @@ func setupHolderAccountTest(ctrl *gomock.Controller, captured **mmodel.Account) 
 		Create(gomock.Any(), gomock.Any()).
 		Return(nil, nil).AnyTimes()
 
+	// Post-INSERT block re-verification: these branches create unblocked
+	// accounts, so the projection is converged and nothing is realigned.
+	allowBlockReverificationRead(mockAccountRepo, nil)
+
 	holderReader := &stubHolderReader{}
 	settingsReader := &stubSettingsReader{}
 

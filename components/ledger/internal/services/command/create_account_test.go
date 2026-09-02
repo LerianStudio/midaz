@@ -546,6 +546,9 @@ func TestCreateAccountScenarios(t *testing.T) {
 
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance, mockLedgerRepo)
 
+			// Post-INSERT block re-verification: unblocked, so nothing to realign.
+			allowBlockReverificationRead(mockAccountRepo, nil)
+
 			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token, HolderOnV2)
 
 			if tt.expectError {
@@ -941,6 +944,9 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance, mockLedgerRepo)
 
+			// Post-INSERT block re-verification: unblocked, so nothing to realign.
+			allowBlockReverificationRead(mockAccountRepo, nil)
+
 			// Best-effort default-direction resolution looks up the (non-external)
 			// account type; a miss degrades gracefully to the credit fallback.
 			mockAccountTypeRepo.EXPECT().
@@ -1141,6 +1147,9 @@ func TestCreateAccountValidationEdgeCases(t *testing.T) {
 			uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance, mockLedgerRepo := setupTest(ctrl)
 
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockMetadataRepo, mockAccountTypeRepo, mockBalance, mockLedgerRepo)
+
+			// Post-INSERT block re-verification: unblocked, so nothing to realign.
+			allowBlockReverificationRead(mockAccountRepo, nil)
 
 			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token, HolderOnV2)
 
@@ -1370,6 +1379,9 @@ func TestCreateAccountExternalAlias(t *testing.T) {
 					return in, nil
 				}).AnyTimes()
 
+			// Post-INSERT block re-verification: unblocked, so nothing to realign.
+			allowBlockReverificationRead(mockAccountRepo, nil)
+
 			token := "Bearer test-token"
 			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, token, HolderOnV2)
 
@@ -1500,6 +1512,11 @@ func TestCreateAccountBlockedFlag(t *testing.T) {
 	mockBalanceRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any()).
 		Return(nil, nil).AnyTimes()
+
+	// Post-INSERT block re-verification: the account row already holds the
+	// blocked state the default balance was born with, so the projection is
+	// converged and no realigning UPDATE is issued.
+	allowBlockReverificationRead(mockAccountRepo, boolPtr(true))
 
 	// Input with blocked=true
 	blocked := true

@@ -201,7 +201,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	var companion *mmodel.Balance
 
 	if update.Settings != nil {
-		c, err := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, current, update.Settings)
+		c, err := uc.provisionOverdraftCompanion(ctx, logger, span, organizationID, ledgerID, current, update.Settings)
 		if err != nil {
 			return nil, err
 		}

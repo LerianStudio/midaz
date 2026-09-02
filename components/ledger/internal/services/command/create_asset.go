@@ -129,76 +129,118 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	if len(account) == 0 {
-		externalAccountID, err := libCommons.GenerateUUIDv7()
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate external account ID", err)
-			logger.Log(ctx, libLog.LevelError, "Error generating asset external account ID")
-
+		if err := uc.createAssetExternalAccount(ctx, span, logger, requestID, organizationID, ledgerID, cii.Code, aAlias, aStatusDescription); err != nil {
 			return nil, err
-		}
-
-		eAccount := &mmodel.Account{
-			ID:              externalAccountID.String(),
-			AssetCode:       cii.Code,
-			Alias:           &aAlias,
-			Name:            "External " + cii.Code,
-			Type:            "external",
-			OrganizationID:  organizationID.String(),
-			LedgerID:        ledgerID.String(),
-			ParentAccountID: nil,
-			SegmentID:       nil,
-			PortfolioID:     nil,
-			EntityID:        nil,
-			Status: mmodel.Status{
-				Code:        "external",
-				Description: &aStatusDescription,
-			},
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
-
-		acc, err := uc.AccountRepo.Create(ctx, eAccount)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset external account", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error creating asset external account", libLog.Err(err))
-
-			return nil, err
-		}
-
-		balanceInput := mmodel.CreateBalanceInput{
-			RequestID:      requestID,
-			OrganizationID: organizationID,
-			LedgerID:       ledgerID,
-			AccountID:      uuid.MustParse(acc.ID),
-			Alias:          aAlias,
-			Key:            constant.DefaultBalanceKey,
-			AssetCode:      cii.Code,
-			AccountType:    "external",
-			AllowSending:   true,
-			AllowReceiving: true,
-		}
-
-		_, err = uc.CreateDefaultBalance(ctx, balanceInput)
-		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
-
-			logger.Log(ctx, libLog.LevelError, "Failed to create default balance", libLog.Err(err))
-
-			var (
-				unauthorized pkg.UnauthorizedError
-				forbidden    pkg.ForbiddenError
-			)
-
-			if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
-				return nil, err
-			}
-
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, constant.EntityAccount)
 		}
 	}
 
 	return inst, nil
+}
+
+// createAssetExternalAccount materialises the external account that anchors an
+// asset and its default balance. It is split out of CreateAsset so the asset
+// orchestration stays readable, and because the balance it creates carries the
+// same account_blocked inheritance and post-INSERT re-verification as every
+// other balance-creation site.
+func (uc *UseCase) createAssetExternalAccount(ctx context.Context, span trace.Span, logger libLog.Logger, requestID string, organizationID, ledgerID uuid.UUID, assetCode, alias, statusDescription string) error {
+	externalAccountID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate external account ID", err)
+		logger.Log(ctx, libLog.LevelError, "Error generating asset external account ID")
+
+		return err
+	}
+
+	now := time.Now()
+
+	eAccount := &mmodel.Account{
+		ID:              externalAccountID.String(),
+		AssetCode:       assetCode,
+		Alias:           &alias,
+		Name:            "External " + assetCode,
+		Type:            "external",
+		OrganizationID:  organizationID.String(),
+		LedgerID:        ledgerID.String(),
+		ParentAccountID: nil,
+		SegmentID:       nil,
+		PortfolioID:     nil,
+		EntityID:        nil,
+		Status: mmodel.Status{
+			Code:        "external",
+			Description: &statusDescription,
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	acc, err := uc.AccountRepo.Create(ctx, eAccount)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset external account", err)
+
+		logger.Log(ctx, libLog.LevelError, "Error creating asset external account", libLog.Err(err))
+
+		return err
+	}
+
+	// Parsed, not MustParse: the repository echoes back the id we generated, so a
+	// malformed value means the adapter is broken — which is an error to report,
+	// never a reason to take the process down.
+	externalAccountUUID, err := uuid.Parse(acc.ID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse persisted external account id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to parse persisted external account id",
+			libLog.String("account_id", acc.ID), libLog.Err(err))
+
+		return err
+	}
+
+	// Derived from the account that was just persisted rather than hardcoded, so
+	// all four balance-creation sites share one mechanism. External accounts
+	// cannot be blocked (guard 0074), so this resolves to false in practice —
+	// that is a property of the guard, not an assumption made here.
+	externalAccountBlocked := acc.Blocked != nil && *acc.Blocked
+
+	balanceInput := mmodel.CreateBalanceInput{
+		RequestID:      requestID,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		AccountID:      externalAccountUUID,
+		Alias:          alias,
+		Key:            constant.DefaultBalanceKey,
+		AssetCode:      assetCode,
+		AccountType:    "external",
+		AllowSending:   true,
+		AllowReceiving: true,
+		AccountBlocked: externalAccountBlocked,
+	}
+
+	if _, err := uc.CreateDefaultBalance(ctx, balanceInput); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to create default balance", libLog.Err(err))
+
+		var (
+			unauthorized pkg.UnauthorizedError
+			forbidden    pkg.ForbiddenError
+		)
+
+		if errors.As(err, &unauthorized) || errors.As(err, &forbidden) {
+			return err
+		}
+
+		return pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, constant.EntityAccount)
+	}
+
+	// Same post-INSERT re-verification the account path runs. The external guard
+	// makes the divergence unreachable here, but the mechanism is uniform across
+	// the four creation sites so no site can drift.
+	if err := uc.reconcileBalanceAccountBlocked(ctx, organizationID, ledgerID, externalAccountUUID, externalAccountBlocked); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to re-verify external default balance block projection", err)
+
+		return err
+	}
+
+	return nil
 }
 
 // validateAssetCode checks the provided asset code and maps validation errors to business errors.

@@ -128,6 +128,13 @@ func TestCreateAccount_Success(t *testing.T) {
 		}).Times(1)
 	balanceRepo.EXPECT().ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).AnyTimes()
 	balanceRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
+	// The default balance's account_blocked projection is re-verified against the
+	// account row after the INSERT. The account is unblocked, so the pair is
+	// converged and no realigning UPDATE is issued.
+	accountRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Account{ID: uuid.Must(libCommons.GenerateUUIDv7()).String(), Type: "deposit"}, nil).
+		Times(1)
 	// The shared body pipeline initializes Metadata to a non-nil empty map, so
 	// CreateOnboardingMetadata persists it — faithful to the Fiber WithBody path.
 	metadataRepo.EXPECT().Create(gomock.Any(), cn.EntityAccount, gomock.Any()).Return(nil).AnyTimes()

@@ -27,6 +27,9 @@ func TestCreateAdditionalBalance(t *testing.T) {
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 
 	uc := &UseCase{
+		// Unblocked account: the inheritance read and the post-INSERT
+		// re-verification agree, so nothing is realigned in this suite.
+		AccountRepo: unblockedAccountRepo(t),
 		BalanceRepo: mockBalanceRepo,
 	}
 

@@ -194,6 +194,10 @@ func TestUpdateBalance_EmitsTwoEventsOnOverdraftTransition(t *testing.T) {
 	mockRedis.EXPECT().UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
+		// The freshly materialized companion goes through the same post-INSERT
+		// block re-verification as every other created balance; an unblocked
+		// account keeps it converged.
+		AccountRepo:          unblockedAccountRepo(t),
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedis,
 		Streaming:            mockEmitter,

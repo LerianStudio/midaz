@@ -92,6 +92,10 @@ func TestCreateAssetExternalAccountCarriesNoHolder(t *testing.T) {
 			return b, nil
 		}).Times(1)
 
+	// Post-INSERT block re-verification: an external account is never blocked,
+	// so the projection is converged and nothing is realigned.
+	allowBlockReverificationRead(mockAccountRepo, nil)
+
 	_, err := uc.CreateAsset(ctx, organizationID, ledgerID, &mmodel.CreateAssetInput{
 		Name:   "US Dollar",
 		Type:   "currency",

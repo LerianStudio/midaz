@@ -205,6 +205,9 @@ func TestCreateAccountBalanceDirectionWiring(t *testing.T) {
 				}).
 				Times(1)
 
+			// Post-INSERT block re-verification: unblocked, nothing to realign.
+			allowBlockReverificationRead(mockAccountRepo, nil)
+
 			acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input, "Bearer test-token", HolderOnV2)
 
 			assert.NoError(t, err)
@@ -231,6 +234,9 @@ func TestCreateAdditionalBalanceDirectionWiring(t *testing.T) {
 		mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
 
 		uc := &UseCase{
+			// Unblocked account: inheritance read and post-INSERT
+			// re-verification agree, so nothing is realigned here.
+			AccountRepo:     unblockedAccountRepo(t),
 			BalanceRepo:     mockBalanceRepo,
 			AccountTypeRepo: mockAccountTypeRepo,
 		}

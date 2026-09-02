@@ -200,6 +200,10 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		DefaultDirection: uc.resolveDefaultBalanceDirectionForType(ctx, organizationID, ledgerID, cai.Type, isExternal),
 		AllowSending:     true,
 		AllowReceiving:   true,
+		// The default balance is born with the block state the account was just
+		// persisted with. blocked is the value written to the account row above,
+		// so no extra read is needed on this path.
+		AccountBlocked: blocked,
 	}
 
 	_, err = uc.CreateDefaultBalance(ctx, balanceInput)
@@ -213,6 +217,21 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		}
 
 		return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, constant.EntityAccount)
+	}
+
+	// Post-INSERT re-verification. A BlockAccount call that landed between the
+	// account INSERT and the balance INSERT ran its balance-wide UPDATE before
+	// this row existed, so the row would keep the stale value forever. This
+	// re-read cannot miss such a block in any interleaving.
+	//
+	// It sits AFTER the compensation branch on purpose: the account and its
+	// default balance are both durable at this point, so undoing them is no
+	// longer the right answer. The error surfaces instead, because a creation
+	// whose projection cannot be proven consistent must not be confirmed.
+	if err := uc.reconcileBalanceAccountBlocked(ctx, organizationID, ledgerID, accountID, blocked); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to re-verify default balance block projection", err)
+
+		return nil, err
 	}
 
 	uc.emitAccountCreatedEvent(ctx, span, logger, acc)

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -81,7 +82,14 @@ func newCreateAdditionalBalanceStreamingTestUseCase(t *testing.T, ctrl *gomock.C
 		}).
 		AnyTimes()
 
+	// The account is read twice on this path: once to inherit its block state
+	// into the new balance, once to re-verify the projection after the INSERT.
+	// An unblocked account keeps the pair converged, so no realign is issued.
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	allowBlockReverificationRead(mockAccountRepo, nil)
+
 	return &UseCase{
+		AccountRepo: mockAccountRepo,
 		BalanceRepo: mockBalanceRepo,
 		Streaming:   emitter,
 	}

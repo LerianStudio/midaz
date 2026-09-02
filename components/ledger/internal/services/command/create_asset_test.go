@@ -233,6 +233,10 @@ func TestCreateAsset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockSetup()
 
+			// Post-INSERT block re-verification: an external account is never
+			// blocked, so the projection is converged and nothing is realigned.
+			allowBlockReverificationRead(mockAccountRepo, nil)
+
 			token := "Bearer test-token"
 			result, err := uc.CreateAsset(ctx, organizationID, ledgerID, tt.input, token)
 

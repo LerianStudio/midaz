@@ -115,6 +115,7 @@ func TestUpdateBalance_EnableOverdraft_AutoCreatesOverdraftBalance(t *testing.T)
 		AnyTimes()
 
 	uc := UseCase{
+		AccountRepo:          unblockedAccountRepo(t),
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -215,6 +216,7 @@ func TestUpdateBalance_EnableOverdraft_Idempotent(t *testing.T) {
 		AnyTimes()
 
 	uc := UseCase{
+		AccountRepo:          unblockedAccountRepo(t),
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
 	}

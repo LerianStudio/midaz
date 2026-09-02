@@ -95,6 +95,10 @@ func (uc *UseCase) CreateDefaultBalance(ctx context.Context, input mmodel.Create
 		AccountType:    input.AccountType,
 		AllowSending:   input.AllowSending,
 		AllowReceiving: input.AllowReceiving,
+		// The block projection is inherited from the owning account, resolved by
+		// the caller that holds the account state. The allow flags above are an
+		// independent mechanism and are deliberately left untouched by it.
+		AccountBlocked: input.AccountBlocked,
 		Direction:      resolveBalanceDirection("", input.DefaultDirection, input.AccountType),
 		CreatedAt:      now,
 		UpdatedAt:      now,

@@ -28,6 +28,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -606,7 +607,16 @@ func TestCreateAdditionalBalance_Success(t *testing.T) {
 	balanceRepo.EXPECT().Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, b *mmodel.Balance) (*mmodel.Balance, error) { return b, nil }).Times(1)
 
-	handler := &BalanceHandler{Command: &command.UseCase{BalanceRepo: balanceRepo}}
+	// The new balance inherits the owning account's block state and has that
+	// projection re-verified after the INSERT: one read before, one after. The
+	// account is unblocked, so the pair is converged and no realign is issued.
+	accountRepo := account.NewMockRepository(ctrl)
+	accountRepo.EXPECT().
+		Find(gomock.Any(), orgID, ledgerID, nil, accountID, mmodel.HolderOffV1).
+		Return(&mmodel.Account{ID: accountID.String(), Type: "deposit"}, nil).
+		Times(2)
+
+	handler := &BalanceHandler{Command: &command.UseCase{AccountRepo: accountRepo, BalanceRepo: balanceRepo}}
 
 	app := buildHumaBalanceApp(t, handler, true)
 

@@ -85,7 +85,7 @@ func TestCreateAdditionalBalance_WithDirection(t *testing.T) {
 		}).
 		Times(1)
 
-	uc := &UseCase{BalanceRepo: mockBalanceRepo}
+	uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo}
 
 	result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 
@@ -139,7 +139,7 @@ func TestCreateAdditionalBalance_DefaultDirection(t *testing.T) {
 		}).
 		Times(1)
 
-	uc := &UseCase{BalanceRepo: mockBalanceRepo}
+	uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo}
 
 	result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 
@@ -180,7 +180,7 @@ func TestCreateAdditionalBalance_InvalidDirection(t *testing.T) {
 		Create(gomock.Any(), gomock.Any()).
 		Times(0)
 
-	uc := &UseCase{BalanceRepo: mockBalanceRepo}
+	uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo}
 
 	result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 
@@ -231,7 +231,7 @@ func TestCreateAdditionalBalance_ReservedKey(t *testing.T) {
 				Create(gomock.Any(), gomock.Any()).
 				Times(0)
 
-			uc := &UseCase{BalanceRepo: mockBalanceRepo}
+			uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo}
 
 			result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 
@@ -263,7 +263,7 @@ func TestCreateAdditionalBalance_RejectsInternalScope(t *testing.T) {
 		},
 	}
 
-	uc := &UseCase{BalanceRepo: mockBalanceRepo}
+	uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo}
 
 	result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 
@@ -357,7 +357,7 @@ func TestCreateAdditionalBalance_AllowOverdraft_CreatesCompanionBeforeParent(t *
 			Times(1),
 	)
 
-	uc := &UseCase{BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
+	uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
 
 	result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 
@@ -441,7 +441,7 @@ func TestCreateAdditionalBalance_AllowOverdraft_IdempotentCompanion(t *testing.T
 		}).
 		Times(1)
 
-	uc := &UseCase{BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
+	uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
 
 	result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 
@@ -528,7 +528,7 @@ func TestCreateAdditionalBalance_AllowOverdraft_CompanionRaceIsBenign(t *testing
 			Times(1),
 	)
 
-	uc := &UseCase{BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
+	uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
 
 	result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 
@@ -589,7 +589,7 @@ func TestCreateAdditionalBalance_AllowOverdraft_CompanionFailureBlocksParent(t *
 		}).
 		Times(1)
 
-	uc := &UseCase{BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
+	uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
 
 	result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 
@@ -650,7 +650,7 @@ func TestCreateAdditionalBalance_AllowOverdraft_CompanionLookupError_BlocksParen
 		Create(gomock.Any(), gomock.Any()).
 		Times(0)
 
-	uc := &UseCase{BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
+	uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
 
 	result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 
@@ -720,7 +720,7 @@ func TestCreateAdditionalBalance_NoOverdraft_SkipsCompanion(t *testing.T) {
 				}).
 				Times(1)
 
-			uc := &UseCase{BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
+			uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
 
 			result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 
@@ -790,7 +790,7 @@ func TestCreateAdditionalBalance_AllowOverdraft_WithLimit(t *testing.T) {
 			Times(1),
 	)
 
-	uc := &UseCase{BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
+	uc := &UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo, Streaming: mockEmitter}
 
 	result, err := uc.CreateAdditionalBalance(ctx, orgID, ledgerID, accountID, cbi)
 

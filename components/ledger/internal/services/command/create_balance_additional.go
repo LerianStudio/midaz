@@ -144,6 +144,17 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	direction := resolveBalanceDirection(explicitDirection, typeDefaultDirection, defaultBalance.AccountType)
 
+	// A new key under a blocked account must be born blocked, otherwise it is an
+	// open door on a closed account: the transactional hot path reads balances,
+	// never the account row. The account is the source of truth, so the state is
+	// read from it rather than copied off the default balance's projection.
+	accountBlocked, err := uc.inheritAccountBlockedState(ctx, organizationID, ledgerID, accountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to inherit account block state", err)
+
+		return nil, err
+	}
+
 	additionalBalance := &mmodel.Balance{
 		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
 		Alias:          defaultBalance.Alias,
@@ -155,6 +166,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		AccountType:    defaultBalance.AccountType,
 		AllowSending:   cbi.AllowSending == nil || *cbi.AllowSending,
 		AllowReceiving: cbi.AllowReceiving == nil || *cbi.AllowReceiving,
+		AccountBlocked: accountBlocked,
 		Direction:      direction,
 		Settings:       cbi.Settings,
 		CreatedAt:      time.Now(),
@@ -204,6 +216,15 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		}
 
 		logger.Log(ctx, libLog.LevelError, "Error creating additional balance on repo", libLog.Err(err))
+
+		return nil, err
+	}
+
+	// Post-INSERT re-verification, once for both rows: the realigning UPDATE is
+	// scoped to the account, so it converges the parent balance and the overdraft
+	// companion (when one was provisioned above) in a single statement.
+	if err := uc.reconcileBalanceAccountBlocked(ctx, organizationID, ledgerID, accountID, accountBlocked); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to re-verify additional balance block projection", err)
 
 		return nil, err
 	}

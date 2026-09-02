@@ -225,6 +225,12 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		AccountType:    current.AccountType,
 		AllowSending:   true,
 		AllowReceiving: true,
+		// The companion is a balance of the same account, so it carries the same
+		// block projection as its parent. The allow flags above stay true because
+		// the block state and the allow flags are independent mechanisms; direct
+		// client access to the companion is denied by the internal scope guard,
+		// not by these flags.
+		AccountBlocked: current.AccountBlocked,
 		Direction:      constant.DirectionDebit,
 		OverdraftUsed:  decimal.Zero,
 		Settings: &mmodel.BalanceSettings{
@@ -276,4 +282,59 @@ func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 
 	return errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode
+}
+
+// reverifyCompanionBlockProjection runs the post-INSERT block re-verification
+// for a freshly materialised overdraft companion. A nil companion means nothing
+// was created — an existing companion, a no-op transition, or the race-loser
+// path — so there is nothing to re-verify.
+//
+// The realign is account-scoped, so it converges the companion together with its
+// parent when a block landed while the companion was being provisioned.
+//
+// ensureOverdraftBalance already rejected an unparseable account id, so the only
+// other shape reachable here is the empty one it documents for minimal fixtures,
+// and an empty id names no account to reconcile against.
+func (uc *UseCase) reverifyCompanionBlockProjection(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, current, companion *mmodel.Balance) error {
+	if companion == nil || current == nil || current.AccountID == "" {
+		return nil
+	}
+
+	accountID, err := uuid.Parse(current.AccountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to parse account id for block projection re-verification", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to parse account ID",
+			libLog.String("accountID", current.AccountID), libLog.Err(err))
+
+		return err
+	}
+
+	if err := uc.reconcileBalanceAccountBlocked(ctx, organizationID, ledgerID, accountID, companion.AccountBlocked); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to re-verify overdraft companion block projection", err)
+
+		return err
+	}
+
+	return nil
+}
+
+// provisionOverdraftCompanion is ensureOverdraftBalance plus the post-INSERT
+// block re-verification that every balance-creation site owes the account_blocked
+// projection. The pair is bundled here so the settings-update path cannot
+// materialise a companion without re-verifying it.
+//
+// CreateAdditionalBalance deliberately calls ensureOverdraftBalance directly
+// instead: there the companion is provisioned BEFORE the parent INSERT, and one
+// account-scoped reconcile at the end of that flow converges both rows.
+func (uc *UseCase) provisionOverdraftCompanion(ctx context.Context, logger libLog.Logger, span trace.Span, organizationID, ledgerID uuid.UUID, current *mmodel.Balance, nextSettings *mmodel.BalanceSettings) (*mmodel.Balance, error) {
+	companion, err := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, current, nextSettings)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := uc.reverifyCompanionBlockProjection(ctx, span, logger, organizationID, ledgerID, current, companion); err != nil {
+		return nil, err
+	}
+
+	return companion, nil
 }

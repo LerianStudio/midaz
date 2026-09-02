@@ -128,6 +128,13 @@ func TestCreateAsset_Success(t *testing.T) {
 		DoAndReturn(func(_ any, acc *mmodel.Account) (*mmodel.Account, error) { return acc, nil }).Times(1)
 	balanceRepo.EXPECT().ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil).Times(1)
 	balanceRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, nil).Times(1)
+	// The external account's default balance has its account_blocked projection
+	// re-verified against the account row after the INSERT. External accounts are
+	// never blocked, so the pair is converged and no realign is issued.
+	accountRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&mmodel.Account{Type: "external"}, nil).
+		Times(1)
 
 	handler := &AssetHandler{Command: &command.UseCase{
 		AssetRepo:              assetRepo,

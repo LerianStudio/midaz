@@ -80,6 +80,7 @@ func TestUpdateBalance(t *testing.T) {
 		Times(0)
 
 	uc := UseCase{
+		AccountRepo:          unblockedAccountRepo(t),
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -212,6 +213,7 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 		Times(0)
 
 	uc := UseCase{
+		AccountRepo:          unblockedAccountRepo(t),
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -319,6 +321,7 @@ func TestUpdateBalance_CacheSettingsUpdate_UsesCompositeAliasKey(t *testing.T) {
 		Times(1)
 
 	uc := UseCase{
+		AccountRepo:          unblockedAccountRepo(t),
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -404,6 +407,7 @@ func TestUpdateBalance_CacheSettingsUpdate_FailureIsBestEffort(t *testing.T) {
 		Times(1)
 
 	uc := UseCase{
+		AccountRepo:          unblockedAccountRepo(t),
 		BalanceRepo:          mockBalanceRepo,
 		TransactionRedisRepo: mockRedisRepo,
 	}
@@ -565,7 +569,7 @@ func TestUpdateBalances_PrimaryPath_FailsOnMissingAlias(t *testing.T) {
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockBalanceRepo.EXPECT().BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
-	uc := UseCase{BalanceRepo: mockBalanceRepo}
+	uc := UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo}
 
 	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, mtransaction.Responses{}, balancesBefore, balancesAfter)
 
@@ -596,7 +600,7 @@ func TestUpdateBalances_BalancesUpdateError(t *testing.T) {
 		Return(errors.New("database connection error")).
 		Times(1)
 
-	uc := UseCase{BalanceRepo: mockBalanceRepo}
+	uc := UseCase{AccountRepo: unblockedAccountRepo(t), BalanceRepo: mockBalanceRepo}
 
 	err := uc.UpdateBalances(context.TODO(), organizationID, ledgerID, mtransaction.Responses{}, balancesBefore, balancesAfter)
 

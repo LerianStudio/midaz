@@ -91,6 +91,9 @@ func newStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitter libS
 		Create(gomock.Any(), gomock.Any()).
 		Return(nil, nil).AnyTimes()
 
+	// Post-INSERT block re-verification: unblocked, so nothing to realign.
+	allowBlockReverificationRead(mockAccountRepo, nil)
+
 	return &UseCase{
 		AssetRepo:              mockAssetRepo,
 		PortfolioRepo:          mockPortfolioRepo,
