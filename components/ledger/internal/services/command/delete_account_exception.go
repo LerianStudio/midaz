@@ -49,6 +49,13 @@ func (uc *UseCase) DeleteAccountException(ctx context.Context, organizationID, l
 		attribute.String("app.request.account_exception_id", id.String()),
 	)
 
+	// Invalidate-first: empty the exceptions cache entry BEFORE the Postgres delete.
+	// A failure refuses the delete while nothing has changed, so the cache stays
+	// consistent with the database (see invalidateAccountExceptionsCache).
+	if err = uc.invalidateAccountExceptionsCache(ctx, span, logger, organizationID, ledgerID, accountID); err != nil {
+		return err
+	}
+
 	deletedAt := time.Now().UTC()
 
 	if err = uc.AccountExceptionRepo.Delete(ctx, organizationID, ledgerID, accountID, id); err != nil {

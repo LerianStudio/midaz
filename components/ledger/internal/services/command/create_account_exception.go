@@ -59,6 +59,13 @@ func (uc *UseCase) CreateAccountException(ctx context.Context, organizationID, l
 		attribute.String("app.request.account_id", accountID.String()),
 	)
 
+	// Invalidate-first: empty the exceptions cache entry BEFORE any Postgres write.
+	// A failure here refuses the write while nothing has changed, so the cache stays
+	// consistent with the database (see invalidateAccountExceptionsCache).
+	if err = uc.invalidateAccountExceptionsCache(ctx, span, logger, organizationID, ledgerID, accountID); err != nil {
+		return nil, err
+	}
+
 	if err = uc.assertAccountAcceptsException(ctx, span, logger, organizationID, ledgerID, accountID); err != nil {
 		return nil, err
 	}
@@ -105,6 +112,35 @@ func (uc *UseCase) CreateAccountException(ctx context.Context, organizationID, l
 	uc.emitAccountExceptionCreatedEvent(ctx, span, logger, created)
 
 	return created, nil
+}
+
+// invalidateAccountExceptionsCache empties the per-account exceptions cache entry
+// BEFORE the Postgres write (write-through invalidate-first). Failing here is free —
+// nothing has committed — so an unreachable Redis or a failed Del REFUSES the write,
+// keeping the cache consistent with the database. There is deliberately NO post-commit
+// repopulate: the key stays empty and the read path (GetActiveAccountExceptions)
+// refills it on the next miss, which removes the writer-reordering race entirely.
+//
+// A nil OnboardingRedisRepo (cache disabled) is a no-op, so single binaries running
+// without a cache keep working. The log field carrying the key is named "cache_entry"
+// on purpose: lib-observability's zap logger redacts any field name containing the
+// token "key", which would strip the one datum an operator needs from the alert.
+func (uc *UseCase) invalidateAccountExceptionsCache(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID) error {
+	if uc.OnboardingRedisRepo == nil {
+		return nil
+	}
+
+	cacheKey := utils.AccountExceptionsInternalKey(organizationID, ledgerID, accountID)
+
+	if err := uc.OnboardingRedisRepo.Del(ctx, cacheKey); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to invalidate account exceptions cache before write", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to invalidate account exceptions cache, refusing write",
+			libLog.String("cache_entry", cacheKey), libLog.Err(err))
+
+		return err
+	}
+
+	return nil
 }
 
 // assertAccountAcceptsException loads the target account and rejects the two states an
