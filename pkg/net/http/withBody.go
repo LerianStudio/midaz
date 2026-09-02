@@ -307,6 +307,7 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	_ = v.RegisterValidation("invalidaccounttype", validateAccountType)
 	_ = v.RegisterValidation("accounttypedirection", validateAccountTypeDirection)
 	_ = v.RegisterValidation("nowhitespaces", validateNoWhitespaces)
+	_ = v.RegisterValidation("nowhitespacesorempty", validateNoWhitespacesOrEmpty)
 	_ = v.RegisterValidation("metadatakeyformat", validateMetadataKeyFormat)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
@@ -402,6 +403,14 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 		return ut.Add("nowhitespaces", "{0} cannot contain whitespaces", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("nowhitespaces", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("nowhitespacesorempty", trans, func(ut ut.Translator) error {
+		return ut.Add("nowhitespacesorempty", "{0} cannot contain whitespaces", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("nowhitespacesorempty", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -535,6 +544,29 @@ func validateNoWhitespaces(fl validator.FieldLevel) bool {
 	f, ok := fl.Field().Interface().(string)
 	if !ok {
 		return false
+	}
+
+	match, _ := regexp.MatchString(`^\S+$`, f)
+
+	return match
+}
+
+// validateNoWhitespacesOrEmpty is the PATCH-friendly sibling of validateNoWhitespaces: it
+// accepts the empty string, which optional update inputs use as the explicit "clear this
+// field" sentinel, and otherwise applies the same no-whitespace rule.
+//
+// It exists because `omitempty` does NOT skip a non-nil *string pointing at "":
+// go-playground's hasValue returns true for ANY non-nil pointer, so a plain `nowhitespaces`
+// would reject the very sentinel the clear semantics depend on. Existing fields keep using
+// `nowhitespaces`; this tag is opt-in and changes no current behaviour.
+func validateNoWhitespacesOrEmpty(fl validator.FieldLevel) bool {
+	f, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
+
+	if f == "" {
+		return true
 	}
 
 	match, _ := regexp.MatchString(`^\S+$`, f)
