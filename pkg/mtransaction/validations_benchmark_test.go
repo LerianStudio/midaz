@@ -111,6 +111,80 @@ func BenchmarkOperateBalances(b *testing.B) {
 	}
 }
 
+// BenchmarkValidateFromBalances measures the source-side balance gate across three arms:
+//
+//   - Allowed:      not blocked, sending allowed -> returns nil (no error constructed).
+//   - StatusDenied: not blocked, sending NOT allowed -> pre-existing 0024 rejection.
+//   - Blocked:      account blocked -> new 0502 rejection.
+//
+// The account-block gate itself is a single bool branch placed before the allow-flag
+// check. When it fires it constructs a business error via pkg.ValidateBusinessError
+// exactly as the pre-existing 0024 path does, so "Blocked" and "StatusDenied" are
+// expected to be within noise of each other. Their shared cost is the error-catalog
+// construction that already existed before this feature — not something the block gate
+// introduced. The gap to "Allowed" is the nil-vs-error path, identical for both
+// rejection reasons. This is the evidence that the block gate adds no measurable cost
+// beyond the rejection machinery already present on the restricted-status path.
+func BenchmarkValidateFromBalances(b *testing.B) {
+	from := map[string]Amount{
+		"0#@account1#default": {Value: decimal.NewFromInt(50)},
+	}
+
+	scenarios := []struct {
+		name    string
+		balance *Balance
+	}{
+		{
+			name: "Allowed",
+			balance: &Balance{
+				ID:           "123",
+				Alias:        "@account1",
+				Key:          "default",
+				AssetCode:    "USD",
+				Available:    decimal.NewFromInt(100),
+				AllowSending: true,
+				AccountType:  "internal",
+			},
+		},
+		{
+			name: "StatusDenied",
+			balance: &Balance{
+				ID:           "123",
+				Alias:        "@account1",
+				Key:          "default",
+				AssetCode:    "USD",
+				Available:    decimal.NewFromInt(100),
+				AllowSending: false,
+				AccountType:  "internal",
+			},
+		},
+		{
+			name: "Blocked",
+			balance: &Balance{
+				ID:             "123",
+				Alias:          "@account1",
+				Key:            "default",
+				AssetCode:      "USD",
+				Available:      decimal.NewFromInt(100),
+				AllowSending:   true,
+				AccountBlocked: true,
+				AccountType:    "internal",
+			},
+		},
+	}
+
+	for _, sc := range scenarios {
+		b.Run(sc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				_ = validateFromBalances(sc.balance, from, "USD", false)
+			}
+		})
+	}
+}
+
 // BenchmarkCalculateTotal benchmarks the share/amount distribution calculation.
 // Performance varies with the number of FromTo entries.
 func BenchmarkCalculateTotal(b *testing.B) {

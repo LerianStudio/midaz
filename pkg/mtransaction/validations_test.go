@@ -277,6 +277,7 @@ func TestValidateFromBalances(t *testing.T) {
 		balance     *Balance
 		from        map[string]Amount
 		asset       string
+		pending     bool
 		expectError bool
 		errorCode   string
 	}{
@@ -388,13 +389,60 @@ func TestValidateFromBalances(t *testing.T) {
 			expectError: true,
 			errorCode:   "0502", // account block (0502) prevails over status restriction (0024)
 		},
+		{
+			// (f) carve-out preserved: a NON-blocked external account in a pending
+			// transaction still returns the pre-existing on-hold external error (0098).
+			// AccountBlocked=false must not interfere with this path.
+			name: "external account pending not blocked keeps on-hold carve-out",
+			balance: &Balance{
+				ID:             "123",
+				Alias:          "@external",
+				Key:            "default",
+				AssetCode:      "USD",
+				Available:      decimal.NewFromInt(100),
+				AllowSending:   true,
+				AccountBlocked: false,
+				AccountType:    constant.ExternalAccountType,
+			},
+			from: map[string]Amount{
+				"0#@external#default": {Value: decimal.NewFromInt(50)},
+			},
+			asset:       "USD",
+			pending:     true,
+			expectError: true,
+			errorCode:   "0098", // ErrOnHoldExternalAccount: external carve-out unaffected by block feature
+		},
+		{
+			// (f) block prevails over the external carve-out: the validator is
+			// agnostic about who set AccountBlocked (in practice an external account
+			// cannot be blocked via the 1.2.1 guard, but the gate must still deny it).
+			// The block gate sits BEFORE the pending&&external branch, so 0502 wins.
+			name: "external account pending blocked returns block error (0502 prevails)",
+			balance: &Balance{
+				ID:             "123",
+				Alias:          "@external",
+				Key:            "default",
+				AssetCode:      "USD",
+				Available:      decimal.NewFromInt(100),
+				AllowSending:   true,
+				AccountBlocked: true,
+				AccountType:    constant.ExternalAccountType,
+			},
+			from: map[string]Amount{
+				"0#@external#default": {Value: decimal.NewFromInt(50)},
+			},
+			asset:       "USD",
+			pending:     true,
+			expectError: true,
+			errorCode:   "0502", // account block prevails over the external on-hold carve-out
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validateFromBalances(tt.balance, tt.from, tt.asset, false)
+			err := validateFromBalances(tt.balance, tt.from, tt.asset, tt.pending)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -526,6 +574,85 @@ func TestValidateToBalances(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+// TestValidateBalances_RF03_StatusRestrictionByteIdentical is the MANDATORY RF-03
+// regression. It pins the pre-existing account-status restriction (0024) unchanged by
+// the account-block feature: a NON-blocked account whose allow flag is false MUST still
+// return the exact same error it returned before the 0502 gate existed — same code,
+// same title, same message, and the same concrete type (UnprocessableOperationError),
+// which is what the HTTP layer maps to 422. Asserting the concrete type therefore pins
+// the status class byte-identically without importing the transport package. If any of
+// these three strings or the type drift, the feature has silently changed the restricted
+// balance path, which RF-03 forbids.
+func TestValidateBalances_RF03_StatusRestrictionByteIdentical(t *testing.T) {
+	t.Parallel()
+
+	const (
+		wantCode  = "0024"
+		wantTitle = "Account Status Transaction Restriction"
+		wantMsg   = "The current statuses of the source and/or destination accounts do not permit transactions. Change the account status(es) and try again."
+	)
+
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "source not blocked and sending not allowed returns 0024",
+			run: func() error {
+				bal := &Balance{
+					ID:             "123",
+					Alias:          "@account1",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(100),
+					AllowSending:   false,
+					AccountBlocked: false,
+					AccountType:    "internal",
+				}
+
+				return validateFromBalances(bal, map[string]Amount{
+					"0#@account1#default": {Value: decimal.NewFromInt(50)},
+				}, "USD", false)
+			},
+		},
+		{
+			name: "destination not blocked and receiving not allowed returns 0024",
+			run: func() error {
+				bal := &Balance{
+					ID:             "123",
+					Alias:          "@account1",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(100),
+					AllowReceiving: false,
+					AccountBlocked: false,
+					AccountType:    "internal",
+				}
+
+				return validateToBalances(bal, map[string]Amount{
+					"0#@account1#default": {Value: decimal.NewFromInt(50)},
+				}, "USD")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.run()
+			require.Error(t, err, "RF-03: a restricted-status balance must still be rejected")
+
+			var upe pkg.UnprocessableOperationError
+			require.ErrorAs(t, err, &upe, "RF-03: 0024 must remain an UnprocessableOperationError (HTTP 422)")
+			assert.Equal(t, wantCode, upe.Code, "RF-03: error code must remain byte-identical")
+			assert.Equal(t, wantTitle, upe.Title, "RF-03: title must remain byte-identical")
+			assert.Equal(t, wantMsg, upe.Message, "RF-03: message must remain byte-identical")
 		})
 	}
 }

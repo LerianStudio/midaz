@@ -329,3 +329,76 @@ func FuzzOperateBalances(f *testing.F) {
 		}
 	})
 }
+
+// FuzzValidateBalances_AccountBlocked fuzzes the account-block gate on both the source
+// (validateFromBalances) and destination (validateToBalances) sides. It threads the
+// AccountBlocked field through the fuzzed input alongside the allow flag, the pending
+// flag, and whether the balance asset matches, and asserts two invariants for every
+// generated combination:
+//
+//   - No panic on any input.
+//   - Deny-by-default: when the asset matches and AccountBlocked=true, the balance is
+//     ALWAYS rejected with exactly 0502 — never approved, never downgraded to 0024.
+//     When the asset does NOT match, the asset error (0034) is raised first (it sits
+//     ahead of the block gate), which the fuzzer must also respect.
+func FuzzValidateBalances_AccountBlocked(f *testing.F) {
+	// Seed corpus: (allow, blocked, pending, assetMatch) covering the meaningful corners.
+	f.Add(true, true, false, true)   // blocked, allow on -> 0502
+	f.Add(false, true, false, true)  // blocked, allow off -> 0502 (block precedes 0024)
+	f.Add(true, true, true, true)    // blocked, pending -> 0502 (block precedes carve-out)
+	f.Add(true, false, false, true)  // not blocked, allow on -> approved
+	f.Add(false, false, false, true) // not blocked, allow off -> 0024
+	f.Add(true, true, false, false)  // asset mismatch -> 0034 wins over block
+	f.Add(false, false, true, false) // asset mismatch, not blocked -> 0034
+
+	f.Fuzz(func(t *testing.T, allow, blocked, pending, assetMatch bool) {
+		const asset = "USD"
+
+		balanceAsset := asset
+		if !assetMatch {
+			balanceAsset = "EUR"
+		}
+
+		mkBalance := func() *Balance {
+			return &Balance{
+				ID:             "acc",
+				Alias:          "@acc",
+				Key:            "default",
+				AssetCode:      balanceAsset,
+				Available:      decimal.NewFromInt(100),
+				AllowSending:   allow,
+				AllowReceiving: allow,
+				AccountBlocked: blocked,
+				AccountType:    "internal",
+			}
+		}
+
+		entry := map[string]Amount{
+			"0#@acc#default": {Value: decimal.NewFromInt(10)},
+		}
+
+		fromErr := validateFromBalances(mkBalance(), entry, asset, pending)
+		toErr := validateToBalances(mkBalance(), entry, asset)
+
+		check := func(side string, err error) {
+			if !assetMatch {
+				// The asset-mismatch check sits ahead of the block gate.
+				if err == nil || codeFromError(err) != constant.ErrAssetCodeNotFound.Error() {
+					t.Errorf("%s: asset mismatch must yield 0034, got %v", side, err)
+				}
+
+				return
+			}
+
+			if blocked {
+				// INVARIANT: a blocked account is always denied with exactly 0502.
+				if err == nil || codeFromError(err) != constant.ErrAccountBlockedTransactionRestriction.Error() {
+					t.Errorf("%s: blocked account must be denied with 0502, got %v", side, err)
+				}
+			}
+		}
+
+		check("from", fromErr)
+		check("to", toErr)
+	})
+}

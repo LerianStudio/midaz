@@ -629,3 +629,76 @@ func TestProperty_OperateBalances_FlagIndependenceLegacy(t *testing.T) {
 	err := quick.Check(f, &quick.Config{MaxCount: 1000})
 	require.NoError(t, err, "FlagIndependenceLegacy property violated")
 }
+
+// TestProperty_ValidateFromBalances_BlockedAlwaysDenied verifies the deny-by-default
+// invariant on the source (debit) side of the account-block gate: for ANY combination
+// of AllowSending and the pending flag, a source balance whose asset matches and whose
+// AccountBlocked=true is ALWAYS rejected with 0502. The block prevails over the allow
+// flag (0024) and over the pending external carve-out (0098) — no generated combination
+// may approve a blocked account.
+func TestProperty_ValidateFromBalances_BlockedAlwaysDenied(t *testing.T) {
+	t.Parallel()
+
+	property := func(allowSending, pending, external bool) bool {
+		accountType := "internal"
+		if external {
+			accountType = constant.ExternalAccountType
+		}
+
+		balance := &Balance{
+			ID:             "acc",
+			Alias:          "@acc",
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.NewFromInt(100),
+			AllowSending:   allowSending,
+			AccountBlocked: true,
+			AccountType:    accountType,
+		}
+
+		from := map[string]Amount{
+			"0#@acc#default": {Value: decimal.NewFromInt(10)},
+		}
+
+		err := validateFromBalances(balance, from, "USD", pending)
+
+		// INVARIANT: a blocked source is always denied with exactly 0502.
+		return err != nil && codeFromError(err) == constant.ErrAccountBlockedTransactionRestriction.Error()
+	}
+
+	require.NoError(t, quick.Check(property, &quick.Config{MaxCount: 1000}),
+		"deny-by-default violated: a blocked source balance was not rejected with 0502")
+}
+
+// TestProperty_ValidateToBalances_BlockedAlwaysDenied verifies the same deny-by-default
+// invariant on the destination (credit) side: for ANY value of AllowReceiving, a
+// destination balance whose asset matches and whose AccountBlocked=true is ALWAYS
+// rejected with 0502, never approved and never downgraded to the 0024 status error.
+func TestProperty_ValidateToBalances_BlockedAlwaysDenied(t *testing.T) {
+	t.Parallel()
+
+	property := func(allowReceiving bool) bool {
+		balance := &Balance{
+			ID:             "acc",
+			Alias:          "@acc",
+			Key:            "default",
+			AssetCode:      "USD",
+			Available:      decimal.NewFromInt(100),
+			AllowReceiving: allowReceiving,
+			AccountBlocked: true,
+			AccountType:    "internal",
+		}
+
+		to := map[string]Amount{
+			"0#@acc#default": {Value: decimal.NewFromInt(10)},
+		}
+
+		err := validateToBalances(balance, to, "USD")
+
+		// INVARIANT: a blocked destination is always denied with exactly 0502.
+		return err != nil && codeFromError(err) == constant.ErrAccountBlockedTransactionRestriction.Error()
+	}
+
+	require.NoError(t, quick.Check(property, &quick.Config{MaxCount: 1000}),
+		"deny-by-default violated: a blocked destination balance was not rejected with 0502")
+}
