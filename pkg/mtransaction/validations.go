@@ -95,6 +95,14 @@ func validateFromBalances(balance *Balance, from map[string]Amount, asset string
 				return pkg.ValidateBusinessError(pkgConstant.ErrAssetCodeNotFound, "validateFromAccounts")
 			}
 
+			// Account block (0502) prevails over the status allow flag (0024):
+			// a blocked account cannot transact regardless of AllowSending. Kept as a
+			// single point immediately before the allow-check so phase 2 can turn it
+			// into `if balance.AccountBlocked && !grant` with a minimal diff.
+			if balance.AccountBlocked {
+				return pkg.ValidateBusinessError(pkgConstant.ErrAccountBlockedTransactionRestriction, "validateFromAccounts")
+			}
+
 			if !balance.AllowSending {
 				return pkg.ValidateBusinessError(pkgConstant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
 			}
@@ -114,6 +122,14 @@ func validateToBalances(balance *Balance, to map[string]Amount, asset string) er
 		if key == balance.ID || SplitAliasWithKey(key) == balanceAliasKey {
 			if balance.AssetCode != asset {
 				return pkg.ValidateBusinessError(pkgConstant.ErrAssetCodeNotFound, "validateToAccounts")
+			}
+
+			// Account block (0502) prevails over the status allow flag (0024):
+			// a blocked account cannot transact regardless of AllowReceiving. Kept as a
+			// single point immediately before the allow-check so phase 2 can turn it
+			// into `if balance.AccountBlocked && !grant` with a minimal diff.
+			if balance.AccountBlocked {
+				return pkg.ValidateBusinessError(pkgConstant.ErrAccountBlockedTransactionRestriction, "validateToAccounts")
 			}
 
 			if !balance.AllowReceiving {

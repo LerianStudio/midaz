@@ -350,6 +350,44 @@ func TestValidateFromBalances(t *testing.T) {
 			asset:       "USD",
 			expectError: false,
 		},
+		{
+			name: "invalid - account blocked prevails over allow sending",
+			balance: &Balance{
+				ID:             "123",
+				Alias:          "@account1",
+				Key:            "default",
+				AssetCode:      "USD",
+				Available:      decimal.NewFromInt(100),
+				AllowSending:   true,
+				AccountBlocked: true,
+				AccountType:    "internal",
+			},
+			from: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50)},
+			},
+			asset:       "USD",
+			expectError: true,
+			errorCode:   "0502", // ErrAccountBlockedTransactionRestriction: account block prevails over allow flag
+		},
+		{
+			name: "invalid - account blocked precedes allow-sending restriction",
+			balance: &Balance{
+				ID:             "123",
+				Alias:          "@account1",
+				Key:            "default",
+				AssetCode:      "USD",
+				Available:      decimal.NewFromInt(100),
+				AllowSending:   false,
+				AccountBlocked: true,
+				AccountType:    "internal",
+			},
+			from: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50)},
+			},
+			asset:       "USD",
+			expectError: true,
+			errorCode:   "0502", // account block (0502) prevails over status restriction (0024)
+		},
 	}
 
 	for _, tt := range tests {
@@ -433,6 +471,44 @@ func TestValidateToBalances(t *testing.T) {
 			asset:       "USD",
 			expectError: true,
 			errorCode:   "0024", // ErrAccountStatusTransactionRestriction
+		},
+		{
+			name: "invalid - account blocked prevails over allow receiving",
+			balance: &Balance{
+				ID:             "123",
+				Alias:          "@account1",
+				Key:            "default",
+				AssetCode:      "USD",
+				Available:      decimal.NewFromInt(100),
+				AllowReceiving: true,
+				AccountBlocked: true,
+				AccountType:    "internal",
+			},
+			to: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50)},
+			},
+			asset:       "USD",
+			expectError: true,
+			errorCode:   "0502", // ErrAccountBlockedTransactionRestriction: account block prevails over allow flag
+		},
+		{
+			name: "invalid - account blocked precedes allow-receiving restriction",
+			balance: &Balance{
+				ID:             "123",
+				Alias:          "@account1",
+				Key:            "default",
+				AssetCode:      "USD",
+				Available:      decimal.NewFromInt(100),
+				AllowReceiving: false,
+				AccountBlocked: true,
+				AccountType:    "internal",
+			},
+			to: map[string]Amount{
+				"0#@account1#default": {Value: decimal.NewFromInt(50)},
+			},
+			asset:       "USD",
+			expectError: true,
+			errorCode:   "0502", // account block (0502) prevails over status restriction (0024)
 		},
 	}
 
