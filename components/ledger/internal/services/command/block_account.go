@@ -41,7 +41,16 @@ func (uc *UseCase) BlockAccount(ctx context.Context, organizationID, ledgerID, a
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "block_account", start, err)
 	}()
 
-	return uc.setAccountBlockState(ctx, organizationID, ledgerID, accountID, true, holderPolicy)
+	blockedAccount, err := uc.setAccountBlockState(ctx, organizationID, ledgerID, accountID, true, holderPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	// Emitted last, after every read model converged: no event may claim a state
+	// the balances and the cache did not reach.
+	uc.emitAccountUpdatedEvent(ctx, span, logger, blockedAccount)
+
+	return blockedAccount, nil
 }
 
 // setAccountBlockState is the single state-transition path shared by
@@ -62,13 +71,18 @@ func (uc *UseCase) BlockAccount(ctx context.Context, organizationID, ledgerID, a
 //  4. Propagate to every balance in one atomic UPDATE.
 //  5. Evict the balance cache keys in one atomic DEL (invalidate-first: the next
 //     read repopulates from the freshly-propagated rows).
-//  6. Emit the audit event LAST, so no event ever claims a state the read models
-//     did not reach — and so a retry that short-circuits step 3 still emits,
-//     which is the only way the operator action reaches the audit stream when
-//     the first attempt died mid-propagation.
 //
 // Any failure from step 3 onward is returned to the caller. Nothing is confirmed
 // to the operator on a partial write.
+//
+// Emission is the caller's job, deliberately. BlockAccount and UnblockAccount
+// emit account.updated as their last act, so the event still comes after every
+// read model converged — including on the short-circuit path, which is the only
+// way the operator action reaches the audit stream when a first attempt died
+// mid-propagation. UpdateAccount instead folds this transition into the single
+// account.updated it already emits for the whole PATCH, so a request that
+// changes blocked alongside other fields does not publish the same resource
+// twice.
 func (uc *UseCase) setAccountBlockState(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, blocked bool, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -132,11 +146,7 @@ func (uc *UseCase) setAccountBlockState(ctx context.Context, organizationID, led
 	// fields, so the post-state is rebuilt in-memory from the pre-state exactly
 	// as UpdateAccount does. On the no-op path there was no Update at all and
 	// the pre-state timestamp is the persisted one.
-	merged := mergePatchAccount(accFound, &mmodel.Account{Blocked: &blocked}, updatedAt)
-
-	uc.emitAccountUpdatedEvent(ctx, span, logger, merged)
-
-	return merged, nil
+	return mergePatchAccount(accFound, &mmodel.Account{Blocked: &blocked}, updatedAt), nil
 }
 
 // findAccountToBlock reads the account that is about to change state and turns

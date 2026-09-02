@@ -36,5 +36,14 @@ func (uc *UseCase) UnblockAccount(ctx context.Context, organizationID, ledgerID,
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "unblock_account", start, err)
 	}()
 
-	return uc.setAccountBlockState(ctx, organizationID, ledgerID, accountID, false, holderPolicy)
+	unblockedAccount, err := uc.setAccountBlockState(ctx, organizationID, ledgerID, accountID, false, holderPolicy)
+	if err != nil {
+		return nil, err
+	}
+
+	// Emitted last, after every read model converged, exactly as BlockAccount
+	// does in the opposite direction.
+	uc.emitAccountUpdatedEvent(ctx, span, logger, unblockedAccount)
+
+	return unblockedAccount, nil
 }
