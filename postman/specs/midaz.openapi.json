@@ -24505,6 +24505,13 @@
             "additionalProperties": {},
             "type": "object"
           },
+          "operationalTypeCode": {
+            "examples": [
+              "PIX_IN"
+            ],
+            "maxLength": 100,
+            "type": "string"
+          },
           "operations": {
             "items": {
               "$ref": "#/components/schemas/Operation"
@@ -24886,6 +24893,13 @@
           "metadata": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "operationalTypeCode": {
+            "examples": [
+              "PIX_IN"
+            ],
+            "maxLength": 100,
+            "type": "string"
           },
           "operations": {
             "items": {

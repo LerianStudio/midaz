@@ -89,6 +89,11 @@ type TransactionV2 struct {
 	// example: false
 	TracerSkipped bool `json:"tracerSkipped" example:"false"`
 
+	// Operational type code applied to this transaction when an account exception routed it. Present only when applicable; absent when no exception applied a type.
+	// example: PIX_IN
+	// maxLength: 100
+	OperationalTypeCode string `json:"operationalTypeCode,omitempty" example:"PIX_IN" maxLength:"100"`
+
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -254,6 +259,7 @@ func newTransactionV2(t *transaction.Transaction) *TransactionV2 {
 		RouteID:             t.RouteID,
 		FeesSkipped:         t.FeesSkipped,
 		TracerSkipped:       t.TracerSkipped,
+		OperationalTypeCode: t.OperationalTypeCode,
 		CreatedAt:           t.CreatedAt,
 		UpdatedAt:           t.UpdatedAt,
 		DeletedAt:           t.DeletedAt,

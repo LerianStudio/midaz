@@ -1,0 +1,18 @@
+-- Add the operational_type_code column to the transaction table.
+--
+-- operational_type_code records the operational type code applied to a
+-- transaction when an account exception routed it. It is written per
+-- transaction and read back per row on the extract path; it is present only
+-- when an exception applied a type, so the column is NULLABLE and historical
+-- rows read NULL (omitted from the JSON response under the frozen contract).
+--
+-- This is a metadata-only ALTER on PostgreSQL 11+: a nullable column with no
+-- fill value triggers no table rewrite, and pre-existing rows read NULL without
+-- physical update. IF NOT EXISTS keeps the ALTER idempotent for multi-tenant
+-- re-runs. The prior application version keeps working because it simply never
+-- reads the column.
+--
+-- No index is created: the field is read from an already-loaded transaction row
+-- and is never filtered on in isolation, so an index would only add write
+-- amplification on the transaction hot path.
+ALTER TABLE transaction ADD COLUMN IF NOT EXISTS operational_type_code TEXT;

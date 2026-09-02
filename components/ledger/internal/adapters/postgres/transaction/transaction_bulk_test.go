@@ -532,7 +532,7 @@ func TestInsertTransactionChunk_ColumnCount(t *testing.T) {
 
 	// Verify that transactionColumnList has expected number of columns
 	// This ensures the bulk insert won't have column/value mismatch
-	expectedColumns := 18 // Based on transactionColumnList definition
+	expectedColumns := 19 // Based on transactionColumnList definition
 	assert.Equal(t, expectedColumns, len(transactionColumnList),
 		"transactionColumnList should have %d columns", expectedColumns)
 }
@@ -606,7 +606,7 @@ func TestCreateBulk_ChunkFailure_PartialResult(t *testing.T) {
 	t.Parallel()
 
 	// Create 2001 transactions to trigger 3 chunks (1000 + 1000 + 1) for CreateBulk
-	// Note: CreateBulk uses chunk size 1000 (18 columns, matching insertTransactionChunk),
+	// Note: CreateBulk uses chunk size 1000 (19 columns, matching insertTransactionChunk),
 	// UpdateBulk uses chunk size 500 (6 columns)
 	transactions := generateTestTransactions(2001)
 

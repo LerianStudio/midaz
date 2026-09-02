@@ -48,6 +48,7 @@ type TransactionPostgreSQLModel struct {
 	RouteID                  *string                   // UUID of the transaction route (FK to transaction_route.id)
 	FeesSkipped              bool                      // Honored per-call fee skip (audit trail)
 	TracerSkipped            bool                      // Honored per-call tracer skip (audit trail)
+	OperationalTypeCode      sql.NullString            // Operational type code applied by an account exception (nullable)
 	Metadata                 map[string]any            // Additional custom attributes
 }
 
@@ -174,6 +175,11 @@ type Transaction struct {
 	// example: false
 	TracerSkipped bool `json:"tracerSkipped" example:"false"`
 
+	// Operational type code applied to this transaction when an account exception routed it. Present only when applicable; absent when no exception applied a type.
+	// example: PIX_IN
+	// maxLength: 100
+	OperationalTypeCode string `json:"operationalTypeCode,omitempty" example:"PIX_IN" maxLength:"100"`
+
 	// Timestamp when the transaction was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -221,6 +227,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		OrganizationID:           t.OrganizationID,
 		FeesSkipped:              t.FeesSkipped,
 		TracerSkipped:            t.TracerSkipped,
+		OperationalTypeCode:      t.OperationalTypeCode.String,
 		CreatedAt:                t.CreatedAt,
 		UpdatedAt:                t.UpdatedAt,
 	}
@@ -279,6 +286,10 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 
 	if transaction.RouteID != nil {
 		t.RouteID = transaction.RouteID
+	}
+
+	if transaction.OperationalTypeCode != "" {
+		t.OperationalTypeCode = sql.NullString{String: transaction.OperationalTypeCode, Valid: true}
 	}
 
 	if transaction.DeletedAt != nil {
