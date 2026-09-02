@@ -74,7 +74,7 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 	// a renamed key is a silent break of somebody's subscription — this map turns
 	// either into a unit-test failure.
 	expectedEventKeys := map[string]struct{}{
-		// Ledger core (35).
+		// Ledger core (38).
 		"organization.created":      {},
 		"organization.updated":      {},
 		"organization.deleted":      {},
@@ -96,6 +96,9 @@ func TestMidazCatalogRoutesAssembly(t *testing.T) {
 		"operation_route.created":   {},
 		"operation_route.updated":   {},
 		"operation_route.deleted":   {},
+		"account_exception.created": {},
+		"account_exception.updated": {},
+		"account_exception.deleted": {},
 		"transaction_route.created": {},
 		"transaction_route.updated": {},
 		"transaction_route.deleted": {},
