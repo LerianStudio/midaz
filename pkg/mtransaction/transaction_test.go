@@ -5,12 +5,14 @@
 package mtransaction
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBalance_IsEmpty(t *testing.T) {
@@ -430,4 +432,66 @@ func TestTransaction_IsEmpty(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestAmount_GrantFields_NotSettableFromJSON is the SEC-L1 regression guard. The
+// account-block bypass grant fields (BlockBypassGranted, GrantedExceptionID) are
+// internal — they are written only by the transaction-time enrichment producer on
+// validate.From/To and read only by the same-request validators. They must never be
+// settable from a client request body, otherwise a caller could forge a block-bypass
+// grant (auth-bypass footgun). The json:"-" tag on both fields makes them unmarshal to
+// their zero value regardless of what the wire carries. This test fails if either tag
+// regresses to a wire-settable form.
+func TestAmount_GrantFields_NotSettableFromJSON(t *testing.T) {
+	t.Parallel()
+
+	// A hostile body that tries every historical spelling of the two fields.
+	body := []byte(`{
+		"asset": "BRL",
+		"value": "1000",
+		"blockBypassGranted": true,
+		"grantedExceptionId": "11111111-1111-1111-1111-111111111111",
+		"BlockBypassGranted": true,
+		"GrantedExceptionID": "22222222-2222-2222-2222-222222222222"
+	}`)
+
+	var amt Amount
+	require.NoError(t, json.Unmarshal(body, &amt))
+
+	assert.False(t, amt.BlockBypassGranted,
+		"BlockBypassGranted must NOT be settable from a request body")
+	assert.Empty(t, amt.GrantedExceptionID,
+		"GrantedExceptionID must NOT be settable from a request body")
+
+	// The public fields must still unmarshal so the guard is not just rejecting the body.
+	assert.Equal(t, "BRL", amt.Asset)
+	assert.True(t, amt.Value.Equal(decimal.NewFromInt(1000)))
+}
+
+// TestAmount_GrantFields_NotMarshalled proves the grant fields never leak into any
+// serialized/persisted Amount JSON even when populated internally at runtime. json:"-"
+// excludes them unconditionally (unlike omitempty, which only omitted the zero value),
+// so a granted validate.From/To Amount that were ever marshalled would carry no trace of
+// the internal grant. This keeps the persisted transaction body and idempotency hash
+// source byte-identical to pre-grant bodies.
+func TestAmount_GrantFields_NotMarshalled(t *testing.T) {
+	t.Parallel()
+
+	amt := Amount{
+		Asset:              "BRL",
+		Value:              decimal.NewFromInt(1000),
+		BlockBypassGranted: true,
+		GrantedExceptionID: "33333333-3333-3333-3333-333333333333",
+	}
+
+	raw, err := json.Marshal(amt)
+	require.NoError(t, err)
+
+	var asMap map[string]any
+	require.NoError(t, json.Unmarshal(raw, &asMap))
+
+	assert.NotContains(t, asMap, "blockBypassGranted",
+		"an internal grant flag must never appear in serialized Amount JSON")
+	assert.NotContains(t, asMap, "grantedExceptionId",
+		"an internal grant identifier must never appear in serialized Amount JSON")
 }

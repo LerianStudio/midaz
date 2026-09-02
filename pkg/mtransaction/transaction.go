@@ -99,11 +99,11 @@ type Amount struct {
 	// only — the grant never leaks to the opposite side, and never relaxes the
 	// asset-code check or the pending/external on-hold carve-out. Internal field;
 	// populated during transaction processing, excluded from the API contract.
-	BlockBypassGranted bool `json:"blockBypassGranted,omitempty" swaggerignore:"true"`
+	BlockBypassGranted bool `json:"-" swaggerignore:"true"`
 	// GrantedExceptionID carries the identifier of the account-exception grant that
 	// authorized the block bypass on this side. Empty when no grant applies. Internal
 	// field; populated during processing, excluded from the API contract.
-	GrantedExceptionID string `json:"grantedExceptionId,omitempty" swaggerignore:"true"`
+	GrantedExceptionID string `json:"-" swaggerignore:"true"`
 	// OverdraftAmount carries the exact overdraft delta for state-transition
 	// reversals. It is zero for normal transactions, where Lua derives the
 	// split from live balance state.
