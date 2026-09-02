@@ -38,18 +38,18 @@ var balanceAtomicOperationLua string
 //go:embed scripts/claim_balance_sync_keys.lua
 var claimBalanceSyncKeysLua string
 
-//go:embed scripts/update_balance_settings_cas.lua
-var updateBalanceSettingsCASLua string
+//go:embed scripts/update_balance_settings.lua
+var updateBalanceSettingsLua string
 
-// balanceAtomicScript, claimBalanceSyncScript, and updateBalanceSettingsCASScript
+// balanceAtomicScript, claimBalanceSyncScript, and updateBalanceSettingsScript
 // are built once at package init. redis.NewScript computes the source SHA1
 // eagerly, so hoisting these out of the per-call hot paths (runBalanceAtomicScript,
 // GetBalanceSyncKeys, GetBalanceSyncKeysLegacy, UpdateBalanceCacheSettings) avoids
 // re-hashing on every invocation. *redis.Script is safe for concurrent use.
 var (
-	balanceAtomicScript            = redis.NewScript(balanceAtomicOperationLua)
-	claimBalanceSyncScript         = redis.NewScript(claimBalanceSyncKeysLua)
-	updateBalanceSettingsCASScript = redis.NewScript(updateBalanceSettingsCASLua)
+	balanceAtomicScript         = redis.NewScript(balanceAtomicOperationLua)
+	claimBalanceSyncScript      = redis.NewScript(claimBalanceSyncKeysLua)
+	updateBalanceSettingsScript = redis.NewScript(updateBalanceSettingsLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
@@ -1582,27 +1582,6 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	return balance, nil
 }
 
-// luaBalanceSettingKey deletes every legacy alias for a cached balance settings
-// field so the subsequent authoritative write carries exactly one key per
-// field. The first argument is the Lua-native CamelCase key that the atomic
-// script reads; the variadic arguments enumerate camelCase / legacy spellings
-// that must be dropped from the map to avoid duplicate keys in the JSON
-// document (Go encoders emit both which Lua then sees twice).
-//
-// This helper is the SINGLE SOURCE OF TRUTH for the CamelCase ↔ camelCase
-// mapping between Go writers and the Lua atomic script. If additional Go
-// writers to the balance cache appear (e.g. tenant migration, admin tooling),
-// they MUST use this helper (or its equivalent mapping) to ensure the cached
-// JSON is Lua-compatible. See the CACHE JSON CASING CONTRACT on BalanceRedis
-// in pkg/mmodel/balance.go for the full rationale.
-func luaBalanceSettingKey(m map[string]any, primary string, aliases ...string) {
-	delete(m, primary)
-
-	for _, alias := range aliases {
-		delete(m, alias)
-	}
-}
-
 // balanceCacheSettingsTTL matches the TTL the balance atomic Lua script applies
 // to each cached balance key (`local ttl = 86400 -- 1 day` in
 // scripts/balance_atomic_operation.lua). Keeping the two in lock-step ensures
@@ -1610,96 +1589,54 @@ func luaBalanceSettingKey(m map[string]any, primary string, aliases ...string) {
 // an entry relative to the transactional refreshes driven by Lua.
 const balanceCacheSettingsTTL = 86400 * time.Second
 
-// maxBalanceSettingsCASAttempts bounds the CAS retry loop in
-// UpdateBalanceCacheSettings. The race window being closed is a single RTT
-// (GET-then-EVAL), so a handful of attempts is enough to win against
-// concurrent Lua writers without a backoff sleep.
-const maxBalanceSettingsCASAttempts = 5
-
-// applySettingsToCachedBalance mutates cached in place, overwriting ONLY the
-// settings-derived fields (AllowOverdraft, OverdraftLimitEnabled,
-// OverdraftLimit, BalanceScope). Available, OnHold, Version, OverdraftUsed,
-// and identity fields (ID, Alias, Key, AssetCode, etc.) are left untouched so
-// any in-flight transactional state the caller read is preserved.
-//
-// The cache payload is primed by the Lua atomic script
-// (scripts/balance_atomic_operation.lua), which uses cjson.encode() on a
-// table with CamelCase keys (ID, Available, Direction, AllowOverdraft, …).
-// Lua table access is case-sensitive, so if we re-marshal through
-// mmodel.BalanceRedis — whose struct tags are camelCase — the subsequent
-// cjson.decode in the script would see `balance.Available == nil`,
-// `balance.Direction == nil`, and blow up in arithmetic helpers with
-// "attempt to compare nil with number".
-//
-// To avoid that incompatibility this operates on an untyped map: Go's case-
-// insensitive unmarshal handles legacy cache entries in either casing, and it
-// writes back using the Lua-native CamelCase keys. For each managed field
-// every camelCase variant produced by an earlier (pre-fix) writer is dropped
-// before setting the Lua-native CamelCase key, so the cache carries a single
-// authoritative key per field — keeping both casings in the same document
-// would let Lua read a stale value while Go reads the fresh one.
-//
-// A nil settings payload resets the managed fields to the Lua plan-builder's
-// zero-state for balances without Settings (overdraft disabled, transactional
-// scope).
-func applySettingsToCachedBalance(cached map[string]any, settings *mmodel.BalanceSettings) {
-	luaBalanceSettingKey(cached, "AllowOverdraft", "allowOverdraft", "allowoverdraft")
-	luaBalanceSettingKey(cached, "OverdraftLimitEnabled", "overdraftLimitEnabled", "overdraftlimitenabled")
-	luaBalanceSettingKey(cached, "OverdraftLimit", "overdraftLimit", "overdraftlimit")
-	luaBalanceSettingKey(cached, "BalanceScope", "balanceScope", "balancescope")
-
+// resolveBalanceSettingsArgs normalizes a settings payload into the four
+// primitive values scripts/update_balance_settings.lua assigns verbatim onto
+// the cached balance: AllowOverdraft and OverdraftLimitEnabled as 0/1,
+// OverdraftLimit as a decimal string ("0" when disabled/unset), and
+// BalanceScope defaulted to transactional when empty. A nil settings payload
+// resolves to the same zero-state buildBalanceAtomicOperationPlan uses for
+// balances without Settings. All business logic for the PATCH lives here;
+// the Lua script only assigns these values onto the decoded balance.
+func resolveBalanceSettingsArgs(settings *mmodel.BalanceSettings) (allowOverdraft, overdraftLimitEnabled int, overdraftLimit, balanceScope string) {
 	if settings == nil {
-		cached["AllowOverdraft"] = 0
-		cached["OverdraftLimitEnabled"] = 0
-		cached["OverdraftLimit"] = "0"
-		cached["BalanceScope"] = mmodel.BalanceScopeTransactional
-
-		return
+		return 0, 0, "0", mmodel.BalanceScopeTransactional
 	}
 
-	cached["AllowOverdraft"] = boolToInt(settings.AllowOverdraft)
-	cached["OverdraftLimitEnabled"] = boolToInt(settings.OverdraftLimitEnabled)
-
-	// OverdraftLimit pointer-to-string: overwrite when provided, otherwise
-	// reset to the Lua-compatible "0" placeholder to mirror the behaviour
-	// of buildBalanceAtomicOperationPlan for disabled/unset limits.
+	overdraftLimit = "0"
 	if settings.OverdraftLimit != nil {
-		cached["OverdraftLimit"] = *settings.OverdraftLimit
-	} else {
-		cached["OverdraftLimit"] = "0"
+		overdraftLimit = *settings.OverdraftLimit
 	}
 
+	balanceScope = mmodel.BalanceScopeTransactional
 	if settings.BalanceScope != "" {
-		cached["BalanceScope"] = settings.BalanceScope
-	} else {
-		cached["BalanceScope"] = mmodel.BalanceScopeTransactional
+		balanceScope = settings.BalanceScope
 	}
+
+	return boolToInt(settings.AllowOverdraft), boolToInt(settings.OverdraftLimitEnabled), overdraftLimit, balanceScope
 }
 
-// UpdateBalanceCacheSettings rewrites the settings fields of a cached balance
-// JSON blob, preserving the live transactional state (Available, OnHold,
-// Version, OverdraftUsed) that the Lua atomic script may have mutated but not
-// yet flushed to PostgreSQL.
+// UpdateBalanceCacheSettings applies a settings-only PATCH to a cached
+// balance JSON blob in a single atomic Lua EVAL, preserving the live
+// transactional state (Available, OnHold, Version, OverdraftUsed) that the
+// balance atomic script may have mutated but not yet flushed to PostgreSQL.
 //
-// The rewrite is a value-based compare-and-swap: GET-then-mutate-then-EVAL
-// with no lock held across the round trip would let a concurrent Lua write
-// land between the GET and the write-back, and a blind SET would silently
-// revert it. Instead the CAS script (scripts/update_balance_settings_cas.lua)
-// only commits when the key still holds exactly the value this call read;
-// on conflict the loop re-reads, re-applies the settings mutation, and
-// retries, up to maxBalanceSettingsCASAttempts times with no sleep — the
-// window being closed is a single RTT.
+// The mutation runs inside scripts/update_balance_settings.lua rather than
+// in Go: Redis serializes EVAL execution, so this write and any concurrent
+// balance_atomic_operation.lua debit/credit on the same key can never
+// interleave. The script decodes the cached blob, overwrites only the
+// settings-derived fields (dropping any legacy camelCase alias a pre-fix
+// writer left behind), and re-encodes it in one server-side step, using the
+// same cjson.decode/cjson.encode round trip the atomic script already
+// performs on every transaction.
 //
-// Flow per attempt:
-//  1. GET the current JSON by the tenant-prefixed internal key.
-//  2. On cache miss (redis.Nil), return nil — the next transaction's SETNX
-//     will load the just-persisted settings from PostgreSQL.
-//  3. Unmarshal, apply the settings mutation (applySettingsToCachedBalance),
-//     remarshal.
-//  4. EVAL the CAS script with the raw value just read as the expected
-//     value and the new blob as the write, using the Lua script's canonical
-//     TTL (1 day). A 0 result (key vanished between GET and EVAL) is treated
-//     the same as a cache miss; a -1 result retries.
+// Flow:
+//  1. Resolve the settings payload into the four primitive ARGV values
+//     (resolveBalanceSettingsArgs).
+//  2. EVAL the script against the tenant-prefixed internal key.
+//  3. Result 1 commits; 0 is a cache miss (key absent) and a no-op — the
+//     next transaction's SETNX will load the just-persisted settings from
+//     PostgreSQL; -2 means the cached value was not valid JSON, a technical
+//     error.
 //
 // Errors are surfaced to the caller so the command layer can decide whether to
 // log (best-effort) or escalate; this method does not swallow them internally.
@@ -1732,90 +1669,43 @@ func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Contex
 		return err
 	}
 
+	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope := resolveBalanceSettingsArgs(settings)
 	ttlSeconds := strconv.FormatInt(int64(balanceCacheSettingsTTL/time.Second), 10)
 
-	attempts := 0
+	result, err := updateBalanceSettingsScript.Run(ctx, rds, []string{prefixedKey},
+		allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope, ttlSeconds).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to run settings update script on redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to run settings update script on Redis", libLog.Err(err))
 
-	for attempts < maxBalanceSettingsCASAttempts {
-		attempts++
-
-		// Read the current JSON. A missing key means the Lua script has not
-		// yet primed the cache for this balance; the next transaction will
-		// load the fresh settings directly from PostgreSQL, so there is
-		// nothing to rewrite.
-		val, getErr := rds.Get(ctx, prefixedKey).Result()
-		if errors.Is(getErr, redis.Nil) {
-			span.SetAttributes(attribute.Int("app.balance_settings_cas.attempts", attempts))
-			logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
-
-			return nil
-		}
-
-		if getErr != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get balance cache for settings update", getErr)
-			logger.Log(ctx, libLog.LevelError, "Failed to get balance cache for settings update", libLog.Err(getErr))
-
-			return getErr
-		}
-
-		var cached map[string]any
-		if err := json.Unmarshal([]byte(val), &cached); err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to unmarshal cached balance for settings update", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to unmarshal cached balance for settings update", libLog.Err(err))
-
-			return err
-		}
-
-		applySettingsToCachedBalance(cached, settings)
-
-		data, err := json.Marshal(cached)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to marshal updated cached balance", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to marshal updated cached balance", libLog.Err(err))
-
-			return err
-		}
-
-		result, err := updateBalanceSettingsCASScript.Run(ctx, rds, []string{prefixedKey}, val, string(data), ttlSeconds).Result()
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to run settings CAS script on redis", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to run settings CAS script on Redis", libLog.Err(err))
-
-			return err
-		}
-
-		casResult, ok := result.(int64)
-		if !ok {
-			castErr := fmt.Errorf("unexpected result type from settings CAS script: %T", result)
-			libOpentelemetry.HandleSpanError(span, "Unexpected result type from settings CAS script", castErr)
-			logger.Log(ctx, libLog.LevelError, "Unexpected result type from settings CAS script", libLog.Err(castErr))
-
-			return castErr
-		}
-
-		switch casResult {
-		case 1:
-			span.SetAttributes(attribute.Int("app.balance_settings_cas.attempts", attempts))
-			logger.Log(ctx, libLog.LevelDebug, "Balance cache settings updated in place")
-
-			return nil
-		case 0:
-			span.SetAttributes(attribute.Int("app.balance_settings_cas.attempts", attempts))
-			logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings CAS commit (no-op)")
-
-			return nil
-		default:
-			logger.Log(ctx, libLog.LevelDebug, "Balance settings CAS conflict, retrying", libLog.Int("attempt", attempts))
-		}
+		return err
 	}
 
-	span.SetAttributes(attribute.Int("app.balance_settings_cas.attempts", attempts))
+	scriptResult, ok := result.(int64)
+	if !ok {
+		castErr := fmt.Errorf("unexpected result type from settings update script: %T", result)
+		libOpentelemetry.HandleSpanError(span, "Unexpected result type from settings update script", castErr)
+		logger.Log(ctx, libLog.LevelError, "Unexpected result type from settings update script", libLog.Err(castErr))
 
-	exhaustedErr := fmt.Errorf("exhausted %d attempts applying balance cache settings CAS update due to concurrent writers", maxBalanceSettingsCASAttempts)
-	libOpentelemetry.HandleSpanError(span, "Exhausted retries applying balance cache settings CAS update", exhaustedErr)
-	logger.Log(ctx, libLog.LevelError, "Exhausted retries applying balance cache settings CAS update", libLog.Err(exhaustedErr))
+		return castErr
+	}
 
-	return exhaustedErr
+	switch scriptResult {
+	case 1:
+		logger.Log(ctx, libLog.LevelDebug, "Balance cache settings updated in place")
+
+		return nil
+	case 0:
+		logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
+
+		return nil
+	default:
+		corruptErr := fmt.Errorf("corrupt cached balance: settings update script returned %d", scriptResult)
+		libOpentelemetry.HandleSpanError(span, "Corrupt cached balance blob on settings update", corruptErr)
+		logger.Log(ctx, libLog.LevelError, "Corrupt cached balance blob on settings update", libLog.Err(corruptErr))
+
+		return corruptErr
+	}
 }
 
 // GetBalancesByKeys retrieves multiple balance values using MGET.

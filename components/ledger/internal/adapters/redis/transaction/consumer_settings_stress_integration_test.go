@@ -35,30 +35,33 @@ import (
 // syncs, the loss survives the next sync (the guard in balance.postgresql.go
 // only accepts a higher-versioned write).
 //
-// The fix replaces the blind SET with a value-based CAS (EVAL): the write
-// only commits if the cached value is still exactly what Go read, and retries
-// (re-read, re-apply, re-attempt) on conflict.
+// The fix moves the settings mutation into a single Lua EVAL
+// (update_balance_settings.lua): Redis serializes EVAL execution, so the
+// settings write and any concurrent balance_atomic_operation.lua debit on
+// the same key can never interleave. There is no read-then-write window to
+// race and therefore no retry path — every call either commits on its first
+// and only attempt or reports a cache miss / corrupt blob.
 
-// settingsCASStressDebits is the number of concurrent debit workers, each
+// settingsStressDebits is the number of concurrent debit workers, each
 // issuing one real Lua debit through ProcessBalanceAtomicOperation. Kept well
 // under the seeded Available so every debit succeeds and no overdraft/version
 // gate in the Lua script is triggered, keeping Version increments strictly
 // tied to successful writes.
-const settingsCASStressDebits = 400
+const settingsStressDebits = 400
 
-// settingsCASStressSettingsIterations is the number of sequential
+// settingsStressSettingsIterations is the number of sequential
 // UpdateBalanceCacheSettings calls fired from a single goroutine while the
 // debit workers run concurrently. Sequential (not concurrent with each
 // other) so "the last settings call" is an unambiguous invariant even though
 // it races the debit workers in wall-clock time.
-const settingsCASStressSettingsIterations = 400
+const settingsStressSettingsIterations = 400
 
-// buildSettingsCASStressDebitOp builds a plain, non-overdraft DEBIT operation
+// buildSettingsStressDebitOp builds a plain, non-overdraft DEBIT operation
 // against a pre-seeded balance. Direction/AllowOverdraft are deliberately
 // disabled and Available never approaches zero, so the Lua script never
 // enters an overdraft or stale-version branch — every debit is a pure
 // "read live cache, subtract, write back, Version++".
-func buildSettingsCASStressDebitOp(orgID, ledgerID uuid.UUID, alias, internalKey string, amount decimal.Decimal) mmodel.BalanceOperation {
+func buildSettingsStressDebitOp(orgID, ledgerID uuid.UUID, alias, internalKey string, amount decimal.Decimal) mmodel.BalanceOperation {
 	return overdraftOp(orgID, ledgerID, alias, "deposit", "credit",
 		decimal.Zero, decimal.Zero, 1, nil,
 		constant.DEBIT, amount)
@@ -66,17 +69,20 @@ func buildSettingsCASStressDebitOp(orgID, ledgerID uuid.UUID, alias, internalKey
 
 // TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2 is
 // the stress reproduction for G2. It seeds one balance, then races
-// settingsCASStressDebits concurrent Lua debits against
-// settingsCASStressSettingsIterations sequential settings PATCHes on the same
-// key, and pins three invariants that a lost update would violate:
+// settingsStressDebits concurrent Lua debits against
+// settingsStressSettingsIterations sequential settings PATCHes on the same
+// key, and pins four invariants that a lost update would violate:
 //
 //  1. Available == seeded Available − Σ(debit amounts)
 //  2. Version   == seeded Version + number of successful Lua writes
 //  3. the settings fields in cache match the LAST settings call issued
+//  4. every settings call succeeds on its first attempt — there is no retry
+//     budget to exhaust under heavy concurrent write pressure
 //
-// Without the CAS fix this test is expected to fail on (1) and/or (2): a
-// settings PATCH racing a debit's Lua write can revert Available/Version to
-// a stale snapshot, permanently losing one or more debits.
+// Against the pre-fix GET-then-SET implementation this test failed on (1)
+// and/or (2): a settings PATCH racing a debit's Lua write reverted
+// Available/Version to a stale snapshot, permanently losing one or more
+// debits.
 func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -87,7 +93,7 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 
 	orgID := uuid.New()
 	ledgerID := uuid.New()
-	alias := "@g2-settings-cas-stress"
+	alias := "@g2-settings-stress"
 	balanceKey := alias + "#default"
 	internalKey := utils.BalanceInternalKey(orgID, ledgerID, balanceKey)
 
@@ -129,14 +135,16 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 
 	var debitErrs atomic.Int64
 
-	for i := 0; i < settingsCASStressDebits; i++ {
+	var settingsCallsSucceeded atomic.Int64
+
+	for i := 0; i < settingsStressDebits; i++ {
 		wg.Add(1)
 
 		go func() {
 			defer wg.Done()
 			<-start
 
-			op := buildSettingsCASStressDebitOp(orgID, ledgerID, alias, internalKey, debitAmount)
+			op := buildSettingsStressDebitOp(orgID, ledgerID, alias, internalKey, debitAmount)
 
 			_, opErr := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
 				uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
@@ -152,7 +160,7 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 		defer wg.Done()
 		<-start
 
-		for i := 0; i < settingsCASStressSettingsIterations; i++ {
+		for i := 0; i < settingsStressSettingsIterations; i++ {
 			limit := decimal.NewFromInt(int64(1000 + i)).String()
 			settings := &mmodel.BalanceSettings{
 				BalanceScope:          mmodel.BalanceScopeTransactional,
@@ -161,13 +169,14 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 				OverdraftLimit:        &limit,
 			}
 
-			// Best-effort by contract: errors are only returned once retries
-			// are exhausted, which should not happen with a sane attempt
-			// budget. Any error here is a genuine test failure, not a
-			// business outcome to swallow.
+			// Best-effort by contract, but under this design a non-nil error
+			// here can only be a genuine infrastructure failure (transport
+			// error or a corrupt cached blob) — there is no retry-exhaustion
+			// outcome to tolerate, so any error is a real test failure.
 			uErr := infra.repo.UpdateBalanceCacheSettings(ctx, orgID, ledgerID, balanceKey, settings)
 			require.NoError(t, uErr)
 
+			settingsCallsSucceeded.Add(1)
 			lastSettings = settings
 		}
 	}()
@@ -178,17 +187,23 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 	require.Zero(t, debitErrs.Load(), "every debit is well within Available and must not be rejected")
 	require.NotNil(t, lastSettings)
 
+	// Every settings call committed on its first (and only) EVAL — the
+	// in-Lua design has no retry loop and therefore no attempt budget that
+	// could be exhausted under this write pressure.
+	assert.EqualValues(t, settingsStressSettingsIterations, settingsCallsSucceeded.Load(),
+		"every settings update must succeed in a single atomic call, even under concurrent debit pressure")
+
 	final := readCachedBalance(t, infra, internalKey)
 
 	expectedAvailable := decimal.NewFromInt(seededAvailable).
-		Sub(debitAmount.Mul(decimal.NewFromInt(settingsCASStressDebits)))
+		Sub(debitAmount.Mul(decimal.NewFromInt(settingsStressDebits)))
 	finalAvailable, err := decimal.NewFromString(final.Available)
 	require.NoError(t, err)
 	assert.Truef(t, finalAvailable.Equal(expectedAvailable),
 		"Available must equal seeded minus every successful debit (lost update if not): want %s, got %s",
 		expectedAvailable, finalAvailable)
 
-	expectedVersion := seededVersion + settingsCASStressDebits
+	expectedVersion := seededVersion + settingsStressDebits
 	assert.Equalf(t, expectedVersion, final.Version,
 		"Version must equal seeded plus one increment per successful Lua write (lost update if not)")
 
