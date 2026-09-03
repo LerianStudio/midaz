@@ -1145,9 +1145,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// RedisQueueConsumer: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
 	if cfg.MultiTenantEnabled && tenantCache != nil {
-		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantCache, txnPG.pgManager)
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, commandUseCase, queryUseCase, true, tenantCache, txnPG.pgManager)
 	} else {
-		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
+		redisConsumer = NewRedisQueueConsumer(logger, commandUseCase, queryUseCase)
 	}
 
 	// The quarantine repository is the durable sink for poison backup records;

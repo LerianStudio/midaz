@@ -15,8 +15,8 @@ import (
 	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 )
 
 // TestProperty_RedisQueueConsumer_PredicateEqualsEnabledAndPGManagerNonNil verifies
@@ -25,7 +25,8 @@ func TestProperty_RedisQueueConsumer_PredicateEqualsEnabledAndPGManagerNonNil(t 
 	t.Parallel()
 
 	logger := newTestLogger()
-	handler := in.TransactionHandler{}
+	cmd := &command.UseCase{}
+	qry := &query.UseCase{}
 	tc, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tc, "transaction", tmpostgres.WithLogger(logger))
@@ -33,7 +34,7 @@ func TestProperty_RedisQueueConsumer_PredicateEqualsEnabledAndPGManagerNonNil(t 
 	cache := tenantcache.NewTenantCache()
 
 	property := func(enabled bool, hasPGManager bool, hasTenantCache bool) bool {
-		consumer := NewRedisQueueConsumer(logger, handler)
+		consumer := NewRedisQueueConsumer(logger, cmd, qry)
 		consumer.multiTenantEnabled = enabled
 
 		if hasPGManager {
@@ -72,7 +73,8 @@ func TestProperty_NewRedisQueueConsumerMultiTenant_PreservesBaseFields(t *testin
 	t.Parallel()
 
 	logger := newTestLogger()
-	handler := in.TransactionHandler{}
+	cmd := &command.UseCase{}
+	qry := &query.UseCase{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
@@ -85,7 +87,7 @@ func TestProperty_NewRedisQueueConsumerMultiTenant_PreservesBaseFields(t *testin
 			mgr = pgMgr
 		}
 
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, enabled, consumerCache, mgr)
+		consumer := NewRedisQueueConsumerMultiTenant(logger, cmd, qry, enabled, consumerCache, mgr)
 
 		// Property: constructor never returns nil.
 		if consumer == nil {
@@ -133,7 +135,8 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 
 	logger := newTestLogger()
 	useCase := &command.UseCase{}
-	handler := in.TransactionHandler{}
+	cmd := &command.UseCase{}
+	qry := &query.UseCase{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	require.NoError(t, err)
 	pgMgr := tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(logger))
@@ -188,7 +191,7 @@ func TestProperty_MultiTenantConstructors_NeverPanic(t *testing.T) {
 		}
 
 		// Property: NewRedisQueueConsumerMultiTenant must never panic.
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, consumerEnabled, cTenantCache, cPGManager)
+		consumer := NewRedisQueueConsumerMultiTenant(logger, cmd, qry, consumerEnabled, cTenantCache, cPGManager)
 		if consumer == nil {
 			return false
 		}
