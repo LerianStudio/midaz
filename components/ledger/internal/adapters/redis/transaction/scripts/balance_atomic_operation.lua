@@ -289,13 +289,67 @@ local function rollback(rollbackBalances, ttl)
   end
 end
 
+-- blockedAccountsSentinel mirrors utils.BlockedAccountsHydratedMember on the Go
+-- side. It is deliberately a value that can never parse as a UUID, so it shares
+-- the blocked-accounts SET with account IDs without ever being read as one.
+local blockedAccountsSentinel = "__hydrated__"
+
+-- probeBlockedAccounts answers, for one ledger's blocked-accounts SET, whether
+-- the index is hydrated and which of the probed accounts it carries.
+--
+-- Returns (hydrated, blockedAccountID); blockedAccountID is nil when the SET
+-- carries none of them. The hydration sentinel rides index 1 of EVERY chunk, so
+-- an index that lost its marker is detected before a single account answer is
+-- trusted — a SET without the sentinel knows nothing, it is not empty.
+--
+-- The probe is chunked so the number of arguments unpacked onto the Lua stack
+-- stays bounded no matter how many operations the caller batched.
+local function probeBlockedAccounts(setKey, accounts)
+    local chunkSize = 200
+
+    for start = 1, #accounts, chunkSize do
+        local finish = math.min(start + chunkSize - 1, #accounts)
+
+        local probe = { blockedAccountsSentinel }
+        for idx = start, finish do
+            probe[#probe + 1] = accounts[idx]
+        end
+
+        local answers = redis.call("SMISMEMBER", setKey, unpack(probe))
+
+        if tonumber(answers[1]) ~= 1 then
+            return false, nil
+        end
+
+        for idx = 2, #answers do
+            if tonumber(answers[idx]) == 1 then
+                return true, probe[idx]
+            end
+        end
+    end
+
+    return true, nil
+end
+
+-- TWO-PASS INVARIANT — the structural guarantee of the account-block gate.
+--
+-- main() runs PASS 1 (every check: delete markers, then the account-block gate)
+-- to completion before PASS 2 (the mutation loop) writes anything. Neither half
+-- may migrate into the other: a check evaluated inside the mutation loop would
+-- reach its verdict with earlier balances of the same batch already written, and
+-- the structured denials this script returns ("BLOCKED:<id>", "NEEDS_HYDRATION")
+-- are ordinary return values, not error replies, so they carry no rollback.
+--
+-- That is why a batch where only the LAST operation names a blocked account
+-- still leaves zero side effects, and it is asserted as such by the integration
+-- suite. Adding a check? It goes in PASS 1. Adding a write? It goes in PASS 2.
 local function main()
     local ttl = 86400 -- 1 day
 
     -- Must equal luaArgsPerOperation in consumer.redis.go. The two are changed
     -- in the same commit and asserted in lock-step by a Go unit test: a drift
     -- makes every balance after the first in a batch read the wrong fields.
-    local groupSize = 25
+    local groupSize = 26
     local returnBalances = {}
     local returnBalancesAfter = {}
     local rollbackBalances = {}
@@ -316,13 +370,17 @@ local function main()
     local timeNow = redis.call("TIME")
     local dueAt = tonumber(timeNow[1]) + tonumber(timeNow[2]) / 1000000
 
+    -- ========================================================================
+    -- PASS 1 — CHECKS ONLY. Nothing below this banner may write until PASS 2.
+    -- ========================================================================
+
     -- Delete marker guard: reject the whole batch before any mutation if any balance
     -- in it carries a live deletion marker. The delete marker is a SEPARATE key
     -- "<balanceKey>:deleted" that never overwrites the balance itself, and it
     -- shares the balance key's {transactions} hash slot. Running this pre-pass
     -- ahead of the first SET below means a rejection here leaves zero side
     -- effects across the batch, so no rollback is required. The stride mirrors
-    -- the main loop below (groupSize=25; ARGV[i] is the balance key). A bounded
+    -- the main loop below (groupSize=26; ARGV[i] is the balance key). A bounded
     -- per-key EXISTS check early-returns on the first delete marker found, so the
     -- whole batch is rejected without unpacking a client-influenced number of keys.
     for i = 1, #ARGV, groupSize do
@@ -330,6 +388,58 @@ local function main()
             return redis.error_reply("0019")
         end
     end
+
+    -- Account-block gate: the authoritative enforcement point for account
+    -- blocking. It lives HERE, inside the same atomic invocation that mutates
+    -- the balances, because any check made earlier in Go is TOCTOU against a
+    -- block landing while the transaction is in flight.
+    --
+    -- The SET key arrives as KEYS[4] instead of being rebuilt in-script: the
+    -- tenant prefix that namespaces every key of this deployment lives in the Go
+    -- request context, which the script never receives, so a key assembled here
+    -- would read some other tenant's index. The {transactions} hash tag on that
+    -- key is what keeps this cross-key read legal under Redis Cluster.
+    local blockedAccountsKey = KEYS[4]
+
+    -- Collect the DISTINCT accounts carrying at least one ungranted operation.
+    -- An account whose every leg in this batch carries an account-exception
+    -- grant is never probed: the grant already is the answer, and skipping it
+    -- keeps the probe as small as the decision requires.
+    --
+    -- CANCELED is exempt by contract: a cancel returns a hold to the very
+    -- account it came from, so no money leaves a blocked account.
+    local accountsToCheck = {}
+    local seenAccount = {}
+
+    for i = 1, #ARGV, groupSize do
+        if ARGV[i + 2] ~= "CANCELED" and tonumber(ARGV[i + 25]) ~= 1 then
+            local accountID = ARGV[i + 12]
+
+            if accountID ~= "" and not seenAccount[accountID] then
+                seenAccount[accountID] = true
+                accountsToCheck[#accountsToCheck + 1] = accountID
+            end
+        end
+    end
+
+    if #accountsToCheck > 0 then
+        local hydrated, blockedAccountID = probeBlockedAccounts(blockedAccountsKey, accountsToCheck)
+
+        -- An index missing its sentinel cannot answer for ANY account. Reading
+        -- it as "nothing is blocked" is the single failure direction this whole
+        -- design refuses, so the caller is told to rebuild it and come back.
+        if not hydrated then
+            return "NEEDS_HYDRATION"
+        end
+
+        if blockedAccountID then
+            return "BLOCKED:" .. blockedAccountID
+        end
+    end
+
+    -- ========================================================================
+    -- PASS 2 — MUTATIONS. Every check above has passed for the whole batch.
+    -- ========================================================================
 
     for i = 1, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
@@ -402,6 +512,12 @@ local function main()
         -- Normal transaction paths pass zero and keep Lua's live-state split
         -- calculation authoritative.
         local overdraftAmount = ARGV[i + 23]
+
+        -- ARGV[i + 24] is balance.AccountBlocked, read into the table above.
+        -- ARGV[i + 25] is the per-operation account-exception grant; it is
+        -- consumed by the PASS 1 gate and deliberately never enters the balance
+        -- table, because it describes the OPERATION, not the balance, and would
+        -- otherwise be persisted into the cache document.
 
         -- Preserve the Go-provided version before the cache may overwrite it.
         -- Used for stale-version detection on overdraft-relevant operations.

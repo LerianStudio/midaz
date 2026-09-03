@@ -55,9 +55,16 @@ func accountBlockedOp(t *testing.T, blocked bool) mmodel.BalanceOperation {
 	}
 }
 
-// TestBuildPlan_AccountBlockedIsLastARGV pins the new field to the END of the
+// accountBlockedARGVOffset is the fixed position of balance.AccountBlocked
+// inside the per-operation ARGV group. It is written out rather than derived
+// from luaArgsPerOperation because the field is no longer the last entry: the
+// account-block gate appended the exception grant after it, and a derived
+// offset would have silently followed that move onto the wrong slot.
+const accountBlockedARGVOffset = 24
+
+// TestBuildPlan_AccountBlockedIsLastARGV pins the field to its position in the
 // per-balance ARGV block. Every existing position is a contract with the Lua
-// script's parsing loop, so the flag may only be appended — never inserted.
+// script's parsing loop, so a field may only be appended — never inserted.
 func TestBuildPlan_AccountBlockedIsLastARGV(t *testing.T) {
 	t.Parallel()
 
@@ -84,8 +91,8 @@ func TestBuildPlan_AccountBlockedIsLastARGV(t *testing.T) {
 			require.Len(t, plan.args, luaArgsPerOperation,
 				"one balance must produce exactly one ARGV group")
 
-			assert.Equal(t, tc.want, plan.args[luaArgsPerOperation-1],
-				"ARGV[i+%d] balance.AccountBlocked must be the LAST entry of the group", luaArgsPerOperation-1)
+			assert.Equal(t, tc.want, plan.args[accountBlockedARGVOffset],
+				"ARGV[i+%d] must still carry balance.AccountBlocked", accountBlockedARGVOffset)
 		})
 	}
 }
@@ -95,8 +102,8 @@ func TestBuildPlan_AccountBlockedIsLastARGV(t *testing.T) {
 func TestBuildPlan_AccountBlockedStrideIsAtomic(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, 25, luaArgsPerOperation,
-		"luaArgsPerOperation must be 25: 17 base + 7 overdraft + 1 account-block field")
+	assert.Equal(t, 26, luaArgsPerOperation,
+		"luaArgsPerOperation must be 26: 17 base + 7 overdraft + 1 account-block + 1 exception-grant field")
 
 	repo := &RedisConsumerRepository{conn: newFailOnCallConnection(t)}
 
@@ -108,8 +115,8 @@ func TestBuildPlan_AccountBlockedStrideIsAtomic(t *testing.T) {
 	require.Len(t, plan.args, 2*luaArgsPerOperation,
 		"two operations must produce two ARGV groups of the same stride")
 
-	assert.Equal(t, 0, plan.args[luaArgsPerOperation-1], "1st balance AccountBlocked")
-	assert.Equal(t, 1, plan.args[2*luaArgsPerOperation-1], "2nd balance AccountBlocked")
+	assert.Equal(t, 0, plan.args[accountBlockedARGVOffset], "1st balance AccountBlocked")
+	assert.Equal(t, 1, plan.args[luaArgsPerOperation+accountBlockedARGVOffset], "2nd balance AccountBlocked")
 }
 
 // TestLuaScript_StrideMatchesGoStride keeps the Go constant and the Lua
@@ -119,7 +126,7 @@ func TestBuildPlan_AccountBlockedStrideIsAtomic(t *testing.T) {
 func TestLuaScript_StrideMatchesGoStride(t *testing.T) {
 	t.Parallel()
 
-	assert.Contains(t, balanceAtomicOperationLua, "local groupSize = 25",
+	assert.Contains(t, balanceAtomicOperationLua, "local groupSize = 26",
 		"the Lua groupSize must match luaArgsPerOperation")
 	assert.Contains(t, balanceAtomicOperationLua, "AccountBlocked = tonumber(ARGV[i + 24])",
 		"the Lua script must read the account-block flag from the last ARGV slot")

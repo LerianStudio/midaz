@@ -29,6 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -735,14 +736,30 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 // operation. It must match the stride used in the Lua script's parsing loop
 // (balance_atomic_operation.lua: `for i = 1, #ARGV, groupSize do`).
 //
-// Layout: 17 base fields + 7 overdraft fields + 1 account-block field = 25 total.
+// Layout: 17 base fields + 7 overdraft fields + 1 account-block field
+// + 1 account-exception grant field = 26 total.
 //
 // A new field is only ever APPENDED: every existing index is a positional
 // contract with the Lua script, and shifting one silently misreads every field
 // after it. Changing this constant therefore requires changing `groupSize` in
 // balance_atomic_operation.lua in the SAME commit — the two are asserted in
 // lock-step by TestLuaScript_StrideMatchesGoStride.
-const luaArgsPerOperation = 25
+const luaArgsPerOperation = 26
+
+// exceptionGrantFlag reduces the account-exception grant carried by one
+// operation to the 0/1 the Lua gate reads.
+//
+// Two carriers coexist while the exception aggregate is being reshaped:
+// GrantedExceptionID names the rule that matched, BlockBypassGranted is the
+// older boolean. Either one implies the grant, so the gate keeps honouring a
+// caller that still sets only the boolean.
+func exceptionGrantFlag(amount mtransaction.Amount) int {
+	if amount.GrantedExceptionID != "" || amount.BlockBypassGranted {
+		return 1
+	}
+
+	return 0
+}
 
 func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.Context, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation) (*balanceAtomicOperationPlan, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -801,7 +818,7 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 			}
 		}
 
-		// Each group of luaArgsPerOperation (25) values maps to one iteration
+		// Each group of luaArgsPerOperation (26) values maps to one iteration
 		// of the Lua script's `for i = 1, #ARGV, groupSize` loop.
 		// See: scripts/balance_atomic_operation.lua.
 		plan.args = append(
@@ -835,6 +852,11 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 			// group. Cache-only, like the allow flags — the script carries it
 			// through the balance table but never computes with it.
 			boolToInt(blcs.Balance.AccountBlocked), // ARGV[i+24] → balance.AccountBlocked (cache-only)
+			// The account-block GATE input, appended after it. Unlike every
+			// entry above, this one describes the OPERATION rather than the
+			// balance: the script consumes it in its check pass and never
+			// writes it into the cached balance document.
+			exceptionGrantFlag(blcs.Amount), // ARGV[i+25] → per-operation exception grant (0/1)
 		)
 
 		plan.mapBalances[blcs.Alias] = blcs.Balance
@@ -1032,7 +1054,17 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	transactionKey := utils.TransactionInternalKey(organizationID, ledgerID, transactionID.String())
 
-	prefixedKeys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, transactionKey, utils.BalanceSyncScheduleKey})
+	// KEYS[4] is the ledger's blocked-accounts index, read by the script's check
+	// pass. It is supplied from here rather than assembled inside the script
+	// because the tenant prefix lives in this context and nowhere the script can
+	// reach; its {transactions} hash tag is what makes the cross-key read legal
+	// under Redis Cluster.
+	prefixedKeys, err := tenantKeysFromContext(ctx, []string{
+		TransactionBackupQueue,
+		transactionKey,
+		utils.BalanceSyncScheduleKey,
+		utils.BlockedAccountsInternalKey(organizationID, ledgerID),
+	})
 	if err != nil {
 		return nil, err
 	}
