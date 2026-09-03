@@ -36,7 +36,7 @@ func hasProperty(s *huma.Schema, prop string) bool {
 // opt-outs routeValidationEnabled and overdraftAmount — plus the read-model skip opt-out
 // on TransactionInput. The publish-time schema transform must strip exactly those
 // swaggerignore-tagged properties from the shared component schemas, while every
-// legitimately-published field (including the documented create-input skip) survives.
+// legitimately-published field (including the /v2 create-input skip) survives.
 func TestInternalFieldsHiddenFromContract(t *testing.T) {
 	t.Parallel()
 
@@ -68,13 +68,18 @@ func TestInternalFieldsHiddenFromContract(t *testing.T) {
 	assert.True(t, hasProperty(txInput, "send"),
 		"TransactionInput must retain the published send field")
 
-	// Precision guard: the create-input skip is a legitimately-published field (no
-	// swaggerignore tag, documented in the historical contract), so the transform must
-	// leave it and its send field in place.
+	// Precision guard: the /v2 create-input skip is a legitimately-published field (no
+	// swaggerignore tag), so the transform must leave it in place — while the /v1 create
+	// input names no skip at all, because the controls it opts out of are /v2-only.
+	createTxV2 := componentSchema(api, "CreateTransactionV2Input")
+	require.NotNil(t, createTxV2, "CreateTransactionV2Input must be published")
+	assert.True(t, hasProperty(createTxV2, "skip"),
+		"CreateTransactionV2Input must retain its documented skip field")
+
 	createTx := componentSchema(api, "CreateTransactionInput")
 	require.NotNil(t, createTx, "CreateTransactionInput must be published")
-	assert.True(t, hasProperty(createTx, "skip"),
-		"CreateTransactionInput must retain its documented skip field")
+	assert.False(t, hasProperty(createTx, "skip"),
+		"CreateTransactionInput must not expose a skip field: the fee engine and the tracer reservation are /v2-only")
 	assert.True(t, hasProperty(createTx, "send"),
 		"CreateTransactionInput must retain its send field")
 }

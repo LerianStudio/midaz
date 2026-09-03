@@ -1535,8 +1535,6 @@ components:
           type: string
         send:
           $ref: "#/components/schemas/SendInflow"
-        skip:
-          $ref: "#/components/schemas/TransactionSkip"
         transactionDate:
           examples:
             - "2021-01-01T00:00:00Z"
@@ -1583,8 +1581,6 @@ components:
           type: string
         send:
           $ref: "#/components/schemas/Send"
-        skip:
-          $ref: "#/components/schemas/TransactionSkip"
         transactionDate:
           examples:
             - "2021-01-01T00:00:00Z"
@@ -1632,8 +1628,6 @@ components:
           type: string
         send:
           $ref: "#/components/schemas/SendOutflow"
-        skip:
-          $ref: "#/components/schemas/TransactionSkip"
         transactionDate:
           examples:
             - "2021-01-01T00:00:00Z"
@@ -1705,6 +1699,8 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        skip:
+          $ref: "#/components/schemas/TransactionSkip"
       required:
         - asset
         - amount

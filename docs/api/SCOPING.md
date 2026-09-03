@@ -176,6 +176,23 @@ the first statement of each by-transaction seam) and, on the transport side,
 `transaction_fee_seam_structure_test.go` and `transaction_route_version_structure_test.go` (every
 route binds the right version).
 
+### Transaction skips are a `/v2` body field
+
+The two per-call transaction controls — `skip.fees` and `skip.tracer` — exist only on the
+`/v2` create input (`CreateTransactionV2Input`). They opt out of the fee engine and the tracer
+reservation, and neither runs on `/v1`, so the field has nothing to mean there. A `/v1` create
+body naming `skip` is rejected by the decoder as an unknown field: **HTTP 400**
+(`ErrUnexpectedFieldsInTheRequest`), the same answer any other unknown field gets — not the
+422 an unpermitted skip earns on `/v2`.
+
+The consequence is durable, not just transport-level: `transaction.fees_skipped` and
+`transaction.tracer_skipped` can only be `true` on a row created through `/v2`. On a `/v1`
+row they are always `false`, and they stay distinguishable from `fees_route_eligible` /
+`tracer_route_eligible`, the span attributes that say the control was never in play.
+
+This differs from `skip.holder`, which remains a known — but inert — field on the `/v1`
+account body.
+
 **Mixing mounts across one transaction lifecycle is not supported.** A by-transaction
 confirm/release cannot tell whether the transaction holds reservations, so gating it on the route
 version means a PENDING created on `/v2` and committed through `/v1` never receives its confirm:

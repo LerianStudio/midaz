@@ -19758,9 +19758,6 @@
           "send": {
             "$ref": "#/components/schemas/SendInflow"
           },
-          "skip": {
-            "$ref": "#/components/schemas/TransactionSkip"
-          },
           "transactionDate": {
             "examples": [
               "2021-01-01T00:00:00Z"
@@ -19825,9 +19822,6 @@
           },
           "send": {
             "$ref": "#/components/schemas/Send"
-          },
-          "skip": {
-            "$ref": "#/components/schemas/TransactionSkip"
           },
           "transactionDate": {
             "examples": [
@@ -19894,9 +19888,6 @@
           },
           "send": {
             "$ref": "#/components/schemas/SendOutflow"
-          },
-          "skip": {
-            "$ref": "#/components/schemas/TransactionSkip"
           },
           "transactionDate": {
             "examples": [
@@ -19997,6 +19988,9 @@
             ],
             "format": "uuid",
             "type": "string"
+          },
+          "skip": {
+            "$ref": "#/components/schemas/TransactionSkip"
           }
         },
         "required": [

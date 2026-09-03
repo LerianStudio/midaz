@@ -1072,14 +1072,16 @@ The resolver is `pkg/skip.ResolveSkipFor(control, requested, allowed)`.
 
 | Control | Surface | Request flag | Ledger opt-in | Audit column |
 |---|---|---|---|---|
-| Fees | `/v2` transaction create (json/inflow/outflow) | `skip.fees` | `overrides.allowFeeSkip` | `transaction.fees_skipped` |
-| Tracer | `/v2` transaction create (json/inflow/outflow) | `skip.tracer` | `overrides.allowTracerSkip` | `transaction.tracer_skipped` |
+| Fees | `/v2` transaction create (direct/hold/block/unblock) | `skip.fees` | `overrides.allowFeeSkip` | `transaction.fees_skipped` |
+| Tracer | `/v2` transaction create (direct/hold/block/unblock) | `skip.tracer` | `overrides.allowTracerSkip` | `transaction.tracer_skipped` |
 | Holder | `/v2` account create | `skip.holder` | `overrides.allowHolderSkip` | `account.holder_check_skipped` |
 
-The surface column is the route CONTRACT, not just the path: both seams the skips gate are
-`/v2` only. A `/v1` transaction create never reaches the fee engine, and a `/v1` account
-create never reaches the holder seam — so a `skip` object in a `/v1` body is inert and can
-never raise the 422. See § Account Holder Seam and `docs/api/SCOPING.md`.
+The surface column is the route CONTRACT, not just the path: every seam the skips gate is
+`/v2` only. The two transaction flags live on `CreateTransactionV2Input` and nowhere else,
+so a `/v1` transaction body naming `skip` is an UNKNOWN field and is rejected with
+**HTTP 400** by the decoder — never 422, and `fees_skipped` / `tracer_skipped` can never be
+true on a row created through `/v1`. `skip.holder` differs: it is still a known field on the
+`/v1` account body, where it is inert. See § Account Holder Seam and `docs/api/SCOPING.md`.
 
 Honored skips are persisted to audit columns (domain fields
 `mtransaction.Transaction.FeesSkipped` / `.TracerSkipped`, `mmodel.Account.HolderCheckSkipped`)
