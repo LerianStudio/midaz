@@ -118,9 +118,21 @@ func newPatchBlockFixture(t *testing.T, current *bool) *patchBlockFixture {
 	return f
 }
 
-// expectPropagation arms the balance-wide projection UPDATE and the atomic
-// multi-key cache eviction the helper performs.
+// expectPropagation arms the blocked-accounts index write, the balance-wide
+// projection UPDATE and the atomic multi-key cache eviction the helper performs.
 func (f *patchBlockFixture) expectPropagation(blocked bool) {
+	if blocked {
+		f.redisRepo.EXPECT().
+			AddBlockedAccount(gomock.Any(), f.organizationID, f.ledgerID, f.accountID).
+			Return(nil).
+			Times(1)
+	} else {
+		f.redisRepo.EXPECT().
+			RemoveBlockedAccount(gomock.Any(), f.organizationID, f.ledgerID, f.accountID).
+			Return(nil).
+			Times(1)
+	}
+
 	balances := []*mmodel.Balance{
 		{ID: uuid.New().String(), AccountID: f.accountID.String(), Alias: "@patchable", Key: "default"},
 		{ID: uuid.New().String(), AccountID: f.accountID.String(), Alias: "@patchable", Key: "savings"},

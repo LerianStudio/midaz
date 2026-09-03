@@ -61,21 +61,32 @@ func (uc *UseCase) BlockAccount(ctx context.Context, organizationID, ledgerID, a
 //
 //  1. Read the account. A missing account is a 404, decided before anything is
 //     written.
-//  2. Short-circuit the source-of-truth write when the account already holds the
-//     target state — but DO NOT return. Propagation and cache eviction still run.
-//     That is what makes a retry after a partial failure converge: a previous
-//     attempt may have committed step 3 and died before step 4.
-//  3. Write account.blocked. The source of truth moves first, so a failure after
-//     this point leaves the system in a state a retry can finish, never one where
-//     the balances claim a block the account does not have.
-//  4. Propagate to every balance in one atomic UPDATE.
-//  5. Drive the new block state into the balance cache with one atomic,
+//  2. On a BLOCK, add the account to the blocked-accounts index (SADD) BEFORE
+//     anything else. That index is what the transactional hot path enforces
+//     against, so this is the instant the block becomes effective — every step
+//     after it can fail without ever leaving the account free to transact.
+//  3. Short-circuit the source-of-truth write when the account already holds the
+//     target state — but DO NOT return. The index write, propagation and cache
+//     eviction still run. That is what makes a retry after a partial failure
+//     converge: a previous attempt may have committed step 4 and died later.
+//  4. Write account.blocked, the durable source of truth.
+//  5. On an UNBLOCK, remove the account from the index (SREM) AFTER the durable
+//     write. The mirrored position is the whole point: enforcement is only
+//     lifted once the database backs it, so a failure in between leaves a
+//     residual block — restrictive, never permissive.
+//  6. Propagate to every balance in one atomic UPDATE (legacy projection, kept
+//     in parallel during the strangling).
+//  7. Drive the new block state into the balance cache with one atomic,
 //     AccountBlocked-only mutation. The cache is write-back — it may hold
 //     transactional values not yet synced to PostgreSQL — so the flag is flipped
 //     in place rather than evicted, which would drop those in-flight mutations.
 //
-// Any failure from step 3 onward is returned to the caller. Nothing is confirmed
-// to the operator on a partial write.
+// Any failure from step 2 onward is returned to the caller, and NOTHING is
+// compensated. Rolling the SADD back after a failed step 4 would reopen exactly
+// the window step 2 closes, so the index deliberately keeps an entry the durable
+// state does not (yet) back. Both directions are idempotent — SADD and SREM are
+// natural no-ops on repetition — so the operator's retry is what completes the
+// transition. Nothing is confirmed to the operator on a partial write.
 //
 // Emission is the caller's job, deliberately. BlockAccount and UnblockAccount
 // emit account.updated as their last act, so the event still comes after every
@@ -118,6 +129,14 @@ func (uc *UseCase) setAccountBlockState(ctx context.Context, organizationID, led
 		return nil, err
 	}
 
+	// Enforcement first on the way IN. From here on the account cannot transact,
+	// whatever happens to the durable write below.
+	if blocked {
+		if err := uc.setBlockedAccountsIndexEntry(ctx, organizationID, ledgerID, accountID, true); err != nil {
+			return nil, err
+		}
+	}
+
 	// A nil Blocked is NOT equal to false: the column was never written on that
 	// row, so the source of truth still has to be made explicit.
 	alreadyInTargetState := accFound.Blocked != nil && *accFound.Blocked == blocked
@@ -132,6 +151,15 @@ func (uc *UseCase) setAccountBlockState(ctx context.Context, organizationID, led
 	} else {
 		updatedAt, err = uc.persistAccountBlockState(ctx, organizationID, ledgerID, accountID, blocked)
 		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Enforcement last on the way OUT: the block is only lifted once the durable
+	// state says so. A failure here leaves the account blocked in the index —
+	// the operator sees the error and retries, and nothing transacted meanwhile.
+	if !blocked {
+		if err := uc.setBlockedAccountsIndexEntry(ctx, organizationID, ledgerID, accountID, false); err != nil {
 			return nil, err
 		}
 	}
@@ -178,6 +206,45 @@ func (uc *UseCase) findAccountToBlock(ctx context.Context, organizationID, ledge
 	}
 
 	return accFound, nil
+}
+
+// setBlockedAccountsIndexEntry drives the blocked-accounts SET, the index the
+// transactional hot path enforces against.
+//
+// It is called unconditionally in both directions — including on the
+// short-circuit path where the account already holds the target state — because
+// SADD and SREM are natural no-ops on repetition, and re-asserting the entry is
+// what sweeps a residue left by an earlier attempt that died mid-way.
+//
+// A failure is returned, never swallowed and never compensated. On a block the
+// entry may already be in place with no durable write behind it; that is the
+// deliberate fail-closed direction, and the operator's retry resolves it.
+func (uc *UseCase) setBlockedAccountsIndexEntry(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, blocked bool) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.set_account_block_state.update_blocked_index")
+	defer span.End()
+
+	span.SetAttributes(attribute.Bool("app.request.blocked", blocked))
+
+	var err error
+	if blocked {
+		err = uc.TransactionRedisRepo.AddBlockedAccount(ctx, organizationID, ledgerID, accountID)
+	} else {
+		err = uc.TransactionRedisRepo.RemoveBlockedAccount(ctx, organizationID, ledgerID, accountID)
+	}
+
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to update blocked accounts index", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to update blocked accounts index",
+			libLog.String("account_id", accountID.String()),
+			libLog.Bool("blocked", blocked),
+			libLog.Err(err))
+
+		return err
+	}
+
+	return nil
 }
 
 // persistAccountBlockState writes the new state to the source of truth and

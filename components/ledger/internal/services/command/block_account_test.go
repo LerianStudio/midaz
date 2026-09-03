@@ -200,6 +200,7 @@ func TestBlockAccount(t *testing.T) {
 			name: "success - unblocked account transitions to blocked and propagates",
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(false)), nil)
+				f.expectAddBlocked(nil)
 				f.expectUpdate(true, nil)
 				f.expectPropagate(true, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
@@ -217,6 +218,7 @@ func TestBlockAccount(t *testing.T) {
 			name: "success - legacy account with nil blocked transitions to blocked",
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(nil), nil)
+				f.expectAddBlocked(nil)
 				f.expectUpdate(true, nil)
 				f.expectPropagate(true, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
@@ -233,8 +235,9 @@ func TestBlockAccount(t *testing.T) {
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(true)), nil)
 				// No AccountRepo.Update: the source of truth already holds the
-				// target state. Propagation and eviction MUST still run so a
-				// retry after a partial failure converges.
+				// target state. The index write, propagation and eviction MUST
+				// still run so a retry after a partial failure converges.
+				f.expectAddBlocked(nil)
 				f.expectPropagate(true, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
 				f.expectSetAccountBlocked(f.expectedCacheKeys(), true, nil)
@@ -249,6 +252,7 @@ func TestBlockAccount(t *testing.T) {
 			name: "success - account with no balances still succeeds",
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(false)), nil)
+				f.expectAddBlocked(nil)
 				f.expectUpdate(true, nil)
 				f.expectPropagate(true, nil)
 				f.expectListBalances([]*mmodel.Balance{}, nil)
@@ -290,6 +294,7 @@ func TestBlockAccount(t *testing.T) {
 			name: "failure - source-of-truth update rejects with not found",
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(false)), nil)
+				f.expectAddBlocked(nil)
 				f.expectUpdate(true, services.ErrDatabaseItemNotFound)
 			},
 			expectErr: true,
@@ -299,6 +304,7 @@ func TestBlockAccount(t *testing.T) {
 			name: "failure - source-of-truth update fails technically",
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(false)), nil)
+				f.expectAddBlocked(nil)
 				f.expectUpdate(true, errors.New("connection reset by peer"))
 				// Nothing propagates: the source of truth never moved.
 			},
@@ -309,6 +315,7 @@ func TestBlockAccount(t *testing.T) {
 			name: "failure - propagation to balances errors without confirming",
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(false)), nil)
+				f.expectAddBlocked(nil)
 				f.expectUpdate(true, nil)
 				f.expectPropagate(true, propagationErr)
 				// Cache is never touched: the read model did not converge.
@@ -320,6 +327,7 @@ func TestBlockAccount(t *testing.T) {
 			name: "failure - listing balances for invalidation errors",
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(false)), nil)
+				f.expectAddBlocked(nil)
 				f.expectUpdate(true, nil)
 				f.expectPropagate(true, nil)
 				f.expectListBalances(nil, errors.New("list balances exploded"))
@@ -331,6 +339,7 @@ func TestBlockAccount(t *testing.T) {
 			name: "failure - cache invalidation error is returned, never swallowed",
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(false)), nil)
+				f.expectAddBlocked(nil)
 				f.expectUpdate(true, nil)
 				f.expectPropagate(true, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
@@ -383,6 +392,7 @@ func TestBlockAccount_EmitsAccountUpdatedEvent(t *testing.T) {
 
 	f := newBlockStateFixture(t)
 	f.expectFind(f.accountWithBlocked(boolPtr(false)), nil)
+	f.expectAddBlocked(nil)
 	f.expectUpdate(true, nil)
 	f.expectPropagate(true, nil)
 	f.expectListBalances(f.balancesOfAccount(), nil)
@@ -411,6 +421,7 @@ func TestBlockAccount_EmitsAuditEventOnIdempotentRetry(t *testing.T) {
 
 	f := newBlockStateFixture(t)
 	f.expectFind(f.accountWithBlocked(boolPtr(true)), nil)
+	f.expectAddBlocked(nil)
 	f.expectPropagate(true, nil)
 	f.expectListBalances(f.balancesOfAccount(), nil)
 	f.expectSetAccountBlocked(f.expectedCacheKeys(), true, nil)
@@ -434,6 +445,7 @@ func TestBlockAccount_NoEventWhenPropagationFails(t *testing.T) {
 
 	f := newBlockStateFixture(t)
 	f.expectFind(f.accountWithBlocked(boolPtr(false)), nil)
+	f.expectAddBlocked(nil)
 	f.expectUpdate(true, nil)
 	f.expectPropagate(true, errors.New("propagation exploded"))
 

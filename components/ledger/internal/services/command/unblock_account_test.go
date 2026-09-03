@@ -39,6 +39,7 @@ func TestUnblockAccount(t *testing.T) {
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(true)), nil)
 				f.expectUpdate(false, nil)
+				f.expectRemoveBlocked(nil)
 				f.expectPropagate(false, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
 				f.expectSetAccountBlocked(f.expectedCacheKeys(), false, nil)
@@ -58,6 +59,7 @@ func TestUnblockAccount(t *testing.T) {
 				// than short-circuited.
 				f.expectFind(f.accountWithBlocked(nil), nil)
 				f.expectUpdate(false, nil)
+				f.expectRemoveBlocked(nil)
 				f.expectPropagate(false, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
 				f.expectSetAccountBlocked(f.expectedCacheKeys(), false, nil)
@@ -72,6 +74,9 @@ func TestUnblockAccount(t *testing.T) {
 			name: "idempotent no-op - already unblocked still re-propagates and re-invalidates",
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(false)), nil)
+				// No AccountRepo.Update, but the index entry is still cleared: a
+				// residue left by a failed earlier unblock has to be swept.
+				f.expectRemoveBlocked(nil)
 				f.expectPropagate(false, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
 				f.expectSetAccountBlocked(f.expectedCacheKeys(), false, nil)
@@ -111,6 +116,7 @@ func TestUnblockAccount(t *testing.T) {
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(true)), nil)
 				f.expectUpdate(false, nil)
+				f.expectRemoveBlocked(nil)
 				f.expectPropagate(false, errors.New("propagation exploded"))
 			},
 			expectErr:   true,
@@ -121,6 +127,7 @@ func TestUnblockAccount(t *testing.T) {
 			setup: func(f *blockStateFixture) {
 				f.expectFind(f.accountWithBlocked(boolPtr(true)), nil)
 				f.expectUpdate(false, nil)
+				f.expectRemoveBlocked(nil)
 				f.expectPropagate(false, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
 				f.expectSetAccountBlocked(f.expectedCacheKeys(), false, errors.New("redis unavailable"))
@@ -173,6 +180,7 @@ func TestUnblockAccount_EmitsAccountUpdatedEvent(t *testing.T) {
 	f := newBlockStateFixture(t)
 	f.expectFind(f.accountWithBlocked(boolPtr(true)), nil)
 	f.expectUpdate(false, nil)
+	f.expectRemoveBlocked(nil)
 	f.expectPropagate(false, nil)
 	f.expectListBalances(f.balancesOfAccount(), nil)
 	f.expectSetAccountBlocked(f.expectedCacheKeys(), false, nil)
@@ -201,6 +209,7 @@ func TestBlockUnblockAccount_ConvergesUnderRetrySequence(t *testing.T) {
 	// Attempt 1: account row is written, propagation fails.
 	first := newBlockStateFixture(t)
 	first.expectFind(first.accountWithBlocked(boolPtr(false)), nil)
+	first.expectAddBlocked(nil)
 	first.expectUpdate(true, nil)
 	first.expectPropagate(true, errors.New("propagation exploded"))
 
@@ -211,6 +220,7 @@ func TestBlockUnblockAccount_ConvergesUnderRetrySequence(t *testing.T) {
 	// still drive the balances and the cache to convergence.
 	second := newBlockStateFixture(t)
 	second.expectFind(second.accountWithBlocked(boolPtr(true)), nil)
+	second.expectAddBlocked(nil)
 	second.expectPropagate(true, nil)
 	second.expectListBalances(second.balancesOfAccount(), nil)
 	second.expectSetAccountBlocked(second.expectedCacheKeys(), true, nil)

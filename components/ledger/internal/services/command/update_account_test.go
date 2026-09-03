@@ -199,6 +199,11 @@ func TestUpdateAccount_BlockedProvidedTrue(t *testing.T) {
 		}).
 		Times(2)
 
+	mockRedisRepo.EXPECT().
+		AddBlockedAccount(gomock.Any(), organizationID, ledgerID, accountID).
+		Return(nil).
+		Times(1)
+
 	mockBalanceRepo.EXPECT().
 		UpdateAccountBlockedByAccountID(gomock.Any(), organizationID, ledgerID, accountID, true).
 		Return(nil).

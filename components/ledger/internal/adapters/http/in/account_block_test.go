@@ -381,6 +381,20 @@ func expectBlockStateTransition(t *testing.T, repos *accountBlockRepos, orgID, l
 		Return(blockableAccount(orgID, ledgerID, accountID, !target), nil).
 		Times(1)
 
+	// The blocked-accounts index: written before the durable state on a block,
+	// cleared after it on an unblock.
+	if target {
+		repos.redisRepo.EXPECT().
+			AddBlockedAccount(gomock.Any(), orgID, ledgerID, accountID).
+			Return(nil).
+			Times(1)
+	} else {
+		repos.redisRepo.EXPECT().
+			RemoveBlockedAccount(gomock.Any(), orgID, ledgerID, accountID).
+			Return(nil).
+			Times(1)
+	}
+
 	repos.accountRepo.EXPECT().
 		Update(gomock.Any(), orgID, ledgerID, nil, accountID, gomock.Any()).
 		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
