@@ -4,8 +4,8 @@ go 1.27.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/lib-auth/v3 v3.5.0
-	github.com/LerianStudio/lib-commons/v6 v6.8.1
+	github.com/LerianStudio/lib-auth/v3 v3.6.0
+	github.com/LerianStudio/lib-commons/v6 v6.8.2
 	github.com/LerianStudio/lib-observability/v2 v2.1.3
 	github.com/LerianStudio/lib-service-discovery v1.1.0
 	github.com/LerianStudio/lib-streaming/v3 v3.1.0
@@ -196,7 +196,7 @@ require (
 	go.uber.org/zap v1.28.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/crypto v0.56.0 // indirect
 	golang.org/x/exp v0.0.0-20260824195058-e88cd73687aa // indirect
 	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
