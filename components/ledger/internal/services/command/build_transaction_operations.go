@@ -47,7 +47,7 @@ func (uc *UseCase) BuildOperations(
 
 	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.create_transaction_operations")
+	_, span := tracer.Start(ctx, "command.build_transaction_operations")
 	defer span.End()
 
 	if routeValidationEnabled {
@@ -586,7 +586,7 @@ func (uc *UseCase) buildDoubleEntryPendingOps(
 ) ([]*operation.Operation, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.build_double_entry_pending_ops")
+	_, span := tracer.Start(ctx, "command.build_double_entry_pending_ops")
 	defer span.End()
 
 	description := ft.Description
@@ -733,7 +733,7 @@ func (uc *UseCase) buildDoubleEntryCanceledOps(
 ) ([]*operation.Operation, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.build_double_entry_canceled_ops")
+	_, span := tracer.Start(ctx, "command.build_double_entry_canceled_ops")
 	defer span.End()
 
 	description := ft.Description

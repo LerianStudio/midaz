@@ -66,7 +66,7 @@ type RevertTransactionInput struct {
 func (uc *UseCase) RevertTransactionV1(ctx context.Context, in RevertTransactionInput) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.revert_transaction")
+	_, span := tracer.Start(ctx, "command.revert_transaction_v1")
 	defer span.End()
 
 	transactionReverted, err := uc.prepareRevertTransaction(ctx, span, in)
@@ -93,7 +93,7 @@ func (uc *UseCase) RevertTransactionV1(ctx context.Context, in RevertTransaction
 func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransactionInput) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.revert_transaction")
+	_, span := tracer.Start(ctx, "command.revert_transaction_v2")
 	defer span.End()
 
 	transactionReverted, err := uc.prepareRevertTransaction(ctx, span, in)

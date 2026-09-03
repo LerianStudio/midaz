@@ -251,7 +251,7 @@ func (uc *UseCase) preparePendingTransition(ctx context.Context, span trace.Span
 func (uc *UseCase) commitPendingBalances(ctx context.Context, span trace.Span, logger libLog.Logger, run *pendingTransitionRun, unlock func()) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctxBackupSeed, spanBackupSeed := tracer.Start(ctx, "handler.commit_or_cancel_transaction.pre_seed_backup")
+	ctxBackupSeed, spanBackupSeed := tracer.Start(ctx, "command.transition_pending_transaction.pre_seed_backup")
 
 	if backupErr := uc.SendTransactionToRedisQueue(ctxBackupSeed, run.organizationID, run.ledgerID, run.tran.IDtoUUID(), run.input, run.validate, run.status, run.action, time.Now(), nil); backupErr != nil {
 		libOpentelemetry.HandleSpanError(spanBackupSeed, "Failed to pre-seed transaction backup cache", backupErr)
@@ -330,7 +330,7 @@ func (uc *UseCase) finalizePendingTransition(ctx context.Context, span trace.Spa
 	run.tran.Destination = getAliasWithoutKey(filterCompanionAliases(run.validate.Destinations))
 	run.tran.Operations = operations
 
-	ctxBackup, spanBackup := tracer.Start(ctx, "handler.commit_or_cancel_transaction.send_to_redis_queue")
+	ctxBackup, spanBackup := tracer.Start(ctx, "command.transition_pending_transaction.send_to_redis_queue")
 
 	if backupErr := uc.SendTransactionToRedisQueue(ctxBackup, run.organizationID, run.ledgerID, run.tran.IDtoUUID(), run.input, run.validate, run.status, run.action, time.Now(), preBalances); backupErr != nil {
 		libOpentelemetry.HandleSpanError(spanBackup, "Failed to send transaction to backup cache", backupErr)
