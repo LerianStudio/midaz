@@ -159,6 +159,158 @@ func TestRehydrateBlockedAccounts_RebuildsFromTheSource(t *testing.T) {
 		"the sentinel must be the LAST write, so an interrupted rebuild stays detectable")
 }
 
+// =============================================================================
+// BLOCK GATE — SELF-REPAIRING PRE-READ (UNIT)
+// =============================================================================
+// ResolveBlockedAccounts is the read the commit path uses to decide whether an
+// account-exception enrichment is worth running. It exists so the sentinel, the
+// repair and the re-probe stay INSIDE this adapter: the handler asks "which of
+// these accounts are blocked" and gets either an answer or an outage, never a
+// hydration protocol to drive.
+
+// TestResolveBlockedAccounts_HydratedIndexAnswersInOneProbe is the common path:
+// a healthy index costs exactly one SMISMEMBER and never touches Postgres.
+func TestResolveBlockedAccounts_HydratedIndexAnswersInOneProbe(t *testing.T) {
+	t.Parallel()
+
+	repo, rec := newBlockedAccountsRepo(t)
+
+	source := &stubBlockedAccountsSource{}
+	repo.blockedAccountsSource = source
+
+	organizationID, ledgerID := blockedAccountsScope(t)
+
+	blocked := uuid.Must(libCommons.GenerateUUIDv7())
+	free := uuid.Must(libCommons.GenerateUUIDv7())
+
+	rec.smisResult = []bool{true, true, false}
+
+	got, err := repo.ResolveBlockedAccounts(t.Context(), organizationID, ledgerID, []uuid.UUID{blocked, free})
+	require.NoError(t, err)
+
+	assert.Equal(t, []uuid.UUID{blocked}, got)
+	assert.Len(t, rec.smisCalls, 1, "a hydrated index must not cost a second round-trip")
+	assert.Equal(t, 0, source.calls, "the source of truth is read only to repair, never to answer")
+}
+
+// TestResolveBlockedAccounts_EmptyInputCostsNothing keeps the pre-read free for
+// the transactions that have no account to ask about.
+func TestResolveBlockedAccounts_EmptyInputCostsNothing(t *testing.T) {
+	t.Parallel()
+
+	repo, rec := newBlockedAccountsRepo(t)
+	repo.blockedAccountsSource = &stubBlockedAccountsSource{}
+
+	organizationID, ledgerID := blockedAccountsScope(t)
+
+	got, err := repo.ResolveBlockedAccounts(t.Context(), organizationID, ledgerID, nil)
+
+	require.NoError(t, err)
+	assert.Empty(t, got)
+	assert.Empty(t, rec.smisCalls, "nothing to ask about must cost no round-trip")
+}
+
+// TestResolveBlockedAccounts_RepairsUnhydratedIndexThenAnswers is the whole
+// point of the method: an index lost to a restart is rebuilt and re-probed here,
+// so the caller never learns that a sentinel exists.
+func TestResolveBlockedAccounts_RepairsUnhydratedIndexThenAnswers(t *testing.T) {
+	t.Parallel()
+
+	repo, rec := newBlockedAccountsRepo(t)
+
+	blocked := uuid.Must(libCommons.GenerateUUIDv7())
+
+	source := &stubBlockedAccountsSource{accountIDs: []uuid.UUID{blocked}}
+	repo.blockedAccountsSource = source
+
+	organizationID, ledgerID := blockedAccountsScope(t)
+
+	// First probe: sentinel absent. Second probe, after the rebuild: hydrated,
+	// and the account is there.
+	rec.smisResults = [][]bool{
+		{false, false},
+		{true, true},
+	}
+
+	got, err := repo.ResolveBlockedAccounts(t.Context(), organizationID, ledgerID, []uuid.UUID{blocked})
+	require.NoError(t, err)
+
+	assert.Equal(t, []uuid.UUID{blocked}, got,
+		"the repaired index must answer, and it must not answer 'not blocked'")
+	assert.Len(t, rec.smisCalls, 2, "exactly one re-probe after the repair")
+	assert.Equal(t, 1, source.calls)
+	require.Len(t, rec.saddCalls, 2, "one chunk of members, then the sentinel")
+	assert.Equal(t, []any{utils.BlockedAccountsHydratedMember}, rec.saddCalls[1].Members)
+}
+
+// TestResolveBlockedAccounts_StillUnhydratedAfterRepairIsUnavailable: a rebuild
+// that did not stick is an outage, never a licence to read the index as empty.
+func TestResolveBlockedAccounts_StillUnhydratedAfterRepairIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	repo, rec := newBlockedAccountsRepo(t)
+	repo.blockedAccountsSource = &stubBlockedAccountsSource{}
+
+	organizationID, ledgerID := blockedAccountsScope(t)
+
+	rec.smisResults = [][]bool{
+		{false, false},
+		{false, false},
+	}
+
+	got, err := repo.ResolveBlockedAccounts(t.Context(), organizationID, ledgerID,
+		[]uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrBlockedAccountsIndexUnavailable)
+	assert.Empty(t, got)
+	assert.Len(t, rec.smisCalls, 2, "the index is re-probed exactly once, never in a loop")
+}
+
+// TestResolveBlockedAccounts_ProbeFailureIsUnavailable: an unreachable Redis is
+// an infrastructure failure the caller must surface as one — collapsing it into
+// "nothing is blocked" is the fail-open this design refuses, and collapsing it
+// into a denial would answer an outage with a business error.
+func TestResolveBlockedAccounts_ProbeFailureIsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	repo, rec := newBlockedAccountsRepo(t)
+	repo.blockedAccountsSource = &stubBlockedAccountsSource{}
+
+	organizationID, ledgerID := blockedAccountsScope(t)
+
+	probeErr := errors.New("redis down")
+	rec.smisErr = probeErr
+
+	got, err := repo.ResolveBlockedAccounts(t.Context(), organizationID, ledgerID,
+		[]uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrBlockedAccountsIndexUnavailable)
+	assert.ErrorIs(t, err, probeErr, "the underlying cause must survive the wrap")
+	assert.Empty(t, got)
+}
+
+// TestResolveBlockedAccounts_NilSourceFailsClosed mirrors the atomic gate: a
+// repository that cannot repair the index cannot read a lost one as empty.
+func TestResolveBlockedAccounts_NilSourceFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	repo, rec := newBlockedAccountsRepo(t)
+	repo.blockedAccountsSource = nil
+
+	organizationID, ledgerID := blockedAccountsScope(t)
+
+	rec.smisResult = []bool{false, false}
+
+	got, err := repo.ResolveBlockedAccounts(t.Context(), organizationID, ledgerID,
+		[]uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7())})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrBlockedAccountsIndexUnavailable)
+	assert.Empty(t, got)
+}
+
 // emptyBlockedAccountsSource is the source the test infrastructures install.
 //
 // It stands in for the command layer, which in production hands the repository

@@ -222,6 +222,20 @@ type RedisRepository interface {
 	// answer at all: the caller MUST hydrate and ask again, never treat the
 	// silence as "nothing is blocked".
 	IsHydratedAndBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (bool, []uuid.UUID, error)
+	// ResolveBlockedAccounts answers which of accountIDs the ledger's
+	// blocked-accounts index holds, repairing the index from the source of truth
+	// and re-probing ONCE when it reports itself unhydrated.
+	//
+	// It is IsHydratedAndBlocked with the hydration protocol handled inside: the
+	// caller asks a question and receives either an answer or an error, never a
+	// "hydrated=false" it has to know what to do with. Every failure — an
+	// unreachable Redis, an unrepairable index, a rebuild that did not stick —
+	// comes back wrapping ErrBlockedAccountsIndexUnavailable, because not knowing
+	// whether an account is blocked is an outage and must never be served as
+	// either a denial or an absence of one.
+	//
+	// An empty accountIDs slice costs no round-trip.
+	ResolveBlockedAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) ([]uuid.UUID, error)
 	// HydrateBlockedAccounts rebuilds the ledger's blocked-accounts SET from the
 	// account IDs read out of the source of truth, then marks it hydrated.
 	//

@@ -47,6 +47,11 @@ type blockedAccountsRecorder struct {
 	smisCalls  []setMembersCall
 	smisResult []bool
 
+	// smisResults, when non-empty, answers successive SMISMEMBER calls with
+	// successive entries — the only way to express an index that changes between
+	// two probes, which is exactly what a repair-and-re-probe read does.
+	smisResults [][]bool
+
 	saddErr error
 	sremErr error
 	smisErr error
@@ -90,6 +95,15 @@ func (r *blockedAccountsRecorder) SMIsMember(ctx context.Context, key string, me
 	cmd := redis.NewBoolSliceCmd(ctx)
 	if r.smisErr != nil {
 		cmd.SetErr(r.smisErr)
+
+		return cmd
+	}
+
+	if len(r.smisResults) > 0 {
+		next := r.smisResults[0]
+		r.smisResults = r.smisResults[1:]
+
+		cmd.SetVal(next)
 
 		return cmd
 	}

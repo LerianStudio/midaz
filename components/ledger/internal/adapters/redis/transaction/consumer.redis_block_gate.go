@@ -175,6 +175,81 @@ func (rr *RedisConsumerRepository) resolveBlockGate(
 	return result, nil
 }
 
+// ResolveBlockedAccounts answers which of accountIDs the ledger's
+// blocked-accounts index holds, repairing the index once when it reports itself
+// unhydrated. See RedisRepository.ResolveBlockedAccounts for the contract.
+//
+// It is the same repair resolveBlockGate performs for the atomic script, exposed
+// as a plain read for the callers that need the block state BEFORE the script
+// runs — the commit path, which has to know whether an account-exception
+// enrichment is worth its I/O. Keeping the repair here is what lets those
+// callers ask a question ("which of these are blocked?") instead of driving a
+// hydration protocol they have no business knowing about (decision R2).
+func (rr *RedisConsumerRepository) ResolveBlockedAccounts(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	accountIDs []uuid.UUID,
+) ([]uuid.UUID, error) {
+	// Nothing to ask about: the probe would only be able to answer "no", so the
+	// common transaction pays nothing for a gate it does not touch.
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.resolve_blocked_accounts")
+	defer span.End()
+
+	blockedAccountsSpanScope(span, organizationID, ledgerID)
+
+	hydrated, blocked, err := rr.IsHydratedAndBlocked(ctx, organizationID, ledgerID, accountIDs)
+	if err != nil {
+		// An unreachable index is an outage, not an answer. The wrap is what lets
+		// the caller tell it apart from a denial and refuse the request as a 5xx
+		// instead of inventing either a block or the absence of one.
+		wrapped := fmt.Errorf("%w: %w", ErrBlockedAccountsIndexUnavailable, err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to read the blocked accounts index", wrapped)
+
+		return nil, wrapped
+	}
+
+	if hydrated {
+		return blocked, nil
+	}
+
+	logger.Log(ctx, libLog.LevelWarn, "Blocked accounts index is unhydrated; rebuilding from the source of truth",
+		libLog.String("organization_id", organizationID.String()),
+		libLog.String("ledger_id", ledgerID.String()))
+
+	if err := rr.rehydrateBlockedAccounts(ctx, organizationID, ledgerID); err != nil {
+		return nil, err
+	}
+
+	hydrated, blocked, err = rr.IsHydratedAndBlocked(ctx, organizationID, ledgerID, accountIDs)
+	if err != nil {
+		wrapped := fmt.Errorf("%w: %w", ErrBlockedAccountsIndexUnavailable, err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to re-read the blocked accounts index after a rebuild", wrapped)
+
+		return nil, wrapped
+	}
+
+	// Re-probed exactly once, never in a loop: a rebuild that did not stick is a
+	// broken index, and retrying it here would only turn an outage into a hang.
+	if !hydrated {
+		err := fmt.Errorf("%w: the index still reports itself unhydrated after a rebuild", ErrBlockedAccountsIndexUnavailable)
+
+		libOpentelemetry.HandleSpanError(span, "Blocked accounts index unhydrated after a rebuild", err)
+		logger.Log(ctx, libLog.LevelError, "Blocked accounts index unhydrated after a rebuild", libLog.Err(err))
+
+		return nil, err
+	}
+
+	return blocked, nil
+}
+
 // rehydrateBlockedAccounts rebuilds one ledger's blocked-accounts index from the
 // source of truth.
 //

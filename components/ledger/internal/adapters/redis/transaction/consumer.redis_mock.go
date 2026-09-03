@@ -352,6 +352,21 @@ func (mr *MockRedisRepositoryMockRecorder) RemoveMessageFromQueue(ctx, key any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMessageFromQueue), ctx, key)
 }
 
+// ResolveBlockedAccounts mocks base method.
+func (m *MockRedisRepository) ResolveBlockedAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolveBlockedAccounts", ctx, organizationID, ledgerID, accountIDs)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolveBlockedAccounts indicates an expected call of ResolveBlockedAccounts.
+func (mr *MockRedisRepositoryMockRecorder) ResolveBlockedAccounts(ctx, organizationID, ledgerID, accountIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveBlockedAccounts", reflect.TypeOf((*MockRedisRepository)(nil).ResolveBlockedAccounts), ctx, organizationID, ledgerID, accountIDs)
+}
+
 // ScheduleBalanceSyncBatch mocks base method.
 func (m *MockRedisRepository) ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error {
 	m.ctrl.T.Helper()
