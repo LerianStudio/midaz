@@ -147,3 +147,37 @@ func TestRevertV2_NeverAppliesFees(t *testing.T) {
 		t.Error("createRevertV2 must still reserve: limits measure GROSS activity, so a revert is a chargeable transaction of its own")
 	}
 }
+
+// TestValidateSendSourceAndDistribute_RunsTwiceOnEveryTransactionPipeline locks the
+// double validation on the four pipelines that build a send: a raw-alias pass followed
+// by a normalized-alias pass. Collapsing either call to one would change which error
+// code a same-alias, mismatched-totals send receives — the raw pass answers 0073
+// (ErrTransactionValueMismatch), the normalized pass would instead answer 0090
+// (ErrTransactionAmbiguous) — because the ambiguity check inside
+// ValidateSendSourceAndDistribute cannot key against raw aliases. See the corpus in
+// pkg/mtransaction/validations_normalization_differential_test.go.
+func TestValidateSendSourceAndDistribute_RunsTwiceOnEveryTransactionPipeline(t *testing.T) {
+	for _, tc := range []struct {
+		file string
+		fn   string
+	}{
+		{file: "create_transaction_v1.go", fn: "CreateTransactionV1"},
+		{file: "revert_transaction.go", fn: "createRevertV1"},
+		{file: "revert_transaction.go", fn: "createRevertV2"},
+		{file: "create_transaction_v2.go", fn: "CreateTransactionV2"},
+	} {
+		names := calledNames(t, readTransportSource(t, tc.file, "func (uc *UseCase) "+tc.fn), tc.fn)
+
+		got := 0
+
+		for _, n := range names {
+			if n == "ValidateSendSourceAndDistribute" {
+				got++
+			}
+		}
+
+		if got != 2 {
+			t.Errorf("%s calls ValidateSendSourceAndDistribute %d times, want exactly 2 — the first pass is what preserves 0073 (ErrTransactionValueMismatch) instead of 0090 (ErrTransactionAmbiguous) on a same-alias, mismatched-totals send; see pkg/mtransaction/validations_normalization_differential_test.go", tc.fn, got)
+		}
+	}
+}

@@ -68,6 +68,12 @@ func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransaction
 		return replay, true, nil
 	}
 
+	// This pass runs over raw aliases, which the ambiguity check inside
+	// ValidateSendSourceAndDistribute cannot key against, so a send with the same
+	// alias on both sides and mismatched totals is answered here as 0073
+	// (ErrTransactionValueMismatch); the pass below, over concatenated aliases, would
+	// instead answer 0090 (ErrTransactionAmbiguous).
+	//
 	// First validate: rejects malformed source/distribute before the legs are
 	// normalized. Its Responses value is superseded by the re-validation below, so
 	// only the error is consumed here.

@@ -252,6 +252,10 @@ func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger l
 		return replay, true, nil
 	}
 
+	// Same reasoning as CreateTransactionV1's first validate: this pass runs over
+	// raw aliases, where the ambiguity check cannot key against them, so it is the
+	// one that answers 0073 (ErrTransactionValueMismatch) instead of 0090
+	// (ErrTransactionAmbiguous) on a same-alias, mismatched-totals send.
 	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
 	if err != nil {
@@ -356,6 +360,10 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 		return replay, true, nil
 	}
 
+	// Same reasoning as CreateTransactionV1's first validate: this pass runs over
+	// raw aliases, where the ambiguity check cannot key against them, so it is the
+	// one that answers 0073 (ErrTransactionValueMismatch) instead of 0090
+	// (ErrTransactionAmbiguous) on a same-alias, mismatched-totals send.
 	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
 	if err != nil {

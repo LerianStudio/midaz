@@ -38,6 +38,11 @@ import (
 //
 // Cases in either class carry normalizedAnswersAmbiguous. Outside that class the two
 // calls agree on the code, and no rejection the raw call makes is ever lost.
+//
+// The second class is why the /v1 create and both revert pipelines run
+// ValidateSendSourceAndDistribute twice even though neither applies fees: dropping the
+// raw pass would trade ErrTransactionValueMismatch for ErrTransactionAmbiguous on that
+// class of request. This test is the guard on that error-code precedence.
 
 // differentialContext carries the logger and tracer ValidateSendSourceAndDistribute
 // reads off the context.
