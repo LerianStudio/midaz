@@ -15,7 +15,6 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -23,14 +22,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/skip"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
-
-// revertIdempotencyReplayedLogMessage is the Warn message the revert core records when the
-// idempotency slot answers with a cached reverse instead of a new one.
-const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse transaction"
 
 // commitTransaction is the transport-neutral commit/cancel core: it opens the
 // per-action span (commit_transaction / cancel_transaction, derived from the target
@@ -79,145 +73,6 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 	}
 
 	return handler.commitOrCancelTransaction(ctx, tran, transactionStatus, policy)
-}
-
-// KNOWN DEFECT — REVERT IDEMPOTENCY IS NOT SCOPED BY ORIGIN.
-//
-// Revert sends no X-Idempotency header, so CreateOrCheckTransactionIdempotency falls back to
-// key = HashSHA256(preimage), and with no override the create use case serialises the
-// reversal payload. TransactionRevert() copies only the origin's economic content
-// (description, asset, amount, legs, route, metadata) and NEVER the origin id, so two
-// economically-identical origins in the same ledger derive the SAME key and share ONE slot:
-// the second revert loses the SetNX, is handed the FIRST origin's cached reverse, and answers
-// 201 while its own origin is never reverted. Silently — no error, no distinguishable status.
-//
-// The fix is an origin-scoped preimage. It is deliberately NOT applied here: v1 revert is
-// released, and changing the preimage changes the Redis key shape, so a revert retried across
-// a rolling-deploy boundary would land on a different slot and could double-revert. It re-lands
-// together with the idempotency keyspace separation, which re-shapes the key anyway, behind a
-// dual-write/dual-read migration — one coordinated deploy window instead of two.
-//
-// Until then the ONLY control is detection: the replayed flag below, its Warn, and the
-// X-Idempotency-Replayed header the transports project. Do not treat that as a fix.
-// The integration reproduction re-lands together with the fix in the money-path layer
-// (the fail-closed integration gate forbids carrying it here as a permanent skip).
-//
-// revertTransaction is the transport-neutral revert core: it runs the full revert
-// eligibility gate (no-parent, not-already-a-revert, APPROVED status, non-empty reversal,
-// all bidirectional routes) then delegates to the untouched command.CreateRevertTransaction core.
-// The parent transaction id passed to command.CreateRevertTransaction is the reverted
-// transaction's id (from the route), so the reversal links back to its origin. Revert
-// sends no idempotency headers, so the key is empty (the core keys on the reversal hash)
-// and the TTL defaults to ParseIdempotencyTTL("") == 300s (an absent X-TTL resolves to
-// 300, never 0; a hardcoded 0 would make the Redis idempotency slot permanent). It
-// returns the idempotency `replayed` flag alongside the reverse transaction so the
-// transport sets X-Idempotency-Replayed itself.
-func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, policy command.RouteVersionPolicy) (*transaction.Transaction, bool, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "handler.revert_transaction")
-	defer span.End()
-
-	parent, err := handler.Query.GetParentByTransactionID(ctx, organizationID, ledgerID, transactionID)
-	if err != nil {
-		handleSpanByErrorClass(span, "Failed to retrieve Parent Transaction on query", err)
-
-		return nil, false, err
-	}
-
-	if parent != nil {
-		err = pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
-
-		return nil, false, err
-	}
-
-	tran, err := handler.Query.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
-	if err != nil {
-		handleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
-
-		return nil, false, err
-	}
-
-	if tran.ParentTransactionID != nil {
-		err = pkg.ValidateBusinessError(constant.ErrTransactionIDIsAlreadyARevert, "RevertTransaction")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
-
-		return nil, false, err
-	}
-
-	if tran.Status.Code != constant.APPROVED {
-		err = pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "RevertTransaction")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction CantRevert Transaction", err)
-
-		return nil, false, err
-	}
-
-	transactionReverted := tran.TransactionRevert()
-	if transactionReverted.IsEmpty() {
-		err = pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction can't be reverted", err)
-
-		return nil, false, err
-	}
-
-	// Validate bidirectional routes: operations with a route_id require
-	// the referenced OperationRoute to have OperationType "bidirectional".
-	for _, op := range tran.Operations {
-		if op.RouteID == nil || *op.RouteID == "" {
-			continue
-		}
-
-		routeUUID, parseErr := uuid.Parse(*op.RouteID)
-		if parseErr != nil {
-			parseValidationErr := pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, "RevertTransaction", "routeId")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid routeId format on operation during revert validation", parseValidationErr)
-
-			return nil, false, parseValidationErr
-		}
-
-		operationRoute, routeErr := handler.Query.GetOperationRouteByID(ctx, organizationID, ledgerID, nil, routeUUID)
-		if routeErr != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to retrieve operation route for revert validation", routeErr)
-
-			return nil, false, routeErr
-		}
-
-		if operationRoute != nil && operationRoute.OperationType != "bidirectional" {
-			err = pkg.ValidateBusinessError(constant.ErrRouteNotBidirectional, "RevertTransaction")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route is not bidirectional", err)
-
-			return nil, false, err
-		}
-	}
-
-	tranReverted, replayed, err := handler.Command.CreateRevertTransaction(ctx, organizationID, ledgerID, transactionID, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), policy)
-	if err != nil {
-		return nil, false, err
-	}
-
-	if replayed {
-		// A replay is an outcome this span observed, not an input, so it belongs outside the
-		// app.request.* namespace (T4). It is also not an error: the span stays green.
-		span.SetAttributes(attribute.Bool("app.response.idempotency_replayed", true))
-
-		// Warn — deliberately louder than the create paths, which treat a replay as routine.
-		// A create replay is what the caller asked for: they sent X-Idempotency, so a cached
-		// answer is the contract. Revert carries no caller key, so nobody asked for this one;
-		// it means the caller's revert did NOT happen and the 201 alone cannot tell them so.
-		// While the origin-agnostic key above stands, the cached reverse may not
-		// even belong to this origin, so this is the only operator-visible trace of the
-		// defect — Debug, typically not collected in production, could not carry it.
-		logger.Log(ctx, libLog.LevelWarn, revertIdempotencyReplayedLogMessage, libLog.String("transaction_id", transactionID.String()))
-	}
-
-	return tranReverted, replayed, nil
 }
 
 // updateTransaction is the transport-neutral update core: it records the safe payload

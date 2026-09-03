@@ -217,14 +217,17 @@ func arrangeReplayedRevert(t *testing.T, ctrl *gomock.Controller) (*TransactionH
 		Return(string(cachedValue), nil).
 		Times(1)
 
+	queryUC := &query.UseCase{
+		TransactionRepo:         transactionRepo,
+		TransactionMetadataRepo: metadataRepo,
+	}
+
 	handler := &TransactionHandler{
-		Query: &query.UseCase{
-			TransactionRepo:         transactionRepo,
-			TransactionMetadataRepo: metadataRepo,
-		},
+		Query: queryUC,
 		Command: &command.UseCase{
 			TransactionRepo:      transactionRepo,
 			TransactionRedisRepo: redisRepo,
+			TransactionReader:    queryUC,
 		},
 	}
 
@@ -262,10 +265,10 @@ func TestRevertTransaction_ReplayedIdempotency_SurfacesOnTheHumaShell(t *testing
 	assert.Equal(t, subjects.reverseID.String(), out.Body.ID,
 		"a replayed revert must return the FIRST reverse transaction")
 
-	warn := findLogRecord(recorder.snapshot(), libLog.LevelWarn, revertIdempotencyReplayedLogMessage)
+	warn := findLogRecord(recorder.snapshot(), libLog.LevelWarn, command.RevertIdempotencyReplayedLogMessage)
 	require.NotNil(t, warn,
 		"a replayed revert must record a Warn (%q) so the replay is visible to operators, not only to the caller",
-		revertIdempotencyReplayedLogMessage)
+		command.RevertIdempotencyReplayedLogMessage)
 	assert.Equal(t, []libLog.Field{libLog.String("transaction_id", subjects.originID.String())}, warn.fields,
 		"the replay Warn must name the origin transaction id and carry nothing else (no balances, amounts or payloads)")
 }
@@ -313,7 +316,7 @@ func TestRevertTransaction_ReplayedIdempotency_SurfacesOnTheWire(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &body), "the v2 revert response should be valid JSON; body: %s", string(raw))
 	assert.Equal(t, subjects.reverseID.String(), body.ID, "a replayed revert must return the FIRST reverse transaction")
 
-	warn := findLogRecord(recorder.snapshot(), libLog.LevelWarn, revertIdempotencyReplayedLogMessage)
+	warn := findLogRecord(recorder.snapshot(), libLog.LevelWarn, command.RevertIdempotencyReplayedLogMessage)
 	assert.NotNil(t, warn, "the replay Warn must also fire on the wired path")
 }
 

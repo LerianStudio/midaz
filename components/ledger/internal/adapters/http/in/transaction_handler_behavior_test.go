@@ -479,7 +479,7 @@ func TestRevertTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 				TransactionRepo:         mockTransactionRepo,
 				TransactionMetadataRepo: mockMetadataRepo,
 			}
-			handler := &TransactionHandler{Query: queryUC}
+			handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 			app := buildHumaTransactionApp(t, handler, true)
 
@@ -543,7 +543,7 @@ func TestRevertTransaction_AlreadyHasRevert_ReturnsError(t *testing.T) {
 		TransactionRepo:         mockTransactionRepo,
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 
@@ -620,7 +620,7 @@ func TestRevertTransaction_IsAlreadyARevert_ReturnsError(t *testing.T) {
 		TransactionRepo:         mockTransactionRepo,
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 
@@ -671,7 +671,7 @@ func TestRevertTransaction_GetParentError_ReturnsError(t *testing.T) {
 	queryUC := &query.UseCase{
 		TransactionRepo: mockTransactionRepo,
 	}
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 
@@ -736,7 +736,7 @@ func TestRevertTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 		TransactionRepo:         mockTransactionRepo,
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 
@@ -815,7 +815,7 @@ func TestRevertTransaction_EmptyRevert_ReturnsError(t *testing.T) {
 		TransactionRepo:         mockTransactionRepo,
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 
@@ -922,7 +922,7 @@ func TestRevertTransaction_BidirectionalRouteAllows(t *testing.T) {
 	// that the bidirectional check passes (not the full createTransaction flow),
 	// we use a Fiber error handler to catch panics from nil Command and verify
 	// the bidirectional error was not returned.
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 
@@ -1028,7 +1028,7 @@ func TestRevertTransaction_NonBidirectionalRouteRejects(t *testing.T) {
 		TransactionMetadataRepo: mockMetadataRepo,
 		OperationRouteRepo:      mockOperationRouteRepo,
 	}
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 
@@ -1114,7 +1114,7 @@ func TestRevertTransaction_NoRouteRevertsNormally(t *testing.T) {
 		TransactionRepo:         mockTransactionRepo,
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 
@@ -1212,7 +1212,7 @@ func TestRevertTransaction_RouteLookupError_ReturnsError(t *testing.T) {
 		TransactionMetadataRepo: mockMetadataRepo,
 		OperationRouteRepo:      mockOperationRouteRepo,
 	}
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 
@@ -1263,7 +1263,7 @@ func TestCommitTransaction_GetTransactionError_ReturnsError(t *testing.T) {
 		TransactionRepo:      mockTransactionRepo,
 		TransactionRedisRepo: mockRedisRepo,
 	}
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 

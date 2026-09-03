@@ -4,18 +4,19 @@
 
 package command
 
-// RouteVersionPolicy states which route version received the request. The transaction
-// cores are transport-agnostic and cannot read the request path, so the version travels
-// from the transport shell to every seam that contracts on it as an explicit argument.
+// RouteVersionPolicy states which route version received the request. The use cases are
+// transport-agnostic and cannot read the request path, so the version travels from the
+// transport shell to every seam that contracts on it as an explicit argument.
 //
-// It is a named type rather than a bare bool because the seams it gates already take
-// adjacent booleans (isRevert, isAnnotation, honoredFeeSkip, honoredTracerSkip) — one
-// more of those would be transposable without a compile error.
+// It is a named type rather than a bare bool because the seams it gates already take an
+// adjacent boolean (honoredTracerSkip) — one more of those would be transposable without
+// a compile error.
 //
-// Two seams read it, both gating /v1 off a capability that shipped after the /v1
-// contract: applyFees (the fee engine) and the tracer reservation lifecycle
-// (reserveTransaction plus the by-transaction confirm/release). Each decides for itself
-// what the version means; the policy only reports which mount answered.
+// Create and revert encode the version in the use-case name instead
+// (CreateTransactionV1/V2, RevertTransactionV1/V2), so the only readers left are the two
+// by-transaction tracer seams commit and cancel drive: ConfirmReservationsByTransaction
+// and ReleaseReservationsByTransaction. The policy disappears once commit/cancel are
+// split by version too.
 type RouteVersionPolicy bool
 
 const (

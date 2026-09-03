@@ -163,8 +163,10 @@ connection is dialled, and a `/v1` create can never answer `0177` (reservation d
 client integrated against.
 
 On the create and revert paths the version is the method name, not a runtime value:
-`CreateTransactionV1` / `RevertTransactionV1`-shaped pipelines name neither the fee engine nor the
-tracer reservation, and the `/v2` ones name both. Commit and cancel are not split yet, so their two
+`CreateTransactionV1` and `RevertTransactionV1` name neither the fee engine nor the tracer
+reservation; `CreateTransactionV2` names both and `RevertTransactionV2` names the tracer only —
+a revert already carries the reversed fee legs, but limits measure GROSS activity, so the reversal
+reserves capacity of its own. Commit and cancel are not split yet, so their two
 by-transaction seams still read `command.RouteVersionPolicy` (`RouteV1`/`RouteV2`,
 `transaction_route_version.go` in the command package), threaded from the transport shell because
 the use case is transport-agnostic and cannot read the request path. Structural gates assert all of

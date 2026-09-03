@@ -5,6 +5,7 @@
 package command
 
 import (
+	"go/ast"
 	"testing"
 
 	"github.com/google/uuid"
@@ -57,4 +58,33 @@ func TestRevertNoReservationRefund(t *testing.T) {
 		"a revert must NEVER confirm the original transaction's reservation")
 	assert.NotContains(t, reserver.releasedIDs, originalReservationID,
 		"a revert must NEVER release the original transaction's reservation (Q9 no-refund)")
+}
+
+// TestRevertNoReservationRefund_StructuralGuard is the structural half of the Q9
+// no-refund lock: the eligibility gate — the only revert step that touches the ORIGINAL
+// transaction — must invoke neither Release nor Confirm. The reservation transport a
+// revert does use belongs to the reverse transaction it creates, held by its own reserve
+// anchor.
+func TestRevertNoReservationRefund_StructuralGuard(t *testing.T) {
+	src := readTransportSource(t, "revert_transaction.go", "func (uc *UseCase) prepareRevertTransaction")
+
+	fn := findFuncDecl(t, src, "prepareRevertTransaction")
+
+	ast.Inspect(fn, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+
+		if sel.Sel.Name == "Release" || sel.Sel.Name == "Confirm" {
+			t.Errorf("prepareRevertTransaction calls %q — a revert must not refund the original reservation (Q9 no-refund)", sel.Sel.Name)
+		}
+
+		return true
+	})
 }

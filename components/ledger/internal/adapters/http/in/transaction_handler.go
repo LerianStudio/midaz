@@ -306,12 +306,13 @@ func (handler *TransactionHandler) CancelTransaction(ctx context.Context, in *St
 	return &StateTransactionResponse{Status: http.StatusCreated, Body: newTransactionV1(tran)}, nil
 }
 
-// RevertTransaction delegates to the revertTransaction core (parent/revert
-// eligibility + bidirectional-route checks, then command.CreateRevertTransaction) and projects the
-// core's replayed flag onto the response header, mirroring createTransactionShellV1. Returns 201.
+// RevertTransaction delegates to command.RevertTransactionV1 (parent/revert
+// eligibility + bidirectional-route checks, then the /v1 create pipeline) and projects the
+// use case's replayed flag onto the response header, mirroring createTransactionShellV1.
+// Returns 201.
 //
-// It answers with CreateTransactionResponse because a revert IS a create: it enters
-// the same create orchestration, answers 201 with a freshly created reverse, and can replay —
+// It answers with CreateTransactionResponse because a revert IS a create: it runs the
+// same create pipeline, answers 201 with a freshly created reverse, and can replay —
 // so the create envelope already models the response, headers included. commit/cancel are
 // the ones that differ (pure state transitions) and keep StateTransactionResponse.
 func (handler *TransactionHandler) RevertTransaction(ctx context.Context, in *StateTransactionRequest) (*CreateTransactionResponse, error) {
@@ -324,7 +325,11 @@ func (handler *TransactionHandler) RevertTransaction(ctx context.Context, in *St
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID, command.RouteV1)
+	tran, replayed, err := handler.Command.RevertTransactionV1(ctx, command.RevertTransactionInput{
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		TransactionID:  txID,
+	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

@@ -51,6 +51,18 @@ func (r *versionReader) ValidateAccountingRules(context.Context, uuid.UUID, uuid
 	return nil, nil
 }
 
+func (r *versionReader) GetParentByTransactionID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
+	return nil, nil
+}
+
+func (r *versionReader) GetTransactionWithOperationsByID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
+	return nil, nil
+}
+
+func (r *versionReader) GetOperationRouteByID(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, uuid.UUID) (*mmodel.OperationRoute, error) {
+	return nil, nil
+}
+
 // skippingTransaction is a minimal well-formed transaction that asks for both per-call
 // control skips.
 func skippingTransaction() mtransaction.Transaction {

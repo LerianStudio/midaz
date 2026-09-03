@@ -89,6 +89,7 @@ func TestCreateTransactionV1_NeverReferencesVersionedSeams(t *testing.T) {
 	}{
 		{file: "create_transaction_v1.go", fn: "CreateTransactionV1"},
 		{file: "revert_transaction.go", fn: "createRevertV1"},
+		{file: "revert_transaction.go", fn: "RevertTransactionV1"},
 	} {
 		names := calledNames(t, readTransportSource(t, tc.file, "func (uc *UseCase) "+tc.fn), tc.fn)
 
@@ -132,6 +133,10 @@ func TestCreateTransactionV2_ReferencesVersionedSeamsInOrder(t *testing.T) {
 // reversed fee legs reconstructed by TransactionRevert, so charging again would double
 // the fees.
 func TestRevertV2_NeverAppliesFees(t *testing.T) {
+	if names := calledNames(t, readTransportSource(t, "revert_transaction.go", "func (uc *UseCase) RevertTransactionV2"), "RevertTransactionV2"); containsName(names, "applyFees") {
+		t.Error("RevertTransactionV2 references applyFees")
+	}
+
 	names := calledNames(t, readTransportSource(t, "revert_transaction.go", "func (uc *UseCase) createRevertV2"), "createRevertV2")
 
 	if containsName(names, "applyFees") {

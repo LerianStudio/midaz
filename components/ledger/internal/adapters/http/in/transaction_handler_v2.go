@@ -223,11 +223,11 @@ func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *
 	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newTransactionV2(tran)}, nil
 }
 
-// RevertTransactionV2 is the /v2 shell over the SAME revertTransaction core the v1
-// RevertTransaction shell calls (parent/revert eligibility + bidirectional-route checks,
-// then command.CreateRevertTransaction), differing only in the /v2 response envelope
-// (CreateTransactionOutputV2 instead of CreateTransactionResponse) — a revert IS a
-// create, so it carries the same 201 + X-Idempotency-Replayed shape as the v2 create actions.
+// RevertTransactionV2 is the /v2 shell over command.RevertTransactionV2 (parent/revert
+// eligibility + bidirectional-route checks, then the /v2 create pipeline). It differs from
+// the v1 shell in the response envelope (CreateTransactionOutputV2 instead of
+// CreateTransactionResponse) and in the contract it binds — a revert IS a create, so it
+// carries the same 201 + X-Idempotency-Replayed shape as the v2 create actions.
 func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *StateTransactionRequest) (*CreateTransactionOutputV2, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -238,7 +238,11 @@ func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID, command.RouteV2)
+	tran, replayed, err := handler.Command.RevertTransactionV2(ctx, command.RevertTransactionInput{
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		TransactionID:  txID,
+	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
