@@ -5,6 +5,7 @@
 package utils
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -419,4 +420,84 @@ func TestAccountExceptionsInternalKey_HashTagCoLocation(t *testing.T) {
 
 	assert.Equal(t, "{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8}", tagA)
 	assert.Equal(t, tagA, tagB, "same ledger scope must share one hash tag (one slot)")
+}
+
+func TestBlockedAccountsInternalKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		expected       string
+	}{
+		{
+			name:           "standard blocked accounts key",
+			organizationID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+			ledgerID:       uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
+			expected:       "blocked_accounts:{transactions}:550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+		},
+		{
+			name:           "nil UUIDs (zero value)",
+			organizationID: uuid.Nil,
+			ledgerID:       uuid.Nil,
+			expected:       "blocked_accounts:{transactions}:00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := BlockedAccountsInternalKey(tt.organizationID, tt.ledgerID)
+
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestBlockedAccountsInternalKey_SharesBalanceSlot pins the {transactions} hash
+// tag: the blocked-accounts SET is read by SISMEMBER from INSIDE the balance
+// atomic Lua script, so it has to land on the same Redis Cluster slot as every
+// balance key of the same ledger. A different tag makes that script invalid in
+// cluster mode.
+func TestBlockedAccountsInternalKey_SharesBalanceSlot(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+	blockedKey := BlockedAccountsInternalKey(organizationID, ledgerID)
+	balanceKey := BalanceInternalKey(organizationID, ledgerID, "@alice#default")
+
+	assert.Contains(t, blockedKey, "{transactions}")
+	assert.Equal(t, hashTagOf(t, balanceKey), hashTagOf(t, blockedKey),
+		"blocked-accounts SET must share the balance slot: SISMEMBER runs inside the balance script")
+}
+
+// TestBlockedAccountsHydratedMember_NeverCollidesWithAnAccountID guards the
+// sentinel: it is stored in the same SET as canonical uuid.UUID.String() members,
+// so a value that parses as a UUID would be indistinguishable from a blocked
+// account and would make an account permanently blocked.
+func TestBlockedAccountsHydratedMember_NeverCollidesWithAnAccountID(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "__hydrated__", BlockedAccountsHydratedMember)
+
+	_, err := uuid.Parse(BlockedAccountsHydratedMember)
+	assert.Error(t, err, "sentinel must not parse as a UUID, or it could shadow an account ID")
+}
+
+// hashTagOf extracts the {…} hash tag Redis Cluster uses for slot assignment.
+func hashTagOf(t *testing.T, key string) string {
+	t.Helper()
+
+	start := strings.Index(key, "{")
+	end := strings.Index(key, "}")
+
+	if start < 0 || end < start {
+		t.Fatalf("key %q carries no hash tag", key)
+	}
+
+	return key[start : end+1]
 }

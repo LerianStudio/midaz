@@ -227,6 +227,55 @@ func AccountExceptionsInternalKey(organizationID, ledgerID, accountID uuid.UUID)
 	return builder.String()
 }
 
+// BlockedAccountsHydratedMember is the reserved member that marks a
+// blocked-accounts SET as fully hydrated from the source of truth
+// (account.blocked in the onboarding PostgreSQL).
+//
+// It shares the SET with account IDs written as canonical uuid.UUID.String(),
+// so the value is deliberately one that can never parse as a UUID: a member
+// that did would be read as a blocked account and would block it forever.
+//
+// The sentinel is written LAST by the hydration path. A SET missing it is by
+// definition partially hydrated and MUST be treated as "unknown", never as
+// "nothing is blocked" — that is what makes the index fail-closed.
+const BlockedAccountsHydratedMember = "__hydrated__"
+
+// BlockedAccountsInternalKey returns a key with the following format to be used on redis cluster:
+// "blocked_accounts:{transactions}:organizationID:ledgerID"
+//
+// The SET behind this key is the enforcement index for account blocking: a
+// derived, reconstructible projection of account.blocked (the durable source of
+// truth lives in the onboarding PostgreSQL). Members are account IDs in
+// canonical uuid.UUID.String() form, plus the BlockedAccountsHydratedMember
+// sentinel.
+//
+// The {transactions} hash tag is load-bearing, not cosmetic: the balance atomic
+// Lua script reads this SET with SISMEMBER in the same invocation that mutates
+// the balance keys of the ledger, and Redis Cluster only allows a script to span
+// keys of one slot. A different tag would make that script invalid in cluster
+// mode.
+//
+// This key carries NO TTL, by invariant. Expiring it would silently drop every
+// blocked account from the index — a fail-OPEN unblock nobody requested. Only an
+// explicit unblock (SREM) removes a member.
+func BlockedAccountsInternalKey(organizationID, ledgerID uuid.UUID) string {
+	var builder strings.Builder
+
+	builder.Grow(105) // "blocked_accounts:{transactions}:" + 2×UUID + ":"
+
+	builder.WriteString("blocked_accounts")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString("transactions")
+	builder.WriteString(endKey)
+	builder.WriteString(keySeparator)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+
+	return builder.String()
+}
+
 // WriteBehindTransactionKey returns a key with the following format to be used on redis cluster:
 // "wb_transaction:{organizationID:ledgerID:transactionID}"
 // This key is used to store transaction data in the write-behind cache before persistence.
