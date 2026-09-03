@@ -169,29 +169,6 @@ func DefaultLedgerSettings() LedgerSettings {
 	}
 }
 
-// DefaultLedgerSettingsMap returns the default ledger settings as a map[string]any.
-// This is useful for API responses where the typed struct needs to be serialized.
-// Uses the same canonical defaults as DefaultLedgerSettings.
-func DefaultLedgerSettingsMap() map[string]any {
-	return map[string]any{
-		"accounting": map[string]any{
-			"validateAccountType": defaultAccountingValidation.ValidateAccountType,
-			"validateRoutes":      defaultAccountingValidation.ValidateRoutes,
-			"requireHolder":       defaultAccountingValidation.RequireHolder,
-		},
-		"tracer": map[string]any{
-			"mode":        defaultTracerSettings.Mode,
-			"failPosture": defaultTracerSettings.FailPosture,
-			"timeoutMs":   defaultTracerSettings.TimeoutMs,
-		},
-		"overrides": map[string]any{
-			"allowFeeSkip":    defaultOverridePolicy.AllowFeeSkip,
-			"allowTracerSkip": defaultOverridePolicy.AllowTracerSkip,
-			"allowHolderSkip": defaultOverridePolicy.AllowHolderSkip,
-		},
-	}
-}
-
 // LedgerSettingsToMap converts LedgerSettings to a map[string]any suitable for persistence.
 // The result matches the LedgerSettings schema and can be passed to ValidateSettings or stored as JSONB.
 func LedgerSettingsToMap(s LedgerSettings) map[string]any {
@@ -303,7 +280,7 @@ func parseSettingsNumber(value any) (int, bool) {
 // To add new settings:
 //  1. Add the field to LedgerSettings struct
 //  2. Add the corresponding entry here with the appropriate type ("bool", "string", "number")
-//  3. Update DefaultLedgerSettings() and DefaultLedgerSettingsMap()
+//  3. Update DefaultLedgerSettings(), LedgerSettingsToMap() and ParseLedgerSettings()
 //  4. Add the matching pointer field to the *Input mirror in ledger_settings_input.go and
 //     emit it from ToSparseMap; without both, the field is PATCH-able but rejected on POST
 //     as an unknown field. TestSettingsSchema_HasMatchingInputField and
