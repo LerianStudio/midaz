@@ -281,7 +281,7 @@ func TestAuthz_AccountBlockRoutes_UseDedicatedResource(t *testing.T) {
 
 // accountBlockRepos are the repository mocks the block state transition drives:
 // the account read + source-of-truth write, the balance projection UPDATE, and the
-// atomic multi-key cache DEL.
+// atomic multi-key cache blocked-flag update.
 type accountBlockRepos struct {
 	accountRepo *account.MockRepository
 	balanceRepo *balance.MockRepository
@@ -405,7 +405,7 @@ func expectBlockStateTransition(t *testing.T, repos *accountBlockRepos, orgID, l
 		Times(1)
 
 	repos.redisRepo.EXPECT().
-		DelMany(gomock.Any(), gomock.Any()).
+		SetAccountBlockedMany(gomock.Any(), gomock.Any(), target).
 		Return(nil).
 		Times(1)
 }
@@ -562,7 +562,7 @@ func TestAccountBlockEndpoints_ExternalAccount_Canonical422(t *testing.T) {
 
 // TestAccountBlockEndpoints_ExternalGuardIsPreWrite is a redundancy guard on the
 // forbidden path that a status assertion alone cannot make: gomock fails the test if
-// Update, the balance propagation or the cache DEL is called, so the 403 provably
+// Update, the balance propagation or the cache blocked-flag update is called, so the 403 provably
 // leaves the read models untouched. It is expressed as a separate test because the
 // claim is about the calls that MUST NOT happen.
 func TestAccountBlockEndpoints_ExternalGuardIsPreWrite(t *testing.T) {
@@ -582,7 +582,7 @@ func TestAccountBlockEndpoints_ExternalGuardIsPreWrite(t *testing.T) {
 		Times(1)
 	repos.accountRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 	repos.balanceRepo.EXPECT().UpdateAccountBlockedByAccountID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
-	repos.redisRepo.EXPECT().DelMany(gomock.Any(), gomock.Any()).Times(0)
+	repos.redisRepo.EXPECT().SetAccountBlockedMany(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	app := buildHumaAccountBlockApp(t, handler, "/v1")
 

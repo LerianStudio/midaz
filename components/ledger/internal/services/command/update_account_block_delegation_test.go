@@ -140,14 +140,15 @@ func (f *patchBlockFixture) expectPropagation(blocked bool) {
 		Return(balances, nil).
 		Times(1)
 	f.redisRepo.EXPECT().
-		DelMany(gomock.Any(), keys).
+		SetAccountBlockedMany(gomock.Any(), keys, blocked).
 		Return(nil).
 		Times(1)
 }
 
 // TestUpdateAccount_BlockedFieldDelegatesToBlockStatePath proves the PATCH now
 // travels the dedicated helper: the account row moves, every balance is
-// realigned and every cached balance key is evicted in one DEL.
+// realigned and every cached balance key has its AccountBlocked flag flipped in
+// one atomic mutation.
 func TestUpdateAccount_BlockedFieldDelegatesToBlockStatePath(t *testing.T) {
 	t.Parallel()
 
@@ -178,8 +179,8 @@ func TestUpdateAccount_WithoutBlockedDoesNotPropagate(t *testing.T) {
 	f := newPatchBlockFixture(t, boolPtr(false))
 
 	// No propagation expectations are armed: any call to
-	// UpdateAccountBlockedByAccountID, ListByAccountID or DelMany fails the
-	// gomock controller.
+	// UpdateAccountBlockedByAccountID, ListByAccountID or SetAccountBlockedMany
+	// fails the gomock controller.
 
 	updated, err := f.uc.UpdateAccount(context.Background(), f.organizationID, f.ledgerID, nil, f.accountID,
 		&mmodel.UpdateAccountInput{Name: "Renamed only"}, mmodel.HolderOffV1)

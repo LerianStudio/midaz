@@ -69,8 +69,10 @@ func (uc *UseCase) BlockAccount(ctx context.Context, organizationID, ledgerID, a
 //     this point leaves the system in a state a retry can finish, never one where
 //     the balances claim a block the account does not have.
 //  4. Propagate to every balance in one atomic UPDATE.
-//  5. Evict the balance cache keys in one atomic DEL (invalidate-first: the next
-//     read repopulates from the freshly-propagated rows).
+//  5. Drive the new block state into the balance cache with one atomic,
+//     AccountBlocked-only mutation. The cache is write-back — it may hold
+//     transactional values not yet synced to PostgreSQL — so the flag is flipped
+//     in place rather than evicted, which would drop those in-flight mutations.
 //
 // Any failure from step 3 onward is returned to the caller. Nothing is confirmed
 // to the operator on a partial write.
@@ -138,7 +140,7 @@ func (uc *UseCase) setAccountBlockState(ctx context.Context, organizationID, led
 		return nil, err
 	}
 
-	if err := uc.invalidateAccountBalanceCache(ctx, organizationID, ledgerID, accountID); err != nil {
+	if err := uc.invalidateAccountBalanceCache(ctx, organizationID, ledgerID, accountID, blocked); err != nil {
 		return nil, err
 	}
 
@@ -230,15 +232,27 @@ func (uc *UseCase) propagateBlockStateToBalances(ctx context.Context, organizati
 	return nil
 }
 
-// invalidateAccountBalanceCache evicts the cached balances of the account in a
-// single DEL so no reader can observe a mixture of stale and fresh keys.
+// invalidateAccountBalanceCache drives the new block state into the cached
+// balances of the account with a single atomic, AccountBlocked-only mutation, so
+// no reader can observe a mixture of stale and fresh keys.
+//
+// The balance cache is a write-back store, not a plain read cache: the atomic
+// Lua path mutates the authoritative Available / OnHold / Version /
+// OverdraftUsed inside each cached BalanceRedis blob and may be AHEAD of
+// PostgreSQL until the sync worker flushes it. Deleting the keys here would drop
+// those in-flight, not-yet-synced mutations (and their scheduled sync), and the
+// next read would repopulate STALE balances from PostgreSQL. So instead of
+// evicting, this flips ONLY the AccountBlocked projection in place via
+// SetAccountBlockedMany — mirroring how UpdateBalanceCacheSettings mutates the
+// settings fields — leaving every transactional field, the backup and the sync
+// schedule intact.
 //
 // Unlike evictBalanceCaches — which runs after an already-committed delete and
 // therefore only warns — a failure here is returned. The propagated rows are
-// durable but the hot path reads the cache, so a surviving stale entry means a
+// durable but the hot path reads the cache, so a surviving stale flag means a
 // blocked account still transacts. The operator has to know, and the retry is
-// safe because both the UPDATE and the DEL are idempotent.
-func (uc *UseCase) invalidateAccountBalanceCache(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
+// safe because both the UPDATE and this in-place mutation are idempotent.
+func (uc *UseCase) invalidateAccountBalanceCache(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, blocked bool) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.set_account_block_state.invalidate_cache")
@@ -263,11 +277,12 @@ func (uc *UseCase) invalidateAccountBalanceCache(ctx context.Context, organizati
 		cacheKeys = append(cacheKeys, balanceCacheKeyFor(organizationID, ledgerID, b))
 	}
 
-	if err := uc.TransactionRedisRepo.DelMany(ctx, cacheKeys); err != nil {
+	if err := uc.TransactionRedisRepo.SetAccountBlockedMany(ctx, cacheKeys, blocked); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to invalidate balance cache", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to invalidate balance cache after block state change",
 			libLog.String("account_id", accountID.String()),
 			libLog.Int("keys", len(cacheKeys)),
+			libLog.Bool("blocked", blocked),
 			libLog.Err(err))
 
 		return err

@@ -86,20 +86,6 @@ func (mr *MockRedisRepositoryMockRecorder) Del(ctx, key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Del", reflect.TypeOf((*MockRedisRepository)(nil).Del), ctx, key)
 }
 
-// DelMany mocks base method.
-func (m *MockRedisRepository) DelMany(ctx context.Context, keys []string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DelMany", ctx, keys)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DelMany indicates an expected call of DelMany.
-func (mr *MockRedisRepositoryMockRecorder) DelMany(ctx, keys any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DelMany", reflect.TypeOf((*MockRedisRepository)(nil).DelMany), ctx, keys)
-}
-
 // Get mocks base method.
 func (m *MockRedisRepository) Get(ctx context.Context, key string) (string, error) {
 	m.ctrl.T.Helper()
@@ -334,6 +320,20 @@ func (m *MockRedisRepository) Set(ctx context.Context, key, value string, ttl ti
 func (mr *MockRedisRepositoryMockRecorder) Set(ctx, key, value, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockRedisRepository)(nil).Set), ctx, key, value, ttl)
+}
+
+// SetAccountBlockedMany mocks base method.
+func (m *MockRedisRepository) SetAccountBlockedMany(ctx context.Context, keys []string, blocked bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetAccountBlockedMany", ctx, keys, blocked)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetAccountBlockedMany indicates an expected call of SetAccountBlockedMany.
+func (mr *MockRedisRepositoryMockRecorder) SetAccountBlockedMany(ctx, keys, blocked any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetAccountBlockedMany", reflect.TypeOf((*MockRedisRepository)(nil).SetAccountBlockedMany), ctx, keys, blocked)
 }
 
 // SetBytes mocks base method.

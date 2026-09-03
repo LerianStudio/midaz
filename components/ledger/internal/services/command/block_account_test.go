@@ -96,7 +96,8 @@ func (f *blockStateFixture) externalAccount() *mmodel.Account {
 }
 
 // balancesOfAccount returns two balances on distinct keys so the cache
-// invalidation assertion can prove BOTH keys travel in the same DEL call.
+// invalidation assertion can prove BOTH keys travel in the same
+// SetAccountBlockedMany call.
 func (f *blockStateFixture) balancesOfAccount() []*mmodel.Balance {
 	return []*mmodel.Balance{
 		{
@@ -170,9 +171,9 @@ func (f *blockStateFixture) expectListBalances(balances []*mmodel.Balance, err e
 		Times(1)
 }
 
-func (f *blockStateFixture) expectCacheDel(keys []string, err error) {
+func (f *blockStateFixture) expectSetAccountBlocked(keys []string, blocked bool, err error) {
 	f.redisRepo.EXPECT().
-		DelMany(gomock.Any(), keys).
+		SetAccountBlockedMany(gomock.Any(), keys, blocked).
 		Return(err).
 		Times(1)
 }
@@ -202,7 +203,7 @@ func TestBlockAccount(t *testing.T) {
 				f.expectUpdate(true, nil)
 				f.expectPropagate(true, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
-				f.expectCacheDel(f.expectedCacheKeys(), nil)
+				f.expectSetAccountBlocked(f.expectedCacheKeys(), true, nil)
 			},
 			assertOK: func(t *testing.T, f *blockStateFixture, acc *mmodel.Account) {
 				require.NotNil(t, acc)
@@ -219,7 +220,7 @@ func TestBlockAccount(t *testing.T) {
 				f.expectUpdate(true, nil)
 				f.expectPropagate(true, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
-				f.expectCacheDel(f.expectedCacheKeys(), nil)
+				f.expectSetAccountBlocked(f.expectedCacheKeys(), true, nil)
 			},
 			assertOK: func(t *testing.T, f *blockStateFixture, acc *mmodel.Account) {
 				require.NotNil(t, acc)
@@ -236,7 +237,7 @@ func TestBlockAccount(t *testing.T) {
 				// retry after a partial failure converges.
 				f.expectPropagate(true, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
-				f.expectCacheDel(f.expectedCacheKeys(), nil)
+				f.expectSetAccountBlocked(f.expectedCacheKeys(), true, nil)
 			},
 			assertOK: func(t *testing.T, f *blockStateFixture, acc *mmodel.Account) {
 				require.NotNil(t, acc)
@@ -333,7 +334,7 @@ func TestBlockAccount(t *testing.T) {
 				f.expectUpdate(true, nil)
 				f.expectPropagate(true, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
-				f.expectCacheDel(f.expectedCacheKeys(), cacheErr)
+				f.expectSetAccountBlocked(f.expectedCacheKeys(), true, cacheErr)
 			},
 			expectErr:   true,
 			errContains: "redis unavailable",
@@ -385,7 +386,7 @@ func TestBlockAccount_EmitsAccountUpdatedEvent(t *testing.T) {
 	f.expectUpdate(true, nil)
 	f.expectPropagate(true, nil)
 	f.expectListBalances(f.balancesOfAccount(), nil)
-	f.expectCacheDel(f.expectedCacheKeys(), nil)
+	f.expectSetAccountBlocked(f.expectedCacheKeys(), true, nil)
 
 	_, err := f.uc.BlockAccount(context.Background(), f.organizationID, f.ledgerID, f.accountID, mmodel.HolderOffV1)
 	require.NoError(t, err)
@@ -412,7 +413,7 @@ func TestBlockAccount_EmitsAuditEventOnIdempotentRetry(t *testing.T) {
 	f.expectFind(f.accountWithBlocked(boolPtr(true)), nil)
 	f.expectPropagate(true, nil)
 	f.expectListBalances(f.balancesOfAccount(), nil)
-	f.expectCacheDel(f.expectedCacheKeys(), nil)
+	f.expectSetAccountBlocked(f.expectedCacheKeys(), true, nil)
 
 	_, err := f.uc.BlockAccount(context.Background(), f.organizationID, f.ledgerID, f.accountID, mmodel.HolderOffV1)
 	require.NoError(t, err)

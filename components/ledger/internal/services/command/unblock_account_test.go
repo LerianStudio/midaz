@@ -41,7 +41,7 @@ func TestUnblockAccount(t *testing.T) {
 				f.expectUpdate(false, nil)
 				f.expectPropagate(false, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
-				f.expectCacheDel(f.expectedCacheKeys(), nil)
+				f.expectSetAccountBlocked(f.expectedCacheKeys(), false, nil)
 			},
 			assertOK: func(t *testing.T, f *blockStateFixture, acc *mmodel.Account) {
 				require.NotNil(t, acc)
@@ -60,7 +60,7 @@ func TestUnblockAccount(t *testing.T) {
 				f.expectUpdate(false, nil)
 				f.expectPropagate(false, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
-				f.expectCacheDel(f.expectedCacheKeys(), nil)
+				f.expectSetAccountBlocked(f.expectedCacheKeys(), false, nil)
 			},
 			assertOK: func(t *testing.T, f *blockStateFixture, acc *mmodel.Account) {
 				require.NotNil(t, acc)
@@ -74,7 +74,7 @@ func TestUnblockAccount(t *testing.T) {
 				f.expectFind(f.accountWithBlocked(boolPtr(false)), nil)
 				f.expectPropagate(false, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
-				f.expectCacheDel(f.expectedCacheKeys(), nil)
+				f.expectSetAccountBlocked(f.expectedCacheKeys(), false, nil)
 			},
 			assertOK: func(t *testing.T, f *blockStateFixture, acc *mmodel.Account) {
 				require.NotNil(t, acc)
@@ -123,7 +123,7 @@ func TestUnblockAccount(t *testing.T) {
 				f.expectUpdate(false, nil)
 				f.expectPropagate(false, nil)
 				f.expectListBalances(f.balancesOfAccount(), nil)
-				f.expectCacheDel(f.expectedCacheKeys(), errors.New("redis unavailable"))
+				f.expectSetAccountBlocked(f.expectedCacheKeys(), false, errors.New("redis unavailable"))
 			},
 			expectErr:   true,
 			errContains: "redis unavailable",
@@ -175,7 +175,7 @@ func TestUnblockAccount_EmitsAccountUpdatedEvent(t *testing.T) {
 	f.expectUpdate(false, nil)
 	f.expectPropagate(false, nil)
 	f.expectListBalances(f.balancesOfAccount(), nil)
-	f.expectCacheDel(f.expectedCacheKeys(), nil)
+	f.expectSetAccountBlocked(f.expectedCacheKeys(), false, nil)
 
 	_, err := f.uc.UnblockAccount(context.Background(), f.organizationID, f.ledgerID, f.accountID, mmodel.HolderOffV1)
 	require.NoError(t, err)
@@ -213,7 +213,7 @@ func TestBlockUnblockAccount_ConvergesUnderRetrySequence(t *testing.T) {
 	second.expectFind(second.accountWithBlocked(boolPtr(true)), nil)
 	second.expectPropagate(true, nil)
 	second.expectListBalances(second.balancesOfAccount(), nil)
-	second.expectCacheDel(second.expectedCacheKeys(), nil)
+	second.expectSetAccountBlocked(second.expectedCacheKeys(), true, nil)
 
 	acc, err := second.uc.BlockAccount(context.Background(), second.organizationID, second.ledgerID, second.accountID, mmodel.HolderOffV1)
 	require.NoError(t, err)

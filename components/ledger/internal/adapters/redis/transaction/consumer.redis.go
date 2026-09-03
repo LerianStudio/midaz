@@ -41,15 +41,20 @@ var claimBalanceSyncKeysLua string
 //go:embed scripts/update_balance_settings.lua
 var updateBalanceSettingsLua string
 
-// balanceAtomicScript, claimBalanceSyncScript, and updateBalanceSettingsScript
-// are built once at package init. redis.NewScript computes the source SHA1
-// eagerly, so hoisting these out of the per-call hot paths (runBalanceAtomicScript,
-// GetBalanceSyncKeys, GetBalanceSyncKeysLegacy, UpdateBalanceCacheSettings) avoids
-// re-hashing on every invocation. *redis.Script is safe for concurrent use.
+//go:embed scripts/set_account_blocked_batch.lua
+var setAccountBlockedBatchLua string
+
+// balanceAtomicScript, claimBalanceSyncScript, updateBalanceSettingsScript and
+// setAccountBlockedBatchScript are built once at package init. redis.NewScript
+// computes the source SHA1 eagerly, so hoisting these out of the per-call hot
+// paths (runBalanceAtomicScript, GetBalanceSyncKeys, GetBalanceSyncKeysLegacy,
+// UpdateBalanceCacheSettings, SetAccountBlockedMany) avoids re-hashing on every
+// invocation. *redis.Script is safe for concurrent use.
 var (
-	balanceAtomicScript         = redis.NewScript(balanceAtomicOperationLua)
-	claimBalanceSyncScript      = redis.NewScript(claimBalanceSyncKeysLua)
-	updateBalanceSettingsScript = redis.NewScript(updateBalanceSettingsLua)
+	balanceAtomicScript          = redis.NewScript(balanceAtomicOperationLua)
+	claimBalanceSyncScript       = redis.NewScript(claimBalanceSyncKeysLua)
+	updateBalanceSettingsScript  = redis.NewScript(updateBalanceSettingsLua)
+	setAccountBlockedBatchScript = redis.NewScript(setAccountBlockedBatchLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
@@ -98,11 +103,6 @@ type RedisRepository interface {
 	MGet(ctx context.Context, keys []string) (map[string]string, error)
 	// Del removes a key from Redis.
 	Del(ctx context.Context, key string) error
-	// DelMany removes several keys in a SINGLE DEL command, so a caller that must
-	// evict a related set of keys cannot be observed half-evicted. Every balance key
-	// carries the same {transactions} hash tag, so the set lands on one slot and the
-	// multi-key form is valid in cluster mode. An empty slice is a no-op.
-	DelMany(ctx context.Context, keys []string) error
 	// Incr atomically increments a key's integer value and returns the new value.
 	// Returns 0 on error (connection failure, namespace failure).
 	Incr(ctx context.Context, key string) int64
@@ -172,6 +172,29 @@ type RedisRepository interface {
 	// A cache miss (key absent) is a no-op: the next transaction will load the
 	// freshly-updated settings directly from PostgreSQL on its first SETNX.
 	UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error
+	// SetAccountBlockedMany performs an in-place, AccountBlocked-only update of
+	// every cached balance named in keys, in a single atomic Lua EVAL.
+	//
+	// Like UpdateBalanceCacheSettings, it decodes each cached blob, mutates ONLY
+	// one projection field — here AccountBlocked, as the 1/0 int — and re-encodes
+	// it, deliberately preserving the live transactional state the balance atomic
+	// script owns and may hold ahead of PostgreSQL while sync is pending:
+	// Available, OnHold, Version and OverdraftUsed are never read or written. The
+	// backup queue and the sync schedule are separate keys and are untouched, so a
+	// pending unsynced mutation and its scheduled flush both survive. This is why
+	// the block/unblock path mutates the flag in place instead of deleting the
+	// key, which would drop those in-flight values.
+	//
+	// keys are the un-prefixed internal balance keys built by the command layer;
+	// tenant namespacing is applied here, exactly as MGet does. Every balance
+	// key shares the {transactions} hash tag, so the whole set lands on one slot
+	// and the multi-key EVAL is valid in cluster mode. An empty slice is a no-op.
+	//
+	// A cache miss (key absent) is a per-key no-op: it is skipped, never recreated
+	// as a partial entry — the next transaction reloads it from PostgreSQL carrying
+	// the freshly-propagated flag. A corrupt (non-JSON) cached blob aborts the
+	// whole batch before any write and surfaces as an error (fail-closed).
+	SetAccountBlockedMany(ctx context.Context, keys []string, blocked bool) error
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -391,67 +414,6 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	}
 
 	logger.Log(ctx, libLog.LevelDebug, "Key deleted from Redis", libLog.Any("deleted_count", val))
-
-	return nil
-}
-
-// DelMany deletes every supplied key in one DEL round-trip. Redis executes a
-// single command atomically, so the whole set disappears together — that is the
-// property callers doing invalidate-first eviction depend on, and the reason
-// this is not a loop over Del.
-//
-// Large inputs are chunked at maxRedisBatchSize to keep the command payload
-// bounded, matching MGet. A chunked call is several atomic DELs rather than one;
-// the sets this serves (the balances of a single account) are orders of
-// magnitude below the threshold, so the guarantee holds in practice.
-func (rr *RedisConsumerRepository) DelMany(ctx context.Context, keys []string) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.del_many")
-	defer span.End()
-
-	if len(keys) == 0 {
-		libOpentelemetry.HandleSpanEvent(span, "del_many called with empty keys")
-
-		return nil
-	}
-
-	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis keys", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis keys", libLog.Err(err))
-
-		return err
-	}
-
-	rds, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to connect to Redis", libLog.Err(err))
-
-		return err
-	}
-
-	var deleted int64
-
-	for start := 0; start < len(prefixedKeys); start += maxRedisBatchSize {
-		end := min(start+maxRedisBatchSize, len(prefixedKeys))
-
-		val, err := rds.Del(ctx, prefixedKeys[start:end]...).Result()
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to del many on redis", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to delete keys from Redis", libLog.Err(err))
-
-			return err
-		}
-
-		deleted += val
-	}
-
-	logger.Log(ctx, libLog.LevelDebug, "Keys deleted from Redis",
-		libLog.Int("requested", len(keys)),
-		libLog.Int("deleted", int(deleted)),
-	)
 
 	return nil
 }
@@ -1790,6 +1752,96 @@ func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Contex
 
 		return corruptErr
 	}
+}
+
+// SetAccountBlockedMany flips ONLY the AccountBlocked projection on every cached
+// balance named in keys, in a single atomic Lua EVAL, preserving the live
+// transactional state (Available, OnHold, Version, OverdraftUsed) the balance
+// atomic script may have mutated but not yet flushed to PostgreSQL.
+//
+// The mutation runs inside scripts/set_account_blocked_batch.lua rather than in
+// Go, for the same reason UpdateBalanceCacheSettings delegates to
+// scripts/update_balance_settings.lua: Redis serializes EVAL execution, so this
+// write and any concurrent balance_atomic_operation.lua debit/credit on the same
+// key can never interleave. The script decodes each blob, overwrites only
+// AccountBlocked (dropping any legacy camelCase alias), and re-encodes it with
+// the same cjson round trip the atomic script performs on every transaction, so
+// the next transaction's decode reads the flag back as balance.AccountBlocked.
+//
+// keys are chunked at maxRedisBatchSize and tenant-prefixed exactly as MGet
+// does. The script is all-or-nothing per chunk: a corrupt cached blob aborts
+// before any SET and is surfaced as an error (fail-closed); a missing key is a
+// no-op. An empty slice is a no-op.
+func (rr *RedisConsumerRepository) SetAccountBlockedMany(ctx context.Context, keys []string, blocked bool) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.set_account_blocked_many")
+	defer span.End()
+
+	if len(keys) == 0 {
+		libOpentelemetry.HandleSpanEvent(span, "set_account_blocked_many called with empty keys")
+
+		return nil
+	}
+
+	span.SetAttributes(
+		attribute.Bool("app.blocked", blocked),
+		attribute.Int("app.keys", len(keys)),
+	)
+
+	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis keys", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis keys", libLog.Err(err))
+
+		return err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return err
+	}
+
+	blockedArg := boolToInt(blocked)
+	ttlSeconds := strconv.FormatInt(int64(balanceCacheSettingsTTL/time.Second), 10)
+
+	for start := 0; start < len(prefixedKeys); start += maxRedisBatchSize {
+		end := min(start+maxRedisBatchSize, len(prefixedKeys))
+
+		result, err := setAccountBlockedBatchScript.Run(ctx, rds, prefixedKeys[start:end], blockedArg, ttlSeconds).Result()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to run account-blocked update script on redis", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to run account-blocked update script on Redis", libLog.Err(err))
+
+			return err
+		}
+
+		scriptResult, ok := result.(int64)
+		if !ok {
+			castErr := fmt.Errorf("unexpected result type from account-blocked update script: %T", result)
+			libOpentelemetry.HandleSpanError(span, "Unexpected result type from account-blocked update script", castErr)
+			logger.Log(ctx, libLog.LevelError, "Unexpected result type from account-blocked update script", libLog.Err(castErr))
+
+			return castErr
+		}
+
+		if scriptResult < 0 {
+			corruptErr := fmt.Errorf("corrupt cached balance: account-blocked update script returned %d", scriptResult)
+			libOpentelemetry.HandleSpanError(span, "Corrupt cached balance blob on account-blocked update", corruptErr)
+			logger.Log(ctx, libLog.LevelError, "Corrupt cached balance blob on account-blocked update", libLog.Err(corruptErr))
+
+			return corruptErr
+		}
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Balance cache account-blocked flag updated in place",
+		libLog.Int("requested", len(keys)),
+		libLog.Bool("blocked", blocked))
+
+	return nil
 }
 
 // GetBalancesByKeys retrieves multiple balance values using MGET.
