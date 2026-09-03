@@ -50,7 +50,7 @@ func TestCommitCancel_PrimaryReadWrapPlacement(t *testing.T) {
 	}
 
 	if !positions.enrichTakesReadCtx {
-		t.Error("the cancel EnrichOverdraftOperations read must receive the dedicated readCtx so its internal GetBalances is routed to primary")
+		t.Error("the cancel enrichOverdraftOperations read must receive the dedicated readCtx so its internal GetBalances is routed to primary")
 	}
 
 	if positions.validateTakesReadCtx {
@@ -74,7 +74,7 @@ type commitCancelWrapPositions struct {
 // analyzeCommitCancelWrap returns, within the named function body, the top-level
 // statement indices of the dedicated `readCtx := readrouting.WithPrimaryRead(...)`
 // wrap, the first GetBalances call, and the validation-only GetParsedLedgerSettings
-// call (each -1 when absent), and whether GetBalances, EnrichOverdraftOperations,
+// call (each -1 when absent), and whether GetBalances, enrichOverdraftOperations,
 // and ValidateAccountingRules receive `readCtx` as their context argument.
 // Statement indices are sufficient because the reads live at the top level of the
 // sequential preparation flow.
@@ -120,7 +120,7 @@ func analyzeCommitCancelWrap(t *testing.T, src, funcName string) commitCancelWra
 			positions.getBalancesTakesReadCtx = true
 		}
 
-		if callFirstArgIsIdent(stmt, "EnrichOverdraftOperations", "readCtx") {
+		if callFirstArgIsIdent(stmt, "enrichOverdraftOperations", "readCtx") {
 			positions.enrichTakesReadCtx = true
 		}
 
@@ -164,7 +164,7 @@ func stmtDefinesReadCtxFromPrimaryRead(stmt ast.Stmt) bool {
 // callFirstArgIsIdent reports whether stmt contains a call to callee whose first
 // argument is exactly the identifier argName. callee matches either a method call
 // (`x.callee(...)`) or a plain function call (`callee(...)`), so both
-// `uc.TransactionReader.GetBalances(readCtx, ...)` and `EnrichOverdraftOperations(readCtx, ...)`
+// `uc.TransactionReader.GetBalances(readCtx, ...)` and `enrichOverdraftOperations(readCtx, ...)`
 // are recognized — used to assert which reads receive the dedicated readCtx versus
 // the unmarked ctx.
 func callFirstArgIsIdent(stmt ast.Stmt, callee, argName string) bool {

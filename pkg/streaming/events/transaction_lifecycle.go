@@ -82,7 +82,7 @@ var TransactionCanceledDefinition = Definition{
 // revert flow creates a child transaction. Distinguished from
 // transaction.posted by tran.ParentTransactionID != nil (the child
 // carries the parent's UUID). The revert HTTP handler at
-// transaction_state_handlers.go:166-289 (RevertTransaction) flows
+// the revert use case flows
 // through the standard write path and lands at the same
 // SendTransactionEvents anchor.
 //

@@ -22,7 +22,7 @@ import (
 
 // This file is the transport layer of the MONEY-WRITE transaction resource. Every shell
 // decodes/validates the request and delegates to the use case
-// (command.CreateTransaction / commitOrCancelTransaction / UpdateTransaction command +
+// (command.CreateTransactionV1 / command.CommitTransactionV1 / UpdateTransaction command +
 // query), then projects the result onto a typed Huma Out. The create orchestration
 // (validate -> fee -> reserve -> ProcessBalanceOperations -> BuildOperations ->
 // WriteTransaction, with its 9 cleanup points) lives in the command package; this file

@@ -37,7 +37,7 @@ import (
 // fix for the two-phase overdraft cancel. The write-behind cache is cleared once the
 // create persists, so a later /cancel misses it and falls through to the database.
 // That fallback MUST read the transaction WITH its operations
-// (GetTransactionWithOperationsByID / FindWithOperations): commitOrCancelTransaction's
+// (GetTransactionWithOperationsByID / FindWithOperations): the pending transition's
 // annotateCanceledOverdraftAmounts step reads tran.Operations to size the overdraft
 // deficit, and a row-only read (GetTransactionByID / Find) leaves Operations empty so
 // the cancel restores the whole hold to available instead of only the non-overdraft
@@ -161,7 +161,7 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 // with-operations fallback against its INNER JOIN semantics: FindWithOperations returns
 // an empty transaction (no error) when it matches no operation rows — a nonexistent
 // transaction, or one with no operations. Without the empty-value guard,
-// commitOrCancelTransaction would parse an empty organization id and panic. The guard
+// the pending transition would parse an empty organization id and panic. The guard
 // falls back to the row-only read, which reports not-found, so the response stays a
 // clean 404.
 func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *testing.T) {
@@ -236,7 +236,7 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 // has no operations. The guard must fall back to the row-only read, which returns the REAL
 // row — not a not-found. Here that row is APPROVED, so the state machine short-circuits at
 // its not-pending guard and answers 409, proving the fallback carried a live transaction
-// (not a nil/empty value) into commitOrCancelTransaction.
+// (not a nil/empty value) into the pending transition.
 func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -252,7 +252,7 @@ func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction
 	amount := decimal.NewFromInt(100)
 
 	// A REAL, operation-less transaction: valid ids and APPROVED status so
-	// commitOrCancelTransaction parses the ids and returns at the not-pending guard.
+	// The transition parses the ids and returns at the not-pending guard.
 	tranRowOnly := &transaction.Transaction{
 		ID:             transactionID.String(),
 		OrganizationID: orgID.String(),

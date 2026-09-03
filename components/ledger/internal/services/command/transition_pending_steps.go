@@ -198,8 +198,8 @@ func (uc *UseCase) preparePendingTransition(ctx context.Context, span trace.Span
 		return err
 	}
 
-	balanceOps := BuildBalanceOperations(ctx, run.organizationID, run.ledgerID, validate, balances)
-	balanceOps = AnnotateCanceledOverdraftAmounts(balanceOps, run.tran)
+	balanceOps := buildBalanceOperations(ctx, run.organizationID, run.ledgerID, validate, balances)
+	balanceOps = annotateCanceledOverdraftAmounts(balanceOps, run.tran)
 
 	// Both transitions move funds on the overdrafted balance, so both need the
 	// companion mirrored: a cancel restores the held capacity, and a commit posts
@@ -211,7 +211,7 @@ func (uc *UseCase) preparePendingTransition(ctx context.Context, span trace.Span
 	var companionFromTos []mtransaction.FromTo
 
 	if run.status == constant.APPROVED || run.status == constant.CANCELED {
-		balanceOps, companionFromTos, err = EnrichOverdraftOperations(readCtx, run.organizationID, run.ledgerID, balanceOps,
+		balanceOps, companionFromTos, err = enrichOverdraftOperations(readCtx, run.organizationID, run.ledgerID, balanceOps,
 			validate, uc.TransactionReader.GetBalances)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to enrich overdraft operations", err)
@@ -326,8 +326,8 @@ func (uc *UseCase) finalizePendingTransition(ctx context.Context, span trace.Spa
 		return nil, err
 	}
 
-	run.tran.Source = GetAliasWithoutKey(FilterCompanionAliases(run.validate.Sources))
-	run.tran.Destination = GetAliasWithoutKey(FilterCompanionAliases(run.validate.Destinations))
+	run.tran.Source = getAliasWithoutKey(filterCompanionAliases(run.validate.Sources))
+	run.tran.Destination = getAliasWithoutKey(filterCompanionAliases(run.validate.Destinations))
 	run.tran.Operations = operations
 
 	ctxBackup, spanBackup := tracer.Start(ctx, "handler.commit_or_cancel_transaction.send_to_redis_queue")

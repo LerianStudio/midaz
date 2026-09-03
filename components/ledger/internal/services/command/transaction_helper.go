@@ -31,9 +31,9 @@ func buildParentTransactionID(parentID uuid.UUID) *string {
 	return &s
 }
 
-// GetAliasWithoutKey strips the "#key" suffix from alias strings,
+// getAliasWithoutKey strips the "#key" suffix from alias strings,
 // returning only the alias portion before the first "#".
-func GetAliasWithoutKey(array []string) []string {
+func getAliasWithoutKey(array []string) []string {
 	result := make([]string, len(array))
 
 	for i, str := range array {
@@ -44,7 +44,7 @@ func GetAliasWithoutKey(array []string) []string {
 	return result
 }
 
-// FilterCompanionAliases removes alias-key entries that target the system-
+// filterCompanionAliases removes alias-key entries that target the system-
 // managed overdraft companion balance (key == "overdraft"). These companions
 // are added to `validate.Sources` / `validate.Destinations` by the enrichment
 // engine so ValidateBalancesRules sees consistent counts, but they MUST NOT
@@ -52,7 +52,7 @@ func GetAliasWithoutKey(array []string) []string {
 // otherwise the response would show duplicate aliases (the bare alias is
 // identical to the default balance's bare alias) and leak the existence of
 // a system-managed ledger into the client API contract.
-func FilterCompanionAliases(aliases []string) []string {
+func filterCompanionAliases(aliases []string) []string {
 	if len(aliases) == 0 {
 		return aliases
 	}
@@ -80,14 +80,14 @@ type balanceRef struct {
 	internalKey string
 }
 
-// BuildBalanceOperations constructs and sorts balance operations from the
+// buildBalanceOperations constructs and sorts balance operations from the
 // validated transaction entries. This is pure logic with no I/O dependencies.
 // Operations are sorted by internal key to prevent deadlocks in the Lua script.
 //
 // Alias format arriving from MutateConcatAliases: "index#alias#balanceKey"
 // (e.g. "0#@sender#default", "1#@sender#default" for same account appearing twice).
 // SplitAliasWithKey strips the index prefix, returning "alias#balanceKey" for balance lookup.
-func BuildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *mtransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
+func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *mtransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
 	logger := libObservability.NewLoggerFromContext(ctx)
 
 	// Index balances by aliasKey for O(1) lookup instead of O(balances * entries).

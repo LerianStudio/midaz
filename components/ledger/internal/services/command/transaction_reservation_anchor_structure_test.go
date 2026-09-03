@@ -5,137 +5,122 @@
 package command
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"testing"
 )
 
-// Gate 5 — POSITION. The route gate must be the FIRST statement of the two
-// by-transaction tracer seams, the ones commit and cancel still address with an explicit
-// policy. Ordering is the guarantee, not a detail: a /v1 request has to return before a
-// request is built or a connection dialled, so moving the gate below the nil/mode guard
-// would still no-op but would no longer prove that nothing left the process. Nothing at
-// runtime distinguishes the two.
+// Gate 5 — the version split of the PENDING state transition is enforced by
+// construction: the /v1 pipeline simply does not name the reservation seams, and the
+// /v2 pipeline names them in the one order the contract allows. Nothing at runtime
+// distinguishes "the seam ran and no-oped" from "the seam was never reached", so these
+// gates read the source, mirroring the create-side gates in
+// create_transaction_version_gates_test.go.
 //
-// The create-side reserve anchor needs no gate: the /v1 pipelines never call it, which
-// TestCreateTransactionV1_NeverReferencesVersionedSeams asserts over the source.
+// The create-side reserve anchor is covered by
+// TestCreateTransactionV1_NeverReferencesVersionedSeams over the same source.
 
-// firstStatementGatesRouteV1 reports whether the named function's FIRST statement is
-// `if policy == RouteV1`. A function that is absent from src is reported separately so
-// a renamed seam fails loudly instead of passing vacuously.
-func firstStatementGatesRouteV1(t *testing.T, src, funcName string) (gated, found bool) {
-	t.Helper()
+// byTransactionSeams are the reservation seams the /v1 state transition excludes.
+var byTransactionSeams = []string{
+	"confirmReservationsByTransaction",
+	"releaseReservationsByTransaction",
+}
 
-	fset := token.NewFileSet()
+func TestTransitionPendingV1_NeverReferencesReservationSeams(t *testing.T) {
+	names := calledNames(t, readTransportSource(t, pendingPipelineFile, "func (uc *UseCase) transitionPendingV1"), "transitionPendingV1")
 
-	file, err := parser.ParseFile(fset, "src.go", src, 0)
-	if err != nil {
-		t.Fatalf("parse source: %v", err)
-	}
-
-	for _, decl := range file.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Name.Name != funcName || fn.Body == nil || len(fn.Body.List) == 0 {
-			continue
+	for _, seam := range byTransactionSeams {
+		if containsName(names, seam) {
+			t.Errorf("transitionPendingV1 references %s — the /v1 contract carries no tracer, so a /v1 commit or cancel must build no request and dial nothing", seam)
 		}
-
-		return isRouteV1Guard(fn.Body.List[0]), true
 	}
-
-	return false, false
 }
 
-// isRouteV1Guard matches `if policy == RouteV1 { ... }` with no else branch.
-func isRouteV1Guard(stmt ast.Stmt) bool {
-	ifStmt, ok := stmt.(*ast.IfStmt)
-	if !ok || ifStmt.Init != nil || ifStmt.Else != nil {
-		return false
+func TestTransitionPendingV2_DrivesTheReservationLifecycleAfterTheCommit(t *testing.T) {
+	src := readTransportSource(t, pendingPipelineFile, "func (uc *UseCase) "+pendingTransitionV2Func)
+
+	names := calledNames(t, src, pendingTransitionV2Func)
+
+	commitAt := indexOfName(names, "commitPendingBalances")
+	if commitAt == -1 {
+		t.Fatal("transitionPendingV2 does not call commitPendingBalances — the pipeline shape changed")
 	}
 
-	bin, ok := ifStmt.Cond.(*ast.BinaryExpr)
-	if !ok || bin.Op != token.EQL {
-		return false
-	}
-
-	left, okLeft := bin.X.(*ast.Ident)
-	right, okRight := bin.Y.(*ast.Ident)
-
-	return okLeft && okRight && left.Name == "policy" && right.Name == "RouteV1"
-}
-
-func TestRouteVersionStructure_TracerSeamsGateFirst(t *testing.T) {
-	src := readTransportSource(t, "transaction_reservation_anchor.go", "ConfirmReservationsByTransaction")
-
-	for _, fn := range []string{
-		"ConfirmReservationsByTransaction",
-		"ReleaseReservationsByTransaction",
-	} {
-		gated, found := firstStatementGatesRouteV1(t, src, fn)
-
-		if !found {
-			t.Errorf("Gate 5: %s not found in transaction_reservation_anchor.go — the gate is pointed at a renamed seam", fn)
+	for _, seam := range byTransactionSeams {
+		at := indexOfName(names, seam)
+		if at == -1 {
+			t.Errorf("transitionPendingV2 does not call %s — the /v2 contract includes the PENDING reservation lifecycle", seam)
 
 			continue
 		}
 
-		if !gated {
-			t.Errorf("Gate 5: the first statement of %s is not `if policy == RouteV1` — a /v1 request must return before any reserve request is built or dialled", fn)
+		if at <= commitAt {
+			t.Errorf("transitionPendingV2 calls %s (pos %d) before commitPendingBalances (pos %d) — the reservation is flipped only once the balances have moved", seam, at, commitAt)
+		}
+	}
+
+	finalizeAt := indexOfName(names, pendingFinalizeFuncName)
+	if finalizeAt == -1 {
+		t.Fatal("transitionPendingV2 does not call finalizePendingTransition — the pipeline shape changed")
+	}
+
+	for _, seam := range byTransactionSeams {
+		if at := indexOfName(names, seam); at != -1 && at > finalizeAt {
+			t.Errorf("transitionPendingV2 calls %s (pos %d) after finalizePendingTransition (pos %d) — a failed write must not follow an already-flipped reservation", seam, at, finalizeAt)
 		}
 	}
 }
 
-func TestRouteVersionStructure_GateFirstBites(t *testing.T) {
-	// Gate 5 must reject a gate that sits below the availability guard: it still no-ops
-	// on /v1, but it no longer proves nothing was built or dialled first.
-	const gateMoved = `package command
+// TestTransitionPendingGatesBite proves the two gates above read the seams by name and
+// therefore fail on a pipeline that drops them, adds them to the wrong version, or
+// orders them before the balance commit.
+func TestTransitionPendingGatesBite(t *testing.T) {
+	const leaked = `package command
 
-func (uc *UseCase) ConfirmReservationsByTransaction() {
-	if uc.TracerReserver == nil {
-		return
-	}
-
-	if policy == RouteV1 {
-		return
-	}
-
-	_ = uc.TracerReserver.ConfirmByTransaction()
+func (uc *UseCase) transitionPendingV1() error {
+	_ = uc.commitPendingBalances()
+	uc.confirmReservationsByTransaction() // BUG: the /v1 contract carries no tracer
+	return nil
 }
 `
 
-	if gated, found := firstStatementGatesRouteV1(t, gateMoved, "ConfirmReservationsByTransaction"); !found || gated {
-		t.Fatalf("Gate 5 bite: a gate below the nil guard must be reported as ungated, got gated=%v found=%v", gated, found)
+	if names := calledNames(t, leaked, "transitionPendingV1"); !containsName(names, "confirmReservationsByTransaction") {
+		t.Fatal("Gate 5 bite: a /v1 pipeline naming a reservation seam must be detected")
 	}
 
-	// An absent gate is not the same as an absent function; both must fail, distinctly.
-	const noGate = `package command
+	const reordered = `package command
 
-func (uc *UseCase) ConfirmReservationsByTransaction() {
-	_ = uc.TracerReserver.ConfirmByTransaction()
+func (uc *UseCase) transitionPendingV2() error {
+	uc.confirmReservationsByTransaction() // BUG: flipped before the balances moved
+	_ = uc.commitPendingBalances()
+	_ = uc.finalizePendingTransition()
+	return nil
 }
 `
 
-	if gated, found := firstStatementGatesRouteV1(t, noGate, "ConfirmReservationsByTransaction"); !found || gated {
-		t.Fatalf("Gate 5 bite: a seam with no gate must be reported as ungated, got gated=%v found=%v", gated, found)
+	names := calledNames(t, reordered, "transitionPendingV2")
+
+	confirmAt := indexOfName(names, "confirmReservationsByTransaction")
+	commitAt := indexOfName(names, "commitPendingBalances")
+
+	if confirmAt == -1 || commitAt == -1 {
+		t.Fatalf("Gate 5 bite fixture sanity: missing positions confirm=%d commit=%d", confirmAt, commitAt)
 	}
 
-	if _, found := firstStatementGatesRouteV1(t, noGate, "renamedSeam"); found {
-		t.Fatal("Gate 5 bite: a missing function must be reported as not found, never as gated")
+	if confirmAt > commitAt {
+		t.Error("Gate 5 bite: a confirm placed before the balance commit must be detected as out of order")
 	}
 
-	// The correct shape must satisfy the gate, or the gate is unsatisfiable.
 	const correct = `package command
 
-func (uc *UseCase) ConfirmReservationsByTransaction() {
-	if policy == RouteV1 {
-		return
-	}
-
-	_ = uc.TracerReserver.ConfirmByTransaction()
+func (uc *UseCase) transitionPendingV2() error {
+	_ = uc.commitPendingBalances()
+	uc.confirmReservationsByTransaction()
+	uc.releaseReservationsByTransaction()
+	return uc.finalizePendingTransition()
 }
 `
 
-	if gated, found := firstStatementGatesRouteV1(t, correct, "ConfirmReservationsByTransaction"); !found || !gated {
-		t.Fatalf("Gate 5 bite: fixture sanity — the correct shape must pass, got gated=%v found=%v", gated, found)
+	ok := calledNames(t, correct, "transitionPendingV2")
+	if indexOfName(ok, "commitPendingBalances") >= indexOfName(ok, "confirmReservationsByTransaction") {
+		t.Error("Gate 5 bite: fixture sanity — the correct shape must place the commit before the confirm")
 	}
 }

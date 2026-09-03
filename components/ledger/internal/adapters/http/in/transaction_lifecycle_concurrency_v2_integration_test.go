@@ -54,7 +54,7 @@ const concurrentLifecycleRacers = 8
 const concurrentHoldV2Body = `{"description":"concurrent pending lifecycle hold subject","asset":"USD","amount":"500","debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"500"}],"credits":[{"alias":"@dst",` + v2ScopeJSON + `,"amount":"500"}]}`
 
 // racePendingLifecycleOp fires concurrentLifecycleRacers bodiless POSTs at url from a common
-// closed-channel barrier so every racer enters commitOrCancelTransaction together, and returns each
+// closed-channel barrier so every racer enters the pending transition together, and returns each
 // racer's raw outcome. It reuses fireRevert, the sibling file's goroutine-safe bodiless-POST racer:
 // commit and cancel are bodiless POSTs whose response is either a transaction (201) or an RFC 9457
 // problem (4xx) — the identical envelope shape fireRevert decodes. Failures are captured as data

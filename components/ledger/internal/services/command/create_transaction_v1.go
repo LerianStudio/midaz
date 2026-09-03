@@ -130,7 +130,7 @@ func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransaction
 	run.validate = validate
 
 	// Build the concat-form fromTo from the normalized send: the legs carry the
-	// "<index>#alias#balanceKey" form that BuildBalanceOperations keys the validate
+	// "<index>#alias#balanceKey" form that buildBalanceOperations keys the validate
 	// maps by and that the Lua-returned balances carry. The aliases are already
 	// concat'd in place above; this read is idempotent.
 	run.fromTo = append(run.fromTo, mtransaction.MutateConcatAliases(run.input.Send.Source.From)...)

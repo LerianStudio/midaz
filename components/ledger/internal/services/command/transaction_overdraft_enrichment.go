@@ -68,7 +68,7 @@ func rejectInternalScopeBalances(ctx context.Context, balances []*mmodel.Balance
 	return nil
 }
 
-// EnrichOverdraftOperations implements the transaction enrichment contract
+// enrichOverdraftOperations implements the transaction enrichment contract
 // described in the TRD (2.2 — Enrichment Engine): when a debit on a
 // direction=credit balance exceeds available funds and the balance has
 // overdraft enabled, we append a *debit* operation on the companion
@@ -121,7 +121,7 @@ func rejectInternalScopeBalances(ctx context.Context, balances []*mmodel.Balance
 //     is missing the overdraft leg (TRD PRD §1 "Enriched Transaction Flow").
 //
 //nolint:gocyclo // Multi-stage enrichment with branching by overdraft variant; refactor candidate.
-func EnrichOverdraftOperations(
+func enrichOverdraftOperations(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
 	balanceOps []mmodel.BalanceOperation,
@@ -875,7 +875,7 @@ func pendingOverdraftUsageByAlias(ops []*operation.Operation) map[string]decimal
 	return usage
 }
 
-func AnnotateCanceledOverdraftAmounts(balanceOps []mmodel.BalanceOperation, tran *transaction.Transaction) []mmodel.BalanceOperation {
+func annotateCanceledOverdraftAmounts(balanceOps []mmodel.BalanceOperation, tran *transaction.Transaction) []mmodel.BalanceOperation {
 	if tran == nil || len(tran.Operations) == 0 {
 		return balanceOps
 	}

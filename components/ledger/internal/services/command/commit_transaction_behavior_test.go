@@ -200,29 +200,27 @@ func TestPendingTransition_WriteFailureKeepsLock(t *testing.T) {
 }
 
 // TestPendingTransition_V1NeverDrivesTheReservationLifecycle proves the /v1 contract
-// carries no tracer: neither transition addresses the tracer by transaction id, even
-// with an enforcing ledger and an injected reserver.
+// carries no tracer: neither transition reaches a reservation transport, on a ledger
+// carrying the most aggressive settings it can (enforce plus fail-closed) and with a
+// reserver injected. The reserver fails the test on any call, so a leak surfaces as a
+// failure rather than as an indistinguishable no-op.
 func TestPendingTransition_V1NeverDrivesTheReservationLifecycle(t *testing.T) {
 	t.Run("commit", func(t *testing.T) {
 		tran := pendingTransaction(false)
 
-		uc, _, reserver := newCommittingUseCase(t, tran)
+		uc, _, _ := newCommittingUseCase(t, tran)
+		uc.TracerReserver = &forbiddenReserver{t: t}
 
 		_, _ = uc.CommitTransactionV1(context.Background(), pendingTransitionInputFor(tran))
-
-		assert.Empty(t, reserver.confirmedTxns, "a /v1 commit must not confirm reservations")
-		assert.Empty(t, reserver.releasedTxns)
 	})
 
 	t.Run("cancel", func(t *testing.T) {
 		tran := pendingTransaction(false)
 
-		uc, _, reserver := newCommittingUseCase(t, tran)
+		uc, _, _ := newCommittingUseCase(t, tran)
+		uc.TracerReserver = &forbiddenReserver{t: t}
 
 		_, _ = uc.CancelTransactionV1(context.Background(), pendingTransitionInputFor(tran))
-
-		assert.Empty(t, reserver.releasedTxns, "a /v1 cancel must not release reservations")
-		assert.Empty(t, reserver.confirmedTxns)
 	})
 }
 
@@ -273,7 +271,7 @@ func newCommittingUseCase(t *testing.T, tran *transaction.Transaction) (*UseCase
 	reserver := &stubReserver{}
 
 	settings := mmodel.LedgerSettings{}
-	settings.Tracer = mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce}
+	settings.Tracer = mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed}
 
 	reader := &pendingReader{pending: tran}
 	reader.settings = settings

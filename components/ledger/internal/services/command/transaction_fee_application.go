@@ -17,7 +17,7 @@ import (
 
 // applyFees drives the fee engine on the validated transaction and folds the
 // resulting fee legs back into transactionInput. It mirrors the shape of
-// EnrichOverdraftOperations: a single seam that loads packages, runs the
+// enrichOverdraftOperations: a single seam that loads packages, runs the
 // engine, and mutates the transaction so every downstream consumer of the
 // re-run validate sees the fee-inclusive state.
 //

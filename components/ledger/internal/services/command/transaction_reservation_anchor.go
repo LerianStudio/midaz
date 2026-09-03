@@ -235,7 +235,7 @@ func firstSourceAccountID(sources []string, balances []*mmodel.Balance) string {
 		}
 	}
 
-	for _, src := range FilterCompanionAliases(sources) {
+	for _, src := range filterCompanionAliases(sources) {
 		alias := src
 		if idx := strings.IndexByte(alias, '#'); idx >= 0 {
 			alias = alias[:idx]
@@ -294,31 +294,26 @@ func (uc *UseCase) recordReservationTransportFailure(ctx context.Context, span t
 		libLog.Err(err))
 }
 
-// ConfirmReservationsByTransaction commits a transaction's held reservations at
+// confirmReservationsByTransaction commits a transaction's held reservations at
 // /commit (F3-T15, PENDING success phase). At /commit the ledger holds only the
 // transaction id — the reserve handle from create-pending does not survive the
 // separate commit request — so the tracer flips every RESERVED reservation the
-// transaction holds, addressed by transaction id. Gated on the route version first
-// (RouteV1 → no call, the /v1 contract carries no tracer), then on the per-ledger
-// tracer settings (off / nil reserver → no call) and on an honored per-call tracer
-// skip (so a skip honored at create removes the gRPC cost here rather than
-// relocating it to commit); same best-effort, non-blocking posture as the by-id
-// transport: a failure is logged at Warn, span-recorded, and never propagated, with
-// the TTL reaper as the durability backstop.
+// transaction holds, addressed by transaction id. Only transitionPendingV2 names it:
+// the /v1 contract carries no tracer. Beyond that it is gated on the per-ledger tracer
+// settings (off / nil reserver → no call) and on an honored per-call tracer skip (so a
+// skip honored at create removes the gRPC cost here rather than relocating it to
+// commit); same best-effort, non-blocking posture as the by-id transport: a failure is
+// logged at Warn, span-recorded, and never propagated, with the TTL reaper as the
+// durability backstop.
 //
-// The route gate carries an accepted cost. A by-transaction call cannot tell whether
-// the transaction holds reservations, so gating it on the route means a PENDING
-// created on /v2 and committed through /v1 never gets its confirm: the reservation
-// stays RESERVED until the reaper releases it, and the committed amount is never
-// counted against the usage limit. Mixing mounts across one transaction lifecycle is
-// therefore unsupported — see docs/api/SCOPING.md. Closing it needs create-time
-// reservation state persisted on the transaction row for this gate to read instead of
-// the route version.
-func (uc *UseCase) ConfirmReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, policy RouteVersionPolicy, honoredTracerSkip bool) {
-	if policy == RouteV1 {
-		return
-	}
-
+// Living only on the /v2 pipeline carries an accepted cost. A by-transaction call cannot
+// tell whether the transaction holds reservations, so a PENDING created on /v2 and
+// committed through /v1 never gets its confirm: the reservation stays RESERVED until the
+// reaper releases it, and the committed amount is never counted against the usage limit.
+// Mixing mounts across one transaction lifecycle is therefore unsupported — see
+// docs/api/SCOPING.md. Closing it needs create-time reservation state persisted on the
+// transaction row for the /v1 pipeline to read.
+func (uc *UseCase) confirmReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, honoredTracerSkip bool) {
 	if honoredTracerSkip || !uc.tracerReservationEnabled(settings) {
 		return
 	}
@@ -328,14 +323,10 @@ func (uc *UseCase) ConfirmReservationsByTransaction(ctx context.Context, span tr
 	}
 }
 
-// ReleaseReservationsByTransaction returns a transaction's held reservations at
+// releaseReservationsByTransaction returns a transaction's held reservations at
 // /cancel (F3-T15, PENDING abort phase). Same transaction-id addressing, gating,
-// and non-blocking posture as ConfirmReservationsByTransaction.
-func (uc *UseCase) ReleaseReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, policy RouteVersionPolicy, honoredTracerSkip bool) {
-	if policy == RouteV1 {
-		return
-	}
-
+// and non-blocking posture as confirmReservationsByTransaction.
+func (uc *UseCase) releaseReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, honoredTracerSkip bool) {
 	if honoredTracerSkip || !uc.tracerReservationEnabled(settings) {
 		return
 	}

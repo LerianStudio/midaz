@@ -180,7 +180,7 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 
 	// Build the concat-form fromTo from the FEE-INCLUSIVE, normalized send. This
 	// runs after applyFees + the second validate so the slice carries the fee
-	// legs in the same "<index>#alias#balanceKey" form that BuildBalanceOperations
+	// legs in the same "<index>#alias#balanceKey" form that buildBalanceOperations
 	// keys the validate maps by and that the Lua-returned balances carry — without
 	// it the `balances × fromTo` match loop in BuildOperations never emits the fee
 	// Operation rows. The aliases are already concat'd in place above; this read

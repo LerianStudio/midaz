@@ -36,8 +36,8 @@ const (
 type commitCancelSkipMetrics struct {
 	settingsPos          int  // index of the GetParsedLedgerSettings read (-1)
 	resolveSkipPos       int  // index of the skip.ResolveSkipFor re-resolution (-1)
-	confirmCarriesFlag   bool // ConfirmReservationsByTransaction receives honoredTracerSkip
-	releaseCarriesFlag   bool // ReleaseReservationsByTransaction receives honoredTracerSkip
+	confirmCarriesFlag   bool // confirmReservationsByTransaction receives honoredTracerSkip
+	releaseCarriesFlag   bool // releaseReservationsByTransaction receives honoredTracerSkip
 	resolveReadsBodySkip bool // ResolveSkipFor is fed from tran.Body.Skip
 }
 
@@ -65,11 +65,11 @@ func analyzeCommitCancelSkipSeam(t *testing.T, prepareSrc, pipelineSrc string) c
 	pipeline := findFuncDecl(t, pipelineSrc, pendingTransitionV2Func)
 
 	for _, stmt := range pipeline.Body.List {
-		if call := findCallToMethod(stmt, "ConfirmReservationsByTransaction"); call != nil {
+		if call := findCallToMethod(stmt, "confirmReservationsByTransaction"); call != nil {
 			m.confirmCarriesFlag = callHasSelectorArg(call, "honoredTracerSkip")
 		}
 
-		if call := findCallToMethod(stmt, "ReleaseReservationsByTransaction"); call != nil {
+		if call := findCallToMethod(stmt, "releaseReservationsByTransaction"); call != nil {
 			m.releaseCarriesFlag = callHasSelectorArg(call, "honoredTracerSkip")
 		}
 	}
@@ -138,9 +138,9 @@ func TestCommitCancel_TracerSkip(t *testing.T) {
 	assert.True(t, m.resolveReadsBodySkip,
 		"the commit/cancel re-resolution must read the persisted skip from tran.Body.Skip")
 	assert.True(t, m.confirmCarriesFlag,
-		"ConfirmReservationsByTransaction must receive the resolved honoredTracerSkip flag")
+		"confirmReservationsByTransaction must receive the resolved honoredTracerSkip flag")
 	assert.True(t, m.releaseCarriesFlag,
-		"ReleaseReservationsByTransaction must receive the resolved honoredTracerSkip flag")
+		"releaseReservationsByTransaction must receive the resolved honoredTracerSkip flag")
 }
 
 // TestCommitCancel_TracerSkip_Bites proves the commit/cancel analyzer bites on a
@@ -157,9 +157,9 @@ func (uc *UseCase) preparePendingTransition() error {
 func (uc *UseCase) transitionPendingV2() error {
 	switch run.status {
 	case constant.APPROVED:
-		uc.ConfirmReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
+		uc.confirmReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
 	case constant.CANCELED:
-		uc.ReleaseReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
+		uc.releaseReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
 	}
 	return nil
 }`
@@ -183,9 +183,9 @@ func (uc *UseCase) preparePendingTransition() error {
 func (uc *UseCase) transitionPendingV2() error {
 	switch run.status {
 	case constant.APPROVED:
-		uc.ConfirmReservationsByTransaction(run.ledgerSettings.Tracer, txID, run.honoredTracerSkip)
+		uc.confirmReservationsByTransaction(run.ledgerSettings.Tracer, txID, run.honoredTracerSkip)
 	case constant.CANCELED:
-		uc.ReleaseReservationsByTransaction(run.ledgerSettings.Tracer, txID, run.honoredTracerSkip)
+		uc.releaseReservationsByTransaction(run.ledgerSettings.Tracer, txID, run.honoredTracerSkip)
 	}
 	return nil
 }`
@@ -228,7 +228,7 @@ func analyzeCommitCancelOverdraftSeam(t *testing.T, prepareSrc, finalizeSrc stri
 
 	for i, stmt := range prepare.Body.List {
 		if m.enrichPos == -1 {
-			if ifStmt, ok := stmt.(*ast.IfStmt); ok && stmtCallsFunc(ifStmt.Body, "EnrichOverdraftOperations") {
+			if ifStmt, ok := stmt.(*ast.IfStmt); ok && stmtCallsFunc(ifStmt.Body, "enrichOverdraftOperations") {
 				m.enrichPos = i
 
 				for _, name := range constantSelectorNames(ifStmt.Cond) {
@@ -334,7 +334,7 @@ func TestCommitCancel_OverdraftEnrichmentCoversBothTransitions(t *testing.T) {
 
 	m := analyzeCommitCancelOverdraftSeam(t, src, src)
 
-	require.NotEqual(t, -1, m.enrichPos, "guarded EnrichOverdraftOperations call not found in "+pendingPrepareFuncName)
+	require.NotEqual(t, -1, m.enrichPos, "guarded enrichOverdraftOperations call not found in "+pendingPrepareFuncName)
 	require.NotEqual(t, -1, m.validatePos, "ValidateAccountingRules call not found")
 
 	assert.True(t, m.enrichStatuses["APPROVED"],
@@ -357,7 +357,7 @@ func (uc *UseCase) preparePendingTransition() error {
 	routeCache, _ := uc.TransactionReader.ValidateAccountingRules(ctx, balanceOps, validate, action)
 	var companionFromTos []mtransaction.FromTo
 	if run.status == constant.CANCELED { // BUG: commit is not enriched
-		balanceOps, companionFromTos, _ = EnrichOverdraftOperations(readCtx, balanceOps, validate)
+		balanceOps, companionFromTos, _ = enrichOverdraftOperations(readCtx, balanceOps, validate)
 	}
 	_, _ = routeCache, companionFromTos
 	return nil
@@ -383,7 +383,7 @@ func (uc *UseCase) finalizePendingTransition() error {
 func (uc *UseCase) preparePendingTransition() error {
 	var companionFromTos []mtransaction.FromTo
 	if run.status == constant.APPROVED || run.status == constant.CANCELED {
-		balanceOps, companionFromTos, _ = EnrichOverdraftOperations(readCtx, balanceOps, validate)
+		balanceOps, companionFromTos, _ = enrichOverdraftOperations(readCtx, balanceOps, validate)
 	}
 	routeCache, _ := uc.TransactionReader.ValidateAccountingRules(ctx, balanceOps, validate, action)
 	_, _ = routeCache, companionFromTos

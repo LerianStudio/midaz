@@ -167,7 +167,7 @@ func (uc *UseCase) stageBalances(ctx context.Context, span trace.Span, logger li
 		return ctx, err
 	}
 
-	balanceOps := BuildBalanceOperations(ctx, run.organizationID, run.ledgerID, run.validate, balances)
+	balanceOps := buildBalanceOperations(ctx, run.organizationID, run.ledgerID, run.validate, balances)
 
 	// Overdraft enrichment: when a source debit exceeds available funds on a
 	// credit-direction balance with AllowOverdraft=true, append a debit op on
@@ -182,7 +182,7 @@ func (uc *UseCase) stageBalances(ctx context.Context, span trace.Span, logger li
 	// the overdraft leg (DB balances still converge correctly, but
 	// `response.operations` and Postgres `operation` rows do not include the
 	// companion).
-	balanceOps, companionFromTos, err := EnrichOverdraftOperations(ctx, run.organizationID, run.ledgerID, balanceOps,
+	balanceOps, companionFromTos, err := enrichOverdraftOperations(ctx, run.organizationID, run.ledgerID, balanceOps,
 		run.validate, uc.TransactionReader.GetBalances)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to enrich overdraft operations", err)
@@ -283,8 +283,8 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 	// reflect only the client-submitted accounts (and do not produce duplicates
 	// like `[@alice, @alice]` when the companion's bare alias collapses to
 	// the same value after the strip).
-	tran.Source = GetAliasWithoutKey(FilterCompanionAliases(run.validate.Sources))
-	tran.Destination = GetAliasWithoutKey(FilterCompanionAliases(run.validate.Destinations))
+	tran.Source = getAliasWithoutKey(filterCompanionAliases(run.validate.Sources))
+	tran.Destination = getAliasWithoutKey(filterCompanionAliases(run.validate.Destinations))
 	tran.Operations = operations
 
 	uc.UpdateTransactionBackupOperations(ctx, run.organizationID, run.ledgerID, run.transactionID.String(), operations, run.action)

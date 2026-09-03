@@ -2654,7 +2654,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		Return(nil, nil).
 		Times(1)
 
-	// commitOrCancelTransaction: SetNX short-circuits (we're only testing the lookup path)
+	// pending transition: SetNX short-circuits (we're only testing the lookup path)
 	mockRedisRepo.EXPECT().
 		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(false, errors.New("lock error")).
@@ -2699,7 +2699,7 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 
 	// No TransactionRepo mock -> proves Postgres is never called
 
-	// commitOrCancelTransaction: SetNX short-circuits
+	// pending transition: SetNX short-circuits
 	mockRedisRepo.EXPECT().
 		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(false, errors.New("lock error")).
@@ -2799,7 +2799,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		Return(nil, nil).
 		Times(1)
 
-	// commitOrCancelTransaction: SetNX short-circuits
+	// pending transition: SetNX short-circuits
 	mockRedisRepo.EXPECT().
 		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(false, errors.New("lock error")).
@@ -2844,7 +2844,7 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 
 	// No TransactionRepo mock -> proves Postgres is never called
 
-	// commitOrCancelTransaction: SetNX short-circuits
+	// pending transition: SetNX short-circuits
 	mockRedisRepo.EXPECT().
 		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(false, errors.New("lock error")).

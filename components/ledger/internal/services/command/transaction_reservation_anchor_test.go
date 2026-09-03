@@ -416,7 +416,7 @@ func TestConfirmReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{}
 		uc := &UseCase{TracerReserver: reserver}
 
-		uc.ConfirmReservationsByTransaction(ctx, sp, logger, enforce, txID, RouteV2, false)
+		uc.confirmReservationsByTransaction(ctx, sp, logger, enforce, txID, false)
 
 		assert.Equal(t, []uuid.UUID{txID}, reserver.confirmedTxns)
 		assert.Empty(t, reserver.releasedTxns)
@@ -427,8 +427,8 @@ func TestConfirmReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{}
 		uc := &UseCase{TracerReserver: reserver}
 
-		uc.ConfirmReservationsByTransaction(ctx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory}, txID, RouteV2, false)
+		uc.confirmReservationsByTransaction(ctx, sp, logger,
+			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory}, txID, false)
 
 		assert.Equal(t, []uuid.UUID{txID}, reserver.confirmedTxns)
 	})
@@ -437,8 +437,8 @@ func TestConfirmReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{}
 		uc := &UseCase{TracerReserver: reserver}
 
-		uc.ConfirmReservationsByTransaction(ctx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, uuid.New(), RouteV2, false)
+		uc.confirmReservationsByTransaction(ctx, sp, logger,
+			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, uuid.New(), false)
 
 		assert.Empty(t, reserver.confirmedTxns, "mode=off must not confirm")
 	})
@@ -447,14 +447,14 @@ func TestConfirmReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{}
 		uc := &UseCase{TracerReserver: reserver}
 
-		uc.ConfirmReservationsByTransaction(ctx, sp, logger, mmodel.TracerSettings{}, uuid.New(), RouteV2, false)
+		uc.confirmReservationsByTransaction(ctx, sp, logger, mmodel.TracerSettings{}, uuid.New(), false)
 
 		assert.Empty(t, reserver.confirmedTxns)
 	})
 
 	t.Run("nil reserver is a no-op", func(t *testing.T) {
 		uc := &UseCase{TracerReserver: nil}
-		uc.ConfirmReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), RouteV2, false)
+		uc.confirmReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), false)
 		// no panic, nothing to assert beyond not crashing
 	})
 
@@ -465,7 +465,7 @@ func TestConfirmReservationsByTransaction(t *testing.T) {
 
 		// The contract is that the request still succeeds: the helper returns
 		// nothing, swallows the error, and the caller proceeds.
-		uc.ConfirmReservationsByTransaction(ctx, sp, logger, enforce, txID, RouteV2, false)
+		uc.confirmReservationsByTransaction(ctx, sp, logger, enforce, txID, false)
 
 		assert.Equal(t, []uuid.UUID{txID}, reserver.confirmedTxns, "the transition is attempted despite transport failure")
 	})
@@ -474,7 +474,7 @@ func TestConfirmReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{}
 		uc := &UseCase{TracerReserver: reserver}
 
-		uc.ConfirmReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), RouteV2, true)
+		uc.confirmReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), true)
 
 		assert.Empty(t, reserver.confirmedTxns, "an honored tracer skip must make zero ConfirmByTransaction")
 	})
@@ -490,7 +490,7 @@ func TestReleaseReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{}
 		uc := &UseCase{TracerReserver: reserver}
 
-		uc.ReleaseReservationsByTransaction(ctx, sp, logger, enforce, txID, RouteV2, false)
+		uc.releaseReservationsByTransaction(ctx, sp, logger, enforce, txID, false)
 
 		assert.Equal(t, []uuid.UUID{txID}, reserver.releasedTxns)
 		assert.Empty(t, reserver.confirmedTxns)
@@ -500,15 +500,15 @@ func TestReleaseReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{}
 		uc := &UseCase{TracerReserver: reserver}
 
-		uc.ReleaseReservationsByTransaction(ctx, sp, logger,
-			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, uuid.New(), RouteV2, false)
+		uc.releaseReservationsByTransaction(ctx, sp, logger,
+			mmodel.TracerSettings{Mode: mmodel.TracerModeOff}, uuid.New(), false)
 
 		assert.Empty(t, reserver.releasedTxns)
 	})
 
 	t.Run("nil reserver is a no-op", func(t *testing.T) {
 		uc := &UseCase{TracerReserver: nil}
-		uc.ReleaseReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), RouteV2, false)
+		uc.releaseReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), false)
 	})
 
 	t.Run("transport failure does not propagate", func(t *testing.T) {
@@ -516,7 +516,7 @@ func TestReleaseReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{releaseByTxnErr: fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)}
 		uc := &UseCase{TracerReserver: reserver}
 
-		uc.ReleaseReservationsByTransaction(ctx, sp, logger, enforce, txID, RouteV2, false)
+		uc.releaseReservationsByTransaction(ctx, sp, logger, enforce, txID, false)
 
 		assert.Equal(t, []uuid.UUID{txID}, reserver.releasedTxns, "the transition is attempted despite transport failure")
 	})
@@ -525,7 +525,7 @@ func TestReleaseReservationsByTransaction(t *testing.T) {
 		reserver := &stubReserver{}
 		uc := &UseCase{TracerReserver: reserver}
 
-		uc.ReleaseReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), RouteV2, true)
+		uc.releaseReservationsByTransaction(ctx, sp, logger, enforce, uuid.New(), true)
 
 		assert.Empty(t, reserver.releasedTxns, "an honored tracer skip must make zero ReleaseByTransaction")
 	})
@@ -550,16 +550,16 @@ func (c *capturingReserver) ConfirmByTransaction(_ context.Context, _ uuid.UUID)
 
 func (c *capturingReserver) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
 
-// forbiddenReserver fails the test on ANY call. It is the direct proof the route gate
-// is asked for: asserting a zero call count only shows the stub was not invoked, while
-// this shows the seam could not have reached a transport at all.
+// forbiddenReserver fails the test on ANY call. It is the direct proof a pipeline never
+// reaches the tracer: asserting a zero call count only shows the stub was not invoked,
+// while this shows no transport could have been reached at all.
 type forbiddenReserver struct {
 	t *testing.T
 }
 
 func (f *forbiddenReserver) fail(method string) {
 	f.t.Helper()
-	f.t.Fatalf("a /v1 route reached the tracer via %s — the route gate must return before any transport call", method)
+	f.t.Fatalf("a /v1 pipeline reached the tracer via %s — the /v1 contract names no reservation seam", method)
 }
 
 func (f *forbiddenReserver) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tracer.ReserveResult, error) {
@@ -590,33 +590,4 @@ func (f *forbiddenReserver) ReleaseByTransaction(_ context.Context, _ uuid.UUID)
 	f.fail("ReleaseByTransaction")
 
 	return nil
-}
-
-// TestRouteV1_NeverReachesTracer covers the by-transaction half of the reservation
-// lifecycle under the /v1 contract. Both cases configure the most aggressive settings
-// a ledger can carry — enforce plus fail-closed — so a gate that leaked would surface
-// as a forbiddenReserver failure rather than as an indistinguishable no-op.
-//
-// The create half needs no runtime case: CreateTransactionV1 and createRevertV1 name
-// no reservation seam at all, which
-// TestCreateTransactionV1_NeverReferencesVersionedSeams asserts over the source.
-func TestRouteV1_NeverReachesTracer(t *testing.T) {
-	ctx, sp, logger := anchorDeps()
-
-	enforceClosed := mmodel.TracerSettings{
-		Mode:        mmodel.TracerModeEnforce,
-		FailPosture: mmodel.TracerFailPostureClosed,
-	}
-
-	t.Run("confirm by transaction is a no-op", func(t *testing.T) {
-		uc := &UseCase{TracerReserver: &forbiddenReserver{t: t}}
-
-		uc.ConfirmReservationsByTransaction(ctx, sp, logger, enforceClosed, uuid.New(), RouteV1, false)
-	})
-
-	t.Run("release by transaction is a no-op", func(t *testing.T) {
-		uc := &UseCase{TracerReserver: &forbiddenReserver{t: t}}
-
-		uc.ReleaseReservationsByTransaction(ctx, sp, logger, enforceClosed, uuid.New(), RouteV1, false)
-	})
 }

@@ -35,7 +35,7 @@ import (
 // make the mechanism real:
 //
 //  1. Mechanism: the intent marker survives the exact call sequence the handler
-//     uses. GetBalances (the direct pre-write read) and EnrichOverdraftOperations
+//     uses. GetBalances (the direct pre-write read) and enrichOverdraftOperations
 //     (the second, overdraft-enrichment read that reuses the SAME ctx) both
 //     forward a marked ctx down to the seam target — the balance DB repository,
 //     which is where the read-routing seam observes the intent. A negative
@@ -98,13 +98,13 @@ func TestCreateTransaction_MarksPrimaryReadIntent(t *testing.T) {
 			Aliases: []string{"@alice#default"},
 		}
 
-		// EnrichOverdraftOperations is invoked with the SAME wrapped ctx the
+		// enrichOverdraftOperations is invoked with the SAME wrapped ctx the
 		// handler holds, and the loader is uc.GetBalances exactly as
 		// at the create call site. The overdraft read must therefore forward the
 		// mark down to the same DB seam target.
 		ctx := readrouting.WithPrimaryRead(context.Background())
 
-		_, _, err := EnrichOverdraftOperations(ctx, orgID, ledgerID,
+		_, _, err := enrichOverdraftOperations(ctx, orgID, ledgerID,
 			[]mmodel.BalanceOperation{primary}, validate, uc.GetBalances)
 		require.NoError(t, err)
 
@@ -258,7 +258,7 @@ func stmtCallsSelector(stmt ast.Stmt, pkg, fn string) bool {
 // TestCommitCancel_MarksPrimaryReadIntent locks the decision that the
 // commit/cancel state-transition flow marks its pre-write balance read with the
 // primary-read intent. The read at the GetBalances call site feeds
-// buildBalanceOperations and (on cancel) EnrichOverdraftOperations, whose result
+// buildBalanceOperations and (on cancel) enrichOverdraftOperations, whose result
 // seeds the authoritative balance via the NX-seed — the stale-read money-
 // corruption scenario the seam guards against. It asserts:
 //
@@ -267,7 +267,7 @@ func stmtCallsSelector(stmt ast.Stmt, pkg, fn string) bool {
 //     the SAME ctx) both forward a marked ctx down to the balance DB seam target.
 //     A negative baseline proves an unmarked ctx stays unmarked.
 //  2. Placement: a structural guard over the live source of
-//     commitOrCancelTransaction proves the dedicated-var wrap
+//     preparePendingTransition proves the dedicated-var wrap
 //     `readCtx := readrouting.WithPrimaryRead(ctx)` exists AND sits AFTER the
 //     validation-only reads (GetParsedLedgerSettings) and BEFORE the GetBalances
 //     read; that GetBalances and the cancel overdraft read receive readCtx while
@@ -328,7 +328,7 @@ func TestCommitCancel_MarksPrimaryReadIntent(t *testing.T) {
 		// uc.GetBalances as its loader exactly as at the handler site.
 		ctx := readrouting.WithPrimaryRead(context.Background())
 
-		_, _, err := EnrichOverdraftOperations(ctx, orgID, ledgerID,
+		_, _, err := enrichOverdraftOperations(ctx, orgID, ledgerID,
 			[]mmodel.BalanceOperation{primary}, validate, uc.GetBalances)
 		require.NoError(t, err)
 

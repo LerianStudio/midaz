@@ -150,9 +150,9 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 
 	switch run.status {
 	case constant.APPROVED:
-		uc.ConfirmReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.tran.IDtoUUID(), RouteV2, run.honoredTracerSkip)
+		uc.confirmReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.tran.IDtoUUID(), run.honoredTracerSkip)
 	case constant.CANCELED:
-		uc.ReleaseReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.tran.IDtoUUID(), RouteV2, run.honoredTracerSkip)
+		uc.releaseReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.tran.IDtoUUID(), run.honoredTracerSkip)
 	}
 
 	return uc.finalizePendingTransition(ctx, span, logger, run, unlock)
