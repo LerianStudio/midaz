@@ -389,6 +389,7 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 			}
 			commandUC := &command.UseCase{
 				TransactionRedisRepo: mockRedisRepo,
+				TransactionReader:    queryUC,
 			}
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
@@ -1364,6 +1365,7 @@ func TestCommitTransaction_RedisLockError_ReturnsError(t *testing.T) {
 	}
 	commandUC := &command.UseCase{
 		TransactionRedisRepo: mockRedisRepo,
+		TransactionReader:    queryUC,
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
@@ -1462,6 +1464,7 @@ func TestCommitTransaction_LockNotAcquired_ReturnsError(t *testing.T) {
 	}
 	commandUC := &command.UseCase{
 		TransactionRedisRepo: mockRedisRepo,
+		TransactionReader:    queryUC,
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
@@ -2491,6 +2494,7 @@ func TestCancelTransaction(t *testing.T) {
 			}
 			commandUC := &command.UseCase{
 				TransactionRedisRepo: mockRedisRepo,
+				TransactionReader:    queryUC,
 			}
 			handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
@@ -2540,7 +2544,7 @@ func TestGetTransaction_WriteBehindHit(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	queryUC := &query.UseCase{TransactionRedisRepo: mockRedisRepo}
 	handler := &TransactionHandler{
-		Command: &command.UseCase{},
+		Command: &command.UseCase{TransactionReader: queryUC},
 		Query:   queryUC,
 	}
 
@@ -2583,7 +2587,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 		TransactionRepo:      mockTransactionRepo,
 	}
 	handler := &TransactionHandler{
-		Command: &command.UseCase{},
+		Command: &command.UseCase{TransactionReader: queryUC},
 		Query:   queryUC,
 	}
 
@@ -2626,7 +2630,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
 	handler := &TransactionHandler{
-		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo},
+		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo, TransactionReader: queryUC},
 		Query:   queryUC,
 	}
 
@@ -2679,7 +2683,7 @@ func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	queryUC := &query.UseCase{TransactionRedisRepo: mockRedisRepo}
 	handler := &TransactionHandler{
-		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo},
+		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo, TransactionReader: queryUC},
 		Query:   queryUC,
 	}
 
@@ -2728,7 +2732,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 		TransactionRepo:      mockTransactionRepo,
 	}
 	handler := &TransactionHandler{
-		Command: &command.UseCase{},
+		Command: &command.UseCase{TransactionReader: queryUC},
 		Query:   queryUC,
 	}
 
@@ -2771,7 +2775,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 		TransactionMetadataRepo: mockMetadataRepo,
 	}
 	handler := &TransactionHandler{
-		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo},
+		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo, TransactionReader: queryUC},
 		Query:   queryUC,
 	}
 
@@ -2824,7 +2828,7 @@ func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	queryUC := &query.UseCase{TransactionRedisRepo: mockRedisRepo}
 	handler := &TransactionHandler{
-		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo},
+		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo, TransactionReader: queryUC},
 		Query:   queryUC,
 	}
 

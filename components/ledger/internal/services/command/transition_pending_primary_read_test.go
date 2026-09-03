@@ -2,41 +2,38 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
 import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
-	"strings"
 	"testing"
 )
 
 // TestCommitCancel_PrimaryReadWrapPlacement is the placement half of the
 // commit/cancel primary-read contract: a structural guard over the live source of
-// commitOrCancelTransaction proving the dedicated-var wrap
+// preparePendingTransition proving the dedicated-var wrap
 // `readCtx := readrouting.WithPrimaryRead(ctx)` exists AND sits AFTER the
 // validation-only reads (GetParsedLedgerSettings) and BEFORE the GetBalances read;
 // that GetBalances and the cancel overdraft read receive readCtx while
 // ValidateAccountingRules keeps the unmarked ctx, so only the pre-write balance reads
-// are routed to primary. The mechanism half lives beside the reads it exercises, in
-// the command package.
+// are routed to primary. The mechanism half lives beside the reads it exercises.
 func TestCommitCancel_PrimaryReadWrapPlacement(t *testing.T) {
-	src := readStateHandlerSource(t)
+	src := readTransportSource(t, pendingStepsFile, "func (uc *UseCase) "+pendingPrepareFuncName)
 
-	positions := analyzeCommitCancelWrap(t, src, "commitOrCancelTransaction")
+	positions := analyzeCommitCancelWrap(t, src, pendingPrepareFuncName)
 
 	if positions.wrap == -1 {
-		t.Fatal("no dedicated `readCtx := readrouting.WithPrimaryRead(ctx)` wrap found in commitOrCancelTransaction; the commit/cancel flow must mark the primary-read intent on a dedicated ctx var, not reassign ctx")
+		t.Fatal("no dedicated `readCtx := readrouting.WithPrimaryRead(ctx)` wrap found in preparePendingTransition; the commit/cancel flow must mark the primary-read intent on a dedicated ctx var, not reassign ctx")
 	}
 
 	if positions.getBalances == -1 {
-		t.Fatal("no GetBalances call found in commitOrCancelTransaction; the read call site moved")
+		t.Fatal("no GetBalances call found in preparePendingTransition; the read call site moved")
 	}
 
 	if positions.getLedgerSettings == -1 {
-		t.Fatal("no GetParsedLedgerSettings call found in commitOrCancelTransaction; the validation-only read moved")
+		t.Fatal("no GetParsedLedgerSettings call found in preparePendingTransition; the validation-only read moved")
 	}
 
 	if positions.wrap >= positions.getBalances {
@@ -62,7 +59,7 @@ func TestCommitCancel_PrimaryReadWrapPlacement(t *testing.T) {
 }
 
 // commitCancelWrapPositions holds the top-level statement indices of the marker
-// wrap and the reads it must sit between within commitOrCancelTransaction, plus
+// wrap and the reads it must sit between within the preparation step, plus
 // the arg-identity checks that scope the marker to the pre-write balance reads.
 type commitCancelWrapPositions struct {
 	wrap              int
@@ -80,7 +77,7 @@ type commitCancelWrapPositions struct {
 // call (each -1 when absent), and whether GetBalances, EnrichOverdraftOperations,
 // and ValidateAccountingRules receive `readCtx` as their context argument.
 // Statement indices are sufficient because the reads live at the top level of the
-// sequential commit/cancel flow.
+// sequential preparation flow.
 func analyzeCommitCancelWrap(t *testing.T, src, funcName string) commitCancelWrapPositions {
 	t.Helper()
 
@@ -167,7 +164,7 @@ func stmtDefinesReadCtxFromPrimaryRead(stmt ast.Stmt) bool {
 // callFirstArgIsIdent reports whether stmt contains a call to callee whose first
 // argument is exactly the identifier argName. callee matches either a method call
 // (`x.callee(...)`) or a plain function call (`callee(...)`), so both
-// `handler.Query.GetBalances(readCtx, ...)` and `command.EnrichOverdraftOperations(readCtx, ...)`
+// `uc.TransactionReader.GetBalances(readCtx, ...)` and `EnrichOverdraftOperations(readCtx, ...)`
 // are recognized — used to assert which reads receive the dedicated readCtx versus
 // the unmarked ctx.
 func callFirstArgIsIdent(stmt ast.Stmt, callee, argName string) bool {
@@ -195,48 +192,6 @@ func callFirstArgIsIdent(stmt ast.Stmt, callee, argName string) bool {
 		}
 
 		if id, ok := call.Args[0].(*ast.Ident); ok && id.Name == argName {
-			found = true
-		}
-
-		return true
-	})
-
-	return found
-}
-
-// readStateHandlerSource reads transaction_state_handlers.go from disk so the
-// placement guard runs against the live source, not a snapshot, and fails the
-// moment the commit/cancel seam is edited.
-func readStateHandlerSource(t *testing.T) string {
-	t.Helper()
-
-	const path = "transaction_state_handlers.go"
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-
-	src := string(data)
-	if !strings.Contains(src, "func (handler *TransactionHandler) commitOrCancelTransaction") {
-		t.Fatalf("%s does not contain commitOrCancelTransaction — the gate is pointed at the wrong file", path)
-	}
-
-	return src
-}
-
-// stmtCallsMethod reports whether the statement contains a selector call whose
-// method name matches (e.g. handler.Query.GetBalances(...)).
-func stmtCallsMethod(stmt ast.Stmt, method string) bool {
-	found := false
-
-	ast.Inspect(stmt, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-
-		if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == method {
 			found = true
 		}
 

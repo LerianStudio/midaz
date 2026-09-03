@@ -2,137 +2,56 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// Per-call tracer-skip wiring proof for the commit/cancel transition. The honored-skip
-// short-circuit behavior is proven at the helper level in the command package (the
+// Per-call tracer-skip and overdraft wiring proofs for the commit/cancel transition.
+// The honored-skip short-circuit behavior is proven at the helper level (the
 // honored-skip subtests of TestConfirmReservationsByTransaction /
-// TestReleaseReservationsByTransaction). What those cannot see is whether the SEAM
+// TestReleaseReservationsByTransaction). What those cannot see is whether the pipeline
 // actually feeds the resolved boolean into the helpers. That is a call-site fact, so it
 // is asserted over the live source AST. A future reorder that drops the resolution or
 // stops threading the flag fails these gates. The same proof for the create path lives
-// beside the create seam, in the command package.
+// beside the create seam.
 
 const (
-	commitCancelFuncName = "commitOrCancelTransaction"
-	stateHandlersFile    = "transaction_state_handlers.go"
+	pendingPrepareFuncName  = "preparePendingTransition"
+	pendingFinalizeFuncName = "finalizePendingTransition"
+	pendingTransitionV2Func = "transitionPendingV2"
+	pendingStepsFile        = "transition_pending_steps.go"
+	pendingPipelineFile     = "commit_transaction.go"
 )
 
-// findFuncDecl parses src and returns the named top-level function declaration.
-func findFuncDecl(t *testing.T, src, name string) *ast.FuncDecl {
-	t.Helper()
-
-	fset := token.NewFileSet()
-
-	file, err := parser.ParseFile(fset, "src.go", src, 0)
-	if err != nil {
-		t.Fatalf("parse source: %v", err)
-	}
-
-	for _, decl := range file.Decls {
-		if d, ok := decl.(*ast.FuncDecl); ok && d.Name.Name == name {
-			return d
-		}
-	}
-
-	t.Fatalf("function %q not found", name)
-
-	return nil
-}
-
-// findCallToMethod returns the first CallExpr in stmt whose selector method
-// matches, or nil.
-func findCallToMethod(stmt ast.Stmt, method string) *ast.CallExpr {
-	var found *ast.CallExpr
-
-	ast.Inspect(stmt, func(n ast.Node) bool {
-		if found != nil {
-			return false
-		}
-
-		if call, ok := n.(*ast.CallExpr); ok {
-			if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == method {
-				found = call
-			}
-		}
-
-		return true
-	})
-
-	return found
-}
-
-// callHasArgIdent reports whether the call passes a bare identifier with the
-// given name as one of its arguments.
-func callHasArgIdent(call *ast.CallExpr, name string) bool {
-	for _, arg := range call.Args {
-		if id, ok := arg.(*ast.Ident); ok && id.Name == name {
-			return true
-		}
-	}
-
-	return false
-}
-
-// stmtCallsFunc reports whether the statement contains a call to a function with the
-// given name, package-qualified or not.
-func stmtCallsFunc(stmt ast.Node, name string) bool {
-	found := false
-
-	ast.Inspect(stmt, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-
-		switch f := call.Fun.(type) {
-		case *ast.Ident:
-			if f.Name == name {
-				found = true
-			}
-		case *ast.SelectorExpr:
-			if f.Sel.Name == name {
-				found = true
-			}
-		}
-
-		return true
-	})
-
-	return found
-}
-
-// commitCancelSkipMetrics captures the commit/cancel tracer-skip wiring facts,
-// all within commitOrCancelTransaction.
+// commitCancelSkipMetrics captures the commit/cancel tracer-skip wiring facts. The
+// resolution lives in preparePendingTransition; the confirm/release calls it feeds live
+// in transitionPendingV2.
 type commitCancelSkipMetrics struct {
-	settingsPos          int  // index of the GetParsedLedgerSettings re-fetch (-1)
+	settingsPos          int  // index of the GetParsedLedgerSettings read (-1)
 	resolveSkipPos       int  // index of the skip.ResolveSkipFor re-resolution (-1)
-	confirmCarriesFlag   bool // confirmReservationsByTransaction receives honoredTracerSkip
-	releaseCarriesFlag   bool // releaseReservationsByTransaction receives honoredTracerSkip
+	confirmCarriesFlag   bool // ConfirmReservationsByTransaction receives honoredTracerSkip
+	releaseCarriesFlag   bool // ReleaseReservationsByTransaction receives honoredTracerSkip
 	resolveReadsBodySkip bool // ResolveSkipFor is fed from tran.Body.Skip
 }
 
-// analyzeCommitCancelSkipSeam walks commitOrCancelTransaction.
-func analyzeCommitCancelSkipSeam(t *testing.T, src string) commitCancelSkipMetrics {
+// analyzeCommitCancelSkipSeam walks the preparation step for the resolution facts and
+// the /v2 pipeline for the flag-threading facts. Both sources may be the same string,
+// which is what the bite fixtures rely on.
+func analyzeCommitCancelSkipSeam(t *testing.T, prepareSrc, pipelineSrc string) commitCancelSkipMetrics {
 	t.Helper()
-
-	fn := findFuncDecl(t, src, commitCancelFuncName)
 
 	m := commitCancelSkipMetrics{settingsPos: -1, resolveSkipPos: -1}
 
-	for i, stmt := range fn.Body.List {
+	prepare := findFuncDecl(t, prepareSrc, pendingPrepareFuncName)
+
+	for i, stmt := range prepare.Body.List {
 		if m.settingsPos == -1 && stmtCallsMethod(stmt, "GetParsedLedgerSettings") {
 			m.settingsPos = i
 		}
@@ -141,17 +60,38 @@ func analyzeCommitCancelSkipSeam(t *testing.T, src string) commitCancelSkipMetri
 			m.resolveSkipPos = i
 			m.resolveReadsBodySkip = stmtReferencesBodySkip(stmt)
 		}
+	}
 
+	pipeline := findFuncDecl(t, pipelineSrc, pendingTransitionV2Func)
+
+	for _, stmt := range pipeline.Body.List {
 		if call := findCallToMethod(stmt, "ConfirmReservationsByTransaction"); call != nil {
-			m.confirmCarriesFlag = callHasArgIdent(call, "honoredTracerSkip")
+			m.confirmCarriesFlag = callHasSelectorArg(call, "honoredTracerSkip")
 		}
 
 		if call := findCallToMethod(stmt, "ReleaseReservationsByTransaction"); call != nil {
-			m.releaseCarriesFlag = callHasArgIdent(call, "honoredTracerSkip")
+			m.releaseCarriesFlag = callHasSelectorArg(call, "honoredTracerSkip")
 		}
 	}
 
 	return m
+}
+
+// callHasSelectorArg reports whether the call passes the named value as one of its
+// arguments, either as a bare identifier or as a field selected off the run state
+// (run.honoredTracerSkip).
+func callHasSelectorArg(call *ast.CallExpr, name string) bool {
+	if callHasArgIdent(call, name) {
+		return true
+	}
+
+	for _, arg := range call.Args {
+		if sel, ok := arg.(*ast.SelectorExpr); ok && sel.Sel.Name == name {
+			return true
+		}
+	}
+
+	return false
 }
 
 // stmtReferencesBodySkip reports whether the statement selects `.Skip` off a
@@ -179,21 +119,22 @@ func stmtReferencesBodySkip(stmt ast.Stmt) bool {
 // TestCommitCancel_TracerSkip — the PENDING-flow wiring proof. A PENDING
 // transaction defers the tracer confirm/release to /commit and /cancel; without
 // this wiring an honored create-time skip would merely relocate the gRPC cost to
-// the state transition. Asserts commitOrCancelTransaction re-resolves the skip
-// from the persisted body (tran.Body.Skip) AFTER its settings re-fetch and threads
-// the resolved boolean into BOTH the by-transaction confirm and release. The
+// the state transition. Asserts the preparation step re-resolves the skip from the
+// persisted body (tran.Body.Skip) AFTER its settings read and that the /v2 pipeline
+// threads the resolved boolean into BOTH the by-transaction confirm and release. The
 // zero-call behavior given the boolean is proven directly at the helpers in
 // transaction_reservation_anchor_test.go (the honored-skip subtests).
 func TestCommitCancel_TracerSkip(t *testing.T) {
-	src := readStateHandlersSource(t)
+	prepareSrc := readTransportSource(t, pendingStepsFile, "func (uc *UseCase) "+pendingPrepareFuncName)
+	pipelineSrc := readTransportSource(t, pendingPipelineFile, "func (uc *UseCase) "+pendingTransitionV2Func)
 
-	m := analyzeCommitCancelSkipSeam(t, src)
+	m := analyzeCommitCancelSkipSeam(t, prepareSrc, pipelineSrc)
 
-	require.NotEqual(t, -1, m.settingsPos, "GetParsedLedgerSettings re-fetch not found in commitOrCancelTransaction")
+	require.NotEqual(t, -1, m.settingsPos, "GetParsedLedgerSettings read not found in "+pendingPrepareFuncName)
 	require.NotEqual(t, -1, m.resolveSkipPos, "skip.ResolveSkipFor re-resolution not found")
 
 	assert.Greater(t, m.resolveSkipPos, m.settingsPos,
-		"the skip must be re-resolved AFTER the settings re-fetch (it reads ledgerSettings.Overrides)")
+		"the skip must be re-resolved AFTER the settings read (it reads ledgerSettings.Overrides)")
 	assert.True(t, m.resolveReadsBodySkip,
 		"the commit/cancel re-resolution must read the persisted skip from tran.Body.Skip")
 	assert.True(t, m.confirmCarriesFlag,
@@ -205,21 +146,25 @@ func TestCommitCancel_TracerSkip(t *testing.T) {
 // TestCommitCancel_TracerSkip_Bites proves the commit/cancel analyzer bites on a
 // seam that stops threading the flag or no longer reads the persisted body skip.
 func TestCommitCancel_TracerSkip_Bites(t *testing.T) {
-	leaky := `package in
-func (handler *TransactionHandler) commitOrCancelTransaction() error {
-	ledgerSettings, _ := handler.Query.GetParsedLedgerSettings()
+	leaky := `package command
+func (uc *UseCase) preparePendingTransition() error {
+	ledgerSettings, _ := uc.TransactionReader.GetParsedLedgerSettings()
 	honoredTracerSkip, _ := skip.ResolveSkipFor(req.Skip) // BUG: not tran.Body.Skip
-	switch status {
-	case constant.APPROVED:
-		handler.Command.ConfirmReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
-	case constant.CANCELED:
-		handler.Command.ReleaseReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
-	}
 	_ = honoredTracerSkip
+	return nil
+}
+
+func (uc *UseCase) transitionPendingV2() error {
+	switch run.status {
+	case constant.APPROVED:
+		uc.ConfirmReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
+	case constant.CANCELED:
+		uc.ReleaseReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
+	}
 	return nil
 }`
 
-	m := analyzeCommitCancelSkipSeam(t, leaky)
+	m := analyzeCommitCancelSkipSeam(t, leaky, leaky)
 
 	require.NotEqual(t, -1, m.resolveSkipPos, "fixture sanity: ResolveSkipFor must be present")
 
@@ -227,47 +172,51 @@ func (handler *TransactionHandler) commitOrCancelTransaction() error {
 	assert.False(t, m.confirmCarriesFlag, "gate failed to bite: a confirm without the flag was reported as carrying it")
 	assert.False(t, m.releaseCarriesFlag, "gate failed to bite: a release without the flag was reported as carrying it")
 
-	correct := `package in
-func (handler *TransactionHandler) commitOrCancelTransaction() error {
-	ledgerSettings, _ := handler.Query.GetParsedLedgerSettings()
-	honoredTracerSkip, _ := skip.ResolveSkipFor("tracer", tran.Body.Skip != nil && tran.Body.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
-	switch status {
+	correct := `package command
+func (uc *UseCase) preparePendingTransition() error {
+	ledgerSettings, _ := uc.TransactionReader.GetParsedLedgerSettings()
+	honoredTracerSkip, _ := skip.ResolveSkipFor("tracer", run.tran.Body.Skip != nil && run.tran.Body.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
+	run.honoredTracerSkip = honoredTracerSkip
+	return nil
+}
+
+func (uc *UseCase) transitionPendingV2() error {
+	switch run.status {
 	case constant.APPROVED:
-		handler.Command.ConfirmReservationsByTransaction(ledgerSettings.Tracer, txID, honoredTracerSkip)
+		uc.ConfirmReservationsByTransaction(run.ledgerSettings.Tracer, txID, run.honoredTracerSkip)
 	case constant.CANCELED:
-		handler.Command.ReleaseReservationsByTransaction(ledgerSettings.Tracer, txID, honoredTracerSkip)
+		uc.ReleaseReservationsByTransaction(run.ledgerSettings.Tracer, txID, run.honoredTracerSkip)
 	}
 	return nil
 }`
 
-	mc := analyzeCommitCancelSkipSeam(t, correct)
+	mc := analyzeCommitCancelSkipSeam(t, correct, correct)
 	assert.True(t, mc.resolveReadsBodySkip && mc.confirmCarriesFlag && mc.releaseCarriesFlag,
 		"fixture sanity: the correct shape must satisfy every fact")
-	assert.Less(t, mc.settingsPos, mc.resolveSkipPos, "fixture sanity: settings re-fetch precedes the re-resolution")
+	assert.Less(t, mc.settingsPos, mc.resolveSkipPos, "fixture sanity: the settings read precedes the re-resolution")
 }
 
-// commitCancelOverdraftMetrics captures the overdraft-enrichment wiring facts of
-// commitOrCancelTransaction.
+// commitCancelOverdraftMetrics captures the overdraft-enrichment wiring facts of the
+// pending transition: which transitions enrich (preparePendingTransition) and whether
+// the companions reach the operation builder (finalizePendingTransition).
 type commitCancelOverdraftMetrics struct {
 	// enrichStatuses holds the transaction-status constants named in the
-	// condition guarding the enrichOverdraftOperations call.
+	// condition guarding the enrichment call.
 	enrichStatuses map[string]bool
 	// enrichPos is the index of the guarded enrichment statement (-1 if absent).
 	enrichPos int
 	// validatePos is the index of the ValidateAccountingRules call (-1).
 	validatePos int
-	// companionsReachFromTo reports whether companionFromTos is appended into the
-	// fromTo slice that BuildOperations consumes.
+	// companionsReachFromTo reports whether the companion FromTo entries are
+	// appended into the fromTo slice BuildOperations consumes.
 	companionsReachFromTo bool
 }
 
-// analyzeCommitCancelOverdraftSeam walks commitOrCancelTransaction and extracts
-// which transitions enrich overdraft companions and whether those companions
-// reach validation and the operation-record builder.
-func analyzeCommitCancelOverdraftSeam(t *testing.T, src string) commitCancelOverdraftMetrics {
+// analyzeCommitCancelOverdraftSeam walks the preparation step for the enrichment guard
+// and the finalize step for the companion splice. Both sources may be the same string,
+// which is what the bite fixtures rely on.
+func analyzeCommitCancelOverdraftSeam(t *testing.T, prepareSrc, finalizeSrc string) commitCancelOverdraftMetrics {
 	t.Helper()
-
-	fn := findFuncDecl(t, src, commitCancelFuncName)
 
 	m := commitCancelOverdraftMetrics{
 		enrichStatuses: map[string]bool{},
@@ -275,7 +224,9 @@ func analyzeCommitCancelOverdraftSeam(t *testing.T, src string) commitCancelOver
 		validatePos:    -1,
 	}
 
-	for i, stmt := range fn.Body.List {
+	prepare := findFuncDecl(t, prepareSrc, pendingPrepareFuncName)
+
+	for i, stmt := range prepare.Body.List {
 		if m.enrichPos == -1 {
 			if ifStmt, ok := stmt.(*ast.IfStmt); ok && stmtCallsFunc(ifStmt.Body, "EnrichOverdraftOperations") {
 				m.enrichPos = i
@@ -289,8 +240,12 @@ func analyzeCommitCancelOverdraftSeam(t *testing.T, src string) commitCancelOver
 		if m.validatePos == -1 && stmtCallsMethod(stmt, "ValidateAccountingRules") {
 			m.validatePos = i
 		}
+	}
 
-		if stmtAppendsIdentInto(stmt, "fromTo", "companionFromTos") {
+	finalize := findFuncDecl(t, finalizeSrc, pendingFinalizeFuncName)
+
+	for _, stmt := range finalize.Body.List {
+		if stmtAppendsInto(stmt, "fromTo", "companionFromTos") {
 			m.companionsReachFromTo = true
 		}
 	}
@@ -319,16 +274,17 @@ func constantSelectorNames(expr ast.Expr) []string {
 	return names
 }
 
-// stmtAppendsIdentInto reports whether stmt assigns to `target` the result of an
-// append that spreads `source` (i.e. target = append(target, source...)).
-func stmtAppendsIdentInto(stmt ast.Stmt, target, source string) bool {
+// stmtAppendsInto reports whether stmt assigns to `target` the result of an append that
+// spreads `source` (i.e. target = append(target, source...)). Both names are matched as
+// a bare identifier or as the trailing field of a selector, so state carried on the run
+// struct (run.fromTo, run.companionFromTos) is recognised.
+func stmtAppendsInto(stmt ast.Stmt, target, source string) bool {
 	assign, ok := stmt.(*ast.AssignStmt)
 	if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
 		return false
 	}
 
-	lhs, ok := assign.Lhs[0].(*ast.Ident)
-	if !ok || lhs.Name != target {
+	if !exprNames(assign.Lhs[0], target) {
 		return false
 	}
 
@@ -343,9 +299,21 @@ func stmtAppendsIdentInto(stmt ast.Stmt, target, source string) bool {
 	}
 
 	for _, arg := range call.Args {
-		if id, ok := arg.(*ast.Ident); ok && id.Name == source {
+		if exprNames(arg, source) {
 			return true
 		}
+	}
+
+	return false
+}
+
+// exprNames reports whether expr is the identifier name or a selector ending in it.
+func exprNames(expr ast.Expr, name string) bool {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		return e.Name == name
+	case *ast.SelectorExpr:
+		return e.Sel.Name == name
 	}
 
 	return false
@@ -362,11 +330,11 @@ func stmtAppendsIdentInto(stmt ast.Stmt, target, source string) bool {
 // money-correctness bug the enrichment unit tests cannot see — they never reach
 // this call site. Asserted over the live source AST.
 func TestCommitCancel_OverdraftEnrichmentCoversBothTransitions(t *testing.T) {
-	src := readStateHandlersSource(t)
+	src := readTransportSource(t, pendingStepsFile, "func (uc *UseCase) "+pendingPrepareFuncName)
 
-	m := analyzeCommitCancelOverdraftSeam(t, src)
+	m := analyzeCommitCancelOverdraftSeam(t, src, src)
 
-	require.NotEqual(t, -1, m.enrichPos, "guarded enrichOverdraftOperations call not found in commitOrCancelTransaction")
+	require.NotEqual(t, -1, m.enrichPos, "guarded EnrichOverdraftOperations call not found in "+pendingPrepareFuncName)
 	require.NotEqual(t, -1, m.validatePos, "ValidateAccountingRules call not found")
 
 	assert.True(t, m.enrichStatuses["APPROVED"],
@@ -377,25 +345,29 @@ func TestCommitCancel_OverdraftEnrichmentCoversBothTransitions(t *testing.T) {
 	assert.Less(t, m.enrichPos, m.validatePos,
 		"enrichment must precede ValidateAccountingRules so the companion is subject to the route's overdraft rubric")
 	assert.True(t, m.companionsReachFromTo,
-		"companionFromTos must be appended into fromTo so BuildOperations persists the overdraft operation")
+		"the companion FromTo entries must be appended into fromTo so BuildOperations persists the overdraft operation")
 }
 
 // TestCommitCancel_OverdraftEnrichmentCoversBothTransitions_Bites proves the
 // analyzer bites on a seam that enriches on cancel only, validates before
 // enriching, or never threads the companions into fromTo.
 func TestCommitCancel_OverdraftEnrichmentCoversBothTransitions_Bites(t *testing.T) {
-	leaky := `package in
-func (handler *TransactionHandler) commitOrCancelTransaction() error {
-	routeCache, _ := handler.Query.ValidateAccountingRules(ctx, balanceOps, validate, action)
+	leaky := `package command
+func (uc *UseCase) preparePendingTransition() error {
+	routeCache, _ := uc.TransactionReader.ValidateAccountingRules(ctx, balanceOps, validate, action)
 	var companionFromTos []mtransaction.FromTo
-	if transactionStatus == constant.CANCELED { // BUG: commit is not enriched
-		balanceOps, companionFromTos, _ = command.EnrichOverdraftOperations(readCtx, balanceOps, validate)
+	if run.status == constant.CANCELED { // BUG: commit is not enriched
+		balanceOps, companionFromTos, _ = EnrichOverdraftOperations(readCtx, balanceOps, validate)
 	}
 	_, _ = routeCache, companionFromTos
 	return nil
+}
+
+func (uc *UseCase) finalizePendingTransition() error {
+	return nil // BUG: the companions never reach fromTo
 }`
 
-	m := analyzeCommitCancelOverdraftSeam(t, leaky)
+	m := analyzeCommitCancelOverdraftSeam(t, leaky, leaky)
 
 	require.NotEqual(t, -1, m.enrichPos, "fixture sanity: the guarded enrichment must be present")
 
@@ -407,38 +379,24 @@ func (handler *TransactionHandler) commitOrCancelTransaction() error {
 	assert.False(t, m.companionsReachFromTo,
 		"gate failed to bite: companions never appended into fromTo were reported as reaching it")
 
-	correct := `package in
-func (handler *TransactionHandler) commitOrCancelTransaction() error {
+	correct := `package command
+func (uc *UseCase) preparePendingTransition() error {
 	var companionFromTos []mtransaction.FromTo
-	if transactionStatus == constant.APPROVED || transactionStatus == constant.CANCELED {
-		balanceOps, companionFromTos, _ = command.EnrichOverdraftOperations(readCtx, balanceOps, validate)
+	if run.status == constant.APPROVED || run.status == constant.CANCELED {
+		balanceOps, companionFromTos, _ = EnrichOverdraftOperations(readCtx, balanceOps, validate)
 	}
-	routeCache, _ := handler.Query.ValidateAccountingRules(ctx, balanceOps, validate, action)
-	fromTo = append(fromTo, companionFromTos...)
-	_ = routeCache
+	routeCache, _ := uc.TransactionReader.ValidateAccountingRules(ctx, balanceOps, validate, action)
+	_, _ = routeCache, companionFromTos
+	return nil
+}
+
+func (uc *UseCase) finalizePendingTransition() error {
+	run.fromTo = append(run.fromTo, run.companionFromTos...)
 	return nil
 }`
 
-	mc := analyzeCommitCancelOverdraftSeam(t, correct)
+	mc := analyzeCommitCancelOverdraftSeam(t, correct, correct)
 	assert.True(t, mc.enrichStatuses["APPROVED"] && mc.enrichStatuses["CANCELED"] && mc.companionsReachFromTo,
 		"fixture sanity: the correct shape must satisfy every fact")
 	assert.Less(t, mc.enrichPos, mc.validatePos, "fixture sanity: enrichment precedes validation")
-}
-
-// readStateHandlersSource reads transaction_state_handlers.go from disk so the
-// commit/cancel wiring gate runs against the live source.
-func readStateHandlersSource(t *testing.T) string {
-	t.Helper()
-
-	data, err := os.ReadFile(stateHandlersFile)
-	if err != nil {
-		t.Fatalf("read %s: %v", stateHandlersFile, err)
-	}
-
-	src := string(data)
-	if !strings.Contains(src, "func (handler *TransactionHandler) "+commitCancelFuncName) {
-		t.Fatalf("%s does not contain %s — the gate is pointed at the wrong file", stateHandlersFile, commitCancelFuncName)
-	}
-
-	return src
 }

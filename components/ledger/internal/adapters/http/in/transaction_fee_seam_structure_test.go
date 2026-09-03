@@ -57,31 +57,6 @@ func createUseCaseCallees(t *testing.T, src string) []string {
 	return callees
 }
 
-// routeVersionArgName picks the route-version policy argument out of a call's
-// argument list and returns its constant name (without the package qualifier), or ""
-// when it is absent or is not one of the policy constants. The policy is recognised by
-// value, so a reordering that moved it elsewhere in the list still reports it rather
-// than silently passing.
-func routeVersionArgName(args []ast.Expr) string {
-	for _, arg := range args {
-		sel, ok := arg.(*ast.SelectorExpr)
-		if !ok {
-			continue
-		}
-
-		pkg, ok := sel.X.(*ast.Ident)
-		if !ok || pkg.Name != "command" {
-			continue
-		}
-
-		if sel.Sel.Name == "RouteV1" || sel.Sel.Name == "RouteV2" {
-			return sel.Sel.Name
-		}
-	}
-
-	return ""
-}
-
 // readTransportSource reads a source file for a structural gate. mustContain is the
 // sentinel the gate depends on being present: without it a renamed or moved seam would
 // make the gate pass over a file it no longer describes.
@@ -102,15 +77,15 @@ func readTransportSource(t *testing.T, path, mustContain string) string {
 }
 
 func TestFeeSeamStructure_V1RoutesBindCreateTransactionV1(t *testing.T) {
-	callees := createUseCaseCallees(t, readTransportSource(t, "transaction_handler.go", "createTransactionShellV1"))
+	callees := createUseCaseCallees(t, readTransportSource(t, "transaction_handler_v1.go", "createTransactionShellV1"))
 
 	if len(callees) == 0 {
-		t.Fatal("Gate 4: no command create call found in transaction_handler.go")
+		t.Fatal("Gate 4: no command create call found in transaction_handler_v1.go")
 	}
 
 	for i, got := range callees {
 		if got != "CreateTransactionV1" {
-			t.Errorf("Gate 4: create call #%d in transaction_handler.go binds %q, want CreateTransactionV1 — the /v1 contract carries neither the fee engine nor the tracer", i, got)
+			t.Errorf("Gate 4: create call #%d in transaction_handler_v1.go binds %q, want CreateTransactionV1 — the /v1 contract carries neither the fee engine nor the tracer", i, got)
 		}
 	}
 }

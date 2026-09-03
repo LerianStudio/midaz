@@ -265,9 +265,8 @@ type StateTransactionResponse struct {
 	Body   *TransactionV1
 }
 
-// CommitTransaction delegates to the commitTransaction core (fetch write-behind/DB, then
-// commitOrCancelTransaction with APPROVED, which runs the tracer confirm-by-transaction
-// two-phase). Returns 201.
+// CommitTransaction delegates to command.CommitTransactionV1 (fetch write-behind/DB, then
+// the /v1 state transition, which carries no tracer confirm-by-transaction). Returns 201.
 func (handler *TransactionHandler) CommitTransaction(ctx context.Context, in *StateTransactionRequest) (*StateTransactionResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -278,7 +277,11 @@ func (handler *TransactionHandler) CommitTransaction(ctx context.Context, in *St
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.APPROVED, command.RouteV1)
+	tran, err := handler.Command.CommitTransactionV1(ctx, command.PendingTransitionInput{
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		TransactionID:  txID,
+	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -286,8 +289,8 @@ func (handler *TransactionHandler) CommitTransaction(ctx context.Context, in *St
 	return &StateTransactionResponse{Status: http.StatusCreated, Body: newTransactionV1(tran)}, nil
 }
 
-// CancelTransaction delegates to the commitTransaction core with CANCELED
-// (which runs the tracer release-by-transaction two-phase). Returns 201.
+// CancelTransaction delegates to command.CancelTransactionV1, which carries no tracer
+// release-by-transaction. Returns 201.
 func (handler *TransactionHandler) CancelTransaction(ctx context.Context, in *StateTransactionRequest) (*StateTransactionResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -298,7 +301,11 @@ func (handler *TransactionHandler) CancelTransaction(ctx context.Context, in *St
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.CANCELED, command.RouteV1)
+	tran, err := handler.Command.CancelTransactionV1(ctx, command.PendingTransitionInput{
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		TransactionID:  txID,
+	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

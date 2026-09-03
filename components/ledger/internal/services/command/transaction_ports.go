@@ -90,6 +90,13 @@ type TransactionReader interface {
 	// GetTransactionWithOperationsByID returns a transaction with its operations loaded.
 	GetTransactionWithOperationsByID(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error)
 
+	// GetWriteBehindTransaction returns a transaction from the write-behind cache,
+	// with Body and Operations already populated, or an error on a cache miss.
+	GetWriteBehindTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error)
+
+	// GetTransactionByID returns a single transaction row, without its operations.
+	GetTransactionByID(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error)
+
 	// GetOperationRouteByID returns a single operation route.
 	GetOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error)
 }

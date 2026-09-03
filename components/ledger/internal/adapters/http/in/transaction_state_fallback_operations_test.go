@@ -134,6 +134,7 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 	}
 	commandUC := &command.UseCase{
 		TransactionRedisRepo: mockRedisRepo,
+		TransactionReader:    queryUC,
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 
@@ -209,7 +210,7 @@ func TestCancelTransaction_WriteBehindMiss_NonexistentTransaction_Returns404(t *
 		TransactionMetadataRepo: mockMetadataRepo,
 		TransactionRedisRepo:    mockRedisRepo,
 	}
-	handler := &TransactionHandler{Query: queryUC}
+	handler := &TransactionHandler{Query: queryUC, Command: &command.UseCase{TransactionReader: queryUC}}
 
 	app := buildHumaTransactionApp(t, handler, true)
 
@@ -302,6 +303,7 @@ func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction
 	}
 	commandUC := &command.UseCase{
 		TransactionRedisRepo: mockRedisRepo,
+		TransactionReader:    queryUC,
 	}
 	handler := &TransactionHandler{Query: queryUC, Command: commandUC}
 

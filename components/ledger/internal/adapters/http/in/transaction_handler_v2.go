@@ -180,10 +180,11 @@ func (handler *TransactionHandler) CreateTransactionUnblockV2(ctx context.Contex
 
 // --- POST /organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/{commit,cancel,revert} ---
 
-// CommitTransactionV2 is the /v2 shell over the SAME commitTransaction core the v1
-// CommitTransaction shell calls (fetch write-behind/DB, then commitOrCancelTransaction with
-// APPROVED). It differs from the v1 shell only in the response envelope: the /v2 wire shape
-// (TransactionV2) instead of the canonical transaction.Transaction. Returns 201.
+// CommitTransactionV2 is the /v2 shell over command.CommitTransactionV2 (fetch
+// write-behind/DB, then the /v2 state transition, which runs the tracer
+// confirm-by-transaction two-phase). It differs from the v1 shell in the response
+// envelope — the /v2 wire shape (TransactionV2) instead of the canonical
+// transaction.Transaction — and in the contract it binds. Returns 201.
 func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *StateTransactionRequest) (*StateTransactionOutputV2, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -194,7 +195,11 @@ func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.APPROVED, command.RouteV2)
+	tran, err := handler.Command.CommitTransactionV2(ctx, command.PendingTransitionInput{
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		TransactionID:  txID,
+	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -202,9 +207,9 @@ func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *
 	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newTransactionV2(tran)}, nil
 }
 
-// CancelTransactionV2 is the /v2 shell over the SAME commitTransaction core the v1
-// CancelTransaction shell calls (CANCELED, which runs the tracer release-by-transaction
-// two-phase), differing only in the /v2 response envelope. Returns 201.
+// CancelTransactionV2 is the /v2 shell over command.CancelTransactionV2, which runs the
+// tracer release-by-transaction two-phase, differing from the v1 shell in the /v2
+// response envelope and in the contract it binds. Returns 201.
 func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *StateTransactionRequest) (*StateTransactionOutputV2, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -215,7 +220,11 @@ func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.CANCELED, command.RouteV2)
+	tran, err := handler.Command.CancelTransactionV2(ctx, command.PendingTransitionInput{
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		TransactionID:  txID,
+	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

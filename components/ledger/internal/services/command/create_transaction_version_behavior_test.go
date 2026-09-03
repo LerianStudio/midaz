@@ -59,6 +59,14 @@ func (r *versionReader) GetTransactionWithOperationsByID(context.Context, uuid.U
 	return nil, nil
 }
 
+func (r *versionReader) GetWriteBehindTransaction(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
+	return nil, nil
+}
+
+func (r *versionReader) GetTransactionByID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
+	return nil, nil
+}
+
 func (r *versionReader) GetOperationRouteByID(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, uuid.UUID) (*mmodel.OperationRoute, error) {
 	return nil, nil
 }
