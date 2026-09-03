@@ -150,7 +150,7 @@ func TestIntegration_BlockedAccountsLinearization_NoTransactionCommitsAfterTheBl
 		denied   atomic.Int64
 		// blockObserved closes as soon as ANY worker is denied, which is the
 		// signal the blocker goroutine used to decide it is done.
-		violations = make(chan string, linearizationWorkers*linearizationRounds)
+		violations  = make(chan string, linearizationWorkers*linearizationRounds)
 		blockLanded = make(chan struct{})
 		wg          sync.WaitGroup
 	)
