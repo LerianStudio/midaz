@@ -178,6 +178,72 @@ func TestGetBalances(t *testing.T) {
 	})
 }
 
+// TestGetBalances_CorruptCachedBlockedBalance_FailsClosedFromDatabase documents
+// the read-path safety property behind the account-block feature: a cached balance
+// blob that fails to decode is treated as a cache MISS, so GetBalances falls back
+// to BalanceRepo (PostgreSQL, the source of truth). A blocked account therefore
+// still reads AccountBlocked=true even when its cache entry is corrupt -- the
+// transaction path keeps rejecting it (0502) rather than silently observing an
+// unblocked balance. This is the fail-closed complement to the write path's
+// all-or-nothing corrupt-blob handling.
+func TestGetBalances_CorruptCachedBlockedBalance_FailsClosedFromDatabase(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		BalanceRepo:          mockBalanceRepo,
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	aliases := []string{"@blocked#default"}
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, "@blocked#default")
+
+	// The cache holds an undecodable blob for the blocked account.
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), internalKey).
+		Return("}{not-json", nil).
+		Times(1)
+
+	// The undecodable blob is treated as a miss, so the alias is fetched from
+	// PostgreSQL, which reports the account as blocked (source of truth).
+	dbBalances := []*mmodel.Balance{
+		{
+			ID:             uuid.New().String(),
+			AccountID:      uuid.New().String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "@blocked",
+			Key:            "default",
+			Available:      decimal.NewFromInt(500),
+			OnHold:         decimal.NewFromInt(0),
+			Version:        7,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			AccountBlocked: true,
+			AssetCode:      "USD",
+		},
+	}
+
+	mockBalanceRepo.EXPECT().
+		ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{"@blocked#default"}).
+		Return(dbBalances, nil).
+		Times(1)
+
+	balances, err := uc.GetBalances(ctx, organizationID, ledgerID, aliases)
+	assert.NoError(t, err)
+	assert.Len(t, balances, 1)
+	assert.True(t, balances[0].AccountBlocked,
+		"a corrupt cached blob must fall back to PostgreSQL and still read the account as blocked")
+}
+
 func TestGetBalancesFromCache(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
