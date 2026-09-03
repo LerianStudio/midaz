@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 
 // TestBuildStandardOp_ReturnsOperation verifies that buildStandardOp returns a valid operation.
 func TestBuildStandardOp_ReturnsOperation(t *testing.T) {
-	handler := &TransactionHandler{}
+	uc := &UseCase{}
 	now := time.Now()
 
 	blc := &mmodel.Balance{
@@ -64,7 +64,7 @@ func TestBuildStandardOp_ReturnsOperation(t *testing.T) {
 		Send:        mtransaction.Send{Asset: "BRL"},
 	}
 
-	op, err := handler.buildStandardOp(
+	op, err := uc.buildStandardOp(
 		blc, ft, amt, bat, tran, transactionInput, now, false,
 	)
 
@@ -75,7 +75,7 @@ func TestBuildStandardOp_ReturnsOperation(t *testing.T) {
 }
 
 func TestBuildStandardOp_OverdraftCompanionUsesOverdraftType(t *testing.T) {
-	handler := &TransactionHandler{}
+	uc := &UseCase{}
 	now := time.Now()
 
 	blc := &mmodel.Balance{
@@ -96,7 +96,7 @@ func TestBuildStandardOp_OverdraftCompanionUsesOverdraftType(t *testing.T) {
 		Direction: constant.DirectionDebit,
 	}
 
-	op, err := handler.buildStandardOp(
+	op, err := uc.buildStandardOp(
 		blc,
 		mtransaction.FromTo{AccountAlias: "@sender", BalanceKey: constant.OverdraftBalanceKey},
 		amt,
@@ -116,7 +116,7 @@ func TestBuildStandardOp_OverdraftCompanionUsesOverdraftType(t *testing.T) {
 // TestBuildDoubleEntryPendingOps_ReturnsTwoOperations verifies that buildDoubleEntryPendingOps
 // returns exactly 2 operations.
 func TestBuildDoubleEntryPendingOps_ReturnsTwoOperations(t *testing.T) {
-	handler := &TransactionHandler{}
+	uc := &UseCase{}
 	ctx := context.Background()
 	now := time.Now()
 
@@ -155,7 +155,7 @@ func TestBuildDoubleEntryPendingOps_ReturnsTwoOperations(t *testing.T) {
 		Send:        mtransaction.Send{Asset: "BRL"},
 	}
 
-	ops, err := handler.buildDoubleEntryPendingOps(
+	ops, err := uc.buildDoubleEntryPendingOps(
 		ctx, blc, ft, amt, bat, tran, transactionInput, now, false,
 	)
 
@@ -166,7 +166,7 @@ func TestBuildDoubleEntryPendingOps_ReturnsTwoOperations(t *testing.T) {
 }
 
 func TestBuildOperations_DoubleEntryPendingOverdraftUsesLuaAfterState(t *testing.T) {
-	handler := &TransactionHandler{}
+	uc := &UseCase{}
 	ctx := context.Background()
 	now := time.Now()
 
@@ -228,7 +228,7 @@ func TestBuildOperations_DoubleEntryPendingOverdraftUsesLuaAfterState(t *testing
 		Send:        mtransaction.Send{Asset: "BRL"},
 	}
 
-	ops, _, err := handler.BuildOperations(ctx, []*mmodel.Balance{before}, []*mmodel.Balance{after}, fromTo,
+	ops, _, err := uc.BuildOperations(ctx, []*mmodel.Balance{before}, []*mmodel.Balance{after}, fromTo,
 		input, tran, validate, now, false, true, nil, constant.ActionHold)
 	require.NoError(t, err)
 	require.Len(t, ops, 2)
@@ -253,7 +253,7 @@ func TestBuildOperations_DoubleEntryPendingOverdraftUsesLuaAfterState(t *testing
 // TestBuildDoubleEntryCanceledOps_ReturnsTwoOperations verifies that buildDoubleEntryCanceledOps
 // returns exactly 2 operations.
 func TestBuildDoubleEntryCanceledOps_ReturnsTwoOperations(t *testing.T) {
-	handler := &TransactionHandler{}
+	uc := &UseCase{}
 	ctx := context.Background()
 	now := time.Now()
 
@@ -292,7 +292,7 @@ func TestBuildDoubleEntryCanceledOps_ReturnsTwoOperations(t *testing.T) {
 		Send:        mtransaction.Send{Asset: "BRL"},
 	}
 
-	ops, err := handler.buildDoubleEntryCanceledOps(
+	ops, err := uc.buildDoubleEntryCanceledOps(
 		ctx, blc, ft, amt, bat, tran, transactionInput, now, false,
 	)
 

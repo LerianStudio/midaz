@@ -162,12 +162,13 @@ connection is dialled, and a `/v1` create can never answer `0177` (reservation d
 `tracer.mode` setting is an operator's choice that must not retroactively gate a contract the
 client integrated against.
 
-Both seams read one signal — `routeVersionPolicy` (`routeV1`/`routeV2`,
-`transaction_route_version.go`), threaded from the transport shell because the cores are
-transport-agnostic and cannot read the request path. Each seam decides for itself what the version
-means. Structural gates in `transaction_fee_seam_structure_test.go` and
-`transaction_route_version_structure_test.go` assert every route names its policy and that the
-route gate is the first statement of each tracer seam.
+Both seams read one signal — `command.RouteVersionPolicy` (`RouteV1`/`RouteV2`,
+`transaction_route_version.go` in the command package), threaded from the transport shell because
+the use cases are transport-agnostic and cannot read the request path. Each seam decides for itself
+what the version means. Structural gates in `transaction_fee_seam_structure_test.go` and
+`transaction_route_version_structure_test.go` (transport side) and
+`transaction_reservation_anchor_structure_test.go` (command side) assert every route names its
+policy and that the route gate is the first statement of each tracer seam.
 
 **Mixing mounts across one transaction lifecycle is not supported.** A by-transaction
 confirm/release cannot tell whether the transaction holds reservations, so gating it on the route
@@ -183,11 +184,11 @@ the `accounting.requireHolder` gate, the two-key `skip.holder` control, and the 
 self-holder default that materialises `account.holder_id` — is **`/v2`-only**.
 
 The signal is `command.RouteHolderPolicy` (`HolderOffV1` / `HolderOnV2`), threaded from the transport
-shell for the same reason the transaction cores thread `routeVersionPolicy`: the use case is
-transport-agnostic and cannot read the request path. The two are siblings at different layers, not
-duplicates — the fee and tracer seams sit in the transaction handler, the holder seam in the account
-use case, and a `command` type cannot be the unexported `in` one without inverting the dependency
-direction.
+shell for the same reason the transaction use cases thread `command.RouteVersionPolicy`: the use
+case is transport-agnostic and cannot read the request path. The two are siblings — both live in the
+command package and both are threaded from the transport shell — differing only in which use case
+they gate: the fee and tracer seams sit in the transaction create path, the holder seam in the
+account create path.
 
 A `/v1` account create never reaches it. It links no holder (the row persists `holder_id = NULL`
 and `holder_check_skipped = false`), performs no holder settings read, and can be rejected by
@@ -265,6 +266,7 @@ query parameter. The convention does not change; only how much of the hierarchy 
 
 Scope and contract are separate questions. The fee admin surface answers the first (two scopes,
 both live); the transaction fee seam, the tracer reservation lifecycle and the account holder seam
-answer the second (`/v2` only — the first two driven by `routeVersionPolicy` in the transaction
-handler, the third by `command.RouteHolderPolicy` in the account use case). A surface being
+answer the second (`/v2` only — the first two driven by `command.RouteVersionPolicy` in the
+transaction create use case, the third by `command.RouteHolderPolicy` in the account create use
+case). A surface being
 reachable at a scope says nothing about which contract applies it.

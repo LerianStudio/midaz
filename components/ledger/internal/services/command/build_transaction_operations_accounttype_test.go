@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
 import (
 	"context"
@@ -42,7 +42,7 @@ func accountTypeBalance(accountType string) *mmodel.Balance {
 	}
 }
 
-func accountTypeLeg(opType, direction string) (mtransaction.FromTo, mtransaction.Amount) {
+func accountTypeOperationLeg(opType, direction string) (mtransaction.FromTo, mtransaction.Amount) {
 	return mtransaction.FromTo{
 			AccountAlias: "@treasury_settlement",
 			IsFrom:       direction == constant.DirectionDebit,
@@ -77,15 +77,15 @@ func accountTypeInput() mtransaction.Transaction {
 // single-operation builder to the account type on the balance it builds from.
 // The balance is already in hand here, so the type costs no extra read.
 func TestBuildStandardOp_CarriesAccountTypeFromBalance(t *testing.T) {
-	handler := &TransactionHandler{}
+	uc := &UseCase{}
 
 	tests := []string{"deposit", constant.ExternalAccountType, "creditCard"}
 
 	for _, accountType := range tests {
 		t.Run(accountType, func(t *testing.T) {
-			ft, amt := accountTypeLeg(constant.DEBIT, constant.DirectionDebit)
+			ft, amt := accountTypeOperationLeg(constant.DEBIT, constant.DirectionDebit)
 
-			op, err := handler.buildStandardOp(
+			op, err := uc.buildStandardOp(
 				accountTypeBalance(accountType), ft, amt, accountTypeAfter(),
 				transaction.Transaction{ID: "txn-1"}, accountTypeInput(), accountTypeDate, false,
 			)
@@ -102,11 +102,11 @@ func TestBuildStandardOp_CarriesAccountTypeFromBalance(t *testing.T) {
 // Operation.Type is the DEBIT/CREDIT movement; AccountType is the account's
 // own type. Wiring either onto the other satisfies neither.
 func TestBuildStandardOp_AccountTypeIsNotTheOperationType(t *testing.T) {
-	handler := &TransactionHandler{}
+	uc := &UseCase{}
 
-	ft, amt := accountTypeLeg(constant.DEBIT, constant.DirectionDebit)
+	ft, amt := accountTypeOperationLeg(constant.DEBIT, constant.DirectionDebit)
 
-	op, err := handler.buildStandardOp(
+	op, err := uc.buildStandardOp(
 		accountTypeBalance(constant.ExternalAccountType), ft, amt, accountTypeAfter(),
 		transaction.Transaction{ID: "txn-1"}, accountTypeInput(), accountTypeDate, false,
 	)
@@ -123,7 +123,7 @@ func TestBuildStandardOp_AccountTypeIsNotTheOperationType(t *testing.T) {
 // companions — must carry the account type, or a consumer counting accounts
 // sees a leg it cannot classify.
 func TestBuildDoubleEntryOps_CarryAccountTypeFromBalance(t *testing.T) {
-	handler := &TransactionHandler{}
+	uc := &UseCase{}
 	ctx := context.Background()
 
 	tests := []struct {
@@ -133,7 +133,7 @@ func TestBuildDoubleEntryOps_CarryAccountTypeFromBalance(t *testing.T) {
 		{
 			name: "pending",
 			build: func(blc *mmodel.Balance, ft mtransaction.FromTo, amt mtransaction.Amount) ([]*operation.Operation, error) {
-				return handler.buildDoubleEntryPendingOps(
+				return uc.buildDoubleEntryPendingOps(
 					ctx, blc, ft, amt, accountTypeAfter(),
 					transaction.Transaction{ID: "txn-1"}, accountTypeInput(), accountTypeDate, false,
 				)
@@ -142,7 +142,7 @@ func TestBuildDoubleEntryOps_CarryAccountTypeFromBalance(t *testing.T) {
 		{
 			name: "canceled",
 			build: func(blc *mmodel.Balance, ft mtransaction.FromTo, amt mtransaction.Amount) ([]*operation.Operation, error) {
-				return handler.buildDoubleEntryCanceledOps(
+				return uc.buildDoubleEntryCanceledOps(
 					ctx, blc, ft, amt, accountTypeAfter(),
 					transaction.Transaction{ID: "txn-1"}, accountTypeInput(), accountTypeDate, false,
 				)
@@ -152,7 +152,7 @@ func TestBuildDoubleEntryOps_CarryAccountTypeFromBalance(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ft, amt := accountTypeLeg(constant.DEBIT, constant.DirectionDebit)
+			ft, amt := accountTypeOperationLeg(constant.DEBIT, constant.DirectionDebit)
 
 			ops, err := tt.build(accountTypeBalance(constant.ExternalAccountType), ft, amt)
 

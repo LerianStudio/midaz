@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
 import (
 	"context"
@@ -39,9 +39,9 @@ func buildParentTransactionID(parentID uuid.UUID) *string {
 	return &s
 }
 
-// getAliasWithoutKey strips the "#key" suffix from alias strings,
+// GetAliasWithoutKey strips the "#key" suffix from alias strings,
 // returning only the alias portion before the first "#".
-func getAliasWithoutKey(array []string) []string {
+func GetAliasWithoutKey(array []string) []string {
 	result := make([]string, len(array))
 
 	for i, str := range array {
@@ -52,7 +52,7 @@ func getAliasWithoutKey(array []string) []string {
 	return result
 }
 
-// filterCompanionAliases removes alias-key entries that target the system-
+// FilterCompanionAliases removes alias-key entries that target the system-
 // managed overdraft companion balance (key == "overdraft"). These companions
 // are added to `validate.Sources` / `validate.Destinations` by the enrichment
 // engine so ValidateBalancesRules sees consistent counts, but they MUST NOT
@@ -60,7 +60,7 @@ func getAliasWithoutKey(array []string) []string {
 // otherwise the response would show duplicate aliases (the bare alias is
 // identical to the default balance's bare alias) and leak the existence of
 // a system-managed ledger into the client API contract.
-func filterCompanionAliases(aliases []string) []string {
+func FilterCompanionAliases(aliases []string) []string {
 	if len(aliases) == 0 {
 		return aliases
 	}
@@ -88,14 +88,14 @@ type balanceRef struct {
 	internalKey string
 }
 
-// buildBalanceOperations constructs and sorts balance operations from the
+// BuildBalanceOperations constructs and sorts balance operations from the
 // validated transaction entries. This is pure logic with no I/O dependencies.
 // Operations are sorted by internal key to prevent deadlocks in the Lua script.
 //
 // Alias format arriving from MutateConcatAliases: "index#alias#balanceKey"
 // (e.g. "0#@sender#default", "1#@sender#default" for same account appearing twice).
 // SplitAliasWithKey strips the index prefix, returning "alias#balanceKey" for balance lookup.
-func buildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *mtransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
+func BuildBalanceOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *mtransaction.Responses, balances []*mmodel.Balance) []mmodel.BalanceOperation {
 	logger := libObservability.NewLoggerFromContext(ctx)
 
 	// Index balances by aliasKey for O(1) lookup instead of O(balances * entries).

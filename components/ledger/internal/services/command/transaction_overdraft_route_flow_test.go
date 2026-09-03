@@ -5,12 +5,12 @@
 // End-to-end coverage of the overdraft enrichment seam as the handlers reach it,
 // replaying the real create/commit step order:
 // ApplyDefaultBalanceKeys -> MutateConcatAliases -> ValidateSendSourceAndDistribute
-// -> PropagateRouteValidation -> buildBalanceOperations -> enrichOverdraftOperations
+// -> PropagateRouteValidation -> BuildBalanceOperations -> EnrichOverdraftOperations
 // -> ValidateAccountingRules over a ToCache()-built route cache. Exercising the
 // whole chain is what catches a companion that enriches but fails route
-// validation (or the reverse) — the unit tests around enrichOverdraftOperations
+// validation (or the reverse) — the unit tests around EnrichOverdraftOperations
 // alone cannot see the interaction.
-package in
+package command
 
 import (
 	"context"
@@ -43,7 +43,7 @@ type overdraftRouteFlowOptions struct {
 	// DetermineOperation emit the two-phase operations (hold / commit / cancel).
 	pending bool
 	// actionOverride replaces the status-derived accounting action, as the revert
-	// path does at the handler.
+	// path does at the uc.
 	actionOverride string
 	// bidirectional builds one route pair carrying every action rubric, which is
 	// what the two-phase actions (hold/commit/cancel) need.
@@ -160,7 +160,7 @@ func overdraftFlowRoutePair(t *testing.T, srcRouteID, dstRouteID uuid.UUID, opts
 	return raw
 }
 
-// runOverdraftRouteFlow replays the handler chain for one transaction shape and
+// runOverdraftRouteFlow replays the uc chain for one transaction shape and
 // returns everything the assertions need.
 func runOverdraftRouteFlow(t *testing.T, opts overdraftRouteFlowOptions) overdraftRouteFlowResult {
 	t.Helper()
@@ -209,7 +209,7 @@ func runOverdraftRouteFlow(t *testing.T, opts overdraftRouteFlowOptions) overdra
 
 	mtransaction.PropagateRouteValidation(ctx, validate, opts.transactionStatus)
 
-	balanceOps := buildBalanceOperations(ctx, organizationID, ledgerID, validate, opts.balances)
+	balanceOps := BuildBalanceOperations(ctx, organizationID, ledgerID, validate, opts.balances)
 	require.NotEmpty(t, balanceOps)
 
 	loader := func(_ context.Context, _, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
@@ -220,7 +220,7 @@ func runOverdraftRouteFlow(t *testing.T, opts overdraftRouteFlowOptions) overdra
 		return []*mmodel.Balance{opts.companion}, nil
 	}
 
-	balanceOps, companionFromTos, err := enrichOverdraftOperations(ctx, organizationID, ledgerID, balanceOps, validate, loader)
+	balanceOps, companionFromTos, err := EnrichOverdraftOperations(ctx, organizationID, ledgerID, balanceOps, validate, loader)
 	require.NoError(t, err)
 
 	ctrl := gomock.NewController(t)
@@ -341,7 +341,7 @@ func TestOverdraftRouteFlow_DestinationRepaymentOnDirectCreate(t *testing.T) {
 }
 
 // TestOverdraftRouteFlow_PendingCreateDrawsNoOverdraftOnSource locks the product
-// rule through the handler chain: a HOLD never draws overdraft, so a pending
+// rule through the uc chain: a HOLD never draws overdraft, so a pending
 // create whose source hold exceeds Available enriches no draw companion — on
 // either route version, since this is a product rule and not a version rule.
 //

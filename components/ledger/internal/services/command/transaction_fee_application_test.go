@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
 import (
 	"context"
@@ -65,12 +65,12 @@ func TestApplyFees_NoOpOnRevert(t *testing.T) {
 	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
 		cf.Transaction.Send.Value = decimal.NewFromInt(999) // would corrupt if ever run
 	}}
-	handler := &TransactionHandler{FeeApplier: applier}
+	uc := &UseCase{FeeApplier: applier}
 
 	input := baseTransaction()
 	orgID, ledgerID := uuid.New(), uuid.New()
 
-	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, routeV2, true /* isRevert */, false /* isAnnotation */, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, RouteV2, true /* isRevert */, false /* isAnnotation */, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls, "fee engine must not run on the revert path (no re-charge)")
@@ -81,12 +81,12 @@ func TestApplyFees_NoOpOnAnnotation(t *testing.T) {
 	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
 		cf.Transaction.Send.Value = decimal.NewFromInt(999) // would corrupt if ever run
 	}}
-	handler := &TransactionHandler{FeeApplier: applier}
+	uc := &UseCase{FeeApplier: applier}
 
 	input := baseTransaction()
 	orgID, ledgerID := uuid.New(), uuid.New()
 
-	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, routeV2, false /* isRevert */, true /* isAnnotation */, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, RouteV2, false /* isRevert */, true /* isAnnotation */, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls, "fee engine must not run on the annotation path (NOTED is one-sided, no fee)")
@@ -94,11 +94,11 @@ func TestApplyFees_NoOpOnAnnotation(t *testing.T) {
 }
 
 func TestApplyFees_NoOpWhenApplierNil(t *testing.T) {
-	handler := &TransactionHandler{FeeApplier: nil}
+	uc := &UseCase{FeeApplier: nil}
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), routeV2, false, false, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), RouteV2, false, false, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)))
@@ -108,11 +108,11 @@ func TestApplyFees_NoOpWhenSkipHonored(t *testing.T) {
 	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
 		cf.Transaction.Send.Value = decimal.NewFromInt(999) // would corrupt if ever run
 	}}
-	handler := &TransactionHandler{FeeApplier: applier}
+	uc := &UseCase{FeeApplier: applier}
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), routeV2, false, false, true /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), RouteV2, false, false, true /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls,
@@ -125,11 +125,11 @@ func TestApplyFees_SkipHonoredTouchesNoFeeDependency(t *testing.T) {
 	// reaching either, proving the bypass touches no fee dependency (no engine
 	// call, no tenant Mongo resolution). A non-skip path would nil-deref the
 	// applier or fall through to resolution; this returns nil cleanly.
-	handler := &TransactionHandler{FeeApplier: nil, FeesMongoManager: nil, MultiTenantEnabled: true}
+	uc := &UseCase{FeeApplier: nil, FeesMongoManager: nil, MultiTenantEnabled: true}
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), routeV2, false, false, true /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), RouteV2, false, false, true /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)), "honored fee skip must leave the transaction unmutated")
@@ -150,11 +150,11 @@ func TestApplyFees_FoldsMutatedSendBack(t *testing.T) {
 		}
 		cf.Transaction.Metadata["packageAppliedID"] = "pkg-1"
 	}}
-	handler := &TransactionHandler{FeeApplier: applier}
+	uc := &UseCase{FeeApplier: applier}
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, orgID, ledgerID, routeV2, false, false, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, RouteV2, false, false, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, applier.calls)
@@ -171,11 +171,11 @@ func TestApplyFees_PropagatesBusinessError(t *testing.T) {
 		Title:   "Package amount range overlap",
 		Message: "transaction value is outside the package range",
 	}}
-	handler := &TransactionHandler{FeeApplier: applier}
+	uc := &UseCase{FeeApplier: applier}
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), routeV2, false, false, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), RouteV2, false, false, false /* honoredFeeSkip */)
 
 	require.Error(t, err)
 
@@ -228,7 +228,7 @@ func TestResolveFeesTenantContext_TwoTenantsResolveDifferentDatabases(t *testing
 	dbA := newDisconnectedFeeDatabase(t, "fees_tenant_a")
 	dbB := newDisconnectedFeeDatabase(t, "fees_tenant_b")
 
-	handler := &TransactionHandler{
+	uc := &UseCase{
 		MultiTenantEnabled: true,
 		FeesMongoManager: &fakeFeesDBResolver{dbs: map[string]*mongo.Database{
 			"tenant-a": dbA,
@@ -237,11 +237,11 @@ func TestResolveFeesTenantContext_TwoTenantsResolveDifferentDatabases(t *testing
 	}
 
 	reqCtxA := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
-	derivedA, err := handler.resolveFeesTenantContext(reqCtxA)
+	derivedA, err := uc.resolveFeesTenantContext(reqCtxA)
 	require.NoError(t, err)
 
 	reqCtxB := tmcore.ContextWithTenantID(context.Background(), "tenant-b")
-	derivedB, err := handler.resolveFeesTenantContext(reqCtxB)
+	derivedB, err := uc.resolveFeesTenantContext(reqCtxB)
 	require.NoError(t, err)
 
 	gotA := tmcore.GetMBContext(derivedA)
@@ -262,7 +262,7 @@ func TestResolveFeesTenantContext_TwoTenantsResolveDifferentDatabases(t *testing
 // multi-tenant is disabled: the static fee connection is correct there, so the
 // generic key must NOT be set and the same ctx is returned.
 func TestResolveFeesTenantContext_SingleTenantNoOp(t *testing.T) {
-	handler := &TransactionHandler{
+	uc := &UseCase{
 		MultiTenantEnabled: false,
 		FeesMongoManager: &fakeFeesDBResolver{dbs: map[string]*mongo.Database{
 			"tenant-a": newDisconnectedFeeDatabase(t, "fees_tenant_a"),
@@ -271,7 +271,7 @@ func TestResolveFeesTenantContext_SingleTenantNoOp(t *testing.T) {
 
 	reqCtx := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
 
-	derived, err := handler.resolveFeesTenantContext(reqCtx)
+	derived, err := uc.resolveFeesTenantContext(reqCtx)
 	require.NoError(t, err)
 	assert.Equal(t, reqCtx, derived, "single-tenant mode must return the ctx unchanged")
 	assert.Nil(t, tmcore.GetMBContext(derived), "single-tenant mode must not set the generic MB key")
@@ -281,26 +281,26 @@ func TestResolveFeesTenantContext_SingleTenantNoOp(t *testing.T) {
 // enabled but no tenant ID is on the ctx, the seam fails with a typed error
 // instead of falling through to the shared single-tenant fee DB.
 func TestResolveFeesTenantContext_MissingTenantFailsCleanly(t *testing.T) {
-	handler := &TransactionHandler{
+	uc := &UseCase{
 		MultiTenantEnabled: true,
 		FeesMongoManager:   &fakeFeesDBResolver{dbs: map[string]*mongo.Database{}},
 	}
 
-	_, err := handler.resolveFeesTenantContext(context.Background())
+	_, err := uc.resolveFeesTenantContext(context.Background())
 	require.Error(t, err, "missing tenant must fail, never fall through to the shared DB")
 }
 
 // TestResolveFeesTenantContext_ResolutionErrorMapped proves a resolver failure
 // is surfaced (mapped), not swallowed into the shared DB.
 func TestResolveFeesTenantContext_ResolutionErrorMapped(t *testing.T) {
-	handler := &TransactionHandler{
+	uc := &UseCase{
 		MultiTenantEnabled: true,
 		FeesMongoManager:   &fakeFeesDBResolver{err: errors.New("tenant manager unreachable")},
 	}
 
 	reqCtx := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
 
-	_, err := handler.resolveFeesTenantContext(reqCtx)
+	_, err := uc.resolveFeesTenantContext(reqCtx)
 	require.Error(t, err)
 }
 
@@ -308,13 +308,13 @@ func TestApplyFees_NoOpOnV1RoutePolicy(t *testing.T) {
 	// The /v1 gate must fire BEFORE the tenant fee-DB resolution, not just before
 	// the engine: a tenant whose fee module is unresolvable returns
 	// ErrServiceNotConfigured from the manager, which the seam maps to a 503. With
-	// routeV1 the resolver must never be consulted at all, so a resolver rigged to
+	// RouteV1 the resolver must never be consulted at all, so a resolver rigged to
 	// fail proves the gate short-circuits ahead of it.
 	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
 		cf.Transaction.Send.Value = decimal.NewFromInt(999) // would corrupt if ever run
 	}}
 	resolver := &fakeFeesDBResolver{err: tmcore.ErrServiceNotConfigured}
-	handler := &TransactionHandler{
+	uc := &UseCase{
 		FeeApplier:         applier,
 		FeesMongoManager:   resolver,
 		MultiTenantEnabled: true,
@@ -323,7 +323,7 @@ func TestApplyFees_NoOpOnV1RoutePolicy(t *testing.T) {
 	input := baseTransaction()
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
 
-	err := handler.applyFees(ctx, &input, uuid.New(), uuid.New(), routeV1, false, false, false)
+	err := uc.applyFees(ctx, &input, uuid.New(), uuid.New(), RouteV1, false, false, false)
 
 	require.NoError(t, err, "the /v1 contract carries no fee engine, so no tenant fee-DB resolution may be attempted")
 	assert.Equal(t, 0, applier.calls, "the fee engine must not run on a /v1 route")
@@ -331,16 +331,16 @@ func TestApplyFees_NoOpOnV1RoutePolicy(t *testing.T) {
 }
 
 func TestApplyFees_V2RoutePolicyRunsEngine(t *testing.T) {
-	// Counterpart to the /v1 gate: routeV2 must still drive the engine, proving the
+	// Counterpart to the /v1 gate: RouteV2 must still drive the engine, proving the
 	// version gate narrowed the seam rather than disabling fees outright.
 	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
 		cf.Transaction.Send.Value = decimal.NewFromInt(950)
 	}}
-	handler := &TransactionHandler{FeeApplier: applier}
+	uc := &UseCase{FeeApplier: applier}
 
 	input := baseTransaction()
 
-	err := handler.applyFees(context.Background(), &input, uuid.New(), uuid.New(), routeV2, false, false, false)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), RouteV2, false, false, false)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, applier.calls, "the /v2 contract must still reach the fee engine")

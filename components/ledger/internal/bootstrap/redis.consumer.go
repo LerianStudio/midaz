@@ -589,7 +589,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 		// flushed it) but the audit trail may diverge. Capturing Lua's
 		// after-state in the backup envelope is tracked under T-006.1 /
 		// T-009 hardening items.
-		operations, _, buildErr = r.TransactionHandler.BuildOperations(
+		operations, _, buildErr = r.TransactionHandler.Command.BuildOperations(
 			msgCtxWithSpan, balances, nil /* balancesAfter */, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action,
 		)
 		if buildErr != nil {

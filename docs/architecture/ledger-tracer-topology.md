@@ -17,12 +17,12 @@
 >
 > **Citation convention.** Unprefixed file citations (`config.go`, `tls_seam.go`, `routes.go`) refer to
 > the component under discussion in that section. Where a filename exists in more than one component, a
-> `ledger/` or `tracer/` prefix disambiguates. The ledger reservation seam itself lives in the HTTP
-> **handler** layer (`components/ledger/internal/adapters/http/in/`: `transaction_create.go`,
-> `transaction_reservation.go`, `transaction_reservation_anchor.go`) — it is a transport-boundary
-> integration (call the tracer, branch on `failPosture`), not domain logic, so it sits at the boundary
-> rather than in `internal/services/command/`. Line ranges are accurate at time of writing but rot;
-> the cited function/const symbols are the durable anchors.
+> `ledger/` or `tracer/` prefix disambiguates. The ledger reservation seam itself lives in the
+> transaction create use case (`components/ledger/internal/services/command/`:
+> `create_transaction.go`, `transaction_ports.go`, `transaction_reservation_anchor.go`); the tracer
+> client it depends on is injected at bootstrap through the narrow `command.TracerReserver` port, so
+> the use case never learns the transport. Line ranges are accurate at time of writing but rot; the
+> cited function/const symbols are the durable anchors.
 
 ---
 
@@ -57,7 +57,7 @@ framing in §1.
 
 **Why co-schedule (soft affinity):** the reservation reserve RPC is **synchronous and on the hot path**
 — called inline immediately before `ProcessBalanceOperations` in the transaction-create handler
-(`transaction_create.go:1231-1239`; anchor doc at `transaction_reservation_anchor.go:72-85`).
+(`create_transaction.go`; anchor doc at `transaction_reservation_anchor.go:72-85`).
 Co-locating ledger and tracer on the same node trims that round-trip's network latency without
 collapsing the two into one failure/scale unit.
 
@@ -92,13 +92,13 @@ collapsing the two into one failure/scale unit.
 **What is grounded — the hot-path vs. off-path split that makes independent scaling safe:**
 
 - **Reserve is synchronous, pre-commit, hot-path.** `reserveTransaction` is called inline right before
-  the balance commit; a reject returns *before* any balance moves (`transaction_create.go:1231-1239`).
+  the balance commit; a reject returns *before* any balance moves (`create_transaction.go`).
   The tracer must therefore be **low-latency**, but each reservation's work is bounded per transaction.
 
 - **Confirm / Release are post-commit and best-effort (non-blocking).** After a successful balance
   commit, `confirmReservations` runs for non-PENDING transactions; on a commit failure
   `releaseReservations` runs; PENDING defers confirm to `/commit` and release to `/cancel`
-  (`transaction_create.go:1241-1273`). Transport failures on confirm/release are logged at Warn,
+  (`create_transaction.go`). Transport failures on confirm/release are logged at Warn,
   span-recorded, and **never propagated** — the TTL reaper is the durability backstop
   (`transaction_reservation_anchor.go:246-261, 282-289`). A tracer outage during the confirm/release
   window degrades to reaper reconciliation, not request failure.
@@ -134,7 +134,7 @@ transaction-create path is then byte-for-byte unchanged.
 
 A `nil` reserver is treated as "tracer disabled" at every call site via explicit nil guards, mirroring
 the streaming nil-emitter pattern: `reserveTransaction` returns *proceed* with an empty handle, and
-confirm/release are no-ops (`transaction_reservation.go:24-26`,
+confirm/release are no-ops (`transaction_ports.go`,
 `transaction_reservation_anchor.go:98-101, 252-254, 266-268`). So the create path runs identically with
 or without a tracer wired.
 

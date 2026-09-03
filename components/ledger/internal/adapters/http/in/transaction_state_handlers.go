@@ -36,7 +36,7 @@ const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse tr
 // per-action span (commit_transaction / cancel_transaction, derived from the target
 // status), fetches the transaction (write-behind cache first, DB fallback), then
 // delegates to the commitOrCancelTransaction state machine.
-func (handler *TransactionHandler) commitTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, policy routeVersionPolicy) (*transaction.Transaction, error) {
+func (handler *TransactionHandler) commitTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, policy command.RouteVersionPolicy) (*transaction.Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	spanName := "handler.commit_transaction"
@@ -84,7 +84,7 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 // KNOWN DEFECT — REVERT IDEMPOTENCY IS NOT SCOPED BY ORIGIN.
 //
 // Revert sends no X-Idempotency header, so CreateOrCheckTransactionIdempotency falls back to
-// key = HashSHA256(preimage), and with no override resolveIdempotencyHashSource serialises the
+// key = HashSHA256(preimage), and with no override the create use case serialises the
 // reversal payload. TransactionRevert() copies only the origin's economic content
 // (description, asset, amount, legs, route, metadata) and NEVER the origin id, so two
 // economically-identical origins in the same ledger derive the SAME key and share ONE slot:
@@ -104,15 +104,15 @@ func (handler *TransactionHandler) commitTransaction(ctx context.Context, organi
 //
 // revertTransaction is the transport-neutral revert core: it runs the full revert
 // eligibility gate (no-parent, not-already-a-revert, APPROVED status, non-empty reversal,
-// all bidirectional routes) then delegates to the untouched createRevertTransaction core.
-// The parent transaction id passed to createRevertTransaction is the reverted
+// all bidirectional routes) then delegates to the untouched command.CreateRevertTransaction core.
+// The parent transaction id passed to command.CreateRevertTransaction is the reverted
 // transaction's id (from the route), so the reversal links back to its origin. Revert
 // sends no idempotency headers, so the key is empty (the core keys on the reversal hash)
 // and the TTL defaults to ParseIdempotencyTTL("") == 300s (an absent X-TTL resolves to
 // 300, never 0; a hardcoded 0 would make the Redis idempotency slot permanent). It
 // returns the idempotency `replayed` flag alongside the reverse transaction so the
 // transport sets X-Idempotency-Replayed itself.
-func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, policy routeVersionPolicy) (*transaction.Transaction, bool, error) {
+func (handler *TransactionHandler) revertTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, policy command.RouteVersionPolicy) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
@@ -197,9 +197,7 @@ func (handler *TransactionHandler) revertTransaction(ctx context.Context, organi
 		}
 	}
 
-	params := &transactionPathParams{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
-
-	tranReverted, replayed, err := handler.createRevertTransaction(ctx, params, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), policy)
+	tranReverted, replayed, err := handler.Command.CreateRevertTransaction(ctx, organizationID, ledgerID, transactionID, transactionReverted, constant.CREATED, "", http.ParseIdempotencyTTL(""), policy)
 	if err != nil {
 		return nil, false, err
 	}
@@ -256,7 +254,7 @@ func (handler *TransactionHandler) updateTransaction(ctx context.Context, organi
 // the caller writes its own response.
 //
 //nolint:gocyclo // State machine with branches per status × action combination; refactor candidate.
-func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context, tran *transaction.Transaction, transactionStatus string, policy routeVersionPolicy) (*transaction.Transaction, error) {
+func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context, tran *transaction.Transaction, transactionStatus string, policy command.RouteVersionPolicy) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.commit_or_cancel_transaction")
@@ -323,7 +321,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 	}
 
 	// No fee seam here (P4-T13). tran.Body was persisted by the create path
-	// (executeCreateTransaction), which already applied fees and persisted the
+	// (command.CreateTransaction), which already applied fees and persisted the
 	// fee legs as real operations. So transactionInput == tran.Body is already
 	// fee-inclusive, and this validate runs over the fee-inclusive shape.
 	// Calling applyFees on commit/cancel would charge the fee a second time
@@ -388,8 +386,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 		return nil, err
 	}
 
-	balanceOps := buildBalanceOperations(ctx, organizationID, ledgerID, validate, balances)
-	balanceOps = annotateCanceledOverdraftAmounts(balanceOps, tran)
+	balanceOps := command.BuildBalanceOperations(ctx, organizationID, ledgerID, validate, balances)
+	balanceOps = command.AnnotateCanceledOverdraftAmounts(balanceOps, tran)
 
 	// Both transitions move funds on the overdrafted balance, so both need the
 	// companion mirrored: a cancel restores the held capacity, and a commit posts
@@ -401,7 +399,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 	var companionFromTos []mtransaction.FromTo
 
 	if transactionStatus == constant.APPROVED || transactionStatus == constant.CANCELED {
-		balanceOps, companionFromTos, err = enrichOverdraftOperations(readCtx, organizationID, ledgerID, balanceOps,
+		balanceOps, companionFromTos, err = command.EnrichOverdraftOperations(readCtx, organizationID, ledgerID, balanceOps,
 			validate, handler.Query.GetBalances)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to enrich overdraft operations", err)
@@ -468,9 +466,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 	// at create-pending keeps these reservations alive until this transition.
 	switch transactionStatus {
 	case constant.APPROVED:
-		handler.confirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
+		handler.Command.ConfirmReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
 	case constant.CANCELED:
-		handler.releaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
+		handler.Command.ReleaseReservationsByTransaction(ctx, span, logger, ledgerSettings.Tracer, tran.IDtoUUID(), policy, honoredTracerSkip)
 	}
 
 	balancesBefore, balancesAfter := result.Before, result.After
@@ -490,7 +488,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 		Description: &transactionStatus,
 	}
 
-	operations, preBalances, err := handler.BuildOperations(ctx, balancesBefore, balancesAfter, fromTo, transactionInput, *tran, validate, time.Now(), false, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
+	operations, preBalances, err := handler.Command.BuildOperations(ctx, balancesBefore, balancesAfter, fromTo, transactionInput, *tran, validate, time.Now(), false, ledgerSettings.Accounting.ValidateRoutes, routeCache, action)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to build operations", libLog.Err(err))
@@ -500,8 +498,8 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 		return nil, err
 	}
 
-	tran.Source = getAliasWithoutKey(filterCompanionAliases(validate.Sources))
-	tran.Destination = getAliasWithoutKey(filterCompanionAliases(validate.Destinations))
+	tran.Source = command.GetAliasWithoutKey(command.FilterCompanionAliases(validate.Sources))
+	tran.Destination = command.GetAliasWithoutKey(command.FilterCompanionAliases(validate.Destinations))
 	tran.Operations = operations
 
 	ctxBackup, spanBackup := tracer.Start(ctx, "handler.commit_or_cancel_transaction.send_to_redis_queue")

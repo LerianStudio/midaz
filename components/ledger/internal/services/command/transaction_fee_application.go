@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
 import (
 	"context"
@@ -10,34 +10,14 @@ import (
 
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-// feesDBResolver resolves a tenant's fee Mongo database. It is the narrow port
-// the transaction handler depends on at the fee seam so the concrete
-// tenant-manager Mongo manager (*tmmongo.Manager) can be injected at bootstrap
-// and faked in tests. The signature mirrors tmmongo.Manager.GetDatabaseForTenant.
-type feesDBResolver interface {
-	GetDatabaseForTenant(ctx context.Context, tenantID string) (*mongo.Database, error)
-}
-
-// FeeApplier drives the in-process fee engine over a transaction's validated
-// send/distribute structure. It is the narrow port the transaction handler
-// depends on so the fee use case can be injected at bootstrap and faked in
-// tests. The signature mirrors fees services.UseCase.CalculateFee: the engine
-// mutates cf.Transaction.Send.* in place (legs are appended to Source.From /
-// Distribute.To, and Send.Value moves on deductible fees) and returns a
-// business error when a package rule rejects the transaction.
-type FeeApplier interface {
-	CalculateFee(ctx context.Context, cf *model.FeeCalculate, organizationID uuid.UUID) error
-}
-
 // applyFees drives the fee engine on the validated transaction and folds the
 // resulting fee legs back into transactionInput. It mirrors the shape of
-// enrichOverdraftOperations: a single seam that loads packages, runs the
+// EnrichOverdraftOperations: a single seam that loads packages, runs the
 // engine, and mutates the transaction so every downstream consumer of the
 // re-run validate sees the fee-inclusive state.
 //
@@ -48,7 +28,7 @@ type FeeApplier interface {
 // the persistence path (BuildOperations / ProcessBalanceOperations /
 // WriteTransaction) through a single reassigned validate pointer.
 //
-// On policy=routeV1 this is a no-op, and it is the FIRST gate: the /v1
+// On policy=RouteV1 this is a no-op, and it is the FIRST gate: the /v1
 // transaction contract does not include fees, so a /v1 create posts exactly as
 // authored and never reaches the package lookup or the tenant fee-DB resolution.
 //
@@ -69,14 +49,14 @@ type FeeApplier interface {
 // agreed at the resolution point upstream) bypasses the entire engine: no package
 // lookup, no tenant resolution, no send mutation. The transaction posts as
 // authored.
-func (handler *TransactionHandler) applyFees(
+func (uc *UseCase) applyFees(
 	ctx context.Context,
 	transactionInput *mtransaction.Transaction,
 	organizationID, ledgerID uuid.UUID,
-	policy routeVersionPolicy,
+	policy RouteVersionPolicy,
 	isRevert, isAnnotation, honoredFeeSkip bool,
 ) error {
-	if policy == routeV1 {
+	if policy == RouteV1 {
 		return nil
 	}
 
@@ -84,7 +64,7 @@ func (handler *TransactionHandler) applyFees(
 		return nil
 	}
 
-	if isRevert || isAnnotation || handler.FeeApplier == nil {
+	if isRevert || isAnnotation || uc.FeeApplier == nil {
 		return nil
 	}
 
@@ -92,7 +72,7 @@ func (handler *TransactionHandler) applyFees(
 	// fees actually apply — the short-circuit above means reverts, annotations,
 	// and the nil-applier test seam never trigger (or fail on) a resolution they
 	// don't need.
-	feesCtx, err := handler.resolveFeesTenantContext(ctx)
+	feesCtx, err := uc.resolveFeesTenantContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -104,7 +84,7 @@ func (handler *TransactionHandler) applyFees(
 
 	// The error is logged once by the seam caller (executeCreateTransaction);
 	// recording it here too would double-log the same failure (T8).
-	if err := handler.FeeApplier.CalculateFee(feesCtx, cf, organizationID); err != nil {
+	if err := uc.FeeApplier.CalculateFee(feesCtx, cf, organizationID); err != nil {
 		return err
 	}
 
@@ -133,8 +113,8 @@ func (handler *TransactionHandler) applyFees(
 //
 // In single-tenant mode (or when no manager is wired) the static fee connection
 // is correct, so this is a no-op returning ctx unchanged.
-func (handler *TransactionHandler) resolveFeesTenantContext(ctx context.Context) (context.Context, error) {
-	if !handler.MultiTenantEnabled || handler.FeesMongoManager == nil {
+func (uc *UseCase) resolveFeesTenantContext(ctx context.Context) (context.Context, error) {
+	if !uc.MultiTenantEnabled || uc.FeesMongoManager == nil {
 		return ctx, nil
 	}
 
@@ -145,9 +125,9 @@ func (handler *TransactionHandler) resolveFeesTenantContext(ctx context.Context)
 		return nil, fmt.Errorf("fee seam: %w", tmcore.ErrTenantNotFound)
 	}
 
-	feesDB, err := handler.FeesMongoManager.GetDatabaseForTenant(ctx, tenantID)
+	feesDB, err := uc.FeesMongoManager.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
-		return nil, mapTenantError(ctx, err, tenantID)
+		return nil, MapTenantError(ctx, err, tenantID)
 	}
 
 	return tmcore.ContextWithMB(ctx, feesDB), nil

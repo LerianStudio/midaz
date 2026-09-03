@@ -21,7 +21,7 @@ Midaz is a **source-available core banking platform** written in Go, built aroun
 > **CRM and fees are not deploy units.** CRM is a package tree at `components/ledger/internal/crm`, imported by
 > the ledger binary (holder/instrument routes served on :3002). Fees are embedded in the ledger
 > binary (`components/ledger/pkg/fee`, `components/ledger/internal/services/fees`, fee seam in
-> `transaction_create.go`). Tracer is a separate co-located Go service.
+> `internal/services/command/create_transaction.go`). Tracer is a separate co-located Go service.
 
 ## Get Running
 
@@ -61,7 +61,7 @@ components/ledger/internal/crm/         → CRM package tree (holders/instrument
 pkg/crypto/            → CRM crypto primitives: kms/vault/ (Vault Transit KEK), tink/ (Tink DEKs), mode + resolver
 
 components/ledger/pkg/  → Embedded fees: fee/ (engine), feeshared/ (plugin-fees types)
-  (fee use cases at components/ledger/internal/services/fees; fee seam in transaction_create.go)
+  (fee use cases at components/ledger/internal/services/fees; fee seam in internal/services/command/create_transaction.go)
 
 components/tracer/     → Separate Go service deploy unit
 

@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
 import (
 	"context"
@@ -120,7 +120,7 @@ func TestEnrichOverdraftOperations_SourceDebitSplit(t *testing.T) {
 		Aliases: []string{"@alice#default"},
 	}
 
-	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, companionFromTos, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
 
@@ -130,7 +130,7 @@ func TestEnrichOverdraftOperations_SourceDebitSplit(t *testing.T) {
 
 	// Enriched output: primary op first, companion op appended. Order matters
 	// because the Lua script relies on a stable alphabetical internal-key sort
-	// done later by the caller; see buildBalanceOperations.
+	// done later by the caller; see BuildBalanceOperations.
 	require.Len(t, enriched, 2)
 	assert.Equal(t, primary, enriched[0], "primary op must pass through untouched")
 
@@ -169,7 +169,7 @@ func TestEnrichOverdraftOperations_SourceDebitSplit(t *testing.T) {
 
 	// Sources and Aliases carry the BARE form (no positional prefix) because
 	// that is how CalculateTotal emits entries for user-submitted ops — keeping
-	// the slice shape consistent lets getAliasWithoutKey strip `#key` in a
+	// the slice shape consistent lets GetAliasWithoutKey strip `#key` in a
 	// single pass without any special handling for enriched entries.
 	assert.Contains(t, validate.Sources, "@alice#overdraft",
 		"companion alias-key must join the sources list so downstream maps have a slot")
@@ -235,7 +235,7 @@ func TestEnrichOverdraftOperations_PendingLegacyOnHoldDoesNotDraw(t *testing.T) 
 		Aliases: []string{"@alice#default"},
 	}
 
-	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, companionFromTos, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
 
@@ -287,7 +287,7 @@ func TestEnrichOverdraftOperations_PendingRouteValidationDoesNotDraw(t *testing.
 		Aliases: []string{"@alice#default"},
 	}
 
-	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, companionFromTos, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{debit, onHold}, validate, loader)
 	require.NoError(t, err)
 
@@ -337,7 +337,7 @@ func TestEnrichOverdraftOperations_PendingDestinationCreditIsNotRefunded(t *test
 		Aliases:      []string{"@bob#default"},
 	}
 
-	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, companionFromTos, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
 
@@ -395,7 +395,7 @@ func TestEnrichOverdraftOperations_CanceledDestinationCreditIsNotRefunded(t *tes
 		Aliases:      []string{"@bob#default"},
 	}
 
-	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, companionFromTos, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
 
@@ -450,7 +450,7 @@ func TestEnrichOverdraftOperations_CanceledRouteValidatedSourceCreditStillRefund
 		Aliases:      []string{"@alice#default"},
 	}
 
-	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, companionFromTos, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
 
@@ -501,7 +501,7 @@ func TestEnrichOverdraftOperations_CommitConsumptionDebitIsNotSplit(t *testing.T
 		Aliases: []string{"@alice#default"},
 	}
 
-	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, companionFromTos, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
 
@@ -536,7 +536,7 @@ func TestEnrichOverdraftOperations_NoSplitForNonOverflow(t *testing.T) {
 		return nil, nil
 	}
 
-	enriched, _, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, _, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, nil, loader)
 	require.NoError(t, err)
 	assert.Equal(t, []mmodel.BalanceOperation{primary}, enriched,
@@ -581,14 +581,14 @@ func TestEnrichOverdraftOperations_NoSplitWhenOverdraftDisabled(t *testing.T) {
 		return nil, nil
 	}
 
-	enriched, _, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, _, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, nil, loader)
 	require.NoError(t, err)
 	assert.Equal(t, []mmodel.BalanceOperation{primary}, enriched)
 }
 
 // TestEnrichOverdraftOperations_LoaderError propagates infra failures so the
-// handler can roll back idempotency and the redis queue. Dropping the error
+// uc can roll back idempotency and the redis queue. Dropping the error
 // silently would leave the transaction mid-enrichment without observable
 // failure in the API response.
 func TestEnrichOverdraftOperations_LoaderError(t *testing.T) {
@@ -612,7 +612,7 @@ func TestEnrichOverdraftOperations_LoaderError(t *testing.T) {
 		return nil, sentinel
 	}
 
-	_, _, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	_, _, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, nil, loader)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, sentinel, "loader errors must be wrapped transparently")
@@ -645,7 +645,7 @@ func TestEnrichOverdraftOperations_MissingCompanionIsNoisyButNonFatal(t *testing
 		return []*mmodel.Balance{}, nil
 	}
 
-	enriched, _, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, _, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, nil, loader)
 	require.NoError(t, err, "missing companion must not abort the transaction")
 	assert.Equal(t, []mmodel.BalanceOperation{primary}, enriched,
@@ -654,7 +654,7 @@ func TestEnrichOverdraftOperations_MissingCompanionIsNoisyButNonFatal(t *testing
 
 // TestRejectInternalScopeBalances_BlocksDirectTargeting locks in the CREATE-
 // path scope guard: when the user builds a transaction that references a
-// balance with BalanceScope=internal (e.g. "@account#overdraft"), the handler
+// balance with BalanceScope=internal (e.g. "@account#overdraft"), the uc
 // must surface the canonical 0168 error instead of letting the transaction
 // enter the Lua atomic path (where it would be indistinguishable from a
 // plain insufficient-funds failure).
@@ -749,7 +749,7 @@ func TestEnrichOverdraftOperations_DestinationRefundSplit(t *testing.T) {
 		Aliases:      []string{"@alice#default"},
 	}
 
-	enriched, _, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, _, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
 
@@ -814,7 +814,7 @@ func TestEnrichOverdraftOperations_RefundCappedAtOverdraftUsed(t *testing.T) {
 		return []*mmodel.Balance{companion}, nil
 	}
 
-	enriched, _, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, _, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, nil, loader)
 	require.NoError(t, err)
 	require.Len(t, enriched, 2)
@@ -826,7 +826,7 @@ func TestEnrichOverdraftOperations_RefundCappedAtOverdraftUsed(t *testing.T) {
 
 // TestRejectInternalScopeBalances_AllowsTransactionalBalances is the happy
 // path: every balance is transactional, so the guard must be a no-op and let
-// the handler continue.
+// the uc continue.
 func TestRejectInternalScopeBalances_AllowsTransactionalBalances(t *testing.T) {
 	transactional := []*mmodel.Balance{
 		{
@@ -865,7 +865,7 @@ func TestAnnotateCanceledOverdraftAmounts_UsesPendingCompanionAmount(t *testing.
 		},
 	}
 
-	annotated := annotateCanceledOverdraftAmounts([]mmodel.BalanceOperation{release}, tran)
+	annotated := AnnotateCanceledOverdraftAmounts([]mmodel.BalanceOperation{release}, tran)
 	require.Len(t, annotated, 1)
 	assert.True(t, annotated[0].Amount.OverdraftAmount.Equal(decimal.NewFromInt(50)),
 		"legacy RELEASE needs the exact pending overdraft deficit so Lua restores only the non-overdraft portion")
@@ -895,7 +895,7 @@ func TestAnnotateCanceledOverdraftAmounts_RouteValidationAnnotatesCreditOnly(t *
 		},
 	}
 
-	annotated := annotateCanceledOverdraftAmounts([]mmodel.BalanceOperation{release, credit}, tran)
+	annotated := AnnotateCanceledOverdraftAmounts([]mmodel.BalanceOperation{release, credit}, tran)
 	require.Len(t, annotated, 2)
 	assert.True(t, annotated[0].Amount.OverdraftAmount.IsZero(),
 		"route-validation RELEASE only clears OnHold; CREDIT carries the overdraft repayment override")
@@ -938,7 +938,7 @@ func TestEnrichOverdraftOperations_CanceledReleaseAddsSourceCompanionCredit(t *t
 		Aliases: []string{"@alice#default"},
 	}
 
-	enriched, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	enriched, companionFromTos, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{release}, validate, loader)
 	require.NoError(t, err)
 	require.Len(t, enriched, 2)
@@ -1010,7 +1010,7 @@ func TestEnrichOverdraftOperations_DebitCompanionInheritsRouteID(t *testing.T) {
 		},
 	}
 
-	_, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	_, companionFromTos, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
 	require.Len(t, companionFromTos, 1, "one companion FromTo per debit split")
@@ -1079,7 +1079,7 @@ func TestEnrichOverdraftOperations_RefundCompanionInheritsRouteID(t *testing.T) 
 		},
 	}
 
-	_, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	_, companionFromTos, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
 	require.Len(t, companionFromTos, 1, "one companion FromTo per refund split")
@@ -1130,7 +1130,7 @@ func TestEnrichOverdraftOperations_CompanionRouteIDNilWhenPrimaryHasNone(t *test
 		Aliases: []string{"@alice#default"},
 	}
 
-	_, companionFromTos, err := enrichOverdraftOperations(context.Background(), orgID, ledgerID,
+	_, companionFromTos, err := EnrichOverdraftOperations(context.Background(), orgID, ledgerID,
 		[]mmodel.BalanceOperation{primary}, validate, loader)
 	require.NoError(t, err)
 	require.Len(t, companionFromTos, 1)

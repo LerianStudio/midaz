@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
 import (
 	"testing"
@@ -27,7 +27,7 @@ import (
 func TestBuildStandardOp_OperationTypeOverride(t *testing.T) {
 	t.Parallel()
 
-	handler := &TransactionHandler{}
+	uc := &UseCase{}
 	txDate := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	// baseTransaction returns a minimal parsed transaction with the given override.
@@ -148,7 +148,7 @@ func TestBuildStandardOp_OperationTypeOverride(t *testing.T) {
 			blc := balance(tt.balanceKey)
 			txInput := baseTransaction(tt.override)
 
-			op, err := handler.buildStandardOp(blc, ft, amt, bat, tran, txInput, txDate, false)
+			op, err := uc.buildStandardOp(blc, ft, amt, bat, tran, txInput, txDate, false)
 			require.NoError(t, err)
 			require.NotNil(t, op)
 

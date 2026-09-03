@@ -153,8 +153,9 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 		pgContainer: pgContainer, mongoContainer: mongoContainer, redisContainer: redisContainer,
 		pgConn: pgConn, db: pgContainer.DB, redisRepo: redisRepo, metaRepo: metaRepo, packageRepo: packageRepo,
 		commandUC: commandUC, queryUC: queryUC, feeUC: feeUC,
-		handler: &TransactionHandler{Query: queryUC, Command: commandUC, FeeApplier: feeUC},
+		handler: &TransactionHandler{Query: queryUC, Command: commandUC},
 	}
+	commandUC.FeeApplier = feeUC
 	h.orgID = postgrestestutil.CreateTestOrganization(t, h.db)
 	h.ledgerID = postgrestestutil.CreateTestLedger(t, h.db, h.orgID)
 

@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
 import (
 	"context"
@@ -73,7 +73,7 @@ const (
 // before ProcessBalanceOperations on FEE-INCLUSIVE amounts and gates execution
 // on the route version first, then on the per-ledger tracer settings:
 //
-//   - policy=routeV1: skipped — the /v1 transaction contract shipped before the
+//   - policy=RouteV1: skipped — the /v1 transaction contract shipped before the
 //     tracer existed, so a /v1 create is never gated by a reservation and can
 //     never be rejected by one. This is the FIRST gate, so no request is built
 //     and no connection is dialled.
@@ -87,7 +87,7 @@ const (
 //
 // It NEVER mutates Send.Value or any balance state; amount/asset are read-only
 // inputs observed for the reservation request.
-func (handler *TransactionHandler) reserveTransaction(
+func (uc *UseCase) reserveTransaction(
 	ctx context.Context,
 	span trace.Span,
 	logger libLog.Logger,
@@ -98,10 +98,10 @@ func (handler *TransactionHandler) reserveTransaction(
 	accountID string,
 	transactionTimestamp time.Time,
 	ttl reservationTTLPolicy,
-	policy routeVersionPolicy,
+	policy RouteVersionPolicy,
 	honoredTracerSkip bool,
 ) reservationOutcome {
-	if policy == routeV1 {
+	if policy == RouteV1 {
 		return reservationOutcome{Kind: reservationProceed}
 	}
 
@@ -109,7 +109,7 @@ func (handler *TransactionHandler) reserveTransaction(
 	// the create path is unchanged and no reserve request is built or sent. An
 	// honored skip wins over advisory/enforce — the operator explicitly allowed
 	// the caller to opt out.
-	if handler.TracerReserver == nil || settings.Mode == mmodel.TracerModeOff || settings.Mode == "" || honoredTracerSkip {
+	if uc.TracerReserver == nil || settings.Mode == mmodel.TracerModeOff || settings.Mode == "" || honoredTracerSkip {
 		return reservationOutcome{Kind: reservationProceed}
 	}
 
@@ -125,9 +125,9 @@ func (handler *TransactionHandler) reserveTransaction(
 		LongLived:            ttl == reservationTTLLongLived,
 	}
 
-	result, err := handler.TracerReserver.Reserve(ctx, req)
+	result, err := uc.TracerReserver.Reserve(ctx, req)
 	if err != nil {
-		return handler.handleReserveError(ctx, span, logger, settings, transactionID, advisory, err)
+		return uc.handleReserveError(ctx, span, logger, settings, transactionID, advisory, err)
 	}
 
 	if result.Denied {
@@ -159,7 +159,7 @@ func (handler *TransactionHandler) reserveTransaction(
 // request the tracer rejects) is treated like an availability failure for
 // gating purposes so a tracer defect cannot silently let an enforce ledger
 // commit unchecked under fail-closed, while fail-open still proceeds.
-func (handler *TransactionHandler) handleReserveError(
+func (uc *UseCase) handleReserveError(
 	ctx context.Context,
 	span trace.Span,
 	logger libLog.Logger,
@@ -242,7 +242,7 @@ func firstSourceAccountID(sources []string, balances []*mmodel.Balance) string {
 		}
 	}
 
-	for _, src := range filterCompanionAliases(sources) {
+	for _, src := range FilterCompanionAliases(sources) {
 		alias := src
 		if idx := strings.IndexByte(alias, '#'); idx >= 0 {
 			alias = alias[:idx]
@@ -261,28 +261,28 @@ func firstSourceAccountID(sources []string, balances []*mmodel.Balance) string {
 // logged at Warn, span-recorded, and never propagated — the TTL reaper is the
 // durability backstop (design call G). A nil reserver or empty handle is a
 // no-op.
-func (handler *TransactionHandler) confirmReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
-	if handler.TracerReserver == nil {
+func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
+	if uc.TracerReserver == nil {
 		return
 	}
 
 	for _, id := range handle.ReservationIDs {
-		if err := handler.TracerReserver.Confirm(ctx, id); err != nil {
-			handler.recordReservationTransportFailure(ctx, span, logger, "confirm", id, err)
+		if err := uc.TracerReserver.Confirm(ctx, id); err != nil {
+			uc.recordReservationTransportFailure(ctx, span, logger, "confirm", id, err)
 		}
 	}
 }
 
 // releaseReservations returns held reservations on an aborted transaction
 // (F3-T14, the abort phase). Same best-effort posture as confirmReservations.
-func (handler *TransactionHandler) releaseReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
-	if handler.TracerReserver == nil {
+func (uc *UseCase) releaseReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
+	if uc.TracerReserver == nil {
 		return
 	}
 
 	for _, id := range handle.ReservationIDs {
-		if err := handler.TracerReserver.Release(ctx, id); err != nil {
-			handler.recordReservationTransportFailure(ctx, span, logger, "release", id, err)
+		if err := uc.TracerReserver.Release(ctx, id); err != nil {
+			uc.recordReservationTransportFailure(ctx, span, logger, "release", id, err)
 		}
 	}
 }
@@ -292,7 +292,7 @@ func (handler *TransactionHandler) releaseReservations(ctx context.Context, span
 // (tracer.ErrTracerUnavailable) and any other transport error are the
 // lost-transport case the reaper backstops at TTL, so both are Warn-logged and
 // swallowed.
-func (handler *TransactionHandler) recordReservationTransportFailure(ctx context.Context, span trace.Span, logger libLog.Logger, action string, id uuid.UUID, err error) {
+func (uc *UseCase) recordReservationTransportFailure(ctx context.Context, span trace.Span, logger libLog.Logger, action string, id uuid.UUID, err error) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+action+" transport failed", err)
 
 	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation transport failed; reaper will reconcile at TTL",
@@ -301,12 +301,12 @@ func (handler *TransactionHandler) recordReservationTransportFailure(ctx context
 		libLog.Err(err))
 }
 
-// confirmReservationsByTransaction commits a transaction's held reservations at
+// ConfirmReservationsByTransaction commits a transaction's held reservations at
 // /commit (F3-T15, PENDING success phase). At /commit the ledger holds only the
 // transaction id — the reserve handle from create-pending does not survive the
 // separate commit request — so the tracer flips every RESERVED reservation the
 // transaction holds, addressed by transaction id. Gated on the route version first
-// (routeV1 → no call, the /v1 contract carries no tracer), then on the per-ledger
+// (RouteV1 → no call, the /v1 contract carries no tracer), then on the per-ledger
 // tracer settings (off / nil reserver → no call) and on an honored per-call tracer
 // skip (so a skip honored at create removes the gRPC cost here rather than
 // relocating it to commit); same best-effort, non-blocking posture as the by-id
@@ -321,34 +321,34 @@ func (handler *TransactionHandler) recordReservationTransportFailure(ctx context
 // therefore unsupported — see docs/api/SCOPING.md. Closing it needs create-time
 // reservation state persisted on the transaction row for this gate to read instead of
 // the route version.
-func (handler *TransactionHandler) confirmReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, policy routeVersionPolicy, honoredTracerSkip bool) {
-	if policy == routeV1 {
+func (uc *UseCase) ConfirmReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, policy RouteVersionPolicy, honoredTracerSkip bool) {
+	if policy == RouteV1 {
 		return
 	}
 
-	if honoredTracerSkip || !handler.tracerReservationEnabled(settings) {
+	if honoredTracerSkip || !uc.tracerReservationEnabled(settings) {
 		return
 	}
 
-	if err := handler.TracerReserver.ConfirmByTransaction(ctx, transactionID); err != nil {
-		handler.recordReservationByTransactionFailure(ctx, span, logger, "confirm", transactionID, err)
+	if err := uc.TracerReserver.ConfirmByTransaction(ctx, transactionID); err != nil {
+		uc.recordReservationByTransactionFailure(ctx, span, logger, "confirm", transactionID, err)
 	}
 }
 
-// releaseReservationsByTransaction returns a transaction's held reservations at
+// ReleaseReservationsByTransaction returns a transaction's held reservations at
 // /cancel (F3-T15, PENDING abort phase). Same transaction-id addressing, gating,
-// and non-blocking posture as confirmReservationsByTransaction.
-func (handler *TransactionHandler) releaseReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, policy routeVersionPolicy, honoredTracerSkip bool) {
-	if policy == routeV1 {
+// and non-blocking posture as ConfirmReservationsByTransaction.
+func (uc *UseCase) ReleaseReservationsByTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, settings mmodel.TracerSettings, transactionID uuid.UUID, policy RouteVersionPolicy, honoredTracerSkip bool) {
+	if policy == RouteV1 {
 		return
 	}
 
-	if honoredTracerSkip || !handler.tracerReservationEnabled(settings) {
+	if honoredTracerSkip || !uc.tracerReservationEnabled(settings) {
 		return
 	}
 
-	if err := handler.TracerReserver.ReleaseByTransaction(ctx, transactionID); err != nil {
-		handler.recordReservationByTransactionFailure(ctx, span, logger, "release", transactionID, err)
+	if err := uc.TracerReserver.ReleaseByTransaction(ctx, transactionID); err != nil {
+		uc.recordReservationByTransactionFailure(ctx, span, logger, "release", transactionID, err)
 	}
 }
 
@@ -357,14 +357,14 @@ func (handler *TransactionHandler) releaseReservationsByTransaction(ctx context.
 // not be off/unset, mirroring the gate the reserve anchor applies at create time.
 // Advisory and enforce both confirm/release — advisory observes the lifecycle, it
 // only declines to BLOCK the request, and a confirm/release here never blocks.
-func (handler *TransactionHandler) tracerReservationEnabled(settings mmodel.TracerSettings) bool {
-	return handler.TracerReserver != nil && settings.Mode != mmodel.TracerModeOff && settings.Mode != ""
+func (uc *UseCase) tracerReservationEnabled(settings mmodel.TracerSettings) bool {
+	return uc.TracerReserver != nil && settings.Mode != mmodel.TracerModeOff && settings.Mode != ""
 }
 
 // recordReservationByTransactionFailure logs and span-records a by-transaction
 // confirm/release transport failure without propagating it — the reaper reconciles
 // any lost transition at TTL.
-func (handler *TransactionHandler) recordReservationByTransactionFailure(ctx context.Context, span trace.Span, logger libLog.Logger, action string, transactionID uuid.UUID, err error) {
+func (uc *UseCase) recordReservationByTransactionFailure(ctx context.Context, span trace.Span, logger libLog.Logger, action string, transactionID uuid.UUID, err error) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+action+" by transaction transport failed", err)
 
 	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation by-transaction transport failed; reaper will reconcile at TTL",

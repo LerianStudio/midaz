@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -48,7 +49,7 @@ type CreateTransactionInputV2 struct {
 // createTransactionV2 is the shared body of the v2 create actions. It guards the request
 // context, builds the canonical Transaction and the request's scope from the flat v2 body
 // (decodeAndBuildV2Transaction), delegates to the shared createTransactionShell keyed by the
-// action-discriminated raw body (v2IdempotencyHashSource) under routeV2 — the /v2 contract
+// action-discriminated raw body (v2IdempotencyHashSource) under command.RouteV2 — the /v2 contract
 // is the one that includes the fee engine — and projects the v1 output onto the
 // /v2 wire shape (newTransactionV2). Translate business errors and the input's UUID validation
 // surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
@@ -64,7 +65,7 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 
 	hashSource := v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)
 
-	out, err := handler.createTransactionShell(ctx, scope.OrganizationID, scope.LedgerID, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, routeV2, hashSource)
+	out, err := handler.createTransactionShell(ctx, scope.OrganizationID, scope.LedgerID, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, command.RouteV2, hashSource)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +125,7 @@ func idempotencyActionDiscriminator(pending bool, operationTypeOverride string) 
 // to /direct and /hold would otherwise share one no-key idempotency slot and cross-replay
 // (a hold could return a settled direct, or vice versa). Folding the action discriminator in
 // gives each action a distinct no-key identity: direct keeps the bare body; every other
-// action prefixes its discriminator joined by idempotencyDiscriminatorSep so the two sources
+// action prefixes its discriminator joined by command.IdempotencyDiscriminatorSep so the two sources
 // can never collide.
 func v2IdempotencyHashSource(rawBody []byte, pending bool, operationTypeOverride string) string {
 	disc := idempotencyActionDiscriminator(pending, operationTypeOverride)
@@ -132,7 +133,7 @@ func v2IdempotencyHashSource(rawBody []byte, pending bool, operationTypeOverride
 		return string(rawBody)
 	}
 
-	return disc + idempotencyDiscriminatorSep + string(rawBody)
+	return disc + command.IdempotencyDiscriminatorSep + string(rawBody)
 }
 
 // CreateTransactionDirectV2 creates a v2 transaction with the direct (non-pending)
@@ -185,7 +186,7 @@ func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.APPROVED, routeV2)
+	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.APPROVED, command.RouteV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -206,7 +207,7 @@ func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.CANCELED, routeV2)
+	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.CANCELED, command.RouteV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -216,7 +217,7 @@ func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *
 
 // RevertTransactionV2 is the /v2 shell over the SAME revertTransaction core the v1
 // RevertTransaction shell calls (parent/revert eligibility + bidirectional-route checks,
-// then createRevertTransaction), differing only in the /v2 response envelope
+// then command.CreateRevertTransaction), differing only in the /v2 response envelope
 // (CreateTransactionOutputV2 instead of CreateTransactionResponse) — a revert IS a
 // create, so it carries the same 201 + X-Idempotency-Replayed shape as the v2 create actions.
 func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *StateTransactionRequest) (*CreateTransactionOutputV2, error) {
@@ -229,7 +230,7 @@ func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID, routeV2)
+	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID, command.RouteV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

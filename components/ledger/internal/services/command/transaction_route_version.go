@@ -2,9 +2,9 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
-// routeVersionPolicy states which route version received the request. The transaction
+// RouteVersionPolicy states which route version received the request. The transaction
 // cores are transport-agnostic and cannot read the request path, so the version travels
 // from the transport shell to every seam that contracts on it as an explicit argument.
 //
@@ -16,16 +16,16 @@ package in
 // contract: applyFees (the fee engine) and the tracer reservation lifecycle
 // (reserveTransaction plus the by-transaction confirm/release). Each decides for itself
 // what the version means; the policy only reports which mount answered.
-type routeVersionPolicy bool
+type RouteVersionPolicy bool
 
 const (
-	// routeV1 is the /v1 transaction contract, frozen at what it shipped with: no fee
+	// RouteV1 is the /v1 transaction contract, frozen at what it shipped with: no fee
 	// engine and no tracer. A client integrated against it must not acquire fee legs,
 	// a tenant fee-DB resolution failure, or a reservation rejection from a version
 	// upgrade it never asked for.
-	routeV1 routeVersionPolicy = false
+	RouteV1 RouteVersionPolicy = false
 
-	// routeV2 is the /v2 transaction contract, which includes both fees and the tracer
+	// RouteV2 is the /v2 transaction contract, which includes both fees and the tracer
 	// reservation lifecycle.
-	routeV2 routeVersionPolicy = true
+	RouteV2 RouteVersionPolicy = true
 )

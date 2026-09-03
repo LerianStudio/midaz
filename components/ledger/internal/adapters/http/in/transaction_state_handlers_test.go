@@ -16,17 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Per-call tracer-skip wiring proofs. The honored-skip short-circuit behavior is
-// proven at the helper level in transaction_reservation_anchor_test.go
-// (TestReserveTransaction_HonoredSkip_Proceeds for create, the honored-skip
-// subtests of TestConfirmReservationsByTransaction /
-// TestReleaseReservationsByTransaction for commit/cancel). What those cannot see
-// is whether the SEAMS actually feed the resolved boolean into the helpers, and
-// whether the create-path 422 releases the idempotency key. Those are call-site
-// facts, so — mirroring the fee-seam (transaction_fee_seam_structure_test.go) and
-// fail-closed (transaction_reservation_failposture_test.go) gates — they are
-// asserted over the live source AST. A future reorder that drops the resolution,
-// stops threading the flag, or forgets the idempotency release fails these gates.
+// Per-call tracer-skip wiring proof for the commit/cancel transition. The honored-skip
+// short-circuit behavior is proven at the helper level in the command package (the
+// honored-skip subtests of TestConfirmReservationsByTransaction /
+// TestReleaseReservationsByTransaction). What those cannot see is whether the SEAM
+// actually feeds the resolved boolean into the helpers. That is a call-site fact, so it
+// is asserted over the live source AST. A future reorder that drops the resolution or
+// stops threading the flag fails these gates. The same proof for the create path lives
+// beside the create seam, in the command package.
 
 const (
 	commitCancelFuncName = "commitOrCancelTransaction"
@@ -53,59 +50,6 @@ func findFuncDecl(t *testing.T, src, name string) *ast.FuncDecl {
 	t.Fatalf("function %q not found", name)
 
 	return nil
-}
-
-// createSkipSeamMetrics captures the ordering and reject-branch facts the
-// create-path tracer-skip wiring relies on, all within executeCreateTransaction.
-type createSkipSeamMetrics struct {
-	settingsPos        int  // index of the GetParsedLedgerSettings call (-1 if absent)
-	resolveSkipPos     int  // index of the resolveTransactionSkips call (-1)
-	reservePos         int  // index of the reserveTransaction call (-1)
-	rejectDeleteIdemp  bool // the ResolveSkipFor-error branch releases the idempotency key
-	rejectReturns      bool // that branch returns (does not fall through to the reserve)
-	reserveCarriesFlag bool // reserveTransaction is called with the honoredTracerSkip ident
-}
-
-// analyzeCreateSkipSeam walks executeCreateTransaction and extracts the tracer-skip
-// resolution facts. The skip is resolved through the resolveTransactionSkips helper
-// (which calls skip.ResolveSkipFor for both controls); the 422 guard is the
-// `if err != nil` that immediately follows that resolution call.
-func analyzeCreateSkipSeam(t *testing.T, src string) createSkipSeamMetrics {
-	t.Helper()
-
-	fn := findFuncDecl(t, src, createSeamFuncName)
-
-	m := createSkipSeamMetrics{settingsPos: -1, resolveSkipPos: -1, reservePos: -1}
-
-	for i, stmt := range fn.Body.List {
-		if m.settingsPos == -1 && stmtCallsMethod(stmt, "GetParsedLedgerSettings") {
-			m.settingsPos = i
-		}
-
-		if m.resolveSkipPos == -1 && stmtCallsFunc(stmt, "resolveTransactionSkips") {
-			m.resolveSkipPos = i
-		}
-
-		if m.reservePos == -1 && stmtCallsMethod(stmt, "reserveTransaction") {
-			m.reservePos = i
-
-			if call := findCallToMethod(stmt, "reserveTransaction"); call != nil {
-				m.reserveCarriesFlag = callHasArgIdent(call, "honoredTracerSkip")
-			}
-		}
-
-		// The 422 guard sits right after the resolve assignment. Identify it as the
-		// first `if err != nil` whose block releases the idempotency key, appearing
-		// after the resolve statement but before the reserve.
-		if m.resolveSkipPos != -1 && i == m.resolveSkipPos+1 {
-			if ifStmt, ok := stmt.(*ast.IfStmt); ok {
-				m.rejectDeleteIdemp = blockCallsMethod(ifStmt.Body, "deleteIdempotencyKey")
-				m.rejectReturns = blockEndsInReturn(ifStmt.Body)
-			}
-		}
-	}
-
-	return m
 }
 
 // findCallToMethod returns the first CallExpr in stmt whose selector method
@@ -142,97 +86,32 @@ func callHasArgIdent(call *ast.CallExpr, name string) bool {
 	return false
 }
 
-// TestExecuteCreateTransaction_TracerSkip — the create-path wiring proof. Asserts
-// that executeCreateTransaction resolves the tracer skip AFTER the settings read
-// and BEFORE the reserve anchor, that the 422 (unauthorized skip) branch releases
-// the idempotency key and returns before the reserve, and that the resolved
-// honoredTracerSkip boolean is threaded into reserveTransaction.
-func TestExecuteCreateTransaction_TracerSkip(t *testing.T) {
-	src := readSeamSource(t) // transaction_create.go
+// stmtCallsFunc reports whether the statement contains a call to a function with the
+// given name, package-qualified or not.
+func stmtCallsFunc(stmt ast.Node, name string) bool {
+	found := false
 
-	m := analyzeCreateSkipSeam(t, src)
-
-	require.NotEqual(t, -1, m.settingsPos, "GetParsedLedgerSettings call not found")
-	require.NotEqual(t, -1, m.resolveSkipPos, "resolveTransactionSkips call not found")
-	require.NotEqual(t, -1, m.reservePos, "reserveTransaction call not found")
-
-	assert.Greater(t, m.resolveSkipPos, m.settingsPos,
-		"the tracer skip must be resolved AFTER the settings read (it reads ledgerSettings.Overrides)")
-	assert.Less(t, m.resolveSkipPos, m.reservePos,
-		"the tracer skip must be resolved BEFORE the reserve anchor it gates")
-
-	assert.True(t, m.rejectDeleteIdemp,
-		"an unauthorized skip (422) must release the idempotency key — mirror the fee error path")
-	assert.True(t, m.rejectReturns,
-		"the 422 branch must return — it must NOT fall through to the reserve anchor")
-
-	assert.True(t, m.reserveCarriesFlag,
-		"reserveTransaction must receive the resolved honoredTracerSkip flag")
-
-	// The orchestrator delegates resolution to resolveTransactionSkips; prove that
-	// helper terminates at the real two-key gate (skip.ResolveSkipFor) rather than a
-	// stub, so the displaced authz call-site fact stays covered after the extraction.
-	helper := findFuncDecl(t, src, "resolveTransactionSkips")
-	callsResolver := false
-
-	for _, stmt := range helper.Body.List {
-		if stmtCallsFunc(stmt, "ResolveSkipFor") {
-			callsResolver = true
-			break
+	ast.Inspect(stmt, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
 		}
-	}
 
-	assert.True(t, callsResolver,
-		"resolveTransactionSkips must call skip.ResolveSkipFor — the orchestrator's skip must terminate at the real two-key gate")
-}
+		switch f := call.Fun.(type) {
+		case *ast.Ident:
+			if f.Name == name {
+				found = true
+			}
+		case *ast.SelectorExpr:
+			if f.Sel.Name == name {
+				found = true
+			}
+		}
 
-// TestExecuteCreateTransaction_TracerSkip_Bites proves the create-path analyzer
-// bites: it must reject a seam that drops the idempotency release on the 422
-// branch or stops threading the flag into the reserve.
-func TestExecuteCreateTransaction_TracerSkip_Bites(t *testing.T) {
-	leaky := `package in
-func (handler *TransactionHandler) executeCreateTransaction() error {
-	ledgerSettings, err := handler.Query.GetParsedLedgerSettings()
-	honoredTracerSkip, err := resolveTransactionSkips()
-	if err != nil {
-		// BUG: neither releases the idempotency key nor returns
-		_ = err
-	}
-	reservation := handler.reserveTransaction() // BUG: flag not threaded
-	_ = reservation
-	_ = ledgerSettings
-	_ = honoredTracerSkip
-	return nil
-}`
+		return true
+	})
 
-	m := analyzeCreateSkipSeam(t, leaky)
-
-	require.NotEqual(t, -1, m.resolveSkipPos, "fixture sanity: resolveTransactionSkips must be present")
-	require.NotEqual(t, -1, m.reservePos, "fixture sanity: reserveTransaction must be present")
-
-	assert.False(t, m.rejectDeleteIdemp, "gate failed to bite: a 422 branch with no release was reported as releasing")
-	assert.False(t, m.rejectReturns, "gate failed to bite: a 422 branch with no return was reported as returning")
-	assert.False(t, m.reserveCarriesFlag, "gate failed to bite: a reserve without the flag was reported as carrying it")
-
-	correct := `package in
-func (handler *TransactionHandler) executeCreateTransaction() error {
-	ledgerSettings, err := handler.Query.GetParsedLedgerSettings()
-	honoredTracerSkip, err := resolveTransactionSkips()
-	if err != nil {
-		handler.deleteIdempotencyKey()
-		return handler.WithError(err)
-	}
-	reservation := handler.reserveTransaction(honoredTracerSkip)
-	_ = reservation
-	_ = ledgerSettings
-	return nil
-}`
-
-	mc := analyzeCreateSkipSeam(t, correct)
-	assert.True(t, mc.rejectDeleteIdemp && mc.rejectReturns && mc.reserveCarriesFlag,
-		"fixture sanity: the correct shape must satisfy every fact")
-	assert.True(t, mc.settingsPos < mc.resolveSkipPos && mc.resolveSkipPos < mc.reservePos,
-		"fixture sanity: settings -> resolve -> reserve ordering")
+	return found
 }
 
 // commitCancelSkipMetrics captures the commit/cancel tracer-skip wiring facts,
@@ -263,11 +142,11 @@ func analyzeCommitCancelSkipSeam(t *testing.T, src string) commitCancelSkipMetri
 			m.resolveReadsBodySkip = stmtReferencesBodySkip(stmt)
 		}
 
-		if call := findCallToMethod(stmt, "confirmReservationsByTransaction"); call != nil {
+		if call := findCallToMethod(stmt, "ConfirmReservationsByTransaction"); call != nil {
 			m.confirmCarriesFlag = callHasArgIdent(call, "honoredTracerSkip")
 		}
 
-		if call := findCallToMethod(stmt, "releaseReservationsByTransaction"); call != nil {
+		if call := findCallToMethod(stmt, "ReleaseReservationsByTransaction"); call != nil {
 			m.releaseCarriesFlag = callHasArgIdent(call, "honoredTracerSkip")
 		}
 	}
@@ -318,9 +197,9 @@ func TestCommitCancel_TracerSkip(t *testing.T) {
 	assert.True(t, m.resolveReadsBodySkip,
 		"the commit/cancel re-resolution must read the persisted skip from tran.Body.Skip")
 	assert.True(t, m.confirmCarriesFlag,
-		"confirmReservationsByTransaction must receive the resolved honoredTracerSkip flag")
+		"ConfirmReservationsByTransaction must receive the resolved honoredTracerSkip flag")
 	assert.True(t, m.releaseCarriesFlag,
-		"releaseReservationsByTransaction must receive the resolved honoredTracerSkip flag")
+		"ReleaseReservationsByTransaction must receive the resolved honoredTracerSkip flag")
 }
 
 // TestCommitCancel_TracerSkip_Bites proves the commit/cancel analyzer bites on a
@@ -332,9 +211,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction() error {
 	honoredTracerSkip, _ := skip.ResolveSkipFor(req.Skip) // BUG: not tran.Body.Skip
 	switch status {
 	case constant.APPROVED:
-		handler.confirmReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
+		handler.Command.ConfirmReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
 	case constant.CANCELED:
-		handler.releaseReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
+		handler.Command.ReleaseReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
 	}
 	_ = honoredTracerSkip
 	return nil
@@ -354,9 +233,9 @@ func (handler *TransactionHandler) commitOrCancelTransaction() error {
 	honoredTracerSkip, _ := skip.ResolveSkipFor("tracer", tran.Body.Skip != nil && tran.Body.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
 	switch status {
 	case constant.APPROVED:
-		handler.confirmReservationsByTransaction(ledgerSettings.Tracer, txID, honoredTracerSkip)
+		handler.Command.ConfirmReservationsByTransaction(ledgerSettings.Tracer, txID, honoredTracerSkip)
 	case constant.CANCELED:
-		handler.releaseReservationsByTransaction(ledgerSettings.Tracer, txID, honoredTracerSkip)
+		handler.Command.ReleaseReservationsByTransaction(ledgerSettings.Tracer, txID, honoredTracerSkip)
 	}
 	return nil
 }`
@@ -398,7 +277,7 @@ func analyzeCommitCancelOverdraftSeam(t *testing.T, src string) commitCancelOver
 
 	for i, stmt := range fn.Body.List {
 		if m.enrichPos == -1 {
-			if ifStmt, ok := stmt.(*ast.IfStmt); ok && stmtCallsFunc(ifStmt.Body, "enrichOverdraftOperations") {
+			if ifStmt, ok := stmt.(*ast.IfStmt); ok && stmtCallsFunc(ifStmt.Body, "EnrichOverdraftOperations") {
 				m.enrichPos = i
 
 				for _, name := range constantSelectorNames(ifStmt.Cond) {
@@ -510,7 +389,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction() error {
 	routeCache, _ := handler.Query.ValidateAccountingRules(ctx, balanceOps, validate, action)
 	var companionFromTos []mtransaction.FromTo
 	if transactionStatus == constant.CANCELED { // BUG: commit is not enriched
-		balanceOps, companionFromTos, _ = enrichOverdraftOperations(readCtx, balanceOps, validate)
+		balanceOps, companionFromTos, _ = command.EnrichOverdraftOperations(readCtx, balanceOps, validate)
 	}
 	_, _ = routeCache, companionFromTos
 	return nil
@@ -532,7 +411,7 @@ func (handler *TransactionHandler) commitOrCancelTransaction() error {
 func (handler *TransactionHandler) commitOrCancelTransaction() error {
 	var companionFromTos []mtransaction.FromTo
 	if transactionStatus == constant.APPROVED || transactionStatus == constant.CANCELED {
-		balanceOps, companionFromTos, _ = enrichOverdraftOperations(readCtx, balanceOps, validate)
+		balanceOps, companionFromTos, _ = command.EnrichOverdraftOperations(readCtx, balanceOps, validate)
 	}
 	routeCache, _ := handler.Query.ValidateAccountingRules(ctx, balanceOps, validate, action)
 	fromTo = append(fromTo, companionFromTos...)

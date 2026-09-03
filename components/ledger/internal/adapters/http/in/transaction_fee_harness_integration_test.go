@@ -193,7 +193,8 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	h.feeUC, err = feesservices.NewUseCase(packageRepo, resolver)
 	require.NoError(t, err, "fee use case")
 
-	h.handler = &TransactionHandler{Query: h.queryUC, Command: h.commandUC, FeeApplier: h.feeUC}
+	h.commandUC.FeeApplier = h.feeUC
+	h.handler = &TransactionHandler{Query: h.queryUC, Command: h.commandUC}
 
 	// Seed a real organization + ledger so GetParsedLedgerSettings succeeds and
 	// the fee resolver resolves accounts against a real ledger.

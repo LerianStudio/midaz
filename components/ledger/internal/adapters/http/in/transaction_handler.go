@@ -14,17 +14,18 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // This file is the transport layer of the MONEY-WRITE transaction resource. Every shell
-// decodes/validates the request and delegates to the transport-neutral core
-// (createTransaction / commitOrCancelTransaction / UpdateTransaction command + query),
-// then projects the result onto a typed Huma Out. The createTransaction orchestration
+// decodes/validates the request and delegates to the use case
+// (command.CreateTransaction / commitOrCancelTransaction / UpdateTransaction command +
+// query), then projects the result onto a typed Huma Out. The create orchestration
 // (validate -> fee -> reserve -> ProcessBalanceOperations -> BuildOperations ->
-// WriteTransaction, with its 9 cleanup points) lives behind that boundary; this file
+// WriteTransaction, with its 9 cleanup points) lives in the command package; this file
 // only reads path params + idempotency headers and writes the response — the same split
 // account/holder/instrument use. Conventions (see asset_handler.go's header for the full
 // rationale):
@@ -34,11 +35,11 @@ import (
 //     Huma terminal — never a native Huma 422. The shells re-parse via parsePathUUID
 //     (mirrors GetUUIDFromLocals' 0065 envelope).
 //  2. Body ops carry RawBody []byte + SkipValidateBody so http.DecodeAndValidate is the
-//     sole body validator. The idempotency HASH is computed by the core over the built
+//     sole body validator. The idempotency HASH is computed by the use case over the built
 //     mtransaction.Transaction (StructToJSONString).
 //  3. CREATE + commit/cancel/revert + idempotent replay all return 201 (matching
 //     http.Created); PATCH/GET return 200. The X-Idempotency-Replayed response header is
-//     driven off the `replayed` bool the createTransaction core returns.
+//     driven off the `replayed` bool the create use case returns.
 //  4. UpdateTransaction is NOT merge-patch: the command takes a plain decoded
 //     *transaction.UpdateTransactionInput (no FindNilFields / RawBody null-field
 //     derivation), so the shell decodes that type and delegates unchanged.
@@ -57,19 +58,19 @@ var secTransactionBearer = []map[string][]string{
 
 // --- shared transaction-create shell ------------------------------------------
 
-// createTransactionShell is the common body of the four Huma CREATE shells. It
+// createTransactionShell is the common body of the Huma CREATE shells. It
 // re-parses the org/ledger path strings (the ParseUUIDPathParameters middleware is
 // the sole UUID validator), resolves the idempotency key/TTL from headers, delegates
-// to the transport-neutral createTransaction core, and projects the built transaction
-// + the replayed flag onto the typed Out. The parent
-// transaction id is uuid.Nil on the create routes (no :transaction_id segment).
+// to command.CreateTransaction, and projects the built transaction + the replayed flag
+// onto the typed Out. The create routes carry no :transaction_id segment, so the use
+// case records no parent transaction id.
 //
 // policy is the caller's route version, carried explicitly from the transport shell
 // down to the seams that contract on it — the fee engine and the tracer reservation:
-// the /v1 shells pass routeV1, the /v2 funnel passes routeV2. The core is
+// the /v1 shells pass command.RouteV1, the /v2 funnel passes command.RouteV2. The core is
 // transport-agnostic and cannot read the request path, so the version signal has to
 // travel as an argument.
-func (handler *TransactionHandler) createTransactionShell(ctx context.Context, orgStr, ledgerStr string, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey, idempotencyTTL string, policy routeVersionPolicy, idempotencyHashSource ...string) (*CreateTransactionResponse, error) {
+func (handler *TransactionHandler) createTransactionShell(ctx context.Context, orgStr, ledgerStr string, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey, idempotencyTTL string, policy command.RouteVersionPolicy, idempotencyHashSource ...string) (*CreateTransactionResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -79,10 +80,9 @@ func (handler *TransactionHandler) createTransactionShell(ctx context.Context, o
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	params := &transactionPathParams{OrganizationID: orgID, LedgerID: ledgerID, TransactionID: uuid.Nil}
 	ttl := pkgHTTP.ParseIdempotencyTTL(idempotencyTTL)
 
-	tran, replayed, err := handler.createTransaction(ctx, params, transactionInput, transactionStatus, idempotencyKey, ttl, policy, idempotencyHashSource...)
+	tran, replayed, err := handler.Command.CreateTransaction(ctx, orgID, ledgerID, transactionInput, transactionStatus, idempotencyKey, ttl, policy, idempotencyHashSource...)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -135,7 +135,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(ctx context.Context, in
 
 	transactionInput := payload.BuildTransaction()
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, routeV1)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, command.RouteV1)
 }
 
 // --- POST /transactions/annotation --------------------------------------------
@@ -150,7 +150,7 @@ func (handler *TransactionHandler) CreateTransactionAnnotation(ctx context.Conte
 
 	transactionInput := payload.BuildTransaction()
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, constant.NOTED, in.IdempotencyKey, in.IdempotencyTTL, routeV1)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, constant.NOTED, in.IdempotencyKey, in.IdempotencyTTL, command.RouteV1)
 }
 
 // --- POST /transactions/inflow ------------------------------------------------
@@ -175,7 +175,7 @@ func (handler *TransactionHandler) CreateTransactionInflow(ctx context.Context, 
 
 	transactionInput := payload.BuildInflowEntry()
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, routeV1)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, command.RouteV1)
 }
 
 // --- POST /transactions/outflow -----------------------------------------------
@@ -199,7 +199,7 @@ func (handler *TransactionHandler) CreateTransactionOutflow(ctx context.Context,
 
 	transactionInput := payload.BuildOutflowEntry()
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, routeV1)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, *transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, command.RouteV1)
 }
 
 // --- POST /transactions/block -------------------------------------------------
@@ -226,7 +226,7 @@ func (handler *TransactionHandler) CreateTransactionBlock(ctx context.Context, i
 
 	transactionInput := handler.buildOverriddenTransaction(payload, constant.BLOCK)
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, routeV1)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, command.RouteV1)
 }
 
 // --- POST /transactions/unblock -----------------------------------------------
@@ -242,7 +242,7 @@ func (handler *TransactionHandler) CreateTransactionUnblock(ctx context.Context,
 
 	transactionInput := handler.buildOverriddenTransaction(payload, constant.UNBLOCK)
 
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, routeV1)
+	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, transactionInput, transactionInput.InitialStatus(), in.IdempotencyKey, in.IdempotencyTTL, command.RouteV1)
 }
 
 // --- POST /transactions/{transaction_id}/commit|cancel|revert -----------------
@@ -276,7 +276,7 @@ func (handler *TransactionHandler) CommitTransaction(ctx context.Context, in *St
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.APPROVED, routeV1)
+	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.APPROVED, command.RouteV1)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -296,7 +296,7 @@ func (handler *TransactionHandler) CancelTransaction(ctx context.Context, in *St
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.CANCELED, routeV1)
+	tran, err := handler.commitTransaction(ctx, orgID, ledgerID, txID, constant.CANCELED, command.RouteV1)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -305,11 +305,11 @@ func (handler *TransactionHandler) CancelTransaction(ctx context.Context, in *St
 }
 
 // RevertTransaction delegates to the revertTransaction core (parent/revert
-// eligibility + bidirectional-route checks, then createRevertTransaction) and projects the
+// eligibility + bidirectional-route checks, then command.CreateRevertTransaction) and projects the
 // core's replayed flag onto the response header, mirroring createTransactionShell. Returns 201.
 //
 // It answers with CreateTransactionResponse because a revert IS a create: it enters
-// executeCreateTransaction, answers 201 with a freshly created reverse, and can replay —
+// the same create orchestration, answers 201 with a freshly created reverse, and can replay —
 // so the create envelope already models the response, headers included. commit/cancel are
 // the ones that differ (pure state transitions) and keep StateTransactionResponse.
 func (handler *TransactionHandler) RevertTransaction(ctx context.Context, in *StateTransactionRequest) (*CreateTransactionResponse, error) {
@@ -322,7 +322,7 @@ func (handler *TransactionHandler) RevertTransaction(ctx context.Context, in *St
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID, routeV1)
+	tran, replayed, err := handler.revertTransaction(ctx, orgID, ledgerID, txID, command.RouteV1)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

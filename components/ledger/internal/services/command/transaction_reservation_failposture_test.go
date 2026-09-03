@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package in
+package command
 
 import (
 	"context"
@@ -94,11 +94,11 @@ func TestTracerFailOpenSkipped(t *testing.T) {
 
 	logger := &libLog.NopLogger{}
 	reserver := &stubReserver{reserveErr: fmt.Errorf("timeout: %w", tracer.ErrTracerUnavailable)}
-	handler := &TransactionHandler{TracerReserver: reserver}
+	uc := &UseCase{TracerReserver: reserver}
 
-	out := handler.reserveTransaction(ctx, span, logger,
+	out := uc.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, routeV2, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, RouteV2, false)
 
 	assert.Equal(t, reservationProceed, out.Kind, "fail-open must COMMIT (proceed) when the tracer is unavailable")
 	assert.Empty(t, out.Handle.ReservationIDs, "no reservation is held when the reserve call never succeeded")
@@ -115,11 +115,11 @@ func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
 
 	logger := &libLog.NopLogger{}
 	reserver := &stubReserver{reserveErr: fmt.Errorf("timeout: %w", tracer.ErrTracerUnavailable)}
-	handler := &TransactionHandler{TracerReserver: reserver}
+	uc := &UseCase{TracerReserver: reserver}
 
-	out := handler.reserveTransaction(ctx, span, logger,
+	out := uc.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, routeV2, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, RouteV2, false)
 
 	require.Equal(t, reservationReject, out.Kind)
 
@@ -276,13 +276,13 @@ func TestTracerFailClosedReject_ReleasesIdempotencyAndSkipsBalanceCommit(t *test
 func TestTracerFailClosedSeam_Bites(t *testing.T) {
 	// Fixture 1: reject branch missing deleteIdempotencyKey and the return.
 	leaky := `package in
-func (handler *TransactionHandler) executeCreateTransaction() error {
-	reservation := handler.reserveTransaction()
+func (uc *TransactionHandler) executeCreateTransaction() error {
+	reservation := uc.reserveTransaction()
 	if reservation.Kind == reservationReject {
 		// BUG: neither releases the idempotency key nor returns
 		_ = reservation.Err
 	}
-	result, err := handler.Command.ProcessBalanceOperations()
+	result, err := uc.ProcessBalanceOperations()
 	_ = result
 	return err
 }`
@@ -303,14 +303,14 @@ func (handler *TransactionHandler) executeCreateTransaction() error {
 
 	// Fixture 2: the canonical, correct shape must pass all three reject facts.
 	correct := `package in
-func (handler *TransactionHandler) executeCreateTransaction() error {
-	reservation := handler.reserveTransaction()
+func (uc *TransactionHandler) executeCreateTransaction() error {
+	reservation := uc.reserveTransaction()
 	if reservation.Kind == reservationReject {
-		handler.deleteIdempotencyKey()
-		handler.Command.RemoveTransactionFromRedisQueue()
-		return handler.WithError(reservation.Err)
+		uc.deleteIdempotencyKey()
+		uc.RemoveTransactionFromRedisQueue()
+		return uc.WithError(reservation.Err)
 	}
-	result, err := handler.Command.ProcessBalanceOperations()
+	result, err := uc.ProcessBalanceOperations()
 	_ = result
 	return err
 }`
