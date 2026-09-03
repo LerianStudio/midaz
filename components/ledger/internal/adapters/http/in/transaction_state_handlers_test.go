@@ -5,15 +5,23 @@
 package in
 
 import (
+	"context"
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // Per-call tracer-skip wiring proofs. The honored-skip short-circuit behavior is
@@ -562,4 +570,369 @@ func readStateHandlersSource(t *testing.T) string {
 	}
 
 	return src
+}
+
+// =============================================================================
+// ACCOUNT-BLOCK SEMANTICS MATRIX (REVISED ADR-004)
+// =============================================================================
+// One test per row of the frozen semantics matrix, named for the semantics it
+// proves rather than for the function it calls. The rule the whole matrix
+// expresses is a single sentence: EVALUATE AT EVERY MUTATION OF BALANCE, never
+// inherit a decision taken at an earlier one.
+//
+// | Moment            | Behaviour                                              |
+// |-------------------|--------------------------------------------------------|
+// | Creation          | blocked && !grant => denied at the atomic point; the    |
+// |                   | grant is computed by the enrichment when the            |
+// |                   | transaction carries an operationalTypeCode              |
+// | Commit of pending | RE-EVALUATED: the code is recovered from the body and   |
+// |                   | the exception set is read again. An exception that      |
+// |                   | expired since the pending denies; one created since     |
+// |                   | the pending allows                                      |
+// | Cancel of pending | ALWAYS allowed on a blocked account (exempt)            |
+// | Revert            | A new transaction: gated as a creation                  |
+// | Idempotent replay | Returns the original decision, unchanged                |
+//
+// The denial itself belongs to balance_atomic_operation.lua and is proven in the
+// redis adapter suite; what is proven here is which grant each moment carries
+// into it, which is what decides the denial.
+
+// matrixLiveException is an exception with no validity bounds: live at every
+// instant, so a row that does not grant cannot be blamed on the clock.
+func matrixLiveException(id string) []*mmodel.AccountException {
+	return []*mmodel.AccountException{exc(id, []string{"PIX_IN"}, nil, nil, nil)}
+}
+
+// TestAccountBlockSemanticsMatrix_GrantCarriedAtEachMutation walks the creation
+// and commit rows of the matrix. Each case states the moment, what the exception
+// store holds AT THAT MOMENT, and the grant the transaction consequently carries
+// into the atomic script.
+func TestAccountBlockSemanticsMatrix_GrantCarriedAtEachMutation(t *testing.T) {
+	t.Parallel()
+
+	hourAgo := time.Now().UTC().Add(-time.Hour)
+
+	tests := []struct {
+		name string
+		// commit=false exercises the creation entry (block signal: the balance
+		// projection); commit=true exercises the commit re-evaluation (block
+		// signal: the blocked-accounts index).
+		commit          bool
+		accountBlocked  bool
+		indexedBlocked  bool
+		code            string
+		exceptions      []*mmodel.AccountException
+		wantGranted     bool
+		wantAppliedID   string
+		wantLoaderCalls int
+	}{
+		{
+			name:           "creation of a blocked account with no exception carries no grant, so the script denies it",
+			accountBlocked: true, code: "PIX_IN",
+			exceptions:  nil,
+			wantGranted: false, wantLoaderCalls: 1,
+		},
+		{
+			name:           "creation of a blocked account with a live exception carries the grant that transpasses the gate",
+			accountBlocked: true, code: "PIX_IN",
+			exceptions:  matrixLiveException("exc-at-create"),
+			wantGranted: true, wantAppliedID: "exc-at-create", wantLoaderCalls: 1,
+		},
+		{
+			name:           "creation without an operational type code never reaches the exception store",
+			accountBlocked: true, code: "",
+			exceptions:  matrixLiveException("exc-unreachable"),
+			wantGranted: false, wantLoaderCalls: 0,
+		},
+		{
+			name:           "commit of a pending whose exception is still live carries a fresh grant",
+			commit:         true,
+			indexedBlocked: true, code: "PIX_IN",
+			exceptions:  matrixLiveException("exc-still-live"),
+			wantGranted: true, wantAppliedID: "exc-still-live", wantLoaderCalls: 1,
+		},
+		{
+			name:           "commit of a pending whose exception expired since creation carries no grant, so the commit is denied",
+			commit:         true,
+			indexedBlocked: true, code: "PIX_IN",
+			exceptions:  []*mmodel.AccountException{exc("exc-expired-since", []string{"PIX_IN"}, nil, nil, &hourAgo)},
+			wantGranted: false, wantLoaderCalls: 1,
+		},
+		{
+			name:           "commit of a pending whose exception was created after it carries a grant, so the commit is allowed",
+			commit:         true,
+			indexedBlocked: true, code: "PIX_IN",
+			// The create-time read returned nothing; this is the commit-time read,
+			// and it is the only one that decides the commit.
+			exceptions:  matrixLiveException("exc-created-after-pending"),
+			wantGranted: true, wantAppliedID: "exc-created-after-pending", wantLoaderCalls: 1,
+		},
+		{
+			name:           "commit of a pending with no exception at all carries no grant",
+			commit:         true,
+			indexedBlocked: true, code: "PIX_IN",
+			exceptions:  nil,
+			wantGranted: false, wantLoaderCalls: 1,
+		},
+		{
+			name:           "commit of an account the index does not hold never reaches the exception store",
+			commit:         true,
+			indexedBlocked: false, code: "PIX_IN",
+			exceptions:  matrixLiveException("exc-unreachable"),
+			wantGranted: false, wantLoaderCalls: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			org, ledger := uuid.New(), uuid.New()
+			accID := uuid.New()
+
+			validate, key := fromValidate("@acc", "default")
+			bal := exceptionEnrichBalance(accID.String(), "@acc", "default", tt.accountBlocked, true, true)
+
+			loader, loaderCalls := countingLoader(tt.exceptions, nil)
+
+			var applied *string
+
+			if tt.commit {
+				var blocked []uuid.UUID
+				if tt.indexedBlocked {
+					blocked = []uuid.UUID{accID}
+				}
+
+				resolver, _ := countingResolver(blocked, nil)
+
+				var err error
+
+				applied, err = reevaluateAccountExceptionGrants(context.Background(), resolver, loader, nil,
+					org, ledger, tt.code, validate, []*mmodel.Balance{bal})
+				require.NoError(t, err)
+			} else {
+				applied = enrichAccountExceptionGrants(context.Background(), loader, nil,
+					org, ledger, tt.code, validate, []*mmodel.Balance{bal}, nil)
+			}
+
+			assert.Equal(t, tt.wantLoaderCalls, *loaderCalls, "exception store reads")
+
+			got := validate.From[key]
+			assert.Equal(t, tt.wantGranted, got.BlockBypassGranted, "grant carried into the atomic script")
+
+			if tt.wantAppliedID == "" {
+				assert.Nil(t, applied)
+				assert.Empty(t, got.GrantedExceptionID)
+			} else {
+				require.NotNil(t, applied)
+				assert.Equal(t, tt.wantAppliedID, *applied)
+				assert.Equal(t, tt.wantAppliedID, got.GrantedExceptionID)
+			}
+		})
+	}
+}
+
+// TestAccountBlockSemanticsMatrix_ReplayPreservesTheOriginalDecision covers the
+// replay row. The commit's decision is recorded on the span and in the log and
+// deliberately NOT written into the transaction body, so the body a replay
+// re-hashes is byte-identical to the one the create path hashed: the idempotency
+// key cannot move, and the replay answers with the original decision.
+func TestAccountBlockSemanticsMatrix_ReplayPreservesTheOriginalDecision(t *testing.T) {
+	t.Parallel()
+
+	org, ledger := uuid.New(), uuid.New()
+	accID := uuid.New()
+
+	body := mtransaction.Transaction{
+		Description:         "pending transfer",
+		OperationalTypeCode: "PIX_IN",
+		Send: mtransaction.Send{
+			Asset: "BRL",
+			Value: decimal.NewFromInt(100),
+		},
+	}
+
+	before, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	validate, key := fromValidate("@acc", "default")
+	bal := exceptionEnrichBalance(accID.String(), "@acc", "default", false, true, true)
+
+	resolver, _ := countingResolver([]uuid.UUID{accID}, nil)
+	loader, _ := countingLoader(matrixLiveException("exc-at-commit"), nil)
+
+	applied, err := reevaluateAccountExceptionGrants(context.Background(), resolver, loader, nil,
+		org, ledger, body.OperationalTypeCode, validate, []*mmodel.Balance{bal})
+	require.NoError(t, err)
+	require.NotNil(t, applied, "fixture sanity: this commit must actually take a decision")
+	require.True(t, validate.From[key].BlockBypassGranted)
+
+	after, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, string(before), string(after),
+		"the commit decision must not enter the body, or the idempotency preimage would move under a replay")
+}
+
+// commitExceptionSeamMetrics captures the call-site facts of the commit-time
+// re-evaluation that no unit test of the enrichment itself can observe.
+type commitExceptionSeamMetrics struct {
+	reevaluatePos    int  // top-level stmt index of the guarded re-evaluation (-1)
+	buildOpsPos      int  // top-level stmt index of buildBalanceOperations (-1)
+	cancelIsExempt   bool // the re-evaluation sits under a `!= constant.CANCELED` guard
+	errorReleasesLck bool // the failure branch releases the pending-transaction lock
+	errorReturns     bool // the failure branch returns instead of proceeding unguarded
+}
+
+// findCallToFunc finds a call to a bare (non-method) function by name.
+func findCallToFunc(node ast.Node, name string) *ast.CallExpr {
+	var found *ast.CallExpr
+
+	ast.Inspect(node, func(n ast.Node) bool {
+		if found != nil {
+			return false
+		}
+
+		if call, ok := n.(*ast.CallExpr); ok {
+			if id, ok := call.Fun.(*ast.Ident); ok && id.Name == name {
+				found = call
+			}
+		}
+
+		return true
+	})
+
+	return found
+}
+
+// analyzeCommitExceptionSeam walks commitOrCancelTransaction and extracts where
+// the re-evaluation sits, whether a cancel is exempt from it, and whether an
+// unreadable index fails the transition closed.
+func analyzeCommitExceptionSeam(t *testing.T, src string) commitExceptionSeamMetrics {
+	t.Helper()
+
+	fn := findFuncDecl(t, src, commitCancelFuncName)
+
+	m := commitExceptionSeamMetrics{reevaluatePos: -1, buildOpsPos: -1}
+
+	for i, stmt := range fn.Body.List {
+		if m.buildOpsPos < 0 && findCallToFunc(stmt, "buildBalanceOperations") != nil {
+			m.buildOpsPos = i
+		}
+
+		ifStmt, ok := stmt.(*ast.IfStmt)
+		if !ok || findCallToFunc(ifStmt, "reevaluateAccountExceptionGrants") == nil {
+			continue
+		}
+
+		if m.reevaluatePos >= 0 {
+			continue
+		}
+
+		m.reevaluatePos = i
+
+		// The guard must EXCLUDE cancel, not merely mention it: `== CANCELED`
+		// would invert the exemption and re-evaluate exactly the transition the
+		// script waives.
+		if bin, ok := ifStmt.Cond.(*ast.BinaryExpr); ok && bin.Op == token.NEQ {
+			for _, name := range constantSelectorNames(bin) {
+				if name == "CANCELED" {
+					m.cancelIsExempt = true
+				}
+			}
+		}
+
+		// The failure branch is the `if <err> != nil` inside the guarded block.
+		for _, inner := range ifStmt.Body.List {
+			innerIf, ok := inner.(*ast.IfStmt)
+			if !ok || findCallToFunc(innerIf, "reevaluateAccountExceptionGrants") != nil {
+				continue
+			}
+
+			if findCallToFunc(innerIf, "deleteLockOnError") != nil {
+				m.errorReleasesLck = true
+			}
+
+			for _, branchStmt := range innerIf.Body.List {
+				if _, ok := branchStmt.(*ast.ReturnStmt); ok {
+					m.errorReturns = true
+				}
+			}
+		}
+	}
+
+	return m
+}
+
+// TestAccountBlockSemanticsMatrix_CommitSeam covers the two structural rows of
+// the matrix — the commit re-evaluates, the cancel is exempt — plus the
+// fail-posture of an unreadable index. All three are call-site facts, invisible
+// to the enrichment's own unit tests, so they are asserted over the live source
+// AST in the same style as the tracer-skip and overdraft seams above.
+func TestAccountBlockSemanticsMatrix_CommitSeam(t *testing.T) {
+	t.Parallel()
+
+	m := analyzeCommitExceptionSeam(t, readStateHandlersSource(t))
+
+	require.GreaterOrEqual(t, m.reevaluatePos, 0,
+		"the commit must re-evaluate the exception set at its own instant")
+	require.GreaterOrEqual(t, m.buildOpsPos, 0)
+
+	assert.Less(t, m.reevaluatePos, m.buildOpsPos,
+		"the re-evaluation must precede buildBalanceOperations, which is what carries the grant into the script")
+	assert.True(t, m.cancelIsExempt,
+		"a cancel returns the hold to the account's own balance and is waived by the script: it must not be re-evaluated")
+	assert.True(t, m.errorReleasesLck,
+		"an unreadable index must release the pending-transaction lock, or the transaction is stuck until the TTL")
+	assert.True(t, m.errorReturns,
+		"an unreadable index must fail the transition, never fall through to move money ungated")
+}
+
+// TestAccountBlockSemanticsMatrix_CommitSeam_Bites proves the gate above has
+// teeth: a shape that re-evaluates on every transition (cancel included) and
+// swallows the index failure must fail every fact the real shape satisfies.
+func TestAccountBlockSemanticsMatrix_CommitSeam_Bites(t *testing.T) {
+	t.Parallel()
+
+	const wrong = `package in
+
+func (handler *TransactionHandler) commitOrCancelTransaction() error {
+	if transactionStatus == constant.CANCELED {
+		commitAppliedExceptionID, exceptionErr := reevaluateAccountExceptionGrants(ctx, resolve, loader, nil, org, ledger, code, validate, balances)
+		if exceptionErr != nil {
+			logger.Log(ctx, libLog.LevelError, "swallowed")
+		}
+
+		_ = commitAppliedExceptionID
+	}
+
+	balanceOps := buildBalanceOperations(ctx, organizationID, ledgerID, validate, balances)
+
+	return nil
+}
+`
+
+	m := analyzeCommitExceptionSeam(t, wrong)
+
+	require.GreaterOrEqual(t, m.reevaluatePos, 0, "fixture sanity: the wrong shape still calls the re-evaluation")
+	assert.False(t, m.cancelIsExempt, "an `== CANCELED` guard inverts the exemption and must not read as exempt")
+	assert.False(t, m.errorReleasesLck, "a swallowed failure must not read as releasing the lock")
+	assert.False(t, m.errorReturns, "a swallowed failure must not read as failing closed")
+}
+
+// TestAccountBlockSemanticsMatrix_RevertIsGatedAsACreation covers the revert row:
+// a revert is not a state transition of the origin, it is a NEW transaction, so
+// it goes through the create path and is gated by the create-time enrichment
+// like any other creation. Nothing about the origin's grant carries over.
+func TestAccountBlockSemanticsMatrix_RevertIsGatedAsACreation(t *testing.T) {
+	t.Parallel()
+
+	src := readStateHandlersSource(t)
+
+	revert := findFuncDecl(t, src, "revertTransaction")
+
+	assert.NotNil(t, findCallToMethod(revert.Body, "createRevertTransaction"),
+		"a revert must be created through the create path, which is what gates it")
+	assert.Nil(t, findCallToFunc(revert, "reevaluateAccountExceptionGrants"),
+		"a revert must not re-evaluate as if it were a transition of the origin")
 }

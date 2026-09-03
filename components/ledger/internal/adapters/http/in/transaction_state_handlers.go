@@ -36,6 +36,11 @@ const revertIdempotencyReplayedLogMessage = "Revert replayed a cached reverse tr
 // per-action span (commit_transaction / cancel_transaction, derived from the target
 // status), fetches the transaction (write-behind cache first, DB fallback), then
 // delegates to the commitOrCancelTransaction state machine.
+//
+// The fetched transaction carries its body, and the body is what makes the
+// account-block re-evaluation possible: the operationalTypeCode persisted at
+// create time is recovered from it so the commit can consult the exception set
+// again at its own instant. See commitOrCancelTransaction for the full matrix.
 func (handler *TransactionHandler) commitTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, policy routeVersionPolicy) (*transaction.Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -254,6 +259,30 @@ func (handler *TransactionHandler) updateTransaction(ctx context.Context, organi
 // two-phase confirm/release-by-transaction, balance ProcessBalanceOperations, backup
 // seeding, and BuildOperations/WriteTransaction). It returns the updated transaction so
 // the caller writes its own response.
+//
+// ACCOUNT-BLOCK SEMANTICS — EVALUATE AT EVERY MUTATION OF BALANCE.
+//
+// A block is enforced where money actually moves: inside
+// balance_atomic_operation.lua, against the blocked-accounts index, on every
+// invocation. A commit is one of those invocations, so it is gated on its own
+// terms rather than on the verdict its create reached — which may be minutes or
+// days old. Concretely:
+//
+//   - COMMIT re-evaluates. The operationalTypeCode is recovered from the
+//     persisted body and the exception set is read again, so an exception that
+//     expired while the transaction sat pending no longer rescues it, and one
+//     created after the pending does. See reevaluateAccountExceptionGrants.
+//   - CANCEL is exempt. It returns the hold to the account's own available
+//     balance, so no money leaves a blocked account; the script waives the gate
+//     and this function skips the re-evaluation entirely.
+//   - REVERT is not a transition at all: it is a new transaction created through
+//     the create path (revertTransaction), and is gated as a creation.
+//   - An IDEMPOTENT REPLAY returns the original decision. The commit's decision
+//     is recorded on the span and in the log, never in the body, so the
+//     idempotency preimage is unchanged by it.
+//
+// The matrix is pinned test-by-test in
+// transaction_state_handlers_test.go (TestAccountBlockSemanticsMatrix_*).
 //
 //nolint:gocyclo // State machine with branches per status × action combination; refactor candidate.
 func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context, tran *transaction.Transaction, transactionStatus string, policy routeVersionPolicy) (*transaction.Transaction, error) {
