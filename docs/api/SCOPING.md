@@ -162,13 +162,17 @@ connection is dialled, and a `/v1` create can never answer `0177` (reservation d
 `tracer.mode` setting is an operator's choice that must not retroactively gate a contract the
 client integrated against.
 
-Both seams read one signal — `command.RouteVersionPolicy` (`RouteV1`/`RouteV2`,
+On the create and revert paths the version is the method name, not a runtime value:
+`CreateTransactionV1` / `RevertTransactionV1`-shaped pipelines name neither the fee engine nor the
+tracer reservation, and the `/v2` ones name both. Commit and cancel are not split yet, so their two
+by-transaction seams still read `command.RouteVersionPolicy` (`RouteV1`/`RouteV2`,
 `transaction_route_version.go` in the command package), threaded from the transport shell because
-the use cases are transport-agnostic and cannot read the request path. Each seam decides for itself
-what the version means. Structural gates in `transaction_fee_seam_structure_test.go` and
-`transaction_route_version_structure_test.go` (transport side) and
-`transaction_reservation_anchor_structure_test.go` (command side) assert every route names its
-policy and that the route gate is the first statement of each tracer seam.
+the use case is transport-agnostic and cannot read the request path. Structural gates assert all of
+it: `create_transaction_version_gates_test.go` (a `/v1` pipeline names no versioned seam, a `/v2`
+pipeline names them in order), `transaction_reservation_anchor_structure_test.go` (the route gate is
+the first statement of each by-transaction seam) and, on the transport side,
+`transaction_fee_seam_structure_test.go` and `transaction_route_version_structure_test.go` (every
+route binds the right version).
 
 **Mixing mounts across one transaction lifecycle is not supported.** A by-transaction
 confirm/release cannot tell whether the transaction holds reservations, so gating it on the route
@@ -266,7 +270,6 @@ query parameter. The convention does not change; only how much of the hierarchy 
 
 Scope and contract are separate questions. The fee admin surface answers the first (two scopes,
 both live); the transaction fee seam, the tracer reservation lifecycle and the account holder seam
-answer the second (`/v2` only — the first two driven by `command.RouteVersionPolicy` in the
-transaction create use case, the third by `command.RouteHolderPolicy` in the account create use
-case). A surface being
+answer the second (`/v2` only — the first two by the transaction create pipeline the route binds,
+the third by `command.RouteHolderPolicy` in the account create use case). A surface being
 reachable at a scope says nothing about which contract applies it.

@@ -70,13 +70,11 @@ const (
 )
 
 // reserveTransaction is the reserve anchor (F3-T13). It is called immediately
-// before ProcessBalanceOperations on FEE-INCLUSIVE amounts and gates execution
-// on the route version first, then on the per-ledger tracer settings:
+// before ProcessBalanceOperations on FEE-INCLUSIVE amounts and gates execution on
+// the per-ledger tracer settings. Only the /v2 pipelines call it: the /v1 contract
+// shipped before the tracer existed, so a /v1 create is never gated by a
+// reservation, builds no request and dials nothing.
 //
-//   - policy=RouteV1: skipped — the /v1 transaction contract shipped before the
-//     tracer existed, so a /v1 create is never gated by a reservation and can
-//     never be rejected by one. This is the FIRST gate, so no request is built
-//     and no connection is dialled.
 //   - mode=off (or nil reserver): skipped — returns proceed with an empty handle.
 //   - mode=advisory: the reserve is called but never blocks — a DENIED decision
 //     or an unavailable tracer still returns proceed (advisory observes, the
@@ -98,13 +96,8 @@ func (uc *UseCase) reserveTransaction(
 	accountID string,
 	transactionTimestamp time.Time,
 	ttl reservationTTLPolicy,
-	policy RouteVersionPolicy,
 	honoredTracerSkip bool,
 ) reservationOutcome {
-	if policy == RouteV1 {
-		return reservationOutcome{Kind: reservationProceed}
-	}
-
 	// off, unconfigured, no client injected, or an honored per-call tracer skip:
 	// the create path is unchanged and no reserve request is built or sent. An
 	// honored skip wins over advisory/enforce — the operator explicitly allowed

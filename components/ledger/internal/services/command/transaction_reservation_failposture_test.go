@@ -98,7 +98,7 @@ func TestTracerFailOpenSkipped(t *testing.T) {
 
 	out := uc.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, RouteV2, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 	assert.Equal(t, reservationProceed, out.Kind, "fail-open must COMMIT (proceed) when the tracer is unavailable")
 	assert.Empty(t, out.Handle.ReservationIDs, "no reservation is held when the reserve call never succeeded")
@@ -119,7 +119,7 @@ func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
 
 	out := uc.reserveTransaction(ctx, span, logger,
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureClosed},
-		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, RouteV2, false)
+		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccountID, fixedReserveTimestamp, reservationTTLDefault, false)
 
 	require.Equal(t, reservationReject, out.Kind)
 
@@ -133,19 +133,18 @@ func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
 
 // ---- Gate 5 (fail-closed): structural proof of the call-site mechanics --------
 
-const createSeamFuncName = "executeCreateTransaction"
+const createSeamFuncName = "CreateTransactionV2"
 
 // failClosedSeamMetrics captures the statement-list ordering facts the Gate-5
-// structural assertion relies on, all within executeCreateTransaction.
+// structural assertion relies on, all within CreateTransactionV2.
 type failClosedSeamMetrics struct {
 	reservePos          int  // index of the reserveTransaction call (-1 if absent)
-	rejectDeleteIdemp   bool // deleteIdempotencyKey appears inside the reservationReject branch
-	rejectRemoveRedis   bool // RemoveTransactionFromRedisQueue appears inside the reject branch
+	rejectRollbackSeed  bool // rollbackCreateSeed appears inside the reservationReject branch
 	rejectReturnsBefore bool // the reject branch returns (no fall-through to the balance commit)
 	processBalancePos   int  // index of the top-level ProcessBalanceOperations call (-1)
 }
 
-// analyzeFailClosedSeam walks executeCreateTransaction and extracts the ordering
+// analyzeFailClosedSeam walks CreateTransactionV2 and extracts the ordering
 // and reject-branch facts. The reservationReject guard is an `if` whose cond is
 // `reservation.Kind == reservationReject`; the release mechanics must live in
 // that block and the block must return.
@@ -184,8 +183,7 @@ func analyzeFailClosedSeam(t *testing.T, src string) failClosedSeamMetrics {
 		}
 
 		if ifStmt, ok := stmt.(*ast.IfStmt); ok && isReservationRejectGuard(ifStmt) {
-			m.rejectDeleteIdemp = blockCallsMethod(ifStmt.Body, "deleteIdempotencyKey")
-			m.rejectRemoveRedis = blockCallsMethod(ifStmt.Body, "RemoveTransactionFromRedisQueue")
+			m.rejectRollbackSeed = blockCallsMethod(ifStmt.Body, "rollbackCreateSeed")
 			m.rejectReturnsBefore = blockEndsInReturn(ifStmt.Body)
 		}
 	}
@@ -252,34 +250,32 @@ func blockEndsInReturn(block *ast.BlockStmt) bool {
 // source so a future reorder that drops the release or falls through to the
 // balance commit fails this gate.
 func TestTracerFailClosedReject_ReleasesIdempotencyAndSkipsBalanceCommit(t *testing.T) {
-	src := readSeamSource(t) // reads transaction_create.go (shared with the fee-seam gate)
+	src := readSeamSource(t) // reads create_transaction_v2.go (shared with the fee-seam gate)
 
 	m := analyzeFailClosedSeam(t, src)
 
-	require.NotEqual(t, -1, m.reservePos, "reserveTransaction call not found in executeCreateTransaction")
+	require.NotEqual(t, -1, m.reservePos, "reserveTransaction call not found in CreateTransactionV2")
 	require.NotEqual(t, -1, m.processBalancePos, "ProcessBalanceOperations call not found")
 
 	assert.Less(t, m.reservePos, m.processBalancePos,
 		"the reserve anchor must precede the balance commit (reject before any balance move)")
 
-	assert.True(t, m.rejectDeleteIdemp,
-		"fail-closed reject branch must release the idempotency key (deleteIdempotencyKey)")
-	assert.True(t, m.rejectRemoveRedis,
-		"fail-closed reject branch must remove the Redis-queue seed (RemoveTransactionFromRedisQueue)")
+	assert.True(t, m.rejectRollbackSeed,
+		"fail-closed reject branch must roll back the idempotency claim and the Redis-queue seed (rollbackCreateSeed)")
 	assert.True(t, m.rejectReturnsBefore,
 		"fail-closed reject branch must return — it must NOT fall through to ProcessBalanceOperations")
 }
 
 // TestTracerFailClosedSeam_Bites proves the Gate-5 analyzer actually fails on a
-// reject branch that drops the idempotency release or falls through to the
-// balance commit — a gate that cannot bite is not a guard.
+// reject branch that drops the rollback or falls through to the balance commit — a
+// gate that cannot bite is not a guard.
 func TestTracerFailClosedSeam_Bites(t *testing.T) {
-	// Fixture 1: reject branch missing deleteIdempotencyKey and the return.
-	leaky := `package in
-func (uc *TransactionHandler) executeCreateTransaction() error {
+	// Fixture 1: reject branch missing the rollback and the return.
+	leaky := `package command
+func (uc *UseCase) CreateTransactionV2() error {
 	reservation := uc.reserveTransaction()
 	if reservation.Kind == reservationReject {
-		// BUG: neither releases the idempotency key nor returns
+		// BUG: neither rolls back the claim and seed nor returns
 		_ = reservation.Err
 	}
 	result, err := uc.ProcessBalanceOperations()
@@ -293,22 +289,21 @@ func (uc *TransactionHandler) executeCreateTransaction() error {
 		t.Fatalf("Gate 5 fixture sanity: missing positions reserve=%d processBalance=%d", m.reservePos, m.processBalancePos)
 	}
 
-	if m.rejectDeleteIdemp {
-		t.Error("Gate 5 failed to bite: a reject branch with no deleteIdempotencyKey was reported as releasing the key")
+	if m.rejectRollbackSeed {
+		t.Error("Gate 5 failed to bite: a reject branch with no rollbackCreateSeed was reported as rolling back")
 	}
 
 	if m.rejectReturnsBefore {
 		t.Error("Gate 5 failed to bite: a reject branch with no return was reported as returning before the balance commit")
 	}
 
-	// Fixture 2: the canonical, correct shape must pass all three reject facts.
-	correct := `package in
-func (uc *TransactionHandler) executeCreateTransaction() error {
+	// Fixture 2: the canonical, correct shape must pass both reject facts.
+	correct := `package command
+func (uc *UseCase) CreateTransactionV2() error {
 	reservation := uc.reserveTransaction()
 	if reservation.Kind == reservationReject {
-		uc.deleteIdempotencyKey()
-		uc.RemoveTransactionFromRedisQueue()
-		return uc.WithError(reservation.Err)
+		uc.rollbackCreateSeed()
+		return reservation.Err
 	}
 	result, err := uc.ProcessBalanceOperations()
 	_ = result
@@ -316,9 +311,9 @@ func (uc *TransactionHandler) executeCreateTransaction() error {
 }`
 
 	mc := analyzeFailClosedSeam(t, correct)
-	if !(mc.rejectDeleteIdemp && mc.rejectRemoveRedis && mc.rejectReturnsBefore) {
-		t.Errorf("Gate 5 fixture sanity: the correct shape was not fully recognized: delete=%v removeRedis=%v returns=%v",
-			mc.rejectDeleteIdemp, mc.rejectRemoveRedis, mc.rejectReturnsBefore)
+	if !(mc.rejectRollbackSeed && mc.rejectReturnsBefore) {
+		t.Errorf("Gate 5 fixture sanity: the correct shape was not fully recognized: rollback=%v returns=%v",
+			mc.rejectRollbackSeed, mc.rejectReturnsBefore)
 	}
 
 	if !(mc.reservePos < mc.processBalancePos) {

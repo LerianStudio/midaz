@@ -16,22 +16,23 @@ import (
 // These are permanent structural guards for the third-rail fee seam (P4-T27).
 // Runtime integration tests cannot catch a future code reorder or a forked
 // validate binding, so the seam's invariants are asserted directly over the
-// source AST of executeCreateTransaction:
+// source AST of CreateTransactionV2:
 //
 //	Gate 1 — single validate reassignment: exactly one `validate :=` binding
 //	         and exactly one `validate =` reassignment; no second `validate :=`
 //	         fork and no pre-fee snapshot of validate surviving the seam. This
 //	         proves all downstream consumers read the post-fee validate by
 //	         construction.
-//	Gate 2 — seam precedes redis seed: both the applyFees call and the second
-//	         ValidateSendSourceAndDistribute call appear positionally before the
-//	         SendTransactionToRedisQueue seed.
+//	Gate 2 — seam precedes the balance staging: both the applyFees call and the
+//	         second ValidateSendSourceAndDistribute call appear positionally before
+//	         the stageBalances step, which is what seeds the backup queue. A
+//	         companion gate proves stageBalances seeds before it reads anything.
 //
 // The two TestSeamGate*_Bites sub-tests feed deliberately-broken fixtures
 // through the same analyzers to prove each gate actually fails — a gate that
 // cannot bite is not a guard.
 
-const seamFuncName = "executeCreateTransaction"
+const seamFuncName = "CreateTransactionV2"
 
 // seamMetrics captures the structural facts the gates assert over a single
 // function declaration.
@@ -40,7 +41,7 @@ type seamMetrics struct {
 	validateAssignCount int  // `validate =` (reassignment, non-define)
 	applyFeesPos        int  // statement-list index of the applyFees call (-1 if absent)
 	secondValidatePos   int  // statement-list index of the second validate ValidateSendSourceAndDistribute (-1)
-	redisSeedPos        int  // statement-list index of SendTransactionToRedisQueue (-1)
+	stageBalancesPos    int  // statement-list index of the stageBalances step (-1)
 	writeTransactionPos int  // statement-list index of WriteTransaction (-1)
 	getSettingsCount    int  // `GetParsedLedgerSettings` call occurrences
 	getSettingsPos      int  // statement-list index of GetParsedLedgerSettings (-1 if absent)
@@ -73,7 +74,7 @@ func analyzeSeamFunc(t *testing.T, src, funcName string) seamMetrics {
 		t.Fatalf("function %q not found or has no body", funcName)
 	}
 
-	m := seamMetrics{applyFeesPos: -1, secondValidatePos: -1, redisSeedPos: -1, writeTransactionPos: -1, getSettingsPos: -1}
+	m := seamMetrics{applyFeesPos: -1, secondValidatePos: -1, stageBalancesPos: -1, writeTransactionPos: -1, getSettingsPos: -1}
 
 	for i, stmt := range fn.Body.List {
 		// validate :=  /  validate =  detection (top-level only — a fork or a
@@ -111,8 +112,8 @@ func analyzeSeamFunc(t *testing.T, src, funcName string) seamMetrics {
 			}
 		}
 
-		if m.redisSeedPos == -1 && stmtCallsMethod(stmt, "SendTransactionToRedisQueue") {
-			m.redisSeedPos = i
+		if m.stageBalancesPos == -1 && stmtCallsMethod(stmt, "stageBalances") {
+			m.stageBalancesPos = i
 		}
 
 		if m.writeTransactionPos == -1 && stmtCallsMethod(stmt, "WriteTransaction") {
@@ -220,29 +221,29 @@ func TestFeeSeamStructure_SingleValidateReassignment(t *testing.T) {
 	}
 }
 
-func TestFeeSeamStructure_SeamPrecedesRedisSeed(t *testing.T) {
+func TestFeeSeamStructure_SeamPrecedesBalanceStaging(t *testing.T) {
 	src := readSeamSource(t)
 
 	m := analyzeSeamFunc(t, src, seamFuncName)
 
 	if m.applyFeesPos == -1 {
-		t.Fatal("Gate 2: applyFees call not found in executeCreateTransaction")
+		t.Fatal("Gate 2: applyFees call not found in CreateTransactionV2")
 	}
 
 	if m.secondValidatePos == -1 {
 		t.Fatal("Gate 2: second (reassigning) ValidateSendSourceAndDistribute call not found")
 	}
 
-	if m.redisSeedPos == -1 {
-		t.Fatal("Gate 2: SendTransactionToRedisQueue seed not found")
+	if m.stageBalancesPos == -1 {
+		t.Fatal("Gate 2: stageBalances step not found")
 	}
 
-	if m.applyFeesPos >= m.redisSeedPos {
-		t.Errorf("Gate 2: applyFees (pos %d) must precede SendTransactionToRedisQueue (pos %d)", m.applyFeesPos, m.redisSeedPos)
+	if m.applyFeesPos >= m.stageBalancesPos {
+		t.Errorf("Gate 2: applyFees (pos %d) must precede stageBalances (pos %d)", m.applyFeesPos, m.stageBalancesPos)
 	}
 
-	if m.secondValidatePos >= m.redisSeedPos {
-		t.Errorf("Gate 2: second validate (pos %d) must precede SendTransactionToRedisQueue (pos %d)", m.secondValidatePos, m.redisSeedPos)
+	if m.secondValidatePos >= m.stageBalancesPos {
+		t.Errorf("Gate 2: second validate (pos %d) must precede stageBalances (pos %d)", m.secondValidatePos, m.stageBalancesPos)
 	}
 
 	if m.applyFeesPos >= m.secondValidatePos {
@@ -264,11 +265,11 @@ func TestFeeSeamStructure_SingleSettingsReadBeforeSeam(t *testing.T) {
 	}
 
 	if m.getSettingsPos == -1 {
-		t.Fatal("GetParsedLedgerSettings call not found in executeCreateTransaction")
+		t.Fatal("GetParsedLedgerSettings call not found in CreateTransactionV2")
 	}
 
 	if m.applyFeesPos == -1 {
-		t.Fatal("applyFees call not found in executeCreateTransaction")
+		t.Fatal("applyFees call not found in CreateTransactionV2")
 	}
 
 	if m.getSettingsPos >= m.applyFeesPos {
@@ -282,13 +283,13 @@ func TestFeeSeamStructure_SingleSettingsReadBeforeSeam(t *testing.T) {
 // hoist removed).
 func TestFeeSeamStructure_SettingsGateBites(t *testing.T) {
 	doubleRead := `package command
-func executeCreateTransaction() {
+func CreateTransactionV2() {
 	validate, err := ValidateSendSourceAndDistribute()
 	ledgerSettings, err := uc.TransactionReader.GetParsedLedgerSettings()
 	_ = uc.applyFees()
 	validate, err = ValidateSendSourceAndDistribute()
 	ledgerSettings, err = uc.TransactionReader.GetParsedLedgerSettings() // BUG: second read
-	_ = uc.SendTransactionToRedisQueue(validate)
+	_ = uc.stageBalances(validate)
 	_ = uc.WriteTransaction(validate)
 }`
 
@@ -306,11 +307,11 @@ func executeCreateTransaction() {
 // on a surviving pre-fee snapshot.
 func TestFeeSeamStructure_Gate1Bites(t *testing.T) {
 	forked := `package command
-func executeCreateTransaction() {
+func CreateTransactionV2() {
 	validate, err := ValidateSendSourceAndDistribute()
 	_ = uc.applyFees()
 	validate, err := ValidateSendSourceAndDistribute() // BUG: := fork, not =
-	_ = uc.SendTransactionToRedisQueue(validate)
+	_ = uc.stageBalances(validate)
 	_ = uc.WriteTransaction(validate)
 }`
 
@@ -324,12 +325,12 @@ func executeCreateTransaction() {
 	}
 
 	snapshot := `package command
-func executeCreateTransaction() {
+func CreateTransactionV2() {
 	validate, err := ValidateSendSourceAndDistribute()
 	preFeeValidate := validate // BUG: pre-fee snapshot survives the seam
 	_ = uc.applyFees()
 	validate, err = ValidateSendSourceAndDistribute()
-	_ = uc.SendTransactionToRedisQueue(validate)
+	_ = uc.stageBalances(validate)
 	_ = uc.WriteTransaction(preFeeValidate)
 }`
 
@@ -340,12 +341,12 @@ func executeCreateTransaction() {
 }
 
 // TestFeeSeamStructure_Gate2Bites proves Gate 2 fails when the seam is moved
-// after the redis seed.
+// after the balance staging.
 func TestFeeSeamStructure_Gate2Bites(t *testing.T) {
 	reordered := `package command
-func executeCreateTransaction() {
+func CreateTransactionV2() {
 	validate, err := ValidateSendSourceAndDistribute()
-	_ = uc.SendTransactionToRedisQueue(validate) // BUG: seed precedes the seam
+	_ = uc.stageBalances(validate) // BUG: staging precedes the seam
 	_ = uc.applyFees()
 	validate, err = ValidateSendSourceAndDistribute()
 	_ = uc.WriteTransaction(validate)
@@ -353,22 +354,22 @@ func executeCreateTransaction() {
 
 	m := analyzeSeamFunc(t, reordered, seamFuncName)
 
-	if m.applyFeesPos == -1 || m.redisSeedPos == -1 || m.secondValidatePos == -1 {
-		t.Fatalf("Gate 2 fixture sanity: missing positions applyFees=%d redis=%d secondValidate=%d",
-			m.applyFeesPos, m.redisSeedPos, m.secondValidatePos)
+	if m.applyFeesPos == -1 || m.stageBalancesPos == -1 || m.secondValidatePos == -1 {
+		t.Fatalf("Gate 2 fixture sanity: missing positions applyFees=%d stageBalances=%d secondValidate=%d",
+			m.applyFeesPos, m.stageBalancesPos, m.secondValidatePos)
 	}
 
-	if m.applyFeesPos < m.redisSeedPos && m.secondValidatePos < m.redisSeedPos {
-		t.Error("Gate 2 failed to bite: the reordered fixture (seed before seam) was not detected as out-of-order")
+	if m.applyFeesPos < m.stageBalancesPos && m.secondValidatePos < m.stageBalancesPos {
+		t.Error("Gate 2 failed to bite: the reordered fixture (staging before seam) was not detected as out-of-order")
 	}
 }
 
-// readSeamSource reads create_transaction.go from disk so the gates run against
+// readSeamSource reads create_transaction_v2.go from disk so the gates run against
 // the live source, not a snapshot, and fail the moment the seam is edited.
 func readSeamSource(t *testing.T) string {
 	t.Helper()
 
-	const path = "create_transaction.go"
+	const path = "create_transaction_v2.go"
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -400,4 +401,48 @@ func readTransportSource(t *testing.T, path, mustContain string) string {
 	}
 
 	return src
+}
+
+// TestFeeSeamStructure_StageBalancesSeedsBeforeReading proves the backup-queue seed is
+// the first thing stageBalances does. Gate 2 places the fee seam ahead of stageBalances;
+// this is what keeps that meaningful — a seed that drifted below the balance reads would
+// leave a window where balances are loaded with no recovery entry written.
+func TestFeeSeamStructure_StageBalancesSeedsBeforeReading(t *testing.T) {
+	src := readTransportSource(t, "create_transaction_steps.go", "func (uc *UseCase) stageBalances")
+
+	seedPos, getBalancesPos := analyzeStagePositions(t, src)
+
+	if seedPos == -1 {
+		t.Fatal("SendTransactionToRedisQueue seed not found in stageBalances")
+	}
+
+	if getBalancesPos == -1 {
+		t.Fatal("GetBalances call not found in stageBalances")
+	}
+
+	if seedPos >= getBalancesPos {
+		t.Errorf("the backup-queue seed (pos %d) must precede the balance read (pos %d)", seedPos, getBalancesPos)
+	}
+}
+
+// analyzeStagePositions returns the top-level statement indices of the backup-queue
+// seed and the first balance read within stageBalances, each -1 when absent.
+func analyzeStagePositions(t *testing.T, src string) (seedPos, getBalancesPos int) {
+	t.Helper()
+
+	fn := findFuncDecl(t, src, "stageBalances")
+
+	seedPos, getBalancesPos = -1, -1
+
+	for i, stmt := range fn.Body.List {
+		if seedPos == -1 && stmtCallsMethod(stmt, "SendTransactionToRedisQueue") {
+			seedPos = i
+		}
+
+		if getBalancesPos == -1 && stmtCallsMethod(stmt, "GetBalances") {
+			getBalancesPos = i
+		}
+	}
+
+	return seedPos, getBalancesPos
 }

@@ -6,27 +6,55 @@ package in
 
 import (
 	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"strings"
 	"testing"
 )
 
-// Gate 4 — route-version fee policy: every createTransactionShell call in the /v1
-// transport file passes command.RouteV1, and the /v2 funnel passes command.RouteV2. The policy is
-// what keeps the fee engine (and its tenant fee-DB resolution) off the /v1 contract, and
-// nothing at runtime would notice a new /v1 route wired with the wrong constant — it
-// would simply start acquiring fee legs and 503s. Asserted over the source AST so a
-// future route cannot silently opt /v1 back in.
+// Gate 4 — route-version create binding: every /v1 create shell delegates to
+// command.CreateTransactionV1 and the /v2 funnel to command.CreateTransactionV2. The
+// method name IS the route version: CreateTransactionV1 names neither the fee engine
+// nor the tracer reservation (the command-side negative gate asserts that), so binding
+// a /v1 route to the /v2 use case is the only way a /v1 client could start acquiring
+// fee legs, a tenant fee-DB resolution failure or a reservation rejection. Nothing at
+// runtime would notice, so it is asserted over the source AST.
 
-// shellRouteVersionArgs returns the identifier passed as the route-version policy argument
-// of every
-// createTransactionShell call in src. The argument is the one immediately preceding the
-// variadic idempotency hash source, so it is read by name rather than by index: a
-// non-identifier or absent policy argument yields an empty entry and fails the gate.
-func shellRouteVersionArgs(t *testing.T, src string) []string {
+// createUseCaseCallees returns the names of the command create entry points called in
+// src, in source order. Only the two versioned create methods are reported, so an
+// unrelated call cannot satisfy the gate.
+func createUseCaseCallees(t *testing.T, src string) []string {
 	t.Helper()
 
-	return callRouteVersionArgs(t, src, "createTransactionShell")
+	fset := token.NewFileSet()
+
+	file, err := parser.ParseFile(fset, "src.go", src, 0)
+	if err != nil {
+		t.Fatalf("parse source: %v", err)
+	}
+
+	var callees []string
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+
+		if sel.Sel.Name == "CreateTransactionV1" || sel.Sel.Name == "CreateTransactionV2" {
+			callees = append(callees, sel.Sel.Name)
+		}
+
+		return true
+	})
+
+	return callees
 }
 
 // routeVersionArgName picks the route-version policy argument out of a call's
@@ -73,56 +101,56 @@ func readTransportSource(t *testing.T, path, mustContain string) string {
 	return src
 }
 
-func TestFeeSeamStructure_V1RoutesPassRouteV1(t *testing.T) {
-	policies := shellRouteVersionArgs(t, readTransportSource(t, "transaction_handler.go", "createTransactionShell"))
+func TestFeeSeamStructure_V1RoutesBindCreateTransactionV1(t *testing.T) {
+	callees := createUseCaseCallees(t, readTransportSource(t, "transaction_handler.go", "createTransactionShellV1"))
 
-	if len(policies) == 0 {
-		t.Fatal("Gate 4: no createTransactionShell call found in transaction_handler.go")
+	if len(callees) == 0 {
+		t.Fatal("Gate 4: no command create call found in transaction_handler.go")
 	}
 
-	for i, got := range policies {
-		if got != "RouteV1" {
-			t.Errorf("Gate 4: createTransactionShell call #%d in transaction_handler.go passes %q, want command.RouteV1 — the /v1 contract carries no fee engine", i, got)
+	for i, got := range callees {
+		if got != "CreateTransactionV1" {
+			t.Errorf("Gate 4: create call #%d in transaction_handler.go binds %q, want CreateTransactionV1 — the /v1 contract carries neither the fee engine nor the tracer", i, got)
 		}
 	}
 }
 
-func TestFeeSeamStructure_V2FunnelPassesRouteV2(t *testing.T) {
-	policies := shellRouteVersionArgs(t, readTransportSource(t, "transaction_handler_v2.go", "createTransactionShell"))
+func TestFeeSeamStructure_V2FunnelBindsCreateTransactionV2(t *testing.T) {
+	callees := createUseCaseCallees(t, readTransportSource(t, "transaction_handler_v2.go", "createTransactionV2"))
 
-	if len(policies) == 0 {
-		t.Fatal("Gate 4: no createTransactionShell call found in transaction_handler_v2.go")
+	if len(callees) == 0 {
+		t.Fatal("Gate 4: no command create call found in transaction_handler_v2.go")
 	}
 
-	for i, got := range policies {
-		if got != "RouteV2" {
-			t.Errorf("Gate 4: createTransactionShell call #%d in transaction_handler_v2.go passes %q, want command.RouteV2", i, got)
+	for i, got := range callees {
+		if got != "CreateTransactionV2" {
+			t.Errorf("Gate 4: create call #%d in transaction_handler_v2.go binds %q, want CreateTransactionV2", i, got)
 		}
 	}
 }
 
 func TestFeeSeamStructure_Gate4Bites(t *testing.T) {
-	// A /v1 route wired with the wrong constant — or with none at all — must fail the
-	// gate; a gate that cannot bite is not a guard.
-	const wrongConstant = `package in
+	// A /v1 route bound to the /v2 use case — or to none at all — must fail the gate;
+	// a gate that cannot bite is not a guard.
+	const wrongVersion = `package in
 
 func (handler *TransactionHandler) CreateTransactionJSON(ctx context.Context, in *X) (*Y, error) {
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, t, s, in.IdempotencyKey, in.IdempotencyTTL, command.RouteV2)
+	return handler.Command.CreateTransactionV2(ctx, command.CreateTransactionV2Input{})
 }
 `
 
-	if got := shellRouteVersionArgs(t, wrongConstant); len(got) != 1 || got[0] != "RouteV2" {
-		t.Fatalf("Gate 4 bite: analyzer must report the wrong constant, got %v", got)
+	if got := createUseCaseCallees(t, wrongVersion); len(got) != 1 || got[0] != "CreateTransactionV2" {
+		t.Fatalf("Gate 4 bite: analyzer must report the wrong version, got %v", got)
 	}
 
-	const noPolicy = `package in
+	const noCreate = `package in
 
 func (handler *TransactionHandler) CreateTransactionJSON(ctx context.Context, in *X) (*Y, error) {
-	return handler.createTransactionShell(ctx, in.OrganizationID, in.LedgerID, t, s, in.IdempotencyKey, in.IdempotencyTTL)
+	return handler.Command.SomethingElse(ctx)
 }
 `
 
-	if got := shellRouteVersionArgs(t, noPolicy); len(got) != 1 || got[0] != "" {
-		t.Fatalf("Gate 4 bite: analyzer must report an absent policy as empty, got %v", got)
+	if got := createUseCaseCallees(t, noCreate); len(got) != 0 {
+		t.Fatalf("Gate 4 bite: analyzer must report no create binding as empty, got %v", got)
 	}
 }

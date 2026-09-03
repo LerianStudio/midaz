@@ -98,7 +98,7 @@ The unified ledger binary folds four domains into one process:
   `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`,
   Mongo repos at `components/ledger/internal/adapters/mongodb/fees`, routes at
   `components/ledger/internal/adapters/http/in/{fee_package,fee_estimate,billing_package,billing_calculate}_routes.go`. The fee seam runs inside the
-  `create_transaction.go` command use case after
+  `create_transaction_v2.go` command use case after
   `mtransaction.ApplyDefaultBalanceKeys(...)` and the idempotency claim, mutating the send legs
   before the post-fee re-validation; `applyFees` itself lives in
   `components/ledger/internal/services/command/transaction_fee_application.go`.

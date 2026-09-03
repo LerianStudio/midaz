@@ -48,11 +48,11 @@ type CreateTransactionInputV2 struct {
 
 // createTransactionV2 is the shared body of the v2 create actions. It guards the request
 // context, builds the canonical Transaction and the request's scope from the flat v2 body
-// (decodeAndBuildV2Transaction), delegates to the shared createTransactionShell keyed by the
-// action-discriminated raw body (v2IdempotencyHashSource) under command.RouteV2 — the /v2 contract
-// is the one that includes the fee engine — and projects the v1 output onto the
-// /v2 wire shape (newTransactionV2). Translate business errors and the input's UUID validation
-// surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
+// (decodeAndBuildV2Transaction), delegates to command.CreateTransactionV2 keyed by the
+// action-discriminated raw body (v2IdempotencyHashSource) — the /v2 contract is the one
+// that includes the fee engine and the tracer reservation — and projects the result onto
+// the /v2 wire shape (newTransactionV2). Translate business errors and the input's UUID
+// validation surface as RFC 9457 4xx via pkgHTTP.HumaProblem.
 func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawBody []byte, idempotencyKey, idempotencyTTL string, pending bool, operationTypeOverride string) (*CreateTransactionOutputV2, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -63,20 +63,28 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	hashSource := v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)
-
-	out, err := handler.createTransactionShell(ctx, scope.OrganizationID, scope.LedgerID, transactionInput, transactionInput.InitialStatus(), idempotencyKey, idempotencyTTL, command.RouteV2, hashSource)
+	orgID, ledgerID, err := parseOrgLedger(scope.OrganizationID, scope.LedgerID)
 	if err != nil {
-		return nil, err
+		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	// out.Body is the /v1 envelope the shared shell builds; the embedded pointer is the
-	// canonical transaction this projects onto the /v2 shape. Reading it here keeps the
-	// six v1 callers able to return the shell directly.
+	tran, replayed, err := handler.Command.CreateTransactionV2(ctx, command.CreateTransactionV2Input{
+		OrganizationID:        orgID,
+		LedgerID:              ledgerID,
+		Transaction:           transactionInput,
+		TransactionStatus:     transactionInput.InitialStatus(),
+		IdempotencyKey:        idempotencyKey,
+		IdempotencyTTL:        pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
+		IdempotencyHashSource: v2IdempotencyHashSource(rawBody, pending, operationTypeOverride),
+	})
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	return &CreateTransactionOutputV2{
-		Status:              out.Status,
-		IdempotencyReplayed: out.IdempotencyReplayed,
-		Body:                newTransactionV2(out.Body.Transaction),
+		Status:              http.StatusCreated,
+		IdempotencyReplayed: replayedHeader(replayed),
+		Body:                newTransactionV2(tran),
 	}, nil
 }
 
@@ -138,14 +146,14 @@ func v2IdempotencyHashSource(rawBody []byte, pending bool, operationTypeOverride
 
 // CreateTransactionDirectV2 creates a v2 transaction with the direct (non-pending)
 // action: it delegates to createTransactionV2 with pending=false and no Operation.Type
-// override, reusing the v1 createTransaction funnel and answering with the /v2
-// CreateTransactionOutputV2 success envelope (201 + X-Idempotency-Replayed).
+// override, answering with the /v2 CreateTransactionOutputV2 success envelope
+// (201 + X-Idempotency-Replayed).
 func (handler *TransactionHandler) CreateTransactionDirectV2(ctx context.Context, in *CreateTransactionInputV2) (*CreateTransactionOutputV2, error) {
 	return handler.createTransactionV2(ctx, in.RawBody, in.IdempotencyKey, in.IdempotencyTTL, false, "")
 }
 
 // CreateTransactionHoldV2 creates a v2 transaction with the hold action: it delegates
-// to createTransactionV2 with pending=true so the funnel opens the transaction as PENDING
+// to createTransactionV2 with pending=true so the use case opens the transaction as PENDING
 // (held for later commit/cancel). It reuses the same flat input envelope and success
 // envelope as the direct action.
 func (handler *TransactionHandler) CreateTransactionHoldV2(ctx context.Context, in *CreateTransactionInputV2) (*CreateTransactionOutputV2, error) {

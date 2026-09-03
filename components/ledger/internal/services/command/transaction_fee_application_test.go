@@ -61,22 +61,6 @@ func baseTransaction() mtransaction.Transaction {
 	}
 }
 
-func TestApplyFees_NoOpOnRevert(t *testing.T) {
-	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
-		cf.Transaction.Send.Value = decimal.NewFromInt(999) // would corrupt if ever run
-	}}
-	uc := &UseCase{FeeApplier: applier}
-
-	input := baseTransaction()
-	orgID, ledgerID := uuid.New(), uuid.New()
-
-	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, RouteV2, true /* isRevert */, false /* isAnnotation */, false /* honoredFeeSkip */)
-
-	require.NoError(t, err)
-	assert.Equal(t, 0, applier.calls, "fee engine must not run on the revert path (no re-charge)")
-	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)), "revert input must be untouched")
-}
-
 func TestApplyFees_NoOpOnAnnotation(t *testing.T) {
 	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
 		cf.Transaction.Send.Value = decimal.NewFromInt(999) // would corrupt if ever run
@@ -86,7 +70,7 @@ func TestApplyFees_NoOpOnAnnotation(t *testing.T) {
 	input := baseTransaction()
 	orgID, ledgerID := uuid.New(), uuid.New()
 
-	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, RouteV2, false /* isRevert */, true /* isAnnotation */, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, true /* isAnnotation */, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls, "fee engine must not run on the annotation path (NOTED is one-sided, no fee)")
@@ -98,7 +82,7 @@ func TestApplyFees_NoOpWhenApplierNil(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), RouteV2, false, false, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)))
@@ -112,7 +96,7 @@ func TestApplyFees_NoOpWhenSkipHonored(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), RouteV2, false, false, true /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, true /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, applier.calls,
@@ -129,7 +113,7 @@ func TestApplyFees_SkipHonoredTouchesNoFeeDependency(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), RouteV2, false, false, true /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, true /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)), "honored fee skip must leave the transaction unmutated")
@@ -154,7 +138,7 @@ func TestApplyFees_FoldsMutatedSendBack(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, RouteV2, false, false, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, orgID, ledgerID, false, false /* honoredFeeSkip */)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, applier.calls)
@@ -175,7 +159,7 @@ func TestApplyFees_PropagatesBusinessError(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), RouteV2, false, false, false /* honoredFeeSkip */)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false /* honoredFeeSkip */)
 
 	require.Error(t, err)
 
@@ -304,35 +288,9 @@ func TestResolveFeesTenantContext_ResolutionErrorMapped(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestApplyFees_NoOpOnV1RoutePolicy(t *testing.T) {
-	// The /v1 gate must fire BEFORE the tenant fee-DB resolution, not just before
-	// the engine: a tenant whose fee module is unresolvable returns
-	// ErrServiceNotConfigured from the manager, which the seam maps to a 503. With
-	// RouteV1 the resolver must never be consulted at all, so a resolver rigged to
-	// fail proves the gate short-circuits ahead of it.
-	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
-		cf.Transaction.Send.Value = decimal.NewFromInt(999) // would corrupt if ever run
-	}}
-	resolver := &fakeFeesDBResolver{err: tmcore.ErrServiceNotConfigured}
-	uc := &UseCase{
-		FeeApplier:         applier,
-		FeesMongoManager:   resolver,
-		MultiTenantEnabled: true,
-	}
-
-	input := baseTransaction()
-	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
-
-	err := uc.applyFees(ctx, &input, uuid.New(), uuid.New(), RouteV1, false, false, false)
-
-	require.NoError(t, err, "the /v1 contract carries no fee engine, so no tenant fee-DB resolution may be attempted")
-	assert.Equal(t, 0, applier.calls, "the fee engine must not run on a /v1 route")
-	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(1000)), "a /v1 create must post exactly as authored")
-}
-
-func TestApplyFees_V2RoutePolicyRunsEngine(t *testing.T) {
-	// Counterpart to the /v1 gate: RouteV2 must still drive the engine, proving the
-	// version gate narrowed the seam rather than disabling fees outright.
+func TestApplyFees_RunsEngine(t *testing.T) {
+	// The counterpart to every no-op gate: with no skip and no annotation the seam
+	// must still drive the engine.
 	applier := &fakeFeeApplier{mutate: func(cf *model.FeeCalculate) {
 		cf.Transaction.Send.Value = decimal.NewFromInt(950)
 	}}
@@ -340,9 +298,9 @@ func TestApplyFees_V2RoutePolicyRunsEngine(t *testing.T) {
 
 	input := baseTransaction()
 
-	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), RouteV2, false, false, false)
+	err := uc.applyFees(context.Background(), &input, uuid.New(), uuid.New(), false, false)
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, applier.calls, "the /v2 contract must still reach the fee engine")
+	assert.Equal(t, 1, applier.calls, "the fee seam must reach the engine when no gate fires")
 	assert.True(t, input.Send.Value.Equal(decimal.NewFromInt(950)))
 }

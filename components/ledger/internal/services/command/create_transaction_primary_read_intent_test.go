@@ -41,9 +41,9 @@ import (
 //     which is where the read-routing seam observes the intent. A negative
 //     baseline proves an unmarked ctx stays unmarked, so the assertion is not
 //     trivially true.
-//  2. Placement: a structural guard over the live source of executeCreateTransaction
-//     proves the `readrouting.WithPrimaryRead(ctx)` wrap actually exists in the
-//     use case and positionally precedes the GetBalances read (and therefore the
+//  2. Placement: a structural guard over the live source of stageBalances — the step
+//     both create pipelines run — proves the `readrouting.WithPrimaryRead(ctx)` wrap
+//     actually exists and positionally precedes the GetBalances read (and therefore the
 //     overdraft read, which follows it). Runtime mocks cannot catch a future
 //     removal or reorder of the wrap; the AST guard can. This mirrors the
 //     existing fee-seam structural guards (transaction_fee_seam_structure_test.go).
@@ -126,16 +126,16 @@ func TestCreateTransaction_MarksPrimaryReadIntent(t *testing.T) {
 	})
 
 	t.Run("wrap_exists_and_precedes_get_balances_in_source", func(t *testing.T) {
-		src := readSeamSource(t)
+		src := readTransportSource(t, "create_transaction_steps.go", "func (uc *UseCase) stageBalances")
 
-		wrapPos, getBalancesPos := analyzePrimaryReadWrap(t, src, "executeCreateTransaction")
+		wrapPos, getBalancesPos := analyzePrimaryReadWrap(t, src, "stageBalances")
 
 		if wrapPos == -1 {
-			t.Fatal("no `readrouting.WithPrimaryRead(ctx)` wrap found in executeCreateTransaction; the create flow does not mark the primary-read intent")
+			t.Fatal("no `readrouting.WithPrimaryRead(ctx)` wrap found in stageBalances; the create flow does not mark the primary-read intent")
 		}
 
 		if getBalancesPos == -1 {
-			t.Fatal("no GetBalances call found in executeCreateTransaction; the read call site moved")
+			t.Fatal("no GetBalances call found in stageBalances; the read call site moved")
 		}
 
 		if wrapPos >= getBalancesPos {

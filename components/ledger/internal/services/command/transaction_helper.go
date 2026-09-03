@@ -19,14 +19,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// transactionPathParams holds the IDs extracted from URL path parameters.
-// TransactionID is uuid.Nil when the route has no :transaction_id segment.
-type transactionPathParams struct {
-	OrganizationID uuid.UUID
-	LedgerID       uuid.UUID
-	TransactionID  uuid.UUID
-}
-
 // buildParentTransactionID converts a parent UUID to a string pointer,
 // returning nil when the parent is uuid.Nil (no parent).
 func buildParentTransactionID(parentID uuid.UUID) *string {

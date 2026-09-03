@@ -46,17 +46,17 @@ func findFuncDecl(t *testing.T, src, name string) *ast.FuncDecl {
 }
 
 // createSkipSeamMetrics captures the ordering and reject-branch facts the
-// create-path tracer-skip wiring relies on, all within executeCreateTransaction.
+// create-path tracer-skip wiring relies on, all within CreateTransactionV2.
 type createSkipSeamMetrics struct {
 	settingsPos        int  // index of the GetParsedLedgerSettings call (-1 if absent)
 	resolveSkipPos     int  // index of the resolveTransactionSkips call (-1)
 	reservePos         int  // index of the reserveTransaction call (-1)
-	rejectDeleteIdemp  bool // the ResolveSkipFor-error branch releases the idempotency key
+	rejectDeleteIdemp  bool // the ResolveSkipFor-error branch releases the idempotency claim
 	rejectReturns      bool // that branch returns (does not fall through to the reserve)
 	reserveCarriesFlag bool // reserveTransaction is called with the honoredTracerSkip ident
 }
 
-// analyzeCreateSkipSeam walks executeCreateTransaction and extracts the tracer-skip
+// analyzeCreateSkipSeam walks CreateTransactionV2 and extracts the tracer-skip
 // resolution facts. The skip is resolved through the resolveTransactionSkips helper
 // (which calls skip.ResolveSkipFor for both controls); the 422 guard is the
 // `if err != nil` that immediately follows that resolution call.
@@ -89,7 +89,7 @@ func analyzeCreateSkipSeam(t *testing.T, src string) createSkipSeamMetrics {
 		// after the resolve statement but before the reserve.
 		if m.resolveSkipPos != -1 && i == m.resolveSkipPos+1 {
 			if ifStmt, ok := stmt.(*ast.IfStmt); ok {
-				m.rejectDeleteIdemp = blockCallsMethod(ifStmt.Body, "deleteIdempotencyKey")
+				m.rejectDeleteIdemp = blockCallsMethod(ifStmt.Body, "rollbackCreateClaim")
 				m.rejectReturns = blockEndsInReturn(ifStmt.Body)
 			}
 		}
@@ -120,11 +120,16 @@ func findCallToMethod(stmt ast.Stmt, method string) *ast.CallExpr {
 	return found
 }
 
-// callHasArgIdent reports whether the call passes a bare identifier with the
-// given name as one of its arguments.
+// callHasArgIdent reports whether the call passes the named value as one of its
+// arguments, either as a bare identifier or as a field of the per-request run state
+// (run.<name>).
 func callHasArgIdent(call *ast.CallExpr, name string) bool {
 	for _, arg := range call.Args {
 		if id, ok := arg.(*ast.Ident); ok && id.Name == name {
+			return true
+		}
+
+		if sel, ok := arg.(*ast.SelectorExpr); ok && sel.Sel.Name == name {
 			return true
 		}
 	}
@@ -132,13 +137,13 @@ func callHasArgIdent(call *ast.CallExpr, name string) bool {
 	return false
 }
 
-// TestExecuteCreateTransaction_TracerSkip — the create-path wiring proof. Asserts
-// that executeCreateTransaction resolves the tracer skip AFTER the settings read
+// TestCreateTransactionV2_TracerSkip — the create-path wiring proof. Asserts
+// that CreateTransactionV2 resolves the tracer skip AFTER the settings read
 // and BEFORE the reserve anchor, that the 422 (unauthorized skip) branch releases
 // the idempotency key and returns before the reserve, and that the resolved
 // honoredTracerSkip boolean is threaded into reserveTransaction.
-func TestExecuteCreateTransaction_TracerSkip(t *testing.T) {
-	src := readSeamSource(t) // create_transaction.go
+func TestCreateTransactionV2_TracerSkip(t *testing.T) {
+	src := readSeamSource(t) // create_transaction_v2.go
 
 	m := analyzeCreateSkipSeam(t, src)
 
@@ -152,17 +157,17 @@ func TestExecuteCreateTransaction_TracerSkip(t *testing.T) {
 		"the tracer skip must be resolved BEFORE the reserve anchor it gates")
 
 	assert.True(t, m.rejectDeleteIdemp,
-		"an unauthorized skip (422) must release the idempotency key — mirror the fee error path")
+		"an unauthorized skip (422) must release the idempotency claim — mirror the fee error path")
 	assert.True(t, m.rejectReturns,
 		"the 422 branch must return — it must NOT fall through to the reserve anchor")
 
 	assert.True(t, m.reserveCarriesFlag,
 		"reserveTransaction must receive the resolved honoredTracerSkip flag")
 
-	// The orchestrator delegates resolution to resolveTransactionSkips; prove that
-	// helper terminates at the real two-key gate (skip.ResolveSkipFor) rather than a
-	// stub, so the displaced authz call-site fact stays covered after the extraction.
-	helper := findFuncDecl(t, src, "resolveTransactionSkips")
+	// The pipeline delegates resolution to resolveTransactionSkips; prove that helper
+	// terminates at the real two-key gate (skip.ResolveSkipFor) rather than a stub, so
+	// the displaced authz call-site fact stays covered after the extraction.
+	helper := findFuncDecl(t, readTransportSource(t, "create_transaction.go", "func resolveTransactionSkips"), "resolveTransactionSkips")
 	callsResolver := false
 
 	for _, stmt := range helper.Body.List {
@@ -173,19 +178,19 @@ func TestExecuteCreateTransaction_TracerSkip(t *testing.T) {
 	}
 
 	assert.True(t, callsResolver,
-		"resolveTransactionSkips must call skip.ResolveSkipFor — the orchestrator's skip must terminate at the real two-key gate")
+		"resolveTransactionSkips must call skip.ResolveSkipFor — the pipeline's skip must terminate at the real two-key gate")
 }
 
-// TestExecuteCreateTransaction_TracerSkip_Bites proves the create-path analyzer
+// TestCreateTransactionV2_TracerSkip_Bites proves the create-path analyzer
 // bites: it must reject a seam that drops the idempotency release on the 422
 // branch or stops threading the flag into the reserve.
-func TestExecuteCreateTransaction_TracerSkip_Bites(t *testing.T) {
+func TestCreateTransactionV2_TracerSkip_Bites(t *testing.T) {
 	leaky := `package command
-func (uc *UseCase) executeCreateTransaction() error {
+func (uc *UseCase) CreateTransactionV2() error {
 	ledgerSettings, err := uc.TransactionReader.GetParsedLedgerSettings()
 	honoredTracerSkip, err := resolveTransactionSkips()
 	if err != nil {
-		// BUG: neither releases the idempotency key nor returns
+		// BUG: neither rolls back the claim nor returns
 		_ = err
 	}
 	reservation := uc.reserveTransaction() // BUG: flag not threaded
@@ -205,11 +210,11 @@ func (uc *UseCase) executeCreateTransaction() error {
 	assert.False(t, m.reserveCarriesFlag, "gate failed to bite: a reserve without the flag was reported as carrying it")
 
 	correct := `package command
-func (uc *UseCase) executeCreateTransaction() error {
+func (uc *UseCase) CreateTransactionV2() error {
 	ledgerSettings, err := uc.TransactionReader.GetParsedLedgerSettings()
 	honoredTracerSkip, err := resolveTransactionSkips()
 	if err != nil {
-		uc.deleteIdempotencyKey()
+		uc.rollbackCreateClaim()
 		return err
 	}
 	reservation := uc.reserveTransaction(honoredTracerSkip)

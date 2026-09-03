@@ -64,8 +64,9 @@ route registration lives in [`internal/adapters/http/in/routes.go`](internal/ada
 
 Transaction creation modes: JSON, inflow, outflow, annotation. Pending transactions can be
 committed or cancelled; revert creates a reverse transaction. Async processing is controlled by
-`RABBITMQ_TRANSACTION_ASYNC`. The fee seam sits in `internal/services/command/create_transaction.go` after default
-balance-key application and the idempotency claim, before post-fee re-validation.
+`RABBITMQ_TRANSACTION_ASYNC`. The fee seam sits in `internal/services/command/create_transaction_v2.go` after default
+balance-key application and the idempotency claim, before post-fee re-validation; the `/v1`
+pipeline (`create_transaction_v1.go`) does not name it at all.
 
 ---
 

@@ -11,11 +11,15 @@ import (
 	"testing"
 )
 
-// Gate 5 — POSITION. The route gate must be the FIRST statement of each tracer seam
-// entry point. Ordering is the guarantee, not a detail: a /v1 request has to return
-// before a reserve request is built or a connection dialled, so moving the gate below
-// the nil/mode guard would still no-op but would no longer prove that nothing left the
-// process. Nothing at runtime distinguishes the two.
+// Gate 5 — POSITION. The route gate must be the FIRST statement of the two
+// by-transaction tracer seams, the ones commit and cancel still address with an explicit
+// policy. Ordering is the guarantee, not a detail: a /v1 request has to return before a
+// request is built or a connection dialled, so moving the gate below the nil/mode guard
+// would still no-op but would no longer prove that nothing left the process. Nothing at
+// runtime distinguishes the two.
+//
+// The create-side reserve anchor needs no gate: the /v1 pipelines never call it, which
+// TestCreateTransactionV1_NeverReferencesVersionedSeams asserts over the source.
 
 // firstStatementGatesRouteV1 reports whether the named function's FIRST statement is
 // `if policy == RouteV1`. A function that is absent from src is reported separately so
@@ -61,10 +65,9 @@ func isRouteV1Guard(stmt ast.Stmt) bool {
 }
 
 func TestRouteVersionStructure_TracerSeamsGateFirst(t *testing.T) {
-	src := readTransportSource(t, "transaction_reservation_anchor.go", "reserveTransaction")
+	src := readTransportSource(t, "transaction_reservation_anchor.go", "ConfirmReservationsByTransaction")
 
 	for _, fn := range []string{
-		"reserveTransaction",
 		"ConfirmReservationsByTransaction",
 		"ReleaseReservationsByTransaction",
 	} {
@@ -87,32 +90,32 @@ func TestRouteVersionStructure_GateFirstBites(t *testing.T) {
 	// on /v1, but it no longer proves nothing was built or dialled first.
 	const gateMoved = `package command
 
-func (uc *UseCase) reserveTransaction() reservationOutcome {
+func (uc *UseCase) ConfirmReservationsByTransaction() {
 	if uc.TracerReserver == nil {
-		return reservationOutcome{}
+		return
 	}
 
 	if policy == RouteV1 {
-		return reservationOutcome{}
+		return
 	}
 
-	return reservationOutcome{}
+	_ = uc.TracerReserver.ConfirmByTransaction()
 }
 `
 
-	if gated, found := firstStatementGatesRouteV1(t, gateMoved, "reserveTransaction"); !found || gated {
+	if gated, found := firstStatementGatesRouteV1(t, gateMoved, "ConfirmReservationsByTransaction"); !found || gated {
 		t.Fatalf("Gate 5 bite: a gate below the nil guard must be reported as ungated, got gated=%v found=%v", gated, found)
 	}
 
 	// An absent gate is not the same as an absent function; both must fail, distinctly.
 	const noGate = `package command
 
-func (uc *UseCase) reserveTransaction() reservationOutcome {
-	return reservationOutcome{}
+func (uc *UseCase) ConfirmReservationsByTransaction() {
+	_ = uc.TracerReserver.ConfirmByTransaction()
 }
 `
 
-	if gated, found := firstStatementGatesRouteV1(t, noGate, "reserveTransaction"); !found || gated {
+	if gated, found := firstStatementGatesRouteV1(t, noGate, "ConfirmReservationsByTransaction"); !found || gated {
 		t.Fatalf("Gate 5 bite: a seam with no gate must be reported as ungated, got gated=%v found=%v", gated, found)
 	}
 
@@ -123,16 +126,16 @@ func (uc *UseCase) reserveTransaction() reservationOutcome {
 	// The correct shape must satisfy the gate, or the gate is unsatisfiable.
 	const correct = `package command
 
-func (uc *UseCase) reserveTransaction() reservationOutcome {
+func (uc *UseCase) ConfirmReservationsByTransaction() {
 	if policy == RouteV1 {
-		return reservationOutcome{}
+		return
 	}
 
-	return reservationOutcome{}
+	_ = uc.TracerReserver.ConfirmByTransaction()
 }
 `
 
-	if gated, found := firstStatementGatesRouteV1(t, correct, "reserveTransaction"); !found || !gated {
+	if gated, found := firstStatementGatesRouteV1(t, correct, "ConfirmReservationsByTransaction"); !found || !gated {
 		t.Fatalf("Gate 5 bite: fixture sanity — the correct shape must pass, got gated=%v found=%v", gated, found)
 	}
 }

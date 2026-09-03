@@ -28,15 +28,14 @@ import (
 // the persistence path (BuildOperations / ProcessBalanceOperations /
 // WriteTransaction) through a single reassigned validate pointer.
 //
-// On policy=RouteV1 this is a no-op, and it is the FIRST gate: the /v1
-// transaction contract does not include fees, so a /v1 create posts exactly as
-// authored and never reaches the package lookup or the tenant fee-DB resolution.
+// Only the /v2 create pipeline calls it. The /v1 transaction contract does not
+// include fees, so a /v1 create posts exactly as authored and never reaches the
+// package lookup or the tenant fee-DB resolution; a revert does not call it either,
+// because the reverse transaction already carries the reversed fee legs
+// reconstructed by TransactionRevert from the persisted parent operations, so
+// re-charging would double the fees.
 //
-// On isRevert=true this is a no-op: the reverse transaction already carries the
-// reversed fee legs reconstructed by TransactionRevert from the persisted
-// parent operations, so re-charging here would double the fees.
-//
-// On isAnnotation=true (NOTED transactions) this is also a no-op: an annotation
+// On isAnnotation=true (NOTED transactions) this is a no-op: an annotation
 // is one-sided and records no real balance movement, so charging it a fee would
 // emit fee legs that have no funding side and break its invariants.
 //
@@ -53,18 +52,13 @@ func (uc *UseCase) applyFees(
 	ctx context.Context,
 	transactionInput *mtransaction.Transaction,
 	organizationID, ledgerID uuid.UUID,
-	policy RouteVersionPolicy,
-	isRevert, isAnnotation, honoredFeeSkip bool,
+	isAnnotation, honoredFeeSkip bool,
 ) error {
-	if policy == RouteV1 {
-		return nil
-	}
-
 	if honoredFeeSkip {
 		return nil
 	}
 
-	if isRevert || isAnnotation || uc.FeeApplier == nil {
+	if isAnnotation || uc.FeeApplier == nil {
 		return nil
 	}
 
@@ -82,7 +76,7 @@ func (uc *UseCase) applyFees(
 		Transaction: *transactionInput,
 	}
 
-	// The error is logged once by the seam caller (executeCreateTransaction);
+	// The error is logged once by the seam caller (CreateTransactionV2);
 	// recording it here too would double-log the same failure (T8).
 	if err := uc.FeeApplier.CalculateFee(feesCtx, cf, organizationID); err != nil {
 		return err
