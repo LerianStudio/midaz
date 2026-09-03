@@ -37,6 +37,12 @@ const (
 // pattern as companionBalanceLoader for the overdraft enrichment).
 type activeExceptionsLoader func(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.AccountException, error)
 
+// blockedAccountsResolver abstracts the pre-read of the blocked-accounts index.
+// It mirrors the signature of RedisRepository.ResolveBlockedAccounts, whose
+// contract it inherits whole: the answer is authoritative or it is an error —
+// there is no third outcome the caller has to interpret.
+type blockedAccountsResolver func(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) ([]uuid.UUID, error)
+
 // exceptionGrantCandidate is one would-be-deny transaction side that may be
 // rescued by a matching account exception. It holds the live map reference and
 // the exact map key so the grant is written back read-modify-write.
@@ -73,6 +79,7 @@ func enrichAccountExceptionGrants(
 	operationalTypeCode string,
 	validate *mtransaction.Responses,
 	balances []*mmodel.Balance,
+	blockedAccountIDs map[string]struct{},
 ) *string {
 	// Cost-zero skip #1: no operational type code => common path untouched, no I/O.
 	if operationalTypeCode == "" || validate == nil {
@@ -84,7 +91,7 @@ func enrichAccountExceptionGrants(
 	ctx, span := tracer.Start(ctx, "enrich.account_exception")
 	defer span.End()
 
-	candidates := collectWouldBeDenyCandidates(validate, balances)
+	candidates := collectWouldBeDenyCandidates(validate, balances, blockedAccountIDs)
 
 	span.SetAttributes(attribute.Int("app.exception.would_be_deny_sides", len(candidates)))
 
@@ -187,7 +194,13 @@ func enrichAccountExceptionGrants(
 // the validators' (`key == balance.ID || SplitAliasWithKey(key) == AliasKey(alias, key)`),
 // so a grant produced here lands exactly where the validator reads it. Map order
 // is never used — only validate.Aliases — so the traversal is deterministic.
-func collectWouldBeDenyCandidates(validate *mtransaction.Responses, balances []*mmodel.Balance) []exceptionGrantCandidate {
+//
+// blockedAccountIDs is the answer of the blocked-accounts index, and it counts
+// as a would-be-deny reason on its own. It is empty on the create path, whose
+// block signal is still the balance projection; the commit path fills it from
+// the pre-read. Reading BOTH sources is what lets the projection be deleted in
+// phase 2 without this collector changing again.
+func collectWouldBeDenyCandidates(validate *mtransaction.Responses, balances []*mmodel.Balance, blockedAccountIDs map[string]struct{}) []exceptionGrantCandidate {
 	candidates := make([]exceptionGrantCandidate, 0)
 
 	for _, alias := range validate.Aliases {
@@ -196,22 +209,131 @@ func collectWouldBeDenyCandidates(validate *mtransaction.Responses, balances []*
 			continue
 		}
 
+		_, indexedAsBlocked := blockedAccountIDs[balance.AccountID]
+		blocked := balance.AccountBlocked || indexedAsBlocked
+
 		// Source (debit) side: blocked or sending disallowed.
 		if key, ok := matchAmountKey(validate.From, balance); ok {
-			if balance.AccountBlocked || !balance.AllowSending {
+			if blocked || !balance.AllowSending {
 				candidates = append(candidates, exceptionGrantCandidate{amounts: validate.From, key: key, balance: balance})
 			}
 		}
 
 		// Destination (credit) side: blocked or receiving disallowed.
 		if key, ok := matchAmountKey(validate.To, balance); ok {
-			if balance.AccountBlocked || !balance.AllowReceiving {
+			if blocked || !balance.AllowReceiving {
 				candidates = append(candidates, exceptionGrantCandidate{amounts: validate.To, key: key, balance: balance})
 			}
 		}
 	}
 
 	return candidates
+}
+
+// reevaluateAccountExceptionGrants is the commit-time entry of the same
+// enrichment the create path runs (REVISED ADR-004: evaluate at every mutation
+// of balance, never inherit).
+//
+// A commit moves money at its own instant, so the exception set that authorizes
+// it is the one live at THAT instant: an exception that expired while the
+// transaction sat pending must no longer rescue it, and one created after the
+// pending must. Inheriting the create-time grant gets both cases wrong.
+//
+// The trigger is the blocked-accounts index, not the balance projection, and the
+// order of the two skips is what keeps it cheap:
+//
+//  1. no operationalTypeCode => return with NO I/O at all. No exception can
+//     apply, so neither the index nor the store is worth a round-trip; if the
+//     account is blocked, the atomic script denies the commit by itself.
+//  2. nothing blocked => return without touching the exception store. One
+//     SMISMEMBER is the entire cost of a commit that carries a code.
+//
+// An index that cannot be read is returned as an error and MUST fail the commit
+// as infrastructure. It is deliberately not degraded into "proceed": that would
+// answer an outage with a wrong business verdict — a 0502 for an account that
+// held a perfectly valid exception. The exception STORE failing is the opposite
+// case and stays fail-closed inside enrichAccountExceptionGrants: it grants
+// nothing, emits store_error, and lets the script deny.
+func reevaluateAccountExceptionGrants(
+	ctx context.Context,
+	resolveBlocked blockedAccountsResolver,
+	loader activeExceptionsLoader,
+	metricsFactory *metrics.MetricsFactory,
+	organizationID, ledgerID uuid.UUID,
+	operationalTypeCode string,
+	validate *mtransaction.Responses,
+	balances []*mmodel.Balance,
+) (*string, error) {
+	// Cost-zero skip #1: nothing an exception could rescue.
+	if operationalTypeCode == "" || validate == nil || resolveBlocked == nil {
+		return nil, nil
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "enrich.account_exception.reevaluate")
+	defer span.End()
+
+	accountIDs := distinctAccountIDs(balances)
+
+	span.SetAttributes(attribute.Int("app.exception.accounts_probed", len(accountIDs)))
+
+	blockedIDs, err := resolveBlocked(ctx, organizationID, ledgerID, accountIDs)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to read the blocked accounts index on commit", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to read the blocked accounts index on commit", libLog.Err(err))
+
+		return nil, err
+	}
+
+	// Cost-zero skip #2: no involved account is blocked, so no grant can be
+	// needed and the exception store stays untouched.
+	if len(blockedIDs) == 0 {
+		return nil, nil
+	}
+
+	blocked := make(map[string]struct{}, len(blockedIDs))
+	for _, accountID := range blockedIDs {
+		blocked[accountID.String()] = struct{}{}
+	}
+
+	span.SetAttributes(attribute.Int("app.exception.blocked_accounts", len(blocked)))
+
+	return enrichAccountExceptionGrants(ctx, loader, metricsFactory, organizationID, ledgerID,
+		operationalTypeCode, validate, balances, blocked), nil
+}
+
+// distinctAccountIDs returns the parseable account ids of the given balances,
+// deduplicated and in first-seen order.
+//
+// A balance whose AccountID is not a UUID is skipped rather than fatal: the
+// enrichment already treats it that way, and one malformed row must not be able
+// to fail an otherwise valid commit. It is also never sent to the index, which
+// would only be able to answer "not a member" about it.
+func distinctAccountIDs(balances []*mmodel.Balance) []uuid.UUID {
+	accountIDs := make([]uuid.UUID, 0, len(balances))
+	seen := make(map[string]struct{}, len(balances))
+
+	for _, balance := range balances {
+		if balance == nil {
+			continue
+		}
+
+		if _, ok := seen[balance.AccountID]; ok {
+			continue
+		}
+
+		seen[balance.AccountID] = struct{}{}
+
+		parsed, err := uuid.Parse(balance.AccountID)
+		if err != nil {
+			continue
+		}
+
+		accountIDs = append(accountIDs, parsed)
+	}
+
+	return accountIDs
 }
 
 // matchBalanceForAlias returns the balance whose alias-key form (or ID) equals

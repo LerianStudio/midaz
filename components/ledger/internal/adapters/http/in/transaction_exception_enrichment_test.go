@@ -244,7 +244,7 @@ func TestEnrichAccountExceptionGrants(t *testing.T) {
 
 			loader, calls := countingLoader(tt.exceptions, tt.loaderErr)
 
-			applied := enrichAccountExceptionGrants(context.Background(), loader, nil, org, ledger, tt.code, validate, []*mmodel.Balance{bal})
+			applied := enrichAccountExceptionGrants(context.Background(), loader, nil, org, ledger, tt.code, validate, []*mmodel.Balance{bal}, nil)
 
 			assert.Equal(t, tt.wantLoaderCalls, *calls, "loader invocation count")
 
@@ -294,7 +294,7 @@ func TestEnrichAccountExceptionGrants_MatchByBalanceID(t *testing.T) {
 
 	loader, calls := countingLoader([]*mmodel.AccountException{exc("E1", []string{"PIX_IN"}, nil, nil, nil)}, nil)
 
-	applied := enrichAccountExceptionGrants(context.Background(), loader, nil, org, ledger, "PIX_IN", validate, []*mmodel.Balance{nil, bal})
+	applied := enrichAccountExceptionGrants(context.Background(), loader, nil, org, ledger, "PIX_IN", validate, []*mmodel.Balance{nil, bal}, nil)
 
 	require.NotNil(t, applied)
 	assert.Equal(t, "E1", *applied)
@@ -316,7 +316,7 @@ func TestEnrichAccountExceptionGrants_UnparseableAccountID(t *testing.T) {
 
 	loader, calls := countingLoader([]*mmodel.AccountException{exc("E1", []string{"PIX_IN"}, nil, nil, nil)}, nil)
 
-	applied := enrichAccountExceptionGrants(context.Background(), loader, nil, org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal})
+	applied := enrichAccountExceptionGrants(context.Background(), loader, nil, org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal}, nil)
 
 	assert.Nil(t, applied, "unparseable account id must fail closed")
 	assert.False(t, validate.From[key].BlockBypassGranted)
@@ -354,7 +354,7 @@ func TestEnrichAccountExceptionGrants_DedupePerAccount(t *testing.T) {
 
 	loader, calls := countingLoader([]*mmodel.AccountException{exc("E1", []string{"PIX_IN"}, nil, nil, nil)}, nil)
 
-	applied := enrichAccountExceptionGrants(context.Background(), loader, nil, org, ledger, "PIX_IN", validate, balances)
+	applied := enrichAccountExceptionGrants(context.Background(), loader, nil, org, ledger, "PIX_IN", validate, balances, nil)
 
 	require.NotNil(t, applied)
 	assert.Equal(t, 1, *calls, "loader must be called once per distinct AccountID")
@@ -399,7 +399,7 @@ func TestEnrichAccountExceptionGrants_BothSidesBlocked(t *testing.T) {
 		return []*mmodel.AccountException{exc("DST", []string{"PIX_IN"}, nil, nil, nil)}, nil
 	}
 
-	applied := enrichAccountExceptionGrants(context.Background(), loaderBySrc, nil, org, ledger, "PIX_IN", validate, balances)
+	applied := enrichAccountExceptionGrants(context.Background(), loaderBySrc, nil, org, ledger, "PIX_IN", validate, balances, nil)
 
 	require.NotNil(t, applied)
 	assert.Equal(t, "SRC", *applied, "appliedExceptionID must be the first grant (source side)")
@@ -432,7 +432,7 @@ func TestEnrichAccountExceptionGrants_FailClosedEmitsStoreErrorMetric(t *testing
 
 	loader, calls := countingLoader(nil, errors.New("store unavailable"))
 
-	applied := enrichAccountExceptionGrants(context.Background(), loader, factory, org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal})
+	applied := enrichAccountExceptionGrants(context.Background(), loader, factory, org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal}, nil)
 
 	assert.Nil(t, applied, "fail-closed => no applied exception")
 	assert.False(t, validate.From[key].BlockBypassGranted, "fail-closed => no grant")
@@ -463,7 +463,7 @@ func TestEnrichAccountExceptionGrants_GrantedEmitsMetric(t *testing.T) {
 
 	loader, _ := countingLoader([]*mmodel.AccountException{exc("E1", []string{"PIX_IN"}, nil, nil, nil)}, nil)
 
-	applied := enrichAccountExceptionGrants(context.Background(), loader, factory, org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal})
+	applied := enrichAccountExceptionGrants(context.Background(), loader, factory, org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal}, nil)
 	require.NotNil(t, applied)
 
 	totals := collectExceptionEvalCounters(t, reader)
@@ -539,7 +539,7 @@ func TestEnrichAccountExceptionGrants_Composition_TranspassesValidator(t *testin
 
 	// Produce the grant, then re-run the validator: it must now pass.
 	loader, _ := countingLoader([]*mmodel.AccountException{exc("E1", []string{"PIX_IN"}, nil, nil, nil)}, nil)
-	applied := enrichAccountExceptionGrants(ctx, loader, nil, org, ledger, "PIX_IN", validate, []*mmodel.Balance{mmBal})
+	applied := enrichAccountExceptionGrants(ctx, loader, nil, org, ledger, "PIX_IN", validate, []*mmodel.Balance{mmBal}, nil)
 	require.NotNil(t, applied)
 	require.True(t, validate.From[key].BlockBypassGranted)
 
@@ -575,17 +575,237 @@ func TestExceptionEnrichmentCallSiteWiring(t *testing.T) {
 	assert.Contains(t, body, "AppliedExceptionID:", "record literal must persist AppliedExceptionID")
 }
 
-// TestExceptionEnrichmentNotReevaluatedOnStateTransition proves ADR-004:
-// commit/cancel state handlers never re-run the enrichment loader — the source
-// file for state transitions does not reference the enrichment at all.
-func TestExceptionEnrichmentNotReevaluatedOnStateTransition(t *testing.T) {
+// TestExceptionEnrichmentReevaluatedOnCommit pins the REVISED ADR-004: a commit
+// is a mutation of balance, so it evaluates the exception set at its own instant
+// instead of inheriting the decision the create path made.
+//
+// It replaces TestExceptionEnrichmentNotReevaluatedOnStateTransition, which
+// asserted the exact opposite for the original ADR. That test was not wrong when
+// it was written — inheritance was the contract — but a commit that inherits a
+// grant lets an exception that expired while the transaction sat pending still
+// move money, which is the semantics this epic corrects.
+func TestExceptionEnrichmentReevaluatedOnCommit(t *testing.T) {
 	t.Parallel()
 
 	src, err := os.ReadFile("transaction_state_handlers.go")
 	require.NoError(t, err)
 
-	assert.NotContains(t, string(src), "enrichAccountExceptionGrants",
-		"state transitions must inherit the decision, never re-evaluate the loader")
-	assert.NotContains(t, string(src), "GetActiveAccountExceptions",
-		"state transitions must not query active account exceptions")
+	body := string(src)
+
+	callIdx := strings.Index(body, "reevaluateAccountExceptionGrants(")
+	require.GreaterOrEqual(t, callIdx, 0,
+		"the commit path must re-evaluate the exception set at its own instant")
+
+	buildIdx := strings.Index(body, "buildBalanceOperations(")
+	require.GreaterOrEqual(t, buildIdx, 0)
+
+	assert.Less(t, callIdx, buildIdx,
+		"the re-evaluation must run BEFORE buildBalanceOperations, which is what carries the grant into the atomic script")
+}
+
+// ---- reevaluateAccountExceptionGrants: the commit-time entry -----------------
+
+// countingResolver returns a blocked-accounts pre-read closure and a pointer to
+// its invocation count.
+func countingResolver(blocked []uuid.UUID, resolveErr error) (blockedAccountsResolver, *int) {
+	calls := 0
+
+	return func(_ context.Context, _, _ uuid.UUID, _ []uuid.UUID) ([]uuid.UUID, error) {
+		calls++
+		return blocked, resolveErr
+	}, &calls
+}
+
+// TestReevaluateAccountExceptionGrants_NoOperationalTypeCodeCostsNothing is the
+// cost contract: a transaction with no operational type code cannot be rescued
+// by any exception, so it pays for neither the pre-read nor the store. Its
+// denial, if any, comes from the atomic script.
+func TestReevaluateAccountExceptionGrants_NoOperationalTypeCodeCostsNothing(t *testing.T) {
+	t.Parallel()
+
+	org, ledger := uuid.New(), uuid.New()
+	acc := uuid.New().String()
+
+	validate, _ := fromValidate("@acc", "default")
+	bal := exceptionEnrichBalance(acc, "@acc", "default", false, true, true)
+
+	resolver, resolveCalls := countingResolver(nil, nil)
+	loader, loaderCalls := countingLoader(nil, nil)
+
+	applied, err := reevaluateAccountExceptionGrants(context.Background(), resolver, loader, nil,
+		org, ledger, "", validate, []*mmodel.Balance{bal})
+
+	require.NoError(t, err)
+	assert.Nil(t, applied)
+	assert.Equal(t, 0, *resolveCalls, "no operational type code must not cost a pre-read")
+	assert.Equal(t, 0, *loaderCalls)
+}
+
+// TestReevaluateAccountExceptionGrants_UnblockedAccountSkipsTheStore proves the
+// pre-read is the trigger: with nothing blocked there is nothing to rescue, so
+// the exception store is never queried.
+func TestReevaluateAccountExceptionGrants_UnblockedAccountSkipsTheStore(t *testing.T) {
+	t.Parallel()
+
+	org, ledger := uuid.New(), uuid.New()
+	acc := uuid.New().String()
+
+	validate, _ := fromValidate("@acc", "default")
+	bal := exceptionEnrichBalance(acc, "@acc", "default", false, true, true)
+
+	resolver, resolveCalls := countingResolver(nil, nil)
+	loader, loaderCalls := countingLoader(nil, nil)
+
+	applied, err := reevaluateAccountExceptionGrants(context.Background(), resolver, loader, nil,
+		org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal})
+
+	require.NoError(t, err)
+	assert.Nil(t, applied)
+	assert.Equal(t, 1, *resolveCalls, "the index is probed once")
+	assert.Equal(t, 0, *loaderCalls, "an unblocked account must not reach the exception store")
+}
+
+// TestReevaluateAccountExceptionGrants_BlockedIndexIsTheTrigger is the semantic
+// core of the commit re-evaluation: the account is blocked according to the
+// index, NOT according to the balance projection, and a live exception still
+// rescues it. This is what keeps the commit working once the projection is gone.
+func TestReevaluateAccountExceptionGrants_BlockedIndexIsTheTrigger(t *testing.T) {
+	t.Parallel()
+
+	org, ledger := uuid.New(), uuid.New()
+	accID := uuid.New()
+
+	validate, key := fromValidate("@acc", "default")
+
+	// AccountBlocked=false: the stale projection says nothing is wrong. The index
+	// is the authority, and it says the account is blocked.
+	bal := exceptionEnrichBalance(accID.String(), "@acc", "default", false, true, true)
+
+	resolver, resolveCalls := countingResolver([]uuid.UUID{accID}, nil)
+	loader, loaderCalls := countingLoader([]*mmodel.AccountException{
+		exc("exc-live", []string{"PIX_IN"}, nil, nil, nil),
+	}, nil)
+
+	applied, err := reevaluateAccountExceptionGrants(context.Background(), resolver, loader, nil,
+		org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal})
+
+	require.NoError(t, err)
+	require.NotNil(t, applied)
+	assert.Equal(t, "exc-live", *applied)
+	assert.Equal(t, 1, *resolveCalls)
+	assert.Equal(t, 1, *loaderCalls)
+
+	got := validate.From[key]
+	assert.True(t, got.BlockBypassGranted, "the grant must land on the side the script reads")
+	assert.Equal(t, "exc-live", got.GrantedExceptionID)
+}
+
+// TestReevaluateAccountExceptionGrants_ExpiredExceptionGrantsNothing is the
+// behaviour the revised ADR-004 exists for: an exception that was live when the
+// transaction was created but expired before the commit rescues nothing, and the
+// atomic script then denies the commit.
+func TestReevaluateAccountExceptionGrants_ExpiredExceptionGrantsNothing(t *testing.T) {
+	t.Parallel()
+
+	org, ledger := uuid.New(), uuid.New()
+	accID := uuid.New()
+
+	validate, key := fromValidate("@acc", "default")
+	bal := exceptionEnrichBalance(accID.String(), "@acc", "default", true, true, true)
+
+	expired := time.Now().UTC().Add(-time.Hour)
+
+	resolver, _ := countingResolver([]uuid.UUID{accID}, nil)
+	loader, loaderCalls := countingLoader([]*mmodel.AccountException{
+		exc("exc-expired", []string{"PIX_IN"}, nil, nil, &expired),
+	}, nil)
+
+	applied, err := reevaluateAccountExceptionGrants(context.Background(), resolver, loader, nil,
+		org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal})
+
+	require.NoError(t, err)
+	assert.Nil(t, applied, "an expired exception must not carry a grant into the commit")
+	assert.Equal(t, 1, *loaderCalls)
+	assert.False(t, validate.From[key].BlockBypassGranted)
+}
+
+// TestReevaluateAccountExceptionGrants_IndexUnavailableIsAnError encodes the
+// decision that an index we cannot read is an outage, not a verdict: the commit
+// fails as infrastructure (5xx) rather than being denied as blocked (0502) or
+// waved through as unblocked.
+func TestReevaluateAccountExceptionGrants_IndexUnavailableIsAnError(t *testing.T) {
+	t.Parallel()
+
+	org, ledger := uuid.New(), uuid.New()
+	acc := uuid.New().String()
+
+	validate, _ := fromValidate("@acc", "default")
+	bal := exceptionEnrichBalance(acc, "@acc", "default", false, true, true)
+
+	indexErr := errors.New("blocked accounts index unavailable")
+
+	resolver, _ := countingResolver(nil, indexErr)
+	loader, loaderCalls := countingLoader(nil, nil)
+
+	applied, err := reevaluateAccountExceptionGrants(context.Background(), resolver, loader, nil,
+		org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, indexErr, "the caller must be able to see the infrastructure cause")
+	assert.Nil(t, applied)
+	assert.Equal(t, 0, *loaderCalls, "an unreadable index must not be papered over with a store read")
+}
+
+// TestReevaluateAccountExceptionGrants_StoreFailureFailsClosed keeps the
+// existing fail-closed contract on the commit path: the exception store being
+// down grants nothing and does NOT fail the request — the atomic script denies
+// the blocked account by itself.
+func TestReevaluateAccountExceptionGrants_StoreFailureFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	org, ledger := uuid.New(), uuid.New()
+	accID := uuid.New()
+
+	validate, key := fromValidate("@acc", "default")
+	bal := exceptionEnrichBalance(accID.String(), "@acc", "default", false, true, true)
+
+	resolver, _ := countingResolver([]uuid.UUID{accID}, nil)
+	loader, loaderCalls := countingLoader(nil, errors.New("exception store is down"))
+
+	applied, err := reevaluateAccountExceptionGrants(context.Background(), resolver, loader, nil,
+		org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal})
+
+	require.NoError(t, err, "a store outage must not turn into a failed commit; the script decides")
+	assert.Nil(t, applied)
+	assert.Equal(t, 1, *loaderCalls)
+	assert.False(t, validate.From[key].BlockBypassGranted, "fail closed: no grant")
+}
+
+// TestReevaluateAccountExceptionGrants_ProbesOnlyParseableAccounts guards the
+// pre-read against a malformed account id: it is skipped rather than aborting
+// the commit, exactly as the enrichment already skips it.
+func TestReevaluateAccountExceptionGrants_ProbesOnlyParseableAccounts(t *testing.T) {
+	t.Parallel()
+
+	org, ledger := uuid.New(), uuid.New()
+
+	validate, _ := fromValidate("@acc", "default")
+	bal := exceptionEnrichBalance("not-a-uuid", "@acc", "default", false, true, true)
+
+	var probed []uuid.UUID
+
+	resolver := blockedAccountsResolver(func(_ context.Context, _, _ uuid.UUID, accountIDs []uuid.UUID) ([]uuid.UUID, error) {
+		probed = accountIDs
+		return nil, nil
+	})
+
+	loader, loaderCalls := countingLoader(nil, nil)
+
+	applied, err := reevaluateAccountExceptionGrants(context.Background(), resolver, loader, nil,
+		org, ledger, "PIX_IN", validate, []*mmodel.Balance{bal})
+
+	require.NoError(t, err)
+	assert.Nil(t, applied)
+	assert.Empty(t, probed, "an unparseable account id must never be sent to the index")
+	assert.Equal(t, 0, *loaderCalls)
 }

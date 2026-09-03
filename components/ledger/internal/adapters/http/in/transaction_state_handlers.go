@@ -388,6 +388,48 @@ func (handler *TransactionHandler) commitOrCancelTransaction(ctx context.Context
 		return nil, err
 	}
 
+	// Account-exception re-evaluation (REVISED ADR-004: evaluate at every mutation
+	// of balance). A commit moves money now, so the exception set that authorizes
+	// it is the one live NOW — an exception that expired while the transaction sat
+	// pending must no longer rescue it, and one created after the pending must.
+	// The operationalTypeCode is recovered from the persisted body, which is what
+	// makes the re-evaluation possible at all.
+	//
+	// A cancel is exempt and deliberately skipped: it returns the hold to the
+	// account's own available balance, so no money leaves a blocked account and
+	// the atomic script waives the gate for it. Probing the index here would be
+	// I/O spent on a decision already made.
+	if transactionStatus != constant.CANCELED {
+		commitAppliedExceptionID, exceptionErr := reevaluateAccountExceptionGrants(ctx,
+			handler.Command.TransactionRedisRepo.ResolveBlockedAccounts, handler.Query.GetActiveAccountExceptions,
+			handler.Command.MetricsFactory, organizationID, ledgerID,
+			transactionInput.OperationalTypeCode, validate, balances)
+		if exceptionErr != nil {
+			// Not knowing whether an account is blocked is an outage, never a
+			// verdict: this surfaces as infrastructure rather than as a 0502 the
+			// account may not deserve.
+			libOpentelemetry.HandleSpanError(span, "Failed to re-evaluate account exceptions", exceptionErr)
+			logger.Log(ctx, libLog.LevelError, "Failed to re-evaluate account exceptions", libLog.Err(exceptionErr))
+
+			deleteLockOnError()
+
+			return nil, exceptionErr
+		}
+
+		// The commit's own decision, recorded where an operator can find it. It is
+		// deliberately NOT written to the transaction body: the commit write path
+		// clears the body (CreateOrUpdateTransaction) and the repository UPDATE can
+		// only null it, so a field added there would be erased by the very request
+		// that computed it. The durable sink lands with the audit rework.
+		if commitAppliedExceptionID != nil {
+			span.SetAttributes(attribute.String("app.exception.commit_applied_exception_id", *commitAppliedExceptionID))
+
+			logger.Log(ctx, libLog.LevelInfo, "Commit granted a block bypass from a live account exception",
+				libLog.String("transaction_id", tran.ID),
+				libLog.String("applied_exception_id", *commitAppliedExceptionID))
+		}
+	}
+
 	balanceOps := buildBalanceOperations(ctx, organizationID, ledgerID, validate, balances)
 	balanceOps = annotateCanceledOverdraftAmounts(balanceOps, tran)
 

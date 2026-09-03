@@ -1309,9 +1309,12 @@ func (handler *TransactionHandler) executeCreateTransaction(ctx context.Context,
 	// operationalTypeCode) or one with no would-be-deny side returns nil with no
 	// I/O. A store failure fails closed (no grant) and the validators deny 0502/0024.
 	// The decision (first grant, deterministic order) is persisted on the record below.
+	// The blocked-account set is empty here: on the create path the block signal
+	// is still the balance projection the enrichment already reads. The commit
+	// path fills it from the index pre-read (reevaluateAccountExceptionGrants).
 	appliedExceptionID := enrichAccountExceptionGrants(ctx, handler.Query.GetActiveAccountExceptions,
 		handler.Command.MetricsFactory, params.OrganizationID, params.LedgerID,
-		transactionInput.OperationalTypeCode, validate, balances)
+		transactionInput.OperationalTypeCode, validate, balances, nil)
 
 	balanceOps := buildBalanceOperations(ctx, params.OrganizationID, params.LedgerID, validate, balances)
 
