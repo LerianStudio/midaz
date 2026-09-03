@@ -159,7 +159,7 @@ func newSyncHarness(t *testing.T, targetNames ...string) *syncHarness {
 	redisContainer := redistestutil.SetupReusableContainer(t)
 	redisConn := redistestutil.CreateConnectionWithDB(t, redisContainer.Addr, redisContainer.DB)
 
-	redisRepo, err := redisTx.NewConsumerRedis(redisConn)
+	redisRepo, err := redisTx.NewConsumerRedis(redisConn, unblockedAccountsSource{})
 	require.NoError(t, err, "should create the Redis repository")
 
 	sqlA := openIntegrationPool(t, pg.DSN)

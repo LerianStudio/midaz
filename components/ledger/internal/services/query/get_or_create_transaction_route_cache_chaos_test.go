@@ -100,7 +100,7 @@ func setupQueryChaosInfra(t *testing.T) *chaosQueryTestInfra {
 	// 7. Build Redis repo connected through Toxiproxy
 	proxyConn := redistestutil.CreateConnection(t, proxyAddr)
 
-	redisRepo, err := redis.NewConsumerRedis(proxyConn)
+	redisRepo, err := redis.NewConsumerRedis(proxyConn, unblockedAccountsSource{})
 	require.NoError(t, err, "failed to create Redis repository through proxy")
 
 	uc := &UseCase{
@@ -189,7 +189,7 @@ func setupDualProxyQueryChaosInfra(t *testing.T) *chaosDualProxyQueryTestInfra {
 	// Build Redis repo connected through Toxiproxy
 	proxyRedisConn := redistestutil.CreateConnection(t, redisContainerInfo.ProxyListen)
 
-	redisRepo, err := redis.NewConsumerRedis(proxyRedisConn)
+	redisRepo, err := redis.NewConsumerRedis(proxyRedisConn, unblockedAccountsSource{})
 	require.NoError(t, err, "failed to create Redis repository through proxy")
 
 	uc := &UseCase{

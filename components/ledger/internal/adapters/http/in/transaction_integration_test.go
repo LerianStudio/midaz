@@ -110,7 +110,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	// repository instead of nil-panicking into a generic 500.
 	operationRouteRepo := operationroute.NewOperationRoutePostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
-	redisRepo, err := redis.NewConsumerRedis(redisConn)
+	redisRepo, err := redis.NewConsumerRedis(redisConn, unblockedAccountsSource{})
 	require.NoError(t, err, "failed to create Redis repository")
 
 	// Store repositories for test assertions
@@ -675,7 +675,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn, false)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
-	redisRepo, err := redis.NewConsumerRedis(redisConn)
+	redisRepo, err := redis.NewConsumerRedis(redisConn, unblockedAccountsSource{})
 	require.NoError(t, err, "failed to create Redis repository")
 
 	// Store Redis repository for test assertions

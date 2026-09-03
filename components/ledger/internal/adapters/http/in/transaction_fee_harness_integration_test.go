@@ -132,7 +132,7 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	balanceRepo := balance.NewBalancePostgreSQLRepository(h.pgConn, false)
 	h.metaRepo = mongotxn.NewMetadataMongoDBRepository(mongoTxnConn)
 
-	redisRepo, err := redis.NewConsumerRedis(redisConn)
+	redisRepo, err := redis.NewConsumerRedis(redisConn, unblockedAccountsSource{})
 	require.NoError(t, err, "redis repo")
 	h.redisRepo = redisRepo
 

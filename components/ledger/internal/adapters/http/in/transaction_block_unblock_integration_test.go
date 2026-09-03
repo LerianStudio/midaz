@@ -87,7 +87,7 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 	operationRepo := operation.NewOperationPostgreSQLRepository(pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(pgConn, false)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
-	redisRepo, err := redis.NewConsumerRedis(redisConn)
+	redisRepo, err := redis.NewConsumerRedis(redisConn, unblockedAccountsSource{})
 	require.NoError(t, err, "failed to create Redis repository")
 
 	// The create path resolves ledger settings via the onboarding Redis cache

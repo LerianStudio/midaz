@@ -43,7 +43,7 @@ func setupCacheTestInfra(t *testing.T) *cacheTestInfra {
 	container := redistestutil.SetupReusableContainer(t)
 	conn := redistestutil.CreateConnectionWithDB(t, container.Addr, container.DB)
 
-	redisRepo, err := redis.NewConsumerRedis(conn)
+	redisRepo, err := redis.NewConsumerRedis(conn, unblockedAccountsSource{})
 	require.NoError(t, err, "failed to create Redis repository")
 
 	uc := &UseCase{

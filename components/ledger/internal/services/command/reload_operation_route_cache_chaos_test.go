@@ -106,7 +106,7 @@ func setupReloadChaosInfra(t *testing.T) *chaosReloadTestInfra {
 	// 7. Build Redis repo connected through Toxiproxy
 	proxyClient := redistestutil.CreateConnection(t, proxyAddr)
 
-	redisRepo, err := redis.NewConsumerRedis(proxyClient)
+	redisRepo, err := redis.NewConsumerRedis(proxyClient, unblockedAccountsSource{})
 	require.NoError(t, err, "failed to create Redis repository through proxy")
 
 	uc := &UseCase{

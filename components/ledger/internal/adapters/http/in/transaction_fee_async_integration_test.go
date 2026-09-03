@@ -104,7 +104,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	balanceRepo := balance.NewBalancePostgreSQLRepository(pgConn, false)
 	metaRepo := mongotxn.NewMetadataMongoDBRepository(mongoConn)
 	onbMetaRepo := mongoonb.NewMetadataMongoDBRepository(mongoConn)
-	redisRepo, err := redis.NewConsumerRedis(redisConn)
+	redisRepo, err := redis.NewConsumerRedis(redisConn, unblockedAccountsSource{})
 	require.NoError(t, err)
 
 	orgRepo := organization.NewOrganizationPostgreSQLRepository(pgConn)
