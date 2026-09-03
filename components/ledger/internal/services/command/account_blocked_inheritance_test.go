@@ -598,6 +598,14 @@ func TestResolveAccountBlockedState(t *testing.T) {
 			wantFound: false,
 		},
 		{
+			// The real repository contract: Find never returns (nil, nil) for a
+			// missing row — sql.ErrNoRows is mapped to an EntityNotFoundError.
+			// That must read as not-found, not propagate as an infra failure.
+			name:      "not-found business error is reported as not found, not propagated",
+			repoErr:   pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount),
+			wantFound: false,
+		},
+		{
 			name:        "nil blocked column reads as not blocked",
 			record:      &mmodel.Account{Blocked: nil},
 			wantBlocked: false,
@@ -688,6 +696,26 @@ func TestReconcileBalanceAccountBlocked(t *testing.T) {
 
 		// No UpdateAccountBlockedByAccountID expectation: realigning the
 		// balances of an account that no longer exists is meaningless.
+		require.NoError(t, uc.reconcileBalanceAccountBlocked(context.Background(), organizationID, ledgerID, accountID, true))
+	})
+
+	t.Run("account not-found error during the re-read leaves nothing to converge", func(t *testing.T) {
+		t.Parallel()
+
+		uc, accountRepo, _ := newBlockProjectionHelperFixture(t)
+		organizationID, ledgerID, accountID := uuid.New(), uuid.New(), uuid.New()
+
+		// A concurrent delete surfaces the way the repository actually reports a
+		// missing row: an EntityNotFoundError, not (nil, nil). The !found no-op
+		// branch must still be reached so a durable balance write is not undone
+		// by a spurious error.
+		accountRepo.EXPECT().
+			Find(gomock.Any(), organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1).
+			Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)).
+			Times(1)
+
+		// No UpdateAccountBlockedByAccountID expectation: a concurrently deleted
+		// account has nothing to realign.
 		require.NoError(t, uc.reconcileBalanceAccountBlocked(context.Background(), organizationID, ledgerID, accountID, true))
 	})
 

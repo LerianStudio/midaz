@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v2"
 	libLog "github.com/LerianStudio/lib-observability/v2/log"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
@@ -53,6 +55,17 @@ func (uc *UseCase) resolveAccountBlockedState(ctx context.Context, organizationI
 
 	acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1)
 	if err != nil {
+		// A missing account is not an infrastructure failure: Find maps
+		// sql.ErrNoRows to pkg.ValidateBusinessError(ErrEntityNotFound,
+		// EntityAccount), an EntityNotFoundError. Report it as not-found so the
+		// re-verification leg can no-op on a concurrently deleted account
+		// instead of failing the creation after durable writes. Detection
+		// mirrors the rest of this package (see update_balance_overdraft.go).
+		var notFound pkg.EntityNotFoundError
+		if errors.As(err, &notFound) {
+			return false, false, nil
+		}
+
 		libOpentelemetry.HandleSpanError(span, "Failed to read account block state", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to read account block state",
 			libLog.String("account_id", accountID.String()),
