@@ -241,13 +241,24 @@ type RedisRepository interface {
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
 type RedisConsumerRepository struct {
 	conn redisClientProvider
+
+	// blockedAccountsSource rebuilds the blocked-accounts index when the atomic
+	// script reports it unhydrated. A nil source is NOT "no blocked accounts":
+	// it makes the index unrepairable, and the gate then refuses every
+	// transaction rather than guess. See rehydrateBlockedAccounts.
+	blockedAccountsSource BlockedAccountsSource
 }
 
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
 // Balance sync is always enabled - balances are scheduled for sync to PostgreSQL.
-func NewConsumerRedis(rc redisClientProvider) (*RedisConsumerRepository, error) {
+//
+// blockedAccountsSource is a required collaborator, not an option: the atomic
+// block gate cannot serve a ledger whose index it cannot rebuild, so making the
+// caller supply it turns a fail-closed runtime outage into a compile error.
+func NewConsumerRedis(rc redisClientProvider, blockedAccountsSource BlockedAccountsSource) (*RedisConsumerRepository, error) {
 	r := &RedisConsumerRepository{
-		conn: rc,
+		conn:                  rc,
+		blockedAccountsSource: blockedAccountsSource,
 	}
 	if _, err := r.conn.GetClient(context.Background()); err != nil {
 		return nil, fmt.Errorf("failed to connect on redis: %w", err)
@@ -1072,6 +1083,11 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	finalArgs := plan.args
 
 	result, err := rr.runBalanceAtomicScript(ctx, rds, prefixedKeys, finalArgs)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err = rr.resolveBlockGate(ctx, span, rds, prefixedKeys, finalArgs, organizationID, ledgerID, result)
 	if err != nil {
 		return nil, err
 	}

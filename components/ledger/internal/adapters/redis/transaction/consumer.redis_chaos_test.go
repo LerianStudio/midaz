@@ -98,7 +98,8 @@ func setupRedisChaosNetworkInfra(t *testing.T) *chaosNetworkTestInfra {
 	proxyConn := redistestutil.CreateConnection(t, proxyAddr)
 
 	proxyRepo := &RedisConsumerRepository{
-		conn: proxyConn,
+		conn:                  proxyConn,
+		blockedAccountsSource: emptyBlockedAccountsSource(),
 	}
 
 	return &chaosNetworkTestInfra{

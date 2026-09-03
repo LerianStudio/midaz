@@ -617,7 +617,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to initialize onboarding redis consumer: %w", err)
 	}
 
-	txnRedisRepo, err := txRedis.NewConsumerRedis(redisConnection)
+	// The account repository is the source of truth the blocked-accounts index
+	// is rebuilt from when the atomic block gate finds it unhydrated. It is
+	// already constructed above (onboarding Postgres, step 3), well before Redis.
+	txnRedisRepo, err := txRedis.NewConsumerRedis(redisConnection, onbPG.accountRepo)
 	if err != nil {
 		doCleanup()
 		return nil, fmt.Errorf("failed to initialize transaction redis consumer: %w", err)

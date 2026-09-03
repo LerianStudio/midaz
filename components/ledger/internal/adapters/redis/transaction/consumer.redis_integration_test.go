@@ -100,7 +100,8 @@ func setupRedisIntegrationInfraWithContainer(
 
 	// Create repository
 	repo := &RedisConsumerRepository{
-		conn: conn,
+		conn:                  conn,
+		blockedAccountsSource: emptyBlockedAccountsSource(),
 	}
 
 	return &integrationTestInfra{
@@ -121,7 +122,8 @@ func setupRedisChaosInfra(t *testing.T) *chaosTestInfra {
 
 	// Create repository
 	repo := &RedisConsumerRepository{
-		conn: conn,
+		conn:                  conn,
+		blockedAccountsSource: emptyBlockedAccountsSource(),
 	}
 
 	// Create chaos orchestrator
@@ -165,7 +167,8 @@ func setupRedisNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	proxyConn := redistestutil.CreateConnection(t, proxyAddr)
 
 	proxyRepo := &RedisConsumerRepository{
-		conn: proxyConn,
+		conn:                  proxyConn,
+		blockedAccountsSource: emptyBlockedAccountsSource(),
 	}
 
 	return &networkChaosTestInfra{

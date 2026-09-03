@@ -701,3 +701,138 @@ func TestProcessBalanceOperations_SkipsValidationWhenTransactionInputNil(t *test
 	require.NotNil(t, result)
 	assert.Len(t, result.Before, 1)
 }
+
+// TestProcessBalanceOperations_AtomicGateDenialMapsTo0502 pins the client
+// contract across the move of the enforcement point. The block gate now lives
+// inside the Lua script, but a caller must still see the same 0502 the Go
+// validators used to emit — the enforcement point changed, the error did not.
+func TestProcessBalanceOperations_AtomicGateDenialMapsTo0502(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	uc := UseCase{TransactionRedisRepo: mockRedisRepo}
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	blockedAccountID := uuid.New()
+
+	balance := &mmodel.Balance{
+		ID:             uuid.New().String(),
+		AccountID:      blockedAccountID.String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		Alias:          "alias1",
+		Key:            "default",
+		Available:      decimal.NewFromInt(100),
+		OnHold:         decimal.Zero,
+		Version:        1,
+		AccountType:    "deposit",
+		AllowSending:   true,
+		AllowReceiving: true,
+		AssetCode:      "USD",
+	}
+
+	balanceOps := []mmodel.BalanceOperation{
+		{
+			Balance: balance,
+			Alias:   "0#alias1#default",
+			Amount: mtransaction.Amount{
+				Asset:     "USD",
+				Value:     decimal.NewFromInt(50),
+				Operation: constant.DEBIT,
+			},
+			InternalKey: utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default"),
+		},
+	}
+
+	mockRedisRepo.EXPECT().
+		ProcessBalanceAtomicOperation(
+			gomock.Any(), organizationID, ledgerID, gomock.Any(),
+			constant.APPROVED, false, gomock.Any(),
+		).
+		Return(nil, redis.AccountBlockedError{AccountID: blockedAccountID.String()})
+
+	_, err := uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		TransactionID:     uuid.New(),
+		TransactionInput:  nil, // state transition — the gate is the only check left
+		Validate:          &mtransaction.Responses{},
+		BalanceOperations: balanceOps,
+		TransactionStatus: constant.APPROVED,
+	})
+
+	require.Error(t, err)
+	assert.True(t, isBlockedAccountRejection(err),
+		"the atomic gate's denial must reach the caller as the 0502 business error")
+}
+
+// TestProcessBalanceOperations_IndexUnavailableIsNotADenial is the other half of
+// the contract: a block that could not be CONFIRMED is an infrastructure
+// failure, so it must NOT be dressed up as 0502. Reporting unavailability as a
+// business rejection would tell an operator the account is blocked when the
+// truth is that nobody knows.
+func TestProcessBalanceOperations_IndexUnavailableIsNotADenial(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	uc := UseCase{TransactionRedisRepo: mockRedisRepo}
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	balanceOps := []mmodel.BalanceOperation{
+		{
+			Balance: &mmodel.Balance{
+				ID:             uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Alias:          "alias1",
+				Key:            "default",
+				Available:      decimal.NewFromInt(100),
+				OnHold:         decimal.Zero,
+				Version:        1,
+				AccountType:    "deposit",
+				AllowSending:   true,
+				AllowReceiving: true,
+				AssetCode:      "USD",
+			},
+			Alias: "0#alias1#default",
+			Amount: mtransaction.Amount{
+				Asset:     "USD",
+				Value:     decimal.NewFromInt(50),
+				Operation: constant.DEBIT,
+			},
+			InternalKey: utils.BalanceInternalKey(organizationID, ledgerID, "alias1#default"),
+		},
+	}
+
+	mockRedisRepo.EXPECT().
+		ProcessBalanceAtomicOperation(
+			gomock.Any(), organizationID, ledgerID, gomock.Any(),
+			constant.APPROVED, false, gomock.Any(),
+		).
+		Return(nil, redis.ErrBlockedAccountsIndexUnavailable)
+
+	_, err := uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
+		OrganizationID:    organizationID,
+		LedgerID:          ledgerID,
+		TransactionID:     uuid.New(),
+		TransactionInput:  nil,
+		Validate:          &mtransaction.Responses{},
+		BalanceOperations: balanceOps,
+		TransactionStatus: constant.APPROVED,
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, redis.ErrBlockedAccountsIndexUnavailable)
+	assert.False(t, isBlockedAccountRejection(err),
+		"an unavailable index must never be reported as a 0502 denial")
+}

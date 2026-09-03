@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -113,6 +114,29 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 		input.BalanceOperations,
 	)
 	if err != nil {
+		// The atomic script is the authoritative block gate. A denial there is
+		// the SAME 0502 the Go validators emit, so moving the enforcement point
+		// into the script does not move the client contract: the caller cannot
+		// tell which layer refused.
+		//
+		// Only a CONFIRMED block maps here. txRedis.ErrBlockedAccountsIndexUnavailable
+		// deliberately falls through to the generic branch below and reaches the
+		// caller as an infrastructure failure, because an index that could not
+		// answer is an outage, not a rejection.
+		var blockedErr txRedis.AccountBlockedError
+		if errors.As(err, &blockedErr) {
+			mappedErr := pkg.ValidateBusinessError(constant.ErrAccountBlockedTransactionRestriction, "validateBalance")
+
+			span.SetAttributes(attribute.String("app.blocked_account_id", blockedErr.AccountID))
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Atomic gate denied a blocked account", mappedErr)
+			logger.Log(ctx, libLog.LevelWarn, "Transaction denied: account is blocked",
+				libLog.String("account_id", blockedErr.AccountID))
+
+			utils.RecordBlockedAccountRejection(ctx, uc.MetricsFactory, logger, "ledger")
+
+			return nil, mappedErr
+		}
+
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute atomic balance operation", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to execute atomic balance operation", libLog.Err(err))
 
