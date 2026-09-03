@@ -195,6 +195,46 @@ type RedisRepository interface {
 	// the freshly-propagated flag. A corrupt (non-JSON) cached blob aborts the
 	// whole batch before any write and surfaces as an error (fail-closed).
 	SetAccountBlockedMany(ctx context.Context, keys []string, blocked bool) error
+	// AddBlockedAccount adds an account to the ledger's blocked-accounts SET
+	// (utils.BlockedAccountsInternalKey) with SADD. This is the enforcement
+	// index the balance atomic script consults, so the write is what actually
+	// makes the block effective — it runs BEFORE the source-of-truth update.
+	//
+	// SADD is idempotent by nature: re-blocking an already-blocked account is a
+	// no-op that reports success, which is what lets a partially failed block be
+	// retried safely.
+	AddBlockedAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error
+	// RemoveBlockedAccount removes an account from the ledger's blocked-accounts
+	// SET with SREM. It is the ONLY operation that ever removes a member: the
+	// hydration path is strictly additive.
+	//
+	// SREM is idempotent by nature, so unblocking an account that is not in the
+	// index reports success.
+	RemoveBlockedAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error
+	// IsHydratedAndBlocked answers, in ONE SMISMEMBER round-trip, whether the
+	// ledger's blocked-accounts SET is hydrated and which of accountIDs it holds.
+	//
+	// The hydration sentinel is asked about together with the accounts precisely
+	// so the two answers cannot come from different moments in time. When the
+	// sentinel is absent the SET is not a usable index — it may have been lost to
+	// a restart — and the method reports hydrated=false with NO membership
+	// answer at all: the caller MUST hydrate and ask again, never treat the
+	// silence as "nothing is blocked".
+	IsHydratedAndBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (bool, []uuid.UUID, error)
+	// HydrateBlockedAccounts rebuilds the ledger's blocked-accounts SET from the
+	// account IDs read out of the source of truth, then marks it hydrated.
+	//
+	// The rebuild is ADDITIVE and never issues DEL: an account blocked
+	// concurrently with the hydration must survive it, and dropping a member is
+	// the one failure mode the whole design refuses (it would let a blocked
+	// account transact). Members go in chunked; the sentinel goes in LAST and
+	// only if every chunk landed, so an interrupted hydration leaves an index
+	// that still announces itself as incomplete.
+	//
+	// An empty accountIDs slice is NOT a no-op: a ledger with no blocked accounts
+	// is a fully-known state and still gets the sentinel, otherwise every
+	// transaction on it would re-hydrate forever.
+	HydrateBlockedAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) error
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -1840,6 +1880,240 @@ func (rr *RedisConsumerRepository) SetAccountBlockedMany(ctx context.Context, ke
 	logger.Log(ctx, libLog.LevelDebug, "Balance cache account-blocked flag updated in place",
 		libLog.Int("requested", len(keys)),
 		libLog.Bool("blocked", blocked))
+
+	return nil
+}
+
+// blockedAccountsTarget resolves the two things every blocked-accounts SET
+// operation needs: the tenant-namespaced key and a live client. It exists so the
+// four operations below cannot drift on either — a key built without the tenant
+// prefix would read another tenant's index.
+func (rr *RedisConsumerRepository) blockedAccountsTarget(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	organizationID, ledgerID uuid.UUID,
+) (string, redis.UniversalClient, error) {
+	key, err := tenantKeyFromContextOrError(ctx, utils.BlockedAccountsInternalKey(organizationID, ledgerID))
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
+
+		return "", nil, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return "", nil, err
+	}
+
+	return key, rds, nil
+}
+
+// blockedAccountsSpanScope stamps the ledger scope every blocked-accounts
+// operation is traced under.
+func blockedAccountsSpanScope(span trace.Span, organizationID, ledgerID uuid.UUID) {
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+}
+
+// AddBlockedAccount adds an account to the ledger's blocked-accounts SET.
+// See RedisRepository.AddBlockedAccount for the contract.
+func (rr *RedisConsumerRepository) AddBlockedAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.add_blocked_account")
+	defer span.End()
+
+	blockedAccountsSpanScope(span, organizationID, ledgerID)
+	span.SetAttributes(attribute.String("app.request.account_id", accountID.String()))
+
+	key, rds, err := rr.blockedAccountsTarget(ctx, span, logger, organizationID, ledgerID)
+	if err != nil {
+		return err
+	}
+
+	if err := rds.SAdd(ctx, key, accountID.String()).Err(); err != nil {
+		wrapped := fmt.Errorf("failed to add account to blocked accounts set: %w", err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to add account to blocked accounts set", wrapped)
+		logger.Log(ctx, libLog.LevelError, "Failed to add account to blocked accounts set",
+			libLog.String("account_id", accountID.String()), libLog.Err(err))
+
+		return wrapped
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, "Account added to blocked accounts set",
+		libLog.String("account_id", accountID.String()))
+
+	return nil
+}
+
+// RemoveBlockedAccount removes an account from the ledger's blocked-accounts SET.
+// See RedisRepository.RemoveBlockedAccount for the contract.
+func (rr *RedisConsumerRepository) RemoveBlockedAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.remove_blocked_account")
+	defer span.End()
+
+	blockedAccountsSpanScope(span, organizationID, ledgerID)
+	span.SetAttributes(attribute.String("app.request.account_id", accountID.String()))
+
+	key, rds, err := rr.blockedAccountsTarget(ctx, span, logger, organizationID, ledgerID)
+	if err != nil {
+		return err
+	}
+
+	if err := rds.SRem(ctx, key, accountID.String()).Err(); err != nil {
+		wrapped := fmt.Errorf("failed to remove account from blocked accounts set: %w", err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to remove account from blocked accounts set", wrapped)
+		logger.Log(ctx, libLog.LevelError, "Failed to remove account from blocked accounts set",
+			libLog.String("account_id", accountID.String()), libLog.Err(err))
+
+		return wrapped
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, "Account removed from blocked accounts set",
+		libLog.String("account_id", accountID.String()))
+
+	return nil
+}
+
+// IsHydratedAndBlocked probes the hydration sentinel and the given accounts in a
+// single SMISMEMBER. See RedisRepository.IsHydratedAndBlocked for the contract.
+func (rr *RedisConsumerRepository) IsHydratedAndBlocked(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	accountIDs []uuid.UUID,
+) (bool, []uuid.UUID, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.is_hydrated_and_blocked")
+	defer span.End()
+
+	blockedAccountsSpanScope(span, organizationID, ledgerID)
+	span.SetAttributes(attribute.Int("app.request.accounts", len(accountIDs)))
+
+	key, rds, err := rr.blockedAccountsTarget(ctx, span, logger, organizationID, ledgerID)
+	if err != nil {
+		return false, nil, err
+	}
+
+	// The sentinel occupies index 0 so its answer stays positionally
+	// unambiguous no matter how many accounts follow it.
+	members := make([]any, 0, len(accountIDs)+1)
+	members = append(members, utils.BlockedAccountsHydratedMember)
+
+	for _, accountID := range accountIDs {
+		members = append(members, accountID.String())
+	}
+
+	found, err := rds.SMIsMember(ctx, key, members...).Result()
+	if err != nil {
+		wrapped := fmt.Errorf("failed to probe blocked accounts set: %w", err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to probe blocked accounts set", wrapped)
+		logger.Log(ctx, libLog.LevelError, "Failed to probe blocked accounts set", libLog.Err(err))
+
+		return false, nil, wrapped
+	}
+
+	// A short reply cannot be decoded positionally without silently shifting
+	// every answer onto the wrong account, so it is an error, not a guess.
+	if len(found) != len(members) {
+		arityErr := fmt.Errorf("blocked accounts set returned %d answers for %d members", len(found), len(members))
+
+		libOpentelemetry.HandleSpanError(span, "Unexpected arity from blocked accounts set probe", arityErr)
+		logger.Log(ctx, libLog.LevelError, "Unexpected arity from blocked accounts set probe", libLog.Err(arityErr))
+
+		return false, nil, arityErr
+	}
+
+	hydrated := found[0]
+	span.SetAttributes(attribute.Bool("app.blocked_accounts.hydrated", hydrated))
+
+	// Without the sentinel the SET says nothing about any account: handing back a
+	// partial membership answer here is exactly how a lost index would read as
+	// "nothing is blocked".
+	if !hydrated {
+		return false, nil, nil
+	}
+
+	var blocked []uuid.UUID
+
+	for i, accountID := range accountIDs {
+		if found[i+1] {
+			blocked = append(blocked, accountID)
+		}
+	}
+
+	span.SetAttributes(attribute.Int("app.blocked_accounts.matched", len(blocked)))
+
+	return true, blocked, nil
+}
+
+// HydrateBlockedAccounts rebuilds the ledger's blocked-accounts SET additively.
+// See RedisRepository.HydrateBlockedAccounts for the contract.
+func (rr *RedisConsumerRepository) HydrateBlockedAccounts(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	accountIDs []uuid.UUID,
+) error {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.hydrate_blocked_accounts")
+	defer span.End()
+
+	blockedAccountsSpanScope(span, organizationID, ledgerID)
+	span.SetAttributes(attribute.Int("app.request.accounts", len(accountIDs)))
+
+	key, rds, err := rr.blockedAccountsTarget(ctx, span, logger, organizationID, ledgerID)
+	if err != nil {
+		return err
+	}
+
+	// Chunked SADD, never DEL: the SET is rebuilt on top of whatever is already
+	// there, so a block that landed while this hydration was in flight survives.
+	for start := 0; start < len(accountIDs); start += maxRedisBatchSize {
+		end := min(start+maxRedisBatchSize, len(accountIDs))
+
+		chunk := make([]any, 0, end-start)
+		for _, accountID := range accountIDs[start:end] {
+			chunk = append(chunk, accountID.String())
+		}
+
+		if err := rds.SAdd(ctx, key, chunk...).Err(); err != nil {
+			wrapped := fmt.Errorf("failed to hydrate blocked accounts set: %w", err)
+
+			libOpentelemetry.HandleSpanError(span, "Failed to hydrate blocked accounts set", wrapped)
+			logger.Log(ctx, libLog.LevelError, "Failed to hydrate blocked accounts set",
+				libLog.Int("chunk_start", start), libLog.Err(err))
+
+			return wrapped
+		}
+	}
+
+	// The sentinel is the LAST write and is reached only when every member
+	// landed: that is what makes an interrupted hydration detectable instead of
+	// silently authoritative.
+	if err := rds.SAdd(ctx, key, utils.BlockedAccountsHydratedMember).Err(); err != nil {
+		wrapped := fmt.Errorf("failed to mark blocked accounts set as hydrated: %w", err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to mark blocked accounts set as hydrated", wrapped)
+		logger.Log(ctx, libLog.LevelError, "Failed to mark blocked accounts set as hydrated", libLog.Err(err))
+
+		return wrapped
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, "Blocked accounts set hydrated",
+		libLog.Int("accounts", len(accountIDs)))
 
 	return nil
 }

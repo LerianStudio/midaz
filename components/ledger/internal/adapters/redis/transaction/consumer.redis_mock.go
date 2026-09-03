@@ -44,6 +44,20 @@ func (m *MockRedisRepository) EXPECT() *MockRedisRepositoryMockRecorder {
 	return m.recorder
 }
 
+// AddBlockedAccount mocks base method.
+func (m *MockRedisRepository) AddBlockedAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddBlockedAccount", ctx, organizationID, ledgerID, accountID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddBlockedAccount indicates an expected call of AddBlockedAccount.
+func (mr *MockRedisRepositoryMockRecorder) AddBlockedAccount(ctx, organizationID, ledgerID, accountID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBlockedAccount", reflect.TypeOf((*MockRedisRepository)(nil).AddBlockedAccount), ctx, organizationID, ledgerID, accountID)
+}
+
 // AddMessageToQueue mocks base method.
 func (m *MockRedisRepository) AddMessageToQueue(ctx context.Context, key string, msg []byte) error {
 	m.ctrl.T.Helper()
@@ -161,6 +175,20 @@ func (mr *MockRedisRepositoryMockRecorder) GetBytes(ctx, key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBytes", reflect.TypeOf((*MockRedisRepository)(nil).GetBytes), ctx, key)
 }
 
+// HydrateBlockedAccounts mocks base method.
+func (m *MockRedisRepository) HydrateBlockedAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HydrateBlockedAccounts", ctx, organizationID, ledgerID, accountIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// HydrateBlockedAccounts indicates an expected call of HydrateBlockedAccounts.
+func (mr *MockRedisRepositoryMockRecorder) HydrateBlockedAccounts(ctx, organizationID, ledgerID, accountIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HydrateBlockedAccounts", reflect.TypeOf((*MockRedisRepository)(nil).HydrateBlockedAccounts), ctx, organizationID, ledgerID, accountIDs)
+}
+
 // Incr mocks base method.
 func (m *MockRedisRepository) Incr(ctx context.Context, key string) int64 {
 	m.ctrl.T.Helper()
@@ -188,6 +216,22 @@ func (m *MockRedisRepository) IncrementBackupAttempt(ctx context.Context, key st
 func (mr *MockRedisRepositoryMockRecorder) IncrementBackupAttempt(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementBackupAttempt", reflect.TypeOf((*MockRedisRepository)(nil).IncrementBackupAttempt), ctx, key)
+}
+
+// IsHydratedAndBlocked mocks base method.
+func (m *MockRedisRepository) IsHydratedAndBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) (bool, []uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsHydratedAndBlocked", ctx, organizationID, ledgerID, accountIDs)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].([]uuid.UUID)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// IsHydratedAndBlocked indicates an expected call of IsHydratedAndBlocked.
+func (mr *MockRedisRepositoryMockRecorder) IsHydratedAndBlocked(ctx, organizationID, ledgerID, accountIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsHydratedAndBlocked", reflect.TypeOf((*MockRedisRepository)(nil).IsHydratedAndBlocked), ctx, organizationID, ledgerID, accountIDs)
 }
 
 // ListBalanceByKey mocks base method.
@@ -278,6 +322,20 @@ func (m *MockRedisRepository) RemoveBalanceSyncKeysBatch(ctx context.Context, ke
 func (mr *MockRedisRepositoryMockRecorder) RemoveBalanceSyncKeysBatch(ctx, keys any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveBalanceSyncKeysBatch", reflect.TypeOf((*MockRedisRepository)(nil).RemoveBalanceSyncKeysBatch), ctx, keys)
+}
+
+// RemoveBlockedAccount mocks base method.
+func (m *MockRedisRepository) RemoveBlockedAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveBlockedAccount", ctx, organizationID, ledgerID, accountID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveBlockedAccount indicates an expected call of RemoveBlockedAccount.
+func (mr *MockRedisRepositoryMockRecorder) RemoveBlockedAccount(ctx, organizationID, ledgerID, accountID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveBlockedAccount", reflect.TypeOf((*MockRedisRepository)(nil).RemoveBlockedAccount), ctx, organizationID, ledgerID, accountID)
 }
 
 // RemoveMessageFromQueue mocks base method.
