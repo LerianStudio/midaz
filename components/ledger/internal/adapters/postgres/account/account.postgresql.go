@@ -113,6 +113,11 @@ type Repository interface {
 	// ListExternalAccountsByAssetCode returns the live (not soft-deleted) accounts of
 	// type external for the given asset code within the organization and ledger.
 	ListExternalAccountsByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, assetCode string) ([]*mmodel.Account, error)
+	// ListBlockedAccountIDs returns the IDs of every live blocked account of the
+	// ledger — the source-of-truth read that hydrates the blocked-accounts Redis
+	// SET. It is unpaged on purpose: a truncated result would hydrate an index
+	// that reports itself complete while missing blocked accounts.
+	ListBlockedAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]uuid.UUID, error)
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
 	// CountByHolderID returns the number of non-deleted accounts owned by the
 	// holder within the organization, across all ledgers. It backs the CRM
@@ -1480,6 +1485,108 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 	span.SetAttributes(attribute.Int("db.rows_returned", len(accounts)))
 
 	return accounts, nil
+}
+
+// blockedAccountIDsQuery builds the hydration read behind ListBlockedAccountIDs.
+// It is separate from the execution so the shape of the statement — one ledger,
+// live rows only, no pagination — is assertable without a database.
+func (r *AccountPostgreSQLRepository) blockedAccountIDsQuery(organizationID, ledgerID uuid.UUID) (string, []any, error) {
+	return squirrel.Select("id").
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"blocked": true}).
+		Where(squirrel.Expr("deleted_at IS NULL")).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+}
+
+// ListBlockedAccountIDs returns the IDs of every live blocked account of the
+// ledger. It is the source-of-truth read that hydrates the blocked-accounts
+// Redis SET, the index the transactional hot path enforces against.
+//
+// The read is deliberately unpaged: the SET is only marked hydrated once every
+// member landed, so a truncated result would produce an index that claims to be
+// complete while missing blocked accounts — the one failure direction the whole
+// design refuses. The blocked population is small by nature (blocking is an
+// exceptional, operator-driven act) and hydration is rare, so the full scan is
+// affordable; the SADD side chunks the write.
+//
+// No partial index on (organization_id, ledger_id) WHERE blocked is added for
+// this query: it runs only on hydration. Revisit if telemetry shows the cost.
+func (r *AccountPostgreSQLRepository) ListBlockedAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]uuid.UUID, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_blocked_account_ids")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+	)
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
+
+		return nil, err
+	}
+
+	query, args, err := r.blockedAccountIDsQuery(organizationID, ledgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to build query", libLog.Err(err))
+
+		return nil, err
+	}
+
+	_, spanQuery := tracer.Start(ctx, "postgres.list_blocked_account_ids.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		mapped := mapReadError(err)
+
+		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(mapped))
+
+		spanQuery.End()
+
+		return nil, mapped
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	var accountIDs []uuid.UUID
+
+	for rows.Next() {
+		var accountID uuid.UUID
+		if err := rows.Scan(&accountID); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
+
+			logger.Log(ctx, libLog.LevelError, "Failed to scan row", libLog.Err(err))
+
+			return nil, err
+		}
+
+		accountIDs = append(accountIDs, accountID)
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to iterate rows", libLog.Err(err))
+
+		return nil, err
+	}
+
+	span.SetAttributes(attribute.Int("db.rows_returned", len(accountIDs)))
+
+	return accountIDs, nil
 }
 
 // Count retrieves the count of accounts from the database.

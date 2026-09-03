@@ -222,6 +222,21 @@ func (mr *MockRepositoryMockRecorder) ListAccountsByIDs(ctx, organizationID, led
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAccountsByIDs", reflect.TypeOf((*MockRepository)(nil).ListAccountsByIDs), ctx, organizationID, ledgerID, ids)
 }
 
+// ListBlockedAccountIDs mocks base method.
+func (m *MockRepository) ListBlockedAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListBlockedAccountIDs", ctx, organizationID, ledgerID)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListBlockedAccountIDs indicates an expected call of ListBlockedAccountIDs.
+func (mr *MockRepositoryMockRecorder) ListBlockedAccountIDs(ctx, organizationID, ledgerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBlockedAccountIDs", reflect.TypeOf((*MockRepository)(nil).ListBlockedAccountIDs), ctx, organizationID, ledgerID)
+}
+
 // ListByAlias mocks base method.
 func (m *MockRepository) ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
 	m.ctrl.T.Helper()
