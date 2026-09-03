@@ -117,8 +117,8 @@ func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransaction
 	// through WriteTransaction. It MUST NOT be a := rebind.
 	validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate fee-inclusive send source and distribute", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to validate fee-inclusive send source and distribute", libLog.Err(err))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate normalized send source and distribute", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate normalized send source and distribute", libLog.Err(err))
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
 
