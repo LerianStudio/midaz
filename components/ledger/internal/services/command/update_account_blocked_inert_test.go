@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -21,17 +22,27 @@ import (
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// The legacy PATCH /accounts blocked field used to write the account row and
-// stop there, leaving every balance of the account carrying the old projection
-// and every cached balance serving it. It now delegates to the same
-// setAccountBlockState helper the dedicated block/unblock endpoints use, so
-// there is exactly one code path with one set of convergence guarantees.
+// =============================================================================
+// PATCH /accounts — THE blocked FIELD IS INERT
+// =============================================================================
+// The blocked field on UpdateAccountInput is retained ONLY so clients that still
+// send it keep getting a 200 (the body decoder rejects unknown keys, so deleting
+// the field would turn `"blocked": true` into a 400). It carries no effect.
+//
+// That is a security property, not a cosmetic one: PATCH is governed by the
+// ("accounts", "patch") authz tuple, while block/unblock are governed by the
+// dedicated ("account-blocks", "post") tuple. An effectful blocked field on the
+// PATCH body would let an operator granted only account edit rights freeze — or
+// worse, release — an account they were never granted power over.
+//
+// So these tests assert ABSENCE: no durable block write, no enforcement-index
+// write, no legacy projection write, in either direction.
 
-// patchBlockFixture wires the UpdateAccount surface plus the propagation and
-// cache-eviction ports the delegation reaches.
+// patchBlockFixture wires the UpdateAccount surface plus every port a block
+// transition WOULD reach. All of them are left unarmed on purpose: the gomock
+// controller fails the test if the update path touches any of them.
 type patchBlockFixture struct {
 	t           *testing.T
 	uc          *UseCase
@@ -118,104 +129,79 @@ func newPatchBlockFixture(t *testing.T, current *bool) *patchBlockFixture {
 	return f
 }
 
-// expectPropagation arms the blocked-accounts index write, the balance-wide
-// projection UPDATE and the atomic multi-key cache eviction the helper performs.
-func (f *patchBlockFixture) expectPropagation(blocked bool) {
-	if blocked {
-		f.redisRepo.EXPECT().
-			AddBlockedAccount(gomock.Any(), f.organizationID, f.ledgerID, f.accountID).
-			Return(nil).
-			Times(1)
-	} else {
-		f.redisRepo.EXPECT().
-			RemoveBlockedAccount(gomock.Any(), f.organizationID, f.ledgerID, f.accountID).
-			Return(nil).
-			Times(1)
-	}
+// emittedBlocked reads the blocked value the single account.updated carried.
+func (f *patchBlockFixture) emittedBlocked() any {
+	f.t.Helper()
 
-	balances := []*mmodel.Balance{
-		{ID: uuid.New().String(), AccountID: f.accountID.String(), Alias: "@patchable", Key: "default"},
-		{ID: uuid.New().String(), AccountID: f.accountID.String(), Alias: "@patchable", Key: "savings"},
-	}
+	events := f.emitter.Events()
+	require.Len(f.t, events, 1, "a PATCH must publish exactly one account.updated")
 
-	keys := make([]string, 0, len(balances))
-	for _, b := range balances {
-		keys = append(keys, utils.BalanceInternalKey(f.organizationID, f.ledgerID, b.Alias+"#"+b.Key))
-	}
+	var payload map[string]any
+	require.NoError(f.t, json.Unmarshal(events[0].Payload, &payload))
 
-	f.balanceRepo.EXPECT().
-		UpdateAccountBlockedByAccountID(gomock.Any(), f.organizationID, f.ledgerID, f.accountID, blocked).
-		Return(nil).
-		Times(1)
-	f.balanceRepo.EXPECT().
-		ListByAccountID(gomock.Any(), f.organizationID, f.ledgerID, f.accountID).
-		Return(balances, nil).
-		Times(1)
-	f.redisRepo.EXPECT().
-		SetAccountBlockedMany(gomock.Any(), keys, blocked).
-		Return(nil).
-		Times(1)
+	return payload["blocked"]
 }
 
-// TestUpdateAccount_BlockedFieldDelegatesToBlockStatePath proves the PATCH now
-// travels the dedicated helper: the account row moves, every balance is
-// realigned and every cached balance key has its AccountBlocked flag flipped in
-// one atomic mutation.
-func TestUpdateAccount_BlockedFieldDelegatesToBlockStatePath(t *testing.T) {
+// TestUpdateAccount_BlockedFieldCannotBlockAnAccount is the RBAC-bypass closure:
+// a PATCH carrying blocked=true on an unblocked account must leave it unblocked
+// everywhere — the account row, the enforcement index and the legacy projection.
+func TestUpdateAccount_BlockedFieldCannotBlockAnAccount(t *testing.T) {
 	t.Parallel()
 
 	f := newPatchBlockFixture(t, boolPtr(false))
-	f.expectPropagation(true)
+
+	// Nothing is armed on redisRepo or balanceRepo: any AddBlockedAccount,
+	// UpdateAccountBlockedByAccountID, ListByAccountID or SetAccountBlockedMany
+	// call fails the gomock controller.
 
 	updated, err := f.uc.UpdateAccount(context.Background(), f.organizationID, f.ledgerID, nil, f.accountID,
 		&mmodel.UpdateAccountInput{Name: "Renamed", Blocked: boolPtr(true)}, mmodel.HolderOffV1)
 
-	require.NoError(t, err)
+	require.NoError(t, err, "a client still sending the retired field must not be rejected")
 	require.NotNil(t, updated)
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	require.Len(t, f.blockedWrites, 1, "the block transition must be written exactly once, by the shared helper")
-	assert.True(t, f.blockedWrites[0])
+	assert.Empty(t, f.blockedWrites, "the retired field must never reach the account row")
+	assert.Equal(t, 1, f.plainWrites, "the generic field update must still happen")
 
-	assert.Len(t, f.emitter.Events(), 1, "a single PATCH must not emit account.updated twice")
+	require.NotNil(t, updated.Blocked)
+	assert.False(t, *updated.Blocked, "the response must report the UNCHANGED block state")
+	assert.Equal(t, false, f.emittedBlocked(), "the audit event must not claim a block that did not happen")
 }
 
-// TestUpdateAccount_WithoutBlockedDoesNotPropagate pins the negative: a PATCH
-// that does not carry blocked must not touch the balance projection or the
-// cache. The block mechanism is opt-in per request.
-func TestUpdateAccount_WithoutBlockedDoesNotPropagate(t *testing.T) {
-	t.Parallel()
-
-	f := newPatchBlockFixture(t, boolPtr(false))
-
-	// No propagation expectations are armed: any call to
-	// UpdateAccountBlockedByAccountID, ListByAccountID or SetAccountBlockedMany
-	// fails the gomock controller.
-
-	updated, err := f.uc.UpdateAccount(context.Background(), f.organizationID, f.ledgerID, nil, f.accountID,
-		&mmodel.UpdateAccountInput{Name: "Renamed only"}, mmodel.HolderOffV1)
-
-	require.NoError(t, err)
-	require.NotNil(t, updated)
-
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	assert.Empty(t, f.blockedWrites, "no blocked write may be issued when the PATCH omits the field")
-	assert.Len(t, f.emitter.Events(), 1)
-}
-
-// TestUpdateAccount_BlockedEqualToCurrentBehavesAsHelperNoOp locks the helper's
-// convergence semantics onto the PATCH: the source-of-truth write is skipped,
-// but propagation and eviction still run so a retry after a partially failed
-// attempt converges.
-func TestUpdateAccount_BlockedEqualToCurrentBehavesAsHelperNoOp(t *testing.T) {
+// TestUpdateAccount_BlockedFieldCannotUnblockAnAccount is the dangerous
+// direction: releasing an account is exactly what the dedicated authz tuple
+// exists to gate, so a PATCH must never be able to do it.
+func TestUpdateAccount_BlockedFieldCannotUnblockAnAccount(t *testing.T) {
 	t.Parallel()
 
 	f := newPatchBlockFixture(t, boolPtr(true))
-	f.expectPropagation(true)
+
+	updated, err := f.uc.UpdateAccount(context.Background(), f.organizationID, f.ledgerID, nil, f.accountID,
+		&mmodel.UpdateAccountInput{Name: "Renamed", Blocked: boolPtr(false)}, mmodel.HolderOffV1)
+
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	assert.Empty(t, f.blockedWrites, "no PATCH may release a blocked account")
+
+	require.NotNil(t, updated.Blocked)
+	assert.True(t, *updated.Blocked, "the account must still be reported as blocked")
+	assert.Equal(t, true, f.emittedBlocked())
+}
+
+// TestUpdateAccount_BlockedFieldEqualToCurrentStateIsAlsoInert covers the arm
+// where the requested value matches reality: still no write, still no
+// propagation. There is no "harmless" branch that reaches the block path.
+func TestUpdateAccount_BlockedFieldEqualToCurrentStateIsAlsoInert(t *testing.T) {
+	t.Parallel()
+
+	f := newPatchBlockFixture(t, boolPtr(true))
 
 	updated, err := f.uc.UpdateAccount(context.Background(), f.organizationID, f.ledgerID, nil, f.accountID,
 		&mmodel.UpdateAccountInput{Blocked: boolPtr(true)}, mmodel.HolderOffV1)
@@ -226,6 +212,27 @@ func TestUpdateAccount_BlockedEqualToCurrentBehavesAsHelperNoOp(t *testing.T) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	assert.Empty(t, f.blockedWrites, "the account already holds the target state, so no blocked write is issued")
+	assert.Empty(t, f.blockedWrites)
+	assert.Equal(t, 1, f.plainWrites)
+}
+
+// TestUpdateAccount_WithoutBlockedDoesNotPropagate pins the baseline: a PATCH
+// that omits the field behaves identically to one that carries it, which is what
+// "inert" means.
+func TestUpdateAccount_WithoutBlockedDoesNotPropagate(t *testing.T) {
+	t.Parallel()
+
+	f := newPatchBlockFixture(t, boolPtr(false))
+
+	updated, err := f.uc.UpdateAccount(context.Background(), f.organizationID, f.ledgerID, nil, f.accountID,
+		&mmodel.UpdateAccountInput{Name: "Renamed only"}, mmodel.HolderOffV1)
+
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	assert.Empty(t, f.blockedWrites)
 	assert.Len(t, f.emitter.Events(), 1)
 }

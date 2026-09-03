@@ -110,6 +110,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             accountIDPath,
 		Summary:          "Update an account",
+		Description:      accountUpdateDescription,
 		Tags:             []string{accountTag},
 		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively.
@@ -156,6 +157,17 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Security:    secAccountBearer,
 	}, h.UnblockAccount)
 }
+
+// accountUpdateDescription documents the one field of the update payload that no
+// longer does anything. It is spelled out on the operation, not only on the schema,
+// because a client that keeps sending `blocked` gets a 200 and no error — the only
+// way it learns the field stopped working is by reading this.
+const accountUpdateDescription = "Updates the mutable fields of an account. " +
+	"**Deprecated:** the `blocked` field of the payload is accepted but IGNORED — it neither blocks nor unblocks " +
+	"the account, and the response reports the block state the account already had. " +
+	"Use `POST /accounts/{id}/block` and `POST /accounts/{id}/unblock` instead, which carry the dedicated " +
+	"`account-blocks` permission. The field is still accepted only so requests that already send it keep " +
+	"succeeding, and will be removed in a future major version."
 
 // accountBlockDescription / accountUnblockDescription document the two block-state ops
 // for clients. They spell out the empty payload, the dedicated permission and the two
@@ -239,6 +251,7 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             accountIDPath,
 		Summary:          "Update an account",
+		Description:      accountUpdateDescription,
 		Tags:             []string{accountTag},
 		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively.

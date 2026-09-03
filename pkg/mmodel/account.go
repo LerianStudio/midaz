@@ -123,13 +123,20 @@ type UpdateAccountInput struct {
 	// required: false
 	Status Status `json:"status"`
 
-	// Whether the account should be blocked
+	// Accepted but IGNORED. Use POST /accounts/{id}/block and
+	// POST /accounts/{id}/unblock to change the block state of an account.
 	//
-	// Deprecated: use the dedicated POST /accounts/{id}/block and
-	// POST /accounts/{id}/unblock endpoints instead. The field is still honored
-	// and now drives the same propagation those endpoints do, but it carries no
-	// dedicated authorization of its own and cannot express intent in an audit
-	// trail. It will be removed in a future major version.
+	// Deprecated: this field has NO EFFECT. Sending it neither blocks nor
+	// unblocks the account, and the response reports the block state the account
+	// already had. It is retained solely so requests that still carry the key
+	// keep succeeding: the body decoder rejects unknown fields, so removing it
+	// would turn a previously accepted request into a 400.
+	//
+	// Blocking is gated by its own authorization resource ("account-blocks"),
+	// separate from the one governing this route ("accounts"). Honoring the
+	// field here would let a caller authorized only to edit an account freeze
+	// it — or release one frozen deliberately. The field will be removed in a
+	// future major version.
 	// required: false
 	Blocked *bool `json:"blocked"`
 

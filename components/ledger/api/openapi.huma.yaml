@@ -6765,6 +6765,7 @@ paths:
         - Accounts (v1)
     patch:
       deprecated: true
+      description: Updates the mutable fields of an account. **Deprecated:** the `blocked` field of the payload is accepted but IGNORED — it neither blocks nor unblocks the account, and the response reports the block state the account already had. Use `POST /accounts/{id}/block` and `POST /accounts/{id}/unblock` instead, which carry the dedicated `account-blocks` permission. The field is still accepted only so requests that already send it keep succeeding, and will be removed in a future major version.
       operationId: updateAccount
       parameters:
         - description: Organization ID (UUID)
@@ -12291,6 +12292,7 @@ paths:
       tags:
         - Accounts (v2)
     patch:
+      description: Updates the mutable fields of an account. **Deprecated:** the `blocked` field of the payload is accepted but IGNORED — it neither blocks nor unblocks the account, and the response reports the block state the account already had. Use `POST /accounts/{id}/block` and `POST /accounts/{id}/unblock` instead, which carry the dedicated `account-blocks` permission. The field is still accepted only so requests that already send it keep succeeding, and will be removed in a future major version.
       operationId: updateAccountV2
       parameters:
         - description: Organization ID (UUID)
