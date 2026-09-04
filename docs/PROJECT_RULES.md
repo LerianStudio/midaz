@@ -524,7 +524,7 @@ func (handler *TransactionHandler) createTransactionShellV1(ctx context.Context,
 func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransactionV1Input) (*transaction.Transaction, bool, error) {
     logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-    _, span := tracer.Start(ctx, "command.create_transaction_v1")
+    ctx, span := tracer.Start(ctx, "command.create_transaction_v1")
     defer span.End()
 
     // ... build the run, validate, stage balances, process the operations, persist ...
@@ -947,7 +947,7 @@ stubs under `pkg/proto`).
 Required checks before merge:
 1. golangci-lint **v2.13.2** — the CI gate and local Makefile pin match (`GOLANGCI_LINT_VERSION`)
 2. Go analysis + security scanning from the shared workflow
-3. Unit tests (must pass, 85% coverage threshold enforced)
+3. Unit tests (must pass, 80% coverage threshold enforced by `scripts/check-tests.sh` via `make check-tests`)
 4. `check-docs` — OpenAPI spec drift gate
 5. `check-proto` — protobuf stub drift gate
 
