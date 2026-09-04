@@ -230,7 +230,7 @@ Base URL: `http://localhost:3002/v1`. Organization is **path-scoped** — there 
 
 RBAC namespaces in the unified binary: `midaz` (onboarding + transaction + CRM), `routing`,
 `plugin-fees`. The canonical OpenAPI spec is generated at `components/ledger/api/openapi.huma.yaml`
-and merged into `postman/specs/midaz.openapi.{yaml,json}`; treat the spec as the source of truth for
+and merged into `api/midaz.openapi.{yaml,json}`; treat the spec as the source of truth for
 request/response shapes rather than duplicating them here.
 
 ---

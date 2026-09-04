@@ -2,7 +2,7 @@
 # Use of this source code is governed by the Elastic License 2.0
 # that can be found in the LICENSE file.
 
-# Redocly lint config for the CONSOLIDATED spec (postman/specs/midaz.openapi.yaml).
+# Redocly lint config for the CONSOLIDATED spec (api/midaz.openapi.yaml).
 #
 # Baseline is the built-in `recommended` ruleset. The consolidated_lint_check()
 # gate in check-docs.sh runs `redocly lint` against this config so that a NEW

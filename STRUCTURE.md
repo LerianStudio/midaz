@@ -52,6 +52,7 @@ MIDAZ
  |   |   |   |---   app
  |   |   |---   internal
  |   |   |---   migrations
+ |   api                            # consolidated OpenAPI spec (midaz.openapi.{yaml,json})
  |   image
  |   pkg                           # shared libraries (root, non-exhaustive)
  |   |---   constant
@@ -66,7 +67,6 @@ MIDAZ
  |   |---   shell
  |   |---   streaming
  |   |---   utils
- |   postman
  |   scripts
  |   tests                         # shared test trees (root)
  |   |---   chaos
@@ -162,7 +162,8 @@ Cross-component Go libraries (root module; non-exhaustive — additional package
 
 #### Miscellaneous
 
+* **API** (`./api`): consolidated OpenAPI spec (`midaz.openapi.{yaml,json}`), joined from the
+  per-component Huma dumps under `components/<c>/api`; see `make generate-docs` / `make check-docs`.
 * **Images** (`./image`): project images and README assets.
-* **Postman** (`./postman`): API collections for manual testing.
 * **Scripts** (`./scripts`): coverage, docs generation, environment checks.
 * **Makefile includes** (`./mk`): coverage, tests, quality targets.

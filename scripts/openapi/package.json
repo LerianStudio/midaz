@@ -1,0 +1,31 @@
+{
+  "name": "midaz-openapi-tooling",
+  "version": "1.0.0",
+  "description": "Midaz OpenAPI specification generation and drift-check tooling",
+  "scripts": {
+    "docs:generate": "cd ../.. && make generate-docs",
+    "setup": "cd ../.. && bash scripts/setup-deps.sh"
+  },
+  "dependencies": {
+    "js-yaml": "^5.2.2"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^2.40.0"
+  },
+  "engines": {
+    "node": ">=22.12.0 || >=20.19.0 <21.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LerianStudio/midaz.git",
+    "directory": "scripts/openapi"
+  },
+  "keywords": [
+    "api",
+    "documentation",
+    "openapi",
+    "midaz"
+  ],
+  "author": "Lerian Studio",
+  "license": "Elastic-2.0"
+}
