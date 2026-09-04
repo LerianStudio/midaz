@@ -18,7 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 

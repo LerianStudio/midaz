@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
 
@@ -22,7 +22,7 @@ import (
 
 	// WriteTransaction routes the transaction to sync or async execution
 	// based on the RABBITMQ_TRANSACTION_ASYNC environment variable.
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) (err error) {

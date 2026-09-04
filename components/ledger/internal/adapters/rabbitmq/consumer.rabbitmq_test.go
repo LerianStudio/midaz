@@ -12,8 +12,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"

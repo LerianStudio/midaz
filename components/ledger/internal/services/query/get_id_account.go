@@ -9,7 +9,7 @@ import (
 	"errors"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -19,7 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	// GetAccountByID get an Account from the repository by given id.
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, holderPolicy mmodel.HolderPolicy) (_ *mmodel.Account, err error) {

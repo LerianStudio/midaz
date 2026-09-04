@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 

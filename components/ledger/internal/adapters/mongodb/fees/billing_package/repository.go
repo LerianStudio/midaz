@@ -11,7 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 

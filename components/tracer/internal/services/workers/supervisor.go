@@ -14,8 +14,8 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/cache"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/metrics"

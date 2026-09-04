@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
@@ -26,7 +26,7 @@ import (
 	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
 	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"

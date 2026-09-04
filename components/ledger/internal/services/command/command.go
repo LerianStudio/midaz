@@ -7,10 +7,10 @@ package command
 import (
 	"context"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	"github.com/LerianStudio/lib-observability/v2/metrics"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"go.opentelemetry.io/otel/trace"
 
 	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"

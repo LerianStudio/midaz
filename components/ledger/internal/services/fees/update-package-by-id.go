@@ -9,7 +9,7 @@ import (
 	"errors"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
@@ -21,9 +21,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	"github.com/LerianStudio/lib-commons/v6/commons"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/google/uuid"
 	"github.com/iancoleman/strcase"
 	"github.com/shopspring/decimal"
