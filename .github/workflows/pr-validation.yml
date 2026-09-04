@@ -21,7 +21,6 @@ jobs:
   validate:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@tier-2
     with:
-      allowed_source_branches: 'hotfix/*|release-candidate'
       pr_title_scopes: |
         crm
         ledger
