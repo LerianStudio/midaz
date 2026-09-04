@@ -146,7 +146,7 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 ## T11 — Metrics
 
-**Rule:** ALL metrics MUST be created via the lib-observability `MetricsFactory` — there are no sanctioned bespoke stacks (D4 outcome: tracer's direct-Prometheus families migrate to the factory; greenfield, no dashboard compatibility owed). Every business operation (commands and key queries) MUST emit domain metrics (D6 outcome; rolled out in Phase 5). Names MUST be snake_case with a unit suffix (e.g. `_ms`, `_total`). Labels MUST be bounded-cardinality only. Metric emit errors MUST be logged at Debug — never swallowed via `_ =`. HTTP telemetry middleware MUST exclude the probe paths `/health`, `/readyz`, `/metrics` by passing them as `excludedRoutes` to `WithTelemetry`.
+**Rule:** ALL metrics MUST be created via the lib-observability `MetricsFactory` — there are no sanctioned bespoke stacks (D4 outcome: tracer's direct-Prometheus families migrate to the factory; greenfield, no dashboard compatibility owed). Every business operation (commands and key queries) MUST emit domain metrics (D6 outcome; rolled out in Phase 5). Names MUST be snake_case with a unit suffix (e.g. `_ms`, `_total`). Labels MUST be bounded-cardinality only. Metric emit errors MUST be logged at Debug — never swallowed via `_ =`. HTTP telemetry middleware MUST exclude the probe paths `/health`, `/readyz`, `/metrics` by passing them as `excludedRoutes` to the registered telemetry middleware (see T11.1 for which variant the ledger registers).
 
 **Rationale:** Unbounded label cardinality is the classic way to blow up a Prometheus backend; bounding labels at the emission point and routing all new metrics through one factory keeps the metric surface governable. Probe traffic generates a span and metric per k8s probe — high-volume, zero-information — so excluding probe routes removes pure noise and cost. Swallowed emit errors hide a broken metrics pipeline.
 
@@ -155,6 +155,20 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 **Probe-exclusion support:** `github.com/LerianStudio/lib-observability@v1.1.0/middleware/telemetry.go:86` — `WithTelemetry(tl, excludedRoutes ...string)` with the `isRouteExcludedFromList` check (lines 86–97). Tracer passes excluded routes; ledger currently does not (audit appendix F22) and MUST be fixed.
 
 **Enforcement:** `custom-lint` for `_ =` on a metrics emit return; `review-only` for `MetricsFactory` usage, naming, label cardinality, and the probe-exclusion argument.
+
+---
+
+## T11.1 — Tenant identity on telemetry
+
+**Rule:** `tenant.id` on a metric MUST come from a tenant the authentication layer has attested, never from a header, baggage member, gRPC metadatum or span attribute that a client can set. The attestation point is `pkgHTTP.MarkTrustedAuthAssertion` (`pkg/net/http/protected_routes.go`), which runs behind the authorizer on every protected chain: it parses the `tenantId` JWT claim and, when it is a UUID, calls `libObservability.ContextWithAuthenticatedTenant`. The ledger registers `WithAuthenticatedTenantHTTPMetrics` — NOT `WithTelemetry` — on the unified server; the two are mutually exclusive, since the tenant variant already records the standard HTTP telemetry and registering both doubles every observation of `http.server.request.duration`.
+
+**Series:** `lerian.http.server.requests.by_tenant`, `.responses_4xx.by_tenant`, `.responses_5xx.by_tenant` (counters, labels `tenant.id`, optional `tenant.name`, `http.route`) and `.latency.by_tenant` (histogram, labels `tenant.id`, optional `tenant.name`, `http.response.status_class`). They are emitted ONLY when an attestation is present, so a single-tenant or BYOC deployment — where the claim does not exist — adds no cardinality.
+
+**Traces differ from metrics on purpose.** The span attribute is seeded from OTel baggage, which `MarkTrustedAuthAssertion` writes for ANY claim that passes `tmcore.IsValidTenantID`, UUID or not; lib-observability's span processor copies it onto application spans. The metric attestation additionally requires a parsed UUID, so a legacy non-UUID tenant appears on traces but not on the per-tenant metrics. `tenant.id` is deliberately absent from the built-in HTTP server span: lib-observability strips request identity from infrastructure signals.
+
+**Rationale:** a forgeable tenant label is worse than no label — it lets any caller write into another tenant's series and inflate cardinality at will. Requiring the attestation makes the label a property of having authenticated. Keeping the metric on a UUID keeps the aggregation key stable across a slug rename.
+
+**Enforcement:** `pkg/net/http/tenant_metrics_wiring_test.go` (the recorded series and their attributes) and `components/ledger/internal/bootstrap/unified_server_tenant_metrics_guard_test.go` (that the ledger stays on the per-tenant middleware variant).
 
 ---
 
