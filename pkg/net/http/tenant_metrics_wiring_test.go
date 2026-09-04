@@ -24,6 +24,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // Names owned by lib-observability; unexported there, so they are restated
@@ -233,4 +234,80 @@ func mustUnsignedToken(t *testing.T, claims jwt.MapClaims) string {
 	require.NoError(t, err)
 
 	return signed
+}
+
+// TestTenantSpanAttribute_SeededForEveryAuthenticatedRequest proves the trace
+// half. lib-commons' tenant middleware writes the same baggage member, but it is
+// absent from the metadata-index chain, so this covers the assertion middleware
+// on its own — the configuration a route without tenant-DB resolution runs in.
+//
+// Unlike the metrics path, this one carries a non-UUID tenant too: baggage takes
+// the claim verbatim, while the metric attestation requires a parsed UUID.
+func TestTenantSpanAttribute_SeededForEveryAuthenticatedRequest(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		tenantID string
+		want     string
+	}{
+		{name: "uuid tenant", tenantID: "0f6e2b3a-1c4d-4e5f-8a9b-0c1d2e3f4a5b", want: "0f6e2b3a-1c4d-4e5f-8a9b-0c1d2e3f4a5b"},
+		{name: "legacy non-uuid tenant", tenantID: "org_01KHVKQQP6D2N4RDJK0ADEKQX1", want: "org_01KHVKQQP6D2N4RDJK0ADEKQX1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			exporter := tracetest.NewInMemoryExporter()
+			tracerProvider := sdktrace.NewTracerProvider(
+				sdktrace.WithSpanProcessor(tracing.RedactingAttrBagSpanProcessor{}),
+				sdktrace.WithSyncer(exporter),
+			)
+
+			app := fiber.New()
+
+			chain := midazhttp.ProtectedRouteChain(
+				func(c fiber.Ctx) error { return c.Next() },
+				&midazhttp.ProtectedRouteOptions{
+					PostAuthMiddlewares: []fiber.Handler{midazhttp.MarkTrustedAuthAssertion()},
+				},
+				func(c fiber.Ctx) error {
+					// Stands in for any use case opening a span behind the chain.
+					_, span := tracerProvider.Tracer("test").Start(c.Context(), "app.work")
+					span.End()
+
+					return c.SendStatus(fiber.StatusNoContent)
+				},
+			)
+
+			tail := make([]any, len(chain)-1)
+			for i, h := range chain[1:] {
+				tail[i] = h
+			}
+
+			app.Get("/test", chain[0], tail...)
+
+			req := httptest.NewRequest("GET", "/test", nil)
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", mustUnsignedToken(t, jwt.MapClaims{
+				"sub":      "user-1",
+				"tenantId": tc.tenantID,
+			})))
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			require.Equal(t, fiber.StatusNoContent, resp.StatusCode)
+
+			spans := exporter.GetSpans()
+			require.Len(t, spans, 1)
+
+			var got string
+
+			for _, attr := range spans[0].Attributes {
+				if attr.Key == attribute.Key(obsconst.AttrKeyTenantID) {
+					got = attr.Value.AsString()
+				}
+			}
+
+			assert.Equal(t, tc.want, got, "%s missing from the application span", obsconst.AttrKeyTenantID)
+		})
+	}
 }

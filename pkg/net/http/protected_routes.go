@@ -5,15 +5,18 @@
 package http
 
 import (
+	"context"
 	"sync"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	obsconst "github.com/LerianStudio/lib-observability/v4/constants"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/gofiber/fiber/v3"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/baggage"
 )
 
 const trustedUpstreamAuthSentinel = "trusted-upstream-auth"
@@ -73,16 +76,17 @@ func MarkTrustedAuthAssertion() fiber.Handler {
 		c.Locals("user_id", userID)
 
 		if tenantID := firstNonEmptyStringClaim(claims, "tenantId"); tenantID != "" && tmcore.IsValidTenantID(tenantID) {
-			ctx := tmcore.ContextWithTenantID(c.Context(), tenantID)
+			ctx := withTenantIDBaggage(tmcore.ContextWithTenantID(c.Context(), tenantID), tenantID)
 
 			// The telemetry middleware labels per-tenant metrics only from an
-			// identity the auth layer attests here; it never promotes headers or
-			// baggage. tmcore.IsValidTenantID admits any slug, so the UUID parse
-			// is what decides whether the claim can carry that attestation.
+			// identity attested here; a client-supplied header or baggage member
+			// is never promoted to that trust level. tmcore.IsValidTenantID
+			// admits any slug, so the UUID parse is what decides whether the
+			// claim can carry the attestation.
 			if parsed, parseErr := uuid.Parse(tenantID); parseErr == nil {
 				ctx = libObservability.ContextWithAuthenticatedTenant(ctx, parsed, firstNonEmptyStringClaim(claims, "tenantSlug"))
 			} else {
-				// TODO(midaz#2448): a non-UUID tenantId claim carries no UUID
+				// TODO(#2450): a non-UUID tenantId claim carries no UUID
 				// anywhere else in the token, so the attestation cannot be built
 				// and per-tenant metrics stay unlabelled for that tenant. Tenants
 				// provisioned in the WorkOS window (2026-02-13 to 2026-04-01) got
@@ -101,6 +105,26 @@ func MarkTrustedAuthAssertion() fiber.Handler {
 
 		return c.Next()
 	}
+}
+
+// withTenantIDBaggage seeds tenant.id into the standard OTel baggage, which
+// lib-observability's span processor copies onto every application span it
+// starts afterwards. lib-commons' tenant middleware writes the same member, but
+// it is not on every chain — metadata-index carries the auth assertion without
+// it — so seeding here is what makes the span attribute a property of being
+// authenticated rather than of resolving a tenant database.
+func withTenantIDBaggage(ctx context.Context, tenantID string) context.Context {
+	member, err := baggage.NewMember(obsconst.AttrKeyTenantID, tenantID)
+	if err != nil {
+		return ctx
+	}
+
+	bag, err := baggage.FromContext(ctx).SetMember(member)
+	if err != nil {
+		return ctx
+	}
+
+	return baggage.ContextWithBaggage(ctx, bag)
 }
 
 func firstNonEmptyStringClaim(claims jwt.MapClaims, keys ...string) string {
