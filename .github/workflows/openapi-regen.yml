@@ -6,10 +6,9 @@
 #   PRs to this repo are gated by the REQUIRED check-docs job (pr-validation.yml):
 #   it runs `CHECK_DOCS_REGEN=1 make check-docs`, which regenerates the docs via
 #   generate-docs.sh and fails if any committed doc artifact changed. So a PR that
-#   changes ledger/tracer routes without refreshing the committed Huma dumps, their
-#   consolidated postman/specs hub, or the emitted Postman collection and
-#   environment fails. The `Commit & push fix-up` step below carries the pathspec
-#   this workflow keeps in step with that gate. DIRECT pushes
+#   changes ledger/tracer routes without refreshing the committed Huma dumps or the
+#   consolidated api/ hub spec fails. The `Commit & push fix-up` step below carries
+#   the pathspec this workflow keeps in step with that gate. DIRECT pushes
 #   bypass that gate — gandalf-at-lerian pushes straight to develop. This workflow
 #   closes that hole: after a direct push it regenerates the SAME artifact set the
 #   gate diffs and, if the push left it stale, commits + pushes a `[skip ci]`
@@ -21,15 +20,11 @@
 #   via the same script that gate runs (`make generate-docs` = generate-docs.sh):
 #     components/ledger/api/openapi.huma.yaml   (Huma OAS 3.1 dump)
 #     components/tracer/api/openapi.huma.yaml   (Huma OAS 3.1 dump)
-#     postman/specs/ledger/openapi.huma.yaml    (published copy)
-#     postman/specs/tracer/openapi.huma.yaml    (published copy)
-#     postman/specs/midaz.openapi.{yaml,json}   (redocly-joined hub spec)
-#     postman/MIDAZ.postman_collection.json     (converted Postman collection)
-#     postman/MIDAZ.postman_environment.json    (converted Postman environment)
-#   Reusing generate-docs.sh — rather than re-inlining its regen/publish/join
-#   steps here — is deliberate: it makes divergence from the gate impossible by
-#   construction. Toolchain is Go + Node/npm only (generate-docs.sh self-installs
-#   its npm deps; redocly + js-yaml are npm packages) — NO swag, NO Docker.
+#     api/midaz.openapi.{yaml,json}             (redocly-joined hub spec)
+#   Reusing generate-docs.sh — rather than re-inlining its regen/join steps here —
+#   is deliberate: it makes divergence from the gate impossible by construction.
+#   Toolchain is Go + Node/npm only (generate-docs.sh self-installs its npm deps;
+#   redocly + js-yaml are npm packages) — NO swag, NO Docker.
 #   Every artifact above is staged, because the gate diffs every one of them: an
 #   artifact regenerated here but left unstaged would fail the required gate on the
 #   next PR, on a path that PR never touched.
@@ -55,9 +50,9 @@
 #        loop is bounded to one no-op iteration regardless.
 #
 # FAILURE MODES (all fail LOUD — never push a broken tree)
-#   - `make generate-docs` fails (build/route error, redocly join failure, or
-#     Postman conversion error): job fails, NO push. Fix the code. This mirrors
-#     the gate, which runs the same script and also fails on any of these.
+#   - `make generate-docs` fails (build/route error, or redocly join failure):
+#     job fails, NO push. Fix the code. This mirrors the gate, which runs the
+#     same script and also fails on any of these.
 #   - `make test-openapi-locks` fails: the regenerated dumps broke the cross-plane
 #     RFC 9457 error-contract lock the SDK depends on — job fails, NO commit/push.
 #     A human investigates; this must never be auto-committed.
@@ -144,11 +139,10 @@ jobs:
           git_commit_gpgsign: true
 
       # Regenerate the FULL gate-enforced doc artifact set (both Huma dumps + the
-      # published copies + the redocly-joined postman/specs hub) via the same
-      # script the required check-docs gate runs under CHECK_DOCS_REGEN=1.
-      # generate-docs.sh self-installs its npm deps (redocly, js-yaml) and runs
-      # the pure-Go golden dump under the MANAGE_TOKEN module auth configured
-      # above; no swag, no Docker.
+      # redocly-joined api/ hub spec) via the same script the required check-docs
+      # gate runs under CHECK_DOCS_REGEN=1. generate-docs.sh self-installs its npm
+      # deps (redocly, js-yaml) and runs the pure-Go golden dump under the
+      # MANAGE_TOKEN module auth configured above; no swag, no Docker.
       - name: Regenerate OpenAPI docs
         run: make generate-docs
 
@@ -173,14 +167,13 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           # Must stay identical to the drift pathspec in
-          # postman/generator/check-docs.sh. A path the gate diffs but this step does
+          # scripts/openapi/check-docs.sh. A path the gate diffs but this step does
           # not stage is left stale, and every later PR then fails the required gate
           # on a path it never touched.
           DOC_PATHSPEC=(
             'components/*/api/**'
-            postman/specs
-            postman/MIDAZ.postman_collection.json
-            postman/MIDAZ.postman_environment.json
+            api/midaz.openapi.yaml
+            api/midaz.openapi.json
           )
           if git diff --quiet -- "${DOC_PATHSPEC[@]}"; then
             echo "OpenAPI docs already fresh after regen — no fix-up needed."
