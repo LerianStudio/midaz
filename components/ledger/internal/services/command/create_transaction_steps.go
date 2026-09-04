@@ -47,7 +47,7 @@ func (uc *UseCase) prepareCreateTransaction(ctx context.Context, span trace.Span
 	if run.input.Send.Value.LessThanOrEqual(decimal.Zero) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction value must be greater than zero", err)
-		logger.Log(ctx, libLog.LevelWarn, "Transaction value must be greater than zero", libLog.String("value", run.input.Send.Value.String()))
+		logger.Log(ctx, libLog.LevelWarn, "Transaction value must be greater than zero", libLog.Err(err))
 
 		return err
 	}
