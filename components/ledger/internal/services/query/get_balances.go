@@ -41,10 +41,72 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 			return nil, err
 		}
 
+		if err := uc.hydrateAccountBlocked(ctx, organizationID, ledgerID, balancesDB); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to hydrate account blocked state", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to hydrate account blocked state", libLog.Err(err))
+
+			return nil, err
+		}
+
 		balances = append(balances, balancesDB...)
 	}
 
 	return balances, nil
+}
+
+// hydrateAccountBlocked stamps database-loaded balances with their owning
+// account's blocked flag using ONE batched primary-key lookup over the
+// distinct account IDs. Only the cache-miss path reaches here: on a hit the
+// flag is already in the cached blob. Failing the lookup fails the read —
+// the block state must never be silently assumed open. A balance whose
+// account row is absent (e.g. soft-deleted) resolves to not blocked.
+func (uc *UseCase) hydrateAccountBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+	if len(balances) == 0 {
+		return nil
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_balances.hydrate_account_blocked")
+	defer span.End()
+
+	seen := make(map[uuid.UUID]struct{}, len(balances))
+	accountIDs := make([]uuid.UUID, 0, len(balances))
+
+	for _, b := range balances {
+		accountID, err := uuid.Parse(b.AccountID)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Invalid account ID on balance", err)
+			logger.Log(ctx, libLog.LevelError, "Invalid account ID on balance", libLog.String("balance_id", b.ID), libLog.Err(err))
+
+			return err
+		}
+
+		if _, ok := seen[accountID]; !ok {
+			seen[accountID] = struct{}{}
+
+			accountIDs = append(accountIDs, accountID)
+		}
+	}
+
+	accounts, err := uc.AccountRepo.ListAccountsByIDs(ctx, organizationID, ledgerID, accountIDs)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to list accounts for blocked hydration", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to list accounts for blocked hydration", libLog.Err(err))
+
+		return err
+	}
+
+	blockedByAccount := make(map[string]bool, len(accounts))
+	for _, acc := range accounts {
+		blockedByAccount[acc.ID] = acc.Blocked != nil && *acc.Blocked
+	}
+
+	for _, b := range balances {
+		b.Blocked = blockedByAccount[b.AccountID]
+	}
+
+	return nil
 }
 
 // getBalancesFromCache checks Redis for cached balances. Returns two slices:
@@ -139,6 +201,7 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 			AccountType:    b.AccountType,
 			AllowSending:   b.AllowSending == 1,
 			AllowReceiving: b.AllowReceiving == 1,
+			Blocked:        b.Blocked == 1,
 			AssetCode:      b.AssetCode,
 			Direction:      b.Direction,
 			OverdraftUsed:  overdraftUsed,

@@ -395,6 +395,11 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 				allowReceiving = 1
 			}
 
+			blocked := 0
+			if b.Blocked {
+				blocked = 1
+			}
+
 			balanceRedis = append(balanceRedis, mmodel.BalanceRedis{
 				ID:             b.ID,
 				Alias:          b.Alias,
@@ -407,6 +412,7 @@ func (uc *UseCase) SendTransactionToRedisQueue(ctx context.Context, organization
 				AccountType:    b.AccountType,
 				AllowSending:   allowSending,
 				AllowReceiving: allowReceiving,
+				Blocked:        blocked,
 			})
 		}
 	}

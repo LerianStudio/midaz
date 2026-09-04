@@ -29,6 +29,13 @@ type Balance struct {
 	AccountType    string          `json:"accountType" example:"creditCard"`
 	AllowSending   bool            `json:"allowSending" example:"true"`
 	AllowReceiving bool            `json:"allowReceiving" example:"true"`
+	// Blocked mirrors the owning account's blocked flag (accounts.blocked in
+	// PostgreSQL). Account-level, not per-balance: every balance of a blocked
+	// account carries true. Enforced bidirectionally for direct, hold, commit
+	// and revert; cancel is exempt. Excluded from JSON like
+	// mmodel.Balance.Blocked — the account resource is the public surface for
+	// the flag.
+	Blocked bool `json:"-"`
 	// Direction is the accounting direction of the balance ("credit" or
 	// "debit"). Empty string denotes a legacy balance that predates the
 	// overdraft feature and is treated as "credit" by the engine.
