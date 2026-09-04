@@ -292,7 +292,7 @@ end
 local function main()
     local ttl = 86400 -- 1 day
 
-    local groupSize = 24
+    local groupSize = 25
     local returnBalances = {}
     local returnBalancesAfter = {}
     local rollbackBalances = {}
@@ -319,12 +319,45 @@ local function main()
     -- shares the balance key's {transactions} hash slot. Running this pre-pass
     -- ahead of the first SET below means a rejection here leaves zero side
     -- effects across the batch, so no rollback is required. The stride mirrors
-    -- the main loop below (groupSize=24; ARGV[i] is the balance key). A bounded
+    -- the main loop below (groupSize=25; ARGV[i] is the balance key). A bounded
     -- per-key EXISTS check early-returns on the first delete marker found, so the
     -- whole batch is rejected without unpacking a client-influenced number of keys.
     for i = 1, #ARGV, groupSize do
         if redis.call("EXISTS", ARGV[i] .. ":deleted") == 1 then
             return redis.error_reply("0019")
+        end
+    end
+
+    -- Account-block guard: reject the whole batch with 0502 before any mutation
+    -- when any involved balance (source AND destination -- the block is
+    -- bidirectional) belongs to a blocked account. The effective state mirrors
+    -- the SET NX semantics of the main loop: an existing cached blob wins over
+    -- the caller-supplied ARGV value (a legacy blob without the field counts as
+    -- not blocked); an absent key falls back to ARGV[i+24], the value the Go
+    -- hydration read from PostgreSQL. CANCELED batches skip the guard entirely
+    -- (RF-4C: a cancel only returns on-hold funds or aborts a future credit,
+    -- so blocking it would deadlock an innocent counterparty). A pending
+    -- created before the block is rejected on commit because this guard runs
+    -- on every execution. Like the delete-marker guard above, a rejection here
+    -- leaves zero side effects, so no rollback is required.
+    --
+    -- Account-block exceptions (single-use grants) plug into this guard: a
+    -- validated grant will bypass the rejection for the matching balance.
+    for i = 1, #ARGV, groupSize do
+        if ARGV[i + 2] ~= "CANCELED" then
+            local blocked = tonumber(ARGV[i + 24]) or 0
+
+            local cur = redis.call("GET", ARGV[i])
+            if cur then
+                local ok, decoded = pcall(cjson.decode, cur)
+                if ok and type(decoded) == "table" then
+                    blocked = tonumber(decoded.Blocked) or 0
+                end
+            end
+
+            if blocked == 1 then
+                return redis.error_reply("0502")
+            end
         end
     end
 
@@ -356,6 +389,7 @@ local function main()
         --   - OverdraftLimitEnabled:Gates the OverdraftLimit check
         --   - OverdraftLimit:       Hard cap on OverdraftUsed (when enabled)
         --   - BalanceScope:         "transactional" / "internal" (cache-only)
+        --   - Blocked:              Account-block flag read by the pre-mutation guard above
         --
         -- Fields NOT used by Lua, but required in cache for Go pre-validation:
         --   - AssetCode:      Used by ValidateIfBalanceExistsOnRedis for validation 0034
@@ -386,6 +420,9 @@ local function main()
             OverdraftLimitEnabled = tonumber(ARGV[i + 20]),
             OverdraftLimit = ARGV[i + 21],
             BalanceScope = ARGV[i + 22],
+            -- Account-block flag (cache-only mirror of accounts.blocked;
+            -- enforced by the account-block guard pre-pass above)
+            Blocked = tonumber(ARGV[i + 24]),
         }
 
         -- Exact overdraft delta supplied by Go for pending-cancel reversals.
@@ -426,6 +463,9 @@ local function main()
             end
             if balance.BalanceScope == nil then
                 balance.BalanceScope = "transactional"
+            end
+            if balance.Blocked == nil then
+                balance.Blocked = 0
             end
         end
 

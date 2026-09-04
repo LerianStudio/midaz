@@ -351,6 +351,20 @@ func (mr *MockRedisRepositoryMockRecorder) SetNX(ctx, key, value, ttl any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockRedisRepository)(nil).SetNX), ctx, key, value, ttl)
 }
 
+// UpdateBalanceCacheBlocked mocks base method.
+func (m *MockRedisRepository) UpdateBalanceCacheBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKeys []string, blocked bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBalanceCacheBlocked", ctx, organizationID, ledgerID, cacheKeys, blocked)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateBalanceCacheBlocked indicates an expected call of UpdateBalanceCacheBlocked.
+func (mr *MockRedisRepositoryMockRecorder) UpdateBalanceCacheBlocked(ctx, organizationID, ledgerID, cacheKeys, blocked any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBalanceCacheBlocked", reflect.TypeOf((*MockRedisRepository)(nil).UpdateBalanceCacheBlocked), ctx, organizationID, ledgerID, cacheKeys, blocked)
+}
+
 // UpdateBalanceCacheSettings mocks base method.
 func (m *MockRedisRepository) UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error {
 	m.ctrl.T.Helper()

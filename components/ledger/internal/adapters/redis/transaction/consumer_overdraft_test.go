@@ -73,8 +73,8 @@ func TestBuildPlan_IncludesOverdraftFields(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, plan)
-	require.Len(t, plan.args, 24,
-		"ARGV must contain 24 entries per balance (groupSize=24)")
+	require.Len(t, plan.args, 25,
+		"ARGV must contain 25 entries per balance (groupSize=25)")
 
 	assert.Equal(t, "debit", plan.args[17], "ARGV[i+17] balance.Direction")
 	assert.Equal(t, "50", plan.args[18], "ARGV[i+18] balance.OverdraftUsed")
@@ -83,6 +83,7 @@ func TestBuildPlan_IncludesOverdraftFields(t *testing.T) {
 	assert.Equal(t, "500.00", plan.args[21], "ARGV[i+21] OverdraftLimit")
 	assert.Equal(t, mmodel.BalanceScopeTransactional, plan.args[22], "ARGV[i+22] BalanceScope")
 	assert.Equal(t, "0", plan.args[23], "ARGV[i+23] default OverdraftAmount")
+	assert.Equal(t, 0, plan.args[24], "ARGV[i+24] default Blocked (0=false)")
 }
 
 func TestBuildPlan_DefaultOverdraftFields(t *testing.T) {
@@ -125,8 +126,8 @@ func TestBuildPlan_DefaultOverdraftFields(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, plan)
-	require.Len(t, plan.args, 24,
-		"ARGV must contain 24 entries even when overdraft fields are defaults")
+	require.Len(t, plan.args, 25,
+		"ARGV must contain 25 entries even when overdraft fields are defaults")
 
 	dirVal, ok := plan.args[17].(string)
 	require.True(t, ok, "ARGV[i+17] (Direction) must be a string")
@@ -145,8 +146,8 @@ func TestBuildPlan_DefaultOverdraftFields(t *testing.T) {
 func TestBuildPlan_GroupSizeMatchesLua(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, 24, luaArgsPerOperation,
-		"luaArgsPerOperation must be 24 to include the 7 overdraft ARGV fields")
+	assert.Equal(t, 25, luaArgsPerOperation,
+		"luaArgsPerOperation must be 25 to include the 7 overdraft ARGV fields and the account-block field")
 }
 
 func TestBuildPlan_MultipleBalancesOverdraftPositions(t *testing.T) {
@@ -223,9 +224,9 @@ func TestBuildPlan_MultipleBalancesOverdraftPositions(t *testing.T) {
 		t.Context(), constant.APPROVED, false, balanceOps,
 	)
 	require.NoError(t, err)
-	require.Len(t, plan.args, 48, "Two operations × 24 fields = 48 ARGV entries")
+	require.Len(t, plan.args, 50, "Two operations × 25 fields = 50 ARGV entries")
 
-	secondBase := 24
+	secondBase := 25
 	assert.Equal(t, "debit", plan.args[secondBase+17], "2nd balance Direction")
 	assert.Equal(t, "75", plan.args[secondBase+18], "2nd balance OverdraftUsed")
 	assert.Equal(t, 1, plan.args[secondBase+19], "2nd balance AllowOverdraft")

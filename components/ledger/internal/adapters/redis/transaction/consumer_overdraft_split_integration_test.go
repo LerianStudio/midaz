@@ -89,6 +89,7 @@ type cachedBalance struct {
 	OverdraftLimitEnabled int    `json:"OverdraftLimitEnabled"`
 	OverdraftLimit        string `json:"OverdraftLimit"`
 	BalanceScope          string `json:"BalanceScope"`
+	Blocked               int    `json:"Blocked"`
 }
 
 // =============================================================================
