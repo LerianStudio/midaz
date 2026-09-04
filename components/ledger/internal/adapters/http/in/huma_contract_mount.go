@@ -310,7 +310,7 @@ type LegacyError struct {
 // second, distinctly named schema rather than altering Error — which must stay
 // byte-identical to the tracer plane's (tests/openapi/error_schema_parity_test.go)
 // and must remain the only schema matching the Error singleton check in
-// postman/generator/check-docs.sh.
+// scripts/openapi/check-docs.sh.
 //
 // Run it AFTER the last huma.Register and BEFORE the spec is snapshotted, like the
 // sibling passes above.

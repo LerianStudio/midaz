@@ -44,9 +44,6 @@ scripts/demo-data/dist/
 scripts/demo-data/sdk-source/
 
 # Other
-postman/backups
-postman/temp/
-
 cert/
 
 # Security scan reports

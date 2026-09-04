@@ -31,7 +31,7 @@ import (
 // on any drift.
 //
 // The name is deliberately NOT the conventional `-update`: the docs generator
-// (postman/generator/generate-docs.sh) passes a package-scoped `-update` to the
+// (scripts/openapi/generate-docs.sh) passes a package-scoped `-update` to the
 // http/in package, and a shared spelling would make an unrelated docs regeneration
 // rewrite this golden as a side effect the moment either invocation widened its
 // package scope.

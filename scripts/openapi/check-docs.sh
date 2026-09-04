@@ -24,15 +24,15 @@ set -euo pipefail
 #     contract cannot regress to a scheme declared but never required. Scoped to
 #     ledger: tracer's /health, /readyz and /version are intentionally public.
 
-# Root directory of the repo (this script lives in postman/generator/)
+# Root directory of the repo (this script lives in scripts/openapi/)
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-GENERATOR_DIR="${ROOT_DIR}/postman/generator"
+OPENAPI_DIR="${ROOT_DIR}/scripts/openapi"
 
 # Huma OAS 3.1 dumps that must agree on shared metadata, as
 # "<label>|<repo-relative path>". Each component publishes a single dump carrying its
-# full surface, published to postman/specs and converted into the collection. The label
-# is what failure messages name; the first entry is the parity reference.
+# full surface, consolidated into api/midaz.openapi.{yaml,json}. The label is what
+# failure messages name; the first entry is the parity reference.
 PARITY_DUMPS=(
     "ledger|components/ledger/api/openapi.huma.yaml"
     "tracer|components/tracer/api/openapi.huma.yaml"
@@ -94,7 +94,7 @@ huma_dump_json() {
         fail "Missing Huma dump for '${label}' at ${file}. Run 'make generate-docs' first."
     fi
 
-    NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
+    NODE_PATH="${OPENAPI_DIR}/node_modules" node -e '
         const yaml = require("js-yaml");
         const fs = require("fs");
         process.stdout.write(JSON.stringify(yaml.load(fs.readFileSync(process.argv[1], "utf8"))));
@@ -261,7 +261,7 @@ security_coverage_check() {
 }
 
 # Lint the consolidated spec with @redocly/cli. The ruleset is `recommended`
-# scoped by postman/generator/redocly.yaml, which relaxes ONLY rules whose
+# scoped by scripts/openapi/redocly.yaml, which relaxes ONLY rules whose
 # findings are inherited from the per-component source specs or are structural
 # artifacts of the join (each documented with a WHY in that file). A genuinely
 # new merge-introduced problem (broken $ref, dropped security scheme, invalid
@@ -269,9 +269,9 @@ security_coverage_check() {
 consolidated_lint_check() {
     print_header "Consolidated spec lint (redocly)"
 
-    local redocly_bin="${GENERATOR_DIR}/node_modules/.bin/redocly"
-    local consolidated_yaml="${ROOT_DIR}/postman/specs/midaz.openapi.yaml"
-    local redocly_config="${GENERATOR_DIR}/redocly.yaml"
+    local redocly_bin="${OPENAPI_DIR}/node_modules/.bin/redocly"
+    local consolidated_yaml="${ROOT_DIR}/api/midaz.openapi.yaml"
+    local redocly_config="${OPENAPI_DIR}/redocly.yaml"
 
     # Gate on artifact + binary presence (mirrors how drift_check is opt-in):
     # when run standalone without a prior `make generate-docs`, the merged spec
@@ -286,7 +286,7 @@ consolidated_lint_check() {
         return 0
     fi
 
-    if (cd "${ROOT_DIR}" && "${redocly_bin}" lint postman/specs/midaz.openapi.yaml --config "${redocly_config}"); then
+    if (cd "${ROOT_DIR}" && "${redocly_bin}" lint api/midaz.openapi.yaml --config "${redocly_config}"); then
         ok "Consolidated spec passed redocly lint (recommended, scoped by redocly.yaml)."
     else
         fail "redocly lint failed on the consolidated spec; see findings above."
@@ -298,7 +298,7 @@ consolidated_lint_check() {
 # The PRIMARY lock on the Error closure is the Go test tests/openapi
 # (error_schema_parity_test.go): it proves the `Error` closure is byte-identical
 # across the two per-plane Huma dumps. But that test reads the per-plane dumps,
-# NOT the joined artifact. The joined spec (postman/specs/midaz.openapi.json,
+# NOT the joined artifact. The joined spec (api/midaz.openapi.json,
 # consumed by the Plan B SDK) is the output of `redocly join`. If the join ever
 # collides two non-identical `Error` schemas, redocly de-dups by suffixing the
 # second (`Error`, `Error2` / `Error-2` / `Error_2`). The Go test would not see
@@ -306,7 +306,7 @@ consolidated_lint_check() {
 error_schema_singleton_check() {
     print_header "Error schema singleton check (joined spec)"
 
-    local joined_json="${ROOT_DIR}/postman/specs/midaz.openapi.json"
+    local joined_json="${ROOT_DIR}/api/midaz.openapi.json"
 
     # Mirror consolidated_lint_check: standalone runs without a prior
     # `make generate-docs` may lack the joined artifact; skip-with-warning.
@@ -343,23 +343,20 @@ error_schema_singleton_check() {
 }
 
 # Every committed artifact generate-docs.sh writes, so none of them can fall behind
-# the contracts they are generated from. The Postman collection and environment sit
-# at the postman/ root next to hand-maintained files, so they are named file by file
-# instead of being swept up by a directory prefix.
+# the contracts they are generated from.
 DRIFT_PATHSPEC=(
     # Trailing /** is required: a git pathspec containing a wildcard is matched
     # against the whole path, so 'components/*/api' matches no FILE at all.
     'components/*/api/**'
-    postman/specs
-    postman/MIDAZ.postman_collection.json
-    postman/MIDAZ.postman_environment.json
+    api/midaz.openapi.yaml
+    api/midaz.openapi.json
 )
 
 drift_check() {
     print_header "Drift check (regenerate and diff)"
 
     echo -e "    ${BLUE}⏳ Regenerating docs via generate-docs.sh...${NC}"
-    if ! "${GENERATOR_DIR}/generate-docs.sh"; then
+    if ! "${OPENAPI_DIR}/generate-docs.sh"; then
         fail "generate-docs.sh failed; cannot verify regeneration reproduces committed artifacts."
     fi
 
@@ -374,137 +371,12 @@ drift_check() {
     ok "Regeneration reproduces committed docs artifacts (no drift)."
 }
 
-# Publication mirror check: postman/specs/<component> must mirror
-# components/<component>/api EXACTLY — the same set of *.huma.yaml filenames, each
-# pair byte-identical. `redocly join` reads the published copies under
-# postman/specs, so if one drifts from (or is missing against) its source dump the
-# hub is built from a stale or absent contract while parity_check and
-# security_coverage_check — which read the SOURCE dumps — stay green. This gate
-# closes that gap in both directions:
-#   - a source dump with no published copy is a LOST publication;
-#   - a published copy with no source dump is an ORPHAN copy;
-#   - a published copy whose bytes differ from the source is a STALE copy.
-#
-# The component set is derived from PARITY_DUMPS, so this gate governs exactly the
-# contracts parity_check governs. The on-disk discovery guard refuses a source
-# dump whose component nobody added to PARITY_DUMPS, so a new component cannot slip
-# past every check by simply never being listed.
-mirror_check() {
-    print_header "Publication mirror check (postman/specs mirrors components/*/api)"
-
-    # Component name from each PARITY_DUMPS entry path
-    # ("ledger|components/ledger/api/openapi.huma.yaml" -> "ledger"), de-duplicated.
-    local entry rel comp
-    local components=()
-    for entry in "${PARITY_DUMPS[@]}"; do
-        rel="${entry#*|}"
-        comp="${rel#components/}"
-        comp="${comp%%/*}"
-        if [[ " ${components[*]-} " != *" ${comp} "* ]]; then
-            components+=("${comp}")
-        fi
-    done
-
-    # Health assertion: an empty PARITY_DUMPS must not let this gate pass empty.
-    if [ "${#components[@]}" -eq 0 ]; then
-        fail "Mirror check derived 0 components from PARITY_DUMPS; it would verify nothing."
-    fi
-
-    # Health assertion: every source dump on disk must belong to a scanned
-    # component. A new components/<x>/api dump nobody added to PARITY_DUMPS would
-    # otherwise never be looked at and pass by absence.
-    local components_hay=" ${components[*]} "
-    local src src_comp
-    shopt -s nullglob
-    local src_dumps=( "${ROOT_DIR}"/components/*/api/*.huma.yaml )
-    shopt -u nullglob
-    for src in ${src_dumps[@]+"${src_dumps[@]}"}; do
-        src_comp="${src#"${ROOT_DIR}/components/"}"
-        src_comp="${src_comp%%/*}"
-        if [[ "${components_hay}" != *" ${src_comp} "* ]]; then
-            fail "Source dump 'components/${src_comp}/api/$(basename "${src}")' belongs to component '${src_comp}', which is absent from PARITY_DUMPS. Add it so its publication is mirror-checked."
-        fi
-    done
-
-    # Symmetric published-side guard: a whole published component dir with no
-    # PARITY_DUMPS entry is never opened by the per-component loop below, so its
-    # per-file orphan check never runs and it passes by absence. Glob the published
-    # component dirs and fail on any not belonging to a scanned component. (Trailing
-    # slash matches only directories, so the top-level midaz.openapi.{yaml,json}
-    # hub files are not mistaken for components.)
-    local pub pub_comp
-    shopt -s nullglob
-    local pub_dirs=( "${ROOT_DIR}"/postman/specs/*/ )
-    shopt -u nullglob
-    for pub in ${pub_dirs[@]+"${pub_dirs[@]}"}; do
-        pub_comp="${pub#"${ROOT_DIR}/postman/specs/"}"
-        pub_comp="${pub_comp%%/*}"
-        if [[ "${components_hay}" != *" ${pub_comp} "* ]]; then
-            fail "Published dir 'postman/specs/${pub_comp}' belongs to component '${pub_comp}', which is absent from PARITY_DUMPS (orphan published component). Add it or remove the dir."
-        fi
-    done
-
-    local compared=0 base
-    for comp in "${components[@]}"; do
-        local src_dir="${ROOT_DIR}/components/${comp}/api"
-        local pub_dir="${ROOT_DIR}/postman/specs/${comp}"
-
-        [ -d "${src_dir}" ] || fail "Mirror check: source dir 'components/${comp}/api' is missing."
-        [ -d "${pub_dir}" ] || fail "Mirror check: published dir 'postman/specs/${comp}' is missing (lost publication for the whole component)."
-
-        shopt -s nullglob
-        local src_files=( "${src_dir}"/*.huma.yaml )
-        local pub_files=( "${pub_dir}"/*.huma.yaml )
-        shopt -u nullglob
-
-        local src_set=() pub_set=()
-        for base in ${src_files[@]+"${src_files[@]}"}; do src_set+=("$(basename "${base}")"); done
-        for base in ${pub_files[@]+"${pub_files[@]}"}; do pub_set+=("$(basename "${base}")"); done
-
-        local src_hay=" ${src_set[*]-} "
-        local pub_hay=" ${pub_set[*]-} "
-
-        # Lost publication: source dump with no published copy.
-        for base in ${src_set[@]+"${src_set[@]}"}; do
-            if [[ "${pub_hay}" != *" ${base} "* ]]; then
-                fail "Mirror check: 'components/${comp}/api/${base}' has no published copy at 'postman/specs/${comp}/${base}' (lost publication)."
-            fi
-        done
-
-        # Orphan copy: published copy with no source dump.
-        for base in ${pub_set[@]+"${pub_set[@]}"}; do
-            if [[ "${src_hay}" != *" ${base} "* ]]; then
-                fail "Mirror check: 'postman/specs/${comp}/${base}' has no source at 'components/${comp}/api/${base}' (orphan copy)."
-            fi
-        done
-
-        # Byte parity — the two filename sets are now known identical.
-        for base in ${src_set[@]+"${src_set[@]}"}; do
-            if ! cmp -s "${src_dir}/${base}" "${pub_dir}/${base}"; then
-                fail "Mirror check: '${comp}/${base}' differs between components/${comp}/api and postman/specs/${comp} (stale published copy — run 'make generate-docs')."
-            fi
-            compared=$((compared + 1))
-        done
-
-        ok "${comp}: ${#src_set[@]} published contract(s) mirror the source dumps byte-for-byte."
-    done
-
-    # Health assertion: at least one file pair must have been compared, so a
-    # component that happens to carry no *.huma.yaml cannot let the gate pass empty.
-    if [ "${compared}" -eq 0 ]; then
-        fail "Mirror check compared 0 file pairs; it would pass having verified nothing."
-    fi
-
-    ok "All ${compared} published contract(s) mirror their source dumps (filenames and bytes)."
-}
-
 main() {
     require_jq
     parity_check
     security_coverage_check
     error_schema_singleton_check
     consolidated_lint_check
-    mirror_check
 
     if [ "${CHECK_DOCS_REGEN:-}" = "1" ]; then
         drift_check
