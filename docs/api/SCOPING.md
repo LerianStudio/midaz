@@ -162,20 +162,45 @@ connection is dialled, and a `/v1` create can never answer `0177` (reservation d
 `tracer.mode` setting is an operator's choice that must not retroactively gate a contract the
 client integrated against.
 
-Both seams read one signal — `routeVersionPolicy` (`routeV1`/`routeV2`,
-`transaction_route_version.go`), threaded from the transport shell because the cores are
-transport-agnostic and cannot read the request path. Each seam decides for itself what the version
-means. Structural gates in `transaction_fee_seam_structure_test.go` and
-`transaction_route_version_structure_test.go` assert every route names its policy and that the
-route gate is the first statement of each tracer seam.
+On every transaction path the version is the method name, not a runtime value:
+`CreateTransactionV1` and `RevertTransactionV1` name neither the fee engine nor the tracer
+reservation; `CreateTransactionV2` names both and `RevertTransactionV2` names the tracer only —
+a revert already carries the reversed fee legs, but limits measure GROSS activity, so the reversal
+reserves capacity of its own. The PENDING state transition follows the same rule:
+`CommitTransactionV1` / `CancelTransactionV1` run `transitionPendingV1`, which names neither
+by-transaction seam, while `CommitTransactionV2` / `CancelTransactionV2` run `transitionPendingV2`,
+which confirms on APPROVED and releases on CANCELED, both after the balance commit. Structural
+gates assert all of it: `create_transaction_version_gates_test.go` (a `/v1` create pipeline names
+no versioned seam, a `/v2` one names them in order),
+`transaction_reservation_anchor_structure_test.go` (the same for the two state pipelines) and, on
+the transport side, `transaction_fee_seam_structure_test.go` and
+`transaction_route_version_structure_test.go` (every route binds the use case matching its
+version).
+
+### Transaction skips are a `/v2` body field
+
+The two per-call transaction controls — `skip.fees` and `skip.tracer` — exist only on the
+`/v2` create input (`CreateTransactionV2Input`). They opt out of the fee engine and the tracer
+reservation, and neither runs on `/v1`, so the field has nothing to mean there. A `/v1` create
+body naming `skip` is rejected by the decoder as an unknown field: **HTTP 400**
+(`ErrUnexpectedFieldsInTheRequest`), the same answer any other unknown field gets — not the
+422 an unpermitted skip earns on `/v2`.
+
+The consequence is durable, not just transport-level: `transaction.fees_skipped` and
+`transaction.tracer_skipped` can only be `true` on a row created through `/v2`. On a `/v1`
+row they are always `false`, and they stay distinguishable from `fees_route_eligible` /
+`tracer_route_eligible`, the span attributes that say the control was never in play.
+
+This differs from `skip.holder`, which remains a known — but inert — field on the `/v1`
+account body.
 
 **Mixing mounts across one transaction lifecycle is not supported.** A by-transaction
-confirm/release cannot tell whether the transaction holds reservations, so gating it on the route
-version means a PENDING created on `/v2` and committed through `/v1` never receives its confirm:
-the reservation stays RESERVED until the TTL reaper releases it, and the committed amount is never
-counted against the usage limit. Commit and cancel a transaction on the same contract that created
-it. Closing this needs create-time reservation state persisted on the transaction row for the gate
-to read instead of the route version.
+confirm/release cannot tell whether the transaction holds reservations, so a PENDING created on
+`/v2` and committed through `/v1` never receives its confirm — `transitionPendingV1` names no
+reservation seam: the reservation stays RESERVED until the TTL reaper releases it, and the
+committed amount is never counted against the usage limit. Commit and cancel a transaction on the
+same contract that created it. Closing this needs create-time reservation state persisted on the
+transaction row for the `/v1` pipeline to read.
 ## The holder seam is `/v2`-only
 
 The same contract-versus-scope split applies to accounts. The **holder seam** on account create —
@@ -183,11 +208,12 @@ the `accounting.requireHolder` gate, the two-key `skip.holder` control, and the 
 self-holder default that materialises `account.holder_id` — is **`/v2`-only**.
 
 The signal is `command.RouteHolderPolicy` (`HolderOffV1` / `HolderOnV2`), threaded from the transport
-shell for the same reason the transaction cores thread `routeVersionPolicy`: the use case is
-transport-agnostic and cannot read the request path. The two are siblings at different layers, not
-duplicates — the fee and tracer seams sit in the transaction handler, the holder seam in the account
-use case, and a `command` type cannot be the unexported `in` one without inverting the dependency
-direction.
+shell because the use case is transport-agnostic and cannot read the request path. It is the one
+place where the version travels as a runtime value rather than as a method name: the account create
+path has a single `CreateAccount` use case, so the seam inside it has to be told which contract it
+is serving. The transaction paths encode the version in the use-case name instead
+(`CreateTransactionV1`/`V2`, `RevertTransactionV1`/`V2`, `CommitTransactionV1`/`V2`,
+`CancelTransactionV1`/`V2`) and thread nothing.
 
 A `/v1` account create never reaches it. It links no holder (the row persists `holder_id = NULL`
 and `holder_check_skipped = false`), performs no holder settings read, and can be rejected by
@@ -265,6 +291,6 @@ query parameter. The convention does not change; only how much of the hierarchy 
 
 Scope and contract are separate questions. The fee admin surface answers the first (two scopes,
 both live); the transaction fee seam, the tracer reservation lifecycle and the account holder seam
-answer the second (`/v2` only — the first two driven by `routeVersionPolicy` in the transaction
-handler, the third by `command.RouteHolderPolicy` in the account use case). A surface being
+answer the second (`/v2` only — the first two by the transaction create pipeline the route binds,
+the third by `command.RouteHolderPolicy` in the account create use case). A surface being
 reachable at a scope says nothing about which contract applies it.

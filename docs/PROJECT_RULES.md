@@ -471,55 +471,65 @@ superset carrying `type`, `title`, `status`, `detail`, `instance`, plus midaz's 
 
 ### Handler Structure
 
+For most resources the transport-agnostic core (`<resource>_core.go`) is where the span
+opens, right before the service call. The transaction resource is the one exception:
+its create/revert/commit/cancel pipelines are long enough that the span has to cover
+the whole pipeline, not just one call, so it opens inside the use case instead. Both
+shapes check `ctx.Err()` before doing any work and pull the tracer off the context the
+same way — only WHERE the span opens differs.
+
 ```go
 type TransactionHandler struct {
     Command *command.UseCase  // For write operations
     Query   *query.UseCase    // For read operations
 }
 
-// The transport-agnostic core lives in <resource>.go. It owns the span, the service
-// call and the log/metric branch, and takes primitive args so nothing transport-shaped
-// reaches it.
-func (handler *TransactionHandler) createTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, input *mtransaction.CreateTransactionInput) (*mtransaction.Transaction, error) {
+// The Huma transport shell lives in transaction_handler_v1.go. It checks ctx.Err(),
+// resolves the path params, delegates to the use case and projects the result onto a
+// typed Huma response. No span opens here: the pipeline's span belongs to the use case
+// it delegates to.
+func (handler *TransactionHandler) createTransactionShellV1(ctx context.Context, orgStr, ledgerStr string, transactionInput mtransaction.Transaction, transactionStatus, idempotencyKey, idempotencyTTL string) (*CreateTransactionResponse, error) {
     if err := ctx.Err(); err != nil {
-        return nil, err
+        return nil, pkgHTTP.HumaProblem(err)
     }
 
-    _, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-    ctx, span := tracer.Start(ctx, "handler.create_transaction")
-    defer span.End()
-
-    result, err := handler.Command.CreateTransaction(ctx, organizationID, ledgerID, input)
+    orgID, ledgerID, err := parseOrgLedger(orgStr, ledgerStr)
     if err != nil {
-        handleSpanByErrorClass(span, "Failed to create transaction", err)
-
-        return nil, err
+        return nil, pkgHTTP.HumaProblem(err)
     }
 
-    return result, nil
+    tran, replayed, err := handler.Command.CreateTransactionV1(ctx, command.CreateTransactionV1Input{
+        OrganizationID:    orgID,
+        LedgerID:          ledgerID,
+        Transaction:       transactionInput,
+        TransactionStatus: transactionStatus,
+        IdempotencyKey:    idempotencyKey,
+        IdempotencyTTL:    pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
+    })
+    if err != nil {
+        return nil, pkgHTTP.HumaProblem(err)
+    }
+
+    return &CreateTransactionResponse{
+        Status:              http.StatusCreated,
+        IdempotencyReplayed: replayedHeader(replayed),
+        Body:                newTransactionV1(tran),
+    }, nil
 }
 
-// The Huma transport lives in <resource>_handler.go. It resolves the path params,
-// delegates to the core, and renders the typed response; errors become RFC 9457
-// problems through pkgHTTP.HumaProblem.
-func (handler *TransactionHandler) CreateTransaction(ctx context.Context, in *CreateTransactionRequest) (*CreateTransactionResponse, error) {
-    orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
-    if err != nil {
-        return nil, pkgHTTP.HumaProblem(err)
-    }
+// CreateTransactionV1 lives in services/command/create_transaction_v1.go. It pulls the
+// tracer off the context, opens the span for the whole pipeline, and defers its End()
+// before doing anything else; every step below (validate, stage balances, process
+// operations, persist) runs under this one span.
+func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransactionV1Input) (*transaction.Transaction, bool, error) {
+    logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-    payload := new(mtransaction.CreateTransactionInput)
-    if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
-        return nil, pkgHTTP.HumaProblem(err)
-    }
+    ctx, span := tracer.Start(ctx, "command.create_transaction_v1")
+    defer span.End()
 
-    result, err := handler.createTransaction(ctx, orgID, ledgerID, payload)
-    if err != nil {
-        return nil, pkgHTTP.HumaProblem(err)
-    }
+    // ... build the run, validate, stage balances, process the operations, persist ...
 
-    return &CreateTransactionResponse{Status: http.StatusCreated, Body: result}, nil
+    return tran, replay, nil
 }
 ```
 
@@ -937,7 +947,7 @@ stubs under `pkg/proto`).
 Required checks before merge:
 1. golangci-lint **v2.13.2** — the CI gate and local Makefile pin match (`GOLANGCI_LINT_VERSION`)
 2. Go analysis + security scanning from the shared workflow
-3. Unit tests (must pass, 85% coverage threshold enforced)
+3. Unit tests (must pass, 80% coverage threshold enforced by `scripts/check-tests.sh` via `make check-tests`)
 4. `check-docs` — OpenAPI spec drift gate
 5. `check-proto` — protobuf stub drift gate
 
@@ -1096,13 +1106,30 @@ that the reload which restarts the goroutine is skipped.
 
 ### Redis Queue Consumer (Transaction Component)
 
-Backup/retry queue for transaction operations when async processing via RabbitMQ fails:
+`RedisQueueConsumer` (`components/ledger/internal/bootstrap/redis.consumer.go`) runs
+inside the ledger binary as a launcher app, not as a separate service, and depends on
+`command.UseCase`/`query.UseCase` directly rather than on the HTTP handler:
 
-- Periodically processes backup queue messages (every 30 minutes)
-- Filters out messages under 30 minutes old
-- Processes up to 100 workers in parallel with distributed locking (25-minute TTL)
-- Uses atomic Lua scripts for balance operations (`balance_atomic_operation.lua`)
-- Republishes recovered messages to RabbitMQ for reprocessing
+- Wakes up every 30 minutes (`CronTimeToRun`) and takes a per-cycle leader lock in Redis
+  with a 1800s (30-minute) TTL (`CycleLockTTL`); in multi-tenant it iterates the tenants
+  in the shared tenant cache each cycle.
+- Reads the whole `backup_queue:{transactions}` hash, skips entries under 30 minutes old
+  (`MessageTimeOfLife`), and replays the rest with up to 100 workers (`MaxWorkers`).
+- The entry (`mmodel.TransactionRedisQueue`) is written by the create/commit paths
+  BEFORE the balance-mutating Lua script runs; the Lua script records the before/after
+  balances into it atomically with the balance mutation, and the create/commit paths
+  append the materialized `operations` after `BuildOperations`. The consumer never runs
+  Lua: it only replays what those paths recorded, and the entry is removed by the
+  persistence path (`CreateBalanceTransactionOperationsAsync`) once the write completes.
+- Replay prefers the materialized operations and only rebuilds them via
+  `command.BuildOperations` when they are missing, recording that fallback with the
+  `redis_backup_replay_recomputed_balances_after_total` metric.
+- Persists via `WriteTransactionAsync`: publishes to RabbitMQ and, if publishing fails,
+  writes directly to Postgres.
+- A poison entry counts attempts and moves to the Postgres quarantine table after 3
+  consecutive failures (`QuarantineThreshold`); cycle health is exposed via the
+  `redis_backup_queue_depth`, `redis_backup_queue_oldest_age_seconds`, and
+  `redis_backup_quarantine_total` metrics.
 
 ### RabbitMQ Consumer (Transaction Component)
 

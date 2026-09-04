@@ -74,6 +74,12 @@ type CreateTransactionV2Input struct {
 	// Metadata holds flat custom key-value attributes. Values must be flat
 	// (string, number, boolean) — no nested objects.
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+
+	// Skip carries the per-call control opt-outs. Each flag is honored only when the
+	// matching per-ledger override is enabled; otherwise the request is rejected with 422.
+	// The controls it opts out of — the fee engine and the tracer reservation — exist only
+	// on this contract, so the field does too.
+	Skip *TransactionSkip `json:"skip,omitempty"`
 }
 
 // V2LegInput is one leg of a transaction side. Exactly ONE value expression per leg:
@@ -276,6 +282,7 @@ func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, V2Scope
 		Metadata:    in.Metadata,
 		RouteID:     cloneStringPtr(in.RouteID),
 		Send:        send,
+		Skip:        cloneTransactionSkip(in.Skip),
 	}, scope, nil
 }
 
@@ -472,4 +479,16 @@ func cloneStringPtr(p *string) *string {
 	v := *p
 
 	return &v
+}
+
+// cloneTransactionSkip returns an independent copy of s, or nil when s is nil, so the
+// produced transaction never aliases the decoded input's skip block.
+func cloneTransactionSkip(s *TransactionSkip) *TransactionSkip {
+	if s == nil {
+		return nil
+	}
+
+	clone := *s
+
+	return &clone
 }

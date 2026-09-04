@@ -53,9 +53,6 @@ type CreateTransactionInput struct {
 	// Send operation details including source and distribution
 	// required: true
 	Send Send `json:"send" validate:"required,dive"`
-
-	// Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.
-	Skip *TransactionSkip `json:"skip,omitempty"`
 }
 
 // BuildTransaction converts a CreateTransactionInput to a Transaction.
@@ -80,7 +77,6 @@ func (cti *CreateTransactionInput) BuildTransaction() *Transaction {
 		Route:                    cti.Route,
 		RouteID:                  cti.RouteID,
 		Send:                     send,
-		Skip:                     cti.Skip,
 	}
 }
 
@@ -130,9 +126,6 @@ type CreateTransactionInflowInput struct {
 	// Send operation details including distribution only (no source)
 	// required: true
 	Send SendInflow `json:"send" validate:"required,dive"`
-
-	// Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.
-	Skip *TransactionSkip `json:"skip,omitempty"`
 }
 
 // BuildInflowEntry converts a CreateTransactionInflowInput to a Transaction.
@@ -162,7 +155,6 @@ func (c *CreateTransactionInflowInput) BuildInflowEntry() *Transaction {
 				From: []FromTo{from},
 			},
 		},
-		Skip: c.Skip,
 	}
 }
 
@@ -216,9 +208,6 @@ type CreateTransactionOutflowInput struct {
 	// Send operation details including source only (no distribution)
 	// required: true
 	Send SendOutflow `json:"send" validate:"required,dive"`
-
-	// Per-call control opt-outs. Each flag is honored only when the matching per-ledger override is enabled; otherwise the request is rejected with 422.
-	Skip *TransactionSkip `json:"skip,omitempty"`
 }
 
 // BuildOutflowEntry converts a CreateTransactionOutflowInput to a Transaction.
@@ -258,6 +247,5 @@ func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *Transaction {
 				To: []FromTo{to},
 			},
 		},
-		Skip: c.Skip,
 	}
 }

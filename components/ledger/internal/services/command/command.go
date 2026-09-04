@@ -126,6 +126,37 @@ type UseCase struct {
 	// settings (RequireHolder false), preserving permissive behaviour.
 	SettingsReader SettingsReader
 
+	// --- Transaction create seam (wired at bootstrap) ---
+
+	// TransactionReader serves the reads the transaction create path needs
+	// (ledger settings, balances, accounting rules) through a narrow port, so
+	// command never imports the query package. Satisfied directly by the query
+	// UseCase (signatures match).
+	TransactionReader TransactionReader
+
+	// FeeApplier drives the in-process fee engine inside the create seam. It is
+	// injected at bootstrap from the fee use case; a nil applier disables fee
+	// application (the create path stays unchanged).
+	FeeApplier FeeApplier
+
+	// TracerReserver drives the tracer two-phase reservation lifecycle from the
+	// create seam. It is injected at bootstrap from the tracer client; a nil
+	// reserver means the tracer integration is disabled (the create path stays
+	// unchanged). The per-ledger tracer.mode gate lives at the call site.
+	TracerReserver TracerReserver
+
+	// FeesMongoManager resolves the CURRENT tenant's fee Mongo database at the
+	// fee seam when MultiTenantEnabled is true. The fee pack/billing repos read
+	// the GENERIC tmcore MB key, which the route-scoped feesTenantMiddleware
+	// only sets on FEE routes — never on the transaction route — so the seam
+	// must resolve and inject it onto a derived ctx itself. Nil in single-tenant
+	// mode (and in tests that do not exercise the seam).
+	FeesMongoManager FeesDBResolver
+
+	// MultiTenantEnabled gates the fee-seam tenant resolution. When false the
+	// static fee connection is correct and resolveFeesTenantContext is a no-op.
+	MultiTenantEnabled bool
+
 	// --- Observability (D6) ---
 
 	// MetricsFactory emits the bounded domain_operations_total /

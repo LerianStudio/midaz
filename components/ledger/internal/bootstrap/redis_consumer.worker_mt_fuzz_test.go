@@ -11,8 +11,8 @@ import (
 	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 )
 
 // FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled fuzzes the
@@ -34,7 +34,8 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 	f.Add(false, true)
 
 	logger := newTestLogger()
-	handler := in.TransactionHandler{}
+	cmd := &command.UseCase{}
+	qry := &query.UseCase{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	if err != nil {
 		f.Fatalf("failed to create tenant client: %v", err)
@@ -50,7 +51,7 @@ func FuzzNewRedisQueueConsumerMultiTenant_MultiTenantEnabled(f *testing.F) {
 		}
 
 		// Property: constructor must never panic.
-		consumer := NewRedisQueueConsumerMultiTenant(logger, handler, multiTenantEnabled, consumerCache, mgr)
+		consumer := NewRedisQueueConsumerMultiTenant(logger, cmd, qry, multiTenantEnabled, consumerCache, mgr)
 
 		// Property: returned consumer is never nil.
 		if consumer == nil {
@@ -98,7 +99,8 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 
 	logger := newTestLogger()
 	useCase := &command.UseCase{}
-	handler := in.TransactionHandler{}
+	cmd := &command.UseCase{}
+	qry := &query.UseCase{}
 	tenantClient, err := tmclient.NewClient("http://localhost:0", logger, tmclient.WithAllowInsecureHTTP(), tmclient.WithServiceAPIKey("test-api-key"))
 	if err != nil {
 		f.Fatalf("failed to create tenant client: %v", err)
@@ -133,7 +135,7 @@ func FuzzIsMultiTenantReady_FieldCombinations(f *testing.F) {
 		}
 
 		// --- RedisQueueConsumer predicate ---
-		consumer := NewRedisQueueConsumer(logger, handler)
+		consumer := NewRedisQueueConsumer(logger, cmd, qry)
 		consumer.multiTenantEnabled = consumerEnabled
 
 		if consumerHasPGMgr {
