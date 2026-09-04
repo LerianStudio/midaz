@@ -729,4 +729,3 @@ dashboards-verify: dashboards
 	$(call print_title,Verifying dashboards against telemetry dictionary)
 	@./scripts/verify-dashboard-primitives.sh
 	@echo "[ok] Every referenced metric is documented"
-

@@ -1,0 +1,9 @@
+reviews:
+  high_level_summary: false
+  review_status: true
+  auto_review:
+    enabled: false
+    base_branches:
+      - "develop"
+      - "release-candidate"
+      - "main"
