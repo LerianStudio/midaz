@@ -587,7 +587,7 @@ local function main()
         if not ok then
             local currentBalance = redis.call("GET", redisBalanceKey)
             if not currentBalance then
-                return redis.error_reply("0061")
+                return redis.error_reply("0139")
             end
             balance = cjson.decode(currentBalance)
 

@@ -939,78 +939,65 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 
 // mapBalanceAtomicScriptError translates raw Lua script errors into typed Go errors.
 //
-// Redis Lua scripts signal errors via redis.error_reply(code), which arrives on
-// the Go side as a plain string inside the redis.Error message (e.g. "0018").
-// Since there is no structured error channel across the Go↔Redis↔Lua boundary,
-// we rely on string matching against the known error codes.
-//
-// If the Lua error format changes (e.g. from bare codes to prefixed messages),
-// this mapping must be updated accordingly.
+// Redis Lua scripts signal errors via redis.error_reply(code). Redis may add
+// one "ERR " protocol prefix to a bare code; no other framing is accepted.
 //
 // Lua error codes emitted by balance_atomic_operation.lua:
 //   - "0018" → ErrInsufficientFunds (negative available on non-external credit-direction balance without overdraft fall-through)
 //   - "0019" → ErrAccountIneligibility (balance carries a live deletion marker; rejected before any mutation)
-//   - "0098" → ErrOnHoldExternalAccount (external account used in pending source)
 //   - "0139" → ErrTransactionBackupCacheRetrievalFailed (balance key vanished mid-script)
 //   - "0167" → ErrOverdraftLimitExceeded (transaction would push usage past the configured limit)
 //   - "0174" → ErrStaleBalanceVersion (balance changed between Go read and Lua execution)
 //   - "0502" → ErrAccountBlocked (a balance in the batch belongs to a blocked account; rejected before any mutation)
 //   - "0508" → ErrAccountBlockExceptionInvalid (the presented exception is absent/expired or does not match the transaction; rejected before any mutation and WITHOUT consuming it)
 //
-// Ordering note: more specific codes ("0167", "0174") are matched before the
-// generic "0018" insufficient-funds branch so that a single error string like
-// "0167" is not misclassified by loose substring matching.
+// Only exact replies are business codes. Runtime and transport errors may
+// contain the same digits and must remain technical errors.
 func mapBalanceAtomicScriptError(span trace.Span, err error) error {
-	if strings.Contains(err.Error(), constant.ErrOverdraftLimitExceeded.Error()) {
+	code := strings.TrimPrefix(err.Error(), "ERR ")
+	if code == constant.ErrOverdraftLimitExceeded.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrOverdraftLimitExceeded, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft limit exceeded", mappedErr)
 
 		return mappedErr
 	}
 
-	if strings.Contains(err.Error(), constant.ErrStaleBalanceVersion.Error()) {
+	if code == constant.ErrStaleBalanceVersion.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrStaleBalanceVersion, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Stale balance version detected", mappedErr)
 
 		return mappedErr
 	}
 
-	if strings.Contains(err.Error(), constant.ErrAccountBlockExceptionInvalid.Error()) {
+	if code == constant.ErrAccountBlockExceptionInvalid.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrAccountBlockExceptionInvalid, constant.EntityTransaction)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account block exception invalid: batch rejected without consuming the identifier", mappedErr)
 
 		return mappedErr
 	}
 
-	if strings.Contains(err.Error(), constant.ErrAccountBlocked.Error()) {
+	if code == constant.ErrAccountBlocked.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrAccountBlocked, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account blocked: batch rejected before any mutation", mappedErr)
 
 		return mappedErr
 	}
 
-	if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
+	if code == constant.ErrInsufficientFunds.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", mappedErr)
 
 		return mappedErr
 	}
 
-	if strings.Contains(err.Error(), constant.ErrAccountIneligibility.Error()) {
+	if code == constant.ErrAccountIneligibility.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account ineligible: balance carries a deletion marker", mappedErr)
 
 		return mappedErr
 	}
 
-	if strings.Contains(err.Error(), constant.ErrOnHoldExternalAccount.Error()) {
-		mappedErr := pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, "validateBalance")
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed run lua script on redis", mappedErr)
-
-		return mappedErr
-	}
-
-	if strings.Contains(err.Error(), constant.ErrTransactionBackupCacheRetrievalFailed.Error()) {
+	if code == constant.ErrTransactionBackupCacheRetrievalFailed.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrTransactionBackupCacheRetrievalFailed, "validateBalance")
 		libOpentelemetry.HandleSpanError(span, "Failed run lua script on redis", mappedErr)
 
