@@ -57,12 +57,15 @@ var expireIfValueLua string
 //go:embed scripts/normalize_balance_limit.lua
 var normalizeBalanceLimitLua string
 
+//go:embed scripts/compare_delete_recovery.lua
+var compareDeleteRecoveryLua string
+
 // balanceAtomicScript, claimBalanceSyncScript, updateBalanceSettingsScript,
 // updateBalanceBlockedScript, updateBalanceAllowFlagsScript, deleteIfValueScript,
-// expireIfValueScript, and normalizeBalanceLimitScript are built once at package
-// init. redis.NewScript computes the source SHA1 eagerly, so hoisting these out
-// of the per-call hot paths avoids re-hashing on every invocation. *redis.Script
-// is safe for concurrent use.
+// expireIfValueScript, normalizeBalanceLimitScript, and compareDeleteRecoveryScript
+// are built once at package init. redis.NewScript computes the source SHA1 eagerly,
+// so hoisting these out of the per-call hot paths avoids re-hashing on every
+// invocation. *redis.Script is safe for concurrent use.
 var (
 	balanceAtomicScript           = redis.NewScript(balanceAtomicOperationLua)
 	claimBalanceSyncScript        = redis.NewScript(claimBalanceSyncKeysLua)
@@ -72,6 +75,7 @@ var (
 	deleteIfValueScript           = redis.NewScript(deleteIfValueLua)
 	expireIfValueScript           = redis.NewScript(expireIfValueLua)
 	normalizeBalanceLimitScript   = redis.NewScript(normalizeBalanceLimitLua)
+	compareDeleteRecoveryScript   = redis.NewScript(compareDeleteRecoveryLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
@@ -84,6 +88,12 @@ const TransactionBackupQueue = "backup_queue:{transactions}"
 // TransactionBackupQueue. The shared {transactions} hash tag co-locates both
 // keys in the same Redis Cluster slot so HDel pairs stay atomic-friendly.
 const TransactionBackupAttemptsQueue = TransactionBackupQueue + ":attempts"
+
+const (
+	RecoveryAckMissing  int64 = 0
+	RecoveryAckDeleted  int64 = 1
+	RecoveryAckReplaced int64 = 2
+)
 
 // maxRedisBatchSize limits the number of items sent in a single Redis operation
 // to prevent oversized payloads. Operations with more items are split into chunks.
@@ -1597,6 +1607,61 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	logger.Log(ctx, libLog.LevelDebug, "Message removed from Redis queue", libLog.String("key", key))
 
 	return nil
+}
+
+// CompareAndDeleteRecovery acknowledges only the exact version-2 envelope read
+// by the caller. Its raw UUID:UUID field is not a physical Redis key. Matching
+// deletion also clears the legacy-namespaced attempt field in the same script;
+// absent or replaced records leave counters, receipts, and guards untouched.
+// Results are RecoveryAckMissing, RecoveryAckDeleted, or RecoveryAckReplaced.
+func (rr *RedisConsumerRepository) CompareAndDeleteRecovery(ctx context.Context, field, expectedPayload string) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.compare_delete_recovery")
+	defer span.End()
+
+	transactionID, executionID, ok := strings.Cut(field, ":")
+	if !ok || expectedPayload == "" {
+		return 0, fmt.Errorf("invalid recovery acknowledgement identity or payload")
+	}
+
+	for _, raw := range []string{transactionID, executionID} {
+		id, err := uuid.Parse(raw)
+		if err != nil || id == uuid.Nil || id.String() != raw {
+			return 0, fmt.Errorf("invalid canonical recovery acknowledgement identity")
+		}
+	}
+
+	keys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, TransactionBackupAttemptsQueue})
+	if err != nil {
+		return 0, fmt.Errorf("resolve recovery acknowledgement keys: %w", err)
+	}
+
+	counterField, err := tenantKeyFromContextOrError(ctx, field)
+	if err != nil {
+		return 0, fmt.Errorf("resolve recovery attempt field: %w", err)
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get recovery acknowledgement client: %w", err)
+	}
+
+	result, err := compareDeleteRecoveryScript.Run(ctx, client, keys, field, expectedPayload, counterField).Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to acknowledge recovery", err)
+		return 0, fmt.Errorf("compare and delete recovery: %w", err)
+	}
+
+	if result != RecoveryAckMissing && result != RecoveryAckDeleted && result != RecoveryAckReplaced {
+		return 0, fmt.Errorf("invalid recovery acknowledgement result")
+	}
+
+	return result, nil
 }
 
 // IncrementBackupAttempt atomically increments the per-record failure counter in
