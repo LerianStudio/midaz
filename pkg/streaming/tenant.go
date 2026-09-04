@@ -14,7 +14,7 @@ package streaming
 import (
 	"context"
 
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 )
 
 // DefaultTenantID is the literal tenant ID stamped onto outbound CloudEvents

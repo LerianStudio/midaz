@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v6/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v7/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -245,8 +245,6 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.create.exec")
-
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -258,20 +256,18 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 			// Schema drift is an infrastructure failure, not a caller mistake, so
 			// it has to flip the span red; a constraint violation stays business.
 			if schemaDrift {
-				libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
+				libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute query", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute query", err)
 			}
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, err
 	}
-
-	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
@@ -443,19 +439,15 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		return nil, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		mapped := mapReadError(err)
 
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", mapped)
 
 		return nil, mapped
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	accounts, err := scanAccountRows(rows)
 	if err != nil {
@@ -515,19 +507,15 @@ func (r *AccountPostgreSQLRepository) FindAllByHolder(ctx context.Context, organ
 		return nil, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_all_accounts_by_holder.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		mapped := mapReadError(err)
 
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", mapped)
 
 		return nil, mapped
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	accounts, err := scanAccountRows(rows)
 	if err != nil {
@@ -576,11 +564,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 	acc := &AccountPostgreSQLModel{}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
-
 	row := db.QueryRowContext(ctx, query, args...)
-
-	spanQuery.End()
 
 	if err := row.Scan(
 		&acc.ID,
@@ -657,11 +641,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 	acc := &AccountPostgreSQLModel{}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_with_deleted.query")
-
 	row := db.QueryRowContext(ctx, query, args...)
-
-	spanQuery.End()
 
 	if err := row.Scan(
 		&acc.ID,
@@ -739,11 +719,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 
 	acc := &AccountPostgreSQLModel{}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_alias.query")
-
 	row := db.QueryRowContext(ctx, query, args...)
-
-	spanQuery.End()
 
 	if err := row.Scan(
 		&acc.ID,
@@ -815,23 +791,18 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 		return false, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_by_alias.query")
-
 	var exists int
 
 	err = db.QueryRowContext(ctx, query, args...).Scan(&exists)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			spanQuery.End()
 			return false, nil
 		}
 
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return false, err
 	}
-
-	spanQuery.End()
 
 	err = pkg.ValidateBusinessError(constant.ErrAliasUnavailability, constant.EntityAccount, alias)
 
@@ -880,19 +851,15 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 		return nil, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		mapped := mapReadError(err)
 
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", mapped)
 
 		return nil, mapped
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var acc AccountPostgreSQLModel
@@ -969,19 +936,15 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 		return nil, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_by_alias.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		mapped := mapReadError(err)
 
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", mapped)
 
 		return nil, mapped
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var acc AccountPostgreSQLModel
@@ -1108,8 +1071,6 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
-
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -1121,20 +1082,18 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 			// Schema drift is an infrastructure failure, not a caller mistake, so
 			// it has to flip the span red; a constraint violation stays business.
 			if schemaDrift {
-				libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
+				libOpentelemetry.HandleSpanError(span, "Failed to execute update query", err)
 			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute update query", err)
 			}
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute update query", err)
 
 		return nil, err
 	}
-
-	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
@@ -1187,15 +1146,11 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 		return err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.delete.exec")
-
 	if _, err := db.ExecContext(ctx, query, args...); err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 	}
-
-	spanExec.End()
 
 	return nil
 }
@@ -1232,19 +1187,15 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 		return nil, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		mapped := mapReadError(err)
 
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", mapped)
 
 		return nil, mapped
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var acc AccountPostgreSQLModel
@@ -1320,19 +1271,15 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 		return nil, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_by_alias.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		mapped := mapReadError(err)
 
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", mapped)
 
 		return nil, mapped
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var acc AccountPostgreSQLModel
@@ -1420,21 +1367,15 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 
 	logger.Log(ctx, libLog.LevelDebug, "Executing query", libLog.String("query", query))
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_external_accounts_by_asset_code.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
-
-		spanQuery.End()
 
 		return nil, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var acc AccountPostgreSQLModel
@@ -1512,18 +1453,14 @@ func (r *AccountPostgreSQLRepository) Count(ctx context.Context, organizationID,
 		return count, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.count.query")
-
 	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
 		mapped := mapReadError(err)
 
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", mapped)
 
 		return count, mapped
 	}
-
-	spanQuery.End()
 
 	return count, nil
 }
@@ -1557,18 +1494,14 @@ func (r *AccountPostgreSQLRepository) CountByHolderID(ctx context.Context, organ
 		return count, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.count_by_holder.query")
-
 	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
 		mapped := mapReadError(err)
 
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", mapped)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", mapped)
 
 		return count, mapped
 	}
-
-	spanQuery.End()
 
 	return count, nil
 }

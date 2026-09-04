@@ -14,9 +14,9 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/danielgtaylor/huma/v2"

@@ -8,8 +8,8 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v6/commons/server"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v7/commons/server"
 	libObsLog "github.com/LerianStudio/lib-observability/v4/log"
 	libObsOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"

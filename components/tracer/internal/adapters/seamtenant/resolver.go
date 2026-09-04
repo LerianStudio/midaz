@@ -19,8 +19,8 @@ import (
 	"context"
 	"strings"
 
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
 	"github.com/bxcodec/dbresolver/v2"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"

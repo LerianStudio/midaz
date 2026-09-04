@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"

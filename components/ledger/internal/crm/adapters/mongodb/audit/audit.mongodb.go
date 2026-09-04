@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libMongo "github.com/LerianStudio/lib-commons/v7/commons/mongo"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
