@@ -22,8 +22,6 @@ jobs:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@tier-2
     with:
       allowed_source_branches: 'hotfix/*|release-candidate'
-      # crm and fees are valid commit scopes even though both now live inside the
-      # ledger binary. Scope is warn-only (require_scope: false).
       pr_title_scopes: |
         crm
         ledger
@@ -42,16 +40,11 @@ jobs:
       go_version: "1.27.0"
       golangci_lint_version: "v2.13.2"
       app_name_prefix: "midaz"
-      # Analysis-class filter: every component dir with in-tree Go code. CRM rolls
-      # up under components/ledger (a ledger package tree, not a standalone
-      # component); reporter was extracted out of this repo entirely.
       filter_paths: |
         components/ledger
         components/tracer
       go_private_modules: "github.com/LerianStudio/*"
       ignore_file: ".trivyignore"
-      # Default plus .coderabbit.yaml: it's a CodeRabbit-only config file,
-      # not something the Go analysis/security pipelines need to react to.
       ignore_globs: "*.md docs/* .github/* LICENSE* .gitignore .coderabbit.yaml"
       shared_paths: |
         go.mod
@@ -61,9 +54,6 @@ jobs:
         Makefile
     secrets: inherit
 
-  # Required gate: regenerate the gRPC stubs from proto/ and fail if the committed
-  # stubs under pkg/proto are stale. buf and the protoc plugins run via pinned
-  # remote plugins (BUF_VERSION + buf.gen.yaml), so no global install is needed.
   check-proto:
     name: Check Proto
     runs-on: blacksmith-4vcpu-ubuntu-2404
