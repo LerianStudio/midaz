@@ -5,7 +5,7 @@
 # the first argument of auth.Authorize(g.cfg.AppName, resource, method) in the
 # route guard (middleware/auth_guard.go:87); cfg.AppName resolves to the constant
 # ApplicationName = "tracer" (pkg/constant/app.go:7, config.go). Keys mirror the
-# yaml tags on lib-auth/v3 auth/declaration.DeclarationManifest.
+# yaml tags on lib-auth/v4 auth/declaration.DeclarationManifest.
 #
 # The (resource, action) tuples are the EXACT surface the tracer routes enforce
 # via guard.With(resource, method, forceAPIKey) — each traces to a registration
@@ -18,49 +18,81 @@
 # APIKeyOnlyValidation, e.g. POST /validations) — that is an orthogonal transport
 # and does not change the (resource, verb) the plugin-auth guard authorizes.
 #
-# ROLE MODEL IS CONFIRMED against the central Access Manager (no role data in
-# code, but the split is confirmed): editor -> post/get/patch/delete; viewer ->
-# read-only (get); reservations (M2M-only, called by the ledger) is granted to
-# editor.
+# ROLE MODEL IS DERIVED FROM the central Access Manager seed (caradhras,
+# deploy/pam-seed/init_data.json), not invented here. The code carries no role
+# data, so the seed is the only source of truth for who gets what. Five seeded
+# tiers:
+#
+#   editor       -> rules/limits at post/get/patch/delete
+#   contributor  -> rules/limits at post/get/patch (no delete)
+#   viewer       -> rules/limits/validations at get
+#   validator    -> validations at get/post, plus reservations/post
+#   audit-viewer -> audit-events at get, plus reservations/post
+#
+# reservations (called by the ledger over the reservation seam) is therefore NOT
+# editor-only: the seed grants it to editor, validator and audit-viewer alike.
+#
+# This manifest must stay a SUPERSET of the seed. The tenant-manager's
+# template-origin prune deletes the seeded RBAC on reconcile, so a tier or a grant
+# missing here is not merely undeclared — it stops existing.
 service: tracer
 version: 1
 permissions:
   # rules — CEL fraud rules (routes.go:506)
-  - { resource: rules, action: post,   effect: allow, roles: [editor] }
-  - { resource: rules, action: get,    effect: allow, roles: [editor, viewer] }
-  - { resource: rules, action: patch,  effect: allow, roles: [editor] }
+  - { resource: rules, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: rules, action: get,    effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: rules, action: patch,  effect: allow, roles: [editor, contributor] }
   - { resource: rules, action: delete, effect: allow, roles: [editor] }
 
   # limits — spending limits (routes.go:521)
-  - { resource: limits, action: post,   effect: allow, roles: [editor] }
-  - { resource: limits, action: get,    effect: allow, roles: [editor, viewer] }
-  - { resource: limits, action: patch,  effect: allow, roles: [editor] }
+  - { resource: limits, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: limits, action: get,    effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: limits, action: patch,  effect: allow, roles: [editor, contributor] }
   - { resource: limits, action: delete, effect: allow, roles: [editor] }
 
   # validations — transaction validation (routes.go:533)
-  - { resource: validations, action: get,  effect: allow, roles: [editor, viewer] }
-  - { resource: validations, action: post, effect: allow, roles: [editor] }
+  - { resource: validations, action: get,  effect: allow, roles: [editor, validator, viewer] }
+  - { resource: validations, action: post, effect: allow, roles: [editor, validator] }
 
   # reservations — limit reservation (M2M; called by the ledger) (routes.go:565)
-  - { resource: reservations, action: post, effect: allow, roles: [editor] }
+  - { resource: reservations, action: post, effect: allow, roles: [editor, validator, audit-viewer] }
 
   # audit-events — hash-chained audit read (routes.go:574)
-  - { resource: audit-events, action: get, effect: allow, roles: [editor, viewer] }
+  - { resource: audit-events, action: get, effect: allow, roles: [editor, audit-viewer, viewer] }
 
   # streaming-manifest — event catalog (streaming_manifest_route.go:48)
   - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
 
 roles:
   # Group bindings are CONFIRMED against the central Access Manager seed
-  # (plugin-access-manager, components/auth/init/casdoor/init_data.json): the real
-  # groups are tracer-{editor,contributor,viewer}-group. The manifest only
-  # REFERENCES pre-existing groups, it never creates them — a name absent from the
-  # seed reconciles into a role with zero members. The seed also carries
-  # tracer-contributor-group, tracer-validator-group and tracer-audit-viewer-group;
-  # this manifest declares no matching role, so those groups stay unbound here.
+  # (caradhras, deploy/pam-seed/init_data.json): the real groups are
+  # tracer-{editor,contributor,viewer,validator,audit-viewer}-group. The manifest
+  # only REFERENCES pre-existing groups, it never creates them — a name absent
+  # from the seed reconciles into a role with zero members.
+  #
+  # All FIVE seeded tiers are declared, because once the tenant-manager's
+  # template-origin prune runs, whatever this manifest does not declare stops
+  # existing. `validator` and `audit-viewer` are the ones that would hurt: the
+  # seed grants them reservations/post — the surface the ledger calls over the
+  # reservation seam — and audit-events/get, neither of which the editor/viewer
+  # pair covers.
+  #
+  # NOTE: the seed defines tracer-contributor-role, but at least one provisioned
+  # tenant carries tracer-contributor-group with no matching role (seeded before
+  # the role existed). Declaring `contributor` here makes the RI path match a
+  # fresh seed and repairs that drift on the next reconcile.
   - name: editor
     granted_to:
       - group: tracer-editor-group
+  - name: contributor
+    granted_to:
+      - group: tracer-contributor-group
+  - name: validator
+    granted_to:
+      - group: tracer-validator-group
+  - name: audit-viewer
+    granted_to:
+      - group: tracer-audit-viewer-group
   - name: viewer
     granted_to:
       - group: tracer-viewer-group
