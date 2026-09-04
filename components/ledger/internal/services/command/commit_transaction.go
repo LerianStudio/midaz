@@ -39,7 +39,12 @@ func (uc *UseCase) CommitTransactionV1(ctx context.Context, in PendingTransition
 		return nil, err
 	}
 
-	return uc.transitionPendingV1(ctx, &pendingTransitionRun{tran: tran, status: constant.APPROVED})
+	return uc.transitionPendingV1(ctx, &pendingTransitionRun{
+		organizationID: in.OrganizationID,
+		ledgerID:       in.LedgerID,
+		tran:           tran,
+		status:         constant.APPROVED,
+	})
 }
 
 // CancelTransactionV1 cancels a PENDING transaction under the /v1 contract. Same
@@ -56,7 +61,12 @@ func (uc *UseCase) CancelTransactionV1(ctx context.Context, in PendingTransition
 		return nil, err
 	}
 
-	return uc.transitionPendingV1(ctx, &pendingTransitionRun{tran: tran, status: constant.CANCELED})
+	return uc.transitionPendingV1(ctx, &pendingTransitionRun{
+		organizationID: in.OrganizationID,
+		ledgerID:       in.LedgerID,
+		tran:           tran,
+		status:         constant.CANCELED,
+	})
 }
 
 // CommitTransactionV2 approves a PENDING transaction under the /v2 contract, which
@@ -73,7 +83,12 @@ func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransition
 		return nil, err
 	}
 
-	return uc.transitionPendingV2(ctx, &pendingTransitionRun{tran: tran, status: constant.APPROVED})
+	return uc.transitionPendingV2(ctx, &pendingTransitionRun{
+		organizationID: in.OrganizationID,
+		ledgerID:       in.LedgerID,
+		tran:           tran,
+		status:         constant.APPROVED,
+	})
 }
 
 // CancelTransactionV2 cancels a PENDING transaction under the /v2 contract, releasing
@@ -89,7 +104,12 @@ func (uc *UseCase) CancelTransactionV2(ctx context.Context, in PendingTransition
 		return nil, err
 	}
 
-	return uc.transitionPendingV2(ctx, &pendingTransitionRun{tran: tran, status: constant.CANCELED})
+	return uc.transitionPendingV2(ctx, &pendingTransitionRun{
+		organizationID: in.OrganizationID,
+		ledgerID:       in.LedgerID,
+		tran:           tran,
+		status:         constant.CANCELED,
+	})
 }
 
 // transitionPendingV1 is the /v1 state-transition pipeline: lock, prepare, commit the
@@ -99,9 +119,6 @@ func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransiti
 
 	_, span := tracer.Start(ctx, "command.transition_pending_transaction")
 	defer span.End()
-
-	run.organizationID = uuid.MustParse(run.tran.OrganizationID)
-	run.ledgerID = uuid.MustParse(run.tran.LedgerID)
 
 	unlock, err := uc.lockPendingTransaction(ctx, span, logger, run)
 	if err != nil {
@@ -131,9 +148,6 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 
 	_, span := tracer.Start(ctx, "command.transition_pending_transaction")
 	defer span.End()
-
-	run.organizationID = uuid.MustParse(run.tran.OrganizationID)
-	run.ledgerID = uuid.MustParse(run.tran.LedgerID)
 
 	unlock, err := uc.lockPendingTransaction(ctx, span, logger, run)
 	if err != nil {
