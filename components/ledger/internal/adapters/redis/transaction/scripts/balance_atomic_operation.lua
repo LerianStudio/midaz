@@ -304,6 +304,106 @@ local function rollback(rollbackBalances, ttl)
   end
 end
 
+local function isCanonicalLimit(value)
+    if type(value) ~= "string" or value == "" then
+        return false
+    end
+
+    local unsigned = value
+    if string.sub(unsigned, 1, 1) == "-" then
+        unsigned = string.sub(unsigned, 2)
+        if unsigned == "0" then
+            return false
+        end
+    end
+
+    local integer, fraction = string.match(unsigned, "^(%d+)%.(%d+)$")
+    if integer then
+        if string.sub(fraction, -1) == "0" then
+            return false
+        end
+    else
+        integer = string.match(unsigned, "^(%d+)$")
+    end
+
+    return integer ~= nil and (#integer == 1 or string.sub(integer, 1, 1) ~= "0")
+end
+
+local function isJSONNumber(value)
+    local mantissa = value
+    if value:find("[eE]") then
+        mantissa = value:match("^(.+)[eE][+-]?%d+$")
+        if not mantissa then
+            return false
+        end
+    end
+    if mantissa:sub(1, 1) == "-" then
+        mantissa = mantissa:sub(2)
+    end
+    local whole = mantissa:match("^(%d+)%.%d+$") or mantissa:match("^%d+$")
+    return whole ~= nil and (#whole == 1 or whole:sub(1, 1) ~= "0")
+end
+
+-- cjson accepts non-JSON scalar syntax. Check tokens before any batch write,
+-- including blobs whose limit already has a canonical representation.
+local function hasValidJSONTokens(raw)
+    local depth = 0
+    local cursor = 1
+    local sawLimit = false
+    while cursor <= #raw do
+        local char = raw:sub(cursor, cursor)
+        if char == '"' then
+            local tokenStart = cursor
+            cursor = cursor + 1
+            while cursor <= #raw do
+                local tokenChar = raw:sub(cursor, cursor)
+                if tokenChar:byte() < 32 then
+                    return false
+                elseif tokenChar == "\\" then
+                    cursor = cursor + 2
+                elseif tokenChar == '"' then
+                    break
+                else
+                    cursor = cursor + 1
+                end
+            end
+            if depth == 1 then
+                local following = cursor + 1
+                while raw:sub(following, following):match("%s") do
+                    following = following + 1
+                end
+                if raw:sub(following, following) == ":"
+                    and cjson.decode(raw:sub(tokenStart, cursor)) == "OverdraftLimit" then
+                    if sawLimit then
+                        return false
+                    end
+                    sawLimit = true
+                end
+            end
+        elseif char == "{" or char == "[" then
+            depth = depth + 1
+        elseif char == "}" or char == "]" then
+            depth = depth - 1
+        elseif char:match("%s") then
+            if char ~= " " and char ~= "\t" and char ~= "\r" and char ~= "\n" then
+                return false
+            end
+        elseif char ~= ":" and char ~= "," then
+            local tokenStart = cursor
+            while cursor <= #raw and not raw:sub(cursor, cursor):match("[%s,%]}]") do
+                cursor = cursor + 1
+            end
+            local token = raw:sub(tokenStart, cursor - 1)
+            if token ~= "true" and token ~= "false" and token ~= "null" and not isJSONNumber(token) then
+                return false
+            end
+            cursor = cursor - 1
+        end
+        cursor = cursor + 1
+    end
+    return true
+end
+
 local function main()
     -- Balance snapshots live for 86400 seconds. The command-layer delete marker
     -- deliberately lives longer than this snapshot lifetime, so a failed
@@ -509,6 +609,36 @@ local function main()
         end
     end
 
+    -- Check the entire warm-cache batch before any SET NX or monetary write.
+    -- Go canonicalizes decimals; Lua never converts monetary strings to numbers.
+    local limitsToNormalize = {}
+    local checkedKeys = {}
+    for i = argvHeader + 1, #ARGV, groupSize do
+        local key = ARGV[i]
+        if not checkedKeys[key] then
+            checkedKeys[key] = true
+            local raw = redis.call("GET", key)
+            if raw then
+                local ok, cached = pcall(cjson.decode, raw)
+                if not ok or type(cached) ~= "table" or not string.match(raw, "^%s*{")
+                    or not hasValidJSONTokens(raw) then
+                    return redis.error_reply("BALANCE_LIMIT_INVALID")
+                end
+                if cached.OverdraftLimit ~= nil then
+                    if type(cached.OverdraftLimit) ~= "string" then
+                        return redis.error_reply("BALANCE_LIMIT_INVALID")
+                    end
+                    if not isCanonicalLimit(cached.OverdraftLimit) then
+                        table.insert(limitsToNormalize, key)
+                    end
+                end
+            end
+        end
+    end
+    if #limitsToNormalize > 0 then
+        return redis.error_reply("BALANCE_LIMIT_NORMALIZATION_REQUIRED:" .. cjson.encode(limitsToNormalize))
+    end
+
     for i = argvHeader + 1, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
         local isPending = tonumber(ARGV[i + 1])
@@ -540,14 +670,14 @@ local function main()
         --   - Blocked:              Account-block flag read by the pre-mutation guard above
         --
         -- Fields NOT used by Lua, but required in cache for Go pre-validation:
-        --   - AssetCode:      Used by ValidateIfBalanceExistsOnRedis for validation 0034
-        --   - AllowSending:   Used by ValidateIfBalanceExistsOnRedis for validation 0024
-        --   - AllowReceiving: Used by ValidateIfBalanceExistsOnRedis for validation 0024
-        --   - Key:            Used by ValidateIfBalanceExistsOnRedis for balance identification
+        --   - AssetCode:      Asset compatibility validation (0034)
+        --   - AllowSending:   Sending permission validation (0024)
+        --   - AllowReceiving: Receiving permission validation (0024)
+        --   - Key:            Balance identification
         --
         -- WARNING: Do NOT remove the "cache-only" fields. They are essential for the
         -- transaction validation flow that reads balances from cache before calling Lua.
-        -- See: get-balances.go ValidateIfBalanceExistsOnRedis()
+        -- The query cache-aside validation contract requires these fields.
         local balance = {
             -- Fields used by Lua
             ID = ARGV[i + 7],

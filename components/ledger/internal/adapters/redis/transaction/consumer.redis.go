@@ -54,14 +54,15 @@ var deleteIfValueLua string
 //go:embed scripts/expire_if_value.lua
 var expireIfValueLua string
 
+//go:embed scripts/normalize_balance_limit.lua
+var normalizeBalanceLimitLua string
+
 // balanceAtomicScript, claimBalanceSyncScript, updateBalanceSettingsScript,
-// updateBalanceBlockedScript, updateBalanceAllowFlagsScript, deleteIfValueScript
-// and expireIfValueScript are built once at package init. redis.NewScript
-// computes the source SHA1 eagerly, so hoisting these out of the per-call hot
-// paths (runBalanceAtomicScript, GetBalanceSyncKeys, GetBalanceSyncKeysLegacy,
-// UpdateBalanceCacheSettings, UpdateBalanceCacheBlocked,
-// UpdateBalanceCacheAllowFlags, DeleteIfValue, ExpireIfValue) avoids re-hashing
-// on every invocation. *redis.Script is safe for concurrent use.
+// updateBalanceBlockedScript, updateBalanceAllowFlagsScript, deleteIfValueScript,
+// expireIfValueScript, and normalizeBalanceLimitScript are built once at package
+// init. redis.NewScript computes the source SHA1 eagerly, so hoisting these out
+// of the per-call hot paths avoids re-hashing on every invocation. *redis.Script
+// is safe for concurrent use.
 var (
 	balanceAtomicScript           = redis.NewScript(balanceAtomicOperationLua)
 	claimBalanceSyncScript        = redis.NewScript(claimBalanceSyncKeysLua)
@@ -70,6 +71,7 @@ var (
 	updateBalanceAllowFlagsScript = redis.NewScript(updateBalanceAllowFlagsLua)
 	deleteIfValueScript           = redis.NewScript(deleteIfValueLua)
 	expireIfValueScript           = redis.NewScript(expireIfValueLua)
+	normalizeBalanceLimitScript   = redis.NewScript(normalizeBalanceLimitLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
@@ -190,7 +192,7 @@ type RedisRepository interface {
 	// UpdateBalanceCacheSettings performs an in-place, settings-only update of a
 	// cached balance entry. It GETs the current JSON blob, mutates ONLY the
 	// overdraft/scope settings fields, and SETs it back with the Lua script's
-	// canonical 1-hour TTL.
+	// canonical balanceCacheSettingsTTL.
 	//
 	// Transactional fields (Available, OnHold, Version, OverdraftUsed) are
 	// deliberately NOT touched: the Redis copy is the authoritative live state
@@ -867,27 +869,9 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 		// Flatten optional per-balance settings into primitive ARGV values.
 		// When Settings is nil (legacy balances), defaults are used:
 		// overdraft disabled, limit disabled, zero limit, transactional scope.
-		allowOverdraft := 0
-		overdraftLimitEnabled := 0
-		overdraftLimit := "0"
-		balanceScope := mmodel.BalanceScopeTransactional
-
-		if blcs.Balance.Settings != nil {
-			if blcs.Balance.Settings.AllowOverdraft {
-				allowOverdraft = 1
-			}
-
-			if blcs.Balance.Settings.OverdraftLimitEnabled {
-				overdraftLimitEnabled = 1
-			}
-
-			if blcs.Balance.Settings.OverdraftLimit != nil {
-				overdraftLimit = *blcs.Balance.Settings.OverdraftLimit
-			}
-
-			if blcs.Balance.Settings.BalanceScope != "" {
-				balanceScope = blcs.Balance.Settings.BalanceScope
-			}
+		allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope, err := resolveBalanceSettingsArgs(blcs.Balance.Settings)
+		if err != nil {
+			return nil, fmt.Errorf("serialize balance settings: %w", err)
 		}
 
 		// Each group of luaArgsPerOperation (25) values maps to one iteration
@@ -1015,14 +999,163 @@ func (rr *RedisConsumerRepository) runBalanceAtomicScript(ctx context.Context, r
 	_, span := tracer.Start(ctx, "redis.run_balance_atomic_script")
 	defer span.End()
 
-	result, err := balanceAtomicScript.Run(ctx, rds, keys, finalArgs...).Result()
-	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to run Lua script on Redis", libLog.Err(err))
+	for repairPass := 0; ; repairPass++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 
-		return nil, mapBalanceAtomicScriptError(span, err)
+		result, err := balanceAtomicScript.Run(ctx, rds, keys, finalArgs...).Result()
+		if err == nil {
+			return result, nil
+		}
+
+		repairKeys, repairRequired, decodeErr := decodeBalanceLimitRepairKeys(err, finalArgs)
+		if decodeErr != nil {
+			return nil, decodeErr
+		}
+
+		if !repairRequired {
+			logger.Log(ctx, libLog.LevelError, "Failed to run Lua script on Redis", libLog.Err(err))
+
+			return nil, mapBalanceAtomicScriptError(span, err)
+		}
+
+		if repairPass >= maxBalanceLimitRepairPasses {
+			return nil, fmt.Errorf("balance limit normalization did not converge after %d passes", maxBalanceLimitRepairPasses)
+		}
+
+		if err := repairBalanceLimits(ctx, rds, repairKeys); err != nil {
+			return nil, err
+		}
+	}
+}
+
+const (
+	balanceLimitRepairPrefix    = "BALANCE_LIMIT_NORMALIZATION_REQUIRED:"
+	maxBalanceLimitRepairPasses = 3
+)
+
+// decodeBalanceLimitRepairKeys accepts only the read-only preflight reply for
+// keys in this execution. Runtime and transport errors never trigger replay.
+func decodeBalanceLimitRepairKeys(err error, args []any) ([]string, bool, error) {
+	var redisErr redis.Error
+	if !errors.As(err, &redisErr) {
+		return nil, false, nil
 	}
 
-	return result, nil
+	reply := strings.TrimPrefix(redisErr.Error(), "ERR ")
+
+	payload, found := strings.CutPrefix(reply, balanceLimitRepairPrefix)
+	if !found {
+		return nil, false, nil
+	}
+
+	var reported []string
+	if err := json.Unmarshal([]byte(payload), &reported); err != nil || len(reported) == 0 {
+		return nil, false, errors.New("invalid balance limit normalization response")
+	}
+
+	allowed := make(map[string]bool, len(args)/luaArgsPerOperation)
+	for i := 0; i < len(args); i += luaArgsPerOperation {
+		key, ok := args[i].(string)
+		if !ok {
+			return nil, false, errors.New("invalid balance key argument")
+		}
+
+		allowed[key] = true
+	}
+
+	seen := make(map[string]bool, len(reported))
+
+	keys := make([]string, 0, len(reported))
+	for _, key := range reported {
+		if !allowed[key] {
+			return nil, false, errors.New("balance limit normalization response contains an unrelated key")
+		}
+
+		if !seen[key] {
+			seen[key] = true
+			keys = append(keys, key)
+		}
+	}
+
+	return keys, true, nil
+}
+
+func repairBalanceLimits(ctx context.Context, rds redis.UniversalClient, keys []string) error {
+	type preparedRepair struct {
+		key       string
+		original  string
+		canonical string
+	}
+
+	// Validate every observed value before repairing any of them. A malformed
+	// later key must not cause an earlier valid key to be partially repaired.
+	repairs := make([]preparedRepair, 0, len(keys))
+	for _, key := range keys {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		raw, err := rds.Get(ctx, key).Result()
+		if errors.Is(err, redis.Nil) {
+			continue
+		}
+
+		if err != nil {
+			return fmt.Errorf("read balance limit for normalization: %w", err)
+		}
+
+		var cached map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(raw), &cached); err != nil || cached == nil {
+			return errors.New("invalid cached balance JSON during limit normalization")
+		}
+
+		encoded, exists := cached["OverdraftLimit"]
+		if !exists {
+			continue
+		}
+
+		var original string
+		if err := json.Unmarshal(encoded, &original); err != nil || bytes.Equal(bytes.TrimSpace(encoded), []byte("null")) {
+			return errors.New("invalid cached balance limit type")
+		}
+
+		limit, err := decimal.NewFromString(original)
+		if err != nil {
+			return fmt.Errorf("parse cached balance limit: %w", err)
+		}
+
+		canonical := limit.String()
+		if canonical == original {
+			continue
+		}
+
+		repairs = append(repairs, preparedRepair{key: key, original: original, canonical: canonical})
+	}
+
+	// Each write remains conditional on the observed value. Concurrent settings
+	// updates may win independently; these field-only repairs are not a batch commit.
+	for _, repair := range repairs {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		status, err := normalizeBalanceLimitScript.Run(ctx, rds, []string{repair.key}, repair.original, repair.canonical).Int64()
+		if err != nil {
+			return fmt.Errorf("normalize cached balance limit: %w", err)
+		}
+
+		switch status {
+		case 0, 1, 2:
+			// Missing keys are not created. A concurrent settings change is
+			// re-read only if the next whole-batch preflight requests repair.
+		default:
+			return fmt.Errorf("unexpected balance limit normalization status: %d", status)
+		}
+	}
+
+	return nil
 }
 
 func normalizeBalanceAtomicResult(result any) ([]byte, error) {
@@ -1833,14 +1966,20 @@ const balanceCacheSettingsTTL = 86400 * time.Second
 // resolves to the same zero-state buildBalanceAtomicOperationPlan uses for
 // balances without Settings. All business logic for the PATCH lives here;
 // the Lua script only assigns these values onto the decoded balance.
-func resolveBalanceSettingsArgs(settings *mmodel.BalanceSettings) (allowOverdraft, overdraftLimitEnabled int, overdraftLimit, balanceScope string) {
+func resolveBalanceSettingsArgs(settings *mmodel.BalanceSettings) (allowOverdraft, overdraftLimitEnabled int, overdraftLimit, balanceScope string, err error) {
 	if settings == nil {
-		return 0, 0, "0", mmodel.BalanceScopeTransactional
+		return 0, 0, "0", mmodel.BalanceScopeTransactional, nil
 	}
 
 	overdraftLimit = "0"
+
 	if settings.OverdraftLimit != nil {
-		overdraftLimit = *settings.OverdraftLimit
+		limit, parseErr := decimal.NewFromString(*settings.OverdraftLimit)
+		if parseErr != nil {
+			return 0, 0, "", "", fmt.Errorf("parse overdraft limit: %w", parseErr)
+		}
+
+		overdraftLimit = limit.String()
 	}
 
 	balanceScope = mmodel.BalanceScopeTransactional
@@ -1848,7 +1987,7 @@ func resolveBalanceSettingsArgs(settings *mmodel.BalanceSettings) (allowOverdraf
 		balanceScope = settings.BalanceScope
 	}
 
-	return boolToInt(settings.AllowOverdraft), boolToInt(settings.OverdraftLimitEnabled), overdraftLimit, balanceScope
+	return boolToInt(settings.AllowOverdraft), boolToInt(settings.OverdraftLimitEnabled), overdraftLimit, balanceScope, nil
 }
 
 // UpdateBalanceCacheSettings applies a settings-only PATCH to a cached
@@ -1905,7 +2044,11 @@ func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Contex
 		return err
 	}
 
-	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope := resolveBalanceSettingsArgs(settings)
+	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope, err := resolveBalanceSettingsArgs(settings)
+	if err != nil {
+		return fmt.Errorf("serialize balance cache settings: %w", err)
+	}
+
 	ttlSeconds := strconv.FormatInt(int64(balanceCacheSettingsTTL/time.Second), 10)
 
 	result, err := updateBalanceSettingsScript.Run(ctx, rds, []string{prefixedKey},

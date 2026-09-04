@@ -6,6 +6,9 @@ package redis
 
 import (
 	"context"
+	"errors"
+	"regexp"
+	"sort"
 	"testing"
 	"time"
 
@@ -16,7 +19,9 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -26,6 +31,166 @@ import (
 // =============================================================================
 // TEST STUBS
 // =============================================================================
+
+func TestBalanceAtomicScriptErrorContract(t *testing.T) {
+	_, span := noop.NewTracerProvider().Tracer("test").Start(context.Background(), "test")
+	defer span.End()
+
+	supported := map[string]error{
+		"0018": constant.ErrInsufficientFunds,
+		"0019": constant.ErrAccountIneligibility,
+		"0139": constant.ErrTransactionBackupCacheRetrievalFailed,
+		"0167": constant.ErrOverdraftLimitExceeded,
+		"0174": constant.ErrStaleBalanceVersion,
+	}
+	actual := map[string]bool{}
+	for _, match := range regexp.MustCompile(`redis\.error_reply\("([0-9]{4})"\)`).FindAllStringSubmatch(balanceAtomicOperationLua, -1) {
+		actual[match[1]] = true
+	}
+	var expectedCodes, actualCodes []string
+	for code, sentinel := range supported {
+		expectedCodes = append(expectedCodes, code)
+		t.Run(code, func(t *testing.T) {
+			assert.Equal(t, pkg.ValidateBusinessError(sentinel, "validateBalance"), mapBalanceAtomicScriptError(span, errors.New(code)))
+			assert.Equal(t, pkg.ValidateBusinessError(sentinel, "validateBalance"), mapBalanceAtomicScriptError(span, balanceScriptReply("ERR "+code)))
+		})
+	}
+	for code := range actual {
+		actualCodes = append(actualCodes, code)
+	}
+	sort.Strings(expectedCodes)
+	sort.Strings(actualCodes)
+	assert.Equal(t, expectedCodes, actualCodes)
+
+	for _, message := range []string{"0061", "0098", "ERR ERR 0018", "ERR 0018 details", "ERR script line 0018", "connection reset 0167", "BALANCE_LIMIT_INVALID", "BALANCE_LIMIT_NORMALIZATION_REQUIRED:[\"0018\"]"} {
+		err := errors.New(message)
+		assert.Same(t, err, mapBalanceAtomicScriptError(span, err))
+	}
+}
+
+func TestBalanceSettingsSerializationCanonicalDecimal(t *testing.T) {
+	for _, tc := range []struct{ input, expected string }{
+		{"1e3", "1000"}, {"+0001.2500", "1.25"}, {"000", "0"}, {"-0.00", "0"}, {".50", "0.5"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			original := tc.input
+			settings := &mmodel.BalanceSettings{OverdraftLimit: &original}
+			_, _, canonical, _, err := resolveBalanceSettingsArgs(settings)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, canonical)
+			assert.Equal(t, tc.input, original)
+		})
+	}
+	for _, input := range []string{"", "NaN", "broken"} {
+		_, _, _, _, err := resolveBalanceSettingsArgs(&mmodel.BalanceSettings{OverdraftLimit: &input})
+		require.Error(t, err)
+	}
+}
+
+type balanceScriptReply string
+
+func (e balanceScriptReply) Error() string { return string(e) }
+func (balanceScriptReply) RedisError()     {}
+
+type limitRepairClient struct {
+	redis.UniversalClient
+	atomicCalls    int
+	repairCalls    int
+	requestRepairs int
+	atomicError    error
+	replyPrefix    string
+	atomicArgs     [][]any
+	repairedKeys   []string
+}
+
+func (c *limitRepairClient) EvalSha(ctx context.Context, sha string, keys []string, args ...any) *redis.Cmd {
+	cmd := redis.NewCmd(ctx)
+	if sha == normalizeBalanceLimitScript.Hash() {
+		c.repairCalls++
+		c.repairedKeys = append(c.repairedKeys, keys...)
+		cmd.SetVal(int64(2))
+		return cmd
+	}
+	c.atomicCalls++
+	c.atomicArgs = append(c.atomicArgs, args)
+	if c.atomicError != nil {
+		cmd.SetErr(c.atomicError)
+	} else if c.atomicCalls <= c.requestRepairs {
+		cmd.SetErr(balanceScriptReply(c.replyPrefix + balanceLimitRepairPrefix + `["balance:a","balance:b"]`))
+	} else {
+		cmd.SetVal("done")
+	}
+	return cmd
+}
+
+func (c *limitRepairClient) Get(ctx context.Context, key string) *redis.StringCmd {
+	cmd := redis.NewStringCmd(ctx)
+	cmd.SetVal(`{"OverdraftLimit":"1e3"}`)
+	return cmd
+}
+
+func TestBalanceLimitRepairWholeBatchBound(t *testing.T) {
+	args := make([]any, 2*luaArgsPerOperation)
+	args[0], args[luaArgsPerOperation] = "balance:a", "balance:b"
+	for _, tc := range []struct {
+		name                                     string
+		requests, expectedAtomic, expectedRepair int
+		failure                                  error
+		wantError                                bool
+		replyPrefix                              string
+	}{
+		{name: "no repair", expectedAtomic: 1},
+		{name: "repairs every key", requests: 1, expectedAtomic: 2, expectedRepair: 2},
+		{name: "framed reply repairs every key", requests: 1, expectedAtomic: 2, expectedRepair: 2, replyPrefix: "ERR "},
+		{name: "third pass succeeds", requests: 3, expectedAtomic: 4, expectedRepair: 6},
+		{name: "conflict never converges", requests: 4, expectedAtomic: 4, expectedRepair: 6, wantError: true},
+		{name: "transport never retried", failure: errors.New(balanceLimitRepairPrefix + `["balance:a"]`), expectedAtomic: 1, wantError: true},
+		{name: "framed transport never retried", failure: errors.New("ERR " + balanceLimitRepairPrefix + `["balance:a"]`), expectedAtomic: 1, wantError: true},
+		{name: "runtime never retried", failure: balanceScriptReply("ERR line 0018"), expectedAtomic: 1, wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &limitRepairClient{requestRepairs: tc.requests, atomicError: tc.failure, replyPrefix: tc.replyPrefix}
+			result, err := (&RedisConsumerRepository{}).runBalanceAtomicScript(context.Background(), client, nil, args)
+			if tc.wantError {
+				require.Error(t, err)
+				if tc.failure != nil {
+					assert.Equal(t, tc.failure, err)
+					assert.ErrorIs(t, err, tc.failure)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, "done", result)
+			}
+			assert.Equal(t, tc.expectedAtomic, client.atomicCalls)
+			assert.Equal(t, tc.expectedRepair, client.repairCalls)
+			for _, batch := range client.atomicArgs {
+				assert.Equal(t, args, batch, "each execution must contain the complete batch")
+			}
+			for i := 0; i < len(client.repairedKeys); i += 2 {
+				assert.Equal(t, []string{"balance:a", "balance:b"}, client.repairedKeys[i:i+2])
+			}
+		})
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	client := &limitRepairClient{}
+	_, err := (&RedisConsumerRepository{}).runBalanceAtomicScript(ctx, client, nil, args)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Zero(t, client.atomicCalls)
+}
+
+func TestBalanceLimitRepairReplyValidation(t *testing.T) {
+	args := make([]any, luaArgsPerOperation)
+	args[0] = "balance:a"
+	for _, payload := range []string{`null`, `{}`, `[]`, `["unrelated"]`, `[1]`, `broken`} {
+		_, _, err := decodeBalanceLimitRepairKeys(balanceScriptReply(balanceLimitRepairPrefix+payload), args)
+		require.Error(t, err)
+	}
+	keys, required, err := decodeBalanceLimitRepairKeys(balanceScriptReply(balanceLimitRepairPrefix+`["balance:a","balance:a"]`), args)
+	require.NoError(t, err)
+	assert.True(t, required)
+	assert.Equal(t, []string{"balance:a"}, keys)
+}
 
 // failOnCallRedisClient is a stub that fails the test if any Redis method is called.
 // Used to verify that NOTED status triggers early return without Redis interaction.

@@ -75,7 +75,7 @@ func TestIntegration_UpdateBalanceCacheSettings_HappyPath(t *testing.T) {
 	// Settings-derived fields reflect the new payload.
 	assert.Equal(t, 1, final.AllowOverdraft)
 	assert.Equal(t, 1, final.OverdraftLimitEnabled)
-	assert.Equal(t, "1000.00", final.OverdraftLimit)
+	assert.Equal(t, "1000", final.OverdraftLimit)
 	assert.Equal(t, mmodel.BalanceScopeTransactional, final.BalanceScope)
 
 	// Live transactional state is preserved verbatim.
