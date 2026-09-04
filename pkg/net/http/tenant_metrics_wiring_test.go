@@ -79,9 +79,13 @@ func TestTenantHTTPMetrics_LabelledFromJWTClaim(t *testing.T) {
 			assertTenantAttrs(t, attrs, tenantID, "acme")
 
 			// The latency histogram is recorded on every attested request,
-			// whatever the status, so it is asserted alongside each counter.
-			require.NotNil(t, findHistogram(t, reader, tenantLatencyMetric),
-				"%s missing", tenantLatencyMetric)
+			// whatever the status, so it is asserted alongside each counter —
+			// and on its own attributes, since a histogram carrying an
+			// unlabelled or wrong tenant would satisfy a mere existence check.
+			histogram := findHistogram(t, reader, tenantLatencyMetric)
+			require.NotNil(t, histogram, "%s missing", tenantLatencyMetric)
+			require.Len(t, histogram.DataPoints, 1)
+			assertTenantAttrs(t, histogram.DataPoints[0].Attributes, tenantID, "acme")
 		})
 	}
 }
