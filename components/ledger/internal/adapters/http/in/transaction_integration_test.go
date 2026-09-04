@@ -2376,7 +2376,7 @@ func TestIntegration_TransactionHandler_IdempotencyReplay_IgnoresReplayerBody(t 
 
 	assert.Equal(t, result1["id"], result2["id"],
 		"replay must return the same transaction id as the first request")
-	assert.Equal(t, result1["description"], result2["description"],
+	assert.Equal(t, "first", result2["description"],
 		"replay must return the FIRST body's description, not the replayer's")
 
 	// Confirm the persisted audit state is the first outcome (fees_skipped=false).

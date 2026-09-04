@@ -133,8 +133,10 @@ func analyzeCommitCancelWrap(t *testing.T, src, funcName string) commitCancelWra
 }
 
 // stmtDefinesReadCtxFromPrimaryRead reports whether stmt is a short-var
-// definition `readCtx := readrouting.WithPrimaryRead(...)` — the dedicated-var
-// form that scopes the primary-read marker without reassigning ctx.
+// definition `readCtx := readrouting.WithPrimaryRead(ctx)` — the dedicated-var
+// form that scopes the primary-read marker without reassigning ctx. The lone
+// `ctx` argument is part of the shape: a wrap over an already-derived context
+// would not establish the marker over the function's unmarked ctx.
 func stmtDefinesReadCtxFromPrimaryRead(stmt ast.Stmt) bool {
 	assign, ok := stmt.(*ast.AssignStmt)
 	if !ok || assign.Tok != token.DEFINE || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
@@ -156,9 +158,44 @@ func stmtDefinesReadCtxFromPrimaryRead(stmt ast.Stmt) bool {
 		return false
 	}
 
-	pkg, ok := sel.X.(*ast.Ident)
+	if pkg, ok := sel.X.(*ast.Ident); !ok || pkg.Name != "readrouting" {
+		return false
+	}
 
-	return ok && pkg.Name == "readrouting"
+	if len(call.Args) != 1 {
+		return false
+	}
+
+	arg, ok := call.Args[0].(*ast.Ident)
+
+	return ok && arg.Name == "ctx"
+}
+
+// TestStmtDefinesReadCtxFromPrimaryRead_RequiresUnmarkedCtx proves the argument
+// shape above bites: only a single-argument wrap over the unmarked ctx counts as
+// the dedicated-var marker.
+func TestStmtDefinesReadCtxFromPrimaryRead_RequiresUnmarkedCtx(t *testing.T) {
+	tests := []struct {
+		name string
+		stmt string
+		want bool
+	}{
+		{name: "wraps ctx", stmt: "readCtx := readrouting.WithPrimaryRead(ctx)", want: true},
+		{name: "wraps a derived ctx", stmt: "readCtx := readrouting.WithPrimaryRead(readCtx)", want: false},
+		{name: "no argument", stmt: "readCtx := readrouting.WithPrimaryRead()", want: false},
+		{name: "extra argument", stmt: "readCtx := readrouting.WithPrimaryRead(ctx, true)", want: false},
+		{name: "other package", stmt: "readCtx := routing.WithPrimaryRead(ctx)", want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fn := findFuncDecl(t, "package p\n\nfunc f() {\n\t"+tc.stmt+"\n}\n", "f")
+
+			if got := stmtDefinesReadCtxFromPrimaryRead(fn.Body.List[0]); got != tc.want {
+				t.Errorf("stmtDefinesReadCtxFromPrimaryRead(%q) = %v, want %v", tc.stmt, got, tc.want)
+			}
+		})
+	}
 }
 
 // callFirstArgIsIdent reports whether stmt contains a call to callee whose first

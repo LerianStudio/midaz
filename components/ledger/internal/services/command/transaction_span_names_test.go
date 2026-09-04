@@ -6,6 +6,7 @@ package command
 
 import (
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"os"
 	"strconv"
@@ -108,6 +109,61 @@ func TestTransactionSpanNames_LockedTable(t *testing.T) {
 	}
 }
 
+// handlerPrefixedSpanNames returns every span-name string literal passed to a
+// tracer.Start call in src that begins with the handler. prefix. The context
+// argument is deliberately unconstrained: a span opened on a derived context
+// (readCtx, spanCtx) carries the same dashboard key as one opened on ctx.
+func handlerPrefixedSpanNames(t *testing.T, filename, src string) []string {
+	t.Helper()
+
+	fset := token.NewFileSet()
+
+	file, err := parser.ParseFile(fset, filename, src, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", filename, err)
+	}
+
+	var names []string
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Start" {
+			return true
+		}
+
+		if ident, ok := sel.X.(*ast.Ident); !ok || ident.Name != "tracer" {
+			return true
+		}
+
+		if len(call.Args) < 2 {
+			return true
+		}
+
+		lit, ok := call.Args[1].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+
+		unquoted, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			t.Fatalf("unquote span literal %s in %s: %v", lit.Value, filename, err)
+		}
+
+		if strings.HasPrefix(unquoted, "handler.") {
+			names = append(names, unquoted)
+		}
+
+		return true
+	})
+
+	return names
+}
+
 // TestTransactionPackage_NeverOpensHandlerPrefixedSpans is the negative gate: no
 // source file in this package may open a span under the handler.* prefix, which
 // belongs to the HTTP adapter, not to services/command. Its failure message is the
@@ -129,8 +185,51 @@ func TestTransactionPackage_NeverOpensHandlerPrefixedSpans(t *testing.T) {
 			t.Fatalf("read %s: %v", name, err)
 		}
 
-		if strings.Contains(string(data), `tracer.Start(ctx, "handler.`) {
-			t.Errorf("%s opens a span under the handler. prefix — the command package convention is command.<snake_op>; renaming a span requires coordinating with dashboards (docs/dashboards/v4) before it lands", name)
+		for _, span := range handlerPrefixedSpanNames(t, name, string(data)) {
+			t.Errorf("%s opens a span under the handler. prefix (%q) — the command package convention is command.<snake_op>; renaming a span requires coordinating with dashboards (docs/dashboards/v4) before it lands", name, span)
 		}
+	}
+}
+
+// TestHandlerPrefixedSpanNames_IgnoresContextArgument proves the gate bites on the
+// call shape a substring match missed: only the span name decides, never which
+// context variable the call receives.
+func TestHandlerPrefixedSpanNames_IgnoresContextArgument(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{
+			name: "unmarked ctx",
+			src:  "package p\n\nfunc f() { tracer.Start(ctx, \"handler.create\") }\n",
+			want: []string{"handler.create"},
+		},
+		{
+			name: "derived ctx",
+			src:  "package p\n\nfunc f() { tracer.Start(readCtx, \"handler.create\") }\n",
+			want: []string{"handler.create"},
+		},
+		{
+			name: "command prefix is allowed",
+			src:  "package p\n\nfunc f() { tracer.Start(readCtx, \"command.create_transaction_v2\") }\n",
+			want: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := handlerPrefixedSpanNames(t, "snippet.go", tc.src)
+
+			if len(got) != len(tc.want) {
+				t.Fatalf("handlerPrefixedSpanNames() = %v, want %v", got, tc.want)
+			}
+
+			for i, want := range tc.want {
+				if got[i] != want {
+					t.Errorf("span[%d] = %q, want %q", i, got[i], want)
+				}
+			}
+		})
 	}
 }

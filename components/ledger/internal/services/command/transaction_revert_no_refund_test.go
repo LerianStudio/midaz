@@ -6,6 +6,7 @@ package command
 
 import (
 	"go/ast"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -70,6 +71,11 @@ func TestRevertNoReservationRefund_StructuralGuard(t *testing.T) {
 
 	fn := findFuncDecl(t, src, "prepareRevertTransaction")
 
+	// Every TracerReserver refund method: the single-reservation pair the direct
+	// create path holds inline, and the by-transaction pair the PENDING lifecycle
+	// uses. A revert may call none of them against the original reservation.
+	refunds := []string{"Release", "Confirm", "ReleaseByTransaction", "ConfirmByTransaction"}
+
 	ast.Inspect(fn, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
@@ -81,7 +87,7 @@ func TestRevertNoReservationRefund_StructuralGuard(t *testing.T) {
 			return true
 		}
 
-		if sel.Sel.Name == "Release" || sel.Sel.Name == "Confirm" {
+		if slices.Contains(refunds, sel.Sel.Name) {
 			t.Errorf("prepareRevertTransaction calls %q — a revert must not refund the original reservation (Q9 no-refund)", sel.Sel.Name)
 		}
 
