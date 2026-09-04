@@ -11,10 +11,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/declaration"
-	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v4/auth/declaration"
+	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
 	tracerembed "github.com/LerianStudio/midaz/v4/components/tracer"
 )
@@ -33,7 +33,7 @@ import (
 func wireDeclarationPublisher(cfg *Config, authHost string, logger libLog.Logger) []func() {
 	var declarationAuth declaration.TokenMinter
 	if cfg.DeclarationEnabled {
-		declarationAuth = authMiddleware.NewAuthClient(authHost, cfg.PluginAuthEnabled, &logger)
+		declarationAuth = authMiddleware.NewAuthClient(authHost, cfg.PluginAuthEnabled, logger)
 	}
 
 	return buildDeclarationPublisher(cfg, declarationAuth, logger)

@@ -9,7 +9,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 
 	pgdbMocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"

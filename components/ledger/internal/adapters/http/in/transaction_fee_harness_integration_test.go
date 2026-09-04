@@ -27,8 +27,8 @@ import (
 	"strings"
 	"testing"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/gofiber/fiber/v3"
 	"github.com/shopspring/decimal"
 
@@ -55,7 +55,7 @@ import (
 	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
 	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"

@@ -20,8 +20,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libMetrics "github.com/LerianStudio/lib-observability/v2/metrics"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libMetrics "github.com/LerianStudio/lib-observability/v4/metrics"
 )
 
 // Canonical multi-tenant metric definitions.

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libMid "github.com/LerianStudio/lib-observability/v4/middleware"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	en2 "github.com/go-playground/validator/translations/en"
@@ -261,7 +261,7 @@ func ParseUUIDPathParameters(entityName string) fiber.Handler {
 				continue
 			}
 
-			libOpentelemetry.SetSpanAttributeForParam(c, param, value, entityName)
+			libMid.SetSpanAttributeForParam(c, param, value, entityName)
 
 			parsedUUID, err := uuid.Parse(value)
 			if err != nil {

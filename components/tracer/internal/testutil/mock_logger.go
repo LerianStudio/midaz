@@ -9,7 +9,7 @@ import (
 	"context"
 	"sync"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // LogCall represents a single logging call with its level, message, and fields.
@@ -33,20 +33,20 @@ func NewMockLogger() *MockLogger {
 	}
 }
 
-func (m *MockLogger) Log(_ context.Context, level libLog.Level, msg string, fields ...libLog.Field) {
+func (m *MockLogger) Log(_ context.Context, level int, msg string, fields ...any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.Calls = append(m.Calls, LogCall{Level: levelToString(level), Message: msg, Fields: fields})
+	m.Calls = append(m.Calls, LogCall{Level: levelToString(level), Message: msg, Fields: libLog.Fields(fields...)})
 }
 
-func (m *MockLogger) With(fields ...libLog.Field) libLog.Logger {
-	return &mockLoggerFieldsRecorder{parent: m, fields: fields}
+func (m *MockLogger) With(fields ...any) libLog.Logger {
+	return &mockLoggerFieldsRecorder{parent: m, fields: libLog.Fields(fields...)}
 }
 
 func (m *MockLogger) WithGroup(_ string) libLog.Logger { return m }
 
-func (m *MockLogger) Enabled(_ libLog.Level) bool { return true }
+func (m *MockLogger) Enabled(_ int) bool { return true }
 
 func (m *MockLogger) Sync(_ context.Context) error { return nil }
 
@@ -56,10 +56,12 @@ type mockLoggerFieldsRecorder struct {
 	fields []libLog.Field
 }
 
-func (m *mockLoggerFieldsRecorder) Log(_ context.Context, level libLog.Level, msg string, fields ...libLog.Field) {
-	allFields := make([]libLog.Field, 0, len(m.fields)+len(fields))
+func (m *mockLoggerFieldsRecorder) Log(_ context.Context, level int, msg string, fields ...any) {
+	typed := libLog.Fields(fields...)
+
+	allFields := make([]libLog.Field, 0, len(m.fields)+len(typed))
 	allFields = append(allFields, m.fields...)
-	allFields = append(allFields, fields...)
+	allFields = append(allFields, typed...)
 
 	m.parent.mu.Lock()
 	defer m.parent.mu.Unlock()
@@ -67,22 +69,24 @@ func (m *mockLoggerFieldsRecorder) Log(_ context.Context, level libLog.Level, ms
 	m.parent.Calls = append(m.parent.Calls, LogCall{Level: levelToString(level), Message: msg, Fields: allFields})
 }
 
-func (m *mockLoggerFieldsRecorder) With(fields ...libLog.Field) libLog.Logger {
-	allFields := make([]libLog.Field, 0, len(m.fields)+len(fields))
+func (m *mockLoggerFieldsRecorder) With(fields ...any) libLog.Logger {
+	typed := libLog.Fields(fields...)
+
+	allFields := make([]libLog.Field, 0, len(m.fields)+len(typed))
 	allFields = append(allFields, m.fields...)
-	allFields = append(allFields, fields...)
+	allFields = append(allFields, typed...)
 
 	return &mockLoggerFieldsRecorder{parent: m.parent, fields: allFields}
 }
 
 func (m *mockLoggerFieldsRecorder) WithGroup(_ string) libLog.Logger { return m }
 
-func (m *mockLoggerFieldsRecorder) Enabled(_ libLog.Level) bool { return true }
+func (m *mockLoggerFieldsRecorder) Enabled(_ int) bool { return true }
 
 func (m *mockLoggerFieldsRecorder) Sync(_ context.Context) error { return nil }
 
-// levelToString converts a libLog.Level to its string representation.
-func levelToString(level libLog.Level) string {
+// levelToString converts a log level to its string representation.
+func levelToString(level int) string {
 	switch level {
 	case libLog.LevelDebug:
 		return "debug"

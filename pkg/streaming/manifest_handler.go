@@ -8,7 +8,7 @@ import (
 	"fmt"
 	nethttp "net/http"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )

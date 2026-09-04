@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
@@ -20,11 +20,11 @@ import (
 
 type emitTestLogger struct{}
 
-func (emitTestLogger) Log(context.Context, libLog.Level, string, ...libLog.Field) {}
-func (emitTestLogger) With(...libLog.Field) libLog.Logger                         { return emitTestLogger{} }
+func (emitTestLogger) Log(context.Context, int, string, ...any) {}
+func (emitTestLogger) With(...any) libLog.Logger                { return emitTestLogger{} }
 
 func (emitTestLogger) WithGroup(string) libLog.Logger { return emitTestLogger{} }
-func (emitTestLogger) Enabled(libLog.Level) bool      { return true }
+func (emitTestLogger) Enabled(int) bool               { return true }
 func (emitTestLogger) Sync(context.Context) error     { return nil }
 
 type deadlineCapturingEmitter struct {

@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // Compile-time check that LoggerStub implements libLog.Logger
@@ -44,10 +44,10 @@ type LoggerStub struct {
 }
 
 // Log captures structured log messages from libLog.Logger interface.
-func (l *LoggerStub) Log(_ context.Context, level libLog.Level, msg string, fields ...libLog.Field) {
-	if len(fields) > 0 {
-		parts := make([]string, 0, len(fields))
-		for _, field := range fields {
+func (l *LoggerStub) Log(_ context.Context, level int, msg string, fields ...any) {
+	if typed := libLog.Fields(fields...); len(typed) > 0 {
+		parts := make([]string, 0, len(typed))
+		for _, field := range typed {
 			parts = append(parts, fmt.Sprintf("%s=%v", field.Key, field.Value))
 		}
 
@@ -67,7 +67,7 @@ func (l *LoggerStub) Log(_ context.Context, level libLog.Level, msg string, fiel
 }
 
 // With returns self (no-op for stub).
-func (l *LoggerStub) With(_ ...libLog.Field) libLog.Logger {
+func (l *LoggerStub) With(_ ...any) libLog.Logger {
 	return l
 }
 
@@ -77,7 +77,7 @@ func (l *LoggerStub) WithGroup(_ string) libLog.Logger {
 }
 
 // Enabled always returns true for tests.
-func (l *LoggerStub) Enabled(_ libLog.Level) bool {
+func (l *LoggerStub) Enabled(_ int) bool {
 	return true
 }
 
