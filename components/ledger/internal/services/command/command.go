@@ -134,6 +134,10 @@ type UseCase struct {
 	// UseCase (signatures match).
 	TransactionReader TransactionReader
 
+	// BalanceEngine applies balance changes through the execution port.
+	// A nil value leaves the existing transaction execution path unchanged.
+	BalanceEngine BalanceEngine
+
 	// FeeApplier drives the in-process fee engine inside the create seam. It is
 	// injected at bootstrap from the fee use case; a nil applier disables fee
 	// application (the create path stays unchanged).

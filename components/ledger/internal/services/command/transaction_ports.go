@@ -6,16 +6,44 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
+
+// RecoveryIntent freezes the projection context needed to recover a transaction.
+type RecoveryIntent struct {
+	TransactionID uuid.UUID
+	Payload       json.RawMessage
+}
+
+// ExecutionGuard fences competing state transitions of the same transaction.
+type ExecutionGuard struct {
+	TransactionID uuid.UUID
+	ExpectedToken string
+	NextToken     string
+}
+
+// EngineExecution combines balance changes with their recovery and replay context.
+type EngineExecution struct {
+	Request           engine.Request
+	IntentFingerprint string
+	Guards            []ExecutionGuard
+	Recovery          []RecoveryIntent
+}
+
+// BalanceEngine applies balance changes and records their recovery data atomically.
+type BalanceEngine interface {
+	Execute(ctx context.Context, input EngineExecution) (*engine.Result, error)
+}
 
 // FeesDBResolver resolves a tenant's fee Mongo database. It is the narrow port
 // the transaction create path depends on at the fee seam so the concrete
