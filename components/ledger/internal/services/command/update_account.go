@@ -98,6 +98,10 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	// Follow-up: fix the repo to RETURNING * so this dance is unneeded.
 	uc.emitAccountUpdatedEvent(ctx, span, logger, mergePatchAccount(accFound, account, accountUpdated.UpdatedAt))
 
+	if uai.Blocked != nil {
+		uc.propagateAccountBlockedToCache(ctx, span, logger, organizationID, ledgerID, id, *uai.Blocked)
+	}
+
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityAccount, id.String(), uai.Metadata)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update metadata", err)
@@ -159,6 +163,60 @@ func mergePatchAccount(pre, in *mmodel.Account, updatedAt time.Time) *mmodel.Acc
 	}
 
 	return &out
+}
+
+// propagateAccountBlockedToCache rewrites the Blocked flag in place on every
+// cached balance blob of the account after a PATCH that carries blocked.
+// PostgreSQL was updated first (source of truth); the rewrite runs as ONE
+// atomic multi-key Lua EVAL, preserving live transactional state pending
+// write-behind sync (no DEL). Keys not in cache are skipped — the on-demand
+// hydration covers them with the new value on the next miss.
+//
+// Best-effort: a database or Redis failure never fails the request — the
+// persisted row is durable, a stale cached flag heals on the next cache miss
+// or TTL expiry, and failing here would report an update that DID happen as
+// failed. Those failures are still TECHNICAL (infrastructure, not caller
+// error), so they flip the span red and log at Error for operator attention.
+// Unblocking an account that was never blocked follows the same path and is
+// a natural no-op (RF-02).
+func (uc *UseCase) propagateAccountBlockedToCache(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID, blocked bool) {
+	balances, err := uc.BalanceRepo.ListByAccountID(ctx, organizationID, ledgerID, accountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to list balances for blocked cache propagation", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to list balances for blocked cache propagation", libLog.Err(err))
+
+		return
+	}
+
+	if len(balances) == 0 {
+		return
+	}
+
+	// Dedupe: a legacy balance row with an empty key normalizes to the
+	// default key and may collide with an explicit "default" balance.
+	seen := make(map[string]struct{}, len(balances))
+	cacheKeys := make([]string, 0, len(balances))
+
+	for _, b := range balances {
+		balanceKey := b.Key
+		if balanceKey == "" {
+			balanceKey = constant.DefaultBalanceKey
+		}
+
+		cacheKey := b.Alias + "#" + balanceKey
+		if _, ok := seen[cacheKey]; ok {
+			continue
+		}
+
+		seen[cacheKey] = struct{}{}
+
+		cacheKeys = append(cacheKeys, cacheKey)
+	}
+
+	if err := uc.TransactionRedisRepo.UpdateBalanceCacheBlocked(ctx, organizationID, ledgerID, cacheKeys, blocked); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to update balance cache blocked flag", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to update balance cache blocked flag", libLog.Err(err))
+	}
 }
 
 // emitAccountUpdatedEvent publishes the account.updated event for a
