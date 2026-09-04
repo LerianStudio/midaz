@@ -41,7 +41,7 @@ jobs:
     # routine.yml@v1.46.5 has no 'backmerge' routine — every child job inside
     # it would skip, wasting the whole call for that workflow_dispatch value.
     if: inputs.routine != 'backmerge'
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/routine.yml@v1.46.5
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/routine.yml@tier-2
     with:
       routine: ${{ inputs.routine || 'all' }}
       dry_run: ${{ inputs.dry_run || false }}
@@ -64,7 +64,7 @@ jobs:
       (github.event_name == 'push' && github.ref_name == 'develop')
       || github.event_name == 'schedule'
       || (github.event_name == 'workflow_dispatch' && (inputs.routine == 'all' || inputs.routine == 'backmerge'))
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/backmerge.yml@v1.57.0
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/backmerge.yml@tier-2
     with:
       rules: |
         [
