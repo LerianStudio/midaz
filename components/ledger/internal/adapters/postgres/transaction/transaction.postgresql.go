@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
-	libPointers "github.com/LerianStudio/lib-commons/v6/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
+	libPointers "github.com/LerianStudio/lib-commons/v7/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -211,9 +211,6 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	record := &TransactionPostgreSQLModel{}
 	record.FromEntity(transaction)
 
-	_, spanExec := tracer.Start(ctx, "postgres.create.exec")
-	defer spanExec.End()
-
 	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
 	// migrations add columns to transaction. Do not collapse this to table-wide VALUES.
 	insertQuery := fmt.Sprintf(
@@ -247,12 +244,12 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		// Only PK violations are treated as idempotent retries. Other unique
 		// violations (e.g. business indexes) must surface as errors. (v3.5.4 backport)
 		if errors.As(err, &pgErr) && pgErr != nil && pgErr.Code == constant.UniqueViolationCode && pgErr.ConstraintName == "transaction_pkey" {
-			libOpentelemetry.HandleSpanEvent(spanExec, "Transaction already exists, skipping duplicate insert (idempotent retry)")
+			libOpentelemetry.HandleSpanEvent(span, "Transaction already exists, skipping duplicate insert (idempotent retry)")
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, err
 	}
@@ -735,12 +732,9 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
-	defer spanQuery.End()
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -844,12 +838,9 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 		return nil, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
-	defer spanQuery.End()
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, err
 	}
@@ -939,9 +930,6 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 
 	var body *string
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
-	defer spanQuery.End()
-
 	row := db.QueryRowContext(ctx, query, args...)
 
 	if err := row.Scan(
@@ -1021,9 +1009,6 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	transaction := &TransactionPostgreSQLModel{}
 
 	var body *string
-
-	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
-	defer spanQuery.End()
 
 	row := db.QueryRowContext(ctx, query, args...)
 
@@ -1121,12 +1106,9 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 
-	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
-	defer spanExec.End()
-
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, err
 	}
@@ -1163,13 +1145,10 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 		return err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.delete.exec")
-	defer spanExec.End()
-
 	result, err := db.ExecContext(ctx, "UPDATE transaction SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
 		organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return err
 	}
@@ -1206,9 +1185,6 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		return nil, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_transaction_with_operations.query")
-	defer spanQuery.End()
-
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
 
 	findWithOps := squirrel.Select(selectColumns...).
@@ -1222,14 +1198,14 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 
 	query, args, err := findWithOps.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, err
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, err
 	}
@@ -1396,12 +1372,9 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 
 	logger.Log(ctx, libLog.LevelDebug, "FindOrListAllWithOperations query assembled", libLog.String("query", query))
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
-	defer spanQuery.End()
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -1614,14 +1587,11 @@ func (r *TransactionPostgreSQLRepository) CountByFilters(ctx context.Context, or
 		return 0, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.count_transactions_by_filters.query")
-	defer spanQuery.End()
-
 	var count int64
 
 	err = db.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute count query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute count query", err)
 
 		return 0, err
 	}

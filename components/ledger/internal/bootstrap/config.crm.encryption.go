@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
-	libCrypto "github.com/LerianStudio/lib-commons/v6/commons/crypto"
-	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
+	libCrypto "github.com/LerianStudio/lib-commons/v7/commons/crypto"
+	libMongo "github.com/LerianStudio/lib-commons/v7/commons/mongo"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
 
