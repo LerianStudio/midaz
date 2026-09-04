@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"testing"
 
-	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	tmclient "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
-	"github.com/LerianStudio/lib-observability/v2/metrics"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	"github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/tenantcache"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

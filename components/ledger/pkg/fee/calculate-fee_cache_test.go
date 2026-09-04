@@ -14,7 +14,7 @@ import (
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
-	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"

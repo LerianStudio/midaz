@@ -4,11 +4,11 @@ go 1.27.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/lib-auth/v3 v3.5.0
-	github.com/LerianStudio/lib-commons/v6 v6.8.1
-	github.com/LerianStudio/lib-observability/v2 v2.1.3
-	github.com/LerianStudio/lib-service-discovery v1.1.0
-	github.com/LerianStudio/lib-streaming/v3 v3.1.0
+	github.com/LerianStudio/lib-auth/v4 v4.0.0
+	github.com/LerianStudio/lib-commons/v7 v7.0.0
+	github.com/LerianStudio/lib-observability/v4 v4.0.1
+	github.com/LerianStudio/lib-service-discovery/v2 v2.0.0
+	github.com/LerianStudio/lib-streaming/v4 v4.0.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/alicebob/miniredis/v2 v2.38.0
@@ -64,7 +64,7 @@ require (
 	go.uber.org/mock v0.6.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/text v0.41.0
-	google.golang.org/grpc v1.83.1
+	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/go-playground/validator.v9 v9.31.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -78,8 +78,7 @@ require (
 	cloud.google.com/go/iam v1.13.0 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/LerianStudio/lib-observability v1.1.0 // indirect
-	github.com/LerianStudio/lib-observability/v3 v3.1.0 // indirect
+	github.com/LerianStudio/lib-observability/v2 v2.1.3 // indirect
 	github.com/MicahParks/jwkset v0.11.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/XSAM/otelsql v0.43.0 // indirect
@@ -184,6 +183,7 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.20.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/runtime v0.69.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.21.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.45.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0 // indirect
@@ -196,7 +196,7 @@ require (
 	go.uber.org/zap v1.28.0 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/crypto v0.56.0 // indirect
 	golang.org/x/exp v0.0.0-20260824195058-e88cd73687aa // indirect
 	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/net v0.58.0 // indirect

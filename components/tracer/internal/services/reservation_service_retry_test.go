@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	libBackoff "github.com/LerianStudio/lib-commons/v6/commons/backoff"
+	libBackoff "github.com/LerianStudio/lib-commons/v7/commons/backoff"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

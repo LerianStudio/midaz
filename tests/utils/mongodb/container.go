@@ -16,7 +16,7 @@ import (
 
 	"github.com/moby/moby/api/types/container"
 
-	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
+	libMongo "github.com/LerianStudio/lib-commons/v7/commons/mongo"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"

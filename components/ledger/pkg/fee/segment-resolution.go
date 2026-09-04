@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"strings"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"

@@ -8,11 +8,24 @@ import (
 	"context"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 )
+
+// msLatencyBuckets is the millisecond bucket ladder for every `*_ms`
+// histogram declared here. It MUST be supplied explicitly: MetricsFactory
+// falls back to selectDefaultBuckets, which name-matches "duration" and hands
+// back DefaultLatencyBuckets — a SECONDS ladder ({0.001…10}) — while the
+// backing instrument is an Int64Histogram, so every observation below 1000 ms
+// would collapse into the `le=10` bucket and the quantiles would be
+// meaningless. The values are identical to the ladder pinned in
+// components/tracer/internal/observability/recorder.go, which declares the
+// same `readyz_check_duration_ms` metric name: two declarations of one metric
+// name must not diverge, and the tracer's boundaries are public contract that
+// dashboards and SLO alerts hard-code.
+var msLatencyBuckets = []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2000, 5000}
 
 var (
 	// DomainOperationsTotal counts business-operation outcomes across all
@@ -30,6 +43,7 @@ var (
 		Name:        "domain_operation_duration_ms",
 		Unit:        "ms",
 		Description: "Business operation duration in milliseconds by component and operation.",
+		Buckets:     msLatencyBuckets,
 	}
 )
 
@@ -280,6 +294,7 @@ var (
 		Name:        "bulk_recorder_bulk_duration_ms",
 		Unit:        "ms",
 		Description: "Time taken for bulk processing in milliseconds.",
+		Buckets:     msLatencyBuckets,
 	}
 
 	// BulkRecorderFallbackTotal counts fallback activations when bulk fails.
@@ -296,6 +311,7 @@ var (
 		Name:        "readyz_check_duration_ms",
 		Unit:        "ms",
 		Description: "Duration of individual health check probes in milliseconds.",
+		Buckets:     msLatencyBuckets,
 	}
 
 	// ReadyzCheckStatus counts health check outcomes by checker and status.
@@ -350,6 +366,7 @@ var (
 		Name:        "crm_protection_provider_operation_ms",
 		Unit:        "ms",
 		Description: "Duration of provider wrap/unwrap operations in milliseconds by operation and provider.",
+		Buckets:     msLatencyBuckets,
 	}
 
 	// CRMProtectionProviderOperationFailuresTotal counts provider operation failures.

@@ -9,9 +9,9 @@ import (
 	"errors"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"

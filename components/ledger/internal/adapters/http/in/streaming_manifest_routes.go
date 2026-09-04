@@ -7,7 +7,7 @@ package in
 import (
 	nethttp "net/http"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
 

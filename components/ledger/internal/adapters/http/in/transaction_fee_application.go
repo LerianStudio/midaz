@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 

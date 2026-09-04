@@ -8,8 +8,8 @@ import (
 	"context"
 	"errors"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
-	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v7/commons/circuitbreaker"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg/utils"

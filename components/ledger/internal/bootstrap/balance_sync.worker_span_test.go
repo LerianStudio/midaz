@@ -9,8 +9,8 @@ import (
 	"errors"
 	"testing"
 
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

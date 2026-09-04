@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	libCert "github.com/LerianStudio/lib-commons/v6/commons/certificate"
+	libCert "github.com/LerianStudio/lib-commons/v7/commons/certificate"
 )
 
 // TLS modes for the reservation seam (TRACER_TLS_MODE). Empty is treated as

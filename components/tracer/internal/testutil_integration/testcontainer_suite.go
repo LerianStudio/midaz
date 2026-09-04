@@ -20,8 +20,8 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
-	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
+	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/bootstrap"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"

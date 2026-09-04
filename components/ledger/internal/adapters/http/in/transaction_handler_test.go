@@ -12,11 +12,11 @@ import (
 	"strings"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

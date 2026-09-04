@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	testutils "github.com/LerianStudio/midaz/v4/tests/utils"
 
 	"github.com/moby/moby/api/types/container"

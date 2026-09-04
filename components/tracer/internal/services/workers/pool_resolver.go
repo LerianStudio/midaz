@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
 	"github.com/bxcodec/dbresolver/v2"
 )
 

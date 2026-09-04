@@ -7,9 +7,9 @@ package bootstrap
 import (
 	"testing"
 
-	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
-	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
+	tmclient "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/client"
+	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/tenantcache"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"

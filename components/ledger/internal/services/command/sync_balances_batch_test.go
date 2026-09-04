@@ -9,8 +9,8 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"

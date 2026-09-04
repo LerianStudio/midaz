@@ -8,9 +8,9 @@ import (
 	"context"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
@@ -20,7 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	// CreateOrUpdateAssetRate creates or updates an asset rate.
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (_ *assetrate.AssetRate, err error) {

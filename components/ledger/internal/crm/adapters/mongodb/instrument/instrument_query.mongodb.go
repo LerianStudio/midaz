@@ -9,9 +9,9 @@ import (
 	"regexp"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"

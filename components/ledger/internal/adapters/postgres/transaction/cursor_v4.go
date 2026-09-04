@@ -5,7 +5,7 @@
 package transaction
 
 import (
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	"github.com/Masterminds/squirrel"
 
 	"github.com/LerianStudio/midaz/v4/pkg/pagination"

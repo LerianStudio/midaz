@@ -20,13 +20,24 @@ Two rules — **T5** (span-error helper by class) and **T8** (single-point loggi
 
 ## T2 — Span naming
 
-**Rule:** Span names MUST be `<layer>.<operation>` in dotted snake_case (e.g. `command.create_account`, `mongodb.update_holder`). Child I/O spans MUST extend the parent name with a `.exec` / `.query` / `.find` (etc.) suffix. MUST NOT use bespoke prefixes or free-form names.
+**Rule:** Span names MUST be `<layer>.<operation>` in dotted snake_case (e.g. `command.create_account`, `mongodb.update_holder`). A child I/O span MUST be opened **only where the driver is not auto-instrumented**; where one is opened it MUST extend the parent name with a `.exec` / `.query` / `.find` / `.insert` (etc.) suffix. MUST NOT use bespoke prefixes or free-form names.
 
-**Rationale:** A predictable two-segment scheme makes spans groupable by layer and operation across services and lets dashboards and trace search rely on a stable naming contract instead of per-author conventions.
+Current driver coverage in this repo:
 
-**Canonical example:** [`components/ledger/internal/adapters/postgres/account/account.postgresql.go:187`](../../components/ledger/internal/adapters/postgres/account/account.postgresql.go) — `_, spanExec := tracer.Start(ctx, "postgres.create.exec")` (child I/O span with `.exec` suffix under the `postgres.create_account` parent).
+| Store | Driver auto-instrumentation | Child I/O span |
+|-------|-----------------------------|----------------|
+| MongoDB | none (`lib-commons` has no `commons/mongo/observability.go`) | **REQUIRED** |
+| PostgreSQL | `lib-commons/commons/postgres` → `instrumentPool()` → `sqlobs.Setup()`, which passes `otelsql.WithTracerProvider` (since lib-commons v6.8.1) | **FORBIDDEN** — otelsql already emits `sql.connector.connect` / `sql.conn.query` / `sql.rows` per statement |
+| Redis / Valkey | `lib-commons/commons/redis` → `instrumentClient()` → `redisobs.Setup()` (since lib-commons v6.8.1) | **FORBIDDEN** for spans that mirror one driver command; semantic spans that span several commands or carry domain meaning (`redis.run_balance_atomic_script`, `redis.schedule_balance_sync_batch`, `redis.set_nx`) stay |
+| RabbitMQ | none (`messagingobs` is wired nowhere) | **REQUIRED** |
 
-**Enforcement:** `review-only` — naming intent is not mechanically distinguishable from valid free text; gate at code review.
+**Rationale:** A predictable two-segment scheme makes spans groupable by layer and operation across services and lets dashboards and trace search rely on a stable naming contract instead of per-author conventions. Once the driver emits its own span per statement, a hand-rolled sibling doubles the span volume on the hottest path in the system without adding a single fact: one `GET /v1/organizations` was observed emitting `sql.connector.connect`, `sql.conn.query` and `sql.rows` from `github.com/XSAM/otelsql` alongside midaz's own `postgres.find_all.query`. Error attribution does not move to the driver span, however — otelsql cannot express the business-vs-technical class T5 requires and does not see client-side `Scan`/mapping failures — so when a child I/O span is deleted its `HandleSpanError` / `HandleSpanBusinessErrorEvent` / `SetAttributes` calls move onto the surviving parent domain span rather than disappearing.
+
+**Canonical example:** [`components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go:138`](../../components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go) — `_, spanInsert := tracer.Start(ctx, "mongodb.create_holder.insert")` (child I/O span with `.insert` suffix under the `mongodb.create_holder` parent, on a driver with no auto-instrumentation).
+
+**Counter-example (forbidden duplicate):** the shape to reject is `_, spanExec := tracer.Start(ctx, "postgres.create.exec")` wrapping a `db.ExecContext` call. The 121 `postgres.<op>.query` / `postgres.<op>.exec` spans under `components/ledger/internal/adapters/postgres/` and the 8 one-command Redis spans (`redis.set`/`get`/`del`/`mget`/`incr`) were removed for this reason; `components/tracer/internal/adapters/postgres/` still carries its own set pending a separate analysis.
+
+**Enforcement:** `review-only` — naming intent is not mechanically distinguishable from valid free text, and whether a driver is instrumented depends on the lib-commons version in `go.mod`; gate at code review.
 
 ---
 
@@ -38,7 +49,7 @@ Two rules — **T5** (span-error helper by class) and **T8** (single-point loggi
 
 **Canonical example (sanctioned detach):** [`components/tracer/internal/services/validation_service.go:614`](../../components/tracer/internal/services/validation_service.go) — `context.WithTimeout(context.WithoutCancel(ctx), validationPersistTimeout)` with the preceding intent comment (lines 611–613) explaining the SOX/GLBA audit-trail persistence budget.
 
-**Counter-example (forbidden leaf rebind):** the shape to reject is `ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")` — rebinding `ctx` on a leaf exec/query span with no detach intent, which nests sibling I/O spans under each other instead of the parent. The audit's 135+ leaf rebinds were converted to the non-rebinding `_, spanX :=` form (see the canonical example above); the lint gate keeps them from reappearing.
+**Counter-example (forbidden leaf rebind):** the shape to reject is `ctx, spanInsert := tracer.Start(ctx, "mongodb.create_holder.insert")` — rebinding `ctx` on a leaf insert/find span with no detach intent, which nests sibling I/O spans under each other instead of the parent. The audit's 135+ leaf rebinds were converted to the non-rebinding `_, spanX :=` form (see the canonical example above); the PostgreSQL and Redis leaves it covered have since been deleted outright under T2, so the surviving population is the MongoDB and RabbitMQ leaves, and the lint gate keeps the rebind from reappearing on them.
 
 **Enforcement:** `custom-lint` — flag `ctx, span\w* := .*tracer.Start` on leaf spans; allowlist requires an adjacent `WithoutCancel` or an intent comment (per-file review where ambiguous).
 
@@ -146,7 +157,7 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 ## T11 — Metrics
 
-**Rule:** ALL metrics MUST be created via the lib-observability `MetricsFactory` — there are no sanctioned bespoke stacks (D4 outcome: tracer's direct-Prometheus families migrate to the factory; greenfield, no dashboard compatibility owed). Every business operation (commands and key queries) MUST emit domain metrics (D6 outcome; rolled out in Phase 5). Names MUST be snake_case with a unit suffix (e.g. `_ms`, `_total`). Labels MUST be bounded-cardinality only. Metric emit errors MUST be logged at Debug — never swallowed via `_ =`. HTTP telemetry middleware MUST exclude the probe paths `/health`, `/readyz`, `/metrics` by passing them as `excludedRoutes` to `WithTelemetry`.
+**Rule:** ALL metrics MUST be created via the lib-observability `MetricsFactory` — there are no sanctioned bespoke stacks (D4 outcome: tracer's direct-Prometheus families migrate to the factory; greenfield, no dashboard compatibility owed). Every business operation (commands and key queries) MUST emit domain metrics (D6 outcome; rolled out in Phase 5). Names MUST be snake_case with a unit suffix (e.g. `_ms`, `_total`). Labels MUST be bounded-cardinality only. Metric emit errors MUST be logged at Debug — never swallowed via `_ =`. HTTP telemetry middleware MUST exclude the probe paths `/health`, `/readyz`, `/metrics` by passing them as `excludedRoutes` to the registered telemetry middleware (see T11.1 for which variant the ledger registers).
 
 **Rationale:** Unbounded label cardinality is the classic way to blow up a Prometheus backend; bounding labels at the emission point and routing all new metrics through one factory keeps the metric surface governable. Probe traffic generates a span and metric per k8s probe — high-volume, zero-information — so excluding probe routes removes pure noise and cost. Swallowed emit errors hide a broken metrics pipeline.
 
@@ -155,6 +166,22 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 **Probe-exclusion support:** `github.com/LerianStudio/lib-observability@v1.1.0/middleware/telemetry.go:86` — `WithTelemetry(tl, excludedRoutes ...string)` with the `isRouteExcludedFromList` check (lines 86–97). Tracer passes excluded routes; ledger currently does not (audit appendix F22) and MUST be fixed.
 
 **Enforcement:** `custom-lint` for `_ =` on a metrics emit return; `review-only` for `MetricsFactory` usage, naming, label cardinality, and the probe-exclusion argument.
+
+---
+
+## T11.1 — Tenant identity on telemetry
+
+**Rule:** `tenant.id` on a metric MUST come from a tenant the authentication layer has attested, never from a header, baggage member, gRPC metadatum or span attribute that a client can set. The attestation point is `pkgHTTP.MarkTrustedAuthAssertion` (`pkg/net/http/protected_routes.go`), which runs behind the authorizer on every protected chain: it parses the `tenantId` JWT claim and, when it is a UUID, calls `libObservability.ContextWithAuthenticatedTenant`. The ledger registers `WithAuthenticatedTenantHTTPMetrics` — NOT `WithTelemetry` — on the unified server; the two are mutually exclusive, since the tenant variant already records the standard HTTP telemetry and registering both doubles every observation of `http.server.request.duration`.
+
+**Series:** `lerian.http.server.requests.by_tenant`, `.responses_4xx.by_tenant`, `.responses_5xx.by_tenant` (counters, labels `tenant.id`, optional `tenant.name`, `http.route`) and `.latency.by_tenant` (histogram, labels `tenant.id`, optional `tenant.name`, `http.response.status_class`). They are emitted ONLY when an attestation is present, so a single-tenant or BYOC deployment — where the claim does not exist — adds no cardinality.
+
+**Traces differ from metrics on purpose.** The span attribute is seeded from OTel baggage, which `MarkTrustedAuthAssertion` writes for ANY claim that passes `tmcore.IsValidTenantID`, UUID or not; lib-observability's span processor copies it onto application spans. The metric attestation additionally requires a parsed UUID, so a legacy non-UUID tenant appears on traces but not on the per-tenant metrics. `tenant.id` is deliberately absent from the built-in HTTP server span: lib-observability strips request identity from infrastructure signals.
+
+**They also disagree on FORM, which matters for dashboards.** The tenant-manager writes the claim as 32 hex without hyphens, so a span carries `03fb5615b8f04c56983826a13d9aadef` while the metric carries the `uuid.Parse`d `03fb5615-b8f0-4c56-9838-26a13d9aadef` — verified live against a local Caradhras tenant. **A panel cannot join a span to a metric on `tenant.id` without normalizing one side.** Normalizing in midaz alone would not fix it: lib-commons' tenant middleware rewrites the same baggage member with the raw claim after the assertion runs, so only the routes without tenant-DB resolution would change and the two route families would then disagree with each other. The fix belongs in lib-commons (write the parsed form) or in lib-observability (normalize on read).
+
+**Rationale:** a forgeable tenant label is worse than no label — it lets any caller write into another tenant's series and inflate cardinality at will. Requiring the attestation makes the label a property of having authenticated. Keeping the metric on a UUID keeps the aggregation key stable across a slug rename.
+
+**Enforcement:** `pkg/net/http/tenant_metrics_wiring_test.go` (the recorded series and their attributes) and `components/ledger/internal/bootstrap/unified_server_tenant_metrics_guard_test.go` (that the ledger stays on the per-tenant middleware variant).
 
 ---
 

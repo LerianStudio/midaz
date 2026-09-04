@@ -8,8 +8,8 @@ import (
 	"reflect"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"

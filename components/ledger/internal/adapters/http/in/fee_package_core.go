@@ -7,7 +7,7 @@ package in
 import (
 	"context"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
@@ -15,9 +15,9 @@ import (
 	feeerrors "github.com/LerianStudio/midaz/v4/pkg"
 	feeconstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 
-	"github.com/LerianStudio/lib-commons/v6/commons"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/LerianStudio/lib-commons/v7/commons"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )

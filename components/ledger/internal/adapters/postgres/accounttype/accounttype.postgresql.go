@@ -12,14 +12,14 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
-	libPointers "github.com/LerianStudio/lib-commons/v6/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
+	libPointers "github.com/LerianStudio/lib-commons/v7/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/Masterminds/squirrel"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
@@ -152,9 +152,6 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.create.exec")
-	defer spanExec.End()
-
 	inserted := &AccountTypePostgreSQLModel{}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -173,13 +170,13 @@ func (r *AccountTypePostgreSQLRepository) Create(ctx context.Context, organizati
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntityAccountType)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute insert account type query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute insert account type query", err)
 			logger.Log(ctx, libLog.LevelWarn, "Failed to execute insert account type query", libLog.Err(err))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert account type query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute insert account type query", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to execute insert account type query", libLog.Err(err))
 
 		return nil, err
@@ -206,8 +203,6 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 	}
 
 	var record AccountTypePostgreSQLModel
-
-	_, spanQuery := tracer.Start(ctx, "postgres.find_by_id.query")
 
 	row := db.QueryRowContext(ctx, `
 		SELECT 
@@ -241,7 +236,7 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 		&record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to scan account type record", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to scan account type record", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, services.ErrDatabaseItemNotFound
@@ -249,8 +244,6 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 
 		return nil, err
 	}
-
-	spanQuery.End()
 
 	return record.ToEntity(), nil
 }
@@ -273,8 +266,6 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 	}
 
 	var record AccountTypePostgreSQLModel
-
-	_, spanQuery := tracer.Start(ctx, "postgres.find_by_key.query")
 
 	row := db.QueryRowContext(ctx, `
 		SELECT 
@@ -308,7 +299,7 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 		&record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to scan account type record", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to scan account type record", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, services.ErrDatabaseItemNotFound
@@ -316,8 +307,6 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 
 		return nil, err
 	}
-
-	spanQuery.End()
 
 	return record.ToEntity(), nil
 }
@@ -372,9 +361,6 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
-	defer spanExec.End()
-
 	updated := &AccountTypePostgreSQLModel{}
 
 	row := db.QueryRowContext(ctx, query, args...)
@@ -391,7 +377,7 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 		&updated.DeletedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update account type. Rows affected is 0", services.ErrDatabaseItemNotFound)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account type. Rows affected is 0", services.ErrDatabaseItemNotFound)
 			logger.Log(ctx, libLog.LevelWarn, "Failed to update account type. Rows affected is 0", libLog.String("account_type_id", id.String()))
 
 			return nil, services.ErrDatabaseItemNotFound
@@ -400,13 +386,13 @@ func (r *AccountTypePostgreSQLRepository) Update(ctx context.Context, organizati
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntityAccountType)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute update query", err)
 			logger.Log(ctx, libLog.LevelWarn, "Failed to execute update query", libLog.Err(err), libLog.String("account_type_id", id.String()))
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute update query", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to execute update query", libLog.Err(err), libLog.String("account_type_id", id.String()))
 
 		return nil, err
@@ -490,12 +476,9 @@ func (r *AccountTypePostgreSQLRepository) FindAll(ctx context.Context, organizat
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
-	defer spanQuery.End()
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
 
@@ -567,8 +550,6 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 	var accountTypes []*mmodel.AccountType
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
-
 	query := `SELECT 
 		id, 
 		organization_id, 
@@ -589,15 +570,13 @@ func (r *AccountTypePostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 	rows, err := db.QueryContext(ctx, query, organizationID, ledgerID, pq.Array(ids))
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
 
 		return nil, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var record AccountTypePostgreSQLModel
@@ -650,18 +629,14 @@ func (r *AccountTypePostgreSQLRepository) Delete(ctx context.Context, organizati
 	query := "UPDATE account_type SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
 	args := []any{organizationID, ledgerID, id}
 
-	_, spanExec := tracer.Start(ctx, "postgres.delete.exec")
-
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute delete query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute delete query", err)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to execute delete query", libLog.Err(err))
 
 		return err
 	}
-
-	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {

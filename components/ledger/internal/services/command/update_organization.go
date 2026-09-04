@@ -9,11 +9,11 @@ import (
 	"errors"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
