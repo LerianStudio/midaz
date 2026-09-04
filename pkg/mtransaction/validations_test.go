@@ -112,6 +112,153 @@ func TestValidateBalancesRules(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "invalid - blocked source account rejects with 0502",
+			transaction: Transaction{
+				Send: Send{
+					Asset: "USD",
+					Value: decimal.NewFromInt(100),
+					Source: Source{
+						From: []FromTo{{AccountAlias: "@blocked"}},
+					},
+					Distribute: Distribute{
+						To: []FromTo{{AccountAlias: "@account2"}},
+					},
+				},
+			},
+			validate: Responses{
+				Asset: "USD",
+				From: map[string]Amount{
+					"0#@blocked#default": {Value: decimal.NewFromInt(100), Operation: constant.DEBIT, TransactionType: constant.CREATED},
+				},
+				To: map[string]Amount{
+					"0#@account2#default": {Value: decimal.NewFromInt(100), Operation: constant.CREDIT, TransactionType: constant.CREATED},
+				},
+			},
+			balances: []*Balance{
+				{
+					ID:             "123",
+					Alias:          "@blocked",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(200),
+					AllowSending:   true,
+					AllowReceiving: true,
+					Blocked:        true,
+					AccountType:    "internal",
+				},
+				{
+					ID:             "456",
+					Alias:          "@account2",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(50),
+					AllowSending:   true,
+					AllowReceiving: true,
+					AccountType:    "internal",
+				},
+			},
+			expectError: true,
+			errorCode:   "0502", // ErrAccountBlocked
+		},
+		{
+			name: "invalid - blocked destination account rejects with 0502 (bidirectional)",
+			transaction: Transaction{
+				Send: Send{
+					Asset: "USD",
+					Value: decimal.NewFromInt(100),
+					Source: Source{
+						From: []FromTo{{AccountAlias: "@account1"}},
+					},
+					Distribute: Distribute{
+						To: []FromTo{{AccountAlias: "@blocked"}},
+					},
+				},
+			},
+			validate: Responses{
+				Asset: "USD",
+				From: map[string]Amount{
+					"0#@account1#default": {Value: decimal.NewFromInt(100), Operation: constant.DEBIT, TransactionType: constant.CREATED},
+				},
+				To: map[string]Amount{
+					"0#@blocked#default": {Value: decimal.NewFromInt(100), Operation: constant.CREDIT, TransactionType: constant.CREATED},
+				},
+			},
+			balances: []*Balance{
+				{
+					ID:             "123",
+					Alias:          "@account1",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(200),
+					AllowSending:   true,
+					AllowReceiving: true,
+					AccountType:    "internal",
+				},
+				{
+					ID:             "456",
+					Alias:          "@blocked",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(50),
+					AllowSending:   true,
+					AllowReceiving: true,
+					Blocked:        true,
+					AccountType:    "internal",
+				},
+			},
+			expectError: true,
+			errorCode:   "0502", // ErrAccountBlocked
+		},
+		{
+			name: "invalid - blocked check precedes balance permission check",
+			transaction: Transaction{
+				Send: Send{
+					Asset: "USD",
+					Value: decimal.NewFromInt(100),
+					Source: Source{
+						From: []FromTo{{AccountAlias: "@blocked"}},
+					},
+					Distribute: Distribute{
+						To: []FromTo{{AccountAlias: "@account2"}},
+					},
+				},
+			},
+			validate: Responses{
+				Asset: "USD",
+				From: map[string]Amount{
+					"0#@blocked#default": {Value: decimal.NewFromInt(100), Operation: constant.DEBIT, TransactionType: constant.CREATED},
+				},
+				To: map[string]Amount{
+					"0#@account2#default": {Value: decimal.NewFromInt(100), Operation: constant.CREDIT, TransactionType: constant.CREATED},
+				},
+			},
+			balances: []*Balance{
+				{
+					ID:             "123",
+					Alias:          "@blocked",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(200),
+					AllowSending:   false, // would be 0024 if the block check did not run first
+					AllowReceiving: true,
+					Blocked:        true,
+					AccountType:    "internal",
+				},
+				{
+					ID:             "456",
+					Alias:          "@account2",
+					Key:            "default",
+					AssetCode:      "USD",
+					Available:      decimal.NewFromInt(50),
+					AllowSending:   true,
+					AllowReceiving: true,
+					AccountType:    "internal",
+				},
+			},
+			expectError: true,
+			errorCode:   "0502", // ErrAccountBlocked wins over ErrAccountStatusTransactionRestriction
+		},
+		{
 			name:        "invalid - wrong number of balances",
 			transaction: Transaction{},
 			validate: Responses{

@@ -69,6 +69,13 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 	}
 
 	for _, balance := range balances {
+		if err := validateBlockedBalance(balance); err != nil {
+			tracing.HandleSpanBusinessErrorEvent(spanValidateBalances, "Rejected transaction involving blocked account", err)
+			logger.Log(ctx, libLog.LevelWarn, "Rejected transaction involving blocked account", libLog.Err(err))
+
+			return err
+		}
+
 		if err := validateFromBalances(balance, validate.From, validate.Asset, validate.Pending); err != nil {
 			tracing.HandleSpanBusinessErrorEvent(spanValidateBalances, "Failed to validate source balance", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to validate source balance", libLog.Err(err))
@@ -82,6 +89,25 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 
 			return err
 		}
+	}
+
+	return nil
+}
+
+// validateBlockedBalance is the fast-fail half of the account-block guard:
+// it rejects any balance whose account is blocked, source or destination,
+// BEFORE the per-balance permission checks so the caller gets the specific
+// 0502 error rather than a balance-permission one. It runs only on the flows
+// that validate balance rules (creates and reverts); commits are enforced by
+// the Lua guard alone and cancels are exempt by design (RF-4C). The Lua
+// script remains the final authority — this check only saves the round-trip.
+//
+// Account-block exceptions (single-use grants) plug in here: a grant that
+// potentially matches the balance suppresses this fast-fail and defers the
+// decision to the Lua consume step.
+func validateBlockedBalance(balance *Balance) error {
+	if balance.Blocked {
+		return pkg.ValidateBusinessError(pkgConstant.ErrAccountBlocked, "validateBalance")
 	}
 
 	return nil
