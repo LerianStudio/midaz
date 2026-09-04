@@ -2,17 +2,27 @@
 #
 # Identity (service slug): "midaz" — the core ledger + embedded CRM. This is the
 # FIRST argument of every auth.Authorize("midaz", resource, verb) guard in
-# components/ledger/internal/adapters/http/in/ (const midazName, routes.go:15;
+# components/ledger/internal/adapters/http/in/ (const midazName, routes.go:20;
 # the CRM routes reuse it via protectedMidaz too).
-# Keys mirror the yaml tags on lib-auth/v3 auth/declaration.DeclarationManifest
+# Keys mirror the yaml tags on lib-auth/v4 auth/declaration.DeclarationManifest
 # (auth/declaration/manifest.go).
 #
-# The (resource, action) tuples below are the EXACT authorization surface the
-# ledger routes enforce at runtime. Every entry traces to a real
-# protectedMidaz(auth, resource, verb) route registration (= auth.Authorize(
-# "midaz", resource, verb)); the file:line on each group header points at the
-# registration. `resource` is written BARE — the central reconciler composes the
-# "midaz/" prefix. The `action` is the HTTP verb the guard authorizes under
+# WHAT THIS MANIFEST IS: a faithful mirror of the Access-Manager SEED, not a
+# transcript of the route table. Two groups of entries, and the difference matters:
+#
+#   1. Route-backed (79 pairs, every group above the SEED-ONLY marker): each traces
+#      to a real protectedMidaz(auth, resource, verb) registration (= auth.Authorize(
+#      "midaz", resource, verb)); the file:line on each group header points at it.
+#   2. Seed-only (19 pairs, the marked block at the end of `permissions:`): the seed
+#      grants them, no route registers them. Declared for PARITY — see that block's
+#      own comment.
+#
+# So do NOT read an entry here as proof that a route enforces it. The invariant is
+# the other direction: every seeded grant appears here, and every route-backed pair
+# appears here.
+#
+# `resource` is written BARE — the central reconciler composes the "midaz/"
+# prefix. The `action` is the HTTP verb the guard authorizes under
 # (get/post/put/patch/delete/head), preserved VERBATIM: lib-auth's HTTP-verb
 # deny-list was removed (lib-auth #145 / identity #310), and the manifest action
 # MUST match what the middleware checks, so a granted role's permission lines up
@@ -30,8 +40,10 @@
 #
 # This manifest must stay a SUPERSET of the seed. The tenant-manager's
 # template-origin prune deletes the seeded RBAC on reconcile, so a tier or a grant
-# missing here is not merely undeclared — it stops existing. The `contributor`
-# tier and its 54 grants were added for exactly that reason.
+# missing here is not merely undeclared — it stops existing. That is why the
+# `contributor` tier was added (54 grants) AND why the 44 grants over pairs no route
+# registers are declared too (19 pairs, the SEED-ONLY block): 98 grants in total
+# that adopting the declaration would otherwise have revoked.
 #
 # The granted_to group bindings under `roles:` are likewise confirmed against the
 # seed (see below).
@@ -164,6 +176,50 @@ permissions:
   - { resource: transactions, action: patch, effect: allow, roles: [editor, contributor] }
   - { resource: transactions, action: get,   effect: allow, roles: [editor, contributor, viewer] }
   - { resource: transactions, action: head,  effect: allow, roles: [editor, contributor, viewer] }
+
+  # ─── SEED-ONLY GRANTS: no route registers these (resource, action) pairs ───
+  #
+  # Declared for PARITY, not because a route checks them. The seed
+  # (caradhras deploy/pam-seed/init_data.json) grants each pair below, and the
+  # tenant-manager's template-origin prune deletes the seeded RBAC on reconcile —
+  # so a pair omitted here would be REVOKED by adopting the declaration, which
+  # would make this change a removal rather than a mechanism swap.
+  #
+  # Every pair ABOVE traces to a real protectedMidaz(...) registration; NONE of the
+  # pairs below do. They are kept in one contiguous block on purpose: whoever
+  # decides to drop the unreachable surface can delete this section wholesale,
+  # without touching a single route-backed grant.
+  # account-types
+  - { resource: account-types, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # asset-rates
+  - { resource: asset-rates, action: delete, effect: allow, roles: [editor] }
+  - { resource: asset-rates, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: asset-rates, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: asset-rates, action: post,   effect: allow, roles: [editor, contributor] }
+  # balances
+  - { resource: balances, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # encryption
+  - { resource: encryption, action: delete, effect: allow, roles: [editor] }
+  - { resource: encryption, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: encryption, action: patch,  effect: allow, roles: [editor, contributor] }
+  # holders
+  - { resource: holders, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # instruments
+  - { resource: instruments, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # operation-routes
+  - { resource: operation-routes, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # operations
+  - { resource: operations, action: delete, effect: allow, roles: [editor] }
+  - { resource: operations, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: operations, action: post,   effect: allow, roles: [editor, contributor] }
+  # settings
+  - { resource: settings, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: settings, action: patch,  effect: allow, roles: [editor, contributor] }
+  # transaction-routes
+  - { resource: transaction-routes, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # transactions
+  - { resource: transactions, action: delete, effect: allow, roles: [editor] }
+
 
 roles:
   # Group bindings are CONFIRMED against the central Access Manager seed

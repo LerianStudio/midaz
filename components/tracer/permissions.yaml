@@ -5,7 +5,7 @@
 # the first argument of auth.Authorize(g.cfg.AppName, resource, method) in the
 # route guard (middleware/auth_guard.go:87); cfg.AppName resolves to the constant
 # ApplicationName = "tracer" (pkg/constant/app.go:7, config.go). Keys mirror the
-# yaml tags on lib-auth/v3 auth/declaration.DeclarationManifest.
+# yaml tags on lib-auth/v4 auth/declaration.DeclarationManifest.
 #
 # The (resource, action) tuples are the EXACT surface the tracer routes enforce
 # via guard.With(resource, method, forceAPIKey) — each traces to a registration
