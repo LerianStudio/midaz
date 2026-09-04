@@ -138,7 +138,7 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 **Rationale:** A bare `context.Background()` severs the goroutine's work from the request trace, making async side-effects (idempotency writes, audit emits) invisible in the parent trace and unattributable when they fail. `WithoutCancel` preserves trace and values while correctly detaching the request's cancellation.
 
-**Counter-example (forbidden bare Background):** [`components/ledger/internal/adapters/http/in/transaction_create.go:1371`](../../components/ledger/internal/adapters/http/in/transaction_create.go) — `context.Background()` (wrapped only with the tenant ID) seeds the idempotency and audit goroutines on lines 1373–1375, dropping the trace.
+**Counter-example (forbidden bare Background):** [`components/ledger/internal/services/command/create_transaction_steps.go`](../../components/ledger/internal/services/command/create_transaction_steps.go) — `context.Background()` (wrapped only with the tenant ID) seeds the idempotency and audit goroutines at the end of `finalizeCreatedTransaction`, dropping the trace.
 
 **Enforcement:** `custom-lint` — flag `context.Background()` used as the seed for a `go` statement's context; broker inject/extract presence is `review-only`.
 

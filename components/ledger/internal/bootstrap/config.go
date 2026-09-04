@@ -902,6 +902,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.HolderReader = holderReaderAdapter{service: crmMgo.holderHandler.Service}
 	commandUseCase.SettingsReader = queryUseCase
 
+	// === Transaction create seam reads (F1) ===
+	// The transaction create path reads settings, balances and accounting rules
+	// through the narrow TransactionReader port, satisfied directly by the query
+	// UseCase (signatures match), so command never imports the query package.
+	commandUseCase.TransactionReader = queryUseCase
+
 	// === CRM domain metrics (D6) ===
 	// The holder and instrument handlers share the SAME CRM use-case instance,
 	// so setting the factory once covers every CRM entrypoint.
@@ -989,15 +995,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		addCleanup(func() { _ = tracerClose() })
 	}
 
+	// === Transaction create seam ports ===
+	// The fee engine, the tracer reservation client and the MT fee-DB resolver are
+	// consumed by the transaction create use case, so they are wired onto the
+	// command UseCase rather than the HTTP handler.
+	commandUseCase.FeeApplier = fees.useCase
+	commandUseCase.TracerReserver = tracerReserver
+	commandUseCase.FeesMongoManager = feeMgo.mongoManager
+	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
+
 	// Transaction handlers
-	transactionHandler := &httpin.TransactionHandler{
-		Command:            commandUseCase,
-		Query:              queryUseCase,
-		FeeApplier:         fees.useCase,
-		TracerReserver:     tracerReserver,
-		FeesMongoManager:   feeMgo.mongoManager,
-		MultiTenantEnabled: cfg.MultiTenantEnabled,
-	}
+	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
 	balanceHandler := &httpin.BalanceHandler{Command: commandUseCase, Query: queryUseCase}
@@ -1137,9 +1145,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// RedisQueueConsumer: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
 	if cfg.MultiTenantEnabled && tenantCache != nil {
-		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, *transactionHandler, true, tenantCache, txnPG.pgManager)
+		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, commandUseCase, queryUseCase, true, tenantCache, txnPG.pgManager)
 	} else {
-		redisConsumer = NewRedisQueueConsumer(logger, *transactionHandler)
+		redisConsumer = NewRedisQueueConsumer(logger, commandUseCase, queryUseCase)
 	}
 
 	// The quarantine repository is the durable sink for poison backup records;
@@ -1907,7 +1915,7 @@ func applyConfigDefaults(cfg *Config) {
 //
 // This is pure DI: it wires the transport, not behavior. The per-ledger
 // advisory/enforce gate and the fail-posture branch live at the reserve anchor.
-func buildTracerReserver(cfg *Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+func buildTracerReserver(cfg *Config, logger libLog.Logger) (command.TracerReserver, error) {
 	baseURL := strings.TrimSpace(cfg.TracerBaseURL)
 	if baseURL == "" {
 		logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation integration disabled (TRACER_BASE_URL unset)")
@@ -1953,7 +1961,7 @@ const (
 // non-nil (TRACER_TLS_MODE=mtls) it is applied to the client's transport so the
 // REST seam presents the ledger's client cert and verifies the tracer's server
 // cert; a nil config (mesh/empty mode) leaves the default plaintext transport.
-func buildTracerRESTReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+func buildTracerRESTReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (command.TracerReserver, error) {
 	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
 		libLog.String("transport", tracerTransportREST))
 
@@ -1981,7 +1989,7 @@ func buildTracerRESTReserver(cfg *Config, baseURL string, tlsConfig *tls.Config,
 // client's default insecure transport for a sidecar to secure. The target is the
 // same TRACER_BASE_URL value, stripped of any scheme so grpc.NewClient receives
 // a host:port authority.
-func buildTracerGRPCReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (httpin.TracerReserver, error) {
+func buildTracerGRPCReserver(cfg *Config, baseURL string, tlsConfig *tls.Config, logger libLog.Logger) (command.TracerReserver, error) {
 	logger.Log(context.Background(), libLog.LevelInfo, "Tracer reservation transport selected",
 		libLog.String("transport", tracerTransportGRPC))
 

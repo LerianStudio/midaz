@@ -56,7 +56,7 @@ func unavailableReserver() *stubReserver {
 func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 	t.Run("create modes and revert", func(t *testing.T) {
 		h := setupFeeHarness(t)
-		h.handler.TracerReserver = &forbiddenReserver{t: t}
+		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 		h.seedEnforceClosedTracer(t)
 
 		app := h.newApp()
@@ -79,7 +79,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 
 	t.Run("pending commit", func(t *testing.T) {
 		h := setupFeeHarness(t)
-		h.handler.TracerReserver = &forbiddenReserver{t: t}
+		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 		h.seedEnforceClosedTracer(t)
 
 		app := h.newApp()
@@ -99,7 +99,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 
 	t.Run("pending cancel", func(t *testing.T) {
 		h := setupFeeHarness(t)
-		h.handler.TracerReserver = &forbiddenReserver{t: t}
+		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 		h.seedEnforceClosedTracer(t)
 
 		app := h.newApp()
@@ -124,7 +124,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 func TestTracerRouteGate_V2StillEnforces(t *testing.T) {
 	h := setupFeeHarness(t)
 	reserver := unavailableReserver()
-	h.handler.TracerReserver = reserver
+	h.handler.Command.TracerReserver = reserver
 	h.seedEnforceClosedTracer(t)
 
 	app := h.newV2App()
@@ -161,7 +161,7 @@ func TestTracerRouteGate_V2CreateCommittedOnV1_SkipsConfirm(t *testing.T) {
 
 	reservationID := uuid.New()
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
-	h.handler.TracerReserver = reserver
+	h.handler.Command.TracerReserver = reserver
 	h.seedEnforceClosedTracer(t)
 
 	h.seedBalance(t, "@payer", "USD", decimal.NewFromInt(100000), "deposit")

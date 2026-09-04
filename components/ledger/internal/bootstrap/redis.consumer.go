@@ -28,10 +28,12 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	postgreTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -58,8 +60,13 @@ const (
 )
 
 type RedisQueueConsumer struct {
-	Logger             libLog.Logger
-	TransactionHandler in.TransactionHandler
+	Logger  libLog.Logger
+	Command *command.UseCase
+	Query   *query.UseCase
+	// queue is the backup-queue repository the consumer drives directly for the
+	// queue mechanics it owns: cycle lock, reads, attempt counters, removal. It
+	// is always the same repository Command holds.
+	queue              txRedis.RedisRepository
 	quarantineRepo     transactionquarantine.Repository
 	metricsFactory     *metrics.MetricsFactory
 	multiTenantEnabled bool
@@ -67,10 +74,12 @@ type RedisQueueConsumer struct {
 	pgManager          *tmpostgres.Manager
 }
 
-func NewRedisQueueConsumer(logger libLog.Logger, handler in.TransactionHandler) *RedisQueueConsumer {
+func NewRedisQueueConsumer(logger libLog.Logger, cmd *command.UseCase, qry *query.UseCase) *RedisQueueConsumer {
 	return &RedisQueueConsumer{
-		Logger:             logger,
-		TransactionHandler: handler,
+		Logger:  logger,
+		Command: cmd,
+		Query:   qry,
+		queue:   cmd.TransactionRedisRepo,
 	}
 }
 
@@ -98,12 +107,13 @@ func (r *RedisQueueConsumer) WithMetricsFactory(factory *metrics.MetricsFactory)
 // PostgreSQL connections.
 func NewRedisQueueConsumerMultiTenant(
 	logger libLog.Logger,
-	handler in.TransactionHandler,
+	cmd *command.UseCase,
+	qry *query.UseCase,
 	multiTenantEnabled bool,
 	cache *tenantcache.TenantCache,
 	pgManager *tmpostgres.Manager,
 ) *RedisQueueConsumer {
-	c := NewRedisQueueConsumer(logger, handler)
+	c := NewRedisQueueConsumer(logger, cmd, qry)
 	c.multiTenantEnabled = multiTenantEnabled
 	c.tenantCache = cache
 	c.pgManager = pgManager
@@ -246,7 +256,7 @@ func (r *RedisQueueConsumer) acquireCycleLock(ctx context.Context) (bool, func()
 	cycleLockKey := utils.RedisConsumerCycleLockKey()
 	podID := podIdentifier()
 
-	success, err := r.TransactionHandler.Command.TransactionRedisRepo.SetNX(ctx, cycleLockKey, podID, CycleLockTTL)
+	success, err := r.queue.SetNX(ctx, cycleLockKey, podID, CycleLockTTL)
 	if err != nil {
 		r.Logger.Log(ctx, libLog.LevelWarn, "Failed to acquire backup consumer cycle lock", libLog.Err(err))
 
@@ -262,7 +272,7 @@ func (r *RedisQueueConsumer) acquireCycleLock(ctx context.Context) (bool, func()
 	r.Logger.Log(ctx, libLog.LevelDebug, "Cycle lock acquired", libLog.String("pod_id", podID))
 
 	release := func() {
-		if delErr := r.TransactionHandler.Command.TransactionRedisRepo.Del(ctx, cycleLockKey); delErr != nil {
+		if delErr := r.queue.Del(ctx, cycleLockKey); delErr != nil {
 			r.Logger.Log(ctx, libLog.LevelWarn, "Failed to release backup consumer cycle lock", libLog.Err(delErr))
 		}
 	}
@@ -289,7 +299,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 
 	r.Logger.Log(ctx, libLog.LevelDebug, "Init cron to read messages from redis...")
 
-	messages, err := r.TransactionHandler.Command.TransactionRedisRepo.ReadAllMessagesFromQueue(ctx)
+	messages, err := r.queue.ReadAllMessagesFromQueue(ctx)
 	if err != nil {
 		r.Logger.Log(ctx, libLog.LevelError, "Failed to read messages from redis", libLog.Err(err))
 		return
@@ -521,7 +531,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			fromTo = append(fromTo, to...)
 		}
 
-		ledgerSettings, err := r.TransactionHandler.Query.GetParsedLedgerSettings(msgCtxWithSpan, m.OrganizationID, m.LedgerID)
+		ledgerSettings, err := r.Query.GetParsedLedgerSettings(msgCtxWithSpan, m.OrganizationID, m.LedgerID)
 		if err != nil {
 			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to get ledger settings for backup consumer message. Routing to quarantine flow.", libLog.String("transactionId", m.TransactionID.String()), libLog.Err(err))
 
@@ -551,7 +561,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			}
 
 			if parseErr == nil && trID != uuid.Nil {
-				cache, cacheErr := r.TransactionHandler.Query.GetOrCreateTransactionRouteCache(msgCtxWithSpan, m.OrganizationID, m.LedgerID, trID)
+				cache, cacheErr := r.Query.GetOrCreateTransactionRouteCache(msgCtxWithSpan, m.OrganizationID, m.LedgerID, trID)
 				if cacheErr != nil {
 					logger.Log(ctx, libLog.LevelDebug, "Failed to get route cache", libLog.String("route_id", trID.String()), libLog.Err(cacheErr))
 				} else {
@@ -589,7 +599,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 		// flushed it) but the audit trail may diverge. Capturing Lua's
 		// after-state in the backup envelope is tracked under T-006.1 /
 		// T-009 hardening items.
-		operations, _, buildErr = r.TransactionHandler.BuildOperations(
+		operations, _, buildErr = r.Command.BuildOperations(
 			msgCtxWithSpan, balances, nil /* balancesAfter */, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action,
 		)
 		if buildErr != nil {
@@ -614,7 +624,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 	utils.SanitizeAccountAliases(&m.TransactionInput)
 
-	if err := r.TransactionHandler.Command.WriteTransactionAsync(
+	if err := r.Command.WriteTransactionAsync(
 		msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, balancesAfter, tran,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(msgSpan, "Failed sending message to queue", err)
@@ -668,7 +678,7 @@ func (r *RedisQueueConsumer) quarantinePoisonRecord(
 		return
 	}
 
-	attempts, err := r.TransactionHandler.Command.TransactionRedisRepo.IncrementBackupAttempt(ctx, key)
+	attempts, err := r.queue.IncrementBackupAttempt(ctx, key)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to increment backup attempt", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to increment backup attempt; record left in backup queue",
@@ -711,7 +721,7 @@ func (r *RedisQueueConsumer) quarantinePoisonRecord(
 
 	// Persistence confirmed. Now (and only now) remove the Redis copy, then the
 	// attempts counter.
-	if err := r.TransactionHandler.Command.TransactionRedisRepo.RemoveMessageFromQueue(ctx, key); err != nil {
+	if err := r.queue.RemoveMessageFromQueue(ctx, key); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to remove quarantined record from backup queue", err)
 		logger.Log(ctx, libLog.LevelError, "Quarantined record persisted but failed to remove from backup queue",
 			libLog.String("redis_key", key), libLog.Err(err))
@@ -732,7 +742,7 @@ func (r *RedisQueueConsumer) quarantinePoisonRecord(
 // clearBackupAttempt removes the per-record attempts counter, logging at Warn on
 // failure (best-effort cleanup; a stale counter only delays re-accrual).
 func (r *RedisQueueConsumer) clearBackupAttempt(ctx context.Context, logger libLog.Logger, key string) {
-	if err := r.TransactionHandler.Command.TransactionRedisRepo.ClearBackupAttempt(ctx, key); err != nil {
+	if err := r.queue.ClearBackupAttempt(ctx, key); err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Failed to clear backup attempt counter",
 			libLog.String("redis_key", key), libLog.Err(err))
 	}

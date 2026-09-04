@@ -894,3 +894,60 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		})
 	}
 }
+
+// TestCreateTransactionV2Input_TranslateSkip locks the /v2-only per-call control block:
+// an absent skip stays nil, a present one reaches Transaction.Skip flag-for-flag, and the
+// produced transaction holds its OWN pointer so a later mutation of either side cannot
+// reach the other.
+func TestCreateTransactionV2Input_TranslateSkip(t *testing.T) {
+	t.Parallel()
+
+	base := func() mtransaction.CreateTransactionV2Input {
+		return mtransaction.CreateTransactionV2Input{
+			Asset:  "BRL",
+			Amount: "100",
+			Debits: []mtransaction.V2LegInput{{
+				Alias: "@payer", OrganizationID: testOrgID, LedgerID: testLedgerID, Amount: "100",
+			}},
+			Credits: []mtransaction.V2LegInput{{
+				Alias: "@payee", OrganizationID: testOrgID, LedgerID: testLedgerID, Amount: "100",
+			}},
+		}
+	}
+
+	t.Run("absent skip stays nil", func(t *testing.T) {
+		t.Parallel()
+
+		tran, _, err := base().Translate(false)
+		require.NoError(t, err)
+		assert.Nil(t, tran.Skip)
+	})
+
+	tests := []struct {
+		name string
+		skip mtransaction.TransactionSkip
+	}{
+		{name: "both flags set", skip: mtransaction.TransactionSkip{Fees: true, Tracer: true}},
+		{name: "fees only", skip: mtransaction.TransactionSkip{Fees: true}},
+		{name: "tracer only", skip: mtransaction.TransactionSkip{Tracer: true}},
+		{name: "zero-value pointer", skip: mtransaction.TransactionSkip{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			in := base()
+			skip := tt.skip
+			in.Skip = &skip
+
+			tran, _, err := in.Translate(false)
+			require.NoError(t, err)
+			require.NotNil(t, tran.Skip)
+
+			assert.Equal(t, tt.skip.Fees, tran.Skip.Fees)
+			assert.Equal(t, tt.skip.Tracer, tran.Skip.Tracer)
+			assert.NotSame(t, &skip, tran.Skip, "Translate must clone the skip block, not alias the input's pointer")
+		})
+	}
+}

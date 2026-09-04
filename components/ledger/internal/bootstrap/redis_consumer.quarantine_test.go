@@ -9,10 +9,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,11 +31,7 @@ func newQuarantineConsumer(t *testing.T) (*RedisQueueConsumer, *redisTransaction
 	mockRedis := redisTransaction.NewMockRedisRepository(ctrl)
 	mockQuarantine := transactionquarantine.NewMockRepository(ctrl)
 
-	handler := in.TransactionHandler{
-		Command: &command.UseCase{TransactionRedisRepo: mockRedis},
-	}
-
-	consumer := NewRedisQueueConsumer(newTestLogger(), handler).
+	consumer := NewRedisQueueConsumer(newTestLogger(), &command.UseCase{TransactionRedisRepo: mockRedis}, &query.UseCase{}).
 		WithQuarantineRepository(mockQuarantine)
 
 	return consumer, mockRedis, mockQuarantine
@@ -157,8 +153,7 @@ func TestQuarantine_NoRepoConfigured_LeavesRecord(t *testing.T) {
 	t.Cleanup(ctrl.Finish)
 
 	mockRedis := redisTransaction.NewMockRedisRepository(ctrl)
-	handler := in.TransactionHandler{Command: &command.UseCase{TransactionRedisRepo: mockRedis}}
-	consumer := NewRedisQueueConsumer(newTestLogger(), handler) // no WithQuarantineRepository
+	consumer := NewRedisQueueConsumer(newTestLogger(), &command.UseCase{TransactionRedisRepo: mockRedis}, &query.UseCase{}) // no WithQuarantineRepository
 
 	// No Redis calls at all when quarantine repo is nil.
 	consumer.quarantinePoisonRecord(context.Background(), noopSpan(), newTestLogger(),
