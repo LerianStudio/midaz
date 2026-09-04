@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 
 	commonsHttp "github.com/LerianStudio/lib-commons/v6/commons/net/http"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/gofiber/fiber/v3"
 	"go.opentelemetry.io/otel/attribute"
 

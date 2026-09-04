@@ -14,7 +14,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
 	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
 	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"

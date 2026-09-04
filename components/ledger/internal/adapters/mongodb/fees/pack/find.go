@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
@@ -20,7 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
 	"github.com/LerianStudio/lib-commons/v6/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"

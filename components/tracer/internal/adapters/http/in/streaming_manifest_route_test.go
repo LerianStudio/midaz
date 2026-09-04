@@ -9,9 +9,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 
@@ -50,7 +50,7 @@ func newManifestTestGuard(t *testing.T, cfg middleware.AuthGuardConfig) *middlew
 	t.Helper()
 
 	authLogger := libLog.NewNop()
-	authClient := authMiddleware.NewAuthClient("", cfg.PluginAuthEnabled, &authLogger)
+	authClient := authMiddleware.NewAuthClient("", cfg.PluginAuthEnabled, authLogger)
 	guard := middleware.NewAuthGuard(cfg, authClient)
 	require.NotNil(t, guard, "auth guard must build")
 

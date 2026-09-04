@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/declaration"
+	"github.com/LerianStudio/lib-auth/v4/auth/declaration"
 	"github.com/LerianStudio/midaz/v4/components/tracer"
 	"github.com/stretchr/testify/require"
 )

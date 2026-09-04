@@ -7,7 +7,7 @@
 package servicediscovery
 
 import (
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // BootCloser is the no-op boot-failure closer for the DEFAULT build. With
