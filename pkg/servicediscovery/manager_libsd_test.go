@@ -10,8 +10,8 @@ import (
 	"errors"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libsd "github.com/LerianStudio/lib-service-discovery"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libsd "github.com/LerianStudio/lib-service-discovery/v2"
 	"github.com/stretchr/testify/require"
 )
 

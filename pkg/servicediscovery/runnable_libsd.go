@@ -13,8 +13,8 @@ import (
 	"syscall"
 
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libsd "github.com/LerianStudio/lib-service-discovery"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libsd "github.com/LerianStudio/lib-service-discovery/v2"
 )
 
 // Runnable adapts service-discovery register/deregister to the libCommons.App
