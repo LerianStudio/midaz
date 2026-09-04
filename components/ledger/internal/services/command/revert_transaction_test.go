@@ -33,6 +33,8 @@ type revertReader struct {
 	parentErr     error
 	origin        *transaction.Transaction
 	originErr     error
+	byID          *transaction.Transaction
+	byIDErr       error
 	operationRout *mmodel.OperationRoute
 	routeErr      error
 }
@@ -43,6 +45,10 @@ func (r *revertReader) GetParentByTransactionID(context.Context, uuid.UUID, uuid
 
 func (r *revertReader) GetTransactionWithOperationsByID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
 	return r.origin, r.originErr
+}
+
+func (r *revertReader) GetTransactionByID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
+	return r.byID, r.byIDErr
 }
 
 func (r *revertReader) GetOperationRouteByID(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, uuid.UUID) (*mmodel.OperationRoute, error) {
@@ -160,4 +166,43 @@ func TestRevertTransactionV2_NeverTouchesOriginReservation(t *testing.T) {
 
 	assert.Empty(t, reserver.releasedIDs, "a revert must never release the origin's reservation")
 	assert.Empty(t, reserver.confirmedIDs, "a revert must never confirm the origin's reservation")
+}
+
+// TestRevertTransaction_MissingTransactionIsNotFound proves the gate reports not-found
+// for a revert of a transaction that does not exist. The with-operations read joins on
+// operations and answers an empty value with no error, so the gate falls back to the
+// row-only read and surfaces its not-found on either contract.
+func TestRevertTransaction_MissingTransactionIsNotFound(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		invoke func(uc *UseCase, in RevertTransactionInput) error
+	}{
+		{name: "v1", invoke: func(uc *UseCase, in RevertTransactionInput) error {
+			_, _, err := uc.RevertTransactionV1(context.Background(), in)
+
+			return err
+		}},
+		{name: "v2", invoke: func(uc *UseCase, in RevertTransactionInput) error {
+			_, _, err := uc.RevertTransactionV2(context.Background(), in)
+
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			notFound := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, "Transaction")
+
+			reader := &revertReader{origin: &transaction.Transaction{}, byIDErr: notFound}
+			uc := newRevertUseCase(t, reader)
+
+			err := tc.invoke(uc, revertInput())
+
+			require.Error(t, err)
+
+			var business pkg.EntityNotFoundError
+
+			require.ErrorAs(t, err, &business)
+			assert.Equal(t, constant.ErrTransactionIDNotFound.Error(), business.Code)
+			assert.Zero(t, reader.getBalancesCalls, "a missing transaction must be rejected before the pipeline runs")
+		})
+	}
 }
