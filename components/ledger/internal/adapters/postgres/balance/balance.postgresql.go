@@ -241,9 +241,6 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.create_balance.exec")
-	defer spanExec.End()
-
 	row := db.QueryRowContext(ctx, query, args...)
 
 	var created BalancePostgreSQLModel
@@ -268,7 +265,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		&created.OverdraftUsed,
 		&created.Settings,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute insert query", err)
 		return nil, err
 	}
 
@@ -292,8 +289,6 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 
 	var balances []*mmodel.Balance
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
-
 	query := squirrel.Select(balanceColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
@@ -305,20 +300,18 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 
 	sqlQuery, args, err := query.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, err
 	}
 
 	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var balance BalancePostgreSQLModel
@@ -380,8 +373,6 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	var balances []*mmodel.Balance
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_by_balance_ids.query")
-
 	query := squirrel.Select(balanceColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
@@ -393,7 +384,7 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	sqlQuery, args, err := query.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 		return nil, err
 	}
 
@@ -401,13 +392,11 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 		return nil, err
 	}
 
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var balance BalancePostgreSQLModel
@@ -503,17 +492,13 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_all.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to get operations on repo", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get operations on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var balance BalancePostgreSQLModel
@@ -627,17 +612,13 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_all_by_account_id.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to get operations on repo", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to get operations on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var balance BalancePostgreSQLModel
@@ -711,8 +692,6 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 
 	var balances []*mmodel.Balance
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_by_aliases.query")
-
 	query := squirrel.Select(balanceColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
@@ -724,20 +703,18 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 
 	sqlQuery, args, err := query.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, err
 	}
 
 	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var balance BalancePostgreSQLModel
@@ -832,12 +809,9 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 
 	var balances []*mmodel.Balance
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_by_aliases_with_keys.query")
-	defer spanQuery.End()
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -998,8 +972,6 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 	balance := &BalancePostgreSQLModel{}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
-
 	query := squirrel.Select(balanceColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
@@ -1010,14 +982,12 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 	sqlQuery, args, err := query.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, err
 	}
 
 	row := db.QueryRowContext(ctx, sqlQuery, args...)
-
-	spanQuery.End()
 
 	if err = row.Scan(
 		&balance.ID,
@@ -1073,8 +1043,6 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 
 	balance := &BalancePostgreSQLModel{}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
-
 	query := `SELECT ` + strings.Join(balanceColumnList, ", ") + `
 			FROM balance 
 			WHERE organization_id = $1 
@@ -1084,8 +1052,6 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 			   AND deleted_at IS NULL`
 
 	row := db.QueryRowContext(ctx, query, organizationID, ledgerID, accountID, key)
-
-	spanQuery.End()
 
 	if err = row.Scan(
 		&balance.ID,
@@ -1139,8 +1105,6 @@ func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Contex
 	}
 	defer releaseRead(span, release)
 
-	_, spanQuery := tracer.Start(ctx, "postgres.exists.query")
-
 	existsQuery := squirrel.Select("1").
 		Prefix("SELECT EXISTS (").
 		From(r.tableName).
@@ -1154,14 +1118,12 @@ func (r *BalancePostgreSQLRepository) ExistsByAccountIDAndKey(ctx context.Contex
 
 	query, args, err := existsQuery.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return false, err
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
-
-	spanQuery.End()
 
 	var exists bool
 	if err := row.Scan(&exists); err != nil {
@@ -1187,8 +1149,6 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 		return err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.delete.exec")
-
 	result, err := db.ExecContext(
 		ctx, `
 		UPDATE balance 
@@ -1201,8 +1161,6 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 		return err
 	}
-
-	spanQuery.End()
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
@@ -1259,11 +1217,8 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 		}
 	}()
 
-	ctxExec, spanExec := tracer.Start(ctx, "postgres.delete_balances.exec")
-	defer spanExec.End()
-
 	result, err := tx.ExecContext(
-		ctxExec, `
+		ctx, `
 		UPDATE balance
 		SET deleted_at = NOW()
 		WHERE organization_id = $1
@@ -1273,7 +1228,7 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 		organizationID, ledgerID, pq.Array(ids),
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "failed to execute bulk delete query", err)
+		libOpentelemetry.HandleSpanError(span, "failed to execute bulk delete query", err)
 
 		return err
 	}
@@ -1363,9 +1318,6 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
 		return nil, err
 	}
-
-	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
-	defer spanExec.End()
 
 	record := &BalancePostgreSQLModel{}
 
@@ -1562,13 +1514,10 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 		return err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.update_all_by_account_id.exec")
-	defer spanExec.End()
-
 	if balance.AllowSending == nil {
 		err := errors.New("allow_sending value is required")
 
-		libOpentelemetry.HandleSpanError(spanExec, "allow_sending value is required", err)
+		libOpentelemetry.HandleSpanError(span, "allow_sending value is required", err)
 
 		return err
 	}
@@ -1576,7 +1525,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 	if balance.AllowReceiving == nil {
 		err := errors.New("allow_receiving value is required")
 
-		libOpentelemetry.HandleSpanError(spanExec, "allow_receiving value is required", err)
+		libOpentelemetry.HandleSpanError(span, "allow_receiving value is required", err)
 
 		return err
 	}
@@ -1585,7 +1534,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 
 	result, err := db.ExecContext(ctx, query, *balance.AllowSending, *balance.AllowReceiving, organizationID, ledgerID, accountID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return err
 	}
@@ -1600,7 +1549,7 @@ func (r *BalancePostgreSQLRepository) UpdateAllByAccountID(ctx context.Context, 
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update balances. Rows affected is 0", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balances. Rows affected is 0", err)
 
 		return err
 	}
@@ -1625,8 +1574,6 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 
 	var balances []*mmodel.Balance
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_by_account_id.query")
-
 	query := squirrel.Select(balanceColumnList...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
@@ -1638,18 +1585,16 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 
 	sqlQuery, args, err := query.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 		return nil, err
 	}
 
 	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 		return nil, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var balance BalancePostgreSQLModel
@@ -1767,16 +1712,12 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDAtTimestamp(ctx context.Con
 
 	logger.Log(ctx, libLog.LevelDebug, "ListByAccountIDAtTimestamp query assembled", libLog.String("query", sqlQuery))
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_balances_by_account_id_at_timestamp.query")
-
 	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 		return nil, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var balance BalanceAtTimestampModel

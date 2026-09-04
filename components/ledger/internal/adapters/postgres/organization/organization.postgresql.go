@@ -169,20 +169,17 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.create_organization.exec")
-	defer spanExec.End()
-
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntityOrganization)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute insert query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute insert query", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute insert query", err)
 
 		return nil, err
 	}
@@ -262,9 +259,6 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.update_organization.exec")
-	defer spanExec.End()
-
 	var address string
 
 	updated := &OrganizationPostgreSQLModel{}
@@ -285,7 +279,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOrganization)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update organization: no rows affected", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update organization: no rows affected", err)
 
 			return nil, err
 		}
@@ -293,12 +287,12 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntityOrganization)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute update query", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -329,8 +323,6 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 	var address string
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
-
 	findQuery := squirrel.Select(organizationColumnList...).
 		From("organization").
 		Where(squirrel.Eq{"id": id}).
@@ -339,16 +331,12 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 	query, args, err := findQuery.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
-
-		spanQuery.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, err
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
-
-	spanQuery.End()
 
 	if err := row.Scan(&organization.ID, &organization.ParentOrganizationID, &organization.LegalName,
 		&organization.DoingBusinessAs, &organization.LegalDocument, &address, &organization.Status, &organization.StatusDescription,
@@ -442,16 +430,12 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter h
 		return nil, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, err
 	}
-
-	spanQuery.End()
 
 	defer rows.Close()
 
@@ -506,8 +490,6 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 	var organizations []*mmodel.Organization
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_organizations_by_ids.query")
-
 	listQuery := squirrel.Select(organizationColumnList...).
 		From("organization").
 		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
@@ -517,22 +499,18 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 	query, args, err := listQuery.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
-
-		spanQuery.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, err
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var organization OrganizationPostgreSQLModel
@@ -579,16 +557,12 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 		return err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.delete.exec")
-
 	result, err := db.ExecContext(ctx, `UPDATE organization SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return err
 	}
-
-	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
@@ -623,12 +597,9 @@ func (r *OrganizationPostgreSQLRepository) Count(ctx context.Context) (int64, er
 		return count, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.count.query")
-	defer spanQuery.End()
-
 	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM organization WHERE deleted_at IS NULL`).Scan(&count)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return count, err
 	}
