@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
-	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

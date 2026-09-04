@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libMetrics "github.com/LerianStudio/lib-observability/v2/metrics"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libMetrics "github.com/LerianStudio/lib-observability/v4/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"

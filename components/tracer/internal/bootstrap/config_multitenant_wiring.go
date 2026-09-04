@@ -14,7 +14,7 @@ import (
 	tmevent "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/event"
 	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
 	tmredis "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/redis"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"

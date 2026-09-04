@@ -12,10 +12,10 @@ import (
 	"os"
 	"testing"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,7 +87,7 @@ func (d *testRouterDeps) build() *fiber.App {
 	// lib-auth v2.7.0 takes a lib-commons/v5 *log.Logger. Tests don't assert
 	// on auth-client log output — a v5 NopLogger keeps stdout clean.
 	authLogger := libLog.NewNop()
-	authClient := authMiddleware.NewAuthClient("", d.guardCfg.PluginAuthEnabled, &authLogger)
+	authClient := authMiddleware.NewAuthClient("", d.guardCfg.PluginAuthEnabled, authLogger)
 	guard := middleware.NewAuthGuard(d.guardCfg, authClient)
 
 	routeCfg := &RouteConfig{OpenAPIDocsEnabled: d.openAPIDocsEnabled}

@@ -7,11 +7,14 @@ package http
 import (
 	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/gofiber/fiber/v3"
 	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -105,4 +108,110 @@ func mustUnsignedToken(t *testing.T, claims jwt.MapClaims) string {
 	require.NoError(t, err)
 
 	return signed
+}
+
+func TestMarkTrustedAuthAssertion_AttestsUUIDTenantForTelemetry(t *testing.T) {
+	t.Parallel()
+
+	tenantUUID := uuid.MustParse("0f6e2b3a-1c4d-4e5f-8a9b-0c1d2e3f4a5b")
+
+	cases := []struct {
+		name     string
+		claims   jwt.MapClaims
+		wantOK   bool
+		wantID   uuid.UUID
+		wantName string
+	}{
+		{
+			name:     "hyphenated uuid with slug",
+			claims:   jwt.MapClaims{"sub": "u", "tenantId": tenantUUID.String(), "tenantSlug": "acme"},
+			wantOK:   true,
+			wantID:   tenantUUID,
+			wantName: "acme",
+		},
+		{
+			// The tenant-manager writes the Casdoor org name as 32 hex with no
+			// hyphens, so this is the shape production actually carries.
+			name:     "unhyphenated uuid without slug",
+			claims:   jwt.MapClaims{"sub": "u", "tenantId": strings.ReplaceAll(tenantUUID.String(), "-", "")},
+			wantOK:   true,
+			wantID:   tenantUUID,
+			wantName: "",
+		},
+		{
+			// Passes tmcore.IsValidTenantID but is not a UUID: no attestation.
+			name:   "non-uuid claim",
+			claims: jwt.MapClaims{"sub": "u", "tenantId": "org_01KHVKQQP6D2N4RDJK0ADEKQX1"},
+			wantOK: false,
+		},
+		{
+			name:   "absent claim",
+			claims: jwt.MapClaims{"sub": "u"},
+			wantOK: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				gotTenant libObservability.AuthenticatedTenant
+				gotOK     bool
+			)
+
+			app := fiber.New()
+
+			// Mirrors production ordering: telemetry reads the attestation from
+			// c.Context() only after the whole chain has returned.
+			app.Use(func(c fiber.Ctx) error {
+				err := c.Next()
+				gotTenant, gotOK = libObservability.AuthenticatedTenantFromContext(c.Context())
+
+				return err
+			})
+			app.Use(MarkTrustedAuthAssertion())
+			app.Get("/test", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusNoContent) })
+
+			req := httptest.NewRequest("GET", "/test", nil)
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", mustUnsignedToken(t, tc.claims)))
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			require.Equal(t, fiber.StatusNoContent, resp.StatusCode)
+
+			require.Equal(t, tc.wantOK, gotOK)
+
+			if tc.wantOK {
+				assert.Equal(t, tc.wantID, gotTenant.ID)
+				assert.Equal(t, tc.wantName, gotTenant.Name)
+			}
+		})
+	}
+}
+
+func TestMarkTrustedAuthAssertion_SetsTenantIDContextAlongsideAttestation(t *testing.T) {
+	t.Parallel()
+
+	// A non-UUID tenant still reaches the tenant-DB resolver: dropping the
+	// attestation must not drop tmcore's tenant id with it.
+	const slugTenant = "org_01KHVKQQP6D2N4RDJK0ADEKQX1"
+
+	var got string
+
+	app := fiber.New()
+	app.Use(MarkTrustedAuthAssertion())
+	app.Get("/test", func(c fiber.Ctx) error {
+		got = tmcore.GetTenantIDContext(c.Context())
+		return c.SendStatus(fiber.StatusNoContent)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s",
+		mustUnsignedToken(t, jwt.MapClaims{"sub": "u", "tenantId": slugTenant})))
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusNoContent, resp.StatusCode)
+	assert.Equal(t, slugTenant, got)
 }

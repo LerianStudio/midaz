@@ -15,9 +15,9 @@ import (
 	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -146,7 +146,7 @@ func (r *MongoDBRepository) Create(ctx context.Context, event *mmodel.Protection
 	if containsForbiddenContent(event) {
 		err := pkg.ValidateBusinessError(constant.ErrAuditWriteFailed, constant.EntityProtectionAuditEvent)
 
-		logger.Log(ctx, libLog.LevelWarn, "audit event rejected: forbidden content", safeLogFields(event)...)
+		logger.Log(ctx, libLog.LevelWarn, "audit event rejected: forbidden content", safeLogFields(event))
 		libOpenTelemetry.HandleSpanError(span, "audit event rejected: forbidden content", err)
 
 		return err
@@ -163,7 +163,7 @@ func (r *MongoDBRepository) Create(ctx context.Context, event *mmodel.Protection
 		// Index creation is part of the best-effort write contract: warn + drop,
 		// surfacing an error that satisfies errors.Is(err, ErrAuditWriteFailed),
 		// consistent with the insert/guard branches.
-		logger.Log(ctx, libLog.LevelWarn, "audit indexes not ensured", append(safeLogFields(event), libLog.Err(err))...)
+		logger.Log(ctx, libLog.LevelWarn, "audit indexes not ensured", append(safeLogFields(event), libLog.Err(err)))
 		libOpenTelemetry.HandleSpanError(span, "Failed to create audit indexes", err)
 
 		return fmt.Errorf("create audit indexes for %q: %w", auditCollection, errors.Join(constant.ErrAuditWriteFailed, err))
@@ -172,7 +172,7 @@ func (r *MongoDBRepository) Create(ctx context.Context, event *mmodel.Protection
 	model := FromEntity(event)
 
 	if _, err := collection.InsertOne(ctx, model); err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "audit event insert failed", append(safeLogFields(event), libLog.Err(err))...)
+		logger.Log(ctx, libLog.LevelWarn, "audit event insert failed", append(safeLogFields(event), libLog.Err(err)))
 		libOpenTelemetry.HandleSpanError(span, "Failed to insert audit event", err)
 
 		return fmt.Errorf("insert audit event into %q: %w", auditCollection, errors.Join(constant.ErrAuditWriteFailed, err))
