@@ -2,63 +2,83 @@
 #
 # Identity (service slug): "midaz" — the core ledger + embedded CRM. This is the
 # FIRST argument of every auth.Authorize("midaz", resource, verb) guard in
-# components/ledger/internal/adapters/http/in/ (const midazName, routes.go:15;
+# components/ledger/internal/adapters/http/in/ (const midazName, routes.go:20;
 # the CRM routes reuse it via protectedMidaz too).
-# Keys mirror the yaml tags on lib-auth/v3 auth/declaration.DeclarationManifest
+# Keys mirror the yaml tags on lib-auth/v4 auth/declaration.DeclarationManifest
 # (auth/declaration/manifest.go).
 #
-# The (resource, action) tuples below are the EXACT authorization surface the
-# ledger routes enforce at runtime. Every entry traces to a real
-# protectedMidaz(auth, resource, verb) route registration (= auth.Authorize(
-# "midaz", resource, verb)); the file:line on each group header points at the
-# registration. `resource` is written BARE — the central reconciler composes the
-# "midaz/" prefix. The `action` is the HTTP verb the guard authorizes under
+# WHAT THIS MANIFEST IS: a faithful mirror of the Access-Manager SEED, not a
+# transcript of the route table. Two groups of entries, and the difference matters:
+#
+#   1. Route-backed (79 pairs, every group above the SEED-ONLY marker): each traces
+#      to a real protectedMidaz(auth, resource, verb) registration (= auth.Authorize(
+#      "midaz", resource, verb)); the file:line on each group header points at it.
+#   2. Seed-only (19 pairs, the marked block at the end of `permissions:`): the seed
+#      grants them, no route registers them. Declared for PARITY — see that block's
+#      own comment.
+#
+# So do NOT read an entry here as proof that a route enforces it. The invariant is
+# the other direction: every seeded grant appears here, and every route-backed pair
+# appears here.
+#
+# `resource` is written BARE — the central reconciler composes the "midaz/"
+# prefix. The `action` is the HTTP verb the guard authorizes under
 # (get/post/put/patch/delete/head), preserved VERBATIM: lib-auth's HTTP-verb
 # deny-list was removed (lib-auth #145 / identity #310), and the manifest action
 # MUST match what the middleware checks, so a granted role's permission lines up
 # with the runtime enforce — NOT a semantic create/read/update rename.
 #
-# ROLE MODEL IS CONFIRMED against the central Access Manager. The code carries no
-# role data (Authorize takes only subject/resource/action), but the editor/viewer
-# split below is the confirmed convention applied across this midaz manifest (fee
-# resources are embedded here, no separate fees manifest): editor gets read plus
-# every mutating verb the routes use (get/post/put/patch/delete/head — asset-rates
-# uses put), viewer gets read-only (get/head), aligned with the Access Manager
-# editor/viewer role model (midaz-editor-permission / midaz-viewer-permission). The
-# granted_to group bindings under `roles:` are likewise confirmed against the
-# central Access Manager seed (see below).
+# ROLE MODEL IS DERIVED FROM the central Access Manager seed (caradhras,
+# deploy/pam-seed/init_data.json), not invented here. The code carries no role data
+# (Authorize takes only subject/resource/action), so the seed is the only source of
+# truth for who gets what. The three seeded tiers (fee resources are embedded in
+# this manifest, no separate fees manifest):
+#
+#   editor      -> get/post/put/patch/delete/head (asset-rates uses put)
+#   contributor -> get/post/patch/head — every mutating verb EXCEPT delete
+#   viewer      -> read-only (get/head)
+#
+# This manifest must stay a SUPERSET of the seed. The tenant-manager's
+# template-origin prune deletes the seeded RBAC on reconcile, so a tier or a grant
+# missing here is not merely undeclared — it stops existing. That is why the
+# `contributor` tier was added (54 grants) AND why the 44 grants over pairs no route
+# registers are declared too (19 pairs, the SEED-ONLY block): 98 grants in total
+# that adopting the declaration would otherwise have revoked.
+#
+# The granted_to group bindings under `roles:` are likewise confirmed against the
+# seed (see below).
 service: midaz
 version: 1
 permissions:
   # account-types (account_type_routes.go registerAccountTypeRoutesToApp)
-  - { resource: account-types, action: post,   effect: allow, roles: [editor] }
-  - { resource: account-types, action: patch,  effect: allow, roles: [editor] }
-  - { resource: account-types, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: account-types, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: account-types, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: account-types, action: get,    effect: allow, roles: [editor, contributor, viewer] }
   - { resource: account-types, action: delete, effect: allow, roles: [editor] }
 
   # accounts (account_routes.go registerAccountRoutesToApp)
-  - { resource: accounts, action: post,   effect: allow, roles: [editor] }
-  - { resource: accounts, action: patch,  effect: allow, roles: [editor] }
-  - { resource: accounts, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: accounts, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: accounts, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: accounts, action: get,    effect: allow, roles: [editor, contributor, viewer] }
   - { resource: accounts, action: delete, effect: allow, roles: [editor] }
-  - { resource: accounts, action: head,   effect: allow, roles: [editor, viewer] }
+  - { resource: accounts, action: head,   effect: allow, roles: [editor, contributor, viewer] }
 
   # asset-rates (asset_rate_routes.go registerAssetRateRoutesToApp)
   - { resource: asset-rates, action: put, effect: allow, roles: [editor] }
-  - { resource: asset-rates, action: get, effect: allow, roles: [editor, viewer] }
+  - { resource: asset-rates, action: get, effect: allow, roles: [editor, contributor, viewer] }
 
   # assets (asset_routes.go registerAssetRoutesToApp)
-  - { resource: assets, action: post,   effect: allow, roles: [editor] }
-  - { resource: assets, action: patch,  effect: allow, roles: [editor] }
-  - { resource: assets, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: assets, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: assets, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: assets, action: get,    effect: allow, roles: [editor, contributor, viewer] }
   - { resource: assets, action: delete, effect: allow, roles: [editor] }
-  - { resource: assets, action: head,   effect: allow, roles: [editor, viewer] }
+  - { resource: assets, action: head,   effect: allow, roles: [editor, contributor, viewer] }
 
   # balances (balance_routes.go registerBalanceRoutesToApp)
-  - { resource: balances, action: get,    effect: allow, roles: [editor, viewer] }
-  - { resource: balances, action: patch,  effect: allow, roles: [editor] }
+  - { resource: balances, action: get,    effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: balances, action: patch,  effect: allow, roles: [editor, contributor] }
   - { resource: balances, action: delete, effect: allow, roles: [editor] }
-  - { resource: balances, action: post,   effect: allow, roles: [editor] }
+  - { resource: balances, action: post,   effect: allow, roles: [editor, contributor] }
 
   # billing-calculate — billing calculate dry-run (billing_calculate_routes.go registerBillingCalculateRoutesToApp)
   - { resource: billing-calculate, action: post, effect: allow, roles: [editor] }
@@ -70,47 +90,47 @@ permissions:
   - { resource: billing-packages, action: delete, effect: allow, roles: [editor] }
 
   # encryption (encryption_routes.go registerEncryptionRoutesToApp)
-  - { resource: encryption, action: post, effect: allow, roles: [editor] }
-  - { resource: encryption, action: get,  effect: allow, roles: [editor, viewer] }
+  - { resource: encryption, action: post, effect: allow, roles: [editor, contributor] }
+  - { resource: encryption, action: get,  effect: allow, roles: [editor, contributor, viewer] }
 
   # estimates — fee estimate dry-run (fee_estimate_routes.go registerFeeEstimateRoutesToApp)
   - { resource: estimates, action: post, effect: allow, roles: [editor] }
 
   # holders (holder_routes.go registerHolderRoutesToApp)
-  - { resource: holders, action: post,   effect: allow, roles: [editor] }
-  - { resource: holders, action: get,    effect: allow, roles: [editor, viewer] }
-  - { resource: holders, action: patch,  effect: allow, roles: [editor] }
+  - { resource: holders, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: holders, action: get,    effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: holders, action: patch,  effect: allow, roles: [editor, contributor] }
   - { resource: holders, action: delete, effect: allow, roles: [editor] }
 
   # instruments (instrument_routes.go registerInstrumentRoutesToApp)
-  - { resource: instruments, action: get,    effect: allow, roles: [editor, viewer] }
-  - { resource: instruments, action: post,   effect: allow, roles: [editor] }
-  - { resource: instruments, action: patch,  effect: allow, roles: [editor] }
+  - { resource: instruments, action: get,    effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: instruments, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: instruments, action: patch,  effect: allow, roles: [editor, contributor] }
   - { resource: instruments, action: delete, effect: allow, roles: [editor] }
 
   # ledgers (ledger_routes.go registerLedgerRoutesToApp)
-  - { resource: ledgers, action: post,   effect: allow, roles: [editor] }
-  - { resource: ledgers, action: patch,  effect: allow, roles: [editor] }
-  - { resource: ledgers, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: ledgers, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: ledgers, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: ledgers, action: get,    effect: allow, roles: [editor, contributor, viewer] }
   - { resource: ledgers, action: delete, effect: allow, roles: [editor] }
-  - { resource: ledgers, action: head,   effect: allow, roles: [editor, viewer] }
+  - { resource: ledgers, action: head,   effect: allow, roles: [editor, contributor, viewer] }
 
   # operation-routes (operation_route_routes.go registerOperationRouteRoutesToApp)
-  - { resource: operation-routes, action: post,   effect: allow, roles: [editor] }
-  - { resource: operation-routes, action: patch,  effect: allow, roles: [editor] }
-  - { resource: operation-routes, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: operation-routes, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: operation-routes, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: operation-routes, action: get,    effect: allow, roles: [editor, contributor, viewer] }
   - { resource: operation-routes, action: delete, effect: allow, roles: [editor] }
 
   # operations (operation_routes.go registerOperationRoutesToApp)
-  - { resource: operations, action: get,   effect: allow, roles: [editor, viewer] }
-  - { resource: operations, action: patch, effect: allow, roles: [editor] }
+  - { resource: operations, action: get,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: operations, action: patch, effect: allow, roles: [editor, contributor] }
 
   # organizations (organization_routes.go registerOrganizationRoutesToApp)
-  - { resource: organizations, action: post,   effect: allow, roles: [editor] }
-  - { resource: organizations, action: patch,  effect: allow, roles: [editor] }
-  - { resource: organizations, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: organizations, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: organizations, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: organizations, action: get,    effect: allow, roles: [editor, contributor, viewer] }
   - { resource: organizations, action: delete, effect: allow, roles: [editor] }
-  - { resource: organizations, action: head,   effect: allow, roles: [editor, viewer] }
+  - { resource: organizations, action: head,   effect: allow, roles: [editor, contributor, viewer] }
 
   # packages — fee packages (fee_package_routes.go registerPackageRoutesToApp)
   - { resource: packages, action: post,   effect: allow, roles: [editor] }
@@ -119,55 +139,107 @@ permissions:
   - { resource: packages, action: delete, effect: allow, roles: [editor] }
 
   # portfolios (portfolio_routes.go registerPortfolioRoutesToApp)
-  - { resource: portfolios, action: post,   effect: allow, roles: [editor] }
-  - { resource: portfolios, action: patch,  effect: allow, roles: [editor] }
-  - { resource: portfolios, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: portfolios, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: portfolios, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: portfolios, action: get,    effect: allow, roles: [editor, contributor, viewer] }
   - { resource: portfolios, action: delete, effect: allow, roles: [editor] }
-  - { resource: portfolios, action: head,   effect: allow, roles: [editor, viewer] }
+  - { resource: portfolios, action: head,   effect: allow, roles: [editor, contributor, viewer] }
 
   # protection — CRM audit-trail read (audit_routes.go registerAuditRoutesToApp)
-  - { resource: protection, action: get, effect: allow, roles: [editor, viewer] }
+  - { resource: protection, action: get, effect: allow, roles: [editor, contributor, viewer] }
 
   # segments (segment_routes.go registerSegmentRoutesToApp)
-  - { resource: segments, action: post,   effect: allow, roles: [editor] }
-  - { resource: segments, action: patch,  effect: allow, roles: [editor] }
-  - { resource: segments, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: segments, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: segments, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: segments, action: get,    effect: allow, roles: [editor, contributor, viewer] }
   - { resource: segments, action: delete, effect: allow, roles: [editor] }
-  - { resource: segments, action: head,   effect: allow, roles: [editor, viewer] }
+  - { resource: segments, action: head,   effect: allow, roles: [editor, contributor, viewer] }
 
   # settings — entity metadata (metadata_routes.go registerMetadataIndexRoutesToApp)
-  - { resource: settings, action: post,   effect: allow, roles: [editor] }
-  - { resource: settings, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: settings, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: settings, action: get,    effect: allow, roles: [editor, contributor, viewer] }
   - { resource: settings, action: delete, effect: allow, roles: [editor] }
 
   # streaming-manifest — event catalog (streaming_manifest_routes.go RegisterStreamingManifestRouteToApp)
   - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
 
   # transaction-routes (transaction_route_routes.go registerTransactionRouteRoutesToApp)
-  - { resource: transaction-routes, action: post,   effect: allow, roles: [editor] }
-  - { resource: transaction-routes, action: patch,  effect: allow, roles: [editor] }
-  - { resource: transaction-routes, action: get,    effect: allow, roles: [editor, viewer] }
+  - { resource: transaction-routes, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: transaction-routes, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: transaction-routes, action: get,    effect: allow, roles: [editor, contributor, viewer] }
   - { resource: transaction-routes, action: delete, effect: allow, roles: [editor] }
 
   # transactions (transaction_routes.go RegisterTransactionHumaRoutesToApp;
   # v2 at transaction_routes_v2.go RegisterTransactionV2RoutesToApp and
   # transaction_mirror_register_v2.go RegisterTransactionMirrorV2RoutesToApp)
-  - { resource: transactions, action: post,  effect: allow, roles: [editor] }
-  - { resource: transactions, action: patch, effect: allow, roles: [editor] }
-  - { resource: transactions, action: get,   effect: allow, roles: [editor, viewer] }
-  - { resource: transactions, action: head,  effect: allow, roles: [editor, viewer] }
+  - { resource: transactions, action: post,  effect: allow, roles: [editor, contributor] }
+  - { resource: transactions, action: patch, effect: allow, roles: [editor, contributor] }
+  - { resource: transactions, action: get,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: transactions, action: head,  effect: allow, roles: [editor, contributor, viewer] }
+
+  # ─── SEED-ONLY GRANTS: no route registers these (resource, action) pairs ───
+  #
+  # Declared for PARITY, not because a route checks them. The seed
+  # (caradhras deploy/pam-seed/init_data.json) grants each pair below, and the
+  # tenant-manager's template-origin prune deletes the seeded RBAC on reconcile —
+  # so a pair omitted here would be REVOKED by adopting the declaration, which
+  # would make this change a removal rather than a mechanism swap.
+  #
+  # Every pair ABOVE traces to a real protectedMidaz(...) registration; NONE of the
+  # pairs below do. They are kept in one contiguous block on purpose: whoever
+  # decides to drop the unreachable surface can delete this section wholesale,
+  # without touching a single route-backed grant.
+  # account-types
+  - { resource: account-types, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # asset-rates
+  - { resource: asset-rates, action: delete, effect: allow, roles: [editor] }
+  - { resource: asset-rates, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: asset-rates, action: patch,  effect: allow, roles: [editor, contributor] }
+  - { resource: asset-rates, action: post,   effect: allow, roles: [editor, contributor] }
+  # balances
+  - { resource: balances, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # encryption
+  - { resource: encryption, action: delete, effect: allow, roles: [editor] }
+  - { resource: encryption, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: encryption, action: patch,  effect: allow, roles: [editor, contributor] }
+  # holders
+  - { resource: holders, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # instruments
+  - { resource: instruments, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # operation-routes
+  - { resource: operation-routes, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # operations
+  - { resource: operations, action: delete, effect: allow, roles: [editor] }
+  - { resource: operations, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: operations, action: post,   effect: allow, roles: [editor, contributor] }
+  # settings
+  - { resource: settings, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: settings, action: patch,  effect: allow, roles: [editor, contributor] }
+  # transaction-routes
+  - { resource: transaction-routes, action: head,   effect: allow, roles: [editor, contributor, viewer] }
+  # transactions
+  - { resource: transactions, action: delete, effect: allow, roles: [editor] }
+
 
 roles:
   # Group bindings are CONFIRMED against the central Access Manager seed
-  # (plugin-access-manager, components/auth/init/casdoor/init_data.json): the real
-  # groups are midaz-{editor,contributor,viewer}-group. The manifest only
-  # REFERENCES pre-existing groups, it never creates them — a name absent from the
-  # seed reconciles into a role with zero members. The seed also carries
-  # midaz-contributor-group, but this manifest declares no `contributor` role, so
-  # that group stays unbound here.
+  # (caradhras, deploy/pam-seed/init_data.json): the real groups are
+  # midaz-{editor,contributor,viewer}-group. The manifest only REFERENCES
+  # pre-existing groups, it never creates them — a name absent from the seed
+  # reconciles into a role with zero members.
+  #
+  # All THREE seeded tiers are declared. `contributor` is not decorative: the
+  # seed's midaz-contributor-role grants the full resource set at get/post/patch
+  # (every mutating verb except delete), and once the tenant-manager's
+  # template-origin prune runs, whatever this manifest does not declare stops
+  # existing. Declaring only editor/viewer would silently revoke every member of
+  # midaz-contributor-group.
   - name: editor
     granted_to:
       - group: midaz-editor-group
+  - name: contributor
+    granted_to:
+      - group: midaz-contributor-group
   - name: viewer
     granted_to:
       - group: midaz-viewer-group
