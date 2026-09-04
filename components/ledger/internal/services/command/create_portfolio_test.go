@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libPointers "github.com/LerianStudio/lib-commons/v6/commons/pointers"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v7/commons/pointers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"

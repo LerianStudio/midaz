@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/google/uuid"
 
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"

@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v7/commons/rabbitmq"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 
 	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"

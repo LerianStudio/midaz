@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -10,9 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	tmconsumer "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/consumer"
-	tmevent "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/event"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmconsumer "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/consumer"
+	tmevent "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/event"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
