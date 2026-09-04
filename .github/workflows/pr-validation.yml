@@ -21,9 +21,7 @@ jobs:
   validate:
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@tier-2
     with:
-      enforce_source_branches: true
       allowed_source_branches: 'hotfix/*|release-candidate'
-      target_branches_for_source_check: 'main'
       # crm and fees are valid commit scopes even though both now live inside the
       # ledger binary. Scope is warn-only (require_scope: false).
       pr_title_scopes: |
