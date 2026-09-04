@@ -8,8 +8,8 @@ import (
 	"context"
 	"fmt"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libMetrics "github.com/LerianStudio/lib-observability/v2/metrics"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libMetrics "github.com/LerianStudio/lib-observability/v4/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/otlptranslator"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"

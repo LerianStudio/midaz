@@ -13,8 +13,8 @@ import (
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
 	libRedis "github.com/LerianStudio/lib-commons/v6/commons/redis"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"github.com/gofiber/fiber/v3"
 	"go.opentelemetry.io/otel/attribute"
 

@@ -9,8 +9,8 @@ import (
 	"errors"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -20,7 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	// GetAllOrganizations fetch all Organizations from the repository
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHeader) (_ []*mmodel.Organization, err error) {

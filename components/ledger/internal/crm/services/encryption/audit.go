@@ -10,10 +10,10 @@ import (
 	"time"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/audit"
@@ -102,13 +102,13 @@ func (w *auditWriter) Emit(ctx context.Context, event *mmodel.ProtectionAuditEve
 
 	if err := w.repo.Create(ctx, event); err != nil {
 		// Best-effort contract: warn + span, never propagate.
-		w.logger.Log(ctx, libLog.LevelWarn, "audit emit failed", safeAuditLogFields(event)...)
+		w.logger.Log(ctx, libLog.LevelWarn, "audit emit failed", safeAuditLogFields(event))
 		libOpenTelemetry.HandleSpanError(span, "failed to write audit event", err)
 
 		return
 	}
 
-	w.logger.Log(ctx, libLog.LevelDebug, "audit event emitted", safeAuditLogFields(event)...)
+	w.logger.Log(ctx, libLog.LevelDebug, "audit event emitted", safeAuditLogFields(event))
 }
 
 // EmitAsync writes the event on a detached, panic-safe goroutine.

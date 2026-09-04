@@ -8,8 +8,8 @@ import (
 	"context"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
 
@@ -19,7 +19,7 @@ import (
 	// UpdateWriteBehindTransaction re-serializes and updates the transaction in the write-behind cache.
 	// Called after cancel/commit to reflect the updated status and operations. Errors are logged but
 	// do not block the transaction flow.
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 func (uc *UseCase) UpdateWriteBehindTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction) {

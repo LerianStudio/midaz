@@ -11,8 +11,8 @@ import (
 	"testing/quick"
 
 	constant "github.com/LerianStudio/lib-commons/v6/commons/constants"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	"github.com/LerianStudio/lib-observability/v2/log"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	"github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

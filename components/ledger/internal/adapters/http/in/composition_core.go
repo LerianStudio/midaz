@@ -7,8 +7,8 @@ package in
 import (
 	"context"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 

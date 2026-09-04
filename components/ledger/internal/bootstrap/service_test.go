@@ -13,7 +13,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	tmmiddleware "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/middleware"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

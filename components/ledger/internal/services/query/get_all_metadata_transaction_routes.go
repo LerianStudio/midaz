@@ -9,8 +9,8 @@ import (
 	"errors"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -20,7 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 
 	// GetAllMetadataTransactionRoutes fetch all Transaction Routes from the repository filtered by metadata
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error) {

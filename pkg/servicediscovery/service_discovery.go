@@ -7,14 +7,16 @@
 // server-port parsing, descriptor building, plugin-auth host resolution, and the
 // register/deregister Launcher runnable.
 //
-// TODO(3482): restore Service Discovery when lib-service-discovery publishes a
-// release built against lib-observability/v2 (+ lib-commons/v6). Until then the
-// DEFAULT build no-ops SD; the real implementation lives under //go:build libsd
-// in the *_libsd.go files. lib-service-discovery v1.1.0 still requires
-// lib-observability v1.1.0, so its libsd.WithLogger rejects Midaz's now-v2
-// log.Logger (interface-identity mismatch across module majors). Because there
-// is no upstream fix to adopt, SD is gated behind the build tag so the default
-// build carries zero dependency on lib-service-discovery. The seam below keeps
+// The DEFAULT build no-ops SD; the real implementation lives under
+// //go:build libsd in the *_libsd.go files, so the default build carries zero
+// dependency on lib-service-discovery. The interface-identity mismatch that
+// originally forced that gate is gone: lib-service-discovery v2 declares its own
+// slog-shaped Logger contract instead of naming a lib-observability type, and
+// the libsd build now bridges through libZap.Slog. What keeps the gate in place
+// is that lib-service-discovery v2.0.0 still requires lib-observability/v2
+// internally, and the default build stays on a single major (see
+// tests/modulegraph). Drop the tag once LerianStudio/lib-service-discovery#33
+// moves it to /v4. The seam below keeps
 // this package's public API stable across both builds: Manager, BuildManager,
 // NewRunnable, and NewBootCloser exist in both, so the composition roots depend
 // only on this package and never import lib-service-discovery directly.

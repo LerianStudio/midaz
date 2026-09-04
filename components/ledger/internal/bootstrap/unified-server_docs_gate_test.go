@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

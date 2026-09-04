@@ -9,8 +9,8 @@ package servicediscovery
 import (
 	"context"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libsd "github.com/LerianStudio/lib-service-discovery"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libsd "github.com/LerianStudio/lib-service-discovery/v2"
 )
 
 // BootCloser tears down the boot-time service-discovery Resolve watcher when a
