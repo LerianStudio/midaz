@@ -310,19 +310,7 @@ func probeRouteRoles(t *testing.T) (map[string]string, []routeGroup) {
 	// Handlers are non-nil zero-value structs so every route mounts, including the conditional
 	// CRM holder-accounts/encryption/audit routes. Threading the options through buildHumaMountDeps
 	// mounts through the SAME mapper production uses.
-	humaDeps := buildHumaMountDeps(
-		auth,
-		&httpin.OrganizationHandler{}, &httpin.LedgerHandler{}, &httpin.PortfolioHandler{}, &httpin.SegmentHandler{},
-		&httpin.AccountHandler{}, &httpin.AccountTypeHandler{}, &httpin.MetadataIndexHandler{}, &httpin.AssetHandler{},
-		&httpin.AssetRateHandler{},
-		&httpin.BalanceHandler{}, &httpin.OperationHandler{}, &httpin.OperationRouteHandler{}, &httpin.TransactionRouteHandler{},
-		&httpin.TransactionHandler{},
-		&httpin.HolderHandler{}, &httpin.InstrumentHandler{}, &httpin.HolderAccountsHandler{}, &httpin.EncryptionHandler{},
-		&httpin.AuditHandler{},
-		&httpin.PackageHandler{}, &httpin.FeeHandler{}, &httpin.BillingPackageHandler{}, &httpin.BillingCalculateHandler{},
-		&httpin.CompositionHandler{},
-		setup,
-	)
+	humaDeps := fullSurfaceHumaDeps(auth, setup)
 
 	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
 
