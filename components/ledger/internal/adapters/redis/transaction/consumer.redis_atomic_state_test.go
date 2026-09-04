@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
-	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/redis/go-redis/v9"
@@ -136,29 +135,10 @@ func TestGetBalancesByKeys_MultiTenant_NoDoubleNamespacing(t *testing.T) {
 	assert.Equal(t, "uuid-mt", result[namespacedMember].ID)
 }
 
-func TestKeyNamespacing_MalformedTenantID_FailsClosedBatchScheduleAndRemove(t *testing.T) {
+func TestKeyNamespacing_MalformedTenantID_FailsClosedBatchRemove(t *testing.T) {
 	t.Parallel()
 
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant:invalid")
-
-	t.Run("schedule balance sync batch", func(t *testing.T) {
-		t.Parallel()
-
-		mockClient := &mockZAddNXClient{
-			zAddNXFunc: func(_ context.Context, _ string, _ ...redis.Z) *redis.IntCmd {
-				t.Fatal("ScheduleBalanceSyncBatch must fail closed before calling ZAddNX")
-
-				return nil
-			},
-		}
-
-		repo := &RedisConsumerRepository{
-			conn: newMockZAddNXConnection(mockClient),
-		}
-
-		err := repo.ScheduleBalanceSyncBatch(ctx, []redis.Z{{Score: float64(time.Now().Unix()), Member: "balance:key"}})
-		require.Error(t, err)
-	})
 
 	t.Run("remove balance sync keys batch", func(t *testing.T) {
 		t.Parallel()

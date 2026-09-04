@@ -169,11 +169,6 @@ type RedisRepository interface {
 	// GetBalanceSyncKeysLegacy claims due keys from the legacy ZSET (balance-sync, pre-v3.6.2).
 	// Used by the legacy drainer to process entries written by v3.5.x (seconds) or v3.6.0 (microseconds).
 	GetBalanceSyncKeysLegacy(ctx context.Context, limit int64) ([]SyncKey, error)
-	// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using ZADD NX.
-	// Each member is a balance key with score = scheduled sync time (Unix timestamp).
-	// Uses NX mode: only adds new members, does not update scores of existing ones.
-	// This preserves the earliest scheduled sync time for each balance key.
-	ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error
 	// ListBalanceByKey retrieves a single balance from Redis by its internal key
 	// and converts it from the cache format (BalanceRedis) to the domain model (Balance).
 	// An empty cached OverdraftUsed reads as zero (pre-overdraft snapshot shape), while a
@@ -1748,88 +1743,6 @@ func parseSyncKeysFromLuaResult(res any, logger libLog.Logger, ctx context.Conte
 	}
 
 	return out, nil
-}
-
-// ScheduleBalanceSyncBatch schedules multiple balance keys for sync using batch ZADD NX.
-// The score determines when the balance should be synced (Unix timestamp).
-// Uses NX mode: only adds new members, does not update scores of existing ones.
-// This preserves the earliest scheduled sync time for each balance key.
-// Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
-func (rr *RedisConsumerRepository) ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error {
-	if len(members) == 0 {
-		return nil
-	}
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.schedule_balance_sync_batch")
-	defer span.End()
-
-	tenantID := tmcore.GetTenantIDContext(ctx)
-	span.SetAttributes(attribute.String("app.tenant_id", tenantID))
-
-	client, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client",
-			libLog.String("tenant_id", tenantID), libLog.Err(err))
-
-		return err
-	}
-
-	prefixedScheduleKey, err := tenantKeyFromContextOrError(ctx, utils.BalanceSyncScheduleKey)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key",
-			libLog.String("tenant_id", tenantID), libLog.Err(err))
-
-		return err
-	}
-
-	// De-duplicate members, keeping the minimum score for each unique member.
-	// This ensures the earliest scheduled sync time is preserved when duplicates exist.
-	minScores := make(map[string]float64, len(members))
-
-	for _, m := range members {
-		key := fmt.Sprintf("%v", m.Member)
-
-		if existing, found := minScores[key]; !found || m.Score < existing {
-			minScores[key] = m.Score
-		}
-	}
-
-	// Rebuild members slice from de-duplicated map
-	deduped := make([]redis.Z, 0, len(minScores))
-	for member, score := range minScores {
-		deduped = append(deduped, redis.Z{Score: score, Member: member})
-	}
-
-	var totalAdded int64
-
-	// Process in chunks to prevent oversized payloads
-	for start := 0; start < len(deduped); start += maxRedisBatchSize {
-		end := min(start+maxRedisBatchSize, len(deduped))
-		chunk := deduped[start:end]
-
-		// Use ZADD with NX to only add new members (do not update existing scores)
-		// This ensures we do not overwrite a newer schedule with an older one
-		cmd := client.ZAddNX(ctx, prefixedScheduleKey, chunk...)
-		if err := cmd.Err(); err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to batch schedule balance sync", err)
-
-			logger.Log(ctx, libLog.LevelError, "Failed to batch schedule balance sync",
-				libLog.String("tenant_id", tenantID), libLog.Err(err))
-
-			return err
-		}
-
-		totalAdded += cmd.Val()
-	}
-
-	logger.Log(ctx, libLog.LevelDebug, "Scheduled balance keys for sync", libLog.Int("input", len(members)), libLog.Int("unique", len(deduped)), libLog.Any("added", totalAdded))
-
-	return nil
 }
 
 func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error) {
