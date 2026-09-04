@@ -6713,7 +6713,7 @@
             "BearerAuth": []
           }
         ],
-        "summary": "Cancel a pre transaction",
+        "summary": "Cancel a pending Transaction",
         "tags": [
           "Midaz_Ledger_API_Transactions (v1)"
         ]

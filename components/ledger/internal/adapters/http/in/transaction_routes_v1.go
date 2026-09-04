@@ -116,7 +116,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		OperationID:   "cancelTransaction",
 		Method:        http.MethodPost,
 		Path:          idPath + "/cancel",
-		Summary:       "Cancel a pre transaction",
+		Summary:       "Cancel a pending Transaction",
 		Tags:          []string{tag},
 		Security:      secTransactionBearer,
 		DefaultStatus: http.StatusCreated,

@@ -8882,7 +8882,7 @@ paths:
           description: Error
       security:
         - BearerAuth: []
-      summary: Cancel a pre transaction
+      summary: Cancel a pending Transaction
       tags:
         - Transactions (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:

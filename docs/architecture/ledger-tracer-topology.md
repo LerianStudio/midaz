@@ -19,8 +19,8 @@
 > the component under discussion in that section. Where a filename exists in more than one component, a
 > `ledger/` or `tracer/` prefix disambiguates. The ledger reservation seam itself lives in the
 > transaction create use cases (`components/ledger/internal/services/command/`:
-> `create_transaction_v2.go`, `revert_transaction.go`, `transaction_ports.go`,
-> `transaction_reservation_anchor.go`); the tracer
+> `create_transaction_v2.go`, `revert_transaction.go`, `commit_transaction.go`,
+> `transaction_ports.go`, `transaction_reservation_anchor.go`); the tracer
 > client it depends on is injected at bootstrap through the narrow `command.TracerReserver` port, so
 > the use case never learns the transport. Line ranges are accurate at time of writing but rot; the
 > cited function/const symbols are the durable anchors.
@@ -57,8 +57,8 @@ framing in §1.
 > no `podAffinity`, and no sidecar config — this is guidance, not deployed fact.
 
 **Why co-schedule (soft affinity):** the reservation reserve RPC is **synchronous and on the hot path**
-— called inline immediately before `ProcessBalanceOperations` in the transaction-create handler
-(`create_transaction_v2.go`; anchor doc at `transaction_reservation_anchor.go:72-85`).
+— called inline immediately before `ProcessBalanceOperations` in the transaction-create use case
+(`services/command/create_transaction_v2.go`; anchor doc at `transaction_reservation_anchor.go:72-85`).
 Co-locating ledger and tracer on the same node trims that round-trip's network latency without
 collapsing the two into one failure/scale unit.
 
@@ -98,8 +98,11 @@ collapsing the two into one failure/scale unit.
 
 - **Confirm / Release are post-commit and best-effort (non-blocking).** After a successful balance
   commit, `confirmReservations` runs for non-PENDING transactions; on a commit failure
-  `releaseReservations` runs; PENDING defers confirm to `/commit` and release to `/cancel`
-  (`create_transaction_v2.go`). Transport failures on confirm/release are logged at Warn,
+  `releaseReservations` runs (`services/command/create_transaction_v2.go`); PENDING defers confirm to
+  `/commit` and release to `/cancel`, which the versioned transition use case answers
+  (`services/command/commit_transaction.go`, `transitionPendingV2`, which names
+  `confirmReservationsByTransaction` / `releaseReservationsByTransaction`).
+  Transport failures on confirm/release are logged at Warn,
   span-recorded, and **never propagated** — the TTL reaper is the durability backstop
   (`transaction_reservation_anchor.go:246-261, 282-289`). A tracer outage during the confirm/release
   window degrades to reaper reconciliation, not request failure.
