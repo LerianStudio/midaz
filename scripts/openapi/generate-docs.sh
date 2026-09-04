@@ -333,8 +333,10 @@ install_npm_dependencies() {
     local npm_err="${LOG_DIR}/npm.err"
     local start_time=$(date +%s.%N)
 
-    # Check if node_modules exists and package.json hasn't changed
-    if [ -d "${OPENAPI_DIR}/node_modules" ] && [ "${OPENAPI_DIR}/node_modules" -nt "${OPENAPI_DIR}/package.json" ]; then
+    # Check if node_modules exists and is newer than both package.json and package-lock.json
+    if [ -d "${OPENAPI_DIR}/node_modules" ] && \
+       [ "${OPENAPI_DIR}/node_modules" -nt "${OPENAPI_DIR}/package.json" ] && \
+       [ "${OPENAPI_DIR}/node_modules" -nt "${OPENAPI_DIR}/package-lock.json" ]; then
         print_step "Node.js dependencies already up to date" "SUCCESS" "0.0"
         return 0
     fi
