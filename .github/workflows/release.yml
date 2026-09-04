@@ -29,8 +29,6 @@ jobs:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
       release_single_app: true
       app_name_prefix: "midaz"
-      ignore_globs: "*.md docs/* .github/* LICENSE* .gitignore .coderabbit.yaml"
-      ungoliant_skip_globs: ".releaserc.yml .github/* .coderabbit.yaml"
       filter_paths: |
         components/ledger
         components/tracer
