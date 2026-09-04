@@ -13,7 +13,6 @@ import (
 	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -55,21 +54,18 @@ func NewConsumerRedis(rc redisClientProvider) (*RedisConsumerRepository, error) 
 }
 
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.set")
-	defer span.End()
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	key, err := tmvalkey.GetKeyContext(ctx, key)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build tenant key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build tenant key", libLog.Err(err))
 
 		return err
 	}
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get redis", libLog.Err(err))
 
 		return err
 	}
@@ -82,7 +78,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 
 	statusCMD := rds.Set(ctx, key, value, ttl)
 	if statusCMD.Err() != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set on redis", statusCMD.Err())
+		logger.Log(ctx, libLog.LevelError, "Failed to set on redis", libLog.Err(statusCMD.Err()))
 
 		return statusCMD.Err()
 	}
@@ -91,22 +87,17 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 }
 
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.get")
-	defer span.End()
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	key, err := tmvalkey.GetKeyContext(ctx, key)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build tenant key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build tenant key", libLog.Err(err))
 
 		return "", err
 	}
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to connect on redis", libLog.Err(err))
 
 		return "", err
@@ -114,8 +105,6 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 	val, err := rds.Get(ctx, key).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		libOpentelemetry.HandleSpanError(span, "Failed to get on redis", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to get on redis", libLog.Err(err))
 
 		return "", err
@@ -125,22 +114,17 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 }
 
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.del")
-	defer span.End()
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	key, err := tmvalkey.GetKeyContext(ctx, key)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build tenant key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to build tenant key", libLog.Err(err))
 
 		return err
 	}
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to connect on redis", libLog.Err(err))
 
 		return err
@@ -148,8 +132,6 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 
 	val, err := rds.Del(ctx, key).Result()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to del on redis", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to del on redis", libLog.Err(err))
 
 		return err
