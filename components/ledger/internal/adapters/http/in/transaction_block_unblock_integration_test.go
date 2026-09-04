@@ -114,6 +114,7 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
+		TransactionReader:       queryUC,
 	}
 
 	infra.txHandler = &TransactionHandler{Query: queryUC, Command: commandUC}

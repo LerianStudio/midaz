@@ -115,6 +115,7 @@ func setupAssetTestInfra(t *testing.T) *assetTestInfra {
 		SegmentRepo:            segmentRepo,
 		OnboardingMetadataRepo: metadataRepo,
 	}
+	commandUC.TransactionReader = queryUC
 
 	// Create handlers
 	infra.orgHandler = &OrganizationHandler{

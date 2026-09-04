@@ -194,6 +194,7 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	require.NoError(t, err, "fee use case")
 
 	h.commandUC.FeeApplier = h.feeUC
+	h.commandUC.TransactionReader = h.queryUC
 	h.handler = &TransactionHandler{Query: h.queryUC, Command: h.commandUC}
 
 	// Seed a real organization + ledger so GetParsedLedgerSettings succeeds and

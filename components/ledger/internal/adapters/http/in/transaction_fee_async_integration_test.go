@@ -156,6 +156,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 		handler: &TransactionHandler{Query: queryUC, Command: commandUC},
 	}
 	commandUC.FeeApplier = feeUC
+	commandUC.TransactionReader = queryUC
 	h.orgID = postgrestestutil.CreateTestOrganization(t, h.db)
 	h.ledgerID = postgrestestutil.CreateTestLedger(t, h.db, h.orgID)
 

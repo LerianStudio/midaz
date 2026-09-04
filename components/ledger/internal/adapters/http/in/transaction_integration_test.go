@@ -133,6 +133,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 		BalanceRepo:             balanceRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
+		TransactionReader:       queryUC,
 	}
 
 	// Create handler
@@ -710,6 +711,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
 		RabbitMQRepo:            producerRepo,
+		TransactionReader:       queryUC,
 	}
 
 	// Create handler
