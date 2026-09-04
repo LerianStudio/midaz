@@ -5,10 +5,15 @@
 package http
 
 import (
+	"sync"
+
 	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/gofiber/fiber/v3"
 	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 const trustedUpstreamAuthSentinel = "trusted-upstream-auth"
@@ -38,6 +43,8 @@ func ProtectedRouteChain(authHandler fiber.Handler, options *ProtectedRouteOptio
 // middleware has already succeeded. This enables downstream tenant middleware
 // to safely use the ParseUnverified path only after trusted auth has run.
 func MarkTrustedAuthAssertion() fiber.Handler {
+	var warnNonUUIDTenantOnce sync.Once
+
 	return func(c fiber.Ctx) error {
 		if existingUserID, ok := c.Locals("user_id").(string); ok && existingUserID != "" {
 			return c.Next()
@@ -66,7 +73,30 @@ func MarkTrustedAuthAssertion() fiber.Handler {
 		c.Locals("user_id", userID)
 
 		if tenantID := firstNonEmptyStringClaim(claims, "tenantId"); tenantID != "" && tmcore.IsValidTenantID(tenantID) {
-			c.SetContext(tmcore.ContextWithTenantID(c.Context(), tenantID))
+			ctx := tmcore.ContextWithTenantID(c.Context(), tenantID)
+
+			// The telemetry middleware labels per-tenant metrics only from an
+			// identity the auth layer attests here; it never promotes headers or
+			// baggage. tmcore.IsValidTenantID admits any slug, so the UUID parse
+			// is what decides whether the claim can carry that attestation.
+			if parsed, parseErr := uuid.Parse(tenantID); parseErr == nil {
+				ctx = libObservability.ContextWithAuthenticatedTenant(ctx, parsed, firstNonEmptyStringClaim(claims, "tenantSlug"))
+			} else {
+				// TODO(midaz#2448): a non-UUID tenantId claim carries no UUID
+				// anywhere else in the token, so the attestation cannot be built
+				// and per-tenant metrics stay unlabelled for that tenant. Tenants
+				// provisioned in the WorkOS window (2026-02-13 to 2026-04-01) got
+				// the WorkOS org id as their Casdoor org name and were never
+				// backfilled. Decide with the team whether to backfill
+				// tokenAttributes.tenantId or to widen the attestation to a
+				// validated string.
+				warnNonUUIDTenantOnce.Do(func() {
+					libObservability.NewLoggerFromContext(ctx).Log(ctx, libLog.LevelWarn,
+						"Tenant claim is not a UUID; per-tenant metrics will not be labelled for it")
+				})
+			}
+
+			c.SetContext(ctx)
 		}
 
 		return c.Next()

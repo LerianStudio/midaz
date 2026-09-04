@@ -114,7 +114,12 @@ func NewUnifiedServer(
 	app.Use(midazhttp.WithRecover(midazhttp.WithRecoverLogger(logger)))
 
 	tlMid := libObsMiddleware.NewTelemetryMiddleware(telemetry)
-	app.Use(tlMid.WithTelemetry(telemetry))
+	// The per-tenant variant instead of WithTelemetry: it carries the same
+	// standard HTTP telemetry and adds the tenant-labelled counters/histogram.
+	// Registering both would double-record http.server.request.duration. The
+	// tenant series only appear once MarkTrustedAuthAssertion attests an
+	// identity, so a deployment without the tenantId claim gains no cardinality.
+	app.Use(tlMid.WithAuthenticatedTenantHTTPMetrics(telemetry))
 	app.Use(cors.New())
 	app.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(logger)))
 
