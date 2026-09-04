@@ -43,7 +43,7 @@ type CreateTransactionV1Input struct {
 func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransactionV1Input) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.create_transaction_v1")
+	ctx, span := tracer.Start(ctx, "command.create_transaction_v1")
 	defer span.End()
 
 	run := &createTransactionRun{

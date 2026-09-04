@@ -31,7 +31,7 @@ type PendingTransitionInput struct {
 func (uc *UseCase) CommitTransactionV1(ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.commit_transaction_v1")
+	ctx, span := tracer.Start(ctx, "command.commit_transaction_v1")
 	defer span.End()
 
 	tran, err := uc.loadPendingTransaction(ctx, span, in)
@@ -53,7 +53,7 @@ func (uc *UseCase) CommitTransactionV1(ctx context.Context, in PendingTransition
 func (uc *UseCase) CancelTransactionV1(ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.cancel_transaction_v1")
+	ctx, span := tracer.Start(ctx, "command.cancel_transaction_v1")
 	defer span.End()
 
 	tran, err := uc.loadPendingTransaction(ctx, span, in)
@@ -75,7 +75,7 @@ func (uc *UseCase) CancelTransactionV1(ctx context.Context, in PendingTransition
 func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.commit_transaction_v2")
+	ctx, span := tracer.Start(ctx, "command.commit_transaction_v2")
 	defer span.End()
 
 	tran, err := uc.loadPendingTransaction(ctx, span, in)
@@ -96,7 +96,7 @@ func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransition
 func (uc *UseCase) CancelTransactionV2(ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.cancel_transaction_v2")
+	ctx, span := tracer.Start(ctx, "command.cancel_transaction_v2")
 	defer span.End()
 
 	tran, err := uc.loadPendingTransaction(ctx, span, in)
@@ -117,7 +117,7 @@ func (uc *UseCase) CancelTransactionV2(ctx context.Context, in PendingTransition
 func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransitionRun) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.transition_pending_transaction")
+	ctx, span := tracer.Start(ctx, "command.transition_pending_transaction")
 	defer span.End()
 
 	unlock, err := uc.lockPendingTransaction(ctx, span, logger, run)
@@ -146,7 +146,7 @@ func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransiti
 func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransitionRun) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.transition_pending_transaction")
+	ctx, span := tracer.Start(ctx, "command.transition_pending_transaction")
 	defer span.End()
 
 	unlock, err := uc.lockPendingTransaction(ctx, span, logger, run)
