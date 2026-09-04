@@ -311,3 +311,63 @@ func TestTenantSpanAttribute_SeededForEveryAuthenticatedRequest(t *testing.T) {
 		})
 	}
 }
+
+// TestProbePathsEmitNoHTTPTelemetry covers T11: a k8s probe generates one span
+// and one metric observation per poll, at high volume and zero information, so
+// the probe paths are handed to the middleware as excluded routes. Exclusion is
+// prefix-based on the request path, and it suppresses the global RED metric as
+// well as the per-tenant series — the whole point is that probe traffic costs
+// nothing.
+func TestProbePathsEmitNoHTTPTelemetry(t *testing.T) {
+	t.Parallel()
+
+	const durationMetric = "http.server.request.duration"
+
+	for _, tc := range []struct {
+		name     string
+		path     string
+		excluded bool
+	}{
+		{name: "health", path: "/health", excluded: true},
+		{name: "readyz", path: "/readyz", excluded: true},
+		{name: "metrics", path: "/metrics", excluded: true},
+		{name: "sub-path of a probe", path: "/readyz/deep", excluded: true},
+		// A path that merely starts with the same letters is NOT a probe:
+		// exclusion matches a whole segment, not a string prefix.
+		{name: "prefix lookalike", path: "/healthz-report", excluded: false},
+		{name: "business route", path: "/v1/organizations", excluded: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			reader := sdkmetric.NewManualReader()
+			meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+
+			factory, err := metrics.NewMetricsFactory(meterProvider.Meter("test"), nil)
+			require.NoError(t, err)
+
+			telemetry := &tracing.Telemetry{
+				TelemetryConfig: tracing.TelemetryConfig{LibraryName: "midaz-test", EnableTelemetry: true},
+				TracerProvider:  sdktrace.NewTracerProvider(),
+				MeterProvider:   meterProvider,
+				MetricsFactory:  factory,
+			}
+
+			app := fiber.New()
+			app.Use(libObsMiddleware.NewTelemetryMiddleware(telemetry).
+				WithAuthenticatedTenantHTTPMetrics(telemetry, "/health", "/readyz", "/metrics"))
+			app.Get(tc.path, func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+
+			resp, err := app.Test(httptest.NewRequest("GET", tc.path, nil))
+			require.NoError(t, err)
+			require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+			recorded := findMetric(t, reader, durationMetric)
+			if tc.excluded {
+				assert.Nil(t, recorded, "%s recorded telemetry for excluded path %s", durationMetric, tc.path)
+			} else {
+				assert.NotNil(t, recorded, "%s missing for non-excluded path %s", durationMetric, tc.path)
+			}
+		})
+	}
+}
