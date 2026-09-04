@@ -57,6 +57,13 @@ type UnifiedServer struct {
 	readyzHandler *ReadyzHandler
 }
 
+// skipTelemetryPaths lists the request paths excluded from HTTP telemetry, per
+// T11 in docs/standards/telemetry.md. A k8s probe generates one span and one
+// metric observation per poll — high volume, zero information. /metrics is
+// listed for the same reason even though this binary pushes over OTLP and
+// mounts no scrape endpoint, so adding one later cannot reintroduce the noise.
+var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
+
 // NewUnifiedServer creates a server that exposes all APIs on a single port.
 // Route registrars are responsible for attaching any module-specific middleware.
 func NewUnifiedServer(
@@ -114,7 +121,12 @@ func NewUnifiedServer(
 	app.Use(midazhttp.WithRecover(midazhttp.WithRecoverLogger(logger)))
 
 	tlMid := libObsMiddleware.NewTelemetryMiddleware(telemetry)
-	app.Use(tlMid.WithTelemetry(telemetry))
+	// The per-tenant variant instead of WithTelemetry: it carries the same
+	// standard HTTP telemetry and adds the tenant-labelled counters/histogram.
+	// Registering both would double-record http.server.request.duration. The
+	// tenant series only appear once MarkTrustedAuthAssertion attests an
+	// identity, so a deployment without the tenantId claim gains no cardinality.
+	app.Use(tlMid.WithAuthenticatedTenantHTTPMetrics(telemetry, skipTelemetryPaths...))
 	app.Use(cors.New())
 	app.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(logger)))
 

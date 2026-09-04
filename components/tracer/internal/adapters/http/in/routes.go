@@ -131,9 +131,8 @@ func isReservationPath(path string) bool {
 // skipTelemetryPaths lists the request paths excluded from detailed telemetry.
 // Health/readiness/metrics probes generate high-frequency, low-value spans, so
 // they are handed to lib-observability's WithTelemetry as excluded routes. This
-// is the exact path set the removed OTel-Fiber WithNext predicate skipped;
-// folding it into the telemetry middleware the tracer already installs first
-// matches the ledger's posture (which never used that middleware).
+// is the exact path set the removed OTel-Fiber WithNext predicate skipped. The
+// ledger passes the same three to its own telemetry middleware.
 var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 
 // RoutesDeps bundles every dependency NewRoutes needs. Using a struct keeps
