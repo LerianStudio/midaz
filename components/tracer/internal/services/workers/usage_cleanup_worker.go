@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"

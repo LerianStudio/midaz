@@ -56,9 +56,9 @@ import (
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
 	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v7/commons/rabbitmq"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 

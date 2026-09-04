@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"

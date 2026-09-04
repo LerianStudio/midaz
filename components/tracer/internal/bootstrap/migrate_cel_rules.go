@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 

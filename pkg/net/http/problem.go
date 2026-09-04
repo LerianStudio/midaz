@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
-	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
+	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 

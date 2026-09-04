@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libMid "github.com/LerianStudio/lib-observability/v4/middleware"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"

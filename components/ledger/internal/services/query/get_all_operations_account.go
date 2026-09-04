@@ -8,7 +8,7 @@ import (
 	"context"
 	"errors"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"

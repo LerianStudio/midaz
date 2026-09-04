@@ -8,7 +8,7 @@ import (
 	"errors"
 	"net/http"
 
-	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/LerianStudio/midaz/v4/pkg"

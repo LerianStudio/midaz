@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
+	tmmongo "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/mongo"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 

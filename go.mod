@@ -4,11 +4,11 @@ go 1.27.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/lib-auth/v4 v4.0.0-beta.1
-	github.com/LerianStudio/lib-commons/v6 v6.9.0-beta.2
-	github.com/LerianStudio/lib-observability/v4 v4.0.0-beta.1
+	github.com/LerianStudio/lib-auth/v4 v4.0.0
+	github.com/LerianStudio/lib-commons/v7 v7.0.0
+	github.com/LerianStudio/lib-observability/v4 v4.0.1
 	github.com/LerianStudio/lib-service-discovery/v2 v2.0.0
-	github.com/LerianStudio/lib-streaming/v4 v4.0.0-beta.4
+	github.com/LerianStudio/lib-streaming/v4 v4.0.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/alicebob/miniredis/v2 v2.38.0
@@ -64,7 +64,7 @@ require (
 	go.uber.org/mock v0.6.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/text v0.41.0
-	google.golang.org/grpc v1.83.1
+	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/go-playground/validator.v9 v9.31.0
 	gopkg.in/yaml.v3 v3.0.1

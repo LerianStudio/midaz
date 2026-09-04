@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v7/commons/rabbitmq"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
