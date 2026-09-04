@@ -121,8 +121,6 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.create.exec")
-
 	result, err := db.ExecContext(
 		ctx, `INSERT INTO asset_rate VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
 		&record.ID,
@@ -139,12 +137,10 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 		&record.UpdatedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute insert query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute insert query", err)
 
 		return nil, err
 	}
-
-	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
@@ -180,8 +176,6 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 
 	record := &AssetRatePostgreSQLModel{}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
-
 	findQuery := squirrel.Select(assetRateColumnList...).
 		From("asset_rate").
 		Where(squirrel.Eq{"organization_id": organizationID}).
@@ -192,16 +186,12 @@ func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, or
 
 	query, args, err := findQuery.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
-
-		spanQuery.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, err
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
-
-	spanQuery.End()
 
 	if err := row.Scan(
 		&record.ID,
@@ -249,8 +239,6 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 
 	record := &AssetRatePostgreSQLModel{}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
-
 	findQuery := squirrel.Select(assetRateColumnList...).
 		From("asset_rate").
 		Where(squirrel.Eq{"organization_id": organizationID}).
@@ -262,16 +250,12 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 
 	query, args, err := findQuery.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
-
-		spanQuery.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, err
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
-
-	spanQuery.End()
 
 	if err := row.Scan(
 		&record.ID,
@@ -364,17 +348,13 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAssetRate)
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var assetRate AssetRatePostgreSQLModel
@@ -470,16 +450,12 @@ func (r *AssetRatePostgreSQLRepository) Update(ctx context.Context, organization
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args))
 
-	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
-
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return nil, err
 	}
-
-	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
