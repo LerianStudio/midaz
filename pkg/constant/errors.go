@@ -480,6 +480,13 @@ var (
 	// applied migrations. Retryable: the schema is applied out of band, so the
 	// same request succeeds once the migration runner reaches this database.
 	ErrSchemaMigrationPending = errors.New("0501")
+	// ErrAccountBlocked is returned when a transaction involves a balance whose
+	// account is blocked (accounts.blocked = true). The block is bidirectional
+	// (source and destination) and applies to direct creates, holds, commits and
+	// reverts; cancels are exempt. Distinct from
+	// ErrAccountStatusTransactionRestriction (0024), which reflects per-balance
+	// allowSending/allowReceiving permissions.
+	ErrAccountBlocked = errors.New("0502")
 )
 
 // List of CRM domain errors.
