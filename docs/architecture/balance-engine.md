@@ -7,10 +7,17 @@ The ledger defines a storage-independent accounting contract in
 the active execution path. Canonical overdraft-limit serialization and conditional
 warm-cache repair protect that path independently of the new contract.
 
-The posting adapter, execution receipts, versioned recovery, and cache migration
-described below are target requirements, not claims of active runtime support.
-They must remain disabled until their integration and activation gates are met.
-Defining the contract does not switch transaction execution or change the HTTP API.
+The posting Lua implementation and Redis adapter, dual-format cache codec, and
+typed version-2 recovery payload/projector are implemented and tested foundations.
+They are not connected to transaction execution, bootstrap activation, or a
+compatible production recovery consumer. Existing writers have not all migrated
+to the dual codec. The adapter currently supports standalone Redis clients only;
+other client topologies fail before accounting is sent.
+
+No activation, request-limit defaults, or receipt/guard retention policy is
+implicitly supplied by these foundations. Consumer-first integration, measured
+limits, observability, persistence, and retention gates below remain mandatory.
+The current work does not switch transaction execution or change the HTTP API.
 
 The boundary separates transaction processing from balance arithmetic while
 preserving the observable rows, amounts, versions, and public errors of valid
@@ -169,11 +176,17 @@ amounts, overrides, directions, references, UUIDs, collection shapes, and numeri
 bounds before sending a request. Empty collections encode as `[]`, not `{}`;
 arbitrary objects are not accepted as singleton arrays.
 
-Domain structs are not the Lua wire DTO. The adapter must define a versioned DTO
-that preserves int64 versions without cjson rounding. Tests must establish the
-accepted version range and lossless legacy output; unsupported values must be
-rejected, never silently rounded. Precision policy and payload limits are
-activation prerequisites, not implicitly supplied by ordinary JSON marshaling.
+Domain structs are not the Lua wire DTO. Protocol version 1 transports versions
+as canonical decimal strings, including values above 2^53. The Lua JSON parser
+preserves numeric tokens exactly; legacy cache Version and version-2 recovery
+results retain exact numeric int64 literals. The lowerCamel cache version is a
+string. Incrementing the maximum int64 version is rejected before writes.
+Money remains textual throughout arithmetic and serialization.
+
+The shared codec supports dual and new-only output. Decoding ignores unknown
+cache extensions, so decode/encode alone does not preserve them. The Lua live
+writer preserves unrelated fields from the original blob, including exact
+numeric tokens. Payload limits still require explicit measured configuration.
 
 The migration uses an explicit field map:
 
@@ -235,11 +248,15 @@ accepted. Similar text inside runtime or transport errors remains technical.
 
 ## Preflight, ordered execution, and commit
 
-The target adapter sends one versioned envelope in `ARGV[1]` containing the
+The inactive posting adapter sends one versioned envelope in `ARGV[1]` containing the
 accounting DTO, opaque recovery payloads, and indices into `KEYS`. Every physical
 balance, deletion marker, schedule, backup, receipt, and guard key must appear in
 `KEYS`; hash field names belong in ARGV. Preserve the existing `{transactions}`
 hash tag. Tenant namespacing comes only from authenticated context.
+
+`ARGV[2]` and `ARGV[3]` carry trusted request-byte and total-prepared-byte bounds.
+The latter covers the response, balance blobs, recovery records, receipt, and
+prepared guard/hash-field data. These bounds are required inputs, not defaults.
 
 Before the first write, the engine must:
 
@@ -278,17 +295,30 @@ Preserve execution identity, original intent, dates, row identities, resolved
 fees, tracer reservation, and HTTP idempotency work. Do not restart the whole
 transaction workflow. Context cancellation stops additional attempts.
 
-Disable automatic transport retransmission on the client actually used for
-accounting execution. `EVALSHA` to `EVAL` fallback is safe only after confirmed
-NOSCRIPT, not after timeout or connection loss. Shared client retry behavior must
-not be changed without considering other consumers.
+The standalone adapter uses a dedicated client with automatic retries disabled
+(`MaxRetries=-1`), without changing the shared client's settings. `EVALSHA` to
+`EVAL` fallback occurs only after confirmed NOSCRIPT, never after timeout or
+connection loss. Lost-response integration tests verify a single application;
+explicit replay uses the same execution receipt. Cluster and other client types
+are rejected before execution until their transport guarantees are implemented
+and verified. Standalone support is not permission to restrict deployed topology
+during activation.
 
-Target structured refusals use exact `MIDAZ_ENGINE_V1 ` framing followed by
+Structured refusals use exact `MIDAZ_ENGINE_V1 ` framing followed by
 validated JSON. Accept at most one known Redis `ERR ` framing prefix before the
 protocol prefix. Validate the code enum, transaction/posting index bounds, and
 reference correlation; indices are zero-based, with -1 only when not applicable.
 Do not classify errors by substring. The adapter returns `*engine.Failure` for
 recognized refusals and preserves technical causes separately.
+
+Technical replies use `MIDAZ_ENGINE_TECH_V1 ` and a validated technical code.
+A malformed response, corrupt stored receipt, or transport failure can describe
+an execution that already changed state and must not enter CAS retry. A deliberate
+post-first-SET command denial is covered by integration tests: the balance write
+survives while later schedule/backup/guard/receipt writes can be absent. The
+adapter reports an indeterminate outcome, preserves evidence, and sends no blind
+retry. Receipts prevent duplicate completed executions; they do not roll back or
+automatically repair a partially executed commit.
 
 | Failure | Public treatment |
 | --- | --- |
@@ -324,8 +354,17 @@ The accounting engine compares tokens without interpreting lifecycle status.
 
 The fingerprint includes scope, action, normalized intention, and stable leg
 references, but excludes snapshots and calculated splits that can change on CAS
-retry. The same execution ID and fingerprint returns its recorded result without
+retry. It also includes frozen primary row attribution, metadata, parent identity,
+and skip-audit flags. Derived companion contexts are excluded, since their need
+can change after a fresh balance read. Validation recomputes the fingerprint from
+the ordered immutable payloads, rather than only comparing supplied hash strings.
+
+The same execution ID and fingerprint returns its recorded result without
 reapplying postings; reuse with different intent is rejected before writes.
+Completed-receipt replay validates scope, posting correlation, movement identity,
+version chains, and final snapshots before returning the stored response bytes.
+Malformed stored receipts are technical indeterminate outcomes, not proof of
+an unapplied execution.
 
 Guard CAS prevents concurrent commit and cancel from both succeeding even after
 a Go lock expires. For a legacy pending transaction without a guard, validate
@@ -334,7 +373,7 @@ must not both win an absent guard. Transaction ID alone is insufficient dedupe.
 
 ### Recovery envelope
 
-The target outer envelope has `formatVersion=2`, tenant/organization/ledger scope,
+The implemented outer envelope has `formatVersion=2`, tenant/organization/ledger scope,
 ExecutionID, fingerprint, TransactionID, the opaque payload, and the real result
 restricted to that transaction, including its intermediate before/after states.
 Validate one-to-one correlation between request transactions and recovery intents
@@ -343,15 +382,20 @@ before EVAL. Use typed, versioned payloads rather than ad hoc maps.
 The frozen Go payload preserves `header_id`, `transaction_id`, `organization_id`,
 `ledger_id`, normalized `parserDSL` including resolved fees, `ttl`, `validate`,
 `transaction_status`, `action`, `transaction_date`, and projection context keyed
-by stable PostingRef. Freeze route decisions and metadata required for replay;
+by stable PostingRef. It also preserves `parentTransactionId`, `feesSkipped`, and
+`tracerSkipped`. The payload is an opaque JSON string in the outer envelope;
+strict decoding rejects duplicate keys, unknown fields, and scope drift.
+Freeze route decisions and metadata required for replay;
 do not make current route/settings lookups prerequisites for recovery. Do not
 store a precomputed split as accounting authority.
 
-Operation IDs must be either preallocated in frozen context or deterministically
-derived using a documented, versioned namespace and ExecutionID, TransactionID,
-PostingRef, role, and stable ordinal. Namespace selection is a protocol decision
-that must be fixed and tested before activation. Replay must not generate random
-IDs or change already-materialized legacy IDs.
+Operation IDs use UUIDv5 namespace
+`c102438e-88ba-5d08-b785-a699df083ecd`, with length-prefixed ExecutionID,
+TransactionID, PostingRef, and role, followed by a stable ordinal. This namespace
+and encoding are immutable replay contracts. Replay must not generate random IDs
+or change already-materialized legacy IDs. Projection validates real debt deltas,
+required companions, immutable balance identity, and per-transaction final state;
+historical synthetic row states remain separate from truthful movements.
 
 The script commits recovery data and receipts/guards in the same execution as
 balance changes; a later Go backup update must not be required for recoverability.
