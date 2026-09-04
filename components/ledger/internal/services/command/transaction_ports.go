@@ -69,12 +69,12 @@ type TracerReserver interface {
 	ReleaseByTransaction(ctx context.Context, transactionID uuid.UUID) error
 }
 
-// TransactionReader is the narrow read port the transaction create path depends
-// on. It is declared here so command never imports the query package: the
-// bootstrap wires the query use case in directly, since the signatures match.
+// TransactionReader is the narrow read port the transaction write paths
+// (create, revert, pending commit/cancel) depend on. It is declared here so
+// command never imports the query package: the bootstrap wires the query use
+// case in directly, since the signatures match.
 type TransactionReader interface {
-	// GetParsedLedgerSettings returns the parsed, cached settings for a ledger.
-	GetParsedLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (mmodel.LedgerSettings, error)
+	SettingsReader
 
 	// GetBalances loads the balances backing the given aliases.
 	GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
