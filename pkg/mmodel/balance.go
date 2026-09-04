@@ -448,12 +448,11 @@ type Balances struct {
 // Lua cjson.decode will see balance.Available == nil and arithmetic helpers
 // will fail with "attempt to compare nil with number".
 //
-// The canonical Go writer that respects this contract is
-// UpdateBalanceCacheSettings in adapters/redis/transaction/consumer.redis.go,
-// which operates on map[string]any with explicit CamelCase keys and uses the
-// luaBalanceSettingKey helper to purge legacy camelCase aliases. Any new Go
-// writer to the balance cache MUST follow the same pattern — do NOT marshal
-// BalanceRedis directly; use map[string]any with CamelCase keys.
+// Settings writes use scripts/update_balance_settings.lua through
+// UpdateBalanceCacheSettings in adapters/redis/transaction/consumer.redis.go.
+// They preserve live monetary state and emit the CamelCase fields required by
+// the accounting script. Do not marshal BalanceRedis directly into the cache:
+// its JSON tags are not the cache wire format.
 type BalanceRedis struct {
 	// Unique identifier for the balance (UUID format)
 	ID string `json:"id"`
