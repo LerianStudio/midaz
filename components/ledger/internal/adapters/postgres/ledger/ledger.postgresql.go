@@ -189,9 +189,6 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.create.exec")
-	defer spanExec.End()
-
 	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
 	// migrations add columns to ledger. Do not collapse this to table-wide VALUES.
 	ledgerColumns := strings.Join(ledgerColumnList, ", ")
@@ -231,12 +228,12 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 		if errors.As(err, &pgErr) && pgErr != nil {
 			err := services.ValidatePGError(pgErr, constant.EntityLedger)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute update query", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -266,8 +263,6 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 
 	ledger := &LedgerPostgreSQLModel{}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find.query")
-
 	query, args, err := squirrel.Select(ledgerColumnList...).
 		From("ledger").
 		Where(squirrel.Eq{"organization_id": organizationID}).
@@ -276,16 +271,12 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
-
-		spanQuery.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, err
 	}
 
 	row := db.QueryRowContext(ctx, query, args...)
-
-	spanQuery.End()
 
 	var settingsJSON []byte
 	if err := row.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
@@ -369,17 +360,13 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
-
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to query database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to query database", err)
 
 		return nil, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var ledger LedgerPostgreSQLModel
@@ -424,8 +411,6 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 		return false, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.find_by_name.query")
-
 	query, args, err := squirrel.Select(ledgerColumnList...).
 		From("ledger").
 		Where(squirrel.Eq{"organization_id": organizationID}).
@@ -434,22 +419,18 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
-
-		spanQuery.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return false, err
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to query database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to query database", err)
 
 		return false, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	if rows.Next() {
 		err := pkg.ValidateBusinessError(constant.ErrLedgerNameConflict, constant.EntityLedger, name)
@@ -481,8 +462,6 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 	var ledgers []*mmodel.Ledger
 
-	_, spanQuery := tracer.Start(ctx, "postgres.list_ledgers_by_ids.query")
-
 	query, args, err := squirrel.Select(ledgerColumnList...).
 		From("ledger").
 		Where(squirrel.Eq{"organization_id": organizationID}).
@@ -492,22 +471,18 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to build query", err)
-
-		spanQuery.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
 		return nil, err
 	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to query database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to query database", err)
 
 		return nil, err
 	}
 	defer rows.Close()
-
-	spanQuery.End()
 
 	for rows.Next() {
 		var ledger LedgerPostgreSQLModel
@@ -582,9 +557,6 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.update.exec")
-	defer spanExec.End()
-
 	updated := &LedgerPostgreSQLModel{}
 
 	var settingsJSON []byte
@@ -604,7 +576,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityLedger)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to update ledger. Rows affected is 0", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger. Rows affected is 0", err)
 
 			return nil, err
 		}
@@ -613,12 +585,12 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 		if errors.As(err, &pgErr) {
 			err := services.ValidatePGError(pgErr, constant.EntityLedger)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanExec, "Failed to execute update query", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute update query", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute update query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute update query", err)
 
 		return nil, err
 	}
@@ -646,16 +618,12 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 		return err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.delete.exec")
-
 	result, err := db.ExecContext(ctx, `UPDATE ledger SET deleted_at = now() WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL`, organizationID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to execute database query", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to execute database query", err)
 
 		return err
 	}
-
-	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
@@ -690,12 +658,9 @@ func (r *LedgerPostgreSQLRepository) Count(ctx context.Context, organizationID u
 		return count, err
 	}
 
-	_, spanQuery := tracer.Start(ctx, "postgres.count.query")
-	defer spanQuery.End()
-
 	err = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ledger WHERE organization_id = $1 AND deleted_at IS NULL", organizationID).Scan(&count)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanQuery, "Failed to query database", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to query database", err)
 
 		return count, err
 	}
@@ -717,13 +682,9 @@ func (r *LedgerPostgreSQLRepository) GetSettings(ctx context.Context, organizati
 
 	var settingsJSON []byte
 
-	_, spanQuery := tracer.Start(ctx, "postgres.get_settings.query")
-
 	query := `SELECT settings FROM ledger WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL`
 
 	row := db.QueryRowContext(ctx, query, organizationID, ledgerID)
-
-	spanQuery.End()
 
 	if err := row.Scan(&settingsJSON); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -779,8 +740,6 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.update_settings.exec")
-
 	// Use JSONB merge operator (||) to merge new settings with existing.
 	//
 	// NOTE: PostgreSQL || performs SHALLOW merge at top level only.
@@ -801,9 +760,6 @@ func (r *LedgerPostgreSQLRepository) UpdateSettings(ctx context.Context, organiz
 	var updatedSettingsJSON []byte
 
 	err = db.QueryRowContext(ctx, query, settingsJSON, organizationID, ledgerID).Scan(&updatedSettingsJSON)
-
-	spanExec.End()
-
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityLedger)
@@ -856,8 +812,6 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 		return nil, err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.replace_settings.exec")
-
 	// Direct assignment (=) instead of merge (||) - complete replacement
 	query := `
 		UPDATE ledger
@@ -869,9 +823,6 @@ func (r *LedgerPostgreSQLRepository) ReplaceSettings(ctx context.Context, organi
 	var updatedSettingsJSON []byte
 
 	err = db.QueryRowContext(ctx, query, settingsJSON, organizationID, ledgerID).Scan(&updatedSettingsJSON)
-
-	spanExec.End()
-
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityLedger)

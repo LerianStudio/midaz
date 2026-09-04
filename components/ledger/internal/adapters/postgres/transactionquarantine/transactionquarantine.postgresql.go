@@ -164,24 +164,21 @@ func (r *QuarantinePostgreSQLRepository) Insert(ctx context.Context, record *Qua
 		return err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.insert_transaction_backup_quarantine.exec")
-	defer spanExec.End()
-
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to insert quarantine record", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to insert quarantine record", err)
 
 		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to read rows affected", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to read rows affected", err)
 
 		return err
 	}
 
-	spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
+	span.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
 	// rowsAffected == 0 means the record was already quarantined (ON CONFLICT
 	// DO NOTHING). That is a successful, idempotent outcome: the durable copy
