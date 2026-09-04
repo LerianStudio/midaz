@@ -11,9 +11,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/declaration"
+	"github.com/LerianStudio/lib-auth/v4/auth/declaration"
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
 	ledgerembed "github.com/LerianStudio/midaz/v4/components/ledger"
 )

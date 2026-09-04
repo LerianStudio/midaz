@@ -12,8 +12,9 @@ import (
 	"sync"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libsd "github.com/LerianStudio/lib-service-discovery"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libZap "github.com/LerianStudio/lib-observability/v4/zap"
+	libsd "github.com/LerianStudio/lib-service-discovery/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -70,7 +71,7 @@ func newBootCloserStubManager(t *testing.T, stub libsd.Registry) *libsd.Manager 
 
 	mgr, err := libsd.New(
 		libsd.Config{Enabled: true, ConsulAddr: "consul:8500", AdvertiseAddr: "svc.test:3002"},
-		libsd.WithLogger(libLog.NewNop()),
+		libsd.WithLogger(libZap.Slog(libLog.NewNop())),
 		libsd.WithRegistry(stub),
 	)
 	require.NoError(t, err)

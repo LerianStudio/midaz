@@ -13,16 +13,16 @@ import (
 	"strings"
 	"time"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
+	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
 	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libMetrics "github.com/LerianStudio/lib-observability/v2/metrics"
-	libRuntime "github.com/LerianStudio/lib-observability/v2/runtime"
-	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
-	libZap "github.com/LerianStudio/lib-observability/v2/zap"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libMetrics "github.com/LerianStudio/lib-observability/v4/metrics"
+	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
+	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
+	libZap "github.com/LerianStudio/lib-observability/v4/zap"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
@@ -1162,7 +1162,7 @@ func initHTTPServer(
 	// Create auth guard with all authentication configuration. authHost is the
 	// plugin-auth host resolved via service discovery (or the static
 	// PLUGIN_AUTH_ADDRESS when discovery is disabled or resolution fails).
-	authClient := authMiddleware.NewAuthClient(authHost, cfg.PluginAuthEnabled, &logger)
+	authClient := authMiddleware.NewAuthClient(authHost, cfg.PluginAuthEnabled, logger)
 	// Note: NewAuthGuard builds APIKeyAuth which is a Fiber
 	// handler closure; ctx propagation would require refactoring the Fiber
 	// middleware API surface to take ctx, which it deliberately doesn't (Fiber

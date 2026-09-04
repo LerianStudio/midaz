@@ -6,7 +6,7 @@
 package services
 
 import (
-	libMetrics "github.com/LerianStudio/lib-observability/v2/metrics"
+	libMetrics "github.com/LerianStudio/lib-observability/v4/metrics"
 )
 
 // Metric is an alias for libMetrics.Metric to allow local usage without importing.

@@ -12,8 +12,8 @@ import (
 
 	libCrypto "github.com/LerianStudio/lib-commons/v6/commons/crypto"
 	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 
 	mongoAudit "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/audit"
 	mongoEncryption "github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/encryption"

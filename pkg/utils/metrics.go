@@ -8,8 +8,8 @@ import (
 	"context"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 )
