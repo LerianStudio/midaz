@@ -555,7 +555,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 - Runtime auth stays on the Fiber `ProtectedRouteChain`; the per-operation `Security`
   metadata on the Huma op is **spec-only**.
 - Spec sources of truth: `components/ledger/api/openapi.huma.yaml` and
-  `components/tracer/api/openapi.huma.yaml`; merged output lands under `postman/specs/`.
+  `components/tracer/api/openapi.huma.yaml`; merged output lands under `api/`.
 - `make check-docs` regenerates these and fails the build on drift (a required PR gate).
 
 ### Pagination
@@ -930,14 +930,15 @@ ENTRYPOINT ["/app"]
 ### Code Quality Gates
 
 `pr-validation.yml` runs the shared `go-pr-validation.yml@v1.36.6` (Go lint/analysis/tests)
-plus two local required jobs: `check-docs` (regenerates and drift-checks the Huma OpenAPI +
-Postman specs) and `check-proto` (regenerates and drift-checks the gRPC stubs under `pkg/proto`).
+plus two local required jobs: `check-docs` (regenerates and drift-checks the Huma OpenAPI
+dumps + the consolidated spec) and `check-proto` (regenerates and drift-checks the gRPC
+stubs under `pkg/proto`).
 
 Required checks before merge:
 1. golangci-lint **v2.13.2** — the CI gate and local Makefile pin match (`GOLANGCI_LINT_VERSION`)
 2. Go analysis + security scanning from the shared workflow
 3. Unit tests (must pass, 85% coverage threshold enforced)
-4. `check-docs` — OpenAPI/Postman spec drift gate
+4. `check-docs` — OpenAPI spec drift gate
 5. `check-proto` — protobuf stub drift gate
 
 ### Linter Configuration

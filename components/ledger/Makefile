@@ -114,7 +114,7 @@ test:
 # `run` comes from mk/docker.mk (go run cmd/app/main.go .env).
 
 # API documentation is generated from the repo root: `make generate-docs`
-# (postman/generator/generate-docs.sh covers ledger and tracer).
+# (scripts/openapi/generate-docs.sh covers ledger and tracer).
 
 #-------------------------------------------------------
 # Database Migrations (two-DB: onboarding + transaction)

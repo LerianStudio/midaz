@@ -9,12 +9,12 @@ set -euo pipefail
 # Clean documentation generation script
 # Regenerates the native Huma OAS 3.1 dumps and consolidates them for the hub
 
-# Root directory of the repo (this script lives in postman/generator/)
+# Root directory of the repo (this script lives in scripts/openapi/)
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-# Generator tooling and published-spec directories
-GENERATOR_DIR="${ROOT_DIR}/postman/generator"
-SPECS_DIR="${ROOT_DIR}/postman/specs"
+# OpenAPI tooling and consolidated-spec directories
+OPENAPI_DIR="${ROOT_DIR}/scripts/openapi"
+API_OUTPUT_DIR="${ROOT_DIR}/api"
 
 # Components to process (each must have a cmd/app/main.go entry point)
 COMPONENTS=("ledger" "tracer")
@@ -44,7 +44,7 @@ print_step() {
     local step_name="$1"
     local status="$2"
     local time_taken="${3:-}"
-    
+
     if [ "$status" = "SUCCESS" ]; then
         echo -e "    ${GREEN}✅ ${step_name}${time_taken:+ (${time_taken}s)}${NC}"
     elif [ "$status" = "FAILED" ]; then
@@ -80,26 +80,10 @@ generate_openapi_spec() {
     fi
 }
 
-# Copy the Huma dump into postman/specs/<component>/ for the hub
-publish_specs() {
-    local component="$1"
-    local api_dir="${ROOT_DIR}/components/${component}/api"
-    local dest_dir="${SPECS_DIR}/${component}"
-
-    print_step "Publishing ${component} specs to postman/specs" "PROCESSING"
-
-    if ! (mkdir -p "${dest_dir}" && cp "${api_dir}/openapi.huma.yaml" "${dest_dir}/"); then
-        print_step "Publish ${component} specs to postman/specs" "FAILED"
-        return 1
-    fi
-
-    print_step "Published ${component} specs to postman/specs" "SUCCESS"
-    return 0
-}
-
-# Merge the three per-component openapi.yaml specs into one consolidated spec
-# (postman/specs/midaz.openapi.{yaml,json}) via @redocly/cli join. Ledger is
-# listed first so it acts as the "main" and takes precedence on shared metadata.
+# Merge the per-component openapi.huma.yaml dumps into one consolidated spec
+# (api/midaz.openapi.{yaml,json}) via @redocly/cli join, reading DIRECTLY from
+# components/<c>/api. Ledger is listed first so it acts as the "main" and takes
+# precedence on shared metadata.
 consolidate_openapi() {
     print_step "Consolidating OpenAPI specs" "PROCESSING"
 
@@ -107,9 +91,9 @@ consolidate_openapi() {
     local err_log="${LOG_DIR}/consolidate.err"
     local start_time=$(date +%s.%N)
 
-    local redocly_bin="${GENERATOR_DIR}/node_modules/.bin/redocly"
-    local consolidated_yaml="${SPECS_DIR}/midaz.openapi.yaml"
-    local consolidated_json="${SPECS_DIR}/midaz.openapi.json"
+    local redocly_bin="${OPENAPI_DIR}/node_modules/.bin/redocly"
+    local consolidated_yaml="${API_OUTPUT_DIR}/midaz.openapi.yaml"
+    local consolidated_json="${API_OUTPUT_DIR}/midaz.openapi.json"
 
     if [ ! -x "${redocly_bin}" ]; then
         print_step "Consolidate OpenAPI specs" "FAILED"
@@ -117,6 +101,8 @@ consolidate_openapi() {
         echo "        @redocly/cli not found at ${redocly_bin}; run install_npm_dependencies first."
         return 1
     fi
+
+    mkdir -p "${API_OUTPUT_DIR}"
 
     # 1. Assert all component specs declare the same openapi: version.
     local ref_version="" version=""
@@ -175,7 +161,7 @@ consolidate_openapi() {
         return 1
     fi
 
-    if ! (cd "${ROOT_DIR}" && NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
+    if ! (cd "${ROOT_DIR}" && NODE_PATH="${OPENAPI_DIR}/node_modules" node -e '
         const yaml = require("js-yaml");
         const fs = require("fs");
         const doc = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
@@ -202,7 +188,7 @@ consolidate_openapi() {
     if ! (cd "${ROOT_DIR}" && "${redocly_bin}" join \
             "${join_inputs[@]}" \
             --prefix-tags-with-info-prop title \
-            -o postman/specs/midaz.openapi.yaml > "${out_log}" 2> "${err_log}"); then
+            -o api/midaz.openapi.yaml > "${out_log}" 2> "${err_log}"); then
         print_step "Consolidate OpenAPI specs" "FAILED"
         echo -e "      ${RED}Error details:${NC}"
         head -5 "${err_log}" | sed 's/^/        /'
@@ -210,11 +196,11 @@ consolidate_openapi() {
     fi
 
     # 3. Produce a deterministic JSON twin from the YAML via the bundled js-yaml.
-    if ! (cd "${ROOT_DIR}" && NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
+    if ! (cd "${ROOT_DIR}" && NODE_PATH="${OPENAPI_DIR}/node_modules" node -e '
         const yaml = require("js-yaml");
         const fs = require("fs");
-        const doc = yaml.load(fs.readFileSync("postman/specs/midaz.openapi.yaml", "utf8"));
-        fs.writeFileSync("postman/specs/midaz.openapi.json", JSON.stringify(doc, null, 2) + "\n");
+        const doc = yaml.load(fs.readFileSync("api/midaz.openapi.yaml", "utf8"));
+        fs.writeFileSync("api/midaz.openapi.json", JSON.stringify(doc, null, 2) + "\n");
     ' >> "${out_log}" 2>> "${err_log}"); then
         print_step "Consolidate OpenAPI specs" "FAILED"
         echo -e "      ${RED}Error details:${NC}"
@@ -260,11 +246,11 @@ consolidate_openapi() {
     #         ledger's contribution and everything else is the tracer input's.
     #     A dropped or partially-lost member then fails the per-member "contributed X of
     #     Y" check, while a normal route addition simply moves the derived totals.
-    if ! (cd "${ROOT_DIR}" && NODE_PATH="${GENERATOR_DIR}/node_modules" node -e '
+    if ! (cd "${ROOT_DIR}" && NODE_PATH="${OPENAPI_DIR}/node_modules" node -e '
         const yaml = require("js-yaml");
         const fs = require("fs");
         const pathKeys = f => Object.keys((yaml.load(fs.readFileSync(f, "utf8")) || {}).paths || {});
-        const hub = JSON.parse(fs.readFileSync("postman/specs/midaz.openapi.json", "utf8"));
+        const hub = JSON.parse(fs.readFileSync("api/midaz.openapi.json", "utf8"));
         const hubKeys = Object.keys(hub.paths || {});
 
         const ledgerKeys = new Set(pathKeys(process.argv[1]));
@@ -339,29 +325,30 @@ consolidate_openapi() {
     return 0
 }
 
-# Install Node.js dependencies for Postman generation
+# Install Node.js dependencies for OpenAPI consolidation tooling (redocly + js-yaml)
 install_npm_dependencies() {
     print_step "Installing Node.js dependencies" "PROCESSING"
 
     local npm_out="${LOG_DIR}/npm.out"
     local npm_err="${LOG_DIR}/npm.err"
     local start_time=$(date +%s.%N)
-    local postman_dir="${GENERATOR_DIR}"
-    
-    # Check if node_modules exists and package.json hasn't changed
-    if [ -d "${postman_dir}/node_modules" ] && [ "${postman_dir}/node_modules" -nt "${postman_dir}/package.json" ]; then
+
+    # Check if node_modules exists and is newer than both package.json and package-lock.json
+    if [ -d "${OPENAPI_DIR}/node_modules" ] && \
+       [ "${OPENAPI_DIR}/node_modules" -nt "${OPENAPI_DIR}/package.json" ] && \
+       [ "${OPENAPI_DIR}/node_modules" -nt "${OPENAPI_DIR}/package-lock.json" ]; then
         print_step "Node.js dependencies already up to date" "SUCCESS" "0.0"
         return 0
     fi
-    
-    if [ -f "${postman_dir}/package-lock.json" ]; then
-        if (cd "${postman_dir}" && npm ci --silent > "${npm_out}" 2> "${npm_err}"); then
+
+    if [ -f "${OPENAPI_DIR}/package-lock.json" ]; then
+        if (cd "${OPENAPI_DIR}" && npm ci --silent > "${npm_out}" 2> "${npm_err}"); then
             local end_time=$(date +%s.%N)
             local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
             print_step "Installed Node.js dependencies" "SUCCESS" "${elapsed}"
             return 0
         fi
-    elif (cd "${postman_dir}" && npm install --silent > "${npm_out}" 2> "${npm_err}"); then
+    elif (cd "${OPENAPI_DIR}" && npm install --silent > "${npm_out}" 2> "${npm_err}"); then
         local end_time=$(date +%s.%N)
         local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
         print_step "Installed Node.js dependencies" "SUCCESS" "${elapsed}"
@@ -374,40 +361,17 @@ install_npm_dependencies() {
     return 1
 }
 
-# Convert to Postman collection
-convert_to_postman() {
-    print_step "Converting to Postman collection" "PROCESSING"
-    
-    local sync_out="${LOG_DIR}/sync.out"
-    local sync_err="${LOG_DIR}/sync.err"
-    local start_time=$(date +%s.%N)
-    
-    if "${GENERATOR_DIR}/sync-postman.sh" > "${sync_out}" 2> "${sync_err}"; then
-        local end_time=$(date +%s.%N)
-        local elapsed=$(echo "scale=1; $end_time - $start_time" | bc 2>/dev/null || echo "0.0")
-        print_step "Converted to Postman collection" "SUCCESS" "${elapsed}"
-        return 0
-    else
-        print_step "Convert to Postman collection" "FAILED"
-        echo -e "      ${RED}Error details:${NC}"
-        head -5 "${sync_err}" | sed 's/^/        /'
-        return 1
-    fi
-}
-
-# Verify outputs
+# Verify the consolidated spec was produced
 verify_outputs() {
     print_step "Verifying generated files" "PROCESSING"
-    
-    local collection_file="${ROOT_DIR}/postman/MIDAZ.postman_collection.json"
-    local environment_file="${ROOT_DIR}/postman/MIDAZ.postman_environment.json"
-    
-    if [ -f "${collection_file}" ] && [ -f "${environment_file}" ]; then
-        # Check if collection has content
-        local request_count=$(jq '.item | length' "${collection_file}" 2>/dev/null || echo "0")
-        local env_vars_count=$(jq '.values | length' "${environment_file}" 2>/dev/null || echo "0")
-        
-        print_step "Generated collection with ${request_count} folders and ${env_vars_count} environment variables" "SUCCESS"
+
+    local consolidated_yaml="${API_OUTPUT_DIR}/midaz.openapi.yaml"
+    local consolidated_json="${API_OUTPUT_DIR}/midaz.openapi.json"
+
+    if [ -f "${consolidated_yaml}" ] && [ -f "${consolidated_json}" ]; then
+        local path_count=$(jq '.paths | length' "${consolidated_json}" 2>/dev/null || echo "0")
+
+        print_step "Generated consolidated spec with ${path_count} paths" "SUCCESS"
         return 0
     else
         print_step "Verify generated files" "FAILED"
@@ -432,54 +396,38 @@ main() {
         done
     fi
 
-    # Publish spec artifacts into postman/specs/<component>/ (copies; the api/
-    # directory stays the dump home that Go and the contract test import)
-    if [ "$overall_success" = true ]; then
-        for component in "${COMPONENTS[@]}"; do
-            if ! publish_specs "$component"; then
-                overall_success=false
-                break
-            fi
-        done
-    fi
-
-    # If OpenAPI generation succeeded, install dependencies, consolidate the
-    # per-component specs into one, then convert to Postman.
+    # Install dependencies, then consolidate the per-component dumps into one.
     if [ "$overall_success" = true ]; then
         if ! install_npm_dependencies; then
             overall_success=false
         elif ! consolidate_openapi; then
             overall_success=false
-        elif ! convert_to_postman; then
-            overall_success=false
         fi
     fi
-    
+
     # Verify outputs
     if [ "$overall_success" = true ]; then
         if ! verify_outputs; then
             overall_success=false
         fi
     fi
-    
+
     # Final status
     echo ""
     if [ "$overall_success" = true ]; then
         echo -e "${GREEN}🎉 Documentation generation completed successfully!${NC}"
-        echo -e "   📄 Collection: postman/MIDAZ.postman_collection.json"
-        echo -e "   🌍 Environment: postman/MIDAZ.postman_environment.json"
-        echo -e "   📚 Consolidated spec: postman/specs/midaz.openapi.yaml"
+        echo -e "   📚 Consolidated spec: api/midaz.openapi.yaml"
     else
         echo -e "${RED}❌ Documentation generation failed.${NC}"
         echo -e "   📋 Check logs in: ${LOG_DIR}/"
         exit 1
     fi
-    
+
     # Clean up temporary logs on success
     if [ "$overall_success" = true ]; then
         rm -rf "${LOG_DIR}"
     fi
-    
+
     echo ""
 }
 

@@ -32,7 +32,7 @@ The three deploy units form one core banking platform in one monorepo:
 ## API
 
 - [Ledger OpenAPI Spec](components/ledger/api/): one Huma-generated OpenAPI 3.1 dump, `components/ledger/api/openapi.huma.yaml`, carrying both its `/v1` and `/v2` paths on self-describing keys (ledger, transaction, CRM holder/instrument, organization-scoped fee endpoints, and the ledger-scoped fee endpoints)
-- [Per-Component OpenAPI Specs](postman/specs/): the published dumps per REST deploy unit (ledger `openapi.huma.yaml`, tracer `openapi.huma.yaml`) plus the merged `midaz.openapi.{json,yaml}`
+- [Per-Component OpenAPI Specs](components/): the native Huma dumps per REST deploy unit (`components/ledger/api/openapi.huma.yaml`, `components/tracer/api/openapi.huma.yaml`); [Consolidated OpenAPI Spec](api/): the `redocly join` output, `api/midaz.openapi.{yaml,json}`
 - [RBAC Namespaces](docs/auth/RBAC-NAMESPACES.md): The three authz namespaces (`midaz`, `routing`, `plugin-fees`) in the unified binary (R9)
 - [API Scoping](docs/api/SCOPING.md): Path-based organization scoping, exception-free — the `X-Organization-Id`/`X-Ledger-Id` headers were removed (R22 reversed)
 

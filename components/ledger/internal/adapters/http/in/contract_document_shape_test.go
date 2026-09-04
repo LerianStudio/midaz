@@ -47,13 +47,12 @@ func TestContractDocumentShape(t *testing.T) {
 }
 
 // assertServersIsRoot locks Servers to exactly [{URL:"/"}]. That single root server is
-// what the redocly join consumes and what makes serverPathSegments return empty in the
-// Postman generator; a "/v1" back here would reintroduce both breaks, because the version
-// rides the operation path, not the server URL.
+// what the redocly join consumes; a "/v1" back here would reintroduce that break, because
+// the version rides the operation path, not the server URL.
 func assertServersIsRoot(t *testing.T, doc *huma.OpenAPI) {
 	require.Len(t, doc.Servers, 1, "the version rides the operation path, so exactly one server is advertised")
 	require.Equal(t, "/", doc.Servers[0].URL,
-		`servers must be exactly [{URL:"/"}]; a versioned server URL breaks the redocly join and serverPathSegments`)
+		`servers must be exactly [{URL:"/"}]; a versioned server URL breaks the redocly join`)
 }
 
 // assertNoDedupSuffixCollision fails ONLY on Huma's anonymous-dedup form: a schema name X

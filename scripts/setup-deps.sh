@@ -48,19 +48,19 @@ check_system_dependencies() {
     echo "  ✅ System dependencies OK"
 }
 
-# Install Node.js dependencies for postman collection generation
+# Install Node.js dependencies for OpenAPI documentation generation
 install_node_dependencies() {
     echo "Installing Node.js dependencies..."
-    
-    local postman_dir="${ROOT_DIR}/postman/generator"
-    
-    if [ ! -f "$postman_dir/package.json" ]; then
-        echo "❌ package.json not found in $postman_dir"
+
+    local openapi_dir="${ROOT_DIR}/scripts/openapi"
+
+    if [ ! -f "$openapi_dir/package.json" ]; then
+        echo "❌ package.json not found in $openapi_dir"
         exit 1
     fi
-    
-    cd "$postman_dir"
-    
+
+    cd "$openapi_dir"
+
     # Use npm ci for faster, reliable, reproducible builds
     if [ -f "package-lock.json" ]; then
         # Check if package-lock.json is up to date with package.json
@@ -75,16 +75,16 @@ install_node_dependencies() {
         # Using npm install
         npm install --silent
     fi
-    
+
     # Verify critical packages are installed
-    local required_packages=("js-yaml" "uuid")
+    local required_packages=("js-yaml" "@redocly/cli")
     for package in "${required_packages[@]}"; do
         if [ ! -d "node_modules/$package" ]; then
             echo "❌ Required package '$package' not installed"
             exit 1
         fi
     done
-    
+
     echo "  ✅ Node.js dependencies OK"
 }
 
@@ -94,9 +94,6 @@ create_directories() {
     
     local dirs=(
         "${ROOT_DIR}/tmp"
-        "${ROOT_DIR}/postman"
-        "${ROOT_DIR}/postman/backups"
-        "${ROOT_DIR}/postman/temp"
     )
     
     for dir in "${dirs[@]}"; do
