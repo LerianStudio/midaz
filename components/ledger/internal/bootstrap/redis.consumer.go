@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -72,6 +74,56 @@ type RedisQueueConsumer struct {
 	multiTenantEnabled bool
 	tenantCache        *tenantcache.TenantCache
 	pgManager          *tmpostgres.Manager
+	recoveryFinalizer  balanceRecoveryFinalizer
+}
+
+type recoveryMongoResolver interface {
+	GetDatabaseForTenant(context.Context, string) (*mongo.Database, error)
+}
+
+// tenantRecoveryFinalizer resolves metadata storage inside the existing recovery
+// timeout. Legacy records do not use this finalizer or acquire Mongo connections.
+type tenantRecoveryFinalizer struct {
+	delegate           balanceRecoveryFinalizer
+	mongoResolver      recoveryMongoResolver
+	multiTenantEnabled bool
+}
+
+func (finalizer *tenantRecoveryFinalizer) Finalize(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if finalizer.delegate == nil {
+		return fmt.Errorf("balance recovery finalizer is not configured")
+	}
+
+	if !finalizer.multiTenantEnabled {
+		return finalizer.delegate.Finalize(ctx, envelope)
+	}
+
+	tenantID := tmcore.GetTenantIDContext(ctx)
+	if tenantID == "" || envelope == nil || envelope.TenantID != tenantID {
+		return fmt.Errorf("balance recovery requires matching authenticated tenant context")
+	}
+
+	if finalizer.mongoResolver == nil {
+		return fmt.Errorf("balance recovery tenant Mongo resolver is not configured")
+	}
+
+	database, err := finalizer.mongoResolver.GetDatabaseForTenant(ctx, tenantID)
+	if err != nil {
+		return fmt.Errorf("resolve balance recovery tenant Mongo database: %w", err)
+	}
+
+	if database == nil {
+		return fmt.Errorf("balance recovery tenant Mongo database is unavailable")
+	}
+
+	ctx = tmcore.ContextWithMB(ctx, database)
+	ctx = tmcore.ContextWithMB(ctx, database, constant.ModuleTransaction)
+
+	return finalizer.delegate.Finalize(ctx, envelope)
 }
 
 func NewRedisQueueConsumer(logger libLog.Logger, cmd *command.UseCase, qry *query.UseCase) *RedisQueueConsumer {
@@ -335,16 +387,32 @@ Outer:
 			break Outer
 		}
 
-		var transaction mmodel.TransactionRedisQueue
-		if err := json.Unmarshal([]byte(message), &transaction); err != nil {
+		version, err := backupRecordVersion(message)
+		if err != nil {
+			r.handleInvalidBackupRecord(ctx, span, key, message, err)
+			continue
+		}
+
+		var (
+			transaction mmodel.TransactionRedisQueue
+			recovery    *command.BalanceEngineRecoveryEnvelope
+			ttl         time.Time
+		)
+		if version == command.BalanceEngineRecoveryVersion {
+			recovery, ttl, err = decodeRecoveryRecord(ctx, key, message)
+			if err != nil {
+				r.Logger.Log(ctx, libLog.LevelWarn, "Invalid version-two backup; record retained", libLog.String("redis_key", key), libLog.Err(err))
+				continue
+			}
+		} else if err := json.Unmarshal([]byte(message), &transaction); err != nil {
 			// Unmarshal failure: the payload did not parse, so the org/ledger/tx
 			// IDs must come from the field key. The raw string is the financial
 			// copy to quarantine.
 			r.Logger.Log(ctx, libLog.LevelWarn, "Error unmarshalling message from Redis", libLog.String("key", key), libLog.Err(err))
 
-			orgID, ledgerID, txID, parsed := parsePoisonKeyIDs(key)
+			orgID, ledgerID, txID, parsed := trustedLegacyBackupScope(ctx, key)
 			if !parsed {
-				r.Logger.Log(ctx, libLog.LevelError, "Unparseable backup record with unparseable key; cannot quarantine, left in backup queue",
+				r.Logger.Log(ctx, libLog.LevelError, "Unparseable backup record without trusted key scope; cannot quarantine, left in backup queue",
 					libLog.String("redis_key", key))
 
 				continue
@@ -355,11 +423,15 @@ Outer:
 			continue
 		}
 
-		if oldestTTL.IsZero() || transaction.TTL.Before(oldestTTL) {
-			oldestTTL = transaction.TTL
+		if recovery == nil {
+			ttl = transaction.TTL
 		}
 
-		if transaction.TTL.Unix() > time.Now().Add(-MessageTimeOfLife*time.Minute).Unix() {
+		if oldestTTL.IsZero() || ttl.Before(oldestTTL) {
+			oldestTTL = ttl
+		}
+
+		if !backupRecordEligible(ttl, time.Now()) {
 			totalMessagesLessThanOneHour++
 			continue
 		}
@@ -381,7 +453,11 @@ Outer:
 					wg.Done()
 				}()
 
-				r.processMessage(ctx, key, message, transaction)
+				if recovery != nil {
+					r.processRecoveryRecord(ctx, key, message, recovery)
+				} else {
+					r.processMessage(ctx, key, message, transaction)
+				}
 			})
 	}
 

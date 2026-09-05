@@ -39,6 +39,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	postgresRecovery "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/recovery"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
@@ -1152,9 +1153,21 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		redisConsumer = NewRedisQueueConsumer(logger, commandUseCase, queryUseCase)
 	}
 
+	recoveryFinalizer := &tenantRecoveryFinalizer{
+		delegate: command.NewBalanceEngineFinalizer(
+			postgresRecovery.NewStore(commandUseCase.TransactionRepo, commandUseCase.OperationRepo),
+			commandUseCase.TransactionMetadataRepo,
+		),
+		multiTenantEnabled: cfg.MultiTenantEnabled,
+	}
+	if txnMgo.mongoManager != nil {
+		recoveryFinalizer.mongoResolver = txnMgo.mongoManager
+	}
+
 	// The quarantine repository is the durable sink for poison backup records;
 	// the metrics factory powers the backup-queue observability gauges/counter.
 	redisConsumer.
+		WithBalanceEngineFinalizer(recoveryFinalizer).
 		WithQuarantineRepository(txnPG.quarantineRepo).
 		WithMetricsFactory(metricsFactory)
 
