@@ -33,6 +33,26 @@ func (p *countingProvider) GetClient(context.Context) (redis.UniversalClient, er
 	return nil, errors.New("unexpected provider access")
 }
 
+func TestTechnicalError_NeutralClassificationPreservesCause(t *testing.T) {
+	cause := errors.New("redis unavailable")
+
+	confirmed := &TechnicalError{Code: "execution_guard_conflict", Err: cause}
+	require.Equal(t, "execution_guard_conflict", confirmed.EngineFailureCode())
+	require.False(t, confirmed.OutcomeIndeterminate())
+	require.True(t, errors.Is(confirmed, cause))
+
+	uncertain := &TechnicalError{Code: "execution_outcome_unknown", Indeterminate: true, Err: cause}
+	require.Equal(t, "execution_outcome_unknown", uncertain.EngineFailureCode())
+	require.True(t, uncertain.OutcomeIndeterminate())
+	var classified *TechnicalError
+	require.True(t, errors.As(uncertain, &classified))
+	require.Same(t, uncertain, classified)
+
+	var nilError *TechnicalError
+	require.Empty(t, nilError.EngineFailureCode())
+	require.False(t, nilError.OutcomeIndeterminate())
+}
+
 func adapterResultFixture(t *testing.T) (core.Request, resultEnvelope) {
 	t.Helper()
 	var request core.Request

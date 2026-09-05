@@ -65,6 +65,22 @@ func (e *TechnicalError) Unwrap() error {
 	return e.Err
 }
 
+// EngineFailureCode exposes the stable technical classification without
+// requiring callers to depend on this adapter's concrete error type.
+func (e *TechnicalError) EngineFailureCode() string {
+	if e == nil {
+		return ""
+	}
+
+	return e.Code
+}
+
+// OutcomeIndeterminate reports whether execution may have committed despite
+// returning an error.
+func (e *TechnicalError) OutcomeIndeterminate() bool {
+	return e != nil && e.Indeterminate
+}
+
 // NewAdapter requires explicit operational limits and does not alter a shared client.
 func NewAdapter(provider RedisClientProvider, limits Limits) (*Adapter, error) {
 	if provider == nil || (reflect.ValueOf(provider).Kind() == reflect.Pointer && reflect.ValueOf(provider).IsNil()) || limits.MaxPreparedBytes <= 0 || limits.MaxRequestBytes <= 0 || limits.MaxTransactions <= 0 || limits.MaxPostings <= 0 || limits.MaxBalances <= 0 || limits.MaxRecoveryBytes <= 0 {
