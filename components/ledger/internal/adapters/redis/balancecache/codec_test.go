@@ -7,6 +7,7 @@ package balancecache
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"testing"
@@ -148,6 +149,112 @@ func TestCodecNoncanonicalLimitRequiresExplicitRepair(t *testing.T) {
 			require.ErrorAs(t, err, &noncanonical)
 			require.Equal(t, value, noncanonical.Raw)
 			require.Equal(t, decimal.RequireFromString(value).String(), noncanonical.Canonical)
+			require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+		})
+	}
+}
+
+func TestCodecDecodeForReadNormalizesNoncanonicalLimitWithoutMutatingRaw(t *testing.T) {
+	for _, value := range []string{"1E+3", "1000.00", "+1000"} {
+		t.Run(value, func(t *testing.T) {
+			raw := []byte(`{"SchemaVersion":2,"ID":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","AccountType":"deposit","AssetCode":"USD","Alias":"@source","Key":"default","Direction":"credit","BalanceScope":"transactional","Available":"10","OnHold":"0","OverdraftUsed":"0","Version":7,"AllowSending":1,"AllowReceiving":1,"AllowOverdraft":1,"OverdraftLimitEnabled":1,"OverdraftLimit":"` + value + `"}`)
+			before := append([]byte(nil), raw...)
+			snapshot, err := DecodeForRead(raw)
+			require.NoError(t, err)
+			require.True(t, snapshot.OverdraftLimit.Equal(decimal.NewFromInt(1000)))
+			require.Equal(t, before, raw)
+		})
+	}
+}
+
+func TestCodecDecodeForReadLegacyAuthoritativeValueWins(t *testing.T) {
+	raw := []byte(`{"SchemaVersion":2,"ID":"00000000-0000-0000-0000-000000000001","id":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","accountId":"00000000-0000-0000-0000-000000000002","AccountType":"deposit","accountType":"deposit","AssetCode":"USD","assetCode":"USD","Alias":"@source","alias":"@source","Key":"default","key":"default","Available":"10","available":"20","OnHold":"0","onHold":"0","Version":7,"version":"8","AllowSending":1,"allowSending":false,"AllowReceiving":1,"allowReceiving":true,"AllowOverdraft":1,"allowOverdraft":false,"OverdraftLimitEnabled":1,"overdraftLimitEnabled":true,"OverdraftLimit":"1000.00","overdraftLimit":"2000","Direction":"credit","direction":"credit","BalanceScope":"transactional","balanceScope":"transactional","OverdraftUsed":"0","overdraftUsed":"0"}`)
+	snapshot, err := DecodeForRead(raw)
+	require.NoError(t, err)
+	require.True(t, snapshot.Available.Equal(decimal.NewFromInt(10)))
+	require.EqualValues(t, 7, snapshot.Version)
+	require.True(t, snapshot.AllowOverdraft)
+	require.True(t, snapshot.OverdraftLimit.Equal(decimal.NewFromInt(1000)))
+}
+
+func TestCodecDecodeForReadRejectsMalformedAuthoritativeLimit(t *testing.T) {
+	raw := []byte(`{"SchemaVersion":2,"ID":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","AccountType":"deposit","AssetCode":"USD","Alias":"@source","Key":"default","Available":"10","OnHold":"0","Version":7,"AllowSending":1,"AllowReceiving":1,"AllowOverdraft":1,"OverdraftLimitEnabled":1,"OverdraftLimit":"bad","overdraftLimit":"1000"}`)
+	snapshot, err := DecodeForRead(raw)
+	require.Error(t, err)
+	require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+}
+
+func TestCodecDecodeForReadRejectsNegativeAndInvalidLimits(t *testing.T) {
+	for _, value := range []string{"-1", "NaN", "bad"} {
+		t.Run(value, func(t *testing.T) {
+			raw := []byte(fmt.Sprintf(`{"SchemaVersion":2,"ID":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","AccountType":"deposit","AssetCode":"USD","Alias":"@source","Key":"default","Available":"10","OnHold":"0","Version":7,"AllowSending":1,"AllowReceiving":1,"AllowOverdraft":1,"OverdraftLimitEnabled":1,"OverdraftLimit":%q}`, value))
+			for _, decode := range []func([]byte) (engine.BalanceSnapshot, error){Decode, DecodeForRead} {
+				snapshot, err := decode(raw)
+				require.Error(t, err)
+				require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+			}
+		})
+	}
+}
+
+func TestCodecDecodeForReadNormalizesNewOnlyNoncanonicalLimit(t *testing.T) {
+	raw := []byte(`{"SchemaVersion":2,"id":"00000000-0000-0000-0000-000000000001","accountId":"00000000-0000-0000-0000-000000000002","accountType":"deposit","assetCode":"USD","alias":"@source","key":"default","direction":"credit","balanceScope":"transactional","available":"10","onHold":"0","overdraftUsed":"0","version":"7","allowSending":true,"allowReceiving":true,"allowOverdraft":true,"overdraftLimitEnabled":true,"overdraftLimit":"1000.00"}`)
+	snapshot, err := DecodeForRead(raw)
+	require.NoError(t, err)
+	require.True(t, snapshot.OverdraftLimit.Equal(decimal.NewFromInt(1000)))
+	_, err = Decode(raw)
+	var noncanonical *NoncanonicalLimitError
+	require.ErrorAs(t, err, &noncanonical)
+}
+
+const legacyBalanceRedisFixture = `{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","alias":"","key":"","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"direction":"","overdraftUsed":"","allowOverdraft":0,"overdraftLimitEnabled":0,"overdraftLimit":"","balanceScope":""}`
+
+func TestCodecDecodeForReadHistoricalBalanceRedisShape(t *testing.T) {
+	snapshot, err := DecodeForRead([]byte(legacyBalanceRedisFixture))
+	require.NoError(t, err)
+	require.Equal(t, "default", snapshot.Key)
+	require.True(t, snapshot.Available.Equal(decimal.NewFromInt(100)))
+	require.True(t, snapshot.OnHold.IsZero())
+	require.True(t, snapshot.OverdraftUsed.IsZero())
+	require.True(t, snapshot.OverdraftLimit.IsZero())
+	require.True(t, snapshot.AllowSending)
+	require.True(t, snapshot.AllowReceiving)
+	_, err = Decode([]byte(legacyBalanceRedisFixture))
+	require.Error(t, err)
+}
+
+func TestCodecDecodeForReadHistoricalShapeUppercaseSettingsAreAuthoritative(t *testing.T) {
+	raw := []byte(`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"allowOverdraft":0,"overdraftLimitEnabled":0,"overdraftLimit":"0","AllowOverdraft":1,"OverdraftLimitEnabled":1,"OverdraftLimit":"1000.00"}`)
+	snapshot, err := DecodeForRead(raw)
+	require.NoError(t, err)
+	require.True(t, snapshot.AllowOverdraft)
+	require.True(t, snapshot.OverdraftLimit.Equal(decimal.NewFromInt(1000)))
+}
+
+func TestCodecDecodeForReadHistoricalShapeRejectsWrongTypesAndBadAuthority(t *testing.T) {
+	for _, raw := range []string{
+		`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":"1","accountType":"deposit","allowSending":true,"allowReceiving":1}`,
+		`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"overdraftLimit":"0","OverdraftLimit":"bad"}`,
+	} {
+		snapshot, err := DecodeForRead([]byte(raw))
+		require.Error(t, err)
+		require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+	}
+}
+
+func TestCodecDecodeForReadHistoricalShapeRejectsEmptyUppercaseAuthority(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		field string
+	}{
+		{name: "Alias", field: `,"Alias":""`},
+		{name: "OverdraftUsed", field: `,"OverdraftUsed":""`},
+		{name: "OverdraftLimit", field: `,"OverdraftLimit":""`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := []byte(fmt.Sprintf(`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","alias":"@source","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"overdraftUsed":"0","overdraftLimit":"0"%s}`, tc.field))
+			snapshot, err := DecodeForRead(raw)
+			require.Error(t, err)
 			require.Equal(t, engine.BalanceSnapshot{}, snapshot)
 		})
 	}

@@ -114,8 +114,10 @@ func decodeObject(raw []byte) (map[string]json.RawMessage, error) {
 }
 
 type fieldReader struct {
-	fields map[string]json.RawMessage
-	err    error
+	fields                 map[string]json.RawMessage
+	err                    error
+	allowNoncanonicalLimit bool
+	legacyReadShape        bool
 }
 
 func (r *fieldReader) value(name string) (json.RawMessage, bool, bool) {
@@ -154,7 +156,7 @@ func (r *fieldReader) flag(name string, optional bool) bool {
 		return false
 	}
 
-	if legacy {
+	if legacy || r.legacyReadShape {
 		if string(raw) == "0" || string(raw) == "1" {
 			return string(raw) == "1"
 		}
@@ -170,6 +172,11 @@ func (r *fieldReader) flag(name string, optional bool) bool {
 func (r *fieldReader) money(name string, optional bool) decimal.Decimal {
 	value := r.text(name, "0", optional)
 
+	_, _, uppercase := r.value(name)
+	if r.legacyReadShape && !uppercase && (name == "OverdraftUsed" || name == "OverdraftLimit") && value == "" {
+		return decimal.Zero
+	}
+
 	parsed, err := decimal.NewFromString(value)
 	if err != nil {
 		r.invalid(name)
@@ -177,6 +184,10 @@ func (r *fieldReader) money(name string, optional bool) decimal.Decimal {
 	}
 
 	if parsed.String() != value {
+		if name == "OverdraftLimit" && r.allowNoncanonicalLimit && r.err == nil {
+			return parsed
+		}
+
 		if name == "OverdraftLimit" && r.err == nil {
 			r.err = &NoncanonicalLimitError{Raw: value, Canonical: parsed.String()}
 		} else {
@@ -195,7 +206,7 @@ func (r *fieldReader) version() int64 {
 	}
 
 	text := string(raw)
-	if !legacy {
+	if !legacy && !r.legacyReadShape {
 		text = r.text("Version", "", false)
 	}
 
@@ -215,6 +226,29 @@ func (r *fieldReader) version() int64 {
 // callers must match ID, AccountID, Key and asset against trusted request scope
 // before completing that logical identity. New-only blobs require an alias.
 func Decode(raw []byte) (engine.BalanceSnapshot, error) {
+	return decode(raw, false)
+}
+
+// DecodeForRead decodes a cache entry for read-only projection. A valid but
+// noncanonical OverdraftLimit is normalized in the returned snapshot; raw is
+// never modified. Mutating cache paths must use strict Decode plus conditional
+// repair rather than this projection.
+func DecodeForRead(raw []byte) (engine.BalanceSnapshot, error) {
+	return decode(raw, true)
+}
+
+func detectLegacyReadShape(fields map[string]json.RawMessage, enabled bool) (bool, error) {
+	legacy := enabled && fields["SchemaVersion"] == nil && fields["ID"] == nil
+	if legacy {
+		if _, exists := fields["id"]; !exists {
+			return false, errors.New("legacy balance cache requires id")
+		}
+	}
+
+	return legacy, nil
+}
+
+func decode(raw []byte, allowNoncanonicalLimit bool) (engine.BalanceSnapshot, error) {
 	fields, err := decodeObject(raw)
 	if err != nil {
 		return engine.BalanceSnapshot{}, err
@@ -224,16 +258,21 @@ func Decode(raw []byte) (engine.BalanceSnapshot, error) {
 		return engine.BalanceSnapshot{}, errors.New("unsupported balance cache schema version")
 	}
 
-	if _, legacy := fields["ID"]; !legacy {
+	legacyReadShape, err := detectLegacyReadShape(fields, allowNoncanonicalLimit)
+	if err != nil {
+		return engine.BalanceSnapshot{}, err
+	}
+
+	if _, legacy := fields["ID"]; !legacy && !legacyReadShape {
 		if _, versioned := fields["SchemaVersion"]; !versioned {
 			return engine.BalanceSnapshot{}, errors.New("new balance cache fields require schema version")
 		}
 	}
 
-	r := fieldReader{fields: fields}
-	_, aliasExists, _ := r.value("Alias")
+	r := fieldReader{fields: fields, allowNoncanonicalLimit: allowNoncanonicalLimit, legacyReadShape: legacyReadShape}
+	_, aliasExists, aliasUppercase := r.value("Alias")
 	_, legacyIdentity := fields["ID"]
-	missingLegacyAlias := legacyIdentity && !aliasExists
+	missingLegacyAlias := (legacyIdentity && !aliasExists) || (legacyReadShape && !aliasUppercase)
 	id, idErr := uuid.Parse(r.text("ID", "", false))
 
 	accountID, accountErr := uuid.Parse(r.text("AccountID", "", false))
