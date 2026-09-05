@@ -9,16 +9,18 @@ warm-cache repair protect that path independently of the new contract.
 
 The posting Lua implementation and Redis adapter, dual-format cache codec, and
 typed version-2 recovery payload/projector are implemented and tested foundations.
-They are not connected to transaction execution, bootstrap activation, or a
-compatible production recovery consumer. Existing writers have not all migrated
-to the dual codec. The adapter accepts concrete `*redis.Client` connections;
+The compatible recovery consumer is wired in bootstrap to the real SQL store and
+MongoDB metadata repository. The posting engine remains disconnected from normal
+transaction execution; existing writers have not all migrated to the dual codec.
+Reader compatibility in code does not establish deployment to every consumer.
+The adapter accepts concrete `*redis.Client` connections;
 standalone execution is verified. Sentinel also supplies that concrete type,
 but its cloned-client failover and lifecycle behavior remains unverified.
 Configured Cluster connections are rejected before accounting is sent.
 
 No activation, request-limit defaults, or receipt/guard retention policy is
-implicitly supplied by these foundations. Consumer-first integration, measured
-limits, observability, persistence, and retention gates below remain mandatory.
+implicitly supplied by these foundations. Consumer-first deployment, measured
+limits, observability, normal-path integration, and retention gates below remain mandatory.
 The current work does not switch transaction execution or change the HTTP API.
 
 The boundary separates transaction processing from balance arithmetic while
@@ -393,7 +395,13 @@ The frozen Go payload preserves `header_id`, `transaction_id`, `organization_id`
 `ledger_id`, normalized `parserDSL` including resolved fees, `ttl`, `validate`,
 `transaction_status`, `action`, `transaction_date`, and projection context keyed
 by stable PostingRef. It also preserves `parentTransactionId`, `feesSkipped`, and
-`tracerSkipped`. The payload is an opaque JSON string in the outer envelope;
+`tracerSkipped`. Three required timestamps, `transactionCreatedAt`,
+`transactionUpdatedAt`, and `operationUpdatedAt`, preserve the exact row dates and
+participate in the immutable fingerprint. `transaction_date` remains the action
+date and supplies Operation.CreatedAt; it must not replace the transaction's
+original creation date during commitment or cancellation. A backdated action does
+not imply a backdated operation update timestamp.
+The payload is an opaque JSON string in the outer envelope;
 strict decoding rejects duplicate keys, unknown fields, and scope drift.
 Freeze route decisions and metadata required for replay;
 do not make current route/settings lookups prerequisites for recovery. Do not
@@ -426,12 +434,37 @@ with recovery workers before activation; absence of that policy blocks enablemen
 - Confirmed balance application followed by projection/database/publication
   failure: finalize the same recorded result without reapplying postings.
 
-The compatible consumer dispatches explicitly by format version. Legacy records
-use materialized Operations when present and otherwise an isolated historical
-projection fallback. Version 2 uses the frozen context and real result through
-the shared projector, never EVAL or recalculation from current balances. Unknown
-versions and malformed payloads follow technical retry/quarantine handling.
-Acknowledge only after confirmed persistence, preserving tenant isolation.
+### Compatible recovery consumer
+
+The bootstrap-wired consumer selects the existing legacy path only when
+`formatVersion` is absent from a complete JSON object. Explicit unsupported,
+duplicate, or ambiguously cased versions never fall back to legacy decoding.
+Malformed legacy records enter quarantine only when their canonical physical
+field matches the authenticated tenant scope. Untrusted fields remain untouched.
+Invalid version-2 records are retained rather than passed to legacy processing.
+
+Version 2 validates envelope scope and the exact raw
+`transactionUUID:executionUUID` field before finalization. It uses frozen context
+and real movements through the shared projector, never EVAL or current balance,
+route, or settings queries. In multi-tenant operation, only this path resolves
+MongoDB under the existing per-message deadline and binds both generic and
+transaction-module database contexts. Missing tenant, resolver, or database and
+resolution failures stop before durable finalization; they never select a
+single-tenant metadata fallback. Legacy tenant-readiness rules remain unchanged.
+
+The concrete finalizer persists or verifies transaction and operation rows
+atomically in the existing PostgreSQL tables, then creates or verifies metadata
+in MongoDB. Existing metadata is never overwritten to force replay equivalence.
+A late pending-hold record after terminal completion is accepted only when every
+historical row already exists exactly; it cannot insert old rows or regress the
+terminal transaction. Persistence conflicts retain the backup.
+
+Only after SQL and metadata verification succeeds does the consumer request an
+atomic comparison of the exact original envelope bytes and deletion of its raw
+backup field. A matching attempt counter is cleared in that same operation.
+Missing records are already acknowledged; replacements and failed or unknown
+acknowledgments are not reported as successful deletion. Receipt and guard data
+are not deleted, and this acknowledgment assigns no retention or TTL defaults.
 
 ## Compatibility changes and activation gates
 
@@ -442,6 +475,9 @@ underflow must reject before writes instead of continuing with incomplete or
 corrupt state. Cover these separately from valid-flow compatibility fixtures.
 Expanded CAS also changes concurrency detection while retaining final code 0174.
 Never regenerate expected rows merely to make a regression pass.
+
+The compatible reader is implemented, but no rollout has been performed or
+verified across all consumers. New accounting writers remain inactive.
 
 Activation has a consumer-first sequence:
 
