@@ -76,25 +76,30 @@ type FrozenProjectionContext struct {
 // BalanceEngineRecoveryPayload freezes Go processing decisions before execution.
 // TransactionInput includes resolved fees. Validate is retained for compatibility,
 // but neither its split amounts nor Balance snapshots determine engine arithmetic.
+// TransactionDate fixes the action/operation creation date. The other timestamps
+// preserve the original transaction creation and separately captured updates.
 type BalanceEngineRecoveryPayload struct {
-	FormatVersion       int                       `json:"formatVersion"`
-	TenantID            string                    `json:"tenantId"`
-	HeaderID            string                    `json:"header_id"`
-	TransactionID       uuid.UUID                 `json:"transaction_id"`
-	ParentTransactionID *uuid.UUID                `json:"parentTransactionId"`
-	FeesSkipped         bool                      `json:"feesSkipped"`
-	TracerSkipped       bool                      `json:"tracerSkipped"`
-	OrganizationID      uuid.UUID                 `json:"organization_id"`
-	LedgerID            uuid.UUID                 `json:"ledger_id"`
-	ExecutionID         uuid.UUID                 `json:"executionId"`
-	IntentFingerprint   string                    `json:"intentFingerprint"`
-	TransactionInput    mtransaction.Transaction  `json:"parserDSL"`
-	TTL                 time.Time                 `json:"ttl"`
-	Validate            *mtransaction.Responses   `json:"validate"`
-	TransactionStatus   string                    `json:"transaction_status"`
-	Action              string                    `json:"action"`
-	TransactionDate     time.Time                 `json:"transaction_date"`
-	Projection          []FrozenProjectionContext `json:"projection"`
+	FormatVersion        int                       `json:"formatVersion"`
+	TenantID             string                    `json:"tenantId"`
+	HeaderID             string                    `json:"header_id"`
+	TransactionID        uuid.UUID                 `json:"transaction_id"`
+	ParentTransactionID  *uuid.UUID                `json:"parentTransactionId"`
+	FeesSkipped          bool                      `json:"feesSkipped"`
+	TracerSkipped        bool                      `json:"tracerSkipped"`
+	OrganizationID       uuid.UUID                 `json:"organization_id"`
+	LedgerID             uuid.UUID                 `json:"ledger_id"`
+	ExecutionID          uuid.UUID                 `json:"executionId"`
+	IntentFingerprint    string                    `json:"intentFingerprint"`
+	TransactionInput     mtransaction.Transaction  `json:"parserDSL"`
+	TTL                  time.Time                 `json:"ttl"`
+	Validate             *mtransaction.Responses   `json:"validate"`
+	TransactionStatus    string                    `json:"transaction_status"`
+	Action               string                    `json:"action"`
+	TransactionDate      time.Time                 `json:"transaction_date"`
+	TransactionCreatedAt time.Time                 `json:"transactionCreatedAt"`
+	TransactionUpdatedAt time.Time                 `json:"transactionUpdatedAt"`
+	OperationUpdatedAt   time.Time                 `json:"operationUpdatedAt"`
+	Projection           []FrozenProjectionContext `json:"projection"`
 }
 
 // BalanceEngineRecoveryEnvelope stores one transaction's actual executed result.
@@ -114,16 +119,19 @@ type BalanceEngineRecoveryEnvelope struct {
 // BalanceEngineTransactionIntent contains only immutable intent, not calculated
 // postings, validation output, balance seeds, guards, or overdraft splits.
 type BalanceEngineTransactionIntent struct {
-	TransactionID       uuid.UUID                `json:"transactionId"`
-	ParentTransactionID *uuid.UUID               `json:"parentTransactionId"`
-	FeesSkipped         bool                     `json:"feesSkipped"`
-	TracerSkipped       bool                     `json:"tracerSkipped"`
-	Action              string                   `json:"action"`
-	TransactionStatus   string                   `json:"transactionStatus"`
-	TransactionDate     time.Time                `json:"transactionDate"`
-	Input               mtransaction.Transaction `json:"input"`
-	PostingRefs         []string                 `json:"postingRefs"`
-	Projection          []FrozenProjectionIntent `json:"projection"`
+	TransactionID        uuid.UUID                `json:"transactionId"`
+	ParentTransactionID  *uuid.UUID               `json:"parentTransactionId"`
+	FeesSkipped          bool                     `json:"feesSkipped"`
+	TracerSkipped        bool                     `json:"tracerSkipped"`
+	Action               string                   `json:"action"`
+	TransactionStatus    string                   `json:"transactionStatus"`
+	TransactionDate      time.Time                `json:"transactionDate"`
+	TransactionCreatedAt time.Time                `json:"transactionCreatedAt"`
+	TransactionUpdatedAt time.Time                `json:"transactionUpdatedAt"`
+	OperationUpdatedAt   time.Time                `json:"operationUpdatedAt"`
+	Input                mtransaction.Transaction `json:"input"`
+	PostingRefs          []string                 `json:"postingRefs"`
+	Projection           []FrozenProjectionIntent `json:"projection"`
 }
 
 // FrozenProjectionIntent fingerprints immutable row decisions without carrying
@@ -179,8 +187,12 @@ func ComputeBalanceEngineIntentFingerprint(intent BalanceEngineIntent) (string, 
 	seen := make(map[uuid.UUID]bool, len(intent.Transactions))
 
 	for index, transaction := range intent.Transactions {
-		if transaction.TransactionID == uuid.Nil || seen[transaction.TransactionID] || transaction.Action == "" || transaction.TransactionDate.IsZero() {
+		if transaction.TransactionID == uuid.Nil || seen[transaction.TransactionID] || transaction.Action == "" {
 			return "", invalidRecovery("invalid transaction intention")
+		}
+
+		if !validFrozenTimestamps(transaction.TransactionDate, transaction.TransactionCreatedAt, transaction.TransactionUpdatedAt, transaction.OperationUpdatedAt) {
+			return "", invalidRecovery("missing frozen intention timestamps")
 		}
 
 		if !validRecoveryParent(transaction.TransactionID, transaction.ParentTransactionID) {
@@ -403,6 +415,7 @@ func recoveryTransactionIntent(transaction engine.Transaction, payload BalanceEn
 		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID,
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
+		TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
 		PostingRefs: make([]string, 0, len(transaction.Postings)), Projection: make([]FrozenProjectionIntent, 0, len(payload.Projection)),
 	}
 	for _, posting := range transaction.Postings {
@@ -512,8 +525,12 @@ func validateRecoveryPayload(payload BalanceEngineRecoveryPayload) error {
 		return invalidRecovery("invalid parent transaction identity")
 	}
 
-	if payload.TransactionDate.IsZero() || payload.TTL.IsZero() || payload.Action == "" || payload.TransactionStatus == "" || payload.Projection == nil {
+	if payload.TTL.IsZero() || payload.Action == "" || payload.TransactionStatus == "" || payload.Projection == nil {
 		return invalidRecovery("missing frozen transaction context")
+	}
+
+	if !validFrozenTimestamps(payload.TransactionDate, payload.TransactionCreatedAt, payload.TransactionUpdatedAt, payload.OperationUpdatedAt) {
+		return invalidRecovery("missing frozen transaction timestamps")
 	}
 
 	seen := make(map[uuid.UUID]bool, len(payload.Projection))
@@ -536,6 +553,10 @@ func validateRecoveryPayload(payload BalanceEngineRecoveryPayload) error {
 	}
 
 	return validateProjectionAttribution(contexts)
+}
+
+func validFrozenTimestamps(action, created, updated, operationUpdated time.Time) bool {
+	return !action.IsZero() && !created.IsZero() && !updated.IsZero() && !operationUpdated.IsZero()
 }
 
 func validateFrozenProjection(payload BalanceEngineRecoveryPayload, projection FrozenProjectionContext) error {

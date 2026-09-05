@@ -30,6 +30,7 @@ func recoveryContractFixture(t *testing.T) (BalanceEngineRecoveryPayload, engine
 		OrganizationID: uuid.MustParse("33333333-3333-4333-8333-333333333333"), LedgerID: uuid.MustParse("44444444-4444-4444-8444-444444444444"),
 		TransactionID: uuid.MustParse("66666666-6666-4666-8666-666666666666"), ExecutionID: uuid.MustParse("88888888-8888-4888-8888-888888888888"),
 		TransactionDate: date, TTL: date.Add(time.Hour), TransactionStatus: constant.APPROVED, Action: "direct",
+		TransactionCreatedAt: date, TransactionUpdatedAt: date, OperationUpdatedAt: date,
 		TransactionInput: mtransaction.Transaction{Description: "original intent", Send: mtransaction.Send{Asset: "USD", Value: decimal.NewFromInt(30)}},
 		Validate:         &mtransaction.Responses{From: map[string]mtransaction.Amount{"@source": {Value: decimal.NewFromInt(30)}}},
 	}
@@ -70,6 +71,7 @@ func recoveryContractIntent(payload BalanceEngineRecoveryPayload) BalanceEngineI
 			TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
 			ParentTransactionID: payload.ParentTransactionID, FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped,
 			TransactionDate: payload.TransactionDate, Input: payload.TransactionInput, PostingRefs: refs, Projection: projection,
+			TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
 		}},
 	}
 }
@@ -159,7 +161,7 @@ func TestBalanceEngineRecoveryRoundTripAndProjection(t *testing.T) {
 	assert.Equal(t, string(normalJSON), string(replayJSON))
 	require.Len(t, normal, 1)
 	assert.Equal(t, "DEBIT-USD", *normal[0].RouteCode)
-	assert.Equal(t, payload.TransactionDate, normal[0].UpdatedAt)
+	assert.Equal(t, payload.OperationUpdatedAt, normal[0].UpdatedAt)
 	assert.Equal(t, rowContractGolden{
 		constant.DEBIT, "@source", "default", "30", constant.DirectionDebit, *payload.Projection[0].RouteID,
 		rowContractState{"100", "0", "0", 0},
@@ -173,6 +175,78 @@ func TestBalanceEngineRecoveryRoundTripAndProjection(t *testing.T) {
 	*normal[0].RouteID = "changed"
 	assert.Equal(t, "transfer", payload.Projection[0].Metadata["purpose"])
 	assert.NotEqual(t, "changed", *payload.Projection[0].RouteID)
+}
+
+func TestBalanceEngineRecoveryFrozenLifecycleTimestamps(t *testing.T) {
+	payload, result := recoveryContractFixture(t)
+	payload.TransactionCreatedAt = payload.TransactionDate.Add(-48 * time.Hour)
+	payload.TransactionUpdatedAt = payload.TransactionDate.Add(time.Second)
+	payload.OperationUpdatedAt = payload.TransactionDate.Add(2 * time.Second)
+	var err error
+	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	require.NoError(t, err)
+	normal, err := ProjectBalanceEngineOperations(payload, result)
+	require.NoError(t, err)
+	require.Len(t, normal, 1)
+	assert.Equal(t, payload.TransactionDate, normal[0].CreatedAt)
+	assert.Equal(t, payload.OperationUpdatedAt, normal[0].UpdatedAt)
+	raw, err := EncodeBalanceEngineRecoveryPayload(payload)
+	require.NoError(t, err)
+	replayed, err := DecodeBalanceEngineRecoveryPayload(raw)
+	require.NoError(t, err)
+	assert.Equal(t, payload.TransactionCreatedAt, replayed.TransactionCreatedAt)
+	assert.Equal(t, payload.TransactionUpdatedAt, replayed.TransactionUpdatedAt)
+	assert.Equal(t, payload.OperationUpdatedAt, replayed.OperationUpdatedAt)
+	// Delivery time is not an input to projection, including delayed recovery.
+	replayed.TTL = replayed.TTL.Add(7 * 24 * time.Hour)
+	replay, err := ProjectBalanceEngineOperations(*replayed, result)
+	require.NoError(t, err)
+	assert.Equal(t, normal, replay)
+}
+
+func TestBalanceEngineRecoveryRequiresFrozenTimestamps(t *testing.T) {
+	payload, _ := recoveryContractFixture(t)
+	encoded, err := EncodeBalanceEngineRecoveryPayload(payload)
+	require.NoError(t, err)
+	for _, name := range []string{"transactionCreatedAt", "transactionUpdatedAt", "operationUpdatedAt"} {
+		for _, value := range []string{"", "null", `"0001-01-01T00:00:00Z"`} {
+			t.Run(name+"/"+value, func(t *testing.T) {
+				var fields map[string]json.RawMessage
+				require.NoError(t, json.Unmarshal(encoded, &fields))
+				if value == "" {
+					delete(fields, name)
+				} else {
+					fields[name] = json.RawMessage(value)
+				}
+				raw, err := json.Marshal(fields)
+				require.NoError(t, err)
+				_, err = DecodeBalanceEngineRecoveryPayload(raw)
+				require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+			})
+		}
+	}
+	for _, clear := range []func(*BalanceEngineTransactionIntent){
+		func(intent *BalanceEngineTransactionIntent) { intent.TransactionCreatedAt = time.Time{} },
+		func(intent *BalanceEngineTransactionIntent) { intent.TransactionUpdatedAt = time.Time{} },
+		func(intent *BalanceEngineTransactionIntent) { intent.OperationUpdatedAt = time.Time{} },
+	} {
+		intent := recoveryContractIntent(payload)
+		clear(&intent.Transactions[0])
+		_, err := ComputeBalanceEngineIntentFingerprint(intent)
+		require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+	}
+}
+
+func TestBalanceEngineRecoveryDoesNotOrderFrozenTimestamps(t *testing.T) {
+	payload, _ := recoveryContractFixture(t)
+	payload.TransactionCreatedAt = payload.TransactionDate.Add(time.Hour)
+	payload.TransactionUpdatedAt = payload.TransactionDate.Add(-time.Hour)
+	payload.OperationUpdatedAt = payload.TransactionDate.Add(-2 * time.Hour)
+	var err error
+	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	require.NoError(t, err)
+	_, err = EncodeBalanceEngineRecoveryPayload(payload)
+	require.NoError(t, err)
 }
 
 func TestBalanceEngineRecoveryStrictPayload(t *testing.T) {
@@ -273,6 +347,13 @@ func TestBalanceEngineRecoveryIntentFingerprint(t *testing.T) {
 		{"metadata", func(p *BalanceEngineRecoveryPayload) { p.Projection[0].Metadata["purpose"] = "other" }},
 		{"action", func(p *BalanceEngineRecoveryPayload) { p.Action = "cancel" }},
 		{"date", func(p *BalanceEngineRecoveryPayload) { p.TransactionDate = p.TransactionDate.Add(time.Second) }},
+		{"transaction created", func(p *BalanceEngineRecoveryPayload) {
+			p.TransactionCreatedAt = p.TransactionCreatedAt.Add(time.Second)
+		}},
+		{"transaction updated", func(p *BalanceEngineRecoveryPayload) {
+			p.TransactionUpdatedAt = p.TransactionUpdatedAt.Add(time.Second)
+		}},
+		{"operation updated", func(p *BalanceEngineRecoveryPayload) { p.OperationUpdatedAt = p.OperationUpdatedAt.Add(time.Second) }},
 		{"parent transaction", func(p *BalanceEngineRecoveryPayload) { parent := p.OrganizationID; p.ParentTransactionID = &parent }},
 		{"fees skipped", func(p *BalanceEngineRecoveryPayload) { p.FeesSkipped = true }},
 		{"tracer skipped", func(p *BalanceEngineRecoveryPayload) { p.TracerSkipped = true }},

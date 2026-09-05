@@ -84,7 +84,7 @@ func ProjectBalanceEngineOperations(payload BalanceEngineRecoveryPayload, result
 			AccountAlias: mtransaction.SplitAlias(context.Balance.Alias), AccountType: context.Balance.AccountType, BalanceKey: context.Balance.Key,
 			RouteID: routeID, RouteCode: projectedOptionalText(context.RouteCode), RouteDescription: projectedOptionalText(context.RouteDescription),
 			BalanceAffected: true, Direction: context.Direction,
-			CreatedAt: payload.TransactionDate, UpdatedAt: payload.TransactionDate,
+			CreatedAt: payload.TransactionDate, UpdatedAt: payload.OperationUpdatedAt,
 			Snapshot: mmodel.OperationSnapshot{OverdraftUsedBefore: lifecycle.Before.OverdraftUsed.String(), OverdraftUsedAfter: lifecycle.After.OverdraftUsed.String()},
 		})
 	}

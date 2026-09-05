@@ -69,6 +69,7 @@ func richAdapterExecution(t *testing.T) (command.EngineExecution, Limits) {
 	payload := command.BalanceEngineRecoveryPayload{
 		FormatVersion: 2, TransactionID: transaction.ID, OrganizationID: request.OrganizationID, LedgerID: request.LedgerID,
 		ExecutionID: request.ExecutionID, TTL: date.Add(24 * time.Hour), TransactionDate: date,
+		TransactionCreatedAt: date, TransactionUpdatedAt: date, OperationUpdatedAt: date,
 		Action: "CREATE", TransactionStatus: "APPROVED",
 		Projection: []command.FrozenProjectionContext{{
 			TransactionID: transaction.ID, PostingRef: transaction.Postings[0].Ref, BalanceRef: balance.BalanceRef, Role: core.RolePrimary,
@@ -89,6 +90,7 @@ func encodeAdapterRecovery(t *testing.T, input *command.EngineExecution, payload
 		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID,
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
+		TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
 		PostingRefs: make([]string, 0, len(input.Request.Transactions[0].Postings)),
 		Projection:  make([]command.FrozenProjectionIntent, 0, len(payload.Projection)),
 	}
