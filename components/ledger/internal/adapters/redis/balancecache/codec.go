@@ -13,21 +13,21 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 )
 
 const (
 	// TTL is the balance cache lifetime, independent of execution receipt retention.
-	TTL = 24 * time.Hour
+	TTL = cachepolicy.BalanceTTL
 	// HashTag keeps balance mutations in the existing transaction hash slot.
-	HashTag = "{transactions}"
+	HashTag = cachepolicy.HashTag
 	// DeletionMarkerSuffix identifies the guard adjacent to a balance cache key.
-	DeletionMarkerSuffix = ":deleted"
+	DeletionMarkerSuffix = cachepolicy.DeletionMarkerSuffix
 )
 
 // Format explicitly selects the fields emitted by a writer.
