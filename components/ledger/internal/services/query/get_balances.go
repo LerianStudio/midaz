@@ -6,7 +6,6 @@ package query
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
@@ -14,8 +13,8 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -139,8 +138,8 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 			continue
 		}
 
-		var b mmodel.BalanceRedis
-		if err = json.Unmarshal([]byte(value), &b); err != nil {
+		snapshot, err := balancecache.DecodeForRead([]byte(value))
+		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to deserialize cached balance", err)
 			logger.Log(ctx, libLog.LevelWarn, "Failed to deserialize cached balance, falling back to database", libLog.String("alias", alias), libLog.Err(err))
 
@@ -156,12 +155,12 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 			balanceKey = constant.DefaultBalanceKey
 		}
 
-		// OverdraftUsed is stored as a decimal string in the Lua/Redis layer.
-		// An unparseable value is treated as zero to match the Lua fallback
-		// rather than corrupting the domain model with an arbitrary number.
-		overdraftUsed, derr := decimal.NewFromString(b.OverdraftUsed)
-		if derr != nil {
-			overdraftUsed = decimal.Zero
+		if snapshot.Key != balanceKey || (snapshot.Alias != "" && snapshot.Alias != balanceAlias) {
+			logger.Log(ctx, libLog.LevelWarn, "Cached balance identity does not match requested balance, falling back to database", libLog.String("alias", alias))
+
+			misses = append(misses, alias)
+
+			continue
 		}
 
 		// Synthesize Settings only when at least one field diverges from the
@@ -171,40 +170,40 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 		// the same overdraft configuration whether the balance is read from
 		// the cache path (here) or returned from the Lua script.
 		var settings *mmodel.BalanceSettings
-		if b.AllowOverdraft != 0 || b.OverdraftLimitEnabled != 0 ||
-			(b.BalanceScope != "" && b.BalanceScope != mmodel.BalanceScopeTransactional) ||
-			(b.OverdraftLimit != "" && b.OverdraftLimit != "0") {
+		if snapshot.AllowOverdraft || snapshot.OverdraftLimitEnabled ||
+			(snapshot.BalanceScope != "" && snapshot.BalanceScope != mmodel.BalanceScopeTransactional) ||
+			!snapshot.OverdraftLimit.IsZero() {
 			settings = &mmodel.BalanceSettings{
-				BalanceScope:          b.BalanceScope,
-				AllowOverdraft:        b.AllowOverdraft == 1,
-				OverdraftLimitEnabled: b.OverdraftLimitEnabled == 1,
+				BalanceScope:          snapshot.BalanceScope,
+				AllowOverdraft:        snapshot.AllowOverdraft,
+				OverdraftLimitEnabled: snapshot.OverdraftLimitEnabled,
 			}
 			// Only expose OverdraftLimit when the limit is actively enforced.
 			// BalanceSettings.Validate() requires OverdraftLimit to be nil
 			// whenever OverdraftLimitEnabled is false.
-			if b.OverdraftLimitEnabled == 1 && b.OverdraftLimit != "" {
-				limit := b.OverdraftLimit
+			if snapshot.OverdraftLimitEnabled {
+				limit := snapshot.OverdraftLimit.String()
 				settings.OverdraftLimit = &limit
 			}
 		}
 
 		cached = append(cached, &mmodel.Balance{
-			ID:             b.ID,
-			AccountID:      b.AccountID,
+			ID:             snapshot.ID.String(),
+			AccountID:      snapshot.AccountID.String(),
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
 			Alias:          balanceAlias,
 			Key:            balanceKey,
-			Available:      b.Available,
-			OnHold:         b.OnHold,
-			Version:        b.Version,
-			AccountType:    b.AccountType,
-			AllowSending:   b.AllowSending == 1,
-			AllowReceiving: b.AllowReceiving == 1,
-			Blocked:        b.Blocked == 1,
-			AssetCode:      b.AssetCode,
-			Direction:      b.Direction,
-			OverdraftUsed:  overdraftUsed,
+			Available:      snapshot.Available,
+			OnHold:         snapshot.OnHold,
+			Version:        snapshot.Version,
+			AccountType:    snapshot.AccountType,
+			AllowSending:   snapshot.AllowSending,
+			AllowReceiving: snapshot.AllowReceiving,
+			Blocked:        snapshot.Blocked,
+			AssetCode:      snapshot.AssetCode,
+			Direction:      snapshot.Direction,
+			OverdraftUsed:  snapshot.OverdraftUsed,
 			Settings:       settings,
 		})
 	}

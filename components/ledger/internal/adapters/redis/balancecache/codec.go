@@ -54,7 +54,7 @@ func (e *NoncanonicalLimitError) Error() string {
 var fieldNames = []string{
 	"ID", "AccountID", "AccountType", "AssetCode", "Alias", "Key", "Direction", "BalanceScope",
 	"Available", "OnHold", "OverdraftUsed", "Version", "AllowSending", "AllowReceiving",
-	"AllowOverdraft", "OverdraftLimitEnabled", "OverdraftLimit",
+	"Blocked", "AllowOverdraft", "OverdraftLimitEnabled", "OverdraftLimit",
 }
 
 func lowerName(name string) string {
@@ -287,7 +287,7 @@ func decode(raw []byte, allowNoncanonicalLimit bool) (engine.BalanceSnapshot, er
 		Direction: r.text("Direction", "", true), BalanceScope: r.text("BalanceScope", "transactional", true),
 		Available: r.money("Available", false), OnHold: r.money("OnHold", false),
 		OverdraftUsed: r.money("OverdraftUsed", true), OverdraftLimit: r.money("OverdraftLimit", true),
-		Version: r.version(), AllowSending: r.flag("AllowSending", false), AllowReceiving: r.flag("AllowReceiving", false),
+		Version: r.version(), AllowSending: r.flag("AllowSending", false), AllowReceiving: r.flag("AllowReceiving", false), Blocked: r.flag("Blocked", true),
 		AllowOverdraft: r.flag("AllowOverdraft", true), OverdraftLimitEnabled: r.flag("OverdraftLimitEnabled", true),
 	}
 	if r.err != nil {
@@ -378,6 +378,7 @@ func Encode(snapshot engine.BalanceSnapshot, format Format) ([]byte, error) {
 		"overdraftUsed": snapshot.OverdraftUsed.String(), "overdraftLimit": snapshot.OverdraftLimit.String(),
 		"version":      strconv.FormatInt(snapshot.Version, 10),
 		"allowSending": snapshot.AllowSending, "allowReceiving": snapshot.AllowReceiving,
+		"blocked":        snapshot.Blocked,
 		"allowOverdraft": snapshot.AllowOverdraft, "overdraftLimitEnabled": snapshot.OverdraftLimitEnabled,
 	}
 

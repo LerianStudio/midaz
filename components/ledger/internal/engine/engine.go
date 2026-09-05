@@ -91,6 +91,7 @@ type BalanceSnapshot struct {
 	Version               int64           `json:"version"`
 	AllowSending          bool            `json:"allowSending"`
 	AllowReceiving        bool            `json:"allowReceiving"`
+	Blocked               bool            `json:"blocked"`
 	AllowOverdraft        bool            `json:"allowOverdraft"`
 	OverdraftLimitEnabled bool            `json:"overdraftLimitEnabled"`
 }

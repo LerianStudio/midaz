@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"testing"
 
@@ -187,6 +188,122 @@ func TestGetBalances(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, allBalances, 2)
 	})
+}
+
+func TestGetBalances_CacheProjection(t *testing.T) {
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	balanceID := uuid.New()
+	accountID := uuid.New()
+	alias := "@alice#default"
+
+	legacy := func(extra string) string {
+		return fmt.Sprintf(`{"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@alice","Key":"default","Available":"120","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1%s}`,
+			balanceID, accountID, extra)
+	}
+
+	tests := []struct {
+		name              string
+		cached            string
+		wantDatabase      bool
+		wantAvailable     decimal.Decimal
+		wantSettings      bool
+		wantLimit         string
+		wantLimitDisabled bool
+		wantBlocked       bool
+	}{
+		{
+			name: "legacy lower camel hit with missing logical identity",
+			cached: fmt.Sprintf(`{"id":%q,"alias":"","key":"","accountId":%q,"assetCode":"BRL","available":"120","onHold":"0","version":3,"accountType":"deposit","allowSending":1,"allowReceiving":1,"direction":"","overdraftUsed":"","allowOverdraft":0,"overdraftLimitEnabled":0,"overdraftLimit":"","balanceScope":""}`,
+				balanceID, accountID),
+			wantAvailable: decimal.NewFromInt(120),
+		},
+		{
+			name: "dual cache uses authoritative legacy fields",
+			cached: fmt.Sprintf(`{"SchemaVersion":2,"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@alice","Key":"default","Available":"120","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1,"id":%q,"accountId":%q,"accountType":"deposit","assetCode":"BRL","alias":"wrong","key":"other","available":"999","onHold":"9","version":"8","allowSending":false,"allowReceiving":false}`,
+				balanceID, accountID, uuid.New(), uuid.New()),
+			wantAvailable: decimal.NewFromInt(120),
+		},
+		{
+			name: "new only cache hit",
+			cached: fmt.Sprintf(`{"SchemaVersion":2,"id":%q,"accountId":%q,"accountType":"deposit","assetCode":"BRL","alias":"@alice","key":"default","direction":"credit","balanceScope":"transactional","available":"120","onHold":"0","overdraftUsed":"10","overdraftLimit":"0","version":"3","allowSending":true,"allowReceiving":true,"blocked":true,"allowOverdraft":false,"overdraftLimitEnabled":false}`,
+				balanceID, accountID),
+			wantAvailable: decimal.NewFromInt(120),
+			wantBlocked:   true,
+		},
+		{
+			name:          "valid noncanonical live limit is projected without fallback",
+			cached:        legacy(`,"Direction":"credit","OverdraftUsed":"10","AllowOverdraft":1,"OverdraftLimitEnabled":1,"OverdraftLimit":"1E3","BalanceScope":"transactional"`),
+			wantAvailable: decimal.NewFromInt(120),
+			wantSettings:  true,
+			wantLimit:     "1000",
+		},
+		{
+			name: "cached alias mismatch falls back",
+			cached: fmt.Sprintf(`{"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@mallory","Key":"default","Available":"120","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1}`,
+				balanceID, accountID),
+			wantDatabase:  true,
+			wantAvailable: decimal.NewFromInt(999),
+		},
+		{
+			name: "invalid authoritative decimal falls back",
+			cached: fmt.Sprintf(`{"SchemaVersion":2,"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@alice","Key":"default","Available":"invalid","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1,"id":%q,"accountId":%q,"accountType":"deposit","assetCode":"BRL","alias":"@alice","key":"default","available":"120","onHold":"0","version":"3","allowSending":true,"allowReceiving":true}`,
+				balanceID, accountID, balanceID, accountID),
+			wantDatabase:  true,
+			wantAvailable: decimal.NewFromInt(999),
+		},
+		{
+			name:              "disabled limit is omitted from settings",
+			cached:            legacy(`,"Direction":"credit","OverdraftUsed":"0","AllowOverdraft":1,"OverdraftLimitEnabled":0,"OverdraftLimit":"100","BalanceScope":"transactional"`),
+			wantAvailable:     decimal.NewFromInt(120),
+			wantSettings:      true,
+			wantLimitDisabled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockBalanceRepo := balance.NewMockRepository(ctrl)
+			mockAccountRepo := account.NewMockRepository(ctrl)
+			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+			uc := &UseCase{BalanceRepo: mockBalanceRepo, AccountRepo: mockAccountRepo, TransactionRedisRepo: mockRedisRepo}
+
+			internalKey := utils.BalanceInternalKey(organizationID, ledgerID, alias)
+			mockRedisRepo.EXPECT().Get(gomock.Any(), internalKey).Return(tt.cached, nil)
+
+			if tt.wantDatabase {
+				blocked := false
+				mockBalanceRepo.EXPECT().ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{alias}).
+					Return([]*mmodel.Balance{{Alias: "@alice", Key: "default", AccountID: accountID.String(), Available: decimal.NewFromInt(999)}}, nil)
+				mockAccountRepo.EXPECT().ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{accountID}).
+					Return([]*mmodel.Account{{ID: accountID.String(), Blocked: &blocked}}, nil)
+			}
+
+			balances, err := uc.GetBalances(context.Background(), organizationID, ledgerID, []string{alias})
+			assert.NoError(t, err)
+			if !assert.Len(t, balances, 1) {
+				return
+			}
+
+			got := balances[0]
+			assert.True(t, got.Available.Equal(tt.wantAvailable))
+			assert.Equal(t, tt.wantBlocked, got.Blocked)
+			if !tt.wantSettings {
+				assert.Nil(t, got.Settings)
+				return
+			}
+
+			if assert.NotNil(t, got.Settings) {
+				if tt.wantLimitDisabled {
+					assert.False(t, got.Settings.OverdraftLimitEnabled)
+					assert.Nil(t, got.Settings.OverdraftLimit)
+				} else if assert.NotNil(t, got.Settings.OverdraftLimit) {
+					assert.Equal(t, tt.wantLimit, *got.Settings.OverdraftLimit)
+				}
+			}
+		})
+	}
 }
 
 func TestGetBalancesFromCache(t *testing.T) {

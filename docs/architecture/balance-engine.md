@@ -192,6 +192,17 @@ cache extensions, so decode/encode alone does not preserve them. The Lua live
 writer preserves unrelated fields from the original blob, including exact
 numeric tokens. Payload limits still require explicit measured configuration.
 
+Mutating cache paths use strict decoding: a noncanonical overdraft limit is an
+explicit repair condition, not a value to normalize silently. `DecodeForRead`
+is a read-only projection that may normalize a valid noncanonical limit in
+memory and never performs Redis repair. It also accepts the historical,
+versionless lower-case `BalanceRedis` shape (integer flags, numeric Version, and
+empty legacy defaults) only for reads. In that shape, and in dual blobs,
+uppercase field presence remains authoritative, including when its value is
+invalid; lower-case values are not a fallback for malformed authoritative
+fields. Schema-version-2 new-only blobs retain the lower-case boolean and
+string representations and their existing validation rules.
+
 The migration uses an explicit field map:
 
 | Legacy field | New field |
@@ -478,6 +489,12 @@ Never regenerate expected rows merely to make a regression pass.
 
 The compatible reader is implemented, but no rollout has been performed or
 verified across all consumers. New accounting writers remain inactive.
+
+The active `GetBalances` query uses the read-only codec projection. It scopes
+cache keys to organization and ledger, verifies alias/key identity, and keeps
+the existing database fallback for cache misses, Redis errors, decode errors,
+and identity mismatches. Other consumer readers, converters, and writers are
+not migrated by this change; no new writer is activated.
 
 Activation has a consumer-first sequence:
 
