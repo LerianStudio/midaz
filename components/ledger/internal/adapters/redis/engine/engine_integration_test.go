@@ -24,11 +24,14 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
 //go:embed scripts/balance_engine.lua
-var integrationEngineLua string
+var integrationEngineLuaRaw string
+
+var integrationEngineLua = cachepolicy.LuaSource(integrationEngineLuaRaw)
 
 type integrationState struct {
 	Available     string `json:"available"`

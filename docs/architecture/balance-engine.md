@@ -242,6 +242,13 @@ only settings, preserving live money and Version. Cache-aside readers still need
 asset, permission, alias, and key fields for Go validation. Cache TTL, deletion
 marker construction, and hash tag must have a shared definition.
 
+The private root package `internal/cachepolicy` owns the shared balance-cache
+constants: a 24-hour balance TTL, the `{transactions}` Redis hash tag, and the
+`:deleted` deletion-marker suffix. Utility key builders, schedule and lock
+constants, command-layer marker construction, settings-related cache paths, and
+both legacy and new-engine code derive these values from that package. This is
+an internal ownership boundary, not a new public engine package.
+
 ### Existing warm-cache normalization
 
 Settings normalize before validation; malformed values remain malformed so
@@ -272,6 +279,11 @@ hash tag. Tenant namespacing comes only from authenticated context.
 `ARGV[2]` and `ARGV[3]` carry trusted request-byte and total-prepared-byte bounds.
 The latter covers the response, balance blobs, recovery records, receipt, and
 prepared guard/hash-field data. These bounds are required inputs, not defaults.
+
+The embedded new-engine Lua source is wrapped once by `LuaSource`, which
+prepends fixed local policy values before the raw script. Raw Lua assets consume
+those provided locals and are not standalone definitions of cache policy. The
+legacy script retains its three top-level KEYS and its 24-argument stride per balance; the new engine retains exactly three ARGV values. Physical key bytes and the 24-hour balance-cache TTL are unchanged.
 
 Before the first write, the engine must:
 
@@ -431,7 +443,9 @@ balance changes; a later Go backup update must not be required for recoverabilit
 Backup hash fields identify both transaction and execution. Cleanup checks both
 identities so delayed cleanup cannot erase a later transition's backup.
 
-Receipt and guard retention is not balance-cache TTL. They must survive pending
+Receipt and guard retention is not balance-cache TTL. The 30-second deletion-marker
+TTL is a separate, unchanged delete-operation guard and is not the balance-cache
+TTL either. Receipts and guards must survive pending
 finalization and, after confirmed persistence, cover the retry/idempotency window
 and terminal-state verification. The concrete retention policy must be defined
 with recovery workers before activation; absence of that policy blocks enablement.

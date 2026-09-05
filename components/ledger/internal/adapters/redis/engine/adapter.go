@@ -24,13 +24,17 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 //go:embed scripts/balance_engine.lua
-var accountingScriptSource string
+var accountingScriptRaw string
 
-var accountingScript = redis.NewScript(accountingScriptSource)
+var (
+	accountingScriptSource = cachepolicy.LuaSource(accountingScriptRaw)
+	accountingScript       = redis.NewScript(accountingScriptSource)
+)
 
 // RedisClientProvider resolves the authenticated tenant's connection configuration.
 type RedisClientProvider interface {
@@ -192,9 +196,9 @@ func resolveAdapterKeys(ctx context.Context, request engine.Request) (resolvedEx
 
 	resolved := resolvedExecutionKeys{
 		TenantID: tmcore.GetTenantIDContext(ctx), Schedule: utils.BalanceSyncScheduleKey,
-		Recovery: "backup_queue:{transactions}",
-		Receipts: "engine:{transactions}:receipts:" + scope,
-		Guards:   "engine:{transactions}:guards:" + scope,
+		Recovery: "backup_queue:" + cachepolicy.HashTag,
+		Receipts: "engine:" + cachepolicy.HashTag + ":receipts:" + scope,
+		Guards:   "engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		Balances: make(map[string]resolvedBalanceKeys, len(request.Balances)),
 	}
 	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards} {
@@ -214,7 +218,7 @@ func resolveAdapterKeys(ctx context.Context, request engine.Request) (resolvedEx
 			return resolvedExecutionKeys{}, err
 		}
 
-		resolved.Balances[balance.BalanceRef] = resolvedBalanceKeys{Balance: prefixed, Deleted: prefixed + ":deleted"}
+		resolved.Balances[balance.BalanceRef] = resolvedBalanceKeys{Balance: prefixed, Deleted: prefixed + cachepolicy.DeletionMarkerSuffix}
 	}
 
 	return resolved, nil

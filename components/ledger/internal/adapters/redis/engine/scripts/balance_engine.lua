@@ -694,7 +694,7 @@ local function decodeRequest(raw)
     for _, key in ipairs(KEYS) do
         local _, opens = key:gsub("{", "")
         local _, closes = key:gsub("}", "")
-        if not key:find("{transactions}", 1, true) or opens ~= 1 or closes ~= 1 or seenKeys[key] then
+        if not key:find(transaction_hash_tag, 1, true) or opens ~= 1 or closes ~= 1 or seenKeys[key] then
             technical("invalid_protocol", "invalid physical key inventory")
         end
         seenKeys[key] = true
@@ -707,7 +707,7 @@ local function decodeRequest(raw)
         if smallInteger(balance.keyIndex, #KEYS) ~= 3 + 2 * i or smallInteger(balance.deleteKeyIndex, #KEYS) ~= 4 + 2 * i then
             technical("invalid_protocol", "invalid balance key indices")
         end
-        if KEYS[4 + 2 * i] ~= KEYS[3 + 2 * i] .. ":deleted" then technical("invalid_protocol", "invalid deletion marker key") end
+        if KEYS[4 + 2 * i] ~= KEYS[3 + 2 * i] .. balance_deletion_marker_suffix then technical("invalid_protocol", "invalid deletion marker key") end
         local seed = balance.snapshot
         requireObject(seed)
         canonicalMoney(seed.available)
@@ -1067,7 +1067,7 @@ local function execute(request, maximumPrepared)
     -- Only prepared commands remain. Runtime failures here are indeterminate;
     -- Redis script execution does not roll back earlier successful writes.
     commitStarted = true
-    for _, balance in ipairs(preparedBalances) do redis.call("SET", balance.key, balance.value, "EX", 86400) end
+    for _, balance in ipairs(preparedBalances) do redis.call("SET", balance.key, balance.value, "EX", balance_cache_ttl_seconds) end
     for _, balance in ipairs(preparedBalances) do redis.call("ZADD", KEYS[1], score, balance.key) end
     for _, backup in ipairs(preparedBackups) do redis.call("HSET", KEYS[2], backup.field, backup.value) end
     for _, transaction in ipairs(request.transactions) do redis.call("HSET", KEYS[4], transaction.guardField, transaction.nextGuard) end

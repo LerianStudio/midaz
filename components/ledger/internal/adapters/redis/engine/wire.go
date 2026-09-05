@@ -17,6 +17,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 )
 
 // Limits bounds one execution. Callers must provide measured, positive limits.
@@ -351,7 +352,7 @@ func prepareKeys(balances []engine.BalanceSnapshot, resolved resolvedExecutionKe
 	keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards}
 	for _, balance := range balances {
 		pair, exists := resolved.Balances[balance.BalanceRef]
-		if !exists || pair.Deleted != pair.Balance+":deleted" {
+		if !exists || pair.Deleted != pair.Balance+cachepolicy.DeletionMarkerSuffix {
 			return nil, fmt.Errorf("invalid resolved accounting balance keys")
 		}
 
@@ -362,7 +363,7 @@ func prepareKeys(balances []engine.BalanceSnapshot, resolved resolvedExecutionKe
 
 	total := 0
 	for _, key := range keys {
-		if !strings.Contains(key, "{transactions}") || strings.Count(key, "{") != 1 || strings.Count(key, "}") != 1 || seen[key] || len(key) > maxBytes-total {
+		if !strings.Contains(key, cachepolicy.HashTag) || strings.Count(key, "{") != 1 || strings.Count(key, "}") != 1 || seen[key] || len(key) > maxBytes-total {
 			return nil, fmt.Errorf("invalid or oversized resolved accounting key")
 		}
 
