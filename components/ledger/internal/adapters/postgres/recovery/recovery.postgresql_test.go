@@ -225,16 +225,35 @@ func TestStorePersistLifecycle(t *testing.T) {
 	}
 }
 
-func TestStorePersistLateHoldRetainsConflict(t *testing.T) {
-	store, mock := newStoreTest(t)
-	record := frozenStoreRecord()
-	record.Action, record.Transaction.Status.Code = "hold", constant.PENDING
-	record.Transaction.Body = mtransaction.Transaction{Pending: true, Send: mtransaction.Send{Asset: "USD", Value: *record.Transaction.Amount}}
-	mock.ExpectBegin()
-	expectTransaction(mock, constant.APPROVED, true, true)
-	mock.ExpectRollback()
-
-	require.ErrorIs(t, store.Persist(context.Background(), record), command.ErrBalanceEnginePersistenceConflict)
+func TestStorePersistLateHoldRequiresEveryFrozenRow(t *testing.T) {
+	for _, status := range []string{constant.APPROVED, constant.CANCELED} {
+		for _, proof := range []string{"matching", "missing", "different"} {
+			t.Run(status+"/"+proof, func(t *testing.T) {
+				store, mock := newStoreTest(t)
+				record := frozenStoreRecord()
+				record.Action, record.Transaction.Status.Code = "hold", constant.PENDING
+				record.Transaction.Body = mtransaction.Transaction{Pending: true, Send: mtransaction.Send{Asset: "USD", Value: *record.Transaction.Amount}}
+				second := *record.Transaction.Operations[0]
+				second.ID = "77777777-7777-5777-8777-777777777777"
+				record.Transaction.Operations = append(record.Transaction.Operations, &second)
+				mock.ExpectBegin()
+				expectTransaction(mock, status, true, true)
+				expectVerifiedOperations(mock, 1)
+				rows := sqlmock.NewRows([]string{"matches"})
+				if proof != "missing" {
+					rows.AddRow(proof == "matching")
+				}
+				mock.ExpectQuery(`SELECT .* FROM operation WHERE id = \$1 FOR SHARE`).WillReturnRows(rows).RowsWillBeClosed()
+				if proof == "matching" {
+					mock.ExpectCommit()
+					require.NoError(t, store.Persist(t.Context(), record))
+				} else {
+					mock.ExpectRollback()
+					require.ErrorIs(t, store.Persist(t.Context(), record), command.ErrBalanceEnginePersistenceConflict)
+				}
+			})
+		}
+	}
 }
 
 func TestStorePersistRejectsDivergentRows(t *testing.T) {

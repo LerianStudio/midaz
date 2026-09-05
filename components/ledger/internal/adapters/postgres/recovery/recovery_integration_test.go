@@ -157,6 +157,9 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 			record := recoverySQLRecord(t)
 			record.Action, record.Transaction.Status.Code = "hold", constant.PENDING
 			record.Transaction.Body = mtransaction.Transaction{Pending: true, Send: mtransaction.Send{Asset: "USD", Value: *record.Transaction.Amount}}
+			second := *record.Transaction.Operations[0]
+			second.ID = uuid.NewSHA1(uuid.MustParse(record.Transaction.ID), []byte("hold:second")).String()
+			record.Transaction.Operations = append(record.Transaction.Operations, &second)
 			require.NoError(t, infra.store.Persist(t.Context(), record))
 			pending := record
 			pendingTransaction := *record.Transaction
@@ -175,7 +178,8 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 			require.NoError(t, infra.store.Persist(t.Context(), record))
 			before := recoverySQLState(t, infra.db)
 			require.NoError(t, infra.store.Persist(t.Context(), record))
-			require.ErrorIs(t, infra.store.Persist(t.Context(), pending), command.ErrBalanceEnginePersistenceConflict)
+			require.NoError(t, infra.store.Persist(t.Context(), pending))
+			require.Equal(t, before, recoverySQLState(t, infra.db), "late hold must not insert rows or regress the terminal transaction")
 			record.Transaction.Status.Code = other
 			if action == "commit" {
 				record.Action = "cancel"
@@ -184,6 +188,18 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 			}
 			require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrBalanceEnginePersistenceConflict)
 			require.Equal(t, before, recoverySQLState(t, infra.db))
+
+			_, err := infra.db.ExecContext(t.Context(), `UPDATE operation SET amount=amount+1 WHERE id=$1`, second.ID)
+			require.NoError(t, err)
+			corrupt := recoverySQLState(t, infra.db)
+			require.ErrorIs(t, infra.store.Persist(t.Context(), pending), command.ErrBalanceEnginePersistenceConflict)
+			require.Equal(t, corrupt, recoverySQLState(t, infra.db), "late hold must not overwrite a corrupted old row")
+
+			_, err = infra.db.ExecContext(t.Context(), `DELETE FROM operation WHERE id=$1`, second.ID)
+			require.NoError(t, err)
+			missing := recoverySQLState(t, infra.db)
+			require.ErrorIs(t, infra.store.Persist(t.Context(), pending), command.ErrBalanceEnginePersistenceConflict)
+			require.Equal(t, missing, recoverySQLState(t, infra.db), "late hold must not recreate a missing old row")
 		})
 	}
 

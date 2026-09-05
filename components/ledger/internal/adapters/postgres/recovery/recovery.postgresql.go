@@ -238,6 +238,13 @@ func (store *Store) persistTransaction(ctx context.Context, tx repository.DBTran
 		return created, nil
 	}
 
+	if record.Action == "hold" && terminalTransactionStatus(status) {
+		// The locked transaction already matches the frozen hold identity and
+		// body. Verify every old operation below, without inserting or regressing
+		// the later status, before confirming this earlier execution persisted.
+		return false, nil
+	}
+
 	if record.ExpectedStatus == "" || status != record.ExpectedStatus {
 		return false, conflict("persisted lifecycle does not match expected state")
 	}
@@ -260,6 +267,10 @@ WHERE id = $4 AND organization_id = $5 AND ledger_id = $6 AND status = $7 AND de
 	}
 
 	return true, nil
+}
+
+func terminalTransactionStatus(status string) bool {
+	return status == constant.APPROVED || status == constant.CANCELED
 }
 
 func confirmedTransactionInsert(inserted *repository.BulkInsertResult, transactionID string) (bool, error) {
