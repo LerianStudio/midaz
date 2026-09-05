@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -35,7 +36,9 @@ import (
 )
 
 //go:embed scripts/balance_atomic_operation.lua
-var balanceAtomicOperationLua string
+var balanceAtomicOperationLuaSource string
+
+var balanceAtomicOperationLua = cachepolicy.LuaSource(balanceAtomicOperationLuaSource)
 
 //go:embed scripts/claim_balance_sync_keys.lua
 var claimBalanceSyncKeysLua string
@@ -82,12 +85,12 @@ var (
 //go:embed scripts/remove_balance_sync_keys_batch.lua
 var removeBalanceSyncKeysBatchScript string
 
-const TransactionBackupQueue = "backup_queue:{transactions}"
+const TransactionBackupQueue = "backup_queue:" + cachepolicy.HashTag
 
 // TransactionBackupAttemptsQueue is the parallel hash tracking how many consumer
 // cycles have failed to replay each backup record. Field keys match those of
-// TransactionBackupQueue. The shared {transactions} hash tag co-locates both
-// keys in the same Redis Cluster slot so HDel pairs stay atomic-friendly.
+// TransactionBackupQueue. The shared transaction hash tag co-locates both keys
+// in the same Redis Cluster slot so HDel pairs stay atomic-friendly.
 const TransactionBackupAttemptsQueue = TransactionBackupQueue + ":attempts"
 
 const (
@@ -2053,12 +2056,11 @@ func boolToRedisFlag(value bool) int {
 	return 0
 }
 
-// balanceCacheSettingsTTL matches the TTL the balance atomic Lua script applies
-// to each cached balance key (`local ttl = 86400 -- 1 day` in
-// scripts/balance_atomic_operation.lua). Keeping the two in lock-step ensures
-// a settings-only rewrite does not silently extend or shrink the lifetime of
-// an entry relative to the transactional refreshes driven by Lua.
-const balanceCacheSettingsTTL = 86400 * time.Second
+// balanceCacheSettingsTTL uses the canonical balance cache lifetime shared by
+// the balance atomic Lua script and settings-only updates. Keeping both paths on
+// the same policy prevents configuration edits from changing cache lifecycle
+// semantics relative to ordinary transaction mutations.
+const balanceCacheSettingsTTL = cachepolicy.BalanceTTL
 
 // resolveBalanceSettingsArgs normalizes a settings payload into the four
 // primitive values scripts/update_balance_settings.lua assigns verbatim onto
