@@ -490,11 +490,25 @@ Never regenerate expected rows merely to make a regression pass.
 The compatible reader is implemented, but no rollout has been performed or
 verified across all consumers. New accounting writers remain inactive.
 
-The active `GetBalances` query uses the read-only codec projection. It scopes
-cache keys to organization and ledger, verifies alias/key identity, and keeps
-the existing database fallback for cache misses, Redis errors, decode errors,
-and identity mismatches. Other consumer readers, converters, and writers are
-not migrated by this change; no new writer is activated.
+The active `GetBalances` query, Redis transaction `ListBalanceByKey`, and
+`GetBalancesByKeys` use the shared read-only `DecodeForRead` projection. The
+batch reader preserves all 17 `BalanceRedis` fields; `ListBalanceByKey` keeps
+its existing limited domain projection. Cache keys remain scoped to
+organization and ledger, and alias/key identity is verified.
+
+For `GetBalancesByKeys`, a Redis `MGET` nil means only that the key is absent.
+A present malformed, undecodable, or unexpected-typed value is a whole-batch
+read error. `SyncBalancesBatch` therefore retains all claimed work for retry;
+poison batches may require data remediation and must not be treated as
+orphans. In legacy read mode, JSON numeric money and parseable noncanonical
+decimal strings are valid monetary representations and are projected exactly,
+without float conversion. Schema-version-2 new-only blobs retain strict
+canonical-string decoding and existing validation rules.
+
+Current legacy cache writers, the atomic Lua parser, and repair path remain
+active and unchanged; they are not migrated by this change. The new engine
+writer remains inactive. Other consumers,
+converters, and writers are not activated by reader compatibility alone.
 
 Activation has a consumer-first sequence:
 

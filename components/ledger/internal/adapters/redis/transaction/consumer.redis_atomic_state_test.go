@@ -102,7 +102,7 @@ func TestGetBalancesByKeys_MultiTenant_NoDoubleNamespacing(t *testing.T) {
 	// Member as written once by balance_atomic_operation.lua: prefixed exactly one time.
 	const namespacedMember = "tenant:acme:balance:{transactions}:org:ledger:@alias#default"
 
-	validJSON := `{"id":"uuid-mt","alias":"@alias","key":"default","accountId":"acc-mt","assetCode":"USD","available":"42.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
+	validJSON := `{"id":"00000000-0000-0000-0000-000000000401","alias":"@alias","key":"default","accountId":"00000000-0000-0000-0000-000000000001","assetCode":"USD","available":"42.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
 
 	var capturedKeys []string
 
@@ -132,7 +132,7 @@ func TestGetBalancesByKeys_MultiTenant_NoDoubleNamespacing(t *testing.T) {
 
 	// The value must be found (no false orphan) and keyed by the input member.
 	require.NotNil(t, result[namespacedMember], "balance value must be found for the namespaced key")
-	assert.Equal(t, "uuid-mt", result[namespacedMember].ID)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000401", result[namespacedMember].ID)
 }
 
 func TestKeyNamespacing_MalformedTenantID_FailsClosedBatchRemove(t *testing.T) {

@@ -7,12 +7,15 @@ package redis
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"sort"
 	"testing"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -36,23 +39,28 @@ func TestBalanceAtomicScriptErrorContract(t *testing.T) {
 	_, span := noop.NewTracerProvider().Tracer("test").Start(context.Background(), "test")
 	defer span.End()
 
-	supported := map[string]error{
-		"0018": constant.ErrInsufficientFunds,
-		"0019": constant.ErrAccountIneligibility,
-		"0139": constant.ErrTransactionBackupCacheRetrievalFailed,
-		"0167": constant.ErrOverdraftLimitExceeded,
-		"0174": constant.ErrStaleBalanceVersion,
+	supported := map[string]struct {
+		sentinel error
+		entity   string
+	}{
+		"0018": {constant.ErrInsufficientFunds, "validateBalance"},
+		"0019": {constant.ErrAccountIneligibility, "validateBalance"},
+		"0139": {constant.ErrTransactionBackupCacheRetrievalFailed, "validateBalance"},
+		"0167": {constant.ErrOverdraftLimitExceeded, "validateBalance"},
+		"0174": {constant.ErrStaleBalanceVersion, "validateBalance"},
+		"0502": {constant.ErrAccountBlocked, "validateBalance"},
+		"0508": {constant.ErrAccountBlockExceptionInvalid, constant.EntityTransaction},
 	}
 	actual := map[string]bool{}
 	for _, match := range regexp.MustCompile(`redis\.error_reply\("([0-9]{4})"\)`).FindAllStringSubmatch(balanceAtomicOperationLua, -1) {
 		actual[match[1]] = true
 	}
 	var expectedCodes, actualCodes []string
-	for code, sentinel := range supported {
+	for code, expected := range supported {
 		expectedCodes = append(expectedCodes, code)
 		t.Run(code, func(t *testing.T) {
-			assert.Equal(t, pkg.ValidateBusinessError(sentinel, "validateBalance"), mapBalanceAtomicScriptError(span, errors.New(code)))
-			assert.Equal(t, pkg.ValidateBusinessError(sentinel, "validateBalance"), mapBalanceAtomicScriptError(span, balanceScriptReply("ERR "+code)))
+			assert.Equal(t, pkg.ValidateBusinessError(expected.sentinel, expected.entity), mapBalanceAtomicScriptError(span, errors.New(code)))
+			assert.Equal(t, pkg.ValidateBusinessError(expected.sentinel, expected.entity), mapBalanceAtomicScriptError(span, balanceScriptReply("ERR "+code)))
 		})
 	}
 	for code := range actual {
@@ -243,6 +251,9 @@ type recordingRedisClient struct {
 	// getReturnVal overrides the default "test-value" returned by Get/GetBytes.
 	// Set this when the test requires a specific string (e.g. valid JSON for ListBalanceByKey).
 	getReturnVal string
+	getErr       error
+	mgetValues   map[string]any
+	mgetErr      error
 	redis.UniversalClient
 }
 
@@ -287,6 +298,12 @@ func (r *recordingRedisClient) SetNX(ctx context.Context, key string, value any,
 
 func (r *recordingRedisClient) Get(ctx context.Context, key string) *redis.StringCmd {
 	r.getCalls = append(r.getCalls, key)
+	if r.getErr != nil {
+		cmd := redis.NewStringCmd(ctx)
+		cmd.SetErr(r.getErr)
+
+		return cmd
+	}
 
 	val := "test-value"
 	if r.getReturnVal != "" {
@@ -319,11 +336,21 @@ func (r *recordingRedisClient) Incr(ctx context.Context, key string) *redis.IntC
 
 func (r *recordingRedisClient) MGet(ctx context.Context, keys ...string) *redis.SliceCmd {
 	r.mgetCalls = append(r.mgetCalls, keys)
+	if r.mgetErr != nil {
+		cmd := redis.NewSliceCmd(ctx)
+		cmd.SetErr(r.mgetErr)
+
+		return cmd
+	}
 
 	// Return string values matching the number of keys
 	vals := make([]any, len(keys))
-	for i := range keys {
-		vals[i] = "value-" + keys[i]
+	for i, key := range keys {
+		if r.mgetValues != nil {
+			vals[i] = r.mgetValues[key]
+		} else {
+			vals[i] = "value-" + key
+		}
 	}
 
 	cmd := redis.NewSliceCmd(ctx)
@@ -371,10 +398,11 @@ func (r *recordingRedisClient) HGetAll(ctx context.Context, key string) *redis.M
 // testClientProvider wraps a redis.UniversalClient to implement redisClientProvider.
 type testClientProvider struct {
 	client redis.UniversalClient
+	err    error
 }
 
 func (p *testClientProvider) GetClient(_ context.Context) (redis.UniversalClient, error) {
-	return p.client, nil
+	return p.client, p.err
 }
 
 func newRecordingConnection(t *testing.T) (*testClientProvider, *recordingRedisClient) {
@@ -390,13 +418,13 @@ func TestListBalanceByKeyMapsOverdraftUsed(t *testing.T) {
 
 	provider, client := newRecordingConnection(t)
 	client.getReturnVal = `{
-		"id":"balance-id",
-		"accountId":"account-id",
+		"id":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d90",
+		"accountId":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d91",
 		"alias":"@alice",
 		"key":"default",
 		"assetCode":"USD",
-		"available":0,
-		"onHold":0,
+		"available":"0",
+		"onHold":"0",
 		"version":7,
 		"accountType":"deposit",
 		"allowSending":1,
@@ -432,13 +460,13 @@ func TestListBalanceByKeyOverdraftUsedEmptyIsZeroMalformedFailsClosed(t *testing
 
 			provider, client := newRecordingConnection(t)
 			client.getReturnVal = `{
-				"id":"balance-id",
-				"accountId":"account-id",
+				"id":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d90",
+				"accountId":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d91",
 				"alias":"@alice",
 				"key":"default",
 				"assetCode":"USD",
-				"available":0,
-				"onHold":0,
+				"available":"0",
+				"onHold":"0",
 				"version":7,
 				"accountType":"deposit",
 				"allowSending":1,
@@ -451,7 +479,7 @@ func TestListBalanceByKeyOverdraftUsedEmptyIsZeroMalformedFailsClosed(t *testing
 
 			if testCase.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "failed to parse overdraft used from balance cache")
+				assert.Contains(t, err.Error(), "invalid cached balance field OverdraftUsed")
 				assert.Nil(t, balance)
 
 				return
@@ -628,6 +656,316 @@ func newMockEvalConnection(client *mockEvalClient) *staticRedisProvider {
 // branches that do not require a real Redis connection. Thin wrappers around
 // Redis commands (Set, Get, Del, SetBytes, etc.) are covered by integration
 // tests with testcontainers — see consumer.redis_integration_test.go.
+
+const (
+	legacyBalanceFixture = `{
+		"ID":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d80","Alias":"@legacy","Key":"reserve",
+		"AccountID":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d81","AssetCode":"USD","AccountType":"deposit",
+		"Direction":"credit","Available":"100.25","OnHold":"2.5","Version":7,
+		"AllowSending":1,"AllowReceiving":0,"AllowOverdraft":1,"OverdraftLimitEnabled":1,
+		"OverdraftUsed":"3.75","OverdraftLimit":"1000","BalanceScope":"transactional"
+	}`
+	dualBalanceFixture = `{
+		"SchemaVersion":2,
+		"ID":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d82","Alias":"@dual","Key":"default",
+		"AccountID":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d83","AssetCode":"BRL","AccountType":"checking",
+		"Direction":"debit","Available":"200.125","OnHold":"4.25","Version":9007199254740993,
+		"AllowSending":0,"AllowReceiving":1,"AllowOverdraft":0,"OverdraftLimitEnabled":1,
+		"OverdraftUsed":"8.5","OverdraftLimit":"2500","BalanceScope":"internal",
+		"id":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d92","alias":"@ignored","key":"ignored",
+		"accountId":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d93","assetCode":"EUR","accountType":"ignored",
+		"direction":"credit","available":"999","onHold":"999","version":"8",
+		"allowSending":true,"allowReceiving":false,"allowOverdraft":true,"overdraftLimitEnabled":false,
+		"overdraftUsed":"999","overdraftLimit":"999","balanceScope":"transactional"
+	}`
+	newOnlyBalanceFixture = `{
+		"SchemaVersion":2,
+		"id":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d84","alias":"@new","key":"settled",
+		"accountId":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d85","assetCode":"EUR","accountType":"wallet",
+		"direction":"credit","available":"300.375","onHold":"6.75","version":"9007199254740995",
+		"allowSending":true,"allowReceiving":true,"allowOverdraft":true,"overdraftLimitEnabled":true,
+		"overdraftUsed":"12.125","overdraftLimit":"1e3","balanceScope":"transactional"
+	}`
+	historicalLowerBalanceFixture = `{
+		"id":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d86","alias":"","key":"default",
+		"accountId":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d87","assetCode":"GBP","accountType":"deposit",
+		"direction":"","available":"400.5","onHold":"8.125","version":11,
+		"allowSending":1,"allowReceiving":0,"allowOverdraft":0,"overdraftLimitEnabled":0,
+		"overdraftUsed":"","overdraftLimit":"","balanceScope":""
+	}`
+	legacyNumericMoneyFixture = `{
+		"ID":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d88","Alias":"@numeric","Key":"precision",
+		"AccountID":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d89","AssetCode":"USD","AccountType":"deposit",
+		"Direction":"credit","Available":9007199254740993.125,"OnHold":2.75,"Version":13,
+		"AllowSending":1,"AllowReceiving":1,"AllowOverdraft":1,"OverdraftLimitEnabled":1,
+		"OverdraftUsed":3.5,"OverdraftLimit":"1000","BalanceScope":"transactional"
+	}`
+	legacyNoncanonicalMoneyFixture = `{
+		"ID":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d8a","Alias":"@noncanonical","Key":"legacy",
+		"AccountID":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d8b","AssetCode":"BRL","AccountType":"checking",
+		"Direction":"debit","Available":"100.00","OnHold":"010.00","Version":14,
+		"AllowSending":1,"AllowReceiving":0,"AllowOverdraft":1,"OverdraftLimitEnabled":1,
+		"OverdraftUsed":"1e1","OverdraftLimit":"1000","BalanceScope":"internal"
+	}`
+)
+
+func expectedBalanceRedis(
+	id, alias, key, accountID, assetCode, accountType, direction, available, onHold string,
+	version int64,
+	allowSending, allowReceiving, allowOverdraft, overdraftLimitEnabled int,
+	overdraftUsed, overdraftLimit, balanceScope string,
+) *mmodel.BalanceRedis {
+	return &mmodel.BalanceRedis{
+		ID: id, Alias: alias, Key: key, AccountID: accountID, AssetCode: assetCode, AccountType: accountType,
+		Direction: direction, Available: decimal.RequireFromString(available), OnHold: decimal.RequireFromString(onHold),
+		Version: version, AllowSending: allowSending, AllowReceiving: allowReceiving,
+		AllowOverdraft: allowOverdraft, OverdraftLimitEnabled: overdraftLimitEnabled,
+		OverdraftUsed: overdraftUsed, OverdraftLimit: overdraftLimit, BalanceScope: balanceScope,
+	}
+}
+
+func balanceReadFixtures() []struct {
+	name string
+	raw  string
+	want *mmodel.BalanceRedis
+} {
+	return []struct {
+		name string
+		raw  string
+		want *mmodel.BalanceRedis
+	}{
+		{
+			name: "uppercase legacy",
+			raw:  legacyBalanceFixture,
+			want: expectedBalanceRedis(
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d80", "@legacy", "reserve",
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d81", "USD", "deposit", "credit",
+				"100.25", "2.5", 7, 1, 0, 1, 1, "3.75", "1000", "transactional",
+			),
+		},
+		{
+			name: "schema two dual uses authoritative legacy fields",
+			raw:  dualBalanceFixture,
+			want: expectedBalanceRedis(
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d82", "@dual", "default",
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d83", "BRL", "checking", "debit",
+				"200.125", "4.25", 9007199254740993, 0, 1, 0, 1, "8.5", "2500", "internal",
+			),
+		},
+		{
+			name: "schema two new only preserves int64 and canonicalizes limit in memory",
+			raw:  newOnlyBalanceFixture,
+			want: expectedBalanceRedis(
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d84", "@new", "settled",
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d85", "EUR", "wallet", "credit",
+				"300.375", "6.75", 9007199254740995, 1, 1, 1, 1, "12.125", "1000", "transactional",
+			),
+		},
+		{
+			name: "historical lowercase dto accepts integer flags and empty defaults",
+			raw:  historicalLowerBalanceFixture,
+			want: expectedBalanceRedis(
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d86", "", "default",
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d87", "GBP", "deposit", "",
+				"400.5", "8.125", 11, 1, 0, 0, 0, "0", "0", "transactional",
+			),
+		},
+		{
+			name: "uppercase legacy accepts exact numeric money",
+			raw:  legacyNumericMoneyFixture,
+			want: expectedBalanceRedis(
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d88", "@numeric", "precision",
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d89", "USD", "deposit", "credit",
+				"9007199254740993.125", "2.75", 13, 1, 1, 1, 1, "3.5", "1000", "transactional",
+			),
+		},
+		{
+			name: "uppercase legacy normalizes valid noncanonical money strings",
+			raw:  legacyNoncanonicalMoneyFixture,
+			want: expectedBalanceRedis(
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d8a", "@noncanonical", "legacy",
+				"0198f06e-8c2b-7d3b-9dc9-7334b8f60d8b", "BRL", "checking", "debit",
+				"100.00", "010.00", 14, 1, 0, 1, 1, "10", "1000", "internal",
+			),
+		},
+	}
+}
+
+func TestListBalanceByKeyDecodesSupportedCacheFormats(t *testing.T) {
+	organizationID := uuid.MustParse("0198f06e-8c2b-7d3b-9dc9-7334b8f60da0")
+	ledgerID := uuid.MustParse("0198f06e-8c2b-7d3b-9dc9-7334b8f60da1")
+
+	for _, tc := range balanceReadFixtures() {
+		t.Run(tc.name, func(t *testing.T) {
+			provider, client := newRecordingConnection(t)
+			client.getReturnVal = tc.raw
+			repo := &RedisConsumerRepository{conn: provider}
+			ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-reader")
+
+			got, err := repo.ListBalanceByKey(ctx, organizationID, ledgerID, tc.want.Key)
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Equal(t, tc.want.ID, got.ID)
+			assert.Equal(t, tc.want.AccountID, got.AccountID)
+			assert.Equal(t, tc.want.Alias, got.Alias)
+			assert.Equal(t, tc.want.AssetCode, got.AssetCode)
+			assert.Equal(t, tc.want.Available, got.Available)
+			assert.Equal(t, tc.want.OnHold, got.OnHold)
+			assert.Equal(t, tc.want.Version, got.Version)
+			assert.Equal(t, tc.want.AccountType, got.AccountType)
+			assert.Equal(t, tc.want.AllowSending == 1, got.AllowSending)
+			assert.Equal(t, tc.want.AllowReceiving == 1, got.AllowReceiving)
+			assert.Equal(t, tc.want.Key, got.Key)
+			assert.Equal(t, organizationID.String(), got.OrganizationID)
+			assert.Equal(t, ledgerID.String(), got.LedgerID)
+
+			baseKey := utils.BalanceInternalKey(organizationID, ledgerID, tc.want.Key)
+			wantKey, keyErr := tmvalkey.GetKey("tenant-reader", baseKey)
+			require.NoError(t, keyErr)
+			assert.Equal(t, []string{wantKey}, client.getCalls)
+		})
+	}
+}
+
+func TestListBalanceByKeyPreservesReadErrors(t *testing.T) {
+	organizationID := uuid.MustParse("0198f06e-8c2b-7d3b-9dc9-7334b8f60da0")
+	ledgerID := uuid.MustParse("0198f06e-8c2b-7d3b-9dc9-7334b8f60da1")
+	malformedAuthoritative := `{
+		"SchemaVersion":2,"ID":"bad","id":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d84",
+		"AccountID":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d85","accountId":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d85"
+	}`
+
+	for _, tc := range []struct {
+		name        string
+		providerErr error
+		getErr      error
+		raw         string
+		want        error
+	}{
+		{name: "redis miss", getErr: redis.Nil, want: redis.Nil},
+		{name: "redis transport", getErr: errors.New("redis unavailable")},
+		{name: "client transport", providerErr: errors.New("client unavailable")},
+		{name: "malformed authoritative field", raw: malformedAuthoritative},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &recordingRedisClient{t: t, getErr: tc.getErr, getReturnVal: tc.raw}
+			provider := &testClientProvider{client: client, err: tc.providerErr}
+			got, err := (&RedisConsumerRepository{conn: provider}).ListBalanceByKey(
+				context.Background(), organizationID, ledgerID, "default",
+			)
+			require.Error(t, err)
+			assert.Nil(t, got)
+			if tc.want != nil {
+				assert.ErrorIs(t, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestGetBalancesByKeysDecodesSupportedCacheFormats(t *testing.T) {
+	provider, client := newRecordingConnection(t)
+	fixtures := balanceReadFixtures()
+	keys := make([]string, len(fixtures)+1)
+	client.mgetValues = make(map[string]any, len(keys))
+	for i, fixture := range fixtures {
+		keys[i] = fmt.Sprintf("tenant:balance:%d", i)
+		client.mgetValues[keys[i]] = fixture.raw
+	}
+	client.mgetValues[keys[1]] = []byte(fixtures[1].raw)
+	keys[len(fixtures)] = "tenant:missing"
+	client.mgetValues[keys[len(fixtures)]] = nil
+
+	got, err := (&RedisConsumerRepository{conn: provider}).GetBalancesByKeys(context.Background(), keys)
+	require.NoError(t, err)
+	for i, fixture := range fixtures {
+		assert.Equal(t, fixture.want, got[keys[i]], fixture.name)
+	}
+	assert.Nil(t, got[keys[len(fixtures)]])
+	assert.Equal(t, [][]string{keys}, client.mgetCalls, "fully-qualified keys must be passed through unchanged")
+}
+
+func TestGetBalancesByKeysPreservesBatchAndTransportBehavior(t *testing.T) {
+	t.Run("empty input", func(t *testing.T) {
+		got, err := (&RedisConsumerRepository{}).GetBalancesByKeys(context.Background(), nil)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("client error", func(t *testing.T) {
+		transportErr := errors.New("client unavailable")
+		got, err := (&RedisConsumerRepository{conn: &testClientProvider{err: transportErr}}).
+			GetBalancesByKeys(context.Background(), []string{"tenant:a"})
+		assert.Nil(t, got)
+		assert.ErrorIs(t, err, transportErr)
+	})
+
+	t.Run("mget error", func(t *testing.T) {
+		transportErr := errors.New("mget unavailable")
+		provider, client := newRecordingConnection(t)
+		client.mgetErr = transportErr
+		got, err := (&RedisConsumerRepository{conn: provider}).GetBalancesByKeys(context.Background(), []string{"tenant:a"})
+		assert.Nil(t, got)
+		assert.ErrorIs(t, err, transportErr)
+	})
+
+	for _, tc := range []struct {
+		name      string
+		value     any
+		wantCause string
+	}{
+		{
+			name:      "malformed authoritative field",
+			value:     `{"SchemaVersion":2,"ID":"bad","id":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d84"}`,
+			wantCause: "invalid cached balance identity",
+		},
+		{
+			name: "invalid semantic state",
+			value: `{
+				"SchemaVersion":2,
+				"id":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d84","alias":"@new","key":"settled",
+				"accountId":"0198f06e-8c2b-7d3b-9dc9-7334b8f60d85","assetCode":"EUR","accountType":"wallet",
+				"direction":"sideways","available":"300.375","onHold":"6.75","version":"12",
+				"allowSending":true,"allowReceiving":true,"allowOverdraft":true,"overdraftLimitEnabled":true,
+				"overdraftUsed":"12.125","overdraftLimit":"1000","balanceScope":"transactional"
+			}`,
+			wantCause: "invalid balance cache direction",
+		},
+		{
+			name:      "unexpected redis value type",
+			value:     int64(42),
+			wantCause: "unexpected Redis value type int64",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const key = "tenant:present-but-invalid"
+			provider, client := newRecordingConnection(t)
+			client.mgetValues = map[string]any{key: tc.value}
+
+			got, err := (&RedisConsumerRepository{conn: provider}).GetBalancesByKeys(context.Background(), []string{key})
+			require.Error(t, err)
+			assert.Nil(t, got, "present invalid data must not be represented as an expired cache entry")
+			assert.Contains(t, err.Error(), key)
+			assert.Contains(t, err.Error(), tc.wantCause)
+		})
+	}
+
+	t.Run("chunks large requests", func(t *testing.T) {
+		provider, client := newRecordingConnection(t)
+		keys := make([]string, maxRedisBatchSize+1)
+		client.mgetValues = make(map[string]any, len(keys))
+		for i := range keys {
+			keys[i] = fmt.Sprintf("tenant:balance:%d", i)
+			client.mgetValues[keys[i]] = newOnlyBalanceFixture
+		}
+
+		got, err := (&RedisConsumerRepository{conn: provider}).GetBalancesByKeys(context.Background(), keys)
+		require.NoError(t, err)
+		require.Len(t, got, len(keys))
+		require.Len(t, client.mgetCalls, 2)
+		assert.Equal(t, keys[:maxRedisBatchSize], client.mgetCalls[0])
+		assert.Equal(t, keys[maxRedisBatchSize:], client.mgetCalls[1])
+	})
+}
 
 // TestProcessBalanceAtomicOperation_NotedStatus verifies that NOTED status triggers early return
 // without executing the Lua script. Uses fail-on-call stub to detect unexpected Redis calls.

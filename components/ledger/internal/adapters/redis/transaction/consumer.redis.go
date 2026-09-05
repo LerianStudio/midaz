@@ -26,6 +26,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -797,6 +798,7 @@ func balanceRedisToBalance(b mmodel.BalanceRedis, mapBalances map[string]*mmodel
 		AccountType:    b.AccountType,
 		AllowSending:   mapBalance.AllowSending,
 		AllowReceiving: mapBalance.AllowReceiving,
+		Blocked:        b.Blocked == 1,
 		AssetCode:      mapBalance.AssetCode,
 		OrganizationID: mapBalance.OrganizationID,
 		LedgerID:       mapBalance.LedgerID,
@@ -1964,9 +1966,8 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 		return nil, err
 	}
 
-	var balanceRedis mmodel.BalanceRedis
-
-	if err := json.Unmarshal([]byte(value), &balanceRedis); err != nil {
+	balanceRedis, err := decodeBalanceRedisForRead([]byte(value))
+	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal balance on redis", err)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to unmarshal balance from Redis", libLog.Err(err))
@@ -2014,6 +2015,42 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 	}
 
 	return balance, nil
+}
+
+func decodeBalanceRedisForRead(raw []byte) (*mmodel.BalanceRedis, error) {
+	snapshot, err := balancecache.DecodeForRead(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	return &mmodel.BalanceRedis{
+		ID:                    snapshot.ID.String(),
+		Alias:                 snapshot.Alias,
+		Key:                   snapshot.Key,
+		AccountID:             snapshot.AccountID.String(),
+		AssetCode:             snapshot.AssetCode,
+		AccountType:           snapshot.AccountType,
+		Direction:             snapshot.Direction,
+		Available:             snapshot.Available,
+		OnHold:                snapshot.OnHold,
+		Version:               snapshot.Version,
+		AllowSending:          boolToRedisFlag(snapshot.AllowSending),
+		AllowReceiving:        boolToRedisFlag(snapshot.AllowReceiving),
+		Blocked:               boolToRedisFlag(snapshot.Blocked),
+		AllowOverdraft:        boolToRedisFlag(snapshot.AllowOverdraft),
+		OverdraftLimitEnabled: boolToRedisFlag(snapshot.OverdraftLimitEnabled),
+		OverdraftUsed:         snapshot.OverdraftUsed.String(),
+		OverdraftLimit:        snapshot.OverdraftLimit.String(),
+		BalanceScope:          snapshot.BalanceScope,
+	}, nil
+}
+
+func boolToRedisFlag(value bool) int {
+	if value {
+		return 1
+	}
+
+	return 0
 }
 
 // balanceCacheSettingsTTL matches the TTL the balance atomic Lua script applies
@@ -2443,25 +2480,25 @@ func (rr *RedisConsumerRepository) GetBalancesByKeys(ctx context.Context, keys [
 			case []byte:
 				strVal = string(v)
 			default:
-				logger.Log(ctx, libLog.LevelWarn, "Unexpected value type for balance key",
-					libLog.String("key", key))
+				decodeErr := fmt.Errorf("decode cached balance %q: unexpected Redis value type %T", key, v)
+				libOpentelemetry.HandleSpanError(span, "Unexpected value type for balance key", decodeErr)
+				logger.Log(ctx, libLog.LevelError, "Unexpected value type for balance key",
+					libLog.String("key", key), libLog.Err(decodeErr))
 
-				result[key] = nil
-
-				continue
+				return nil, decodeErr
 			}
 
-			var balance mmodel.BalanceRedis
-			if err := json.Unmarshal([]byte(strVal), &balance); err != nil {
-				logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal balance",
-					libLog.String("key", key), libLog.Err(err))
+			balance, err := decodeBalanceRedisForRead([]byte(strVal))
+			if err != nil {
+				decodeErr := fmt.Errorf("decode cached balance %q: %w", key, err)
+				libOpentelemetry.HandleSpanError(span, "Failed to decode balance", decodeErr)
+				logger.Log(ctx, libLog.LevelError, "Failed to decode balance",
+					libLog.String("key", key), libLog.Err(decodeErr))
 
-				result[key] = nil
-
-				continue
+				return nil, decodeErr
 			}
 
-			result[key] = &balance
+			result[key] = balance
 		}
 	}
 
