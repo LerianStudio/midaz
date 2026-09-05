@@ -223,6 +223,136 @@ func TestCodecDecodeForReadHistoricalBalanceRedisShape(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCodecDecodeForReadAcceptsLegacyMoneyRepresentations(t *testing.T) {
+	for _, source := range []string{"uppercase", "historical-lower"} {
+		for _, tc := range []struct {
+			name  string
+			field string
+			raw   string
+			want  string
+		}{
+			{name: "available-noncanonical", field: "Available", raw: `"100.00"`, want: "100"},
+			{name: "on-hold-leading-zero", field: "OnHold", raw: `"010.00"`, want: "10"},
+			{name: "overdraft-used-exponent", field: "OverdraftUsed", raw: `"1E+3"`, want: "1000"},
+			{name: "available-exact-number", field: "Available", raw: `9007199254740993.000000001`, want: "9007199254740993.000000001"},
+			{name: "on-hold-exact-number", field: "OnHold", raw: `9007199254740993.000000001`, want: "9007199254740993.000000001"},
+			{name: "overdraft-used-exact-number", field: "OverdraftUsed", raw: `9007199254740993.000000001`, want: "9007199254740993.000000001"},
+		} {
+			t.Run(source+"/"+tc.name, func(t *testing.T) {
+				var fields map[string]json.RawMessage
+				field := tc.field
+				if source == "uppercase" {
+					fields = codecFields(t, FormatDual)
+				} else {
+					require.NoError(t, json.Unmarshal([]byte(legacyBalanceRedisFixture), &fields))
+					field = lowerName(field)
+				}
+				fields[field] = json.RawMessage(tc.raw)
+
+				snapshot, err := DecodeForRead(marshalCodecFields(t, fields))
+				require.NoError(t, err)
+				var got decimal.Decimal
+				switch lowerName(field) {
+				case "available":
+					got = snapshot.Available
+				case "onHold":
+					got = snapshot.OnHold
+				case "overdraftUsed":
+					got = snapshot.OverdraftUsed
+				}
+				require.Equal(t, tc.want, got.String())
+			})
+		}
+	}
+}
+
+func TestCodecDecodeForReadKeepsNewOnlyMoneyStrict(t *testing.T) {
+	for _, tc := range []struct {
+		field string
+		raw   string
+	}{
+		{field: "available", raw: `"100.00"`},
+		{field: "onHold", raw: `"010.00"`},
+		{field: "overdraftUsed", raw: `"1E+3"`},
+		{field: "available", raw: `9007199254740993.000000001`},
+		{field: "onHold", raw: `9007199254740993.000000001`},
+		{field: "overdraftUsed", raw: `9007199254740993.000000001`},
+	} {
+		t.Run(tc.field+"/"+tc.raw, func(t *testing.T) {
+			fields := codecFields(t, FormatNewOnly)
+			fields[tc.field] = json.RawMessage(tc.raw)
+			snapshot, err := DecodeForRead(marshalCodecFields(t, fields))
+			require.Error(t, err)
+			require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+		})
+	}
+}
+
+func TestCodecDecodeForReadRejectsInvalidLegacyMoneyWithoutFallback(t *testing.T) {
+	for _, source := range []string{"uppercase", "historical-lower"} {
+		for _, field := range []string{"Available", "OnHold", "OverdraftUsed", "OverdraftLimit"} {
+			for _, raw := range []string{`null`, `true`, `{}`, `[]`, `"bad"`} {
+				t.Run(source+"/"+field+"/"+raw, func(t *testing.T) {
+					var fields map[string]json.RawMessage
+					selectedField := field
+					if source == "uppercase" {
+						fields = codecFields(t, FormatDual)
+					} else {
+						require.NoError(t, json.Unmarshal([]byte(legacyBalanceRedisFixture), &fields))
+						selectedField = lowerName(selectedField)
+					}
+					fields[selectedField] = json.RawMessage(raw)
+
+					snapshot, err := DecodeForRead(marshalCodecFields(t, fields))
+					require.Error(t, err)
+					require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+				})
+			}
+		}
+	}
+
+	for _, source := range []string{"uppercase", "historical-lower"} {
+		t.Run(source+"/overdraft-limit-number", func(t *testing.T) {
+			var fields map[string]json.RawMessage
+			field := "OverdraftLimit"
+			if source == "uppercase" {
+				fields = codecFields(t, FormatDual)
+				fields["overdraftLimit"] = json.RawMessage(`"2000"`)
+			} else {
+				require.NoError(t, json.Unmarshal([]byte(legacyBalanceRedisFixture), &fields))
+				field = "overdraftLimit"
+			}
+			fields[field] = json.RawMessage(`1000`)
+
+			snapshot, err := DecodeForRead(marshalCodecFields(t, fields))
+			require.Error(t, err)
+			require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+		})
+	}
+}
+
+func TestCodecStrictDecodeRejectsLegacyReadMoneyRepresentations(t *testing.T) {
+	for _, tc := range []struct {
+		field string
+		raw   string
+	}{
+		{field: "Available", raw: `"100.00"`},
+		{field: "OnHold", raw: `"010.00"`},
+		{field: "OverdraftUsed", raw: `"1E+3"`},
+		{field: "Available", raw: `9007199254740993.000000001`},
+		{field: "OnHold", raw: `9007199254740993.000000001`},
+		{field: "OverdraftUsed", raw: `9007199254740993.000000001`},
+	} {
+		t.Run(tc.field+"/"+tc.raw, func(t *testing.T) {
+			fields := codecFields(t, FormatDual)
+			fields[tc.field] = json.RawMessage(tc.raw)
+			snapshot, err := Decode(marshalCodecFields(t, fields))
+			require.Error(t, err)
+			require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+		})
+	}
+}
+
 func TestCodecDecodeForReadHistoricalShapeUppercaseSettingsAreAuthoritative(t *testing.T) {
 	raw := []byte(`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"allowOverdraft":0,"overdraftLimitEnabled":0,"overdraftLimit":"0","AllowOverdraft":1,"OverdraftLimitEnabled":1,"OverdraftLimit":"1000.00"}`)
 	snapshot, err := DecodeForRead(raw)

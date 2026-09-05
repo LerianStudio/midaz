@@ -170,9 +170,19 @@ func (r *fieldReader) flag(name string, optional bool) bool {
 }
 
 func (r *fieldReader) money(name string, optional bool) decimal.Decimal {
-	value := r.text(name, "0", optional)
+	raw, exists, uppercase := r.value(name)
+	if !exists && optional {
+		return decimal.Zero
+	}
 
-	_, _, uppercase := r.value(name)
+	legacyRepresentation := r.acceptsLegacyMoneyRepresentation(name, uppercase)
+
+	value, validRepresentation := moneyText(raw, legacyRepresentation)
+	if !exists || !validRepresentation {
+		r.invalid(name)
+		return decimal.Zero
+	}
+
 	if r.legacyReadShape && !uppercase && (name == "OverdraftUsed" || name == "OverdraftLimit") && value == "" {
 		return decimal.Zero
 	}
@@ -184,7 +194,7 @@ func (r *fieldReader) money(name string, optional bool) decimal.Decimal {
 	}
 
 	if parsed.String() != value {
-		if name == "OverdraftLimit" && r.allowNoncanonicalLimit && r.err == nil {
+		if legacyRepresentation || name == "OverdraftLimit" && r.allowNoncanonicalLimit {
 			return parsed
 		}
 
@@ -196,6 +206,39 @@ func (r *fieldReader) money(name string, optional bool) decimal.Decimal {
 	}
 
 	return parsed
+}
+
+func (r *fieldReader) acceptsLegacyMoneyRepresentation(name string, uppercase bool) bool {
+	if !r.allowNoncanonicalLimit || !uppercase && !r.legacyReadShape {
+		return false
+	}
+
+	return name == "Available" || name == "OnHold" || name == "OverdraftUsed"
+}
+
+func moneyText(raw json.RawMessage, allowNumber bool) (string, bool) {
+	if len(raw) > 0 && raw[0] == '"' {
+		var value string
+		if json.Unmarshal(raw, &value) != nil {
+			return "", false
+		}
+
+		return value, true
+	}
+
+	if allowNumber && isJSONNumber(raw) {
+		return string(raw), true
+	}
+
+	return "", false
+}
+
+func isJSONNumber(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+
+	return raw[0] == '-' || raw[0] >= '0' && raw[0] <= '9'
 }
 
 func (r *fieldReader) version() int64 {
@@ -229,10 +272,10 @@ func Decode(raw []byte) (engine.BalanceSnapshot, error) {
 	return decode(raw, false)
 }
 
-// DecodeForRead decodes a cache entry for read-only projection. A valid but
-// noncanonical OverdraftLimit is normalized in the returned snapshot; raw is
-// never modified. Mutating cache paths must use strict Decode plus conditional
-// repair rather than this projection.
+// DecodeForRead decodes a cache entry for read-only projection. Legacy money
+// representations and a valid but noncanonical OverdraftLimit are normalized
+// in the returned snapshot; raw is never modified. Mutating cache paths must
+// use strict Decode plus conditional repair rather than this projection.
 func DecodeForRead(raw []byte) (engine.BalanceSnapshot, error) {
 	return decode(raw, true)
 }
