@@ -524,6 +524,21 @@ active and unchanged; they are not migrated by this change. The new engine
 writer remains inactive. Other consumers,
 converters, and writers are not activated by reader compatibility alone.
 
+### Cache writer compatibility
+
+The shared readers accept legacy, dual, and schema-version-2 new-only balance
+blobs. The inactive new-engine writer emits dual blobs when exercised, but it is
+not an active production writer. The active legacy atomic Lua writer emits the
+uppercase legacy fields. When it reads a dual blob, uppercase fields remain
+authoritative; lowerCamel shadows are preserved as-is and can become stale.
+
+The legacy settings Lua path removes lowerCamel setting aliases and writes the
+uppercase settings fields while preserving live monetary state and Version. The
+legacy overdraft-limit repair path is uppercase-only and preserves the existing
+TTL. Pure new-only blobs must not be introduced to the active legacy writer
+until the writer migration is complete; reader compatibility alone is not a
+writer migration.
+
 Activation has a consumer-first sequence:
 
 1. Deploy a reader-compatible release with support for legacy and version-2
