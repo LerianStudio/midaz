@@ -324,6 +324,7 @@ type accountingProxy struct {
 	mu        sync.Mutex
 	counts    map[string]int
 	conns     map[net.Conn]bool
+	replyHook func(string, []byte)
 	wg        sync.WaitGroup
 }
 
@@ -412,6 +413,12 @@ func (p *accountingProxy) forward(downstream net.Conn) {
 		if err != nil {
 			return
 		}
+		p.mu.Lock()
+		replyHook := p.replyHook
+		p.mu.Unlock()
+		if replyHook != nil {
+			replyHook(command, reply)
+		}
 		if (command == "EVAL" || command == "EVALSHA") && len(reply) > 0 && reply[0] != '-' && p.drop.CompareAndSwap(true, false) {
 			return
 		}
@@ -425,6 +432,12 @@ func (p *accountingProxy) count(command string) int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.counts[command]
+}
+
+func (p *accountingProxy) setReplyHook(hook func(string, []byte)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.replyHook = hook
 }
 
 func accountingCommand(raw []byte) string {

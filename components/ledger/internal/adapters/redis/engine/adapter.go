@@ -57,6 +57,19 @@ type TechnicalError struct {
 	Err           error
 }
 
+type normalizationRequiredError struct {
+	keys []string
+	err  error
+}
+
+func (e *normalizationRequiredError) Error() string {
+	return e.err.Error()
+}
+
+func (e *normalizationRequiredError) Unwrap() error {
+	return e.err
+}
+
 func (e *TechnicalError) Error() string {
 	if e.Err == nil {
 		return "accounting execution " + e.Code
@@ -144,28 +157,64 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (*
 		return nil, technical("context_canceled", false, err)
 	}
 
-	args := []any{prepared.Payload, a.limits.MaxRequestBytes, a.limits.MaxPreparedBytes}
+	return a.executePrepared(ctx, client, input.Request, prepared.Keys, prepared.Payload)
+}
 
-	response, err := client.EvalSha(ctx, accountingScript.Hash(), prepared.Keys, args...).Result()
+func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, request engine.Request, keys []string, payload any) (*engine.Result, error) {
+	args := []any{payload, a.limits.MaxRequestBytes, a.limits.MaxPreparedBytes}
+
+	for attempt := 0; attempt < 3; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return nil, technical("context_canceled", false, err)
+		}
+
+		response, executionErr := executeAccounting(ctx, client, keys, args)
+		if executionErr != nil {
+			var normalization *normalizationRequiredError
+
+			classified := classifyAccountingError(executionErr, request, keys)
+			if !errors.As(classified, &normalization) {
+				return nil, classified
+			}
+
+			if attempt == 2 {
+				return nil, normalization.err
+			}
+
+			if err := repairBalanceLimits(ctx, client, normalization.keys); err != nil {
+				return nil, err
+			}
+
+			continue
+		}
+
+		raw, ok := response.(string)
+		if !ok || len(raw) > a.limits.MaxPreparedBytes {
+			return nil, technical("invalid_response", true, errors.New("unexpected accounting response type or size"))
+		}
+
+		result, err := DecodeResult([]byte(raw), request)
+		if err != nil {
+			return nil, technical("invalid_response", true, err)
+		}
+
+		return result, nil
+	}
+
+	return nil, technical("normalization_required", false, errors.New("balance limit normalization attempts exhausted"))
+}
+
+func executeAccounting(ctx context.Context, client *redis.Client, keys []string, args []any) (any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	response, err := client.EvalSha(ctx, accountingScript.Hash(), keys, args...).Result()
 	if isNoScript(err) {
-		response, err = client.Eval(ctx, accountingScriptSource, prepared.Keys, args...).Result()
+		response, err = client.Eval(ctx, accountingScriptSource, keys, args...).Result()
 	}
 
-	if err != nil {
-		return nil, classifyAccountingError(err, input.Request, prepared.Keys)
-	}
-
-	raw, ok := response.(string)
-	if !ok || len(raw) > a.limits.MaxPreparedBytes {
-		return nil, technical("invalid_response", true, errors.New("unexpected accounting response type or size"))
-	}
-
-	result, err := DecodeResult([]byte(raw), input.Request)
-	if err != nil {
-		return nil, technical("invalid_response", true, err)
-	}
-
-	return result, nil
+	return response, err
 }
 
 func validateRecoveryTenant(input command.EngineExecution, tenantID string) error {
@@ -270,13 +319,19 @@ func classifyAccountingError(err error, request engine.Request, keys []string) e
 			allowed[keys[i]] = true
 		}
 
+		seen := make(map[string]bool, len(reported))
 		for _, key := range reported {
-			if !allowed[key] {
+			if !allowed[key] || seen[key] {
 				return technical("invalid_normalization_failure", true, err)
 			}
+
+			seen[key] = true
 		}
 
-		return technical("normalization_required", false, err)
+		return &normalizationRequiredError{
+			keys: reported,
+			err:  technical("normalization_required", false, err),
+		}
 	}
 
 	return technical("script_runtime", true, err)

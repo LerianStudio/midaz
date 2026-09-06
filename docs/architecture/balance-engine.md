@@ -256,12 +256,24 @@ validation rejects them. Both Go serializers canonicalize without mutating the
 caller's settings. The existing script performs a read-only whole-batch preflight
 before any seed or monetary write and reports all noncanonical warm-cache limits.
 
-Go parses those strings and conditionally replaces only the expected live limit.
-The repair preserves money, Version, other settings, key absence, and remaining
-TTL with `SET KEEPTTL`. Invalid JSON or decimal data is a technical failure, never
-zero. A concurrent settings change causes re-evaluation, not an overwrite. There
-are at most three repair passes for the whole batch; this is separate from CAS.
-Transport errors cannot authorize a repair/re-execution loop.
+The inactive posting adapter repairs only after that confirmed prewrite server
+signal. It never repairs from a database snapshot and does not delete or seed a
+missing cache entry. Uppercase legacy `OverdraftLimit` remains authoritative when
+present; lower-case `overdraftLimit` is used only by a new-only blob.
+
+Go validates every reported live blob before constructing the batch. It replaces
+only the raw JSON token for the authoritative limit, then Lua compares every live
+blob against its exact expected bytes before any `SET KEEPTTL`. A CAS conflict
+preserves the concurrent value and returns control to accounting for re-evaluation;
+a missing or invalid blob aborts the repair. Money, Version, unrelated settings,
+extensions, and the existing absolute expiry remain unchanged.
+
+One execution makes at most three total accounting attempts. Only a completed
+repair or CAS conflict permits another attempt. An ambiguous repair failure can
+leave some limits normalized because Lua errors do not roll back preceding writes;
+it is surfaced as indeterminate and never triggers automatic accounting replay.
+Repair preserves expiry, while successful accounting renews the TTL of balances it
+writes.
 
 The repair reply is an exact `BALANCE_LIMIT_NORMALIZATION_REQUIRED:` prefix plus
 a JSON key array, optionally framed by one Redis `ERR ` prefix. Only an actual
