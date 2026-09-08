@@ -5,8 +5,10 @@
 package in
 
 import (
+	nethttp "net/http"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
@@ -302,9 +304,32 @@ type LegacyError struct {
 	Fields     map[string]any `json:"fields,omitempty" doc:"Per-field validation detail, keyed by field name. The value is the violation message for a known field and the offending value for an unexpected one, so it is not always a string. The /v2 contract carries these as the 'errors' array."`
 }
 
-// RepointV1ErrorResponses rewrites every /v1 operation's default error response to
-// the LegacyError schema at application/json, leaving /v2 on the shared RFC 9457
-// Error schema.
+// legacyErrorMediaType is the media type a /v1 error body is served as. It is the
+// same constant ErrorEnvelope stamps on the rewritten response
+// (middleware/envelope.go), so the declared media type and the served one move
+// together.
+const legacyErrorMediaType = fiber.MIMEApplicationJSON
+
+// RepointV1ErrorResponses rewrites EVERY error response on a /v1 operation to the
+// LegacyError schema at application/json, leaving /v2 on the shared RFC 9457 Error
+// schema.
+//
+// Every error response, not just Huma's "default" catch-all. ErrorEnvelope
+// (middleware/envelope.go) reshapes any /v1 response whose status is >= 400 —
+// including the 500 written while unwinding a recovered panic — so a numeric status
+// left pointing at the problem-details body publishes a document the service never
+// sends, and a generated client cannot parse the response it receives. Until the
+// lib-commons baseline hook landed, "default" was the only error response a /v1
+// operation carried, which is why handling it alone was correct then and is not now:
+// the hook (commons/net/http/openapi, OnAddOperation) adds 500 — and 422 where the
+// operation has validated input — at huma.Register time by CLONING the catch-all's
+// content, which is still the RFC 9457 one at that point. This pass runs afterwards,
+// from FinalizeContract, and corrects them.
+//
+// The rule is "status >= 400", not a list of the statuses that hook happens to add
+// today, so a baseline status added later is repointed without another edit here.
+// A response that declares no content declares no body; giving it one here would
+// publish a body the operation does not send, so those are left alone.
 //
 // Both versions share ONE document and ONE component registry, so this adds a
 // second, distinctly named schema rather than altering Error — which must stay
@@ -313,7 +338,8 @@ type LegacyError struct {
 // scripts/openapi/check-docs.sh.
 //
 // Run it AFTER the last huma.Register and BEFORE the spec is snapshotted, like the
-// sibling passes above.
+// sibling passes above. Running it before the hook would repoint responses that do
+// not exist yet.
 func RepointV1ErrorResponses(api huma.API) {
 	schema := api.OpenAPI().Components.Schemas.Schema(reflect.TypeOf(LegacyError{}), true, "LegacyError")
 
@@ -323,16 +349,31 @@ func RepointV1ErrorResponses(api huma.API) {
 		}
 
 		for _, op := range operationsOf(item) {
-			response, ok := op.Responses["default"]
-			if !ok || response == nil {
-				continue
-			}
+			for status, response := range op.Responses {
+				if response == nil || len(response.Content) == 0 || !isErrorResponseKey(status) {
+					continue
+				}
 
-			response.Content = map[string]*huma.MediaType{
-				"application/json": {Schema: schema},
+				response.Content = map[string]*huma.MediaType{
+					legacyErrorMediaType: {Schema: schema},
+				}
 			}
 		}
 	}
+}
+
+// isErrorResponseKey reports whether an OpenAPI responses key names an error
+// response: Huma's "default" catch-all, or any numeric status ErrorEnvelope
+// reshapes (>= 400). Any other key — a success status, or a non-numeric key that is
+// not the catch-all — is not an error response and is left untouched.
+func isErrorResponseKey(key string) bool {
+	if key == "default" {
+		return true
+	}
+
+	status, err := strconv.Atoi(key)
+
+	return err == nil && status >= nethttp.StatusBadRequest
 }
 
 // operationsOf returns every declared operation on a PathItem, in a fixed order, so a

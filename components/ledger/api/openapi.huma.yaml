@@ -4758,15 +4758,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -4797,15 +4797,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -4834,9 +4834,9 @@ paths:
                 type: string
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -4866,15 +4866,15 @@ paths:
           description: No Content
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -4907,15 +4907,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -4954,15 +4954,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5052,15 +5052,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5099,15 +5099,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5144,15 +5144,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5189,15 +5189,15 @@ paths:
           description: No Content
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5237,15 +5237,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5291,15 +5291,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5396,15 +5396,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5450,15 +5450,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5502,15 +5502,15 @@ paths:
           description: No Content
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5557,15 +5557,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5618,15 +5618,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5779,15 +5779,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5839,15 +5839,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5895,15 +5895,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -5951,15 +5951,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6007,15 +6007,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6063,15 +6063,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6115,15 +6115,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6206,15 +6206,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6267,15 +6267,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6334,15 +6334,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6460,15 +6460,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6523,15 +6523,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6581,15 +6581,15 @@ paths:
           description: No Content
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6636,15 +6636,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6697,15 +6697,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6752,15 +6752,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6854,15 +6854,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -6910,15 +6910,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7001,15 +7001,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7061,15 +7061,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7113,15 +7113,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7165,15 +7165,15 @@ paths:
           description: No Content
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7220,15 +7220,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7281,15 +7281,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7365,15 +7365,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7417,15 +7417,15 @@ paths:
           description: No Content
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7472,15 +7472,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7533,15 +7533,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7596,15 +7596,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7680,15 +7680,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7734,15 +7734,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7786,15 +7786,15 @@ paths:
           description: No Content
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7841,15 +7841,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -7902,15 +7902,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8007,15 +8007,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8061,15 +8061,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8113,15 +8113,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8165,15 +8165,15 @@ paths:
           description: No Content
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8220,15 +8220,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8281,15 +8281,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8372,15 +8372,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8426,15 +8426,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8478,15 +8478,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8530,15 +8530,15 @@ paths:
           description: No Content
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8585,15 +8585,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8646,15 +8646,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8695,15 +8695,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8750,15 +8750,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8834,15 +8834,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8888,15 +8888,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8940,15 +8940,15 @@ paths:
           description: No Content
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -8995,15 +8995,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9056,15 +9056,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9147,15 +9147,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9218,15 +9218,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9289,15 +9289,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9360,15 +9360,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9431,15 +9431,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9511,15 +9511,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9582,15 +9582,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9653,15 +9653,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9713,15 +9713,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9774,15 +9774,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9830,15 +9830,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9886,15 +9886,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -9955,15 +9955,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -10015,15 +10015,15 @@ paths:
                 type: string
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -10061,15 +10061,15 @@ paths:
           description: OK
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -10109,15 +10109,15 @@ paths:
           description: Created
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
@@ -10154,15 +10154,15 @@ paths:
           description: No Content
         "422":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
           content:
