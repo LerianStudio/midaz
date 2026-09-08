@@ -157,6 +157,11 @@ func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransaction
 
 	run.action = mtransaction.StatusToAction(run.status)
 
+	if uc.BalanceEngine != nil && run.status != constant.NOTED {
+		tran, err := uc.createTransactionWithBalanceEngine(ctx, span, logger, run, false)
+		return tran, false, err
+	}
+
 	ctx, err = uc.stageBalances(ctx, span, logger, run)
 	if err != nil {
 		return nil, false, err

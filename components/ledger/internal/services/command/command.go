@@ -138,6 +138,10 @@ type UseCase struct {
 	// A nil value leaves the existing transaction execution path unchanged.
 	BalanceEngine BalanceEngine
 
+	// BalanceEngineFinalizer confirms the SQL and MongoDB projections of an
+	// applied balance-engine result. It is required when BalanceEngine is set.
+	BalanceEngineFinalizer BalanceEngineOutcomeFinalizer
+
 	// FeeApplier drives the in-process fee engine inside the create seam. It is
 	// injected at bootstrap from the fee use case; a nil applier disables fee
 	// application (the create path stays unchanged).

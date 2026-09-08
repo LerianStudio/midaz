@@ -45,6 +45,14 @@ type BalanceEngine interface {
 	Execute(ctx context.Context, input EngineExecution) (*engine.Result, error)
 }
 
+// BalanceEngineOutcomeFinalizer durably projects an applied accounting result
+// and reports the transaction status confirmed by SQL. Create requires this
+// capability whenever BalanceEngine is enabled so an applied result can never
+// fall through to the legacy persistence path.
+type BalanceEngineOutcomeFinalizer interface {
+	FinalizeWithOutcome(context.Context, *BalanceEngineRecoveryEnvelope) (BalanceEngineRecoveryOutcome, error)
+}
+
 // BalanceEngineGuardBootstrapper conditionally seeds the execution guard for a
 // persisted legacy transaction that predates balance-engine guards.
 type BalanceEngineGuardBootstrapper interface {

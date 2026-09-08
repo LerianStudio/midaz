@@ -1,0 +1,481 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+)
+
+type createEngineReader struct {
+	TransactionReader
+	settings mmodel.LedgerSettings
+	balances []*mmodel.Balance
+	reads    int
+}
+
+func (reader *createEngineReader) GetParsedLedgerSettings(context.Context, uuid.UUID, uuid.UUID) (mmodel.LedgerSettings, error) {
+	return reader.settings, nil
+}
+
+func (reader *createEngineReader) GetBalances(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+	reader.reads++
+	out := make([]*mmodel.Balance, 0, len(aliases))
+	for _, alias := range aliases {
+		for _, balance := range reader.balances {
+			if mtransaction.AliasKey(balance.Alias, balance.Key) == alias {
+				out = append(out, balance)
+			}
+		}
+	}
+
+	return out, nil
+}
+
+func (reader *createEngineReader) ValidateAccountingRules(context.Context, uuid.UUID, uuid.UUID, []mmodel.BalanceOperation, *mtransaction.Responses, string) (*mmodel.TransactionRouteCache, error) {
+	return nil, nil
+}
+
+type createEngineFinalizer struct {
+	outcome   BalanceEngineRecoveryOutcome
+	err       error
+	envelopes []*BalanceEngineRecoveryEnvelope
+}
+
+func (finalizer *createEngineFinalizer) FinalizeWithOutcome(_ context.Context, envelope *BalanceEngineRecoveryEnvelope) (BalanceEngineRecoveryOutcome, error) {
+	finalizer.envelopes = append(finalizer.envelopes, envelope)
+	return finalizer.outcome, finalizer.err
+}
+
+type applyingCreateEngine struct {
+	t                      *testing.T
+	requests               []EngineExecution
+	expectedSourceVersions []int64
+	before                 func(EngineExecution) error
+}
+
+func (executor *applyingCreateEngine) Execute(_ context.Context, execution EngineExecution) (*engine.Result, error) {
+	executor.requests = append(executor.requests, execution)
+	require.NotNil(executor.t, executor.t)
+	require.Len(executor.t, execution.Request.Transactions, 1)
+	call := len(executor.requests) - 1
+	require.Less(executor.t, call, len(executor.expectedSourceVersions))
+	expectedSourceVersion := executor.expectedSourceVersions[call]
+	transaction := execution.Request.Transactions[0]
+	require.NotEmpty(executor.t, transaction.Postings)
+	require.True(executor.t, transaction.Postings[0].Amount.Equal(decimal.NewFromInt(10)))
+	source := createEngineSnapshot(executor.t, execution.Request.Balances, transaction.Postings[0].BalanceRef)
+	require.True(executor.t, source.Available.Equal(decimal.NewFromInt(100)))
+	require.True(executor.t, source.OnHold.IsZero())
+	require.Equal(executor.t, expectedSourceVersion, source.Version)
+
+	if executor.before != nil {
+		if err := executor.before(execution); err != nil {
+			return nil, err
+		}
+	}
+
+	afterSourceVersion := int64(2)
+	if expectedSourceVersion == 2 {
+		afterSourceVersion = 3
+	}
+	sourceBefore := engine.BalanceState{Available: decimal.NewFromInt(100), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: expectedSourceVersion}
+	sourceAfter := engine.BalanceState{Available: decimal.NewFromInt(90), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: afterSourceVersion}
+	if len(transaction.Postings) == 1 {
+		require.Equal(executor.t, engine.PostingHold, transaction.Postings[0].Type)
+		sourceAfter.OnHold = decimal.NewFromInt(10)
+		movement := createEngineMovement(transaction.ID, transaction.Postings[0], "movement-hold", sourceBefore, sourceAfter)
+		source.Available, source.OnHold, source.Version = decimal.NewFromInt(90), decimal.NewFromInt(10), afterSourceVersion
+		return &engine.Result{Movements: []engine.Movement{movement}, Final: []engine.BalanceSnapshot{source}}, nil
+	}
+
+	require.Len(executor.t, transaction.Postings, 2)
+	require.Equal(executor.t, engine.PostingDebit, transaction.Postings[0].Type)
+	require.Equal(executor.t, engine.PostingCredit, transaction.Postings[1].Type)
+	require.True(executor.t, transaction.Postings[1].Amount.Equal(decimal.NewFromInt(10)))
+	target := createEngineSnapshot(executor.t, execution.Request.Balances, transaction.Postings[1].BalanceRef)
+	require.True(executor.t, target.Available.Equal(decimal.NewFromInt(100)))
+	require.True(executor.t, target.OnHold.IsZero())
+	require.Equal(executor.t, int64(1), target.Version)
+	targetBefore := engine.BalanceState{Available: decimal.NewFromInt(100), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: 1}
+	targetAfter := engine.BalanceState{Available: decimal.NewFromInt(110), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: 2}
+	movements := []engine.Movement{
+		createEngineMovement(transaction.ID, transaction.Postings[0], "movement-source", sourceBefore, sourceAfter),
+		createEngineMovement(transaction.ID, transaction.Postings[1], "movement-target", targetBefore, targetAfter),
+	}
+	source.Available, source.OnHold, source.Version = decimal.NewFromInt(90), decimal.Zero, afterSourceVersion
+	target.Available, target.OnHold, target.Version = decimal.NewFromInt(110), decimal.Zero, 2
+	return &engine.Result{Movements: movements, Final: []engine.BalanceSnapshot{source, target}}, nil
+}
+
+func createEngineSnapshot(t *testing.T, snapshots []engine.BalanceSnapshot, balanceRef string) engine.BalanceSnapshot {
+	t.Helper()
+	for _, snapshot := range snapshots {
+		if snapshot.BalanceRef == balanceRef {
+			return snapshot
+		}
+	}
+	t.Fatalf("missing test snapshot %q", balanceRef)
+	return engine.BalanceSnapshot{}
+}
+
+func createEngineMovement(transactionID uuid.UUID, posting engine.Posting, ref string, before, after engine.BalanceState) engine.Movement {
+	return engine.Movement{
+		Ref: ref, TransactionID: transactionID, PostingRef: posting.Ref,
+		Role: engine.RolePrimary, BalanceRef: posting.BalanceRef, Type: posting.Type,
+		Amount: decimal.NewFromInt(10), Before: before, After: after,
+	}
+}
+
+type createEngineErrorExecutor struct {
+	err      error
+	requests []EngineExecution
+}
+
+func (executor *createEngineErrorExecutor) Execute(_ context.Context, execution EngineExecution) (*engine.Result, error) {
+	executor.requests = append(executor.requests, execution)
+	return nil, executor.err
+}
+
+func TestCreateTransactionV1UsesOptInBalanceEngineWithoutLegacyMutationPorts(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	idempotencySet := make(chan struct{})
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil)
+	redisRepo.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
+		func(context.Context, string, string, time.Duration) error {
+			close(idempotencySet)
+			return nil
+		},
+	)
+
+	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
+	source := translationBalance(organizationID, ledgerID, "33333333-3333-4333-8333-333333333333", "@source", constant.DefaultBalanceKey)
+	target := translationBalance(organizationID, ledgerID, "44444444-4444-4444-8444-444444444444", "@target", constant.DefaultBalanceKey)
+	reader := &createEngineReader{balances: []*mmodel.Balance{source, target}}
+	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
+	finalizer := &createEngineFinalizer{outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED}}
+	uc := &UseCase{
+		TransactionRedisRepo:   redisRepo,
+		TransactionReader:      reader,
+		BalanceEngine:          executor,
+		BalanceEngineFinalizer: finalizer,
+	}
+
+	transactionDate := time.Date(2026, time.September, 8, 12, 30, 0, 0, time.UTC)
+	input := createEngineTransaction(transactionDate)
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
+	ctx = libObservability.ContextWithHeaderID(ctx, "request-a")
+
+	got, replayed, err := uc.CreateTransactionV1(ctx, CreateTransactionV1Input{
+		OrganizationID: organizationID, LedgerID: ledgerID, Transaction: input,
+		TransactionStatus: constant.CREATED, IdempotencyTTL: time.Minute,
+	})
+	require.NoError(t, err)
+	assert.False(t, replayed)
+	require.NotNil(t, got)
+	assert.Equal(t, constant.CREATED, got.Status.Code)
+	assert.Equal(t, transactionDate, got.CreatedAt)
+	assert.Len(t, got.Operations, 2)
+	require.Len(t, executor.requests, 1)
+	require.Len(t, finalizer.envelopes, 1)
+	assert.Equal(t, "tenant-a", finalizer.envelopes[0].TenantID)
+	payload := mustCreateEnginePayload(t, finalizer.envelopes[0])
+	assert.Equal(t, "request-a", payload.HeaderID)
+	assert.Equal(t, executor.requests[0].Request.ExecutionID, finalizer.envelopes[0].ExecutionID)
+	assert.GreaterOrEqual(t, reader.reads, 2)
+	projected, err := ProjectBalanceEngineOperations(*payload, finalizer.envelopes[0].Result)
+	require.NoError(t, err)
+	assert.Equal(t, projected, got.Operations)
+	assert.Equal(t, []string{"10", "10"}, []string{got.Operations[0].Amount.Value.String(), got.Operations[1].Amount.Value.String()})
+	assert.Equal(t, []int64{1, 1}, []int64{*got.Operations[0].Balance.Version, *got.Operations[1].Balance.Version})
+	assert.Equal(t, []int64{2, 2}, []int64{*got.Operations[0].BalanceAfter.Version, *got.Operations[1].BalanceAfter.Version})
+
+	select {
+	case <-idempotencySet:
+	case <-time.After(time.Second):
+		t.Fatal("durable success did not populate the idempotency value")
+	}
+}
+
+func TestCreateTransactionV2ReservesOnceAndRefreshesOnlySnapshotsOnStale(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	idempotencySet := make(chan struct{})
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil).Times(1)
+	redisRepo.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
+		func(context.Context, string, string, time.Duration) error {
+			close(idempotencySet)
+			return nil
+		},
+	).Times(1)
+
+	organizationID := uuid.MustParse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+	ledgerID := uuid.MustParse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+	source := translationBalance(organizationID, ledgerID, "cccccccc-cccc-4ccc-8ccc-cccccccccccc", "@source", constant.DefaultBalanceKey)
+	target := translationBalance(organizationID, ledgerID, "dddddddd-dddd-4ddd-8ddd-dddddddddddd", "@target", constant.DefaultBalanceKey)
+	settings := mmodel.LedgerSettings{}
+	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	reader := &createEngineReader{settings: settings, balances: []*mmodel.Balance{source, target}}
+	staleCalls := 0
+	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1, 2}, before: func(execution EngineExecution) error {
+		if staleCalls > 0 {
+			return nil
+		}
+		staleCalls++
+		source.Version = 2
+		return &engine.Failure{
+			Code: engine.FailureStaleVersion, TransactionIndex: 0, PostingIndex: 0,
+			BalanceRef: execution.Request.Transactions[0].Postings[0].BalanceRef,
+		}
+	}}
+	finalizer := &createEngineFinalizer{outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED}}
+	feeApplier := &fakeFeeApplier{}
+	reservationID := uuid.MustParse("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")
+	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo, TransactionReader: reader,
+		BalanceEngine: executor, BalanceEngineFinalizer: finalizer,
+		FeeApplier: feeApplier, TracerReserver: reserver,
+	}
+
+	transactionDate := time.Date(2026, time.September, 8, 13, 45, 0, 0, time.UTC)
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-v2")
+	ctx = libObservability.ContextWithHeaderID(ctx, "request-v2")
+	got, replayed, err := uc.CreateTransactionV2(ctx, CreateTransactionV2Input{
+		OrganizationID: organizationID, LedgerID: ledgerID,
+		Transaction: createEngineTransaction(transactionDate), TransactionStatus: constant.CREATED,
+		IdempotencyTTL: time.Minute,
+	})
+	require.NoError(t, err)
+	assert.False(t, replayed)
+	require.NotNil(t, got)
+	assert.Equal(t, 1, feeApplier.calls)
+	assert.Equal(t, 1, reserver.reserveCalls)
+	assert.Equal(t, []uuid.UUID{reservationID}, reserver.confirmedIDs)
+	assert.Empty(t, reserver.releasedIDs)
+	require.Len(t, executor.requests, 2)
+	assert.Equal(t, int64(1), executor.requests[0].Request.Balances[0].Version)
+	assert.Equal(t, int64(2), executor.requests[1].Request.Balances[0].Version)
+	assert.Equal(t, executor.requests[0].Request.ExecutionID, executor.requests[1].Request.ExecutionID)
+	assert.Equal(t, executor.requests[0].Request.Transactions, executor.requests[1].Request.Transactions)
+	firstPayload := mustCreateEngineRecovery(t, executor.requests[0])
+	secondPayload := mustCreateEngineRecovery(t, executor.requests[1])
+	assert.Equal(t, firstPayload.TTL, secondPayload.TTL)
+	assert.Equal(t, firstPayload.TransactionUpdatedAt, secondPayload.TransactionUpdatedAt)
+	assert.Equal(t, firstPayload.OperationUpdatedAt, secondPayload.OperationUpdatedAt)
+	assert.Equal(t, transactionDate, secondPayload.TransactionDate)
+	assert.Equal(t, transactionDate, secondPayload.TransactionCreatedAt)
+	assert.Equal(t, 1, staleCalls)
+
+	select {
+	case <-idempotencySet:
+	case <-time.After(time.Second):
+		t.Fatal("durable v2 success did not populate the idempotency value")
+	}
+}
+
+func TestCreateTransactionBalanceEnginePendingRetainsBodyAndDefersTracerConfirm(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	idempotencySet := make(chan struct{})
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil)
+	redisRepo.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
+		func(context.Context, string, string, time.Duration) error {
+			close(idempotencySet)
+			return nil
+		},
+	)
+
+	organizationID := uuid.MustParse("12121212-1212-4212-8212-121212121212")
+	ledgerID := uuid.MustParse("34343434-3434-4434-8434-343434343434")
+	settings := mmodel.LedgerSettings{}
+	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	reader := &createEngineReader{settings: settings, balances: []*mmodel.Balance{
+		translationBalance(organizationID, ledgerID, "56565656-5656-4656-8656-565656565656", "@source", constant.DefaultBalanceKey),
+		translationBalance(organizationID, ledgerID, "78787878-7878-4878-8878-787878787878", "@target", constant.DefaultBalanceKey),
+	}}
+	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
+	finalizer := &createEngineFinalizer{outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.PENDING}}
+	reservationID := uuid.MustParse("90909090-9090-4090-8090-909090909090")
+	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo, TransactionReader: reader,
+		BalanceEngine: executor, BalanceEngineFinalizer: finalizer, TracerReserver: reserver,
+	}
+
+	transactionDate := time.Date(2026, time.September, 8, 15, 0, 0, 0, time.UTC)
+	input := createEngineTransaction(transactionDate)
+	input.Pending = true
+	input.TransactionDate = nil
+	got, _, err := uc.CreateTransactionV2(
+		tmcore.ContextWithTenantID(context.Background(), "tenant-pending"),
+		CreateTransactionV2Input{
+			OrganizationID: organizationID, LedgerID: ledgerID, Transaction: input,
+			TransactionStatus: constant.PENDING, IdempotencyTTL: time.Minute,
+		},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, constant.PENDING, got.Status.Code)
+	assert.Equal(t, input.Send.Value, got.Body.Send.Value)
+	assert.Equal(t, 1, reserver.reserveCalls)
+	assert.Empty(t, reserver.confirmedIDs)
+	assert.Empty(t, reserver.releasedIDs)
+	require.Len(t, executor.requests, 1)
+	assert.Equal(t, ExecutionGuard{
+		TransactionID: executor.requests[0].Request.Transactions[0].ID,
+		ExpectedToken: "", NextToken: constant.PENDING,
+	}, executor.requests[0].Guards[0])
+
+	select {
+	case <-idempotencySet:
+	case <-time.After(time.Second):
+		t.Fatal("durable pending success did not populate the idempotency value")
+	}
+}
+
+func TestCreateTransactionBalanceEngineFailureCleanupBoundary(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	technicalFailure := errors.New("transport outcome unknown")
+	finalizationFailure := errors.New("sql unavailable")
+
+	for _, test := range []struct {
+		name        string
+		executor    func() BalanceEngine
+		finalizeErr error
+		wantDelete  bool
+	}{
+		{
+			name: "confirmed financial refusal releases claim",
+			executor: func() BalanceEngine {
+				return &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}, before: func(execution EngineExecution) error {
+					return &engine.Failure{
+						Code: engine.FailureInsufficientFunds, TransactionIndex: 0, PostingIndex: 0,
+						BalanceRef: execution.Request.Transactions[0].Postings[0].BalanceRef,
+					}
+				}}
+			},
+			wantDelete: true,
+		},
+		{name: "unknown transport retains claim", executor: func() BalanceEngine {
+			return &createEngineErrorExecutor{err: technicalFailure}
+		}},
+		{name: "post-success finalization failure retains claim", executor: func() BalanceEngine {
+			return &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
+		}, finalizeErr: finalizationFailure},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			redisRepo := txRedis.NewMockRedisRepository(ctrl)
+			redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil).Times(1)
+			if test.wantDelete {
+				redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			}
+
+			organizationID := uuid.MustParse("11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+			ledgerID := uuid.MustParse("22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+			reader := &createEngineReader{balances: []*mmodel.Balance{
+				translationBalance(organizationID, ledgerID, "33333333-cccc-4ccc-8ccc-cccccccccccc", "@source", constant.DefaultBalanceKey),
+				translationBalance(organizationID, ledgerID, "44444444-dddd-4ddd-8ddd-dddddddddddd", "@target", constant.DefaultBalanceKey),
+			}}
+			finalizer := &createEngineFinalizer{
+				outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED}, err: test.finalizeErr,
+			}
+			uc := &UseCase{
+				TransactionRedisRepo: redisRepo, TransactionReader: reader,
+				BalanceEngine: test.executor(), BalanceEngineFinalizer: finalizer,
+			}
+			transactionDate := time.Date(2026, time.September, 8, 14, 15, 0, 0, time.UTC)
+
+			_, replayed, err := uc.CreateTransactionV1(
+				tmcore.ContextWithTenantID(context.Background(), "tenant-failure"),
+				CreateTransactionV1Input{
+					OrganizationID: organizationID, LedgerID: ledgerID,
+					Transaction: createEngineTransaction(transactionDate), TransactionStatus: constant.CREATED,
+					IdempotencyTTL: time.Minute,
+				},
+			)
+			require.Error(t, err)
+			assert.False(t, replayed)
+			if test.finalizeErr != nil {
+				assert.ErrorIs(t, err, test.finalizeErr)
+				assert.Len(t, finalizer.envelopes, 1)
+			} else {
+				assert.Empty(t, finalizer.envelopes)
+			}
+		})
+	}
+}
+
+func TestConfirmedPrecommitBalanceEngineFailureIsConservative(t *testing.T) {
+	payload, result := recoveryContractFixture(t)
+	attempt := retryContractAttempt(t, payload, result)
+	stale := retryContractStaleVersion()
+	technical := testBalanceEngineTechnicalError{code: "execute_indeterminate", indeterminate: true, cause: stale}
+	assert.False(t, confirmedPrecommitBalanceEngineFailure(attempt.Execution.Request, technical))
+	assert.False(t, confirmedPrecommitBalanceEngineFailure(attempt.Execution.Request, &engine.Failure{
+		Code: "unknown", TransactionIndex: 0, PostingIndex: 0, BalanceRef: stale.BalanceRef,
+	}))
+	assert.True(t, confirmedPrecommitBalanceEngineFailure(attempt.Execution.Request, stale))
+}
+
+func createEngineTransaction(transactionDate time.Time) mtransaction.Transaction {
+	return mtransaction.Transaction{
+		Description:     "engine create",
+		TransactionDate: (*mtransaction.TransactionDate)(&transactionDate),
+		Send: mtransaction.Send{
+			Asset: "USD", Value: decimal.NewFromInt(10),
+			Source: mtransaction.Source{From: []mtransaction.FromTo{{
+				AccountAlias: "@source", Amount: &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10)},
+			}}},
+			Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{
+				AccountAlias: "@target", Amount: &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(10)},
+			}}},
+		},
+	}
+}
+
+func mustCreateEnginePayload(t *testing.T, envelope *BalanceEngineRecoveryEnvelope) *BalanceEngineRecoveryPayload {
+	t.Helper()
+	payload, err := DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	require.NoError(t, err)
+	return payload
+}
+
+func mustCreateEngineRecovery(t *testing.T, execution EngineExecution) *BalanceEngineRecoveryPayload {
+	t.Helper()
+	require.Len(t, execution.Recovery, 1)
+	payload, err := DecodeBalanceEngineRecoveryPayload(execution.Recovery[0].Payload)
+	require.NoError(t, err)
+	return payload
+}
+
+var (
+	_ BalanceEngineOutcomeFinalizer = (*createEngineFinalizer)(nil)
+	_ BalanceEngine                 = (*applyingCreateEngine)(nil)
+	_ BalanceEngine                 = (*createEngineErrorExecutor)(nil)
+)
