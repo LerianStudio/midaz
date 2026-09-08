@@ -390,6 +390,15 @@ Preserve execution identity, original intent, dates, row identities, resolved
 fees, tracer reservation, and HTTP idempotency work. Do not restart the whole
 transaction workflow. Context cancellation stops additional attempts.
 
+`ExecuteBalanceEngineWithRetry` implements this retry boundary for one prepared
+transaction, but remains disconnected from the normal pipeline. It validates each
+attempt's canonical recovery payload and preserves copied execution/guard identity
+and posting refs, balances, types, amounts, and repayment caps. Snapshots, live
+settings, optional companion contexts, and draw policy can be rebuilt. A technical
+error wrapping stale-version is not retryable. Nil/malformed success results and
+contradictory result-plus-error returns are classified as indeterminate, retaining
+the latest attempt and available result for reconciliation.
+
 Accounting `EVALSHA`/`EVAL` and repair calls use a command wrapper with
 `NoRetry=true`, without changing the shared client's settings. `EVALSHA` to
 `EVAL` fallback occurs only after confirmed NOSCRIPT, never after timeout or
@@ -479,6 +488,17 @@ a Go lock expires. For a legacy pending transaction without a guard, validate
 persisted lifecycle state and conditionally create the guard; two transitions
 must not both win an absent guard. Transaction ID alone is insufficient dedupe.
 
+The adapter exposes the optional `EnsureTransactionGuard` capability for that
+conditional bootstrap. After the command confirms persisted PENDING state, it
+may seed the PENDING token with a single tenant-scoped `HSETNX`, then execute with
+PENDING as the expected token. The seed does not read or overwrite an existing
+token and never sets a TTL on the shared hash. Existing terminal tokens remain
+unchanged; the subsequent accounting guard comparison resolves the race. The
+command must not retry with an alternative expected token. This capability is
+not wired into transaction processing yet. Its mutating command disables client
+retries, and transport failures remain indeterminate even though repeating this
+conditional seed would be idempotent.
+
 ### Recovery envelope
 
 The implemented outer envelope has `formatVersion=2`, tenant/organization/ledger scope,
@@ -531,6 +551,15 @@ with recovery workers before activation; absence of that policy blocks enablemen
   and reconcile before any accounting replay.
 - Confirmed balance application followed by projection/database/publication
   failure: finalize the same recorded result without reapplying postings.
+
+The SQL store's `PersistWithOutcome` reports both the durable transaction status
+and the lifecycle phase of that committed attempt: `created` for a confirmed
+insert, `updated` for a confirmed status transition, or `noop` for a verified
+replay. A concurrent insert won by another transaction is `noop`, not `created`.
+`FinalizeWithOutcome` exposes this information only after metadata verification;
+an error returns an empty outcome. The phase does not confirm broker publication,
+and it does not authorize receipt/guard expiry. These outcomes do not themselves
+change event dispatch or wire the posting engine into normal execution.
 
 ### Compatible recovery consumer
 
