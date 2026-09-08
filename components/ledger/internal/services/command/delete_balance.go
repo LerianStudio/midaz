@@ -29,6 +29,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
+// DeleteBalance soft-deletes a balance once both its persisted row and its Redis snapshot
+// show no funds, holding a delete marker so no transaction mutates the balance meanwhile.
 func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) (err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

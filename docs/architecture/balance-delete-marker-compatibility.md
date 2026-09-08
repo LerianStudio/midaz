@@ -43,8 +43,10 @@ delete issued by an old pod raises a barrier that new transaction scripts respec
 
 One residual hazard remains, and it requires every one of these conditions at once:
 
-1. an old-binary delete stays in flight longer than its 30-second legacy marker
-   TTL, so its marker expires while the request is still running;
+1. an old-binary delete stays in flight longer than the 30-second TTL the
+   previous release gave its legacy marker (this release plants both markers
+   with a 48-hour TTL), so its marker expires while the request is still
+   running;
 2. a new pod acquires that same legacy key after it expires and owns it;
 3. the old request then rolls back and releases with its unconditional `DEL`,
    removing the new pod's legacy marker — new code cannot make an already-running
@@ -53,12 +55,12 @@ One residual hazard remains, and it requires every one of these conditions at on
    snapshot read and its cache `Del`, because the namespaced marker still exists
    but old Lua checks only `:deleted`.
 
-Assess this as negligible. It needs a delete slower than 30 seconds, a legacy
-expiry landing inside it, a rollback after that expiry, and a concurrent old-pod
-mutation inside a window of a few Redis round-trips. Weigh it against the baseline
-of any rollout: old binaries still carry the original defect for the deletes they
-issue themselves, regardless of markers. The bridge closes the window only for
-deletes issued by new pods.
+Assess this as negligible. It needs a delete slower than the old binary's
+30-second marker TTL, a legacy expiry landing inside it, a rollback after that
+expiry, and a concurrent old-pod mutation inside a window of a few Redis
+round-trips. Weigh it against the baseline of any rollout: old binaries still
+carry the original defect for the deletes they issue themselves, regardless of
+markers. The bridge closes the window only for deletes issued by new pods.
 
 ## Rolling back
 
