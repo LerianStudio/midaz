@@ -207,6 +207,186 @@ func TestCodecDecodeForReadNormalizesNewOnlyNoncanonicalLimit(t *testing.T) {
 	require.ErrorAs(t, err, &noncanonical)
 }
 
+func TestNormalizeLimitDualRepairsAuthoritativeLimitWithoutRoundingRawState(t *testing.T) {
+	raw := []byte(`{"SchemaVersion":2,"ID":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","AccountType":"deposit","AssetCode":"USD","Alias":"@source","Key":"default","Available":9007199254740993.000000001,"OnHold":"010.00","Version":9223372036854775807,"AllowSending":1,"AllowReceiving":1,"OverdraftLimit":"1000.00","Extension":{"counter":9007199254740993,"raw":"1e3"}}`)
+
+	repaired, err := NormalizeLimitDual(raw, "@ignored")
+	require.NoError(t, err)
+
+	fields, err := decodeObject(repaired)
+	require.NoError(t, err)
+	require.JSONEq(t, `2`, string(fields["SchemaVersion"]))
+	for _, name := range fieldNames {
+		require.Contains(t, fields, name)
+		require.Contains(t, fields, lowerName(name))
+	}
+	require.Equal(t, `9007199254740993.000000001`, string(fields["Available"]))
+	require.Equal(t, `"9007199254740993.000000001"`, string(fields["available"]))
+	require.Equal(t, `"010.00"`, string(fields["OnHold"]))
+	require.Equal(t, `"10"`, string(fields["onHold"]))
+	require.Equal(t, `9223372036854775807`, string(fields["Version"]))
+	require.Equal(t, `"9223372036854775807"`, string(fields["version"]))
+	require.Equal(t, `"1000"`, string(fields["OverdraftLimit"]))
+	require.Equal(t, `"1000"`, string(fields["overdraftLimit"]))
+	require.JSONEq(t, `{"counter":9007199254740993,"raw":"1e3"}`, string(fields["Extension"]))
+}
+
+func TestNormalizeLimitDualCanonicalAuthorityIsExactNoOp(t *testing.T) {
+	raw := []byte(` { "SchemaVersion":2, "ID":"00000000-0000-0000-0000-000000000001", "AccountID":"00000000-0000-0000-0000-000000000002", "AccountType":"deposit", "AssetCode":"USD", "Alias":"@source", "Key":"default", "Available":"10", "OnHold":"0", "Version":7, "AllowSending":1, "AllowReceiving":1, "OverdraftLimit":"1000", "overdraftLimit":null } `)
+
+	normalized, err := NormalizeLimitDual(raw, "@ignored")
+	require.NoError(t, err)
+	require.Equal(t, raw, normalized)
+}
+
+func TestNormalizeLimitDualUsesTrustedAliasAndEstablishedLegacyDefaults(t *testing.T) {
+	raw := []byte(`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"overdraftLimit":"1000.00"}`)
+
+	repaired, err := NormalizeLimitDual(raw, "@source")
+	require.NoError(t, err)
+
+	fields, err := decodeObject(repaired)
+	require.NoError(t, err)
+	require.Equal(t, `"@source"`, string(fields["Alias"]))
+	require.Equal(t, `"@source"`, string(fields["alias"]))
+	require.Equal(t, `"default"`, string(fields["Key"]))
+	require.Equal(t, `""`, string(fields["Direction"]))
+	require.Equal(t, `"transactional"`, string(fields["BalanceScope"]))
+	require.Equal(t, `"0"`, string(fields["OverdraftUsed"]))
+	require.Equal(t, `0`, string(fields["AllowOverdraft"]))
+	require.Equal(t, `false`, string(fields["overdraftLimitEnabled"]))
+
+	snapshot, err := Decode(repaired)
+	require.NoError(t, err)
+	require.Equal(t, "@source#default", snapshot.BalanceRef)
+}
+
+func TestNormalizeLimitDualRejectsMalformedInputAndInvalidAuthority(t *testing.T) {
+	validPrefix := `{"SchemaVersion":2,"ID":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","AccountType":"deposit","AssetCode":"USD","Alias":"@source","Key":"default","Available":"10","OnHold":"0","Version":7,"AllowSending":1,"AllowReceiving":1,`
+
+	for _, tc := range []struct {
+		name string
+		raw  string
+	}{
+		{name: "wrong top level", raw: `[]`},
+		{name: "duplicate escaped known field", raw: `{"ID":"a","\u0049D":"b"}`},
+		{name: "unsupported schema", raw: `{"SchemaVersion":3}`},
+		{name: "number limit", raw: validPrefix + `"OverdraftLimit":1000}`},
+		{name: "malformed decimal", raw: validPrefix + `"OverdraftLimit":"not-money"}`},
+		{name: "invalid upper authority", raw: validPrefix + `"OverdraftLimit":null,"overdraftLimit":"1000.00"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NormalizeLimitDual([]byte(tc.raw), "@source")
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestNormalizeLimitDualDoesNotGuessMissingOrPresentInvalidAlias(t *testing.T) {
+	absentAlias := []byte(`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"overdraftLimit":"1000.00"}`)
+	_, err := NormalizeLimitDual(absentAlias, "")
+	require.Error(t, err)
+
+	presentInvalidUpper := []byte(`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"Alias":null,"overdraftLimit":"1000.00"}`)
+	_, err = NormalizeLimitDual(presentInvalidUpper, "@source")
+	require.Error(t, err)
+
+	presentEmptyLower := []byte(`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","alias":"","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"overdraftLimit":"1000.00"}`)
+	_, err = NormalizeLimitDual(presentEmptyLower, "@source")
+	require.Error(t, err)
+}
+
+func TestNormalizeLimitDualRepairsNewOnlyRepresentation(t *testing.T) {
+	fields := codecFields(t, FormatNewOnly)
+	fields["overdraftLimit"] = json.RawMessage(`"1000.00"`)
+
+	repaired, err := NormalizeLimitDual(marshalCodecFields(t, fields), "@ignored")
+	require.NoError(t, err)
+
+	fields, err = decodeObject(repaired)
+	require.NoError(t, err)
+	for _, name := range fieldNames {
+		require.Contains(t, fields, name)
+		require.Contains(t, fields, lowerName(name))
+	}
+	require.Equal(t, `"1000"`, string(fields["OverdraftLimit"]))
+	require.Equal(t, `"1000"`, string(fields["overdraftLimit"]))
+	_, err = Decode(repaired)
+	require.NoError(t, err)
+}
+
+func TestNormalizeLimitDualRepairsQualifiedLegacyKeyThroughValidationView(t *testing.T) {
+	raw := []byte(`{"SchemaVersion":2,"ID":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","AccountType":"deposit","AssetCode":"USD","Alias":"@source#default","Key":"@source#default","Available":"10","OnHold":"0","Version":7,"AllowSending":1,"AllowReceiving":1,"OverdraftLimit":"1000.00"}`)
+
+	repaired, err := NormalizeLimitDual(raw, "@ignored")
+	require.NoError(t, err)
+
+	fields, err := decodeObject(repaired)
+	require.NoError(t, err)
+	require.Equal(t, `"@source#default"`, string(fields["Key"]))
+	require.Equal(t, `"default"`, string(fields["key"]))
+	require.Equal(t, `"@source#default"`, string(fields["Alias"]))
+	require.Equal(t, `"@source"`, string(fields["alias"]))
+	normalized, err := NormalizeLimitDual(repaired, "@ignored")
+	require.NoError(t, err)
+	require.Equal(t, repaired, normalized)
+}
+
+func TestNormalizeLimitDualQualifiedLegacyKeyCanonicalLimitIsExactNoOp(t *testing.T) {
+	raw := []byte(` {"SchemaVersion":2,"ID":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","AccountType":"deposit","AssetCode":"USD","Alias":"@source","Key":"@source#default","Available":"10","OnHold":"0","Version":7,"AllowSending":1,"AllowReceiving":1,"OverdraftLimit":"1000"} `)
+
+	normalized, err := NormalizeLimitDual(raw, "@ignored")
+	require.NoError(t, err)
+	require.Equal(t, raw, normalized)
+}
+
+func TestNormalizeLimitDualQualifiedKeyRetainsExistingIdentityChecks(t *testing.T) {
+	validPrefix := `{"SchemaVersion":2,"ID":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","AccountType":"deposit","AssetCode":"USD","Available":"10","OnHold":"0","Version":7,"AllowSending":1,"AllowReceiving":1,"OverdraftLimit":"1000.00",`
+
+	for _, tc := range []struct {
+		name string
+		raw  string
+	}{
+		{name: "empty key segment", raw: validPrefix + `"Alias":"@source","Key":"@source#"}`},
+		{name: "alias mismatch", raw: validPrefix + `"Alias":"@other","Key":"@source#default"}`},
+		{name: "new only qualified key", raw: `{"SchemaVersion":2,"id":"00000000-0000-0000-0000-000000000001","accountId":"00000000-0000-0000-0000-000000000002","accountType":"deposit","assetCode":"USD","alias":"@source","key":"@source#default","available":"10","onHold":"0","version":"7","allowSending":true,"allowReceiving":true,"overdraftLimit":"1000.00"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NormalizeLimitDual([]byte(tc.raw), "@source")
+			require.Error(t, err)
+		})
+	}
+
+	missingAlias := []byte(validPrefix + `"Key":"@source#default"}`)
+	_, err := NormalizeLimitDual(missingAlias, "@other")
+	require.Error(t, err)
+
+	repaired, err := NormalizeLimitDual(missingAlias, "@source#default")
+	require.NoError(t, err)
+	fields, err := decodeObject(repaired)
+	require.NoError(t, err)
+	require.Equal(t, `"@source"`, string(fields["Alias"]))
+	require.Equal(t, `"@source"`, string(fields["alias"]))
+	require.Equal(t, `"@source#default"`, string(fields["Key"]))
+	require.Equal(t, `"default"`, string(fields["key"]))
+}
+
+func TestNormalizeLimitDualRepairsAcceptedHistoricalEmptyMoneyDefaults(t *testing.T) {
+	raw := []byte(`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","alias":"@source","key":"","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"direction":"","overdraftUsed":"","allowOverdraft":0,"overdraftLimitEnabled":0,"overdraftLimit":"","balanceScope":""}`)
+
+	repaired, err := NormalizeLimitDual(raw, "@ignored")
+	require.NoError(t, err)
+
+	fields, err := decodeObject(repaired)
+	require.NoError(t, err)
+	require.Equal(t, `"0"`, string(fields["OverdraftUsed"]))
+	require.Equal(t, `"0"`, string(fields["overdraftUsed"]))
+	require.Equal(t, `"0"`, string(fields["OverdraftLimit"]))
+	require.Equal(t, `"0"`, string(fields["overdraftLimit"]))
+	_, err = Decode(repaired)
+	require.NoError(t, err)
+}
+
 const legacyBalanceRedisFixture = `{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","alias":"","key":"","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"direction":"","overdraftUsed":"","allowOverdraft":0,"overdraftLimitEnabled":0,"overdraftLimit":"","balanceScope":""}`
 
 func TestCodecDecodeForReadHistoricalBalanceRedisShape(t *testing.T) {
