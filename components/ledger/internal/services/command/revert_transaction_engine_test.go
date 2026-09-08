@@ -48,6 +48,11 @@ func (reader *revertEngineReader) GetBalances(_ context.Context, _, _ uuid.UUID,
 	return balances, nil
 }
 
+func (reader *revertEngineReader) GetBalanceEnginePool(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	pool, err := LoadBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, reader.GetBalances)
+	return pool.ExplicitBalances, pool.Balances, err
+}
+
 type revertLiteralEngine struct {
 	t        *testing.T
 	reader   *revertEngineReader

@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 
@@ -54,7 +55,7 @@ func (uc *UseCase) prepareBalanceEngineTransaction(ctx context.Context, input ba
 		}
 	}
 
-	pool, err := LoadBalanceEngineSnapshotPool(ctx, input.organizationID, input.ledgerID, aliases, uc.TransactionReader.GetBalances)
+	pool, err := loadPreparedBalanceEnginePool(ctx, uc.TransactionReader, input.organizationID, input.ledgerID, aliases)
 	if err != nil {
 		return balanceEnginePreparedTransaction{}, err
 	}
@@ -101,6 +102,20 @@ func (uc *UseCase) prepareBalanceEngineTransaction(ctx context.Context, input ba
 	}
 
 	return balanceEnginePreparedTransaction{pool: pool, transaction: translated, projection: projection}, nil
+}
+
+func loadPreparedBalanceEnginePool(ctx context.Context, reader TransactionReader, organizationID, ledgerID uuid.UUID, aliases []string) (BalanceEngineSnapshotPool, error) {
+	poolReader, ok := reader.(BalanceEnginePoolReader)
+	if !ok {
+		return BalanceEngineSnapshotPool{}, invalidBalanceEngineTranslation("preparation requires a complete balance pool reader")
+	}
+
+	explicitBalances, engineBalances, err := poolReader.GetBalanceEnginePool(ctx, organizationID, ledgerID, aliases)
+	if err != nil {
+		return BalanceEngineSnapshotPool{}, fmt.Errorf("load balance engine pool: %w", err)
+	}
+
+	return BuildBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, explicitBalances, engineBalances)
 }
 
 // orderedBalanceEngineValidationOperations preserves the existing route DTO's

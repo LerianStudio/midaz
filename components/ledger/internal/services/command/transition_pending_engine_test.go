@@ -70,6 +70,11 @@ func (reader *transitionEngineReader) GetBalances(_ context.Context, _, _ uuid.U
 	return out, nil
 }
 
+func (reader *transitionEngineReader) GetBalanceEnginePool(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	pool, err := LoadBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, reader.GetBalances)
+	return pool.ExplicitBalances, pool.Balances, err
+}
+
 func (reader *transitionEngineReader) ValidateAccountingRules(context.Context, uuid.UUID, uuid.UUID, []mmodel.BalanceOperation, *mtransaction.Responses, string) (*mmodel.TransactionRouteCache, error) {
 	return nil, nil
 }

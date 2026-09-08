@@ -25,12 +25,12 @@ type BalanceEngineSnapshotPool struct {
 	Snapshots        []engine.BalanceSnapshot
 }
 
-// BalanceEngineSnapshotLoader is the scoped balance read used to assemble an
-// engine snapshot pool. Its shape matches query.UseCase.GetBalances.
+// BalanceEngineSnapshotLoader is the scoped balance read used by tests and
+// standalone composition helpers. Production transaction paths use the
+// reader's complete-pool operation.
 type BalanceEngineSnapshotLoader func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error)
 
-// LoadBalanceEngineSnapshotPool loads explicit balances and any available
-// overdraft companions in the same organization and ledger scope.
+// LoadBalanceEngineSnapshotPool loads and converts a complete scoped pool.
 func LoadBalanceEngineSnapshotPool(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
@@ -61,6 +61,51 @@ func LoadBalanceEngineSnapshotPool(
 		return BalanceEngineSnapshotPool{}, err
 	}
 
+	companionAliases, _, err := overdraftCompanionAliases(explicitEntries)
+	if err != nil {
+		return BalanceEngineSnapshotPool{}, err
+	}
+
+	companions := make([]*mmodel.Balance, 0, len(companionAliases))
+	if len(companionAliases) > 0 {
+		if err := ctx.Err(); err != nil {
+			return BalanceEngineSnapshotPool{}, fmt.Errorf("load balance engine snapshot pool: %w", err)
+		}
+
+		companions, err = loader(ctx, organizationID, ledgerID, companionAliases)
+		if err != nil {
+			return BalanceEngineSnapshotPool{}, fmt.Errorf("load optional overdraft companion snapshots: %w", err)
+		}
+	}
+
+	all := append(append(make([]*mmodel.Balance, 0, len(explicit)+len(companions)), explicit...), companions...)
+
+	return BuildBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, explicitAliases, explicit, all)
+}
+
+// BuildBalanceEngineSnapshotPool validates and converts balances already
+// loaded by the query layer.
+func BuildBalanceEngineSnapshotPool(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	explicitAliases []string,
+	explicit, balances []*mmodel.Balance,
+) (BalanceEngineSnapshotPool, error) {
+	if err := ctx.Err(); err != nil {
+		return BalanceEngineSnapshotPool{}, fmt.Errorf("load balance engine snapshot pool: %w", err)
+	}
+
+	if organizationID == uuid.Nil || ledgerID == uuid.Nil {
+		return BalanceEngineSnapshotPool{}, fmt.Errorf("load balance engine snapshot pool: organization and ledger IDs must be nonzero")
+	}
+
+	explicitAliases = sortedUniqueStrings(explicitAliases)
+
+	explicitEntries, err := balanceSnapshotEntries(organizationID, ledgerID, explicit)
+	if err != nil {
+		return BalanceEngineSnapshotPool{}, err
+	}
+
 	if err := validateUniqueSnapshotEntries(explicitEntries); err != nil {
 		return BalanceEngineSnapshotPool{}, err
 	}
@@ -76,39 +121,20 @@ func LoadBalanceEngineSnapshotPool(
 		}
 	}
 
-	companionAliases, companionAccounts, err := overdraftCompanionAliases(explicitEntries)
+	allEntries, err := balanceSnapshotEntries(organizationID, ledgerID, balances)
 	if err != nil {
 		return BalanceEngineSnapshotPool{}, err
 	}
 
-	companionEntries := make([]balanceSnapshotEntry, 0)
-
-	if len(companionAliases) > 0 {
-		if err := ctx.Err(); err != nil {
-			return BalanceEngineSnapshotPool{}, fmt.Errorf("load balance engine snapshot pool: %w", err)
-		}
-
-		companions, loadErr := loader(ctx, organizationID, ledgerID, companionAliases)
-		if loadErr != nil {
-			return BalanceEngineSnapshotPool{}, fmt.Errorf("load optional overdraft companion snapshots: %w", loadErr)
-		}
-
-		companionEntries, err = balanceSnapshotEntries(organizationID, ledgerID, companions)
-		if err != nil {
-			return BalanceEngineSnapshotPool{}, err
-		}
-
-		if err := validateCompanionSnapshotAccounts(companionEntries, companionAccounts); err != nil {
-			return BalanceEngineSnapshotPool{}, err
-		}
+	if err := validateUniqueSnapshotEntries(allEntries); err != nil {
+		return BalanceEngineSnapshotPool{}, err
 	}
 
-	if err := validateUniqueSnapshotEntries(explicitEntries, companionEntries); err != nil {
+	if err := validateSnapshotPoolCoverage(explicitEntries, allEntries); err != nil {
 		return BalanceEngineSnapshotPool{}, err
 	}
 
 	sortSnapshotEntries(explicitEntries)
-	allEntries := append(append(make([]balanceSnapshotEntry, 0, len(explicitEntries)+len(companionEntries)), explicitEntries...), companionEntries...)
 	sortSnapshotEntries(allEntries)
 
 	return BalanceEngineSnapshotPool{
@@ -123,33 +149,62 @@ type balanceSnapshotEntry struct {
 	snapshot engine.BalanceSnapshot
 }
 
-func validateCompanionSnapshotAccounts(entries []balanceSnapshotEntry, accounts map[string]uuid.UUID) error {
-	for _, entry := range entries {
-		expectedAccountID, requested := accounts[entry.snapshot.BalanceRef]
-		if !requested {
-			return fmt.Errorf("load balance engine snapshot pool: companion loader returned unrequested balance %q", entry.snapshot.BalanceRef)
+func validateSnapshotPoolCoverage(explicit, all []balanceSnapshotEntry) error {
+	allByRef := make(map[string]balanceSnapshotEntry, len(all))
+	for _, entry := range all {
+		allByRef[entry.snapshot.BalanceRef] = entry
+	}
+
+	allowed := make(map[string]uuid.UUID, len(explicit)*2)
+	for _, entry := range explicit {
+		allowed[entry.snapshot.BalanceRef] = entry.snapshot.AccountID
+		if entry.snapshot.Key != constant.OverdraftBalanceKey {
+			allowed[mtransaction.AliasKey(entry.snapshot.Alias, constant.OverdraftBalanceKey)] = entry.snapshot.AccountID
+		}
+
+		pooled, ok := allByRef[entry.snapshot.BalanceRef]
+		if !ok {
+			return fmt.Errorf("load balance engine snapshot pool: explicit balance %q is missing from complete pool", entry.snapshot.BalanceRef)
+		}
+
+		if !equalBalanceEngineSnapshot(pooled.snapshot, entry.snapshot) {
+			return fmt.Errorf("load balance engine snapshot pool: explicit balance %q diverges from complete pool", entry.snapshot.BalanceRef)
+		}
+	}
+
+	for _, entry := range all {
+		expectedAccountID, ok := allowed[entry.snapshot.BalanceRef]
+		if !ok {
+			return fmt.Errorf("load balance engine snapshot pool: complete pool returned unrelated balance %q", entry.snapshot.BalanceRef)
 		}
 
 		if entry.snapshot.AccountID != expectedAccountID {
-			return fmt.Errorf("load balance engine snapshot pool: companion %q has inconsistent account identity", entry.snapshot.BalanceRef)
+			return fmt.Errorf("load balance engine snapshot pool: balance %q has inconsistent account identity", entry.snapshot.BalanceRef)
 		}
 	}
 
 	return nil
 }
 
-func balanceSnapshotEntries(organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) ([]balanceSnapshotEntry, error) {
-	entries := make([]balanceSnapshotEntry, 0, len(balances))
-	for _, balance := range balances {
-		snapshot, err := balanceToEngineSnapshot(organizationID, ledgerID, balance)
-		if err != nil {
-			return nil, err
-		}
-
-		entries = append(entries, balanceSnapshotEntry{balance: balance, snapshot: snapshot})
-	}
-
-	return entries, nil
+func equalBalanceEngineSnapshot(left, right engine.BalanceSnapshot) bool {
+	return left.BalanceRef == right.BalanceRef &&
+		left.ID == right.ID &&
+		left.AccountID == right.AccountID &&
+		left.AccountType == right.AccountType &&
+		left.AssetCode == right.AssetCode &&
+		left.Alias == right.Alias &&
+		left.Key == right.Key &&
+		left.Direction == right.Direction &&
+		left.BalanceScope == right.BalanceScope &&
+		left.Available.Equal(right.Available) &&
+		left.OnHold.Equal(right.OnHold) &&
+		left.OverdraftUsed.Equal(right.OverdraftUsed) &&
+		left.OverdraftLimit.Equal(right.OverdraftLimit) &&
+		left.Version == right.Version &&
+		left.AllowSending == right.AllowSending &&
+		left.AllowReceiving == right.AllowReceiving &&
+		left.AllowOverdraft == right.AllowOverdraft &&
+		left.OverdraftLimitEnabled == right.OverdraftLimitEnabled
 }
 
 func overdraftCompanionAliases(explicit []balanceSnapshotEntry) ([]string, map[string]uuid.UUID, error) {
@@ -188,6 +243,20 @@ func overdraftCompanionAliases(explicit []balanceSnapshotEntry) ([]string, map[s
 	sort.Strings(aliases)
 
 	return aliases, accounts, nil
+}
+
+func balanceSnapshotEntries(organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) ([]balanceSnapshotEntry, error) {
+	entries := make([]balanceSnapshotEntry, 0, len(balances))
+	for _, balance := range balances {
+		snapshot, err := balanceToEngineSnapshot(organizationID, ledgerID, balance)
+		if err != nil {
+			return nil, err
+		}
+
+		entries = append(entries, balanceSnapshotEntry{balance: balance, snapshot: snapshot})
+	}
+
+	return entries, nil
 }
 
 func balanceToEngineSnapshot(organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) (engine.BalanceSnapshot, error) {
@@ -252,22 +321,6 @@ func balanceToEngineSnapshot(organizationID, ledgerID uuid.UUID, balance *mmodel
 	}, nil
 }
 
-func sortedUniqueStrings(values []string) []string {
-	unique := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		unique[value] = struct{}{}
-	}
-
-	result := make([]string, 0, len(unique))
-	for value := range unique {
-		result = append(result, value)
-	}
-
-	sort.Strings(result)
-
-	return result
-}
-
 func validateUniqueSnapshotEntries(groups ...[]balanceSnapshotEntry) error {
 	refs := make(map[string]uuid.UUID)
 	ids := make(map[uuid.UUID]string)
@@ -312,4 +365,20 @@ func snapshotsFromEntries(entries []balanceSnapshotEntry) []engine.BalanceSnapsh
 	}
 
 	return snapshots
+}
+
+func sortedUniqueStrings(values []string) []string {
+	unique := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		unique[value] = struct{}{}
+	}
+
+	result := make([]string, 0, len(unique))
+	for value := range unique {
+		result = append(result, value)
+	}
+
+	sort.Strings(result)
+
+	return result
 }

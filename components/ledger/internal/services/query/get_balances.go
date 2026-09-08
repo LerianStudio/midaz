@@ -6,6 +6,8 @@ package query
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
@@ -17,8 +19,204 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
+
+type balanceEnginePoolLoader func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error)
+
+// GetBalanceEnginePool returns the explicitly requested balances separately
+// from the complete set of balances the accounting engine may need.
+func (uc *UseCase) GetBalanceEnginePool(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	explicitAliases []string,
+) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	return loadBalanceEnginePool(ctx, organizationID, ledgerID, explicitAliases, uc.GetBalances)
+}
+
+func loadBalanceEnginePool(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	explicitAliases []string,
+	loader balanceEnginePoolLoader,
+) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, fmt.Errorf("load balance engine pool: %w", err)
+	}
+
+	if organizationID == uuid.Nil || ledgerID == uuid.Nil {
+		return nil, nil, fmt.Errorf("load balance engine pool: organization and ledger IDs must be nonzero")
+	}
+
+	if loader == nil {
+		return nil, nil, fmt.Errorf("load balance engine pool: balance loader is required")
+	}
+
+	explicitAliases = sortedUniqueBalanceAliases(explicitAliases)
+
+	explicit, err := loader(ctx, organizationID, ledgerID, explicitAliases)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load explicit balance pool: %w", err)
+	}
+
+	explicitByRef, err := indexExplicitBalancePool(explicitAliases, explicit)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	companionAliases, companionAccounts, err := balanceEngineCompanionAliases(explicitByRef)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	companions := make([]*mmodel.Balance, 0, len(companionAliases))
+	if len(companionAliases) > 0 {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, fmt.Errorf("load balance engine pool: %w", err)
+		}
+
+		companions, err = loader(ctx, organizationID, ledgerID, companionAliases)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load optional overdraft companion pool: %w", err)
+		}
+
+		if err := validateBalanceEngineCompanions(companions, companionAccounts); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	sortBalancesByReference(explicit)
+	all := append(append(make([]*mmodel.Balance, 0, len(explicit)+len(companions)), explicit...), companions...)
+	sortBalancesByReference(all)
+
+	return explicit, all, nil
+}
+
+func indexExplicitBalancePool(aliases []string, balances []*mmodel.Balance) (map[string]*mmodel.Balance, error) {
+	requested := make(map[string]struct{}, len(aliases))
+	for _, alias := range aliases {
+		requested[alias] = struct{}{}
+	}
+
+	indexed := make(map[string]*mmodel.Balance, len(balances))
+	for _, balance := range balances {
+		ref, err := balancePoolReference(balance)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, ok := requested[ref]; !ok {
+			return nil, fmt.Errorf("load balance engine pool: explicit loader returned unrequested balance %q", ref)
+		}
+
+		if _, exists := indexed[ref]; exists {
+			return nil, fmt.Errorf("load balance engine pool: duplicate explicit balance %q", ref)
+		}
+
+		indexed[ref] = balance
+	}
+
+	return indexed, nil
+}
+
+func balanceEngineCompanionAliases(explicit map[string]*mmodel.Balance) ([]string, map[string]string, error) {
+	accounts := make(map[string]string, len(explicit))
+	for ref, balance := range explicit {
+		if strings.HasSuffix(ref, "#"+constant.OverdraftBalanceKey) {
+			continue
+		}
+
+		companionRef := mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), constant.OverdraftBalanceKey)
+		if companion, exists := explicit[companionRef]; exists {
+			if companion.AccountID != balance.AccountID {
+				return nil, nil, fmt.Errorf("load balance engine pool: explicit companion %q has inconsistent account identity", companionRef)
+			}
+
+			continue
+		}
+
+		if accountID, exists := accounts[companionRef]; exists && accountID != balance.AccountID {
+			return nil, nil, fmt.Errorf("load balance engine pool: companion %q has ambiguous account identity", companionRef)
+		}
+
+		accounts[companionRef] = balance.AccountID
+	}
+
+	aliases := make([]string, 0, len(accounts))
+	for alias := range accounts {
+		aliases = append(aliases, alias)
+	}
+
+	sort.Strings(aliases)
+
+	return aliases, accounts, nil
+}
+
+func validateBalanceEngineCompanions(companions []*mmodel.Balance, accounts map[string]string) error {
+	seen := make(map[string]struct{}, len(companions))
+	for _, balance := range companions {
+		ref, err := balancePoolReference(balance)
+		if err != nil {
+			return err
+		}
+
+		expectedAccountID, ok := accounts[ref]
+		if !ok {
+			return fmt.Errorf("load balance engine pool: companion loader returned unrequested balance %q", ref)
+		}
+
+		if balance.AccountID != expectedAccountID {
+			return fmt.Errorf("load balance engine pool: companion %q has inconsistent account identity", ref)
+		}
+
+		if _, exists := seen[ref]; exists {
+			return fmt.Errorf("load balance engine pool: duplicate companion balance %q", ref)
+		}
+
+		seen[ref] = struct{}{}
+	}
+
+	return nil
+}
+
+func balancePoolReference(balance *mmodel.Balance) (string, error) {
+	if balance == nil {
+		return "", fmt.Errorf("load balance engine pool: nil balance")
+	}
+
+	key := strings.TrimSpace(balance.Key)
+	if key == "" {
+		key = constant.DefaultBalanceKey
+	}
+
+	return mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), key), nil
+}
+
+func sortedUniqueBalanceAliases(aliases []string) []string {
+	unique := make(map[string]struct{}, len(aliases))
+	for _, alias := range aliases {
+		unique[alias] = struct{}{}
+	}
+
+	result := make([]string, 0, len(unique))
+	for alias := range unique {
+		result = append(result, alias)
+	}
+
+	sort.Strings(result)
+
+	return result
+}
+
+func sortBalancesByReference(balances []*mmodel.Balance) {
+	sort.Slice(balances, func(i, j int) bool {
+		left, _ := balancePoolReference(balances[i])
+		right, _ := balancePoolReference(balances[j])
+
+		return left < right
+	})
+}
 
 // GetBalances retrieves balances for the given aliases using a cache-aside
 // pattern: checks Redis first, falls back to PostgreSQL for cache misses.

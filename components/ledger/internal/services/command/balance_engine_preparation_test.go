@@ -32,6 +32,11 @@ func (reader enginePreparationReader) GetBalances(ctx context.Context, orgID, le
 	return reader.load(ctx, orgID, ledgerID, aliases)
 }
 
+func (reader enginePreparationReader) GetBalanceEnginePool(ctx context.Context, orgID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	pool, err := LoadBalanceEngineSnapshotPool(ctx, orgID, ledgerID, aliases, reader.load)
+	return pool.ExplicitBalances, pool.Balances, err
+}
+
 func (reader enginePreparationReader) ValidateAccountingRules(ctx context.Context, orgID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *mtransaction.Responses, action string) (*mmodel.TransactionRouteCache, error) {
 	return reader.routes(ctx, orgID, ledgerID, operations, validate, action)
 }

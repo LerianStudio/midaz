@@ -142,3 +142,9 @@ type TransactionReader interface {
 	// GetOperationRouteByID returns a single operation route.
 	GetOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error)
 }
+
+// BalanceEnginePoolReader extends transaction reads only for opt-in engine
+// execution, without widening every legacy TransactionReader implementation.
+type BalanceEnginePoolReader interface {
+	GetBalanceEnginePool(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) (explicit, all []*mmodel.Balance, err error)
+}

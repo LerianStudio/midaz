@@ -51,6 +51,11 @@ func (r *adapterCreateReader) GetBalances(_ context.Context, _, _ uuid.UUID, ali
 	return out, nil
 }
 
+func (r *adapterCreateReader) GetBalanceEnginePool(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	pool, err := command.LoadBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, r.GetBalances)
+	return pool.ExplicitBalances, pool.Balances, err
+}
+
 func (r *adapterCreateReader) ValidateAccountingRules(context.Context, uuid.UUID, uuid.UUID, []mmodel.BalanceOperation, *mtransaction.Responses, string) (*mmodel.TransactionRouteCache, error) {
 	return nil, nil
 }

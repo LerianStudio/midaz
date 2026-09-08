@@ -443,6 +443,23 @@ func TestLoadBalanceEngineSnapshotPoolRejectsMixedExplicitCompanionFromAnotherAc
 	assert.Contains(t, err.Error(), "account identity")
 }
 
+func TestBuildBalanceEngineSnapshotPoolRejectsDivergentExplicitState(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("f36006c5-02db-4ba4-8f97-a219c0dd2809")
+	ledgerID := uuid.MustParse("ea89b681-33f2-4244-9637-a23f71398957")
+	accountID := uuid.MustParse("8d81e2a5-95fc-4d3a-829c-1b096d2d79e5")
+	explicit := snapshotPoolBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey)
+	pooled := *explicit
+	pooled.Available = decimal.NewFromInt(99)
+
+	_, err := BuildBalanceEngineSnapshotPool(t.Context(), organizationID, ledgerID,
+		[]string{"@alice#default"}, []*mmodel.Balance{explicit}, []*mmodel.Balance{&pooled})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "diverges from complete pool")
+}
+
 type snapshotPoolContextKey struct{}
 
 func snapshotPoolBalance(organizationID, ledgerID, accountID uuid.UUID, alias, key string) *mmodel.Balance {
