@@ -50,6 +50,66 @@ local function json_number(value)
     return whole ~= nil and (#whole == 1 or whole:sub(1, 1) ~= "0")
 end
 
+local function string_end(raw, start_at)
+    local cursor = start_at + 1
+    while cursor <= #raw do
+        local char = raw:sub(cursor, cursor)
+        if char:byte() < 32 then
+            return nil
+        elseif char == "\\" then
+            cursor = cursor + 2
+        elseif char == '"' then
+            return cursor
+        else
+            cursor = cursor + 1
+        end
+    end
+
+    return nil
+end
+
+local function value_end(raw, start_at)
+    local first = raw:sub(start_at, start_at)
+    if first == '"' then
+        return string_end(raw, start_at)
+    end
+
+    if first == "{" or first == "[" then
+        local depth = 0
+        local cursor = start_at
+        while cursor <= #raw do
+            local char = raw:sub(cursor, cursor)
+            if char == '"' then
+                cursor = string_end(raw, cursor)
+                if not cursor then
+                    return nil
+                end
+            elseif char == "{" or char == "[" then
+                depth = depth + 1
+            elseif char == "}" or char == "]" then
+                depth = depth - 1
+                if depth == 0 then
+                    return cursor
+                end
+            end
+            cursor = cursor + 1
+        end
+
+        return nil
+    end
+
+    local cursor = start_at
+    while cursor <= #raw do
+        local char = raw:sub(cursor, cursor)
+        if char == "," or char == "}" or char == "]" or char:match("%s") then
+            return cursor - 1
+        end
+        cursor = cursor + 1
+    end
+
+    return #raw
+end
+
 local raw = redis.call("GET", KEYS[1])
 if not raw then
     return 0
@@ -68,7 +128,8 @@ end
 -- Locate the value token without re-encoding unrelated numeric or extension fields.
 local depth = 0
 local cursor = 1
-local value_start, value_end
+local upper_start, upper_end
+local lower_start, lower_end
 while cursor <= #raw do
     local char = raw:sub(cursor, cursor)
     if char == '"' then
@@ -92,31 +153,28 @@ while cursor <= #raw do
             while raw:sub(following, following):match("%s") do
                 following = following + 1
             end
+            local name = cjson.decode(raw:sub(token_start, cursor))
             if raw:sub(following, following) == ":"
-                and cjson.decode(raw:sub(token_start, cursor)) == "OverdraftLimit" then
-                if value_start then
+                and (name == "OverdraftLimit" or name == "overdraftLimit") then
+                if name == "OverdraftLimit" and upper_start
+                    or name == "overdraftLimit" and lower_start then
                     return invalid()
                 end
                 following = following + 1
                 while raw:sub(following, following):match("%s") do
                     following = following + 1
                 end
-                if raw:sub(following, following) ~= '"' then
+
+                local ending = value_end(raw, following)
+                if not ending or name == "OverdraftLimit" and raw:sub(following, following) ~= '"' then
                     return invalid()
                 end
-                value_start = following
-                following = following + 1
-                while following <= #raw do
-                    local value_char = raw:sub(following, following)
-                    if value_char == "\\" then
-                        following = following + 2
-                    elseif value_char == '"' then
-                        break
-                    else
-                        following = following + 1
-                    end
+
+                if name == "OverdraftLimit" then
+                    upper_start, upper_end = following, ending
+                else
+                    lower_start, lower_end = following, ending
                 end
-                value_end = following
             end
         end
     elseif char == "{" or char == "[" then
@@ -143,7 +201,7 @@ while cursor <= #raw do
     cursor = cursor + 1
 end
 
-if not value_start then
+if not upper_start then
     return invalid()
 end
 
@@ -151,6 +209,22 @@ if balance.OverdraftLimit ~= ARGV[1] then
     return 2
 end
 
-local repaired = raw:sub(1, value_start - 1) .. cjson.encode(ARGV[2]) .. raw:sub(value_end + 1)
+local replacement = cjson.encode(ARGV[2])
+local repaired = raw
+local function replace_value(value, start_at, end_at)
+    return value:sub(1, start_at - 1) .. replacement .. value:sub(end_at + 1)
+end
+
+-- Replace the later token first so the earlier token's offsets remain valid.
+if lower_start and lower_start > upper_start then
+    repaired = replace_value(repaired, lower_start, lower_end)
+    repaired = replace_value(repaired, upper_start, upper_end)
+elseif lower_start then
+    repaired = replace_value(repaired, upper_start, upper_end)
+    repaired = replace_value(repaired, lower_start, lower_end)
+else
+    repaired = replace_value(repaired, upper_start, upper_end)
+end
+
 redis.call("SET", KEYS[1], repaired, "KEEPTTL")
 return 1

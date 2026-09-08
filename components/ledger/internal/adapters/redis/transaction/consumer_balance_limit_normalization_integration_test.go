@@ -50,6 +50,58 @@ func TestIntegration_BalanceLimitNormalization_PreservesUnrelatedBytesAndTTL(t *
 	}
 }
 
+func TestIntegration_BalanceLimitNormalization_SynchronizesExistingLowerShadow(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	client := infra.redisContainer.Client
+	ctx := context.Background()
+	key := "{transactions}:normalization:dual-shadow"
+	tests := []struct {
+		name     string
+		raw      string
+		expected string
+	}{
+		{
+			name:     "lower field before upper field",
+			raw:      `{"overdraftLimit":"99","Available":"120.00","OverdraftLimit":"010.00","Extension":{"overdraftLimit":"nested"}}`,
+			expected: `{"overdraftLimit":"10","Available":"120.00","OverdraftLimit":"10","Extension":{"overdraftLimit":"nested"}}`,
+		},
+		{
+			name:     "escaped lower key ignores nested and string decoys",
+			raw:      `{"OverdraftLimit":"010.00","Note":"\"overdraftLimit\":false","Nested":{"overdraftLimit":"nested"},"overdraft\u004cimit":{"stale":true}}`,
+			expected: `{"OverdraftLimit":"10","Note":"\"overdraftLimit\":false","Nested":{"overdraftLimit":"nested"},"overdraft\u004cimit":"10"}`,
+		},
+		{name: "boolean lower value", raw: `{"OverdraftLimit":"010.00","overdraftLimit":false}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10"}`},
+		{name: "number lower value", raw: `{"OverdraftLimit":"010.00","overdraftLimit":99.00}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10"}`},
+		{name: "null lower value", raw: `{"OverdraftLimit":"010.00","overdraftLimit":null}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10"}`},
+		{name: "array lower value", raw: `{"OverdraftLimit":"010.00","overdraftLimit":[99,{"keep":"nested"}]}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10"}`},
+		{name: "object lower value", raw: `{"OverdraftLimit":"010.00","overdraftLimit":{"value":99}}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10"}`},
+		{name: "escaped quote and backslash in lower string", raw: `{"OverdraftLimit":"010.00","overdraftLimit":"stale\"quote\\tail","Available":"1"}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10","Available":"1"}`},
+		{name: "missing lower field stays missing", raw: `{"OverdraftLimit":"010.00","Available":"120"}`, expected: `{"OverdraftLimit":"10","Available":"120"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, client.Set(ctx, key, tt.raw, time.Minute).Err())
+			expires, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
+			require.NoError(t, err)
+
+			status, err := client.Eval(ctx, balanceLimitNormalizationTestLua, []string{key}, "010.00", "10").Int64()
+			require.NoError(t, err)
+			require.EqualValues(t, 1, status)
+			stored, err := client.Get(ctx, key).Result()
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, stored)
+			actualExpires, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
+			require.NoError(t, err)
+			require.Equal(t, expires, actualExpires)
+		})
+	}
+}
+
 func TestIntegration_BalanceLimitNormalization_ConditionalUpdate(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -71,7 +123,7 @@ func TestIntegration_BalanceLimitNormalization_ConditionalUpdate(t *testing.T) {
 	})
 
 	t.Run("concurrent settings update wins", func(t *testing.T) {
-		raw := `{"Available":"120","Version":42,"OverdraftLimit":"250","AllowOverdraft":false}`
+		raw := `{"Available":"120","Version":42,"OverdraftLimit":"250","overdraftLimit":"250","AllowOverdraft":false}`
 		require.NoError(t, client.Set(ctx, key, raw, time.Minute).Err())
 		expires, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
 		require.NoError(t, err)
@@ -120,6 +172,8 @@ func TestIntegration_BalanceLimitNormalization_RejectsInvalidInputWithoutMutatio
 		{name: "duplicate field", raw: `{"OverdraftLimit":"1e+2","OverdraftLimit":"1e+2"}`, replacement: "100"},
 		{name: "escaped duplicate", raw: `{"OverdraftLimit":"1e+2","Overdraft\u004cimit":"1e+2"}`, replacement: "100"},
 		{name: "duplicate with different type", raw: `{"OverdraftLimit":false,"OverdraftLimit":"1e+2"}`, replacement: "100"},
+		{name: "duplicate lower field", raw: `{"OverdraftLimit":"1e+2","overdraftLimit":"99","overdraftLimit":"98"}`, replacement: "100"},
+		{name: "escaped duplicate lower field", raw: `{"OverdraftLimit":"1e+2","overdraftLimit":"99","overdraft\u004cimit":"98"}`, replacement: "100"},
 	}
 	for _, replacement := range []string{"", "+100", "1e2", "01", ".1", "1.", "1.0", "0.10", "-0", "--1", "NaN", "Infinity", " 1", "1 ", "1\n", "1.2.3"} {
 		tests = append(tests, struct {
