@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -284,4 +285,61 @@ func TestWireArraysAreNotNull(t *testing.T) {
 	require.False(t, reflect.ValueOf(wire.Transactions).IsNil())
 	require.False(t, reflect.ValueOf(wire.Balances).IsNil())
 	require.False(t, reflect.ValueOf(wire.Transactions[0].Postings).IsNil())
+}
+
+// TestPreparedExecutionMeasurements keeps the engine bound below the largest
+// currently accepted HTTP body. The wire is deterministic, so these are
+// contract measurements rather than machine-dependent timing observations.
+// The pool is intentionally measured separately from touched postings: v2
+// permits a scoped pool larger than the legs, and the pool must not be treated
+// as user-requested cardinality.
+func TestPreparedExecutionMeasurements(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		postings   int
+		pool       int
+		wantBytes  int
+		maxTouched int
+	}{
+		{name: "two postings", postings: 2, pool: 2, wantBytes: 2088, maxTouched: 2},
+		{name: "ten postings", postings: 10, pool: 20, wantBytes: 12927, maxTouched: 10},
+		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 61912, maxTouched: 50},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			input, limits, resolved := measuredWireExecution(test.postings, test.pool)
+			limits.MaxPostings, limits.MaxBalances, limits.MaxRequestBytes = 500, 500, 4*1024*1024
+			prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+			require.NoError(t, err)
+			require.Equal(t, test.wantBytes, len(prepared.Payload))
+			require.LessOrEqual(t, test.postings, test.maxTouched)
+			require.Equal(t, test.pool, len(input.Request.Balances))
+			t.Logf("postings=%d full_pool=%d touched=%d request_bytes=%d", test.postings, test.pool, test.postings, len(prepared.Payload))
+		})
+	}
+}
+
+func measuredWireExecution(postingCount, poolCount int) (command.EngineExecution, Limits, resolvedExecutionKeys) {
+	input, limits, resolved := validWireExecution()
+	baseBalance := input.Request.Balances[0]
+	input.Request.Balances = make([]engine.BalanceSnapshot, poolCount)
+	resolved.Balances = make(map[string]resolvedBalanceKeys, poolCount)
+	for i := 0; i < poolCount; i++ {
+		index := strconv.Itoa(i)
+		balance := baseBalance
+		balance.ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte("measurement-balance:"+index))
+		balance.AccountID = uuid.NewSHA1(uuid.NameSpaceOID, []byte("measurement-account:"+index))
+		balance.Alias = "@source-" + index
+		balance.BalanceRef = balance.Alias + "#default"
+		input.Request.Balances[i] = balance
+		key := "tenant:fixture:balance:{transactions}:measurement:" + index
+		resolved.Balances[balance.BalanceRef] = resolvedBalanceKeys{Balance: key, Deleted: key + ":deleted"}
+	}
+	input.Request.Transactions[0].Postings = make([]engine.Posting, postingCount)
+	for i := 0; i < postingCount; i++ {
+		input.Request.Transactions[0].Postings[i] = engine.Posting{Ref: "debit-" + strconv.Itoa(i), BalanceRef: input.Request.Balances[i].BalanceRef, Type: engine.PostingDebit, Amount: decimal.NewFromInt(1), DrawPolicy: engine.DrawAllowed}
+	}
+	return input, limits, resolved
 }

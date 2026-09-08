@@ -128,6 +128,26 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 	require.Equal(t, uint64(2), size.DataPoints[0].Count)
 	require.Equal(t, int64(2*len(prepared.Payload)), size.DataPoints[0].Sum)
 	require.Zero(t, size.DataPoints[0].Attributes.Len())
+
+	touched := make(map[string]struct{})
+	for _, transaction := range input.Request.Transactions {
+		for _, posting := range transaction.Postings {
+			touched[posting.BalanceRef] = struct{}{}
+		}
+	}
+	for name, want := range map[string]int64{
+		"balance_engine_pool_balance_count":    int64(len(input.Request.Balances)),
+		"balance_engine_touched_balance_count": int64(len(touched)),
+	} {
+		require.Contains(t, observed, name)
+		histogram, histogramOK := observed[name].Data.(metricdata.Histogram[int64])
+		require.True(t, histogramOK)
+		require.Len(t, histogram.DataPoints, 1)
+		require.Equal(t, uint64(2), histogram.DataPoints[0].Count)
+		require.Equal(t, 2*want, histogram.DataPoints[0].Sum)
+		require.Zero(t, histogram.DataPoints[0].Attributes.Len())
+	}
+
 	require.NotContains(t, observed, "balance_engine_failures_total")
 	require.NotContains(t, observed, "balance_engine_indeterminate_total")
 }

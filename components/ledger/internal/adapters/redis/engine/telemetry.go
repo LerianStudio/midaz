@@ -27,6 +27,18 @@ var executionSize = metrics.Metric{
 	Buckets:     []float64{1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216},
 }
 
+var executionPoolSize = metrics.Metric{
+	Name: "balance_engine_pool_balance_count", Unit: "1",
+	Description: "Number of balance snapshots carried by a validated accounting request.",
+	Buckets:     []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512},
+}
+
+var executionTouchedSize = metrics.Metric{
+	Name: "balance_engine_touched_balance_count", Unit: "1",
+	Description: "Number of distinct balance references targeted by validated postings.",
+	Buckets:     []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512},
+}
+
 func recordPreparedExecution(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, request engine.Request, payloadBytes int) {
 	if factory == nil {
 		return
@@ -53,6 +65,28 @@ func recordPreparedExecution(ctx context.Context, factory *metrics.MetricsFactor
 	}
 
 	logMetricError(ctx, logger, err)
+
+	pool, poolErr := factory.Histogram(executionPoolSize)
+	if poolErr == nil {
+		poolErr = pool.Record(ctx, int64(len(request.Balances)))
+	}
+
+	logMetricError(ctx, logger, poolErr)
+
+	touched := make(map[string]struct{})
+
+	for _, transaction := range request.Transactions {
+		for _, posting := range transaction.Postings {
+			touched[posting.BalanceRef] = struct{}{}
+		}
+	}
+
+	touchedHistogram, touchedErr := factory.Histogram(executionTouchedSize)
+	if touchedErr == nil {
+		touchedErr = touchedHistogram.Record(ctx, int64(len(touched)))
+	}
+
+	logMetricError(ctx, logger, touchedErr)
 }
 
 func recordExecutionOutcome(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, duration time.Duration, err error) {
