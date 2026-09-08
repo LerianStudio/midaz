@@ -145,16 +145,27 @@ func (r *RedisQueueConsumer) processRecoveryRecord(ctx context.Context, field, r
 }
 
 func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, raw string, envelope *command.BalanceEngineRecoveryEnvelope) error {
+	startedAt := time.Now()
+	outcome := recoveryMetricOutcomeCompleted
+
+	metricsCtx := ctx
+	defer func() {
+		r.emitRecoveryMetrics(metricsCtx, outcome, time.Since(startedAt))
+	}()
+
 	if err := ctx.Err(); err != nil {
+		outcome = recoveryMetricOutcomeContextCanceled
 		return err
 	}
 
 	if r.recoveryFinalizer == nil {
+		outcome = recoveryMetricOutcomeNotConfigured
 		return errors.New("durable balance recovery finalizer is not configured")
 	}
 
 	acknowledger, ok := r.queue.(recoveryRecordAcknowledger)
 	if !ok {
+		outcome = recoveryMetricOutcomeNotConfigured
 		return errors.New("conditional balance recovery acknowledgment is not configured")
 	}
 
@@ -162,15 +173,28 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, 
 	defer cancel()
 
 	if err := r.recoveryFinalizer.Finalize(ctx, envelope); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			outcome = recoveryMetricOutcomeContextCanceled
+		} else {
+			outcome = recoveryMetricOutcomeFinalizationFailed
+		}
+
 		return fmt.Errorf("finalize balance recovery: %w", err)
 	}
 
 	if err := ctx.Err(); err != nil {
+		outcome = recoveryMetricOutcomeContextCanceled
 		return err
 	}
 
 	status, err := acknowledger.CompareAndDeleteRecovery(ctx, field, raw)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			outcome = recoveryMetricOutcomeContextCanceled
+		} else {
+			outcome = recoveryMetricOutcomeAckFailed
+		}
+
 		return fmt.Errorf("acknowledge balance recovery: %w", err)
 	}
 
@@ -178,8 +202,10 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, 
 	case 0, 1:
 		return nil
 	case 2:
+		outcome = recoveryMetricOutcomeRecordChanged
 		return errors.New("backup changed during recovery; replacement retained")
 	default:
+		outcome = recoveryMetricOutcomeInvalidAck
 		return errors.New("invalid conditional recovery acknowledgment result")
 	}
 }
