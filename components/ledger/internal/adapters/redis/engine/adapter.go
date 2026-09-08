@@ -15,9 +15,11 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	tmvalkey "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/valkey"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
@@ -113,7 +115,12 @@ func technical(code string, uncertain bool, err error) error {
 
 // Execute uses the provider's standalone client and disables retransmission on
 // each mutating command. Only confirmed NOSCRIPT permits fallback.
-func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (*engine.Result, error) {
+func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (result *engine.Result, err error) {
+	logger, _, _, factory := libObservability.NewTrackingFromContext(ctx)
+
+	started := time.Now()
+	defer func() { recordExecutionOutcome(ctx, factory, logger, time.Since(started), err) }()
+
 	if err := ctx.Err(); err != nil {
 		return nil, technical("context_canceled", false, err)
 	}
@@ -135,6 +142,8 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (*
 	if err := validateRecoveryTenant(input, resolved.TenantID); err != nil {
 		return nil, technical("invalid_recovery", false, err)
 	}
+
+	recordPreparedExecution(ctx, factory, logger, input.Request, len(prepared.Payload))
 
 	shared, err := a.provider.GetClient(ctx)
 	if err != nil {
@@ -200,6 +209,11 @@ func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, req
 func executeAccounting(ctx context.Context, client *redis.Client, keys []string, args []any) (any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+
+	logger, _, _, factory := libObservability.NewTrackingFromContext(ctx)
+	if factory != nil {
+		emitCounter(ctx, factory, logger, "balance_engine_cas_attempts_total", "Accounting preflight attempts, including receipt replay and normalization retries but excluding NOSCRIPT fallback.", nil, 1)
 	}
 
 	response, err := executeScriptNoRetry(ctx, client, "evalsha", accountingScript.Hash(), keys, args)
