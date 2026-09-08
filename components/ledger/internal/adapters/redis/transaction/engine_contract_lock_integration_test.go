@@ -241,8 +241,7 @@ func TestIntegration_AccountingExecutionGoldens(t *testing.T) {
 				destination := expected.Destination
 				raw, err := infra.redisContainer.Client.Get(ctx, keys[destination]).Bytes()
 				require.NoError(t, err)
-				var cached accountingGoldenCachedBalance
-				require.NoError(t, json.Unmarshal(raw, &cached))
+				cached := decodeAccountingGoldenLegacyCache(t, raw)
 				cached.Destination = expected.Destination
 				assert.Equal(t, expected, cached)
 			}
@@ -255,6 +254,29 @@ func TestIntegration_AccountingExecutionGoldens(t *testing.T) {
 			assert.ElementsMatch(t, wantMembers, members)
 		})
 	}
+}
+
+func decodeAccountingGoldenLegacyCache(t *testing.T, raw []byte) accountingGoldenCachedBalance {
+	t.Helper()
+
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw, &fields))
+	legacy := make(map[string]json.RawMessage, 18)
+	for _, key := range []string{
+		"ID", "AccountID", "Alias", "Key", "AssetCode", "AccountType", "Direction",
+		"Available", "OnHold", "OverdraftUsed", "Version", "AllowSending", "AllowReceiving",
+		"AllowOverdraft", "OverdraftLimitEnabled", "OverdraftLimit", "BalanceScope",
+	} {
+		if value, exists := fields[key]; exists {
+			legacy[key] = value
+		}
+	}
+	filtered, err := json.Marshal(legacy)
+	require.NoError(t, err)
+	var cached accountingGoldenCachedBalance
+	require.NoError(t, json.Unmarshal(filtered, &cached))
+
+	return cached
 }
 
 func accountingGoldenCache(state accountingGoldenState, direction, accountType string, overdraft, limited bool, limit string) map[string]any {
