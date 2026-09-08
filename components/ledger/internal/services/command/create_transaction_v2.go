@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -65,7 +66,11 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 		ledgerID:       in.LedgerID,
 		input:          in.Transaction,
 		status:         in.TransactionStatus,
-		idempotencyKey: in.IdempotencyKey,
+		// A header string is a view over the connection's read buffer, which the
+		// server overwrites when the next request arrives on that connection. The
+		// run outlives the response — the idempotency slot is written from a
+		// goroutine — so it must hold a copy rather than the view.
+		idempotencyKey: strings.Clone(in.IdempotencyKey),
 		idempotencyTTL: in.IdempotencyTTL,
 	}
 
