@@ -112,7 +112,7 @@ func richAdapterExecution(t *testing.T) (command.EngineExecution, Limits) {
 	return input, Limits{MaxTransactions: 4, MaxPostings: 16, MaxBalances: 16, MaxRecoveryBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20}
 }
 
-func encodeAdapterRecovery(t *testing.T, input *command.EngineExecution, payload command.BalanceEngineRecoveryPayload) json.RawMessage {
+func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload command.BalanceEngineRecoveryPayload) json.RawMessage {
 	t.Helper()
 	require.Len(t, input.Request.Transactions, 1)
 	transaction := command.BalanceEngineTransactionIntent{
@@ -140,7 +140,7 @@ func encodeAdapterRecovery(t *testing.T, input *command.EngineExecution, payload
 	return encoded
 }
 
-func newAdapterValkey(t *testing.T) (*redis.Client, string, string) {
+func newAdapterValkey(t testing.TB) (*redis.Client, string, string) {
 	t.Helper()
 	ctx := context.Background()
 	const password = "isolated-adapter-integration-password"
