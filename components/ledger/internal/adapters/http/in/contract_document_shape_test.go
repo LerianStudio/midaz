@@ -7,6 +7,7 @@ package in
 import (
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -36,6 +37,7 @@ func TestContractDocumentShape(t *testing.T) {
 		{"both prefixes coexist with disjoint operation ids", assertPrefixesCoexist},
 		{"security schemes declared with no dangling reference", assertSecuritySchemesResolve},
 		{"error responses declare the envelope each version serves", assertErrorResponsesMatchServedEnvelope},
+		{"HEAD operations declare no response body", assertHeadOperationsDeclareNoBody},
 	}
 
 	for _, prop := range properties {
@@ -210,6 +212,56 @@ func assertSecuritySchemesResolve(t *testing.T, doc *huma.OpenAPI) {
 	}
 }
 
+// assertHeadOperationsDeclareNoBody locks the one thing HTTP decides for a HEAD
+// operation whatever the contract says: the response carries no body. fasthttp sets
+// Response.SkipBody for every HEAD request, so a declared body is a shape the
+// service is unable to send. A generated client believes the declaration instead —
+// an oapi-codegen-style client leaves the typed field nil on a 500, so a failed
+// count reads as success, and a strict generator throws a parse error and loses the
+// status the caller needed for backoff.
+//
+// It walks EVERY response, not only the error ones, and both planes, because the
+// rule comes from the METHOD: a body declared on the 204 is as wrong as one on the
+// 500, and the /v2 half of the metrics/count family has the same constraint as the
+// /v1 half. StripHeadResponseContent is what holds it.
+func assertHeadOperationsDeclareNoBody(t *testing.T, doc *huma.OpenAPI) {
+	heads := map[string]int{}
+
+	for key, item := range doc.Paths {
+		if item == nil || item.Head == nil {
+			continue
+		}
+
+		var plane string
+
+		switch {
+		case strings.HasPrefix(key, "/v1/"):
+			plane = "/v1"
+		case strings.HasPrefix(key, "/v2/"):
+			plane = "/v2"
+		default:
+			continue
+		}
+
+		heads[plane]++
+
+		for status, response := range item.Head.Responses {
+			if response == nil {
+				continue
+			}
+
+			require.Emptyf(t, response.Content,
+				"%s %s is a HEAD operation, so response %q can never carry a body, but it declares %v",
+				key, item.Head.OperationID, status, contentTypesOf(response.Content))
+		}
+	}
+
+	// Non-vacuity: both planes publish the metrics/count HEAD family, so a walk that
+	// found no HEAD operation asserted nothing.
+	require.NotZerof(t, heads["/v1"], "no /v1 HEAD operation was inspected")
+	require.NotZerof(t, heads["/v2"], "no /v2 HEAD operation was inspected")
+}
+
 // problemErrorMediaType is the RFC 9457 media type a plane serves its error bodies
 // as when no version envelope reshapes them — every /v2 operation, and every tracer
 // operation. Declared here rather than imported because the producer keeps it
@@ -230,10 +282,16 @@ const problemErrorMediaType = "application/problem+json"
 // worse than declaring nothing: the caller does not discover it at integration time,
 // the generated client does at runtime.
 //
-// It walks the "default" catch-all AND every numeric status >= 400 (isErrorResponseKey)
+// It walks the "default" catch-all AND every numeric status in the 4xx/5xx range
 // because the numeric ones are exactly what regressed: the lib-commons baseline hook
 // materializes them at huma.Register time from the RFC 9457 content, and only
 // RepointV1ErrorResponses puts them back on the /v1 envelope.
+//
+// Which responses to walk, and how many there must be, are decided HERE — see
+// isErrorStatusKey and the counters below. Asking isErrorResponseKey, the predicate
+// RepointV1ErrorResponses itself applies, made the gate blind to that predicate
+// narrowing its own reach, because test and fix then skipped the same responses in
+// lockstep.
 func assertErrorResponsesMatchServedEnvelope(t *testing.T, doc *huma.OpenAPI) {
 	require.NotNil(t, doc.Components, "document must carry components")
 	require.NotNil(t, doc.Components.Schemas, "document must carry a schema registry")
@@ -251,7 +309,13 @@ func assertErrorResponsesMatchServedEnvelope(t *testing.T, doc *huma.OpenAPI) {
 	require.NotEqual(t, legacyRef, problemRef,
 		"the two planes must publish DISTINCT error components; one ref for both means a pass collapsed them")
 
-	checked := map[string]int{}
+	var (
+		checked           = map[string]int{} // error bodies this property asserted on
+		operations        = map[string]int{} // operations on the plane
+		headOperations    = map[string]int{} // of those, the ones serving HEAD
+		universalDeclared = map[string]int{} // "default" + "500" keys seen
+		universalChecked  = map[string]int{} // of those, the ones carrying a body
+	)
 
 	for key, item := range doc.Paths {
 		var (
@@ -270,8 +334,34 @@ func assertErrorResponsesMatchServedEnvelope(t *testing.T, doc *huma.OpenAPI) {
 		}
 
 		for _, op := range operationsOf(item) {
+			operations[plane]++
+
+			if op == item.Head {
+				headOperations[plane]++
+			}
+
 			for status, response := range op.Responses {
-				if response == nil || len(response.Content) == 0 || !isErrorResponseKey(status) {
+				if !isErrorStatusKey(status) {
+					continue
+				}
+
+				universal := status == "default" || status == serverErrorStatusKey
+				if universal {
+					universalDeclared[plane]++
+				}
+
+				require.NotNilf(t, response, "%s %s declares a nil %q response", key, op.OperationID, status)
+
+				if len(response.Content) == 0 {
+					// No content declares no body. Only a HEAD operation may reach
+					// here: HTTP forbids it a body, so StripHeadResponseContent drops
+					// the declaration. On any other method this is a response the
+					// property would silently skip, which is how a narrowed pass
+					// hides.
+					require.Truef(t, op == item.Head,
+						"%s %s response %q declares no body; only a HEAD operation may, because HTTP forbids it one",
+						key, op.OperationID, status)
+
 					continue
 				}
 
@@ -290,14 +380,58 @@ func assertErrorResponsesMatchServedEnvelope(t *testing.T, doc *huma.OpenAPI) {
 					"%s %s response %q must $ref the error body %s serves (%s), not %s",
 					key, op.OperationID, status, plane, wantRef, media.Schema.Ref)
 
+				if universal {
+					universalChecked[plane]++
+				}
+
 				checked[plane]++
 			}
 		}
 	}
 
-	// Guard against a vacuous pass: a walk that matched nothing would assert nothing.
-	require.NotZerof(t, checked["/v1"], "no /v1 error response was inspected")
-	require.NotZerof(t, checked["/v2"], "no /v2 error response was inspected")
+	// Independent expectation for how much this property must have reached. Two
+	// statuses are universal and neither is decided by a pass under test: huma writes
+	// one "default" catch-all per operation, and the lib-commons baseline hook adds
+	// one 500 per operation. So each plane declares exactly two per operation, and
+	// exactly the non-HEAD ones carry a body — a HEAD operation can never send one
+	// (assertHeadOperationsDeclareNoBody). Both totals are read off the document's own
+	// operation list, so a response skipped for any reason shows up as a shortfall
+	// instead of a quiet pass. require.NotZero alone could not see that: it rules out
+	// the empty walk, not a narrowed one.
+	for _, plane := range []string{"/v1", "/v2"} {
+		require.Equalf(t, 2*operations[plane], universalDeclared[plane],
+			`every %s operation must declare both a "default" and a "500" error response; %d operations, %d such responses`,
+			plane, operations[plane], universalDeclared[plane])
+
+		require.Equalf(t, 2*(operations[plane]-headOperations[plane]), universalChecked[plane],
+			`every non-HEAD %s operation must have had both its "default" and its "500" error body inspected; %d operations (%d HEAD), %d inspected`,
+			plane, operations[plane], headOperations[plane], universalChecked[plane])
+
+		require.NotZerof(t, checked[plane], "no %s error response was inspected", plane)
+	}
+}
+
+// serverErrorStatusKey is the 500 the lib-commons baseline hook adds to every
+// operation (commons/net/http/openapi, baselineResponses). Together with huma's
+// "default" catch-all it is the pair the counters above use as their per-operation
+// yardstick.
+const serverErrorStatusKey = "500"
+
+// isErrorStatusKey reports whether an OpenAPI responses key names an error response.
+// It deliberately RESTATES the rule RepointV1ErrorResponses applies instead of
+// calling isErrorResponseKey: a gate that asks the code under test which responses
+// to inspect cannot see that code narrowing its own reach. Narrowing
+// isErrorResponseKey to 500-and-up leaves 86 /v1 operations declaring the /v2
+// problem document, and the version of this property that called it still passed.
+// The bounds are literals here for the same reason.
+func isErrorStatusKey(key string) bool {
+	if key == "default" {
+		return true
+	}
+
+	status, err := strconv.Atoi(key)
+
+	return err == nil && status >= 400 && status <= 599
 }
 
 // contentTypesOf returns a response's declared media types, sorted, for a readable
