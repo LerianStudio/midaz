@@ -122,7 +122,22 @@ func (store *Store) PersistWithOutcome(ctx context.Context, record command.Balan
 
 	committed = true
 
-	return command.BalanceEngineRecoveryOutcome{TransactionStatus: transactionStatus}, nil
+	return command.BalanceEngineRecoveryOutcome{
+		TransactionStatus: transactionStatus,
+		LifecyclePhase:    persistedLifecyclePhase(allowInsert, record.ExpectedStatus),
+	}, nil
+}
+
+func persistedLifecyclePhase(changed bool, expectedStatus string) string {
+	if !changed {
+		return command.TransactionLifecyclePhaseNoop
+	}
+
+	if expectedStatus != "" {
+		return command.TransactionLifecyclePhaseUpdated
+	}
+
+	return command.TransactionLifecyclePhaseCreated
 }
 
 func validateRecord(record command.BalanceEnginePersistenceRecord) error {

@@ -192,7 +192,7 @@ func TestBalanceEngineFinalizerReturnsDurableOutcomeAfterMetadataVerification(t 
 	ctx, envelope := finalizationFixture(t)
 	calls := []string{}
 	store := &finalizationOutcomeStoreStub{
-		outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED},
+		outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseCreated},
 		calls:   &calls,
 	}
 	metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
@@ -202,6 +202,7 @@ func TestBalanceEngineFinalizerReturnsDurableOutcomeAfterMetadataVerification(t 
 
 	require.NoError(t, err)
 	assert.Equal(t, constant.APPROVED, outcome.TransactionStatus)
+	assert.Equal(t, TransactionLifecyclePhaseCreated, outcome.LifecyclePhase)
 	assert.Equal(t, []string{
 		"sql-with-outcome",
 		"create:" + constant.EntityTransaction,
@@ -268,7 +269,7 @@ func TestBalanceEngineFinalizerReturnsZeroOutcomeWhenCompletionFails(t *testing.
 			ctx, envelope := finalizationFixture(t)
 			calls := []string{}
 			store := &finalizationOutcomeStoreStub{
-				outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED},
+				outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseCreated},
 				err:     scenario.storeErr,
 				calls:   &calls,
 			}
@@ -284,7 +285,7 @@ func TestBalanceEngineFinalizerReturnsZeroOutcomeWhenCompletionFails(t *testing.
 			} else {
 				require.ErrorIs(t, err, failure)
 			}
-			assert.Empty(t, outcome.TransactionStatus)
+			assert.Equal(t, BalanceEngineRecoveryOutcome{}, outcome)
 			if scenario.storeErr != nil {
 				assert.Equal(t, []string{"sql-with-outcome"}, calls)
 			}

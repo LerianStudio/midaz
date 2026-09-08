@@ -27,6 +27,9 @@ type BalanceEnginePersistenceRecord struct {
 // durable SQL store. It is not derived from the frozen recovery payload.
 type BalanceEngineRecoveryOutcome struct {
 	TransactionStatus string
+	// LifecyclePhase identifies creation, transition, or a verified replay in
+	// this committed SQL attempt. It does not confirm event publication.
+	LifecyclePhase string
 }
 
 // BalanceEngineRecoveryStore confirms only durable SQL transaction and operation

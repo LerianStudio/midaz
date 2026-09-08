@@ -237,6 +237,9 @@ func TestStorePersistWithOutcomeReportsDurableTransactionStatus(t *testing.T) {
 		{name: "cancel", action: "cancel", existing: constant.PENDING, target: constant.CANCELED, expected: constant.CANCELED, update: true},
 		{name: "late hold after approval", action: "hold", existing: constant.APPROVED, target: constant.PENDING, expected: constant.APPROVED},
 		{name: "late hold after cancellation", action: "hold", existing: constant.CANCELED, target: constant.PENDING, expected: constant.CANCELED},
+		{name: "direct replay", action: "direct", existing: constant.APPROVED, target: constant.APPROVED, expected: constant.APPROVED},
+		{name: "commit replay", action: "commit", existing: constant.APPROVED, target: constant.APPROVED, expected: constant.APPROVED},
+		{name: "cancel replay", action: "cancel", existing: constant.CANCELED, target: constant.CANCELED, expected: constant.CANCELED},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			store, mock := newStoreTest(t)
@@ -245,7 +248,7 @@ func TestStorePersistWithOutcomeReportsDurableTransactionStatus(t *testing.T) {
 			if scenario.action == "hold" {
 				record.Transaction.Body = mtransaction.Transaction{Pending: true, Send: mtransaction.Send{Asset: "USD", Value: *record.Transaction.Amount}}
 			}
-			if scenario.update {
+			if scenario.action == "commit" || scenario.action == "cancel" {
 				record.ExpectedStatus = constant.PENDING
 			}
 
@@ -268,8 +271,31 @@ func TestStorePersistWithOutcomeReportsDurableTransactionStatus(t *testing.T) {
 			outcome, err := store.PersistWithOutcome(t.Context(), record)
 			require.NoError(t, err)
 			assert.Equal(t, scenario.expected, outcome.TransactionStatus)
+			expectedPhase := command.TransactionLifecyclePhaseNoop
+			if scenario.create {
+				expectedPhase = command.TransactionLifecyclePhaseCreated
+			} else if scenario.update {
+				expectedPhase = command.TransactionLifecyclePhaseUpdated
+			}
+			assert.Equal(t, expectedPhase, outcome.LifecyclePhase)
 		})
 	}
+}
+
+func TestStorePersistWithOutcomeReportsNoopAfterConcurrentInsert(t *testing.T) {
+	store, mock := newStoreTest(t)
+	mock.ExpectBegin()
+	expectTransaction(mock, "", true, true)
+	mock.ExpectExec("INSERT recovery_transaction").WillReturnResult(sqlmock.NewResult(0, 0))
+	expectTransaction(mock, constant.APPROVED, true, true)
+	expectVerifiedOperations(mock, 1)
+	mock.ExpectCommit()
+
+	outcome, err := store.PersistWithOutcome(t.Context(), frozenStoreRecord())
+
+	require.NoError(t, err)
+	assert.Equal(t, constant.APPROVED, outcome.TransactionStatus)
+	assert.Equal(t, command.TransactionLifecyclePhaseNoop, outcome.LifecyclePhase)
 }
 
 func TestStorePersistWithOutcomeReturnsZeroOnPersistenceFailure(t *testing.T) {

@@ -217,6 +217,7 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 			holdOutcome, err := infra.store.PersistWithOutcome(t.Context(), record)
 			require.NoError(t, err)
 			require.Equal(t, constant.PENDING, holdOutcome.TransactionStatus)
+			require.Equal(t, command.TransactionLifecyclePhaseCreated, holdOutcome.LifecyclePhase)
 
 			pending := record
 			pendingTransaction := *record.Transaction
@@ -231,11 +232,13 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 			terminalOutcome, err := infra.store.PersistWithOutcome(t.Context(), record)
 			require.NoError(t, err)
 			require.Equal(t, scenario.terminal, terminalOutcome.TransactionStatus)
+			require.Equal(t, command.TransactionLifecyclePhaseUpdated, terminalOutcome.LifecyclePhase)
 			beforeReplay := recoverySQLState(t, infra.db)
 
 			replayOutcome, err := infra.store.PersistWithOutcome(t.Context(), pending)
 			require.NoError(t, err)
 			require.Equal(t, scenario.terminal, replayOutcome.TransactionStatus)
+			require.Equal(t, command.TransactionLifecyclePhaseNoop, replayOutcome.LifecyclePhase)
 			require.Equal(t, beforeReplay, recoverySQLState(t, infra.db), "late hold must report the terminal status without changing persisted rows")
 		})
 	}
