@@ -72,18 +72,82 @@ func TestIntegration_AdapterExecute_RepairThenRefusalPreservesHotBalance(t *test
 	ctx := context.Background()
 	inspector, _, _ := newAdapterValkey(t)
 	tests := []struct {
-		name       string
-		format     balancecache.Format
-		find       []byte
-		replace    []byte
-		wantRepair []byte
+		name             string
+		format           balancecache.Format
+		find             []byte
+		replace          []byte
+		wantRepair       []byte
+		lowerValue       []byte
+		lowerKey         []byte
+		lowerBeforeUpper bool
+		nestedDecoy      bool
 	}{
 		{
-			name:       "dual uses uppercase authority and preserves divergent lower shadow",
+			name:       "dual quoted numeric lower shadow",
 			format:     balancecache.FormatDual,
 			find:       []byte(`"OverdraftLimit":"1000"`),
 			replace:    []byte(`"OverdraftLimit":"1E+3"`),
 			wantRepair: []byte(`"OverdraftLimit":"1000"`),
+			lowerValue: []byte(`"99"`),
+		},
+		{
+			name:       "dual numeric lower shadow",
+			format:     balancecache.FormatDual,
+			find:       []byte(`"OverdraftLimit":"1000"`),
+			replace:    []byte(`"OverdraftLimit":"1E+3"`),
+			wantRepair: []byte(`"OverdraftLimit":"1000"`),
+			lowerValue: []byte(`99`),
+		},
+		{
+			name:       "dual boolean lower shadow",
+			format:     balancecache.FormatDual,
+			find:       []byte(`"OverdraftLimit":"1000"`),
+			replace:    []byte(`"OverdraftLimit":"1E+3"`),
+			wantRepair: []byte(`"OverdraftLimit":"1000"`),
+			lowerValue: []byte(`true`),
+		},
+		{
+			name:       "dual null lower shadow",
+			format:     balancecache.FormatDual,
+			find:       []byte(`"OverdraftLimit":"1000"`),
+			replace:    []byte(`"OverdraftLimit":"1E+3"`),
+			wantRepair: []byte(`"OverdraftLimit":"1000"`),
+			lowerValue: []byte(`null`),
+		},
+		{
+			name:       "dual object lower shadow",
+			format:     balancecache.FormatDual,
+			find:       []byte(`"OverdraftLimit":"1000"`),
+			replace:    []byte(`"OverdraftLimit":"1E+3"`),
+			wantRepair: []byte(`"OverdraftLimit":"1000"`),
+			lowerValue: []byte(`{"nested":99}`),
+		},
+		{
+			name:       "dual array lower shadow",
+			format:     balancecache.FormatDual,
+			find:       []byte(`"OverdraftLimit":"1000"`),
+			replace:    []byte(`"OverdraftLimit":"1E+3"`),
+			wantRepair: []byte(`"OverdraftLimit":"1000"`),
+			lowerValue: []byte(`[99]`),
+		},
+		{
+			name:             "dual lower field before uppercase field",
+			format:           balancecache.FormatDual,
+			find:             []byte(`"OverdraftLimit":"1000"`),
+			replace:          []byte(`"OverdraftLimit":"1E+3"`),
+			wantRepair:       []byte(`"OverdraftLimit":"1000"`),
+			lowerValue:       []byte(`"99"`),
+			lowerBeforeUpper: true,
+		},
+		{
+			name:        "dual escaped lowercase key with nested decoy",
+			format:      balancecache.FormatDual,
+			find:        []byte(`"OverdraftLimit":"1000"`),
+			replace:     []byte(`"OverdraftLimit":"1E+3"`),
+			wantRepair:  []byte(`"OverdraftLimit":"1000"`),
+			lowerValue:  []byte(`"99"`),
+			lowerKey:    []byte(`"overdraft\u004cimit"`),
+			nestedDecoy: true,
 		},
 		{
 			name:       "new only uses lowercase authority",
@@ -105,10 +169,43 @@ func TestIntegration_AdapterExecute_RepairThenRefusalPreservesHotBalance(t *test
 			require.NoError(t, err)
 			encoded = replaceLimitTestBytes(t, encoded, tt.find, tt.replace)
 			if tt.format == balancecache.FormatDual {
-				encoded = replaceLimitTestBytes(t, encoded, []byte(`"overdraftLimit":"1000"`), []byte(`"overdraftLimit":"777"`))
+				lowerKey := []byte(`"overdraftLimit"`)
+				if len(tt.lowerKey) > 0 {
+					lowerKey = tt.lowerKey
+				}
+				lowerField := append(append(append([]byte{}, lowerKey...), ':'), tt.lowerValue...)
+				encoded = replaceLimitTestBytes(t, encoded, []byte(`"overdraftLimit":"1000"`), lowerField)
+				if tt.nestedDecoy {
+					encoded = append([]byte(`{"nested":{"overdraftLimit":"777"},`), encoded[1:]...)
+				}
+				if tt.lowerBeforeUpper {
+					upperField := []byte(`"OverdraftLimit":"1E+3"`)
+					lowerStart := bytes.Index(encoded, lowerField)
+					upperStart := bytes.Index(encoded, upperField)
+					require.GreaterOrEqual(t, lowerStart, 0)
+					require.GreaterOrEqual(t, upperStart, 0)
+					require.Less(t, upperStart, lowerStart)
+					betweenFields := encoded[upperStart+len(upperField) : lowerStart]
+					trailingFields := encoded[lowerStart+len(lowerField):]
+					encoded = append(append(append(append([]byte{}, encoded[:upperStart]...), lowerField...), betweenFields...), upperField...)
+					encoded = append(encoded, trailingFields...)
+				}
 			}
 			encoded = append([]byte(`{"opaqueNumber":1E+3,`), encoded[1:]...)
 			want := replaceLimitTestBytes(t, encoded, tt.replace, tt.wantRepair)
+			if tt.format == balancecache.FormatDual {
+				lowerKey := []byte(`"overdraftLimit"`)
+				if len(tt.lowerKey) > 0 {
+					lowerKey = tt.lowerKey
+				}
+				lowerValue := tt.lowerValue
+				if len(lowerValue) == 0 {
+					lowerValue = []byte(`"99"`)
+				}
+				lowerField := append(append(append([]byte{}, lowerKey...), ':'), lowerValue...)
+				canonicalLowerField := append(append(append([]byte{}, lowerKey...), ':'), []byte(`"1000"`)...)
+				want = replaceLimitTestBytes(t, want, lowerField, canonicalLowerField)
+			}
 
 			keys, err := resolveAdapterKeys(ctx, input.Request)
 			require.NoError(t, err)

@@ -112,7 +112,7 @@ func normalizedLimitBlob(raw []byte) ([]byte, error) {
 		return nil, errors.New("invalid noncanonical overdraft limit")
 	}
 
-	span, err := authoritativeLimitSpan(raw)
+	spans, err := limitValueSpans(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -122,10 +122,16 @@ func normalizedLimitBlob(raw []byte) ([]byte, error) {
 		return nil, fmt.Errorf("encode canonical overdraft limit: %w", err)
 	}
 
-	replacement := make([]byte, 0, len(raw)-span.end+span.start+len(encoded))
-	replacement = append(replacement, raw[:span.start]...)
-	replacement = append(replacement, encoded...)
-	replacement = append(replacement, raw[span.end:]...)
+	replacement := raw
+
+	for i := len(spans) - 1; i >= 0; i-- {
+		span := spans[i]
+		patched := make([]byte, 0, len(replacement)-span.end+span.start+len(encoded))
+		patched = append(patched, replacement[:span.start]...)
+		patched = append(patched, encoded...)
+		patched = append(patched, replacement[span.end:]...)
+		replacement = patched
+	}
 
 	if _, err := balancecache.Decode(replacement); err != nil {
 		return nil, fmt.Errorf("validate normalized cached balance: %w", err)
@@ -134,72 +140,74 @@ func normalizedLimitBlob(raw []byte) ([]byte, error) {
 	return replacement, nil
 }
 
-func authoritativeLimitSpan(raw []byte) (jsonValueSpan, error) {
+func limitValueSpans(raw []byte) ([]jsonValueSpan, error) {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 
 	token, err := decoder.Token()
 	if err != nil || token != json.Delim('{') {
-		return jsonValueSpan{}, errors.New("cached balance must be a JSON object")
+		return nil, errors.New("cached balance must be a JSON object")
 	}
 
-	var legacy, current *jsonValueSpan
+	var spans []jsonValueSpan
+
+	var seenLegacy, seenCurrent bool
 
 	for decoder.More() {
 		fieldToken, err := decoder.Token()
 		if err != nil {
-			return jsonValueSpan{}, fmt.Errorf("read cached balance field: %w", err)
+			return nil, fmt.Errorf("read cached balance field: %w", err)
 		}
 
 		name, ok := fieldToken.(string)
 		if !ok {
-			return jsonValueSpan{}, errors.New("invalid cached balance field name")
+			return nil, errors.New("invalid cached balance field name")
 		}
 
 		var value json.RawMessage
 		if err := decoder.Decode(&value); err != nil {
-			return jsonValueSpan{}, fmt.Errorf("decode cached balance field %s: %w", name, err)
+			return nil, fmt.Errorf("decode cached balance field %s: %w", name, err)
 		}
 
 		end := int(decoder.InputOffset())
 		start := end - len(value)
 
 		if start < 0 || !bytes.Equal(raw[start:end], value) {
-			return jsonValueSpan{}, fmt.Errorf("locate cached balance field %s", name)
+			return nil, fmt.Errorf("locate cached balance field %s", name)
 		}
 
-		span := &jsonValueSpan{start: start, end: end}
+		span := jsonValueSpan{start: start, end: end}
 
 		switch name {
 		case "OverdraftLimit":
-			if legacy != nil {
-				return jsonValueSpan{}, errors.New("duplicate cached balance field OverdraftLimit")
+			if seenLegacy {
+				return nil, errors.New("duplicate cached balance field OverdraftLimit")
 			}
 
-			legacy = span
+			seenLegacy = true
+
+			spans = append(spans, span)
 		case "overdraftLimit":
-			if current != nil {
-				return jsonValueSpan{}, errors.New("duplicate cached balance field overdraftLimit")
+			if seenCurrent {
+				return nil, errors.New("duplicate cached balance field overdraftLimit")
 			}
 
-			current = span
+			seenCurrent = true
+
+			spans = append(spans, span)
 		}
 	}
 
 	if _, err := decoder.Token(); err != nil {
-		return jsonValueSpan{}, fmt.Errorf("close cached balance object: %w", err)
+		return nil, fmt.Errorf("close cached balance object: %w", err)
 	}
 
 	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		return jsonValueSpan{}, errors.New("unexpected trailing cached balance content")
+		return nil, errors.New("unexpected trailing cached balance content")
 	}
 
-	if legacy != nil {
-		return *legacy, nil
+	if len(spans) == 0 {
+		return nil, errors.New("cached balance has no overdraft limit")
 	}
 
-	if current != nil {
-		return *current, nil
-	}
-
-	return jsonValueSpan{}, errors.New("cached balance has no overdraft limit")
+	return spans, nil
 }

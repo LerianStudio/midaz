@@ -93,7 +93,11 @@ func TestIntegration_AdapterExecute_LimitRepairBatchPreservesFinancialStateOnRef
 	require.ErrorAs(t, err, &failure)
 	require.Equal(t, core.FailureInsufficientFunds, failure.Code)
 	requireAdapterCachedValue(t, inspector, firstKey, adapterCanonicalLimit(t, firstRaw, "1000.00", "1000"), expiresAt)
-	requireAdapterCachedValue(t, inspector, secondKey, adapterCanonicalLimit(t, secondRaw, "2000.00", "2000"), expiresAt)
+	secondExpected := adapterCanonicalLimit(t, secondRaw, "2000.00", "2000")
+	lowerShadow := []byte(`"overdraftLimit":"1000"`)
+	require.Equal(t, 1, bytes.Count(secondExpected, lowerShadow))
+	secondExpected = bytes.Replace(secondExpected, lowerShadow, []byte(`"overdraftLimit":"2000"`), 1)
+	requireAdapterCachedValue(t, inspector, secondKey, secondExpected, expiresAt)
 	requireAdapterRepairSidecarsAbsent(t, inspector, keys)
 }
 
