@@ -196,6 +196,128 @@ func TestIntegration_AdapterExecute_TransportAndReceipt(t *testing.T) {
 	}
 }
 
+func TestIntegration_AdapterExecute_WritesDualBalanceCacheContract(t *testing.T) {
+	ctx := context.Background()
+	inspector, _, _ := newAdapterValkey(t)
+
+	for _, preexisting := range []bool{false, true} {
+		name := "absent_seed"
+		if preexisting {
+			name = "existing_mutation"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			input, limits := richAdapterExecution(t)
+			balance := &input.Request.Balances[0]
+			balance.Available = decimal.NewFromInt(100)
+			balance.OnHold = decimal.Zero
+			balance.OverdraftUsed = decimal.Zero
+			balance.OverdraftLimit = decimal.Zero
+			balance.Version = 9007199254740992
+			balance.AllowSending = true
+			balance.AllowReceiving = false
+			balance.AllowOverdraft = true
+			balance.OverdraftLimitEnabled = false
+
+			payload, err := command.DecodeBalanceEngineRecoveryPayload(input.Recovery[0].Payload)
+			require.NoError(t, err)
+			payload.Projection[0].Balance.Available = balance.Available
+			payload.Projection[0].Balance.Version = balance.Version
+			input.Recovery[0].Payload = encodeAdapterRecovery(t, &input, *payload)
+			require.NoError(t, command.ValidateBalanceEngineRecovery(input))
+
+			keys, err := resolveAdapterKeys(ctx, input.Request)
+			require.NoError(t, err)
+			cacheKey := keys.Balances[balance.BalanceRef].Balance
+			if preexisting {
+				raw := fmt.Sprintf(
+					`{
+					"SchemaVersion":2,
+					"ID":%q,"id":%q,"AccountID":%q,"accountId":%q,
+					"AccountType":%q,"accountType":%q,"AssetCode":%q,"assetCode":%q,
+					"Alias":%q,"alias":%q,"Key":%q,"key":%q,
+					"Direction":%q,"direction":%q,"BalanceScope":%q,"balanceScope":%q,
+					"Available":"100","available":"100","OnHold":"0","onHold":"0",
+					"OverdraftUsed":"0","overdraftUsed":"0","Version":9007199254740992,"version":"9007199254740992",
+					"AllowSending":1,"allowSending":true,"AllowReceiving":0,"allowReceiving":false,
+					"AllowOverdraft":1,"allowOverdraft":true,"OverdraftLimitEnabled":0,"overdraftLimitEnabled":false,
+					"OverdraftLimit":"0","overdraftLimit":"0",
+					"writerExtension":{"exact":9007199254740997,"kept":true}
+				}`,
+					balance.ID.String(), balance.ID.String(), balance.AccountID.String(), balance.AccountID.String(),
+					balance.AccountType, balance.AccountType, balance.AssetCode, balance.AssetCode,
+					balance.Alias, balance.Alias, balance.Key, balance.Key,
+					balance.Direction, balance.Direction, balance.BalanceScope, balance.BalanceScope,
+				)
+				require.NoError(t, inspector.Set(ctx, cacheKey, raw, 0).Err())
+			}
+
+			adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+			require.NoError(t, err)
+			result, err := adapter.Execute(ctx, input)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			raw, err := inspector.Get(ctx, cacheKey).Bytes()
+			require.NoError(t, err)
+			assertAdapterDualBalanceCache(t, raw, input.Request.Balances[0], preexisting)
+		})
+	}
+}
+
+func assertAdapterDualBalanceCache(t *testing.T, raw []byte, balance core.BalanceSnapshot, hasExtension bool) {
+	t.Helper()
+
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw, &fields))
+	wantFieldCount := 35
+	if hasExtension {
+		wantFieldCount++
+	}
+	require.Len(t, fields, wantFieldCount)
+	require.Equal(t, json.RawMessage("2"), fields["SchemaVersion"])
+
+	textPairs := map[string]struct {
+		lower string
+		want  string
+	}{
+		"ID":             {lower: "id", want: balance.ID.String()},
+		"AccountID":      {lower: "accountId", want: balance.AccountID.String()},
+		"AccountType":    {lower: "accountType", want: balance.AccountType},
+		"AssetCode":      {lower: "assetCode", want: balance.AssetCode},
+		"Alias":          {lower: "alias", want: balance.Alias},
+		"Key":            {lower: "key", want: balance.Key},
+		"Direction":      {lower: "direction", want: balance.Direction},
+		"BalanceScope":   {lower: "balanceScope", want: balance.BalanceScope},
+		"Available":      {lower: "available", want: "70"},
+		"OnHold":         {lower: "onHold", want: "0"},
+		"OverdraftUsed":  {lower: "overdraftUsed", want: "0"},
+		"OverdraftLimit": {lower: "overdraftLimit", want: "0"},
+	}
+	for upper, expected := range textPairs {
+		want, err := json.Marshal(expected.want)
+		require.NoError(t, err)
+		require.Equal(t, json.RawMessage(want), fields[upper], upper)
+		require.Equal(t, json.RawMessage(want), fields[expected.lower], expected.lower)
+	}
+
+	require.Equal(t, json.RawMessage("9007199254740993"), fields["Version"])
+	require.Equal(t, json.RawMessage(`"9007199254740993"`), fields["version"])
+	for upper, expected := range map[string][3]string{
+		"AllowSending":          {"allowSending", "1", "true"},
+		"AllowReceiving":        {"allowReceiving", "0", "false"},
+		"AllowOverdraft":        {"allowOverdraft", "1", "true"},
+		"OverdraftLimitEnabled": {"overdraftLimitEnabled", "0", "false"},
+	} {
+		require.Equal(t, json.RawMessage(expected[1]), fields[upper], upper)
+		require.Equal(t, json.RawMessage(expected[2]), fields[expected[0]], expected[0])
+	}
+
+	if hasExtension {
+		require.Equal(t, json.RawMessage(`{"exact":9007199254740997,"kept":true}`), fields["writerExtension"])
+	}
+}
+
 func TestIntegration_AdapterExecute_PostWriteFailureIsIndeterminate(t *testing.T) {
 	ctx := context.Background()
 	inspector, address, password := newAdapterValkey(t)
