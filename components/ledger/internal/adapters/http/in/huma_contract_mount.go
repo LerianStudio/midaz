@@ -269,6 +269,7 @@ func AssembleHumaContract(app *fiber.App, group fiber.Router, cfg openapi.Config
 func FinalizeContract(api huma.API) {
 	MarkV1OperationsDeprecated(api)
 	RepointV1ErrorResponses(api)
+	StripHeadResponseContent(api)
 	ApplyVersionTagGroups(api)
 }
 
@@ -374,6 +375,53 @@ func isErrorResponseKey(key string) bool {
 	status, err := strconv.Atoi(key)
 
 	return err == nil && status >= nethttp.StatusBadRequest
+}
+
+// StripHeadResponseContent removes the declared body from EVERY response on EVERY
+// HEAD operation, on both planes.
+//
+// A HEAD response cannot carry a body, ever: fasthttp sets Response.SkipBody
+// unconditionally for a HEAD request, so whatever an operation writes is discarded
+// before the wire. Declaring a body there publishes a shape the service is
+// physically unable to send. A generated client believes it: an oapi-codegen-style
+// client leaves the typed field nil on a 500, so a failed count reads as success,
+// and a strict generator throws a parse error instead and loses the status the
+// caller needed.
+//
+// The rule keys off the METHOD, not off a status list and not off a plane. Every
+// response of a HEAD operation loses its content, so a HEAD route registered later
+// is covered without another edit here, and a body declared on a success status is
+// as wrong as one declared on an error. The HEAD operation is read off the PathItem
+// because the method is not part of the path key.
+//
+// Content is dropped by replacing the response with a shallow copy that carries no
+// content map, rather than by writing through the existing one. Baseline error
+// responses are materialized by CLONING the catch-all's media types
+// (lib-commons commons/net/http/openapi, cloneErrorContent), which share their
+// *huma.Schema pointers across statuses and planes, so nothing here may mutate a
+// MediaType a sibling response also holds.
+//
+// Order relative to the sibling passes does not matter: RepointV1ErrorResponses
+// skips a response that declares no content, and this pass drops content whatever
+// schema it points at. Run it AFTER the last huma.Register and BEFORE the spec is
+// snapshotted, like the sibling passes.
+func StripHeadResponseContent(api huma.API) {
+	for _, item := range api.OpenAPI().Paths {
+		if item == nil || item.Head == nil {
+			continue
+		}
+
+		for status, response := range item.Head.Responses {
+			if response == nil || len(response.Content) == 0 {
+				continue
+			}
+
+			bodyless := *response
+			bodyless.Content = nil
+
+			item.Head.Responses[status] = &bodyless
+		}
+	}
 }
 
 // operationsOf returns every declared operation on a PathItem, in a fixed order, so a

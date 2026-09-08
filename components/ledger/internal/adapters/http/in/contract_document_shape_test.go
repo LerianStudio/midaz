@@ -36,6 +36,7 @@ func TestContractDocumentShape(t *testing.T) {
 		{"both prefixes coexist with disjoint operation ids", assertPrefixesCoexist},
 		{"security schemes declared with no dangling reference", assertSecuritySchemesResolve},
 		{"error responses declare the envelope each version serves", assertErrorResponsesMatchServedEnvelope},
+		{"HEAD operations declare no response body", assertHeadOperationsDeclareNoBody},
 	}
 
 	for _, prop := range properties {
@@ -208,6 +209,56 @@ func assertSecuritySchemesResolve(t *testing.T, doc *huma.OpenAPI) {
 		require.Containsf(t, doc.Components.SecuritySchemes, name,
 			"operation references security scheme %q that Components.SecuritySchemes does not declare (dangling reference)", name)
 	}
+}
+
+// assertHeadOperationsDeclareNoBody locks the one thing HTTP decides for a HEAD
+// operation whatever the contract says: the response carries no body. fasthttp sets
+// Response.SkipBody for every HEAD request, so a declared body is a shape the
+// service is unable to send. A generated client believes the declaration instead —
+// an oapi-codegen-style client leaves the typed field nil on a 500, so a failed
+// count reads as success, and a strict generator throws a parse error and loses the
+// status the caller needed for backoff.
+//
+// It walks EVERY response, not only the error ones, and both planes, because the
+// rule comes from the METHOD: a body declared on the 204 is as wrong as one on the
+// 500, and the /v2 half of the metrics/count family has the same constraint as the
+// /v1 half. StripHeadResponseContent is what holds it.
+func assertHeadOperationsDeclareNoBody(t *testing.T, doc *huma.OpenAPI) {
+	heads := map[string]int{}
+
+	for key, item := range doc.Paths {
+		if item == nil || item.Head == nil {
+			continue
+		}
+
+		var plane string
+
+		switch {
+		case strings.HasPrefix(key, "/v1/"):
+			plane = "/v1"
+		case strings.HasPrefix(key, "/v2/"):
+			plane = "/v2"
+		default:
+			continue
+		}
+
+		heads[plane]++
+
+		for status, response := range item.Head.Responses {
+			if response == nil {
+				continue
+			}
+
+			require.Emptyf(t, response.Content,
+				"%s %s is a HEAD operation, so response %q can never carry a body, but it declares %v",
+				key, item.Head.OperationID, status, contentTypesOf(response.Content))
+		}
+	}
+
+	// Non-vacuity: both planes publish the metrics/count HEAD family, so a walk that
+	// found no HEAD operation asserted nothing.
+	require.NotZerof(t, heads["/v1"], "no /v1 HEAD operation was inspected")
+	require.NotZerof(t, heads["/v2"], "no /v2 HEAD operation was inspected")
 }
 
 // problemErrorMediaType is the RFC 9457 media type a plane serves its error bodies

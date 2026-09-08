@@ -4833,16 +4833,8 @@ paths:
               schema:
                 type: string
         "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -5143,22 +5135,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -6114,22 +6094,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -7112,22 +7080,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8112,22 +8068,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -8477,22 +8421,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -9510,22 +9442,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Unprocessable Entity
         "500":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Internal Server Error
         default:
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LegacyError"
           description: Error
       security:
         - BearerAuth: []
@@ -10331,16 +10251,8 @@ paths:
               schema:
                 type: string
         "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Internal Server Error
         default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Error
       security:
         - BearerAuth: []
@@ -11532,22 +11444,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Unprocessable Entity
         "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Internal Server Error
         default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Error
       security:
         - BearerAuth: []
@@ -12488,22 +12388,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Unprocessable Entity
         "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Internal Server Error
         default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Error
       security:
         - BearerAuth: []
@@ -13262,22 +13150,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Unprocessable Entity
         "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Internal Server Error
         default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Error
       security:
         - BearerAuth: []
@@ -15010,22 +14886,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Unprocessable Entity
         "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Internal Server Error
         default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Error
       security:
         - BearerAuth: []
@@ -15369,22 +15233,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Unprocessable Entity
         "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Internal Server Error
         default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Error
       security:
         - BearerAuth: []
@@ -16106,22 +15958,10 @@ paths:
               schema:
                 type: string
         "422":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Unprocessable Entity
         "500":
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Internal Server Error
         default:
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Error"
           description: Error
       security:
         - BearerAuth: []
