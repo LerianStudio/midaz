@@ -854,6 +854,84 @@ local function storedReceipt(request)
     technical("invalid_receipt", "stored execution receipt cannot be validated")
 end
 
+local function applyDebitPosting(current, nextState, posting)
+    if current.direction == "debit" then
+        nextState.available = add_decimal(current.available, posting.amount)
+    else
+        nextState.available = sub_decimal(current.available, posting.amount)
+    end
+    return posting.amount, "0"
+end
+
+local function applyCreditPosting(current, nextState, posting)
+    if current.direction == "debit" then
+        nextState.available = sub_decimal(current.available, posting.amount)
+    else
+        nextState.available = add_decimal(current.available, posting.amount)
+    end
+    local primaryAmount, delta = posting.amount, "0"
+    if current.direction ~= "debit" and current.accountType ~= "external" and cmp_decimal(current.overdraftUsed, "0") > 0 then
+        local repay = min_decimal(posting.amount, current.overdraftUsed)
+        if cmp_decimal(posting.overdraftAmount, "0") > 0 then repay = min_decimal(repay, posting.overdraftAmount) end
+        nextState.overdraftUsed = sub_decimal(current.overdraftUsed, repay)
+        nextState.available = sub_decimal(nextState.available, repay)
+        primaryAmount, delta = sub_decimal(posting.amount, repay), sub_decimal("0", repay)
+    end
+    return primaryAmount, delta
+end
+
+local function applyReservePosting(current, nextState, posting)
+    nextState.onHold = add_decimal(current.onHold, posting.amount)
+    return posting.amount, "0"
+end
+
+local function applyUnreservePosting(current, nextState, posting, transactionIndex, postingIndex)
+    if cmp_decimal(current.onHold, posting.amount) < 0 then
+        refuse("onhold_underflow", transactionIndex, postingIndex, posting.balanceRef)
+    end
+    nextState.onHold = sub_decimal(current.onHold, posting.amount)
+    return posting.amount, "0"
+end
+
+local function applyHoldPosting(current, nextState, posting)
+    if current.direction == "debit" then
+        nextState.available = add_decimal(current.available, posting.amount)
+    else
+        nextState.available = sub_decimal(current.available, posting.amount)
+    end
+    nextState.onHold = add_decimal(current.onHold, posting.amount)
+    return posting.amount, "0"
+end
+
+local function applyReleasePosting(current, nextState, posting, transactionIndex, postingIndex)
+    if cmp_decimal(current.onHold, posting.amount) < 0 then
+        refuse("onhold_underflow", transactionIndex, postingIndex, posting.balanceRef)
+    end
+    nextState.onHold = sub_decimal(current.onHold, posting.amount)
+    if current.direction == "debit" then
+        nextState.available = sub_decimal(current.available, posting.amount)
+    else
+        nextState.available = add_decimal(current.available, posting.amount)
+    end
+    local primaryAmount, delta = posting.amount, "0"
+    if current.direction ~= "debit" and current.accountType ~= "external" and cmp_decimal(posting.overdraftAmount, "0") > 0 then
+        local repay = min_decimal(min_decimal(posting.amount, posting.overdraftAmount), current.overdraftUsed)
+        nextState.overdraftUsed = sub_decimal(current.overdraftUsed, repay)
+        nextState.available = sub_decimal(nextState.available, repay)
+        primaryAmount, delta = sub_decimal(posting.amount, repay), sub_decimal("0", repay)
+    end
+    return primaryAmount, delta
+end
+
+local postingAlgebra = {
+    debit = applyDebitPosting,
+    credit = applyCreditPosting,
+    reserve = applyReservePosting,
+    unreserve = applyUnreservePosting,
+    hold = applyHoldPosting,
+    release = applyReleasePosting
+}
+
 local function execute(request, maximumPrepared)
     expectRedisType(KEYS[3], "hash")
     local replay = storedReceipt(request)
@@ -939,39 +1017,10 @@ local function execute(request, maximumPrepared)
             local item = pool[posting.balanceRef]
             touch(item, txIndex - 1, postingIndex - 1)
             local current, nextState = item.current, clone(item.current)
-            local debitDirection = current.direction == "debit"
             local external = current.accountType == "external"
-            local amount, primaryAmount, delta = posting.amount, posting.amount, "0"
+            local amount = posting.amount
             local postingType = posting.type
-            if postingType == "debit" or postingType == "hold" then
-                nextState.available = debitDirection and add_decimal(current.available, amount) or sub_decimal(current.available, amount)
-                if postingType == "hold" then nextState.onHold = add_decimal(current.onHold, amount) end
-            elseif postingType == "credit" then
-                nextState.available = debitDirection and sub_decimal(current.available, amount) or add_decimal(current.available, amount)
-                if not debitDirection and not external and cmp_decimal(current.overdraftUsed, "0") > 0 then
-                    local repay = min_decimal(amount, current.overdraftUsed)
-                    if cmp_decimal(posting.overdraftAmount, "0") > 0 then repay = min_decimal(repay, posting.overdraftAmount) end
-                    nextState.overdraftUsed = sub_decimal(current.overdraftUsed, repay)
-                    nextState.available = sub_decimal(nextState.available, repay)
-                    primaryAmount, delta = sub_decimal(amount, repay), sub_decimal("0", repay)
-                end
-            elseif postingType == "reserve" then
-                nextState.onHold = add_decimal(current.onHold, amount)
-            elseif postingType == "unreserve" or postingType == "release" then
-                if cmp_decimal(current.onHold, amount) < 0 then
-                    refuse("onhold_underflow", txIndex - 1, postingIndex - 1, posting.balanceRef)
-                end
-                nextState.onHold = sub_decimal(current.onHold, amount)
-                if postingType == "release" then
-                    nextState.available = debitDirection and sub_decimal(current.available, amount) or add_decimal(current.available, amount)
-                    if not debitDirection and not external and cmp_decimal(posting.overdraftAmount, "0") > 0 then
-                        local repay = min_decimal(min_decimal(amount, posting.overdraftAmount), current.overdraftUsed)
-                        nextState.overdraftUsed = sub_decimal(current.overdraftUsed, repay)
-                        nextState.available = sub_decimal(nextState.available, repay)
-                        primaryAmount, delta = sub_decimal(amount, repay), sub_decimal("0", repay)
-                    end
-                end
-            end
+            local primaryAmount, delta = postingAlgebra[postingType](current, nextState, posting, txIndex - 1, postingIndex - 1)
             if cmp_decimal(nextState.available, "0") < 0 and not external then
                 if postingType == "hold" or posting.drawPolicy == "forbidden" or current.direction ~= "credit" or not current.allowOverdraft then
                     refuse("insufficient_funds", txIndex - 1, postingIndex - 1, posting.balanceRef)
