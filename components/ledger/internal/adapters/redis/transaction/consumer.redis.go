@@ -180,6 +180,19 @@ type RedisRepository interface {
 	// transactional state (Available, OnHold, Version, OverdraftUsed) is
 	// preserved; the key is never deleted.
 	UpdateBalanceCacheBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKeys []string, blocked bool) error
+	// CreateAccountBlockExceptions writes a batch of single-use account-block
+	// exceptions, one key per exception with its own native Redis expiry. The
+	// cache is the exception's COMPLETE storage: there is no table, no sweeper
+	// and no re-hydration, so a flush drops every outstanding grant and the
+	// account simply stays blocked. Keys share the {transactions} hash slot with
+	// the balance keys, so a grant can be validated and consumed inside the same
+	// multi-key EVAL that mutates the balances — and so the batch can be written
+	// in ONE transaction. It is NEVER PARTIALLY APPLIED: a caller is never handed
+	// identifiers of which only some exist. An error does NOT mean the batch was
+	// not applied, only that it was not applied in part — a connection lost after
+	// EXEC executed leaves the outcome UNKNOWN, and the caller must treat it as a
+	// failure rather than assume either way.
+	CreateAccountBlockExceptions(ctx context.Context, organizationID, ledgerID uuid.UUID, exceptions []AccountBlockException) error
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
