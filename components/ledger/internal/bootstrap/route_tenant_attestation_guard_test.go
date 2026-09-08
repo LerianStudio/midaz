@@ -324,7 +324,8 @@ func fullSurfaceHumaDeps(auth *middleware.AuthClient, setup *unifiedRouteSetup) 
 	return buildHumaMountDeps(
 		auth,
 		&httpin.OrganizationHandler{}, &httpin.LedgerHandler{}, &httpin.PortfolioHandler{}, &httpin.SegmentHandler{},
-		&httpin.AccountHandler{}, &httpin.AccountTypeHandler{}, &httpin.MetadataIndexHandler{}, &httpin.AssetHandler{},
+		&httpin.AccountHandler{}, &httpin.AccountTypeHandler{}, &httpin.AccountBlockExceptionHandler{},
+		&httpin.MetadataIndexHandler{}, &httpin.AssetHandler{},
 		&httpin.AssetRateHandler{},
 		&httpin.BalanceHandler{}, &httpin.OperationHandler{}, &httpin.OperationRouteHandler{}, &httpin.TransactionRouteHandler{},
 		&httpin.TransactionHandler{},

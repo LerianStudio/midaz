@@ -33,15 +33,20 @@ type HumaMountDeps struct {
 	Auth *middleware.AuthClient
 
 	// Handlers on the onboarding policy group (see registerOnboardingRoutes).
-	Organization  *OrganizationHandler
-	Ledger        *LedgerHandler
-	Portfolio     *PortfolioHandler
-	Segment       *SegmentHandler
-	Account       *AccountHandler
-	AccountType   *AccountTypeHandler
-	MetadataIndex *MetadataIndexHandler
-	Asset         *AssetHandler
-	AssetRate     *AssetRateHandler
+	Organization *OrganizationHandler
+	Ledger       *LedgerHandler
+	Portfolio    *PortfolioHandler
+	Segment      *SegmentHandler
+	Account      *AccountHandler
+	AccountType  *AccountTypeHandler
+	// AccountBlockException serves the /v2-only block-exception surface. It
+	// carries OnboardingOptions like its account sibling (the batch reads the
+	// onboarding account table to assert the aliases exist) but authorizes under
+	// its OWN resource name, so the grant is separable from account CRUD.
+	AccountBlockException *AccountBlockExceptionHandler
+	MetadataIndex         *MetadataIndexHandler
+	Asset                 *AssetHandler
+	AssetRate             *AssetRateHandler
 
 	// Handlers on the money-read + routing policy group (see registerMoneyReadRoutes).
 	Balance          *BalanceHandler
@@ -157,6 +162,12 @@ func (d HumaMountDeps) registerMoneyReadRoutes(group fiber.Router, api huma.API)
 // with no new policy surface. account-types authorizes against the "midaz" appName
 // (protectedMidaz), exactly as on v1 (see registerOnboardingRoutes / registerAccountTypeRoutesToApp).
 //
+// account-block-exceptions is served ONLY on this /v2 contract and is the one onboarding-
+// group member whose authz resource is not its path's parent: it carries OnboardingOptions
+// like accounts, but authorizes under the "midaz" appName's OWN "account-block-exceptions"
+// resource, so minting a bypass of the account block cannot ride an accounts grant (see
+// registerAccountBlockExceptionRoutesToApp).
+//
 // metadata-index is the LEDGER-AGNOSTIC settings resource: it carries LedgerOptions
 // ([authAssertion] ONLY, no WithTenantDB) and authorizes against the "midaz" appName under
 // the "settings" resource, exactly as on v1 (see registerOnboardingRoutes / registerMetadataIndexRoutesToApp).
@@ -201,6 +212,7 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterSegmentV2RoutesToApp(group, api, d.Auth, d.Segment, d.OnboardingOptions)
 	RegisterAccountV2RoutesToApp(group, api, d.Auth, d.Account, d.OnboardingOptions)
 	RegisterAccountTypeV2RoutesToApp(group, api, d.Auth, d.AccountType, d.OnboardingOptions)
+	RegisterAccountBlockExceptionV2RoutesToApp(group, api, d.Auth, d.AccountBlockException, d.OnboardingOptions)
 	RegisterMetadataIndexV2RoutesToApp(group, api, d.Auth, d.MetadataIndex, d.LedgerOptions)
 	RegisterAssetV2RoutesToApp(group, api, d.Auth, d.Asset, d.OnboardingOptions)
 	RegisterTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)

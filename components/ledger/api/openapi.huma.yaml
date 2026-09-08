@@ -111,6 +111,47 @@ components:
         - updatedAt
         - deletedAt
       type: object
+    AccountBlockException:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          description: Alias of the source account the exception authorizes
+          examples:
+            - "@fraud_account"
+          type: string
+        accountBlockExceptionId:
+          description: Single-use exception identifier
+          examples:
+            - 018f2c1e-6a3b-7c4d-8e5f-0a1b2c3d4e5f
+          type: string
+        amount:
+          description: Authorized amount, echoed from the request
+          examples:
+            - "150.00"
+          type: string
+        expiresAt:
+          description: Instant the exception expires, derived from the applied TTL
+          format: date-time
+          type: string
+      required:
+        - accountBlockExceptionId
+        - accountAlias
+        - amount
+        - expiresAt
+      type: object
+    AccountBlockExceptions:
+      additionalProperties: false
+      properties:
+        exceptions:
+          description: Created exceptions, in request order
+          items:
+            $ref: "#/components/schemas/AccountBlockException"
+          type:
+            - array
+            - "null"
+      required:
+        - exceptions
+      type: object
     AccountRule:
       additionalProperties: false
       properties:
@@ -977,6 +1018,44 @@ components:
             - john.doe@example.com
           maxLength: 256
           type: string
+      type: object
+    CreateAccountBlockExceptionInput:
+      additionalProperties: false
+      properties:
+        accountAlias:
+          description: Alias of the source account the exception authorizes
+          examples:
+            - "@fraud_account"
+          type: string
+        amount:
+          description: Exact amount of the authorized debit, as a positive decimal string
+          examples:
+            - "150.00"
+          type: string
+        ttl:
+          description: Lifetime in seconds (1-86400, default 300)
+          examples:
+            - 300
+          format: int64
+          type: integer
+      required:
+        - accountAlias
+        - amount
+      type: object
+    CreateAccountBlockExceptionsInput:
+      additionalProperties: false
+      properties:
+        exceptions:
+          description: Exceptions to create (1-100 per request)
+          items:
+            $ref: "#/components/schemas/CreateAccountBlockExceptionInput"
+          maxItems: 100
+          minItems: 1
+          type:
+            - array
+            - "null"
+      required:
+        - exceptions
       type: object
     CreateAccountInput:
       additionalProperties: false
@@ -10897,6 +10976,49 @@ paths:
       summary: Get Balances using Alias
       tags:
         - Balances (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/block-exceptions:
+    post:
+      description: Creates a batch of single-use exceptions that authorize a debit of an exact amount out of a blocked account. Each exception is returned with its identifier and its expiry, lives only in the cache, and dies on first use or when its TTL elapses.
+      operationId: createAccountBlockExceptionsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountBlockExceptionsInput"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountBlockExceptions"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create single-use account block exceptions
+      tags:
+        - Account Block Exceptions (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}:
     get:
       operationId: getAccountExternalByCodeV2
@@ -14598,6 +14720,7 @@ paths:
 servers:
   - url: /
 tags:
+  - name: Account Block Exceptions (v2)
   - name: Account Types (v1)
   - name: Account Types (v2)
   - name: Accounts (v1)
@@ -14653,6 +14776,7 @@ x-tagGroups:
       - Transactions (v1)
   - name: V2
     tags:
+      - Account Block Exceptions (v2)
       - Account Types (v2)
       - Accounts (v2)
       - Assets (v2)

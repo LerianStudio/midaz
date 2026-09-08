@@ -10,7 +10,7 @@
 # WHAT THIS MANIFEST IS: a faithful mirror of the Access-Manager SEED, not a
 # transcript of the route table. Two groups of entries, and the difference matters:
 #
-#   1. Route-backed (79 pairs, every group above the SEED-ONLY marker): each traces
+#   1. Route-backed (80 pairs, every group above the SEED-ONLY marker): each traces
 #      to a real protectedMidaz(auth, resource, verb) registration (= auth.Authorize(
 #      "midaz", resource, verb)); the file:line on each group header points at it.
 #   2. Seed-only (19 pairs, the marked block at the end of `permissions:`): the seed
@@ -20,6 +20,13 @@
 # So do NOT read an entry here as proof that a route enforces it. The invariant is
 # the other direction: every seeded grant appears here, and every route-backed pair
 # appears here.
+#
+# ONE route-backed pair is NOT yet in the seed: (account-block-exceptions, post).
+# The resource is new here, so until the central seed (caradhras
+# deploy/pam-seed/init_data.json) grants it to the editor tier, the declaration is a
+# SUPERSET of the seed on that one pair rather than a mirror. The route enforces it
+# either way — an environment whose policy store has not learned the resource simply
+# answers 403, which is the fail-closed direction for a block bypass.
 #
 # `resource` is written BARE — the central reconciler composes the "midaz/"
 # prefix. The `action` is the HTTP verb the guard authorizes under
@@ -55,6 +62,16 @@ permissions:
   - { resource: account-types, action: patch,  effect: allow, roles: [editor, contributor] }
   - { resource: account-types, action: get,    effect: allow, roles: [editor, contributor, viewer] }
   - { resource: account-types, action: delete, effect: allow, roles: [editor] }
+
+  # account-block-exceptions (account_block_exception_routes.go
+  # registerAccountBlockExceptionRoutesToApp; /v2 only)
+  #
+  # DELIBERATELY editor-only. Minting an exception authorizes a debit out of a
+  # BLOCKED account, so it is a privileged action distinct from both account CRUD
+  # and the permission to transact: a contributor that may post transactions and
+  # patch accounts still cannot mint a bypass, and viewer has no read to grant
+  # (the surface is write-only — an exception is presented, never listed).
+  - { resource: account-block-exceptions, action: post, effect: allow, roles: [editor] }
 
   # accounts (account_routes.go registerAccountRoutesToApp)
   - { resource: accounts, action: post,   effect: allow, roles: [editor, contributor] }
