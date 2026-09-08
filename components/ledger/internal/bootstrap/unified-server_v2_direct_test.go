@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"

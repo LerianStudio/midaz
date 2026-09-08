@@ -8,8 +8,8 @@ import (
 	"context"
 	"encoding/json"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -18,7 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	// GetBalanceByID gets data in the repository.
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) (*mmodel.Balance, error) {

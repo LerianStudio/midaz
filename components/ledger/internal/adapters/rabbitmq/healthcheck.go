@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v7/commons/circuitbreaker"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // ErrRabbitMQUnhealthy indicates the RabbitMQ broker health check failed.

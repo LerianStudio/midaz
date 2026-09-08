@@ -14,10 +14,10 @@ import (
 	"sync"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -52,7 +52,7 @@ import (
 
 // logRecord is one captured call to the GoMock libLog.Logger.
 type logRecord struct {
-	level  libLog.Level
+	level  int
 	msg    string
 	fields []libLog.Field
 }
@@ -90,8 +90,12 @@ func recordingLogger(t *testing.T, ctrl *gomock.Controller) (*libLog.MockLogger,
 	recorder := &logRecorder{}
 	logger := libLog.NewMockLogger(ctrl)
 
-	capture := func(_ context.Context, level libLog.Level, msg string, fields ...libLog.Field) {
-		recorder.add(logRecord{level: level, msg: msg, fields: fields})
+	// The closure is invoked by gomock through reflection, so its parameter types must be the
+	// EXACT types of the mocked method: since lib-observability v4 those are the universal
+	// (int, ...any), not (libLog.Level, ...libLog.Field). A stale signature still compiles and
+	// panics only at run time. libLog.Fields re-types the variadic for the assertions below.
+	capture := func(_ context.Context, level int, msg string, fields ...any) {
+		recorder.add(logRecord{level: level, msg: msg, fields: libLog.Fields(fields...)})
 	}
 
 	// FOUR matchers for a three-arg-plus-variadic method, deliberately: with exactly
@@ -314,7 +318,7 @@ func TestRevertTransaction_ReplayedIdempotency_SurfacesOnTheWire(t *testing.T) {
 }
 
 // findLogRecord returns the first captured record with the given level and message, or nil.
-func findLogRecord(records []logRecord, level libLog.Level, msg string) *logRecord {
+func findLogRecord(records []logRecord, level int, msg string) *logRecord {
 	for i := range records {
 		if records[i].level == level && records[i].msg == msg {
 			return &records[i]

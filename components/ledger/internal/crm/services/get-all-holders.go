@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"

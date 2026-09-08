@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"sync"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	tmevent "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/event"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmevent "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/event"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // tenantListenerApp wraps a tmevent.TenantEventListener so it satisfies the

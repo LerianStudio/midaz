@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -23,7 +23,7 @@ import (
 	// organizationID is the UUID of the associated organization.
 	// ledgerID is the UUID of the ledger linked to the transaction.
 	// transactionID is the UUID of the transaction being logged.
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations []*operation.Operation, organizationID, ledgerID, transactionID uuid.UUID) {

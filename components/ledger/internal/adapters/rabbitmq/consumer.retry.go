@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"time"
 
-	libBackoff "github.com/LerianStudio/lib-commons/v6/commons/backoff"
-	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libBackoff "github.com/LerianStudio/lib-commons/v7/commons/backoff"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v7/commons/rabbitmq"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel/trace"
 

@@ -14,17 +14,17 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	"github.com/shopspring/decimal"
 
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"

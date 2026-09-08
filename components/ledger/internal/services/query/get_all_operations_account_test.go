@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"

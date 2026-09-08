@@ -7,8 +7,8 @@ package servicediscovery
 import (
 	"context"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"go.opentelemetry.io/otel/attribute"
 )
 

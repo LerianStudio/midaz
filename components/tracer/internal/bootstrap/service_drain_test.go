@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

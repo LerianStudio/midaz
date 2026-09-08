@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // ValidateAuthPresence is the cross-check that ValidateAuthConfig and

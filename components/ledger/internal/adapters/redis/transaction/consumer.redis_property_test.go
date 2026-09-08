@@ -28,8 +28,8 @@ import (
 	"testing"
 	"testing/quick"
 
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	tmvalkey "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/valkey"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	"github.com/stretchr/testify/require"
 )
 

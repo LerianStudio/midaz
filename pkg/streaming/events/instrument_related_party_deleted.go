@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 )
 
 // InstrumentRelatedPartyDeletedDefinition is the routing contract for

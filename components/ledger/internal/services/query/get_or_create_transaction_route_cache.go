@@ -10,8 +10,8 @@ import (
 	"errors"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
@@ -24,7 +24,7 @@ import (
 	// If the transaction route cache exists in Redis, it returns the cached data as TransactionRouteCache.
 	// If not found in cache, it fetches the transaction route from database and creates the cache for future use.
 	// The cache is persistent (no TTL) and stores the msgpack-encoded binary representation of the transaction route cache structure.
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // cacheNotFoundSentinel is the sentinel value stored in Redis when a transaction route is not found in the database.

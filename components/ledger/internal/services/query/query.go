@@ -5,7 +5,7 @@
 package query
 
 import (
-	"github.com/LerianStudio/lib-observability/v2/metrics"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 
 	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"

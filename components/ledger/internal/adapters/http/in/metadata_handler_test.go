@@ -15,9 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

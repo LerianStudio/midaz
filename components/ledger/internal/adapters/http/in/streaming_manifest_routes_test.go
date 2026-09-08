@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v3/auth/middleware"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 

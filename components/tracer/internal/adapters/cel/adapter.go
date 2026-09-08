@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker"
 	"go.opentelemetry.io/otel/attribute"

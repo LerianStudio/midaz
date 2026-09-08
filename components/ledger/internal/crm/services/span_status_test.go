@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/codes"

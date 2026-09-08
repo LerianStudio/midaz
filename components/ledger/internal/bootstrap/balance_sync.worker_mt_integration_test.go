@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
-	tmvalkey "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/valkey"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	"github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/tenantcache"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib" // register the "pgx" database/sql driver

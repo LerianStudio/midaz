@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"

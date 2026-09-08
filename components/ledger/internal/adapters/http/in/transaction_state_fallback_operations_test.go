@@ -12,7 +12,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"

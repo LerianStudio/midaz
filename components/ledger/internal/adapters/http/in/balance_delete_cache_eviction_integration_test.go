@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"

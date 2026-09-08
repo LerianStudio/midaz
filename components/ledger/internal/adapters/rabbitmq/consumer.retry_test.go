@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	libRabbitmq "github.com/LerianStudio/lib-commons/v6/commons/rabbitmq"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libRabbitmq "github.com/LerianStudio/lib-commons/v7/commons/rabbitmq"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel/trace/noop"

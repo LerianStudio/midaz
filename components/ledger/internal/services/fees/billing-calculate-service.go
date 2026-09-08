@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 
-	"github.com/LerianStudio/lib-observability/v2/metrics"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/attribute"

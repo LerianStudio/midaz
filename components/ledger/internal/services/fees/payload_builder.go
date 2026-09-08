@@ -9,9 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/shopspring/decimal"
 
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"

@@ -7,8 +7,8 @@ package bootstrap
 import (
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

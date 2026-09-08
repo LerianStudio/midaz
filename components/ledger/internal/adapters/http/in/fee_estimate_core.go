@@ -7,7 +7,7 @@ package in
 import (
 	"context"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	feeerrors "github.com/LerianStudio/midaz/v4/pkg"

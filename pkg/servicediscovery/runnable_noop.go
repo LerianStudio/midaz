@@ -7,8 +7,8 @@
 package servicediscovery
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // Runnable is the no-op service-discovery Launcher app for the DEFAULT build.

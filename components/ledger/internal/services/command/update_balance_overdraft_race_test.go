@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"

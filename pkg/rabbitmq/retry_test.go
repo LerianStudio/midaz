@@ -12,7 +12,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 
-	"github.com/LerianStudio/lib-observability/v2/log"
+	"github.com/LerianStudio/lib-observability/v4/log"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

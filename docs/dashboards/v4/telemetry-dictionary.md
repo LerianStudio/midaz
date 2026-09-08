@@ -444,7 +444,7 @@ unit: "1"
 
 ```yaml
 description: Process CPU and memory utilisation sampled by the lib-observability runtime package, not by midaz code.
-emitter: github.com/LerianStudio/lib-observability/v2/runtime
+emitter: github.com/LerianStudio/lib-observability/v4/runtime
 labels: [k8s_pod_name, k8s_deployment_name, service_name]
 live_observed: true
 unit: percent

@@ -12,8 +12,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 
-	"github.com/LerianStudio/lib-commons/v6/commons"
-	commonsHttp "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	"github.com/LerianStudio/lib-commons/v7/commons"
+	commonsHttp "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	"github.com/gofiber/fiber/v3"
 	"github.com/shopspring/decimal"
 )

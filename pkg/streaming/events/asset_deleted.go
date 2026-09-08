@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 )
 
 // AssetDeletedDefinition is the routing contract for asset.deleted.

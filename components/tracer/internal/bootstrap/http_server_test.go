@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 )

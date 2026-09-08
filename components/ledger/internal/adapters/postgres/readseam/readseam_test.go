@@ -10,8 +10,8 @@ import (
 	"errors"
 	"testing"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
