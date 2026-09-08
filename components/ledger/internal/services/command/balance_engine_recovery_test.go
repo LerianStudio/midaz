@@ -712,6 +712,11 @@ func TestBalanceEngineRecoveryRepeatedAliasUsesOriginNotAlias(t *testing.T) {
 }
 
 func TestBalanceEngineRecoveryPostingPaths(t *testing.T) {
+	goldens := make(map[string][]rowContractGolden)
+	for _, fixture := range loadRowContractCases(t) {
+		goldens[fixture.Name] = fixture.Want
+	}
+
 	state := func(a, h string, version int64) rowContractState { return rowContractState{a, h, "0", version} }
 	for _, scenario := range []struct {
 		name, action, status, amount string
@@ -753,13 +758,11 @@ func TestBalanceEngineRecoveryPostingPaths(t *testing.T) {
 			result.Final = recoveryContractFinal(payload, result.Movements)
 			rows, err := ProjectBalanceEngineOperations(payload, result)
 			require.NoError(t, err)
-			require.Len(t, rows, len(scenario.rows))
+			want, exists := goldens[scenario.name]
+			require.True(t, exists, "posting path must retain a legacy row fixture")
+			require.Len(t, rows, len(want))
 			for index, row := range rows {
-				want := rowContractGolden{
-					scenario.rows[index], "@source", "default", scenario.amount, scenario.directions[index], *base.RouteID,
-					scenario.states[index], scenario.states[index+1], "0", "0", true,
-				}
-				assert.Equal(t, want, rowContractObserved(t, row))
+				assert.Equal(t, want[index], rowContractObserved(t, row))
 			}
 		})
 	}

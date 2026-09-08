@@ -89,8 +89,9 @@ func rowContractObserved(t *testing.T, op *operation.Operation) rowContractGolde
 	}
 }
 
-func TestBuildOperations_ContractLock(t *testing.T) {
-	const route = "55555555-5555-4555-8555-555555555555"
+func loadRowContractCases(t *testing.T) []rowContractCase {
+	t.Helper()
+
 	fixtureFile, err := os.Open("testdata/engine_contract/rows.json")
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, fixtureFile.Close()) })
@@ -114,6 +115,13 @@ func TestBuildOperations_ContractLock(t *testing.T) {
 		require.NotEmpty(t, tc.Legs)
 		require.NotEmpty(t, tc.Want)
 	}
+
+	return cases
+}
+
+func TestBuildOperations_ContractLock(t *testing.T) {
+	const route = "55555555-5555-4555-8555-555555555555"
+	cases := loadRowContractCases(t)
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
