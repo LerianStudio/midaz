@@ -402,7 +402,7 @@ func TestValidateBalancesRules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := ValidateBalancesRules(ctx, tt.transaction, tt.validate, tt.balances)
+			err := ValidateBalancesRules(ctx, tt.transaction, tt.validate, tt.balances, nil)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -503,7 +503,7 @@ func TestValidateFromBalances(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validateFromBalances(tt.balance, tt.from, tt.asset, false)
+			err := validateFromBalances(tt.balance, tt.from, tt.asset, false, false)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -587,7 +587,7 @@ func TestValidateToBalances(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validateToBalances(tt.balance, tt.to, tt.asset)
+			err := validateToBalances(tt.balance, tt.to, tt.asset, false)
 
 			if tt.expectError {
 				assert.Error(t, err)

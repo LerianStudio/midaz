@@ -54,8 +54,20 @@ func CheckTransactionDate(ctx context.Context, transactionInput Transaction, tra
 	return transactionInput.TransactionDate.Time(), nil
 }
 
-// ValidateBalancesRules function with some validates in accounts operations
-func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*Balance) error {
+// ValidateBalancesRules function with some validates in accounts operations.
+//
+// binding is the single-use account-block exception the request presented, tied
+// to the balances of the one logical debit it authorizes, or nil when the request
+// presented none. It relaxes exactly two barriers on THOSE balances — the account
+// block and the per-balance sending/receiving deny — and nothing else: asset
+// match, eligibility and the pending/external rule stay in force for every
+// balance, granted or not.
+//
+// The relief is keyed on the balance's full identity, alias AND balance key, so a
+// grant minted for one balance's debit cannot release a sibling balance of the
+// same account. The binding is never consumed here; see
+// AccountBlockExceptionBinding.
+func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*Balance, binding *AccountBlockExceptionBinding) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, spanValidateBalances := tracer.Start(ctx, "transaction.validate_balances_rules")
@@ -69,21 +81,23 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 	}
 
 	for _, balance := range balances {
-		if err := validateBlockedBalance(balance); err != nil {
+		granted := binding.Authorizes(balance.Alias, balance.Key)
+
+		if err := validateBlockedBalance(balance, granted); err != nil {
 			tracing.HandleSpanBusinessErrorEvent(spanValidateBalances, "Rejected transaction involving blocked account", err)
 			logger.Log(ctx, libLog.LevelWarn, "Rejected transaction involving blocked account", libLog.Err(err))
 
 			return err
 		}
 
-		if err := validateFromBalances(balance, validate.From, validate.Asset, validate.Pending); err != nil {
+		if err := validateFromBalances(balance, validate.From, validate.Asset, validate.Pending, granted); err != nil {
 			tracing.HandleSpanBusinessErrorEvent(spanValidateBalances, "Failed to validate source balance", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to validate source balance", libLog.Err(err))
 
 			return err
 		}
 
-		if err := validateToBalances(balance, validate.To, validate.Asset); err != nil {
+		if err := validateToBalances(balance, validate.To, validate.Asset, granted); err != nil {
 			tracing.HandleSpanBusinessErrorEvent(spanValidateBalances, "Failed to validate destination balance", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to validate destination balance", libLog.Err(err))
 
@@ -102,18 +116,22 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 // the Lua guard alone and cancels are exempt by design (RF-4C). The Lua
 // script remains the final authority — this check only saves the round-trip.
 //
-// Account-block exceptions (single-use grants) plug in here: a grant that
-// potentially matches the balance suppresses this fast-fail and defers the
-// decision to the Lua consume step.
-func validateBlockedBalance(balance *Balance) error {
-	if balance.Blocked {
+// Account-block exceptions (single-use grants) plug in here: a grant bound to
+// THIS balance — not merely to its alias — suppresses this fast-fail and defers
+// the decision to the Lua consume step, which alone knows whether the grant's
+// amount matches the debit and whether the key still exists.
+func validateBlockedBalance(balance *Balance, granted bool) error {
+	if balance.Blocked && !granted {
 		return pkg.ValidateBusinessError(pkgConstant.ErrAccountBlocked, "validateBalance")
 	}
 
 	return nil
 }
 
-func validateFromBalances(balance *Balance, from map[string]Amount, asset string, pending bool) error {
+// validateFromBalances runs the source-side barriers for one balance. granted
+// waives ONLY the allowSending deny (RF-06): the asset match and the
+// pending/external rule are structural and hold for a granted balance too.
+func validateFromBalances(balance *Balance, from map[string]Amount, asset string, pending, granted bool) error {
 	for key := range from {
 		balanceAliasKey := AliasKey(balance.Alias, balance.Key)
 		if key == balance.ID || SplitAliasWithKey(key) == balanceAliasKey {
@@ -121,7 +139,7 @@ func validateFromBalances(balance *Balance, from map[string]Amount, asset string
 				return pkg.ValidateBusinessError(pkgConstant.ErrAssetCodeNotFound, "validateFromAccounts")
 			}
 
-			if !balance.AllowSending {
+			if !balance.AllowSending && !granted {
 				return pkg.ValidateBusinessError(pkgConstant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
 			}
 
@@ -134,7 +152,10 @@ func validateFromBalances(balance *Balance, from map[string]Amount, asset string
 	return nil
 }
 
-func validateToBalances(balance *Balance, to map[string]Amount, asset string) error {
+// validateToBalances runs the destination-side barriers for one balance. granted
+// waives ONLY the allowReceiving deny, for the same reason and with the same
+// narrowness as validateFromBalances.
+func validateToBalances(balance *Balance, to map[string]Amount, asset string, granted bool) error {
 	balanceAliasKey := AliasKey(balance.Alias, balance.Key)
 	for key := range to {
 		if key == balance.ID || SplitAliasWithKey(key) == balanceAliasKey {
@@ -142,7 +163,7 @@ func validateToBalances(balance *Balance, to map[string]Amount, asset string) er
 				return pkg.ValidateBusinessError(pkgConstant.ErrAssetCodeNotFound, "validateToAccounts")
 			}
 
-			if !balance.AllowReceiving {
+			if !balance.AllowReceiving && !granted {
 				return pkg.ValidateBusinessError(pkgConstant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
 			}
 		}
