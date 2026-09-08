@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	problem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/stretchr/testify/require"
 
@@ -34,6 +35,7 @@ func TestContractDocumentShape(t *testing.T) {
 		{"v2 create bodies ref the typed input and carry the prose", assertV2CreateBodiesTyped},
 		{"both prefixes coexist with disjoint operation ids", assertPrefixesCoexist},
 		{"security schemes declared with no dangling reference", assertSecuritySchemesResolve},
+		{"error responses declare the envelope each version serves", assertErrorResponsesMatchServedEnvelope},
 	}
 
 	for _, prop := range properties {
@@ -206,4 +208,107 @@ func assertSecuritySchemesResolve(t *testing.T, doc *huma.OpenAPI) {
 		require.Containsf(t, doc.Components.SecuritySchemes, name,
 			"operation references security scheme %q that Components.SecuritySchemes does not declare (dangling reference)", name)
 	}
+}
+
+// problemErrorMediaType is the RFC 9457 media type a plane serves its error bodies
+// as when no version envelope reshapes them — every /v2 operation, and every tracer
+// operation. Declared here rather than imported because the producer keeps it
+// unexported (pkg/net/http/problem.go).
+const problemErrorMediaType = "application/problem+json"
+
+// assertErrorResponsesMatchServedEnvelope is the parity between what the contract
+// DECLARES for a failure and what the service SERVES for it. Nothing else compares
+// the two, which is how a bump that added baseline error statuses could publish the
+// wrong error body on 87 /v1 operations and pass every gate.
+//
+// /v1 runs behind ErrorEnvelope (middleware/envelope.go), which rewrites EVERY
+// response with status >= 400 into the legacy {code,title,message} body at
+// application/json — the wire side of that is locked by envelope_boundary_test.go.
+// /v2 has no entry in that middleware's version registry, so it serves the RFC 9457
+// problem document unchanged. Declaring one plane's schema or media type on the
+// other tells a code generator to parse a body the service never sends, which is
+// worse than declaring nothing: the caller does not discover it at integration time,
+// the generated client does at runtime.
+//
+// It walks the "default" catch-all AND every numeric status >= 400 (isErrorResponseKey)
+// because the numeric ones are exactly what regressed: the lib-commons baseline hook
+// materializes them at huma.Register time from the RFC 9457 content, and only
+// RepointV1ErrorResponses puts them back on the /v1 envelope.
+func assertErrorResponsesMatchServedEnvelope(t *testing.T, doc *huma.OpenAPI) {
+	require.NotNil(t, doc.Components, "document must carry components")
+	require.NotNil(t, doc.Components.Schemas, "document must carry a schema registry")
+
+	registry := doc.Components.Schemas
+	require.Contains(t, registry.Map(), "Error",
+		"the RFC 9457 error body must be registered as Error before this can compare against it")
+	require.Contains(t, registry.Map(), "LegacyError",
+		"the /v1 error body must be registered as LegacyError before this can compare against it")
+
+	legacyRef := registry.Schema(reflect.TypeFor[LegacyError](), true, "LegacyError").Ref
+	problemRef := registry.Schema(reflect.TypeFor[problem.Detail](), true, "Error").Ref
+	require.NotEmpty(t, legacyRef, "LegacyError must resolve to a component ref")
+	require.NotEmpty(t, problemRef, "the RFC 9457 Error body must resolve to a component ref")
+	require.NotEqual(t, legacyRef, problemRef,
+		"the two planes must publish DISTINCT error components; one ref for both means a pass collapsed them")
+
+	checked := map[string]int{}
+
+	for key, item := range doc.Paths {
+		var (
+			plane     string
+			wantMedia string
+			wantRef   string
+		)
+
+		switch {
+		case strings.HasPrefix(key, "/v1/"):
+			plane, wantMedia, wantRef = "/v1", legacyErrorMediaType, legacyRef
+		case strings.HasPrefix(key, "/v2/"):
+			plane, wantMedia, wantRef = "/v2", problemErrorMediaType, problemRef
+		default:
+			continue
+		}
+
+		for _, op := range operationsOf(item) {
+			for status, response := range op.Responses {
+				if response == nil || len(response.Content) == 0 || !isErrorResponseKey(status) {
+					continue
+				}
+
+				require.Lenf(t, response.Content, 1,
+					"%s %s response %q declares %d media types; an error body is served as exactly one",
+					key, op.OperationID, status, len(response.Content))
+
+				media, ok := response.Content[wantMedia]
+				require.Truef(t, ok,
+					"%s %s response %q must be declared as %s — what the service actually serves on %s — but is declared as %v",
+					key, op.OperationID, status, wantMedia, plane, contentTypesOf(response.Content))
+
+				require.NotNilf(t, media.Schema,
+					"%s %s response %q declares %s with no schema", key, op.OperationID, status, wantMedia)
+				require.Equalf(t, wantRef, media.Schema.Ref,
+					"%s %s response %q must $ref the error body %s serves (%s), not %s",
+					key, op.OperationID, status, plane, wantRef, media.Schema.Ref)
+
+				checked[plane]++
+			}
+		}
+	}
+
+	// Guard against a vacuous pass: a walk that matched nothing would assert nothing.
+	require.NotZerof(t, checked["/v1"], "no /v1 error response was inspected")
+	require.NotZerof(t, checked["/v2"], "no /v2 error response was inspected")
+}
+
+// contentTypesOf returns a response's declared media types, sorted, for a readable
+// failure message.
+func contentTypesOf(content map[string]*huma.MediaType) []string {
+	names := make([]string, 0, len(content))
+	for name := range content {
+		names = append(names, name)
+	}
+
+	sort.Strings(names)
+
+	return names
 }
