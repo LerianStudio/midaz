@@ -19,6 +19,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	postgresTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -70,6 +71,18 @@ type finalizationMetadataStub struct {
 	create    func(string) error
 	findErr   error
 	find      func(*mongodb.Metadata) *mongodb.Metadata
+}
+
+type finalizationEventPublisherStub struct {
+	calls        *[]string
+	transactions []*postgresTransaction.Transaction
+	phases       []string
+}
+
+func (publisher *finalizationEventPublisherStub) PublishBalanceEngineEvents(_ context.Context, tran *postgresTransaction.Transaction, phase string) {
+	*publisher.calls = append(*publisher.calls, "publish")
+	publisher.transactions = append(publisher.transactions, tran)
+	publisher.phases = append(publisher.phases, phase)
 }
 
 func (repo *finalizationMetadataStub) Create(_ context.Context, collection string, metadata *mongodb.Metadata) error {
@@ -188,6 +201,33 @@ func TestBalanceEngineFinalizerConfirmsSQLAndMetadata(t *testing.T) {
 	assert.Equal(t, before, after)
 }
 
+func TestBalanceEngineFinalizerPreservesLegacyPublicAliasesFromNormalizedValidation(t *testing.T) {
+	payload, result := recoveryContractFixture(t)
+	payload.Validate.Sources = []string{
+		"@source#default",
+		"@source#default",
+		"@source#overdraft",
+		"@fees#settlement",
+	}
+	payload.Validate.Destinations = []string{
+		"@destination#default",
+		"@destination#reserve",
+	}
+	var err error
+	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	require.NoError(t, err)
+	envelope := recoveryContractEnvelope(t, payload, result)
+	ctx := tmcore.ContextWithTenantID(context.Background(), payload.TenantID)
+	finalizer, store, _, _ := finalizationDependencies()
+
+	require.NoError(t, finalizer.Finalize(ctx, &envelope))
+
+	require.Len(t, store.records, 1)
+	assert.Equal(t, []string{"@source", "@source", "@fees"}, store.records[0].Transaction.Source)
+	assert.Equal(t, []string{"@destination", "@destination"}, store.records[0].Transaction.Destination)
+	assert.NotContains(t, store.records[0].Transaction.Source, "@source#overdraft")
+}
+
 func TestBalanceEngineFinalizerReturnsDurableOutcomeAfterMetadataVerification(t *testing.T) {
 	ctx, envelope := finalizationFixture(t)
 	calls := []string{}
@@ -211,6 +251,157 @@ func TestBalanceEngineFinalizerReturnsDurableOutcomeAfterMetadataVerification(t 
 		"find:" + constant.EntityOperation,
 	}, calls)
 	require.Len(t, store.records, 1)
+}
+
+func TestBalanceEngineFinalizerWithEventsPublishesFrozenTransactionAfterDurability(t *testing.T) {
+	ctx, envelope := finalizationFixture(t)
+	calls := []string{}
+	store := &finalizationOutcomeStoreStub{
+		outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseCreated},
+		calls:   &calls,
+	}
+	metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
+	publisher := &finalizationEventPublisherStub{calls: &calls}
+	finalizer, err := NewBalanceEngineFinalizerWithEvents(store, metadata, publisher)
+	require.NoError(t, err)
+
+	require.NoError(t, finalizer.Finalize(ctx, envelope))
+
+	assert.Equal(t, []string{
+		"sql-with-outcome",
+		"create:" + constant.EntityTransaction,
+		"find:" + constant.EntityTransaction,
+		"create:" + constant.EntityOperation,
+		"find:" + constant.EntityOperation,
+		"publish",
+	}, calls)
+	require.Len(t, publisher.transactions, 1)
+	require.Len(t, publisher.phases, 1)
+	require.Len(t, store.records, 1)
+	assert.Same(t, store.records[0].Transaction, publisher.transactions[0], "publisher must receive the frozen persisted transaction and rows")
+	assert.Equal(t, TransactionLifecyclePhaseCreated, publisher.phases[0])
+	payload, err := DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	require.NoError(t, err)
+	assert.Equal(t, payload.TransactionID.String(), publisher.transactions[0].ID)
+	assert.Equal(t, payload.TransactionCreatedAt, publisher.transactions[0].CreatedAt)
+	assert.Equal(t, payload.TransactionUpdatedAt, publisher.transactions[0].UpdatedAt)
+	require.Len(t, publisher.transactions[0].Operations, 1)
+	assert.Equal(t, payload.OperationUpdatedAt, publisher.transactions[0].Operations[0].UpdatedAt)
+}
+
+func TestBalanceEngineFinalizerWithEventsRequiresPublisherAndOutcomeStore(t *testing.T) {
+	metadata := &finalizationMetadataStub{data: make(map[string]*mongodb.Metadata)}
+	outcomeStore := &finalizationOutcomeStoreStub{}
+
+	finalizer, err := NewBalanceEngineFinalizerWithEvents(outcomeStore, metadata, nil)
+	require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+	require.Nil(t, finalizer)
+	var typedNilPublisher *finalizationEventPublisherStub
+	finalizer, err = NewBalanceEngineFinalizerWithEvents(outcomeStore, metadata, typedNilPublisher)
+	require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+	require.Nil(t, finalizer)
+
+	calls := []string{}
+	finalizer, err = NewBalanceEngineFinalizerWithEvents(
+		&finalizationStoreStub{calls: &calls},
+		metadata,
+		&finalizationEventPublisherStub{calls: &calls},
+	)
+	require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+	require.Nil(t, finalizer)
+	assert.Empty(t, calls, "missing outcome capability must fail before SQL")
+}
+
+func TestBalanceEngineFinalizerWithEventsPublishesOnlyAfterConfirmedCompletion(t *testing.T) {
+	failure := errors.New("durability is not confirmed")
+	tests := []struct {
+		name       string
+		outcome    BalanceEngineRecoveryOutcome
+		storeErr   error
+		metadataFn func(*finalizationMetadataStub)
+		wantErr    error
+	}{
+		{
+			name: "SQL failure",
+			outcome: BalanceEngineRecoveryOutcome{
+				TransactionStatus: constant.APPROVED,
+				LifecyclePhase:    TransactionLifecyclePhaseCreated,
+			},
+			storeErr: failure,
+			wantErr:  failure,
+		},
+		{
+			name: "metadata failure",
+			outcome: BalanceEngineRecoveryOutcome{
+				TransactionStatus: constant.APPROVED,
+				LifecyclePhase:    TransactionLifecyclePhaseCreated,
+			},
+			metadataFn: func(metadata *finalizationMetadataStub) { metadata.createErr = failure },
+			wantErr:    failure,
+		},
+		{
+			name:    "empty phase",
+			outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED},
+			wantErr: ErrBalanceEnginePersistenceConflict,
+		},
+		{
+			name: "unknown phase",
+			outcome: BalanceEngineRecoveryOutcome{
+				TransactionStatus: constant.APPROVED,
+				LifecyclePhase:    "future",
+			},
+			wantErr: ErrBalanceEnginePersistenceConflict,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, envelope := finalizationFixture(t)
+			calls := []string{}
+			store := &finalizationOutcomeStoreStub{outcome: test.outcome, err: test.storeErr, calls: &calls}
+			metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
+			if test.metadataFn != nil {
+				test.metadataFn(metadata)
+			}
+			publisher := &finalizationEventPublisherStub{calls: &calls}
+			finalizer, err := NewBalanceEngineFinalizerWithEvents(store, metadata, publisher)
+			require.NoError(t, err)
+
+			err = finalizer.Finalize(ctx, envelope)
+
+			require.ErrorIs(t, err, test.wantErr)
+			assert.Empty(t, publisher.transactions)
+			assert.NotContains(t, calls, "publish")
+		})
+	}
+}
+
+func TestBalanceEngineFinalizerWithEventsUsesReportedLifecyclePhase(t *testing.T) {
+	for _, phase := range []string{
+		TransactionLifecyclePhaseCreated,
+		TransactionLifecyclePhaseUpdated,
+		TransactionLifecyclePhaseNoop,
+	} {
+		t.Run(phase, func(t *testing.T) {
+			ctx, envelope := finalizationFixture(t)
+			calls := []string{}
+			store := &finalizationOutcomeStoreStub{
+				outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED, LifecyclePhase: phase},
+				calls:   &calls,
+			}
+			metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
+			publisher := &finalizationEventPublisherStub{calls: &calls}
+			finalizer, err := NewBalanceEngineFinalizerWithEvents(store, metadata, publisher)
+			require.NoError(t, err)
+
+			outcome, err := finalizer.FinalizeWithOutcome(ctx, envelope)
+
+			require.NoError(t, err)
+			assert.Equal(t, phase, outcome.LifecyclePhase)
+			assert.Equal(t, []string{phase}, publisher.phases)
+			require.Len(t, publisher.transactions, 1)
+		})
+	}
 }
 
 func TestBalanceEngineFinalizerSelectsTheRequestedPersistenceCapability(t *testing.T) {

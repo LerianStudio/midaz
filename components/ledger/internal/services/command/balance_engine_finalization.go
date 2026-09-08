@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -36,8 +37,9 @@ type balanceEngineMetadataRepository interface {
 // BalanceEngineFinalizer confirms SQL rows and their frozen metadata without
 // executing accounting or removing the durable recovery envelope.
 type BalanceEngineFinalizer struct {
-	store    BalanceEngineRecoveryStore
-	metadata balanceEngineMetadataRepository
+	store     BalanceEngineRecoveryStore
+	metadata  balanceEngineMetadataRepository
+	publisher BalanceEngineEventPublisher
 }
 
 // NewBalanceEngineFinalizer uses the existing metadata repository with the
@@ -46,10 +48,29 @@ func NewBalanceEngineFinalizer(store BalanceEngineRecoveryStore, metadata balanc
 	return &BalanceEngineFinalizer{store: store, metadata: metadata}
 }
 
+// NewBalanceEngineFinalizerWithEvents enables best-effort event dispatch after
+// SQL and frozen metadata have both been confirmed.
+func NewBalanceEngineFinalizerWithEvents(
+	store BalanceEngineRecoveryStore,
+	metadata balanceEngineMetadataRepository,
+	publisher BalanceEngineEventPublisher,
+) (*BalanceEngineFinalizer, error) {
+	if publisher == nil || (reflect.ValueOf(publisher).Kind() == reflect.Pointer && reflect.ValueOf(publisher).IsNil()) {
+		return nil, invalidRecovery("balance engine event publisher is not configured")
+	}
+
+	if _, ok := store.(BalanceEngineRecoveryStoreWithOutcome); !ok {
+		return nil, invalidRecovery("recovery SQL store does not report durable transaction status")
+	}
+
+	return &BalanceEngineFinalizer{store: store, metadata: metadata, publisher: publisher}, nil
+}
+
 // Finalize returns nil only after SQL commit and metadata verification succeed.
 // Any error leaves the caller responsible for retaining the recovery envelope.
 func (finalizer *BalanceEngineFinalizer) Finalize(ctx context.Context, envelope *BalanceEngineRecoveryEnvelope) error {
-	_, err := finalizer.finalize(ctx, envelope, false)
+	requireOutcome := finalizer != nil && finalizer.publisher != nil
+	_, err := finalizer.finalize(ctx, envelope, requireOutcome)
 
 	return err
 }
@@ -111,7 +132,24 @@ func (finalizer *BalanceEngineFinalizer) finalize(ctx context.Context, envelope 
 		}
 	}
 
+	if finalizer.publisher != nil {
+		if !validTransactionLifecyclePhase(outcome.LifecyclePhase) {
+			return BalanceEngineRecoveryOutcome{}, fmt.Errorf("%w: recovery SQL store reported unknown lifecycle phase", ErrBalanceEnginePersistenceConflict)
+		}
+
+		finalizer.publisher.PublishBalanceEngineEvents(ctx, record.Transaction, outcome.LifecyclePhase)
+	}
+
 	return outcome, nil
+}
+
+func validTransactionLifecyclePhase(phase string) bool {
+	switch phase {
+	case TransactionLifecyclePhaseCreated, TransactionLifecyclePhaseUpdated, TransactionLifecyclePhaseNoop:
+		return true
+	default:
+		return false
+	}
 }
 
 func (finalizer *BalanceEngineFinalizer) persist(ctx context.Context, record BalanceEnginePersistenceRecord, requireOutcome bool) (BalanceEngineRecoveryOutcome, error) {
@@ -182,8 +220,8 @@ func frozenPersistenceRecord(payload BalanceEngineRecoveryPayload, envelope *Bal
 	}
 
 	if payload.Validate != nil {
-		tran.Source = append([]string(nil), payload.Validate.Sources...)
-		tran.Destination = append([]string(nil), payload.Validate.Destinations...)
+		tran.Source = getAliasWithoutKey(filterCompanionAliases(payload.Validate.Sources))
+		tran.Destination = getAliasWithoutKey(filterCompanionAliases(payload.Validate.Destinations))
 	} else {
 		tran.Source = frozenAccountAliases(payload.TransactionInput.Send.Source.From)
 		tran.Destination = frozenAccountAliases(payload.TransactionInput.Send.Distribute.To)
