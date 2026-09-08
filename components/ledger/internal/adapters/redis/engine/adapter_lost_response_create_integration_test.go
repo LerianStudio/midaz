@@ -147,7 +147,7 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 	beforeRecoveryFinalization := captureAdapterState(t, inspector, keys)
 	outcome, err := finalizer.FinalizeWithOutcome(ctx, recovery)
 	require.NoError(t, err)
-	require.Equal(t, constant.APPROVED, outcome.TransactionStatus)
+	require.Equal(t, constant.APPROVED, outcome.Outcome.TransactionStatus)
 	require.Same(t, recovery, finalizer.envelope)
 	require.Equal(t, beforeRecoveryFinalization, captureAdapterState(t, inspector, keys))
 	require.Equal(t, 1, proxy.count("EVALSHA"))

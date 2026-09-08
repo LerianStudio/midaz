@@ -55,10 +55,10 @@ func (finalizer *recoveryMongoFinalizerStub) Finalize(ctx context.Context, _ *co
 	return finalizer.err
 }
 
-func (finalizer *recoveryMongoOutcomeFinalizerStub) FinalizeWithOutcome(ctx context.Context, _ *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineRecoveryOutcome, error) {
+func (finalizer *recoveryMongoOutcomeFinalizerStub) FinalizeWithOutcome(ctx context.Context, _ *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
 	finalizer.calls++
 	finalizer.ctx = ctx
-	return finalizer.outcome, finalizer.err
+	return command.BalanceEngineFinalizationResult{Outcome: finalizer.outcome}, finalizer.err
 }
 
 func TestRecoveryMongoFinalizeWithOutcomeForwardsOutcomeAndContext(t *testing.T) {
@@ -71,7 +71,7 @@ func TestRecoveryMongoFinalizeWithOutcomeForwardsOutcomeAndContext(t *testing.T)
 	outcome, err := finalizer.FinalizeWithOutcome(ctx, &command.BalanceEngineRecoveryEnvelope{TenantID: "tenant-a"})
 
 	require.NoError(t, err)
-	require.Equal(t, "APPROVED", outcome.TransactionStatus)
+	require.Equal(t, "APPROVED", outcome.Outcome.TransactionStatus)
 	require.Equal(t, "tenant-a", tmcore.GetTenantIDContext(delegate.ctx))
 	require.Same(t, resolver.database, tmcore.GetMBContext(delegate.ctx))
 	require.Same(t, resolver.database, tmcore.GetMBContext(delegate.ctx, constant.ModuleTransaction))
@@ -89,7 +89,7 @@ func TestRecoveryMongoFinalizeWithOutcomeSingleTenantPreservesContext(t *testing
 	outcome, err := finalizer.FinalizeWithOutcome(t.Context(), &command.BalanceEngineRecoveryEnvelope{})
 
 	require.NoError(t, err)
-	require.Equal(t, "PENDING", outcome.TransactionStatus)
+	require.Equal(t, "PENDING", outcome.Outcome.TransactionStatus)
 	require.Equal(t, t.Context(), delegate.ctx)
 }
 

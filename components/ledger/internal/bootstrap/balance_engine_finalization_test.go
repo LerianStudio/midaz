@@ -32,7 +32,7 @@ func TestConfigureBalanceEngineFinalizationSharesTenantAwareCompletion(t *testin
 	cancel()
 	outcome, err := uc.BalanceEngineFinalizer.FinalizeWithOutcome(ctx, &command.BalanceEngineRecoveryEnvelope{})
 	assert.ErrorIs(t, err, context.Canceled)
-	assert.Equal(t, command.BalanceEngineRecoveryOutcome{}, outcome)
+	assert.Equal(t, command.BalanceEngineFinalizationResult{}, outcome)
 	assert.ErrorIs(t, consumer.recoveryFinalizer.Finalize(ctx, &command.BalanceEngineRecoveryEnvelope{}), context.Canceled)
 }
 

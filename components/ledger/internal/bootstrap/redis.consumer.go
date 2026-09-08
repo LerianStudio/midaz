@@ -83,7 +83,7 @@ type recoveryMongoResolver interface {
 }
 
 type balanceRecoveryFinalizerWithOutcome interface {
-	FinalizeWithOutcome(context.Context, *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineRecoveryOutcome, error)
+	FinalizeWithOutcome(context.Context, *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error)
 }
 
 // tenantRecoveryFinalizer resolves metadata storage inside the existing recovery
@@ -103,23 +103,23 @@ func (finalizer *tenantRecoveryFinalizer) Finalize(ctx context.Context, envelope
 	return finalizer.delegate.Finalize(ctx, envelope)
 }
 
-func (finalizer *tenantRecoveryFinalizer) FinalizeWithOutcome(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineRecoveryOutcome, error) {
+func (finalizer *tenantRecoveryFinalizer) FinalizeWithOutcome(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
 	ctx, err := finalizer.resolveContext(ctx, envelope)
 	if err != nil {
-		return command.BalanceEngineRecoveryOutcome{}, err
+		return command.BalanceEngineFinalizationResult{}, err
 	}
 
 	delegate, ok := finalizer.delegate.(balanceRecoveryFinalizerWithOutcome)
 	if !ok {
-		return command.BalanceEngineRecoveryOutcome{}, fmt.Errorf("balance recovery finalizer outcome is not configured")
+		return command.BalanceEngineFinalizationResult{}, fmt.Errorf("balance recovery finalizer outcome is not configured")
 	}
 
-	outcome, err := delegate.FinalizeWithOutcome(ctx, envelope)
+	result, err := delegate.FinalizeWithOutcome(ctx, envelope)
 	if err != nil {
-		return command.BalanceEngineRecoveryOutcome{}, err
+		return command.BalanceEngineFinalizationResult{}, err
 	}
 
-	return outcome, nil
+	return result, nil
 }
 
 func (finalizer *tenantRecoveryFinalizer) resolveContext(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (context.Context, error) {

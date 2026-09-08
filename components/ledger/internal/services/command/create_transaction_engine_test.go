@@ -66,9 +66,23 @@ type createEngineFinalizer struct {
 	envelopes []*BalanceEngineRecoveryEnvelope
 }
 
-func (finalizer *createEngineFinalizer) FinalizeWithOutcome(_ context.Context, envelope *BalanceEngineRecoveryEnvelope) (BalanceEngineRecoveryOutcome, error) {
+func (finalizer *createEngineFinalizer) FinalizeWithOutcome(_ context.Context, envelope *BalanceEngineRecoveryEnvelope) (BalanceEngineFinalizationResult, error) {
 	finalizer.envelopes = append(finalizer.envelopes, envelope)
-	return finalizer.outcome, finalizer.err
+	if finalizer.err != nil {
+		return BalanceEngineFinalizationResult{}, finalizer.err
+	}
+
+	payload, err := DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	if err != nil {
+		return BalanceEngineFinalizationResult{}, err
+	}
+
+	record, err := ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
+	if err != nil {
+		return BalanceEngineFinalizationResult{}, err
+	}
+
+	return BalanceEngineFinalizationResult{Record: record, Outcome: finalizer.outcome}, nil
 }
 
 type applyingCreateEngine struct {

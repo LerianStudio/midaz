@@ -157,18 +157,38 @@ type pendingRaceFinalizer struct {
 	envelopes []*command.BalanceEngineRecoveryEnvelope
 }
 
-func (f *pendingRaceFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineRecoveryOutcome, error) {
+func (f *pendingRaceFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
 	payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
 	if err != nil {
-		return command.BalanceEngineRecoveryOutcome{}, err
+		return command.BalanceEngineFinalizationResult{}, err
 	}
 	f.envelopes = append(f.envelopes, envelope)
-	return command.BalanceEngineRecoveryOutcome{TransactionStatus: payload.TransactionStatus}, nil
+	record, err := command.ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
+	if err != nil {
+		return command.BalanceEngineFinalizationResult{}, err
+	}
+
+	return command.BalanceEngineFinalizationResult{
+		Record:  record,
+		Outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: payload.TransactionStatus},
+	}, nil
 }
 
-func (f *pendingLifecycleFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineRecoveryOutcome, error) {
+func (f *pendingLifecycleFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
 	f.envelopes = append(f.envelopes, envelope)
-	return command.BalanceEngineRecoveryOutcome{TransactionStatus: f.outcomes[len(f.envelopes)-1]}, nil
+	payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	if err != nil {
+		return command.BalanceEngineFinalizationResult{}, err
+	}
+	record, err := command.ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
+	if err != nil {
+		return command.BalanceEngineFinalizationResult{}, err
+	}
+
+	return command.BalanceEngineFinalizationResult{
+		Record:  record,
+		Outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: f.outcomes[len(f.envelopes)-1]},
+	}, nil
 }
 
 type pendingLifecycleTracer struct {

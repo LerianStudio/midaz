@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"reflect"
 	"strconv"
@@ -20,7 +21,9 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -75,72 +78,77 @@ func (finalizer *BalanceEngineFinalizer) Finalize(ctx context.Context, envelope 
 	return err
 }
 
-// FinalizeWithOutcome returns the status observed by the durable SQL store only
-// after SQL commit and all frozen metadata verification succeed.
-func (finalizer *BalanceEngineFinalizer) FinalizeWithOutcome(ctx context.Context, envelope *BalanceEngineRecoveryEnvelope) (BalanceEngineRecoveryOutcome, error) {
+// FinalizeWithOutcome returns the durable status and a caller-owned copy of the
+// exact projected record only after SQL commit and frozen metadata verification.
+func (finalizer *BalanceEngineFinalizer) FinalizeWithOutcome(ctx context.Context, envelope *BalanceEngineRecoveryEnvelope) (BalanceEngineFinalizationResult, error) {
 	return finalizer.finalize(ctx, envelope, true)
 }
 
-func (finalizer *BalanceEngineFinalizer) finalize(ctx context.Context, envelope *BalanceEngineRecoveryEnvelope, requireOutcome bool) (BalanceEngineRecoveryOutcome, error) {
+func (finalizer *BalanceEngineFinalizer) finalize(ctx context.Context, envelope *BalanceEngineRecoveryEnvelope, requireOutcome bool) (BalanceEngineFinalizationResult, error) {
 	if err := ctx.Err(); err != nil {
-		return BalanceEngineRecoveryOutcome{}, err
+		return BalanceEngineFinalizationResult{}, err
 	}
 
 	if finalizer == nil || finalizer.store == nil || finalizer.metadata == nil {
-		return BalanceEngineRecoveryOutcome{}, invalidRecovery("recovery finalizer dependencies are not configured")
+		return BalanceEngineFinalizationResult{}, invalidRecovery("recovery finalizer dependencies are not configured")
 	}
 
 	if envelope == nil {
-		return BalanceEngineRecoveryOutcome{}, invalidRecovery("recovery envelope is missing")
+		return BalanceEngineFinalizationResult{}, invalidRecovery("recovery envelope is missing")
 	}
 
 	if envelope.TenantID != tmcore.GetTenantIDContext(ctx) {
-		return BalanceEngineRecoveryOutcome{}, invalidRecovery("recovery tenant does not match authenticated context")
+		return BalanceEngineFinalizationResult{}, invalidRecovery("recovery tenant does not match authenticated context")
 	}
 
 	if err := validateRecoveryEnvelope(*envelope); err != nil {
-		return BalanceEngineRecoveryOutcome{}, err
+		return BalanceEngineFinalizationResult{}, err
 	}
 
 	payload, err := DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
 	if err != nil {
-		return BalanceEngineRecoveryOutcome{}, err
+		return BalanceEngineFinalizationResult{}, err
 	}
 
-	record, err := frozenPersistenceRecord(*payload, envelope)
+	record, err := ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
 	if err != nil {
-		return BalanceEngineRecoveryOutcome{}, err
+		return BalanceEngineFinalizationResult{}, err
 	}
 
 	metadata, err := frozenMetadataRecords(record.Transaction, payload.TransactionDate)
 	if err != nil {
-		return BalanceEngineRecoveryOutcome{}, err
+		return BalanceEngineFinalizationResult{}, err
+	}
+
+	callerRecord, err := cloneBalanceEnginePersistenceRecord(record)
+	if err != nil {
+		return BalanceEngineFinalizationResult{}, err
 	}
 
 	outcome, err := finalizer.persist(ctx, record, requireOutcome)
 	if err != nil {
-		return BalanceEngineRecoveryOutcome{}, err
+		return BalanceEngineFinalizationResult{}, err
 	}
 
 	for _, entry := range metadata {
 		if err := ctx.Err(); err != nil {
-			return BalanceEngineRecoveryOutcome{}, err
+			return BalanceEngineFinalizationResult{}, err
 		}
 
 		if err := finalizer.persistMetadata(ctx, entry); err != nil {
-			return BalanceEngineRecoveryOutcome{}, err
+			return BalanceEngineFinalizationResult{}, err
 		}
 	}
 
 	if finalizer.publisher != nil {
 		if !validTransactionLifecyclePhase(outcome.LifecyclePhase) {
-			return BalanceEngineRecoveryOutcome{}, fmt.Errorf("%w: recovery SQL store reported unknown lifecycle phase", ErrBalanceEnginePersistenceConflict)
+			return BalanceEngineFinalizationResult{}, fmt.Errorf("%w: recovery SQL store reported unknown lifecycle phase", ErrBalanceEnginePersistenceConflict)
 		}
 
 		finalizer.publisher.PublishBalanceEngineEvents(ctx, record.Transaction, outcome.LifecyclePhase)
 	}
 
-	return outcome, nil
+	return BalanceEngineFinalizationResult{Record: callerRecord, Outcome: outcome}, nil
 }
 
 func validTransactionLifecyclePhase(phase string) bool {
@@ -187,8 +195,12 @@ func validRecoveryOutcome(outcome BalanceEngineRecoveryOutcome) bool {
 	}
 }
 
-func frozenPersistenceRecord(payload BalanceEngineRecoveryPayload, envelope *BalanceEngineRecoveryEnvelope) (BalanceEnginePersistenceRecord, error) {
-	rows, err := ProjectBalanceEngineOperations(payload, envelope.Result)
+// ComposeBalanceEnginePersistenceRecord is the single final composition seam
+// from frozen transaction context plus an authoritative engine result to the
+// deterministic SQL transaction and operation rows used by normal completion
+// and recovery.
+func ComposeBalanceEnginePersistenceRecord(payload BalanceEngineRecoveryPayload, result engine.Result) (BalanceEnginePersistenceRecord, error) {
+	rows, err := ProjectBalanceEngineOperations(payload, result)
 	if err != nil {
 		return BalanceEnginePersistenceRecord{}, err
 	}
@@ -233,6 +245,106 @@ func frozenPersistenceRecord(payload BalanceEngineRecoveryPayload, envelope *Bal
 	}
 
 	return BalanceEnginePersistenceRecord{Transaction: tran, Action: payload.Action, ExpectedStatus: expectedStatus}, nil
+}
+
+func cloneBalanceEnginePersistenceRecord(record BalanceEnginePersistenceRecord) (BalanceEnginePersistenceRecord, error) {
+	if record.Transaction == nil {
+		return BalanceEnginePersistenceRecord{}, invalidRecovery("projected persistence record is missing its transaction")
+	}
+
+	tran := *record.Transaction
+	tran.ParentTransactionID = cloneTextPointer(record.Transaction.ParentTransactionID)
+	tran.Status.Description = cloneTextPointer(record.Transaction.Status.Description)
+	tran.Amount = cloneDecimalPointer(record.Transaction.Amount)
+	tran.Source = append([]string(nil), record.Transaction.Source...)
+	tran.Destination = append([]string(nil), record.Transaction.Destination...)
+	tran.RouteID = cloneTextPointer(record.Transaction.RouteID)
+	tran.DeletedAt = cloneTimePointer(record.Transaction.DeletedAt)
+	tran.Metadata = maps.Clone(record.Transaction.Metadata)
+
+	if !record.Transaction.Body.IsEmpty() {
+		body, err := clonePendingTransactionInput(record.Transaction.Body)
+		if err != nil {
+			return BalanceEnginePersistenceRecord{}, fmt.Errorf("clone projected transaction body: %w", err)
+		}
+
+		tran.Body = body
+	}
+
+	tran.Operations = make([]*operation.Operation, len(record.Transaction.Operations))
+	for index, row := range record.Transaction.Operations {
+		if row == nil {
+			return BalanceEnginePersistenceRecord{}, invalidRecovery("projected persistence record contains a nil operation")
+		}
+
+		cloned := *row
+		cloned.Amount.Value = cloneDecimalPointer(row.Amount.Value)
+		cloned.Balance.Available = cloneDecimalPointer(row.Balance.Available)
+		cloned.Balance.OnHold = cloneDecimalPointer(row.Balance.OnHold)
+		cloned.Balance.Version = cloneInt64Pointer(row.Balance.Version)
+		cloned.Balance.OverdraftUsed = cloneDecimal(row.Balance.OverdraftUsed)
+		cloned.BalanceAfter.Available = cloneDecimalPointer(row.BalanceAfter.Available)
+		cloned.BalanceAfter.OnHold = cloneDecimalPointer(row.BalanceAfter.OnHold)
+		cloned.BalanceAfter.Version = cloneInt64Pointer(row.BalanceAfter.Version)
+		cloned.BalanceAfter.OverdraftUsed = cloneDecimal(row.BalanceAfter.OverdraftUsed)
+		cloned.Status.Description = cloneTextPointer(row.Status.Description)
+		cloned.RouteID = cloneTextPointer(row.RouteID)
+		cloned.RouteCode = cloneTextPointer(row.RouteCode)
+		cloned.RouteDescription = cloneTextPointer(row.RouteDescription)
+		cloned.DeletedAt = cloneTimePointer(row.DeletedAt)
+		cloned.Metadata = maps.Clone(row.Metadata)
+		tran.Operations[index] = &cloned
+	}
+
+	return BalanceEnginePersistenceRecord{Transaction: &tran, Action: record.Action, ExpectedStatus: record.ExpectedStatus}, nil
+}
+
+func cloneTextPointer(value *string) *string {
+	if value == nil {
+		return nil
+	}
+
+	cloned := *value
+
+	return &cloned
+}
+
+func cloneInt64Pointer(value *int64) *int64 {
+	if value == nil {
+		return nil
+	}
+
+	cloned := *value
+
+	return &cloned
+}
+
+func cloneTimePointer(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+
+	cloned := *value
+
+	return &cloned
+}
+
+func cloneDecimalPointer(value *decimal.Decimal) *decimal.Decimal {
+	if value == nil {
+		return nil
+	}
+
+	cloned := cloneDecimal(*value)
+
+	return &cloned
+}
+
+func cloneDecimal(value decimal.Decimal) decimal.Decimal {
+	if value.IsZero() {
+		return value
+	}
+
+	return decimal.NewFromBigInt(value.Coefficient(), value.Exponent())
 }
 
 func frozenAccountAliases(entries []mtransaction.FromTo) []string {

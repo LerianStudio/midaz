@@ -157,17 +157,7 @@ func (uc *UseCase) finalizeCreateBalanceEngineResult(ctx context.Context, run *c
 		return nil, err
 	}
 
-	payload, err := DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
-	if err != nil {
-		return nil, err
-	}
-
-	record, err := frozenPersistenceRecord(*payload, envelope)
-	if err != nil {
-		return nil, err
-	}
-
-	outcome, err := uc.BalanceEngineFinalizer.FinalizeWithOutcome(ctx, envelope)
+	finalization, err := uc.BalanceEngineFinalizer.FinalizeWithOutcome(ctx, envelope)
 	if err != nil {
 		return nil, err
 	}
@@ -177,11 +167,14 @@ func (uc *UseCase) finalizeCreateBalanceEngineResult(ctx context.Context, run *c
 		expectedStatus = constant.APPROVED
 	}
 
-	if outcome.TransactionStatus != expectedStatus {
-		return nil, fmt.Errorf("%w: create finalizer confirmed %q, expected %q", ErrBalanceEnginePersistenceConflict, outcome.TransactionStatus, expectedStatus)
+	if finalization.Outcome.TransactionStatus != expectedStatus {
+		return nil, fmt.Errorf("%w: create finalizer confirmed %q, expected %q", ErrBalanceEnginePersistenceConflict, finalization.Outcome.TransactionStatus, expectedStatus)
 	}
 
-	tran := record.Transaction
+	tran := finalization.Record.Transaction
+	if tran == nil {
+		return nil, invalidRecovery("create finalizer returned no projected transaction")
+	}
 
 	if run.status == constant.CREATED {
 		created := constant.CREATED

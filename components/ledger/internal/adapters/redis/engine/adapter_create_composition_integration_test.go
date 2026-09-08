@@ -74,9 +74,21 @@ type adapterCreateFinalizer struct {
 	envelope *command.BalanceEngineRecoveryEnvelope
 }
 
-func (f *adapterCreateFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineRecoveryOutcome, error) {
+func (f *adapterCreateFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
 	f.envelope = envelope
-	return command.BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED}, nil
+	payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	if err != nil {
+		return command.BalanceEngineFinalizationResult{}, err
+	}
+	record, err := command.ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
+	if err != nil {
+		return command.BalanceEngineFinalizationResult{}, err
+	}
+
+	return command.BalanceEngineFinalizationResult{
+		Record:  record,
+		Outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED},
+	}, nil
 }
 
 func TestIntegration_CreateTransactionV1_ComposesRealAdapterRecoveryAndFinalization(t *testing.T) {

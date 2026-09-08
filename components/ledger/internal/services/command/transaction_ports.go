@@ -50,7 +50,7 @@ type BalanceEngine interface {
 // capability whenever BalanceEngine is enabled so an applied result can never
 // fall through to the legacy persistence path.
 type BalanceEngineOutcomeFinalizer interface {
-	FinalizeWithOutcome(context.Context, *BalanceEngineRecoveryEnvelope) (BalanceEngineRecoveryOutcome, error)
+	FinalizeWithOutcome(context.Context, *BalanceEngineRecoveryEnvelope) (BalanceEngineFinalizationResult, error)
 }
 
 // BalanceEngineGuardBootstrapper conditionally seeds the execution guard for a

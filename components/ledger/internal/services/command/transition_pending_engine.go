@@ -383,29 +383,24 @@ func (uc *UseCase) finalizePendingBalanceEngineResult(ctx context.Context, expec
 		return nil, err
 	}
 
-	payload, err := DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	finalization, err := uc.BalanceEngineFinalizer.FinalizeWithOutcome(ctx, envelope)
 	if err != nil {
 		return nil, err
 	}
 
-	record, err := frozenPersistenceRecord(*payload, envelope)
-	if err != nil {
-		return nil, err
+	if finalization.Outcome.TransactionStatus != expectedStatus {
+		return nil, fmt.Errorf("%w: pending finalizer confirmed %q, expected %q", ErrBalanceEnginePersistenceConflict, finalization.Outcome.TransactionStatus, expectedStatus)
 	}
 
-	outcome, err := uc.BalanceEngineFinalizer.FinalizeWithOutcome(ctx, envelope)
-	if err != nil {
-		return nil, err
-	}
-
-	if outcome.TransactionStatus != expectedStatus {
-		return nil, fmt.Errorf("%w: pending finalizer confirmed %q, expected %q", ErrBalanceEnginePersistenceConflict, outcome.TransactionStatus, expectedStatus)
+	tran := finalization.Record.Transaction
+	if tran == nil {
+		return nil, invalidRecovery("pending finalizer returned no projected transaction")
 	}
 
 	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
-	go uc.SendLogTransactionAuditQueue(tenantCtx, record.Transaction.Operations, payload.OrganizationID, payload.LedgerID, payload.TransactionID)
+	go uc.SendLogTransactionAuditQueue(tenantCtx, tran.Operations, envelope.OrganizationID, envelope.LedgerID, envelope.TransactionID)
 
-	return record.Transaction, nil
+	return tran, nil
 }
 
 func isConfirmedBalanceEngineGuardConflict(err error) bool {

@@ -32,6 +32,14 @@ type BalanceEngineRecoveryOutcome struct {
 	LifecyclePhase string
 }
 
+// BalanceEngineFinalizationResult returns the durable outcome together with a
+// caller-owned copy of the exact transaction and operation rows that were
+// projected and persisted.
+type BalanceEngineFinalizationResult struct {
+	Record  BalanceEnginePersistenceRecord
+	Outcome BalanceEngineRecoveryOutcome
+}
+
 // BalanceEngineRecoveryStore confirms only durable SQL transaction and operation
 // persistence. Success does not confirm Mongo metadata or authorize backup removal.
 type BalanceEngineRecoveryStore interface {
