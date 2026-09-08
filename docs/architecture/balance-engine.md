@@ -174,6 +174,29 @@ BalanceAfter in a named Go compatibility projection; never overwrite truthful
 movement state to imitate a row. Normal finalization and recovery use the same
 projector and must produce identical operation IDs, rows, and versions.
 
+The command layer provides two additive preparation functions, still disconnected
+from the active transaction pipeline:
+
+- `LoadBalanceEngineSnapshotPool` reads explicit targets and deduplicated optional
+  overdraft candidates within the same organization and ledger. Candidate loading
+  does not depend on a snapshot's overdraft permission or predicted deficit.
+  Missing optional rows are omitted; read errors and inconsistent identities are
+  rejected. Explicit targets remain separate for existing targeting validation;
+  an available internal companion must not become a user-requested leg.
+- `TranslateBalanceEngineTransaction` walks ordered source and destination legs,
+  not validation-map or pool order. Origin references identify the original leg;
+  posting references add its accounting mutation. The ledger-level route decision
+  controls direct/revert draw policy independently of the per-leg flag used for
+  hold/commit/cancel composition. The legacy CREATED path does not populate that
+  per-leg flag, so it cannot substitute for the ledger-level decision.
+
+Translation freezes candidate companion contexts without creating companion
+postings or calculating their amounts. Only returned movements materialize those
+rows. Frozen attribution and real before/after states are accepted by the same
+version-2 recovery validator and projector. Annotation input is explicitly
+non-executable at this seam; the caller must retain its separate annotation path.
+These functions alone do not provide normal-path retry, persistence, or activation.
+
 ## Precision and cache representation
 
 Money crosses the wire as canonical decimal strings, produced with
