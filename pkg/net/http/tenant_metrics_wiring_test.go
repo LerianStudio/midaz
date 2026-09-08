@@ -6,6 +6,7 @@ package http_test
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net/http/httptest"
 	"testing"
@@ -223,7 +224,10 @@ func assertTenantAttrs(t *testing.T, attrs attribute.Set, tenantID uuid.UUID, na
 
 	got, ok := attrs.Value(attribute.Key(obsconst.AttrKeyTenantID))
 	require.True(t, ok, "%s attribute missing", obsconst.AttrKeyTenantID)
-	assert.Equal(t, tenantID.String(), got.AsString())
+	// lib-observability renders tenant.id in the platform canonical dashless
+	// form, so the metric label matches the baggage member and every
+	// tenant-keyed pool, cache and Redis namespace.
+	assert.Equal(t, hex.EncodeToString(tenantID[:]), got.AsString())
 
 	gotName, ok := attrs.Value(attribute.Key(obsconst.AttrKeyTenantName))
 	require.True(t, ok, "%s attribute missing", obsconst.AttrKeyTenantName)
