@@ -11,7 +11,8 @@ The posting Lua implementation and Redis adapter, dual-format cache codec, and
 typed version-2 recovery payload/projector are implemented and tested foundations.
 The compatible recovery consumer is wired in bootstrap to the real SQL store and
 MongoDB metadata repository. The posting engine remains disconnected from normal
-transaction execution; existing writers have not all migrated to the dual codec.
+transaction execution. Cache writers support the dual representation, but this
+does not establish completion of the accounting integration or activation gates.
 Reader compatibility in code does not establish deployment to every consumer.
 The adapter accepts concrete `*redis.Client` connections;
 standalone execution is verified. Sentinel also supplies that concrete type,
@@ -267,21 +268,44 @@ before any seed or monetary write and reports all noncanonical warm-cache limits
 The inactive posting adapter repairs only after that confirmed prewrite server
 signal. It never repairs from a database snapshot and does not delete or seed a
 missing cache entry. Uppercase legacy `OverdraftLimit` remains authoritative when
-present; lower-case `overdraftLimit` is used only by a new-only blob.
+present; lower-case `overdraftLimit` is used only when the uppercase field is absent.
 
-Go validates every reported live blob before constructing the batch. It replaces
-only the raw JSON token for the authoritative limit, then Lua compares every live
-blob against its exact expected bytes before any `SET KEEPTTL`. A CAS conflict
-preserves the concurrent value and returns control to accounting for re-evaluation;
-a missing or invalid blob aborts the repair. Money, Version, unrelated settings,
-extensions, and the existing absolute expiry remain unchanged.
+Go validates every reported live blob before constructing the batch. The shared
+codec prepares all 17 legacy/new field pairs and `SchemaVersion: 2`, normalizing
+the authoritative limit without changing monetary state or Version. Existing
+uppercase values remain authoritative; missing legacy aliases may use only the
+request-scoped identity. Unknown field values and exact numeric tokens survive;
+object ordering and whitespace are not preserved during conversion. A canonical
+no-op retains the original bytes.
 
-One execution makes at most three total accounting attempts. Only a completed
+Valid legacy-qualified uppercase alias/key values remain in their original
+representation, with normalized lowerCamel identity fields. The codec validates
+their relationship before conversion; malformed or mismatched identities and
+new-only qualified keys remain invalid.
+
+Lua compares each live blob against its complete observed bytes before replacing
+it with `SET KEEPTTL`. Changes to any field cause a CAS conflict, preserving the
+concurrent value and returning control for re-evaluation. The posting adapter
+preflights all keys before its first repair write; missing or invalid blobs abort
+the batch. The legacy adapter prepares all replacements in Go but performs
+separate conditional writes per key, so it does not promise batch atomicity.
+Neither repair path recreates a missing key. Unrelated settings, extension values,
+and the existing absolute expiry remain unchanged.
+
+The posting adapter makes at most three total accounting attempts. Only a completed
 repair or CAS conflict permits another attempt. An ambiguous repair failure can
 leave some limits normalized because Lua errors do not roll back preceding writes;
 it is surfaced as indeterminate and never triggers automatic accounting replay.
 Repair preserves expiry, while successful accounting renews the TTL of balances it
 writes.
+
+The legacy path permits at most three repair passes after confirmed read-only
+preflight replies, followed by the final accounting attempt. It rereads current
+blobs on each requested pass and reports nonconvergence when the bound is reached.
+Transport/runtime errors are not normalization signals. The legacy repair script
+accepts one key, the exact observed blob in `ARGV[1]`, and the Go-validated
+replacement in `ARGV[2]`; replies are `0` for a missing key, `1` for success/no-op,
+and `2` for a changed blob.
 
 The repair reply is an exact `BALANCE_LIMIT_NORMALIZATION_REQUIRED:` prefix plus
 a JSON key array, optionally framed by one Redis `ERR ` prefix. Only an actual
@@ -547,25 +571,25 @@ decimal strings are valid monetary representations and are projected exactly,
 without float conversion. Schema-version-2 new-only blobs retain strict
 canonical-string decoding and existing validation rules.
 
-Current legacy cache writers, the atomic Lua parser, and repair path remain
-active and legacy; they are not migrated by this change. The new engine
-writer remains inactive. Other consumers,
-converters, and writers are not activated by reader compatibility alone.
+The legacy accounting path remains active, with dual-compatible cache writers,
+parser, and repair handling. The new engine writer remains inactive. Reader or
+writer compatibility alone does not activate the new accounting implementation.
 
 ### Cache writer compatibility
 
 The shared readers accept legacy, dual, and schema-version-2 new-only balance
 blobs. The inactive new-engine writer emits dual blobs when exercised, but it is
-not an active production writer. The active legacy atomic Lua writer emits the
-uppercase legacy fields. When it reads a dual blob, uppercase fields remain
-authoritative; lowerCamel shadows are preserved as-is and can become stale.
+not an active production writer. Successful mutations through the active legacy
+atomic Lua writer emit both representations. It accepts legacy, mixed, and
+schema-version-2 new-only blobs; present uppercase values remain authoritative,
+including malformed values that must not fall back to lowerCamel shadows.
 
-The legacy settings Lua path removes lowerCamel setting aliases and writes the
-uppercase settings fields while preserving live monetary state and Version. The
-legacy overdraft-limit repair path is uppercase-only and preserves the existing
-TTL. Pure new-only blobs must not be introduced to the active legacy writer
-until the writer migration is complete; reader compatibility alone is not a
-writer migration.
+Settings PATCH prepares dual replacements in Go and conditionally writes them
+without changing monetary state or Version. Both overdraft-limit repair writers
+use the same dual codec and preserve absolute expiry under whole-blob CAS. An
+accounting no-op preserves its original bytes, and legacy rollback restores the
+original raw blob rather than converting it as a side effect. These exceptions
+do not weaken the requirement for successful mutations to maintain both formats.
 
 Activation has a consumer-first sequence:
 
