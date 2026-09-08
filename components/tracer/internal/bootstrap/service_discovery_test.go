@@ -7,9 +7,9 @@ package bootstrap
 import (
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	"github.com/LerianStudio/lib-observability/v2/metrics"
-	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
+	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

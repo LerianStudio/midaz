@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 

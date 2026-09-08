@@ -11,9 +11,9 @@ import (
 	nethttp "net/http"
 	"strings"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"

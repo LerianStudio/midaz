@@ -10,18 +10,19 @@ import (
 	"context"
 	"fmt"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libsd "github.com/LerianStudio/lib-service-discovery"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libZap "github.com/LerianStudio/lib-observability/v4/zap"
+	libsd "github.com/LerianStudio/lib-service-discovery/v2"
 )
 
 // Manager wraps the lib-service-discovery Manager so the composition roots
 // depend only on this package and never import lib-service-discovery directly.
 //
-// TODO(3482): this build (-tags libsd) currently will NOT resolve until
-// lib-service-discovery ships a release built against lib-observability/v2
-// (+ lib-commons/v6) — libsd.WithLogger below rejects the now-v2 log.Logger.
-// The real implementation is preserved here syntactically for restoration once
-// that release lands; the default build no-ops SD (see manager_noop.go).
+// lib-service-discovery v2 declares its own slog-shaped Logger contract
+// (InfoContext/WarnContext/ErrorContext/DebugContext) instead of naming a
+// lib-observability type, so the two libraries no longer have to share a major.
+// libZap.Slog is the bridge: it wraps our logger in a *slog.Logger, which
+// satisfies that contract. The default build still no-ops SD (manager_noop.go).
 type Manager struct {
 	inner *libsd.Manager
 }
@@ -43,7 +44,7 @@ func BuildManager(logger libLog.Logger) (*Manager, bool, error) {
 		return nil, sdCfg.Enabled, fmt.Errorf("initializing service discovery: %w", libsd.ErrNoEndpoint)
 	}
 
-	m, err := libsd.New(sdCfg, libsd.WithLogger(logger))
+	m, err := libsd.New(sdCfg, libsd.WithLogger(libZap.Slog(logger)))
 	if err != nil {
 		return nil, sdCfg.Enabled, fmt.Errorf("initializing service discovery: %w", err)
 	}

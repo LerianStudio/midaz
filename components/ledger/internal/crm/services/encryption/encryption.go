@@ -25,8 +25,8 @@ import (
 	"errors"
 	"fmt"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpenTelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpenTelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"

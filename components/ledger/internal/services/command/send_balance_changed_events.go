@@ -8,8 +8,8 @@ import (
 	"context"
 	"strings"
 
-	libObs "github.com/LerianStudio/lib-observability/v2"
-	libStreaming "github.com/LerianStudio/lib-streaming/v3"
+	libObs "github.com/LerianStudio/lib-observability/v4"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"

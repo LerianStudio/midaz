@@ -10,9 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	tmconsumer "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/consumer"
-	"github.com/LerianStudio/lib-observability/v2/metrics"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmconsumer "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/consumer"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )

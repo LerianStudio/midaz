@@ -10,9 +10,9 @@ import (
 	"os"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libZap "github.com/LerianStudio/lib-observability/v2/zap"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap"
 )

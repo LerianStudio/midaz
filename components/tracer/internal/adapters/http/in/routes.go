@@ -13,14 +13,14 @@ import (
 	"os"
 	"strings"
 
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	problem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	tmmiddleware "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/middleware"
-	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libObsMiddleware "github.com/LerianStudio/lib-observability/v2/middleware"
-	libOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
+	problem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmmiddleware "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/middleware"
+	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libObsMiddleware "github.com/LerianStudio/lib-observability/v4/middleware"
+	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
@@ -131,9 +131,8 @@ func isReservationPath(path string) bool {
 // skipTelemetryPaths lists the request paths excluded from detailed telemetry.
 // Health/readiness/metrics probes generate high-frequency, low-value spans, so
 // they are handed to lib-observability's WithTelemetry as excluded routes. This
-// is the exact path set the removed OTel-Fiber WithNext predicate skipped;
-// folding it into the telemetry middleware the tracer already installs first
-// matches the ledger's posture (which never used that middleware).
+// is the exact path set the removed OTel-Fiber WithNext predicate skipped. The
+// ledger passes the same three to its own telemetry middleware.
 var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 
 // RoutesDeps bundles every dependency NewRoutes needs. Using a struct keeps

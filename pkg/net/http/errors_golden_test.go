@@ -19,8 +19,8 @@ import (
 	"strings"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

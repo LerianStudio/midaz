@@ -10,7 +10,7 @@ import (
 	"errors"
 	"testing"
 
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
@@ -37,12 +37,12 @@ func Int64Ptr(v int64) *int64 {
 // MockLogger is a mock implementation of logger for testing
 type MockLogger struct{}
 
-func (m *MockLogger) Log(_ context.Context, _ libLog.Level, _ string, _ ...libLog.Field) {}
-func (m *MockLogger) With(_ ...libLog.Field) libLog.Logger                               { return m }
+func (m *MockLogger) Log(_ context.Context, _ int, _ string, _ ...any) {}
+func (m *MockLogger) With(_ ...any) libLog.Logger                      { return m }
 
 func (m *MockLogger) WithGroup(_ string) libLog.Logger { return m }
 
-func (m *MockLogger) Enabled(_ libLog.Level) bool { return true }
+func (m *MockLogger) Enabled(_ int) bool { return true }
 
 func (m *MockLogger) Sync(_ context.Context) error { return nil }
 

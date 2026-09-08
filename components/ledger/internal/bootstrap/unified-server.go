@@ -8,13 +8,13 @@ import (
 	"context"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	libCommonsServer "github.com/LerianStudio/lib-commons/v6/commons/server"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libObsMiddleware "github.com/LerianStudio/lib-observability/v2/middleware"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
+	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
+	libCommonsServer "github.com/LerianStudio/lib-commons/v7/commons/server"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libObsMiddleware "github.com/LerianStudio/lib-observability/v4/middleware"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
@@ -56,6 +56,13 @@ type UnifiedServer struct {
 	telemetry     *libOpentelemetry.Telemetry
 	readyzHandler *ReadyzHandler
 }
+
+// skipTelemetryPaths lists the request paths excluded from HTTP telemetry, per
+// T11 in docs/standards/telemetry.md. A k8s probe generates one span and one
+// metric observation per poll — high volume, zero information. /metrics is
+// listed for the same reason even though this binary pushes over OTLP and
+// mounts no scrape endpoint, so adding one later cannot reintroduce the noise.
+var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 
 // NewUnifiedServer creates a server that exposes all APIs on a single port.
 // Route registrars are responsible for attaching any module-specific middleware.
@@ -114,7 +121,12 @@ func NewUnifiedServer(
 	app.Use(midazhttp.WithRecover(midazhttp.WithRecoverLogger(logger)))
 
 	tlMid := libObsMiddleware.NewTelemetryMiddleware(telemetry)
-	app.Use(tlMid.WithTelemetry(telemetry))
+	// The per-tenant variant instead of WithTelemetry: it carries the same
+	// standard HTTP telemetry and adds the tenant-labelled counters/histogram.
+	// Registering both would double-record http.server.request.duration. The
+	// tenant series only appear once MarkTrustedAuthAssertion attests an
+	// identity, so a deployment without the tenantId claim gains no cardinality.
+	app.Use(tlMid.WithAuthenticatedTenantHTTPMetrics(telemetry, skipTelemetryPaths...))
 	app.Use(cors.New())
 	app.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(logger)))
 

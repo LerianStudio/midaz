@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"testing"
 
-	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

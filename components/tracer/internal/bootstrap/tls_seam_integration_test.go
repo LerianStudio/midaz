@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	libObsOtel "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObsOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

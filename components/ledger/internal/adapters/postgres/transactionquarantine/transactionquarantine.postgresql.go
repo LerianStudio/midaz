@@ -13,11 +13,11 @@ import (
 	"fmt"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/Masterminds/squirrel"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
@@ -164,24 +164,21 @@ func (r *QuarantinePostgreSQLRepository) Insert(ctx context.Context, record *Qua
 		return err
 	}
 
-	_, spanExec := tracer.Start(ctx, "postgres.insert_transaction_backup_quarantine.exec")
-	defer spanExec.End()
-
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to insert quarantine record", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to insert quarantine record", err)
 
 		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanExec, "Failed to read rows affected", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to read rows affected", err)
 
 		return err
 	}
 
-	spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
+	span.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
 	// rowsAffected == 0 means the record was already quarantined (ON CONFLICT
 	// DO NOTHING). That is a successful, idempotent outcome: the durable copy

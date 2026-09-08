@@ -7,8 +7,8 @@ package query
 import (
 	"context"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
 
@@ -18,7 +18,7 @@ import (
 	// GetWriteBehindTransaction retrieves a transaction from the write-behind cache in Redis.
 	// Returns the deserialized transaction with Body and Operations already populated.
 	// Returns (nil, err) on cache miss or deserialization failure.
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 func (uc *UseCase) GetWriteBehindTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*transaction.Transaction, error) {

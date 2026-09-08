@@ -109,7 +109,7 @@ func registerDomainSchemaAliases(registry huma.Registry) {
 // spec's error schema reads as the org-wide error model, not an incidental type
 // name. Matched as a STRING so this shared pkg never imports lib-commons/problem
 // just to reference the type (no runtime coupling; the dump is offline).
-const problemDetailPkgPath = "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+const problemDetailPkgPath = "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 
 // sharedSchemaNamer is the base namer both planes route through: it renames the
 // shared problem.Detail error body to "Error" and defers everything else to

@@ -11,8 +11,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v3/auth/middleware"
-	libLog "github.com/LerianStudio/lib-observability/v2/log"
+	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
 	"github.com/gofiber/fiber/v3"
 	jwt "github.com/golang-jwt/jwt/v5"
@@ -37,7 +37,7 @@ func newTestAuthGuard(t *testing.T, cfg AuthGuardConfig, fakeAuthServerURL strin
 	// assert on auth-client log output, so a no-op logger keeps the test stdout
 	// clean while preserving the *log.Logger pointer shape NewAuthClient expects.
 	authLogger := libLog.NewNop()
-	authClient := authMiddleware.NewAuthClient(address, cfg.PluginAuthEnabled, &authLogger)
+	authClient := authMiddleware.NewAuthClient(address, cfg.PluginAuthEnabled, authLogger)
 
 	return NewAuthGuard(cfg, authClient)
 }

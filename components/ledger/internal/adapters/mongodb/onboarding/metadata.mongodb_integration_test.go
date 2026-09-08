@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libMongo "github.com/LerianStudio/lib-commons/v7/commons/mongo"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"

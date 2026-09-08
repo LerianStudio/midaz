@@ -13,9 +13,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"

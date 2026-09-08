@@ -7,8 +7,8 @@ package in
 import (
 	"errors"
 
-	libObservability "github.com/LerianStudio/lib-observability/v2"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v2/tracing"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
