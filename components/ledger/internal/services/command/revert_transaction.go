@@ -342,6 +342,12 @@ func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger l
 		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
 	}
 
+	if uc.BalanceEngine != nil {
+		tran, err := uc.createTransactionWithBalanceEngine(ctx, span, logger, run, false)
+
+		return tran, false, err
+	}
+
 	ctx, err = uc.stageBalances(ctx, span, logger, run)
 	if err != nil {
 		return nil, false, err
@@ -472,6 +478,14 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 		uc.rollbackCreateClaim(ctx, run)
 
 		return nil, false, err
+	}
+
+	// Keep exception-bearing requests on the compatibility path until the engine
+	// can validate and consume the single-use grant atomically with the reversal.
+	if uc.BalanceEngine != nil && run.accountBlockExceptionGrant == nil {
+		tran, err := uc.createTransactionWithBalanceEngine(ctx, span, logger, run, true)
+
+		return tran, false, err
 	}
 
 	ctx, err = uc.stageBalances(ctx, span, logger, run)
