@@ -500,22 +500,6 @@ local function apply_legacy_defaults(balance)
     if balance.Blocked == nil then balance.Blocked = 0 end
 end
 
-local legacyFieldNames = {
-    "ID", "AccountID", "Available", "OnHold", "OverdraftUsed", "Version",
-    "AccountType", "AssetCode", "AllowSending", "AllowReceiving", "Alias",
-    "Key", "Direction", "AllowOverdraft", "OverdraftLimitEnabled",
-    "OverdraftLimit", "BalanceScope", "Blocked",
-}
-
-local function has_legacy_field(balance)
-    for _, name in ipairs(legacyFieldNames) do
-        if balance[name] ~= nil then
-            return true
-        end
-    end
-    return false
-end
-
 local isCanonicalLimit
 
 local function is_uuid_text(value)
@@ -524,109 +508,150 @@ local function is_uuid_text(value)
     return a ~= nil and #a == 8 and #b == 4 and #c == 4 and #d == 4 and #e == 12
 end
 
--- decode_new_only_balance accepts only the complete strict lower-camel cache
--- contract. Any uppercase field keeps the entry on the legacy-authority path;
--- lower fields never repair or override a malformed legacy field.
-local function decode_new_only_balance(cached, exactSchemaVersion, duplicateLowerVersion, incoming, expectedAlias)
-    if exactSchemaVersion ~= "2" or duplicateLowerVersion or has_legacy_field(cached) then
+-- decode_cached_balance promotes strict lower-camel fields into the legacy
+-- in-memory shape field by field. Presence of an uppercase field is
+-- authoritative, even when its value is null or malformed; only absence may
+-- select the lower field. This lets the financial path remain unchanged.
+local function decode_cached_balance(cached, exactUpperVersion, exactSchemaVersion,
+    duplicateLowerVersion, incoming, expectedAlias)
+    local hadUpperID = cached.ID ~= nil
+    local selectedLower = false
+    local selectedLowerKey = false
+    local aliasMissing = false
+
+    if cached.SchemaVersion ~= nil and exactSchemaVersion ~= "2" then
         return nil
     end
 
-    local textFields = { "id", "accountId", "accountType", "assetCode" }
-    for _, name in ipairs(textFields) do
-        if type(cached[name]) ~= "string" or cached[name] == "" then
-            return nil
+    local function select_text(upper, lower, required, default)
+        if cached[upper] ~= nil then return true end
+        if cached[lower] == nil then
+            if required then return false end
+            cached[upper] = default
+            return true
+        end
+        selectedLower = true
+        if type(cached[lower]) ~= "string" or (required and cached[lower] == "") then return false end
+        cached[upper] = cached[lower]
+        return true
+    end
+
+    local function select_money(upper, lower, required, default, nonnegative)
+        if cached[upper] ~= nil then return true end
+        if cached[lower] == nil then
+            if required then return false end
+            cached[upper] = default
+            return true
+        end
+        selectedLower = true
+        if not isCanonicalLimit(cached[lower]) or (nonnegative and startsWithMinus(cached[lower])) then
+            return false
+        end
+        cached[upper] = cached[lower]
+        return true
+    end
+
+    local function select_flag(upper, lower, required, default)
+        if cached[upper] ~= nil then return true end
+        if cached[lower] == nil then
+            if required then return false end
+            cached[upper] = default
+            return true
+        end
+        selectedLower = true
+        local promoted = legacy_flag(cached[lower])
+        if promoted == nil then return false end
+        cached[upper] = promoted
+        return true
+    end
+
+    if not select_text("ID", "id", true)
+        or not select_text("AccountID", "accountId", true)
+        or not select_money("Available", "available", true, nil, false)
+        or not select_money("OnHold", "onHold", true, nil, true)
+        or not select_money("OverdraftUsed", "overdraftUsed", false, "0", true)
+        or not select_text("AccountType", "accountType", true)
+        or not select_text("AssetCode", "assetCode", true)
+        or not select_flag("AllowSending", "allowSending", true)
+        or not select_flag("AllowReceiving", "allowReceiving", true)
+        or not select_flag("Blocked", "blocked", false, 0)
+        or not select_text("Direction", "direction", false, "")
+        or not select_flag("AllowOverdraft", "allowOverdraft", false, 0)
+        or not select_flag("OverdraftLimitEnabled", "overdraftLimitEnabled", false, 0)
+        or not select_money("OverdraftLimit", "overdraftLimit", false, "0", true)
+        or not select_text("BalanceScope", "balanceScope", false, "transactional") then
+        return nil
+    end
+
+    if cached.Alias == nil then
+        if cached.alias == nil then
+            aliasMissing = true
+        else
+            selectedLower = true
+            if type(cached.alias) ~= "string" or cached.alias == "" then return nil end
+            cached.Alias = cached.alias
+        end
+    elseif type(cached.Alias) ~= "string" then
+        return nil
+    end
+    if cached.Key == nil then
+        if cached.key == nil then
+            cached.Key = "default"
+        else
+            selectedLower = true
+            selectedLowerKey = true
+            if type(cached.key) ~= "string" or cached.key:find("#") then return nil end
+            cached.Key = cached.key
         end
     end
-    if not is_uuid_text(cached.id) or not is_uuid_text(cached.accountId) then
-        return nil
-    end
-    cached.id = string.lower(cached.id)
-    cached.accountId = string.lower(cached.accountId)
-    if cached.id ~= incoming.ID or cached.accountId ~= incoming.AccountID
-        or cached.accountType ~= incoming.AccountType or cached.assetCode ~= incoming.AssetCode then
-        return nil
+
+    if cached.Version == nil then
+        selectedLower = true
+        if duplicateLowerVersion then return nil end
+        cached.Version = canonical_version_text(cached.version)
+        if not cached.Version then return nil end
+    else
+        cached.Version = exactUpperVersion
+        if not cached.Version then return nil end
     end
 
-    if cached.direction == nil then cached.direction = "" end
-    if cached.overdraftUsed == nil then cached.overdraftUsed = "0" end
-    if cached.allowOverdraft == nil then cached.allowOverdraft = false end
-    if cached.overdraftLimitEnabled == nil then cached.overdraftLimitEnabled = false end
-    if cached.blocked == nil then cached.blocked = false end
-    if cached.overdraftLimit == nil then cached.overdraftLimit = "0" end
-    if cached.balanceScope == nil then cached.balanceScope = "transactional" end
-    if cached.direction ~= "" and cached.direction ~= "credit" and cached.direction ~= "debit" then
-        return nil
-    end
-    if cached.balanceScope ~= "transactional" and cached.balanceScope ~= "internal" then
-        return nil
-    end
-
-    if type(cached.alias) ~= "string" then
-        return nil
-    end
-    if cached.key == nil then cached.key = "default" end
-    if type(cached.key) ~= "string" or cached.key:find("#") then return nil end
-    local modernKey = cached.key == "" and "default" or cached.key
-    local modernAlias = cached.alias
-    local qualifiedAlias, qualifiedKey = modernAlias:match("^([^#]+)#([^#]+)$")
-    if qualifiedAlias then
-        if qualifiedKey ~= modernKey then
+    if selectedLower then
+        if (not hadUpperID and exactSchemaVersion ~= "2")
+            or (aliasMissing and not hadUpperID)
+            or selectedLowerKey and cached.Key:find("#") then return nil end
+        if type(cached.ID) ~= "string" or type(cached.AccountID) ~= "string"
+            or not is_uuid_text(cached.ID) or not is_uuid_text(cached.AccountID) then
             return nil
         end
-        modernAlias = qualifiedAlias
-    elseif modernAlias == "" or modernAlias:find("#") then
-        return nil
-    end
-
-    local expectedModernAlias, expectedModernKey = normalize_modern_identity(expectedAlias, incoming.Key)
-    if not expectedModernAlias or modernAlias ~= expectedModernAlias or modernKey ~= expectedModernKey then
-        return nil
-    end
-
-    local moneyFields = { "available", "onHold", "overdraftUsed", "overdraftLimit" }
-    for _, name in ipairs(moneyFields) do
-        if not isCanonicalLimit(cached[name]) then
+        cached.ID = string.lower(cached.ID)
+        cached.AccountID = string.lower(cached.AccountID)
+        if cached.ID ~= incoming.ID or cached.AccountID ~= incoming.AccountID
+            or cached.AccountType ~= incoming.AccountType or cached.AssetCode ~= incoming.AssetCode then
             return nil
         end
-    end
-    if startsWithMinus(cached.onHold) or startsWithMinus(cached.overdraftUsed)
-        or startsWithMinus(cached.overdraftLimit) then
-        return nil
-    end
-    local exactVersion = canonical_version_text(cached.version)
-    if exactVersion == nil then
-        return nil
+        if cached.Direction ~= "" and cached.Direction ~= "credit" and cached.Direction ~= "debit" then
+            return nil
+        end
+        if cached.BalanceScope ~= "transactional" and cached.BalanceScope ~= "internal" then
+            return nil
+        end
+
+        local identityAlias = cached.Alias
+        if aliasMissing and hadUpperID then
+            identityAlias = expectedAlias
+        end
+        local modernAlias, modernKey = normalize_modern_identity(identityAlias, cached.Key)
+        local expectedModernAlias, expectedModernKey = normalize_modern_identity(expectedAlias, incoming.Key)
+        if not modernAlias or not expectedModernAlias or modernAlias ~= expectedModernAlias
+            or modernKey ~= expectedModernKey then
+            return nil
+        end
+        cached.Alias = expectedAlias
+        cached.Key = incoming.Key
+    else
+        apply_legacy_defaults(cached)
     end
 
-    local allowSending = legacy_flag(cached.allowSending)
-    local allowReceiving = legacy_flag(cached.allowReceiving)
-    local blocked = legacy_flag(cached.blocked)
-    local allowOverdraft = legacy_flag(cached.allowOverdraft)
-    local overdraftLimitEnabled = legacy_flag(cached.overdraftLimitEnabled)
-    if allowSending == nil or allowReceiving == nil or blocked == nil or allowOverdraft == nil
-        or overdraftLimitEnabled == nil then
-        return nil
-    end
-
-    cached.ID = cached.id
-    cached.AccountID = cached.accountId
-    cached.Available = cached.available
-    cached.OnHold = cached.onHold
-    cached.OverdraftUsed = cached.overdraftUsed
-    cached.Version = exactVersion
-    cached.AccountType = cached.accountType
-    cached.AssetCode = cached.assetCode
-    cached.AllowSending = allowSending
-    cached.AllowReceiving = allowReceiving
-    cached.Blocked = blocked
-    cached.Alias = expectedAlias
-    cached.Key = incoming.Key
-    cached.Direction = cached.direction
-    cached.AllowOverdraft = allowOverdraft
-    cached.OverdraftLimitEnabled = overdraftLimitEnabled
-    cached.OverdraftLimit = cached.overdraftLimit
-    cached.BalanceScope = cached.balanceScope
     return cached
 end
 
@@ -1140,22 +1165,11 @@ local function main()
             if not ok or type(decoded) ~= "table" then
                 return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
             end
-            if has_legacy_field(decoded) then
-                if decoded.ID == nil then
-                    return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
-                end
-                if decoded.SchemaVersion ~= nil and decoded.SchemaVersion ~= 2 then
-                    return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
-                end
-                candidate = decoded
-                candidate.Version = cachedVersions[ARGV[i]]
-                apply_legacy_defaults(candidate)
-            else
-                candidate = decode_new_only_balance(decoded, cachedSchemaVersions[ARGV[i]],
-                    cachedDuplicateLowerVersions[ARGV[i]], balance_from_args(i), ARGV[i + 5])
-                if not candidate then
-                    return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
-                end
+            candidate = decode_cached_balance(decoded, cachedVersions[ARGV[i]],
+                cachedSchemaVersions[ARGV[i]], cachedDuplicateLowerVersions[ARGV[i]],
+                balance_from_args(i), ARGV[i + 5])
+            if not candidate then
+                return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
             end
         else
             candidate = balance_from_args(i)
@@ -1249,20 +1263,11 @@ local function main()
                 return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
             end
             rollbackBalance = currentBalance
-            if has_legacy_field(balance) then
-                if not currentVersion then
-                    rollback(rollbackBalances, ttl)
-                    return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
-                end
-                balance.Version = currentVersion
-                apply_legacy_defaults(balance)
-            else
-                balance = decode_new_only_balance(balance, currentSchemaVersion, duplicateLowerVersion,
-                    balance_from_args(i), alias)
-                if not balance then
-                    rollback(rollbackBalances, ttl)
-                    return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
-                end
+            balance = decode_cached_balance(balance, currentVersion, currentSchemaVersion,
+                duplicateLowerVersion, balance_from_args(i), alias)
+            if not balance then
+                rollback(rollbackBalances, ttl)
+                return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
             end
         end
 

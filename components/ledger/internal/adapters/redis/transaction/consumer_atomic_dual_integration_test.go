@@ -185,7 +185,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		cached := readLimitNormalizationCache(t, infra, op.InternalKey)
 		for key, value := range map[string]any{
 			"SchemaVersion": 2, "id": "stale", "accountId": "stale", "alias": "@stale", "key": "stale",
-			"available": "999", "onHold": "999", "overdraftUsed": "999", "version": "999",
+			"available": "999.00", "onHold": "999", "overdraftUsed": "999", "version": "999",
 			"accountType": "stale", "assetCode": "EUR", "direction": "debit", "overdraftLimit": "999",
 			"balanceScope": "stale", "allowSending": false, "allowReceiving": false,
 			"allowOverdraft": true, "overdraftLimitEnabled": false,
@@ -202,6 +202,30 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, err)
 		require.Equal(t, "119", result.After[0].Available.String())
 		assertAtomicDualCache(t, readLimitNormalizationCache(t, infra, op.InternalKey), alias)
+	})
+
+	t.Run("unversioned mixed cache fills an absent legacy version from the exact lower field", func(t *testing.T) {
+		alias := "@dual-mixed-version"
+		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		op.Balance.Version = 9007199254740992
+		seedLimitNormalizationCache(t, infra, op, "1000")
+		cached := readLimitNormalizationCache(t, infra, op.InternalKey)
+		delete(cached, "Version")
+		delete(cached, "Alias")
+		cached["version"] = json.RawMessage(`"9007199254740992"`)
+		encoded, err := json.Marshal(cached)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777794"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+		require.NoError(t, err)
+		require.Equal(t, int64(9007199254740992), result.Before[0].Version)
+		require.Equal(t, int64(9007199254740993), result.After[0].Version)
+		cached = readLimitNormalizationCache(t, infra, op.InternalKey)
+		require.JSONEq(t, `9007199254740993`, string(cached["Version"]))
+		require.Equal(t, "9007199254740993", decodeSettingsUpdateField[string](t, cached, "version"))
 	})
 
 	t.Run("complete new-only balance mutates and writes coherent dual cache", func(t *testing.T) {
@@ -330,6 +354,136 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.Error(t, err)
 		require.Nil(t, result)
 		require.Equal(t, before, captureLimitNormalizationRedisState(t, infra))
+	})
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(map[string]json.RawMessage)
+	}{
+		{name: "authoritative upper null", mutate: func(cache map[string]json.RawMessage) {
+			cache["Available"] = json.RawMessage(`null`)
+		}},
+		{name: "authoritative upper alias null", mutate: func(cache map[string]json.RawMessage) {
+			cache["Alias"] = json.RawMessage(`null`)
+			cache["alias"] = json.RawMessage(`"valid-lower-shadow"`)
+		}},
+		{name: "required field absent in both shapes", mutate: func(cache map[string]json.RawMessage) {
+			delete(cache, "ID")
+			delete(cache, "id")
+		}},
+		{name: "selected lower money noncanonical", mutate: func(cache map[string]json.RawMessage) {
+			delete(cache, "Available")
+			cache["available"] = json.RawMessage(`"120.00"`)
+		}},
+	} {
+		t.Run("mixed cache rejects "+tc.name+" before batch writes", func(t *testing.T) {
+			coldAlias := "@dual-mixed-matrix-cold-" + strings.ReplaceAll(tc.name, " ", "-")
+			cold := newLimitNormalizationOperation(orgID, ledgerID, coldAlias, 1)
+			cold.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, coldAlias+"#default")
+			alias := "@dual-mixed-matrix-" + strings.ReplaceAll(tc.name, " ", "-")
+			later := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+			later.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+			seedLimitNormalizationCache(t, infra, later, "1000")
+			cached := readLimitNormalizationCache(t, infra, later.InternalKey)
+			cached["SchemaVersion"] = json.RawMessage(`2`)
+			cached["available"] = json.RawMessage(`"120"`)
+			tc.mutate(cached)
+			encoded, err := json.Marshal(cached)
+			require.NoError(t, err)
+			require.NoError(t, infra.redisContainer.Client.Set(ctx, later.InternalKey, encoded, time.Hour).Err())
+			before := captureLimitNormalizationRedisState(t, infra)
+
+			result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+				uuid.New(), "ACTIVE", false, []mmodel.BalanceOperation{cold, later})
+			require.Error(t, err)
+			require.Nil(t, result)
+			require.Equal(t, before, captureLimitNormalizationRedisState(t, infra))
+		})
+	}
+
+	for _, tc := range []struct {
+		name string
+		raw  func(string) string
+	}{
+		{name: "schema token is decimal", raw: func(raw string) string {
+			return strings.Replace(raw, `{`, `{"SchemaVersion":2.0,`, 1)
+		}},
+		{name: "schema token is exponent", raw: func(raw string) string {
+			return strings.Replace(raw, `{`, `{"SchemaVersion":2e0,`, 1)
+		}},
+		{name: "schema token is duplicate", raw: func(raw string) string {
+			return strings.Replace(raw, `{`, `{"SchemaVersion":2,"SchemaVersion":2,`, 1)
+		}},
+	} {
+		t.Run("mixed upper-ID rejects "+tc.name, func(t *testing.T) {
+			alias := "@dual-mixed-schema-" + strings.ReplaceAll(tc.name, " ", "-")
+			op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+			op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+			seed := seedLimitNormalizationCache(t, infra, op, "1000")
+			require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, tc.raw(seed), time.Hour).Err())
+			before := captureLimitNormalizationRedisState(t, infra)
+
+			result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+				uuid.New(), "ACTIVE", false, []mmodel.BalanceOperation{op})
+			require.Error(t, err)
+			require.Nil(t, result)
+			require.Equal(t, before, captureLimitNormalizationRedisState(t, infra))
+		})
+	}
+
+	t.Run("mixed cache uses live lower overdraft settings and normalizes selected identity", func(t *testing.T) {
+		alias := "@dual-mixed-live-settings"
+		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 121)
+		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		seedLimitNormalizationCache(t, infra, op, "1000")
+		cached := readLimitNormalizationCache(t, infra, op.InternalKey)
+		cached["SchemaVersion"] = json.RawMessage(`2`)
+		delete(cached, "ID")
+		cached["id"] = json.RawMessage(strconv.Quote(strings.ToUpper(op.Balance.ID)))
+		delete(cached, "AccountID")
+		cached["accountId"] = json.RawMessage(strconv.Quote(strings.ToUpper(op.Balance.AccountID)))
+		delete(cached, "AllowOverdraft")
+		cached["allowOverdraft"] = json.RawMessage(`true`)
+		delete(cached, "OverdraftLimitEnabled")
+		cached["overdraftLimitEnabled"] = json.RawMessage(`false`)
+		delete(cached, "OverdraftLimit")
+		cached["overdraftLimit"] = json.RawMessage(`"0"`)
+		encoded, err := json.Marshal(cached)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777795"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+		require.NoError(t, err)
+		require.Equal(t, "0", result.After[0].Available.String())
+		require.Equal(t, "1", result.After[0].OverdraftUsed.String())
+		cached = readLimitNormalizationCache(t, infra, op.InternalKey)
+		require.Equal(t, op.Balance.ID, decodeSettingsUpdateField[string](t, cached, "ID"))
+		require.Equal(t, op.Balance.AccountID, decodeSettingsUpdateField[string](t, cached, "AccountID"))
+		require.Equal(t, 1, decodeSettingsUpdateField[int](t, cached, "AllowOverdraft"))
+		require.True(t, decodeSettingsUpdateField[bool](t, cached, "allowOverdraft"))
+	})
+
+	t.Run("mixed cache no-op preserves its exact image and expiry", func(t *testing.T) {
+		alias := "@dual-mixed-noop"
+		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 0)
+		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		seedLimitNormalizationCache(t, infra, op, "1000")
+		cached := readLimitNormalizationCache(t, infra, op.InternalKey)
+		cached["SchemaVersion"] = json.RawMessage(`2`)
+		delete(cached, "Version")
+		cached["version"] = json.RawMessage(`"7"`)
+		encoded, err := json.Marshal(cached)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
+		before := captureLimitNormalizationRedisState(t, infra)
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777796"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+		require.NoError(t, err)
+		require.Empty(t, result.Before)
+		require.Empty(t, result.After)
+		require.Equal(t, before[op.InternalKey], captureLimitNormalizationRedisState(t, infra)[op.InternalKey])
 	})
 
 	t.Run("financial refusal restores the raw new-only pre-mutation image", func(t *testing.T) {
@@ -495,7 +649,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.Equal(t, "999", decodeSettingsUpdateField[string](t, readLimitNormalizationCache(t, infra, op.InternalKey), "available"))
 	})
 
-	for _, shape := range []string{"legacy", "dual", "cold"} {
+	for _, shape := range []string{"legacy", "dual", "mixed", "cold"} {
 		t.Run("financial refusal restores "+shape+" preprojection image", func(t *testing.T) {
 			alias := "@dual-rollback-" + shape
 			first := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
@@ -506,10 +660,14 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 			var before []byte
 			if shape != "cold" {
 				seedLimitNormalizationCache(t, infra, first, "1000")
-				if shape == "dual" {
+				if shape == "dual" || shape == "mixed" {
 					cached := readLimitNormalizationCache(t, infra, first.InternalKey)
 					cached["SchemaVersion"] = json.RawMessage(`2`)
 					cached["available"] = json.RawMessage(`"999"`)
+					if shape == "mixed" {
+						delete(cached, "Version")
+						cached["version"] = json.RawMessage(`"7"`)
+					}
 					encoded, err := json.Marshal(cached)
 					require.NoError(t, err)
 					require.NoError(t, infra.redisContainer.Client.Set(ctx, first.InternalKey, encoded, time.Hour).Err())
