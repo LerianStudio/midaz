@@ -8,7 +8,7 @@ import (
 	"context"
 	"errors"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"

@@ -9,8 +9,8 @@ import (
 	"errors"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpenTelemetry "github.com/LerianStudio/lib-observability/v4/tracing"

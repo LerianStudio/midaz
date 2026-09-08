@@ -9,8 +9,8 @@ import (
 	"errors"
 	"testing"
 
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"

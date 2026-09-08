@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	libMongo "github.com/LerianStudio/lib-commons/v6/commons/mongo"
-	tmmongo "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/mongo"
+	libMongo "github.com/LerianStudio/lib-commons/v7/commons/mongo"
+	tmmongo "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/mongo"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"

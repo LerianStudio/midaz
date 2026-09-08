@@ -5,13 +5,15 @@
 package in
 
 import (
+	nethttp "net/http"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	problem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
+	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
+	problem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 
@@ -279,6 +281,7 @@ func AssembleHumaContract(app *fiber.App, group fiber.Router, cfg openapi.Config
 func FinalizeContract(api huma.API) {
 	MarkV1OperationsDeprecated(api)
 	RepointV1ErrorResponses(api)
+	StripHeadResponseContent(api)
 	ApplyVersionTagGroups(api)
 }
 
@@ -314,9 +317,32 @@ type LegacyError struct {
 	Fields     map[string]any `json:"fields,omitempty" doc:"Per-field validation detail, keyed by field name. The value is the violation message for a known field and the offending value for an unexpected one, so it is not always a string. The /v2 contract carries these as the 'errors' array."`
 }
 
-// RepointV1ErrorResponses rewrites every /v1 operation's default error response to
-// the LegacyError schema at application/json, leaving /v2 on the shared RFC 9457
-// Error schema.
+// legacyErrorMediaType is the media type a /v1 error body is served as. It is the
+// same constant ErrorEnvelope stamps on the rewritten response
+// (middleware/envelope.go), so the declared media type and the served one move
+// together.
+const legacyErrorMediaType = fiber.MIMEApplicationJSON
+
+// RepointV1ErrorResponses rewrites EVERY error response on a /v1 operation to the
+// LegacyError schema at application/json, leaving /v2 on the shared RFC 9457 Error
+// schema.
+//
+// Every error response, not just Huma's "default" catch-all. ErrorEnvelope
+// (middleware/envelope.go) reshapes any /v1 response whose status is >= 400 —
+// including the 500 written while unwinding a recovered panic — so a numeric status
+// left pointing at the problem-details body publishes a document the service never
+// sends, and a generated client cannot parse the response it receives. Until the
+// lib-commons baseline hook landed, "default" was the only error response a /v1
+// operation carried, which is why handling it alone was correct then and is not now:
+// the hook (commons/net/http/openapi, OnAddOperation) adds 500 — and 422 where the
+// operation has validated input — at huma.Register time by CLONING the catch-all's
+// content, which is still the RFC 9457 one at that point. This pass runs afterwards,
+// from FinalizeContract, and corrects them.
+//
+// The rule is "status >= 400", not a list of the statuses that hook happens to add
+// today, so a baseline status added later is repointed without another edit here.
+// A response that declares no content declares no body; giving it one here would
+// publish a body the operation does not send, so those are left alone.
 //
 // Both versions share ONE document and ONE component registry, so this adds a
 // second, distinctly named schema rather than altering Error — which must stay
@@ -325,7 +351,8 @@ type LegacyError struct {
 // scripts/openapi/check-docs.sh.
 //
 // Run it AFTER the last huma.Register and BEFORE the spec is snapshotted, like the
-// sibling passes above.
+// sibling passes above. Running it before the hook would repoint responses that do
+// not exist yet.
 func RepointV1ErrorResponses(api huma.API) {
 	schema := api.OpenAPI().Components.Schemas.Schema(reflect.TypeOf(LegacyError{}), true, "LegacyError")
 
@@ -335,14 +362,76 @@ func RepointV1ErrorResponses(api huma.API) {
 		}
 
 		for _, op := range operationsOf(item) {
-			response, ok := op.Responses["default"]
-			if !ok || response == nil {
+			for status, response := range op.Responses {
+				if response == nil || len(response.Content) == 0 || !isErrorResponseKey(status) {
+					continue
+				}
+
+				response.Content = map[string]*huma.MediaType{
+					legacyErrorMediaType: {Schema: schema},
+				}
+			}
+		}
+	}
+}
+
+// isErrorResponseKey reports whether an OpenAPI responses key names an error
+// response: Huma's "default" catch-all, or any numeric status ErrorEnvelope
+// reshapes (>= 400). Any other key — a success status, or a non-numeric key that is
+// not the catch-all — is not an error response and is left untouched.
+func isErrorResponseKey(key string) bool {
+	if key == "default" {
+		return true
+	}
+
+	status, err := strconv.Atoi(key)
+
+	return err == nil && status >= nethttp.StatusBadRequest
+}
+
+// StripHeadResponseContent removes the declared body from EVERY response on EVERY
+// HEAD operation, on both planes.
+//
+// A HEAD response cannot carry a body, ever: fasthttp sets Response.SkipBody
+// unconditionally for a HEAD request, so whatever an operation writes is discarded
+// before the wire. Declaring a body there publishes a shape the service is
+// physically unable to send. A generated client believes it: an oapi-codegen-style
+// client leaves the typed field nil on a 500, so a failed count reads as success,
+// and a strict generator throws a parse error instead and loses the status the
+// caller needed.
+//
+// The rule keys off the METHOD, not off a status list and not off a plane. Every
+// response of a HEAD operation loses its content, so a HEAD route registered later
+// is covered without another edit here, and a body declared on a success status is
+// as wrong as one declared on an error. The HEAD operation is read off the PathItem
+// because the method is not part of the path key.
+//
+// Content is dropped by replacing the response with a shallow copy that carries no
+// content map, rather than by writing through the existing one. Baseline error
+// responses are materialized by CLONING the catch-all's media types
+// (lib-commons commons/net/http/openapi, cloneErrorContent), which share their
+// *huma.Schema pointers across statuses and planes, so nothing here may mutate a
+// MediaType a sibling response also holds.
+//
+// Order relative to the sibling passes does not matter: RepointV1ErrorResponses
+// skips a response that declares no content, and this pass drops content whatever
+// schema it points at. Run it AFTER the last huma.Register and BEFORE the spec is
+// snapshotted, like the sibling passes.
+func StripHeadResponseContent(api huma.API) {
+	for _, item := range api.OpenAPI().Paths {
+		if item == nil || item.Head == nil {
+			continue
+		}
+
+		for status, response := range item.Head.Responses {
+			if response == nil || len(response.Content) == 0 {
 				continue
 			}
 
-			response.Content = map[string]*huma.MediaType{
-				"application/json": {Schema: schema},
-			}
+			bodyless := *response
+			bodyless.Content = nil
+
+			item.Head.Responses[status] = &bodyless
 		}
 	}
 }

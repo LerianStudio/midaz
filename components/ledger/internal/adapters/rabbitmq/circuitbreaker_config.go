@@ -7,7 +7,7 @@ package rabbitmq
 import (
 	"time"
 
-	libCircuitBreaker "github.com/LerianStudio/lib-commons/v6/commons/circuitbreaker"
+	libCircuitBreaker "github.com/LerianStudio/lib-commons/v7/commons/circuitbreaker"
 )
 
 // CircuitBreakerServiceName is the service identifier for RabbitMQ producer circuit breaker.

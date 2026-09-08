@@ -8,8 +8,8 @@ import (
 	"context"
 	"sync"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	obsconst "github.com/LerianStudio/lib-observability/v4/constants"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"

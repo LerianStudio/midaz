@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
+	tmclient "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/client"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	"github.com/stretchr/testify/assert"

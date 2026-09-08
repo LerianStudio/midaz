@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 

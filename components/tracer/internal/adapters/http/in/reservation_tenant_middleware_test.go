@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"

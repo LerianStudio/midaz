@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	libBackoff "github.com/LerianStudio/lib-commons/v6/commons/backoff"
+	libBackoff "github.com/LerianStudio/lib-commons/v7/commons/backoff"
 	"github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	amqp "github.com/rabbitmq/amqp091-go"

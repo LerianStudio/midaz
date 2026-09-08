@@ -143,7 +143,9 @@ Binding standard: `docs/standards/telemetry.md` (T1–T13). The span-error helpe
 Span lifecycle:
 
 - Always `defer span.End()` immediately after `tracer.Start`.
-- For child I/O spans, preserve parent context: use `_, spanExec := tracer.Start(ctx, "...")`, not `ctx, spanExec := ...`.
+- Open a child I/O span only where the driver is not auto-instrumented: MongoDB and RabbitMQ yes, PostgreSQL and Redis/Valkey no — `lib-commons` instruments both of those pools (`sqlobs`/`redisobs`), so a hand-rolled `postgres.<op>.query`/`.exec` or one-command `redis.<cmd>` span only duplicates the driver's. See T2 for the full table.
+- When a child I/O span is not opened, its error handling and attributes belong on the parent domain span — the driver span carries no business-vs-technical class and does not see client-side scan/mapping failures.
+- For the child I/O spans that remain, preserve parent context: use `_, spanInsert := tracer.Start(ctx, "...")`, not `ctx, spanInsert := ...`.
 - Do not create child spans for in-memory mapping/validation.
 - Do not add redundant "Initiating..." logs; spans already mark operation starts.
 
@@ -160,7 +162,7 @@ span.SetAttributes(
     attribute.String("app.request.organization_id", organizationID.String()),
     attribute.String("app.request.ledger_id", ledgerID.String()),
 )
-spanExec.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
+span.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 ```
 
 ## Errors

@@ -13,9 +13,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
-	libProblem "github.com/LerianStudio/lib-commons/v6/commons/net/http/problem"
-	tmctx "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
+	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
+	tmctx "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"

@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"

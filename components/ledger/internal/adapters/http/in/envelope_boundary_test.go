@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	openapi "github.com/LerianStudio/lib-commons/v6/commons/net/http/openapi"
+	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"

@@ -14,9 +14,9 @@ import (
 	"time"
 
 	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
-	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
+	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libMetrics "github.com/LerianStudio/lib-observability/v4/metrics"
 	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"

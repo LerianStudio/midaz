@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/observability"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"

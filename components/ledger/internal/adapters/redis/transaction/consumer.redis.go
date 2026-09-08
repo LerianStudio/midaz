@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	tmvalkey "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/valkey"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -234,20 +234,17 @@ func NewConsumerRedis(rc redisClientProvider) (*RedisConsumerRepository, error) 
 }
 
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.set")
-	defer span.End()
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	key, err := tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace redis key", libLog.Err(err))
 		return err
 	}
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get redis", libLog.Err(err))
 
 		return err
 	}
@@ -256,7 +253,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 
 	err = rds.Set(ctx, key, value, ttl*time.Second).Err()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to set on redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to set on redis", libLog.Err(err))
 
 		return err
 	}
@@ -296,14 +293,10 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 }
 
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.get")
-	defer span.End()
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	key, err := tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
 
 		return "", err
@@ -311,8 +304,6 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to connect to Redis", libLog.Err(err))
 
 		return "", err
@@ -320,8 +311,6 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 
 	val, err := rds.Get(ctx, key).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		libOpentelemetry.HandleSpanError(span, "Failed to get on redis", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to get key from Redis", libLog.Err(err))
 
 		return "", err
@@ -333,21 +322,16 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 // MGet retrieves multiple values from redis.
 // Large inputs are processed in chunks of maxRedisBatchSize to prevent oversized payloads.
 func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map[string]string, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.mget")
-	defer span.End()
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	if len(keys) == 0 {
-		libOpentelemetry.HandleSpanEvent(span, "mget called with empty keys")
+		logger.Log(ctx, libLog.LevelDebug, "mget called with empty keys")
 
 		return map[string]string{}, nil
 	}
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
 
 		return nil, err
@@ -355,7 +339,6 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 
 	prefixedKeys, err := tenantKeysFromContext(ctx, keys)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis keys", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis keys", libLog.Err(err))
 
 		return nil, err
@@ -371,8 +354,6 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 
 		res, err := rds.MGet(ctx, chunk...).Result()
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to mget on redis", err)
-
 			logger.Log(ctx, libLog.LevelError, "Failed to MGET from Redis", libLog.Err(err))
 
 			return nil, err
@@ -400,14 +381,10 @@ func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) (map
 }
 
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.del")
-	defer span.End()
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	key, err := tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
 
 		return err
@@ -415,8 +392,6 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to connect to Redis", libLog.Err(err))
 
 		return err
@@ -424,8 +399,6 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 
 	val, err := rds.Del(ctx, key).Result()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to del on redis", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to delete key from Redis", libLog.Err(err))
 
 		return err
@@ -437,15 +410,10 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 }
 
 func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.incr")
-	defer span.End()
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	key, err := tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to namespace Redis key", libLog.Err(err))
 
 		return 0
@@ -453,8 +421,6 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get redis", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
 
 		return 0

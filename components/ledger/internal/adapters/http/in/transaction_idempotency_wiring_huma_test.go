@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

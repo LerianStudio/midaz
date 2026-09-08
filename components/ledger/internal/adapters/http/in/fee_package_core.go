@@ -15,7 +15,7 @@ import (
 	feeerrors "github.com/LerianStudio/midaz/v4/pkg"
 	feeconstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 
-	"github.com/LerianStudio/lib-commons/v6/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"

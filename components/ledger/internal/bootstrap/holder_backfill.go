@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"strings"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	tmclient "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/client"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmclient "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/client"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"

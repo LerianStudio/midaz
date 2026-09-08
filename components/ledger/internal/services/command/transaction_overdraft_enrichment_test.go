@@ -9,7 +9,7 @@ import (
 	"errors"
 	"testing"
 
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"

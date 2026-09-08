@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
-	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
+	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"

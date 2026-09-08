@@ -13,7 +13,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v4/auth/declaration"
 	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
 	tracerembed "github.com/LerianStudio/midaz/v4/components/tracer"

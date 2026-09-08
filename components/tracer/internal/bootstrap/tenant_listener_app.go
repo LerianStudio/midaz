@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"sync"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	tmevent "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/event"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmevent "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/event"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 

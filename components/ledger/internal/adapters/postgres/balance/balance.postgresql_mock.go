@@ -14,7 +14,7 @@ import (
 	reflect "reflect"
 	time "time"
 
-	http "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	http "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 

@@ -9,7 +9,7 @@ import (
 
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
 
-	constant "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	constant "github.com/LerianStudio/lib-commons/v7/commons/constants"
 )
 
 // CalculateOverdraftSplit partitions a debit amount targeted at a

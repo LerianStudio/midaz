@@ -9,7 +9,7 @@ import (
 	"errors"
 	"time"
 
-	libHTTP "github.com/LerianStudio/lib-commons/v6/commons/net/http"
+	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"

@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"

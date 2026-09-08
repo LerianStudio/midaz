@@ -9,8 +9,8 @@ import (
 	"errors"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"

@@ -11,8 +11,8 @@ import (
 	"database/sql"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libPostgres "github.com/LerianStudio/lib-commons/v6/commons/postgres"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"

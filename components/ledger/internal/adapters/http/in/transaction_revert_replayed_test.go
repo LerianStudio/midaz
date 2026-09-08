@@ -14,8 +14,8 @@ import (
 	"sync"
 	"testing"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	libConstants "github.com/LerianStudio/lib-commons/v6/commons/constants"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/gofiber/fiber/v3"
