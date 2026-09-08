@@ -39,7 +39,6 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
-	postgresRecovery "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/recovery"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
@@ -1153,21 +1152,20 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		redisConsumer = NewRedisQueueConsumer(logger, commandUseCase, queryUseCase)
 	}
 
-	recoveryFinalizer := &tenantRecoveryFinalizer{
-		delegate: command.NewBalanceEngineFinalizer(
-			postgresRecovery.NewStore(commandUseCase.TransactionRepo, commandUseCase.OperationRepo),
-			commandUseCase.TransactionMetadataRepo,
-		),
-		multiTenantEnabled: cfg.MultiTenantEnabled,
-	}
+	var recoveryMongo recoveryMongoResolver
 	if txnMgo.mongoManager != nil {
-		recoveryFinalizer.mongoResolver = txnMgo.mongoManager
+		recoveryMongo = txnMgo.mongoManager
+	}
+
+	if err := configureBalanceEngineFinalization(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to configure balance engine finalization: %w", err)
 	}
 
 	// The quarantine repository is the durable sink for poison backup records;
 	// the metrics factory powers the backup-queue observability gauges/counter.
 	redisConsumer.
-		WithBalanceEngineFinalizer(recoveryFinalizer).
 		WithQuarantineRepository(txnPG.quarantineRepo).
 		WithMetricsFactory(metricsFactory)
 
