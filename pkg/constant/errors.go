@@ -509,6 +509,21 @@ var (
 	// One unknown alias rejects the WHOLE batch. Args: the item's zero-based
 	// index in the batch, then the offending alias.
 	ErrAccountBlockExceptionAliasNotFound = errors.New("0507")
+	// ErrAccountBlockExceptionInvalid is returned when the
+	// accountBlockExceptionId a transaction presents cannot be consumed: it does
+	// not exist (never minted, already used, or expired by its TTL), or its
+	// authorized alias and amount do not match the transaction's source account
+	// and the amount debited from it. Distinct from ErrAccountBlocked (0502), so
+	// a caller can tell "the account is blocked and you presented no usable
+	// grant" from "the grant you presented is not the one this transaction
+	// needs".
+	ErrAccountBlockExceptionInvalid = errors.New("0508")
+	// ErrAccountBlockExceptionNotSupported is returned when
+	// accountBlockExceptionId is presented on a surface that does not accept it.
+	// The hold (pending create) is the only such surface: a two-phase
+	// transaction would need two grants, so the field is rejected explicitly
+	// rather than ignored silently. Args: the rejecting surface.
+	ErrAccountBlockExceptionNotSupported = errors.New("0509")
 )
 
 // List of CRM domain errors.

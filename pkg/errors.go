@@ -654,6 +654,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Block Exception Alias Not Found",
 			Message:    fmt.Sprintf("The 'accountAlias' of the exception at index %v does not exist in this ledger: %v. No exception was created. Please verify the alias and try again.", args...),
 		},
+		constant.ErrAccountBlockExceptionInvalid: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionInvalid.Error(),
+			Title:      "Invalid Account Block Exception",
+			Message:    "The 'accountBlockExceptionId' presented does not exist, has expired or has already been used, or does not authorize this transaction's source account and debited amount. Please create a new exception and try again.",
+		},
+		constant.ErrAccountBlockExceptionNotSupported: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionNotSupported.Error(),
+			Title:      "Account Block Exception Not Supported",
+			Message:    fmt.Sprintf("The 'accountBlockExceptionId' field is not accepted on the %v operation. Please present it on the direct, commit or revert operation instead.", args...),
+		},
 		constant.ErrInsufficientAccountBalance: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrInsufficientAccountBalance.Error(),

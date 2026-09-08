@@ -280,6 +280,8 @@ func allSentinels() map[string]error {
 		"ErrAccountBlockExceptionInvalidAmount":       constant.ErrAccountBlockExceptionInvalidAmount,
 		"ErrAccountBlockExceptionInvalidTTL":          constant.ErrAccountBlockExceptionInvalidTTL,
 		"ErrAccountBlockExceptionAliasNotFound":       constant.ErrAccountBlockExceptionAliasNotFound,
+		"ErrAccountBlockExceptionInvalid":             constant.ErrAccountBlockExceptionInvalid,
+		"ErrAccountBlockExceptionNotSupported":        constant.ErrAccountBlockExceptionNotSupported,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
 		"ErrDuplicatedAliasKeyValue":                  constant.ErrDuplicatedAliasKeyValue,
