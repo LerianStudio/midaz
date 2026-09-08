@@ -45,6 +45,12 @@ type BalanceEngine interface {
 	Execute(ctx context.Context, input EngineExecution) (*engine.Result, error)
 }
 
+// BalanceEngineGuardBootstrapper conditionally seeds the execution guard for a
+// persisted legacy transaction that predates balance-engine guards.
+type BalanceEngineGuardBootstrapper interface {
+	EnsureTransactionGuard(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, nextToken string) error
+}
+
 // FeesDBResolver resolves a tenant's fee Mongo database. It is the narrow port
 // the transaction create path depends on at the fee seam so the concrete
 // tenant-manager Mongo manager (*tmmongo.Manager) can be injected at bootstrap
