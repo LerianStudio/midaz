@@ -5,18 +5,15 @@
 package engine
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 )
 
 //go:embed scripts/normalize_balance_limits.lua
@@ -31,14 +28,19 @@ const (
 	repairCASWrongType int64 = -2
 )
 
-type jsonValueSpan struct {
-	start int
-	end   int
-}
-
-func repairBalanceLimits(ctx context.Context, client *redis.Client, keys []string) error {
+func repairBalanceLimits(ctx context.Context, client *redis.Client, keys []string, request engine.Request) error {
 	if err := ctx.Err(); err != nil {
 		return technical("context_canceled", false, err)
+	}
+
+	resolved, err := resolveAdapterKeys(ctx, request)
+	if err != nil {
+		return technical("invalid_scope", false, err)
+	}
+
+	aliases := make(map[string]string, len(request.Balances))
+	for _, balance := range request.Balances {
+		aliases[resolved.Balances[balance.BalanceRef].Balance] = balance.Alias
 	}
 
 	values, err := client.MGet(ctx, keys...).Result()
@@ -58,7 +60,7 @@ func repairBalanceLimits(ctx context.Context, client *redis.Client, keys []strin
 			return technical("normalization_invalid_balance", false, fmt.Errorf("cached balance %s is not a string", keys[i]))
 		}
 
-		replacement, repairErr := normalizedLimitBlob([]byte(raw))
+		replacement, repairErr := balancecache.NormalizeLimitDual([]byte(raw), aliases[keys[i]])
 		if repairErr != nil {
 			return technical("normalization_invalid_balance", false, fmt.Errorf("validate cached balance %s for limit normalization: %w", keys[i], repairErr))
 		}
@@ -89,7 +91,6 @@ func repairBalanceLimits(ctx context.Context, client *redis.Client, keys []strin
 		}
 
 		evalArgs = append(evalArgs, args...)
-
 		response, err = processNoRetry(ctx, client, evalArgs...).Result()
 	}
 
@@ -112,120 +113,4 @@ func repairBalanceLimits(ctx context.Context, client *redis.Client, keys []strin
 	default:
 		return technical("normalization_repair_failed", true, errors.New("invalid balance limit normalization status"))
 	}
-}
-
-func normalizedLimitBlob(raw []byte) ([]byte, error) {
-	_, err := balancecache.Decode(raw)
-	if err == nil {
-		return raw, nil
-	}
-
-	var noncanonical *balancecache.NoncanonicalLimitError
-	if !errors.As(err, &noncanonical) {
-		return nil, err
-	}
-
-	parsed, err := decimal.NewFromString(noncanonical.Raw)
-	if err != nil || parsed.String() != noncanonical.Canonical {
-		return nil, errors.New("invalid noncanonical overdraft limit")
-	}
-
-	spans, err := limitValueSpans(raw)
-	if err != nil {
-		return nil, err
-	}
-
-	encoded, err := json.Marshal(noncanonical.Canonical)
-	if err != nil {
-		return nil, fmt.Errorf("encode canonical overdraft limit: %w", err)
-	}
-
-	replacement := raw
-
-	for i := len(spans) - 1; i >= 0; i-- {
-		span := spans[i]
-		patched := make([]byte, 0, len(replacement)-span.end+span.start+len(encoded))
-		patched = append(patched, replacement[:span.start]...)
-		patched = append(patched, encoded...)
-		patched = append(patched, replacement[span.end:]...)
-		replacement = patched
-	}
-
-	if _, err := balancecache.Decode(replacement); err != nil {
-		return nil, fmt.Errorf("validate normalized cached balance: %w", err)
-	}
-
-	return replacement, nil
-}
-
-func limitValueSpans(raw []byte) ([]jsonValueSpan, error) {
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-
-	token, err := decoder.Token()
-	if err != nil || token != json.Delim('{') {
-		return nil, errors.New("cached balance must be a JSON object")
-	}
-
-	var spans []jsonValueSpan
-
-	var seenLegacy, seenCurrent bool
-
-	for decoder.More() {
-		fieldToken, err := decoder.Token()
-		if err != nil {
-			return nil, fmt.Errorf("read cached balance field: %w", err)
-		}
-
-		name, ok := fieldToken.(string)
-		if !ok {
-			return nil, errors.New("invalid cached balance field name")
-		}
-
-		var value json.RawMessage
-		if err := decoder.Decode(&value); err != nil {
-			return nil, fmt.Errorf("decode cached balance field %s: %w", name, err)
-		}
-
-		end := int(decoder.InputOffset())
-		start := end - len(value)
-
-		if start < 0 || !bytes.Equal(raw[start:end], value) {
-			return nil, fmt.Errorf("locate cached balance field %s", name)
-		}
-
-		span := jsonValueSpan{start: start, end: end}
-
-		switch name {
-		case "OverdraftLimit":
-			if seenLegacy {
-				return nil, errors.New("duplicate cached balance field OverdraftLimit")
-			}
-
-			seenLegacy = true
-
-			spans = append(spans, span)
-		case "overdraftLimit":
-			if seenCurrent {
-				return nil, errors.New("duplicate cached balance field overdraftLimit")
-			}
-
-			seenCurrent = true
-
-			spans = append(spans, span)
-		}
-	}
-
-	if _, err := decoder.Token(); err != nil {
-		return nil, fmt.Errorf("close cached balance object: %w", err)
-	}
-
-	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		return nil, errors.New("unexpected trailing cached balance content")
-	}
-
-	if len(spans) == 0 {
-		return nil, errors.New("cached balance has no overdraft limit")
-	}
-
-	return spans, nil
 }

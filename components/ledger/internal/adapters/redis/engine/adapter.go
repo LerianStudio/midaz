@@ -174,7 +174,7 @@ func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, req
 				return nil, normalization.err
 			}
 
-			if err := repairBalanceLimits(ctx, client, normalization.keys); err != nil {
+			if err := repairBalanceLimits(ctx, client, normalization.keys, request); err != nil {
 				return nil, err
 			}
 
