@@ -387,6 +387,16 @@ local function modern_flag(value)
     return nil
 end
 
+local function legacy_flag(value)
+    if value == false then
+        return 0
+    end
+    if value == true then
+        return 1
+    end
+    return nil
+end
+
 -- normalize_modern_identity keeps the uppercase Alias/Key pair untouched for
 -- legacy response correlation while making the lower-camel identity suitable
 -- for strict new-schema readers.
@@ -490,6 +500,136 @@ local function apply_legacy_defaults(balance)
     if balance.Blocked == nil then balance.Blocked = 0 end
 end
 
+local legacyFieldNames = {
+    "ID", "AccountID", "Available", "OnHold", "OverdraftUsed", "Version",
+    "AccountType", "AssetCode", "AllowSending", "AllowReceiving", "Alias",
+    "Key", "Direction", "AllowOverdraft", "OverdraftLimitEnabled",
+    "OverdraftLimit", "BalanceScope", "Blocked",
+}
+
+local function has_legacy_field(balance)
+    for _, name in ipairs(legacyFieldNames) do
+        if balance[name] ~= nil then
+            return true
+        end
+    end
+    return false
+end
+
+local isCanonicalLimit
+
+local function is_uuid_text(value)
+    if type(value) ~= "string" then return false end
+    local a, b, c, d, e = value:match("^(%x+)%-(%x+)%-(%x+)%-(%x+)%-(%x+)$")
+    return a ~= nil and #a == 8 and #b == 4 and #c == 4 and #d == 4 and #e == 12
+end
+
+-- decode_new_only_balance accepts only the complete strict lower-camel cache
+-- contract. Any uppercase field keeps the entry on the legacy-authority path;
+-- lower fields never repair or override a malformed legacy field.
+local function decode_new_only_balance(cached, exactSchemaVersion, duplicateLowerVersion, incoming, expectedAlias)
+    if exactSchemaVersion ~= "2" or duplicateLowerVersion or has_legacy_field(cached) then
+        return nil
+    end
+
+    local textFields = { "id", "accountId", "accountType", "assetCode" }
+    for _, name in ipairs(textFields) do
+        if type(cached[name]) ~= "string" or cached[name] == "" then
+            return nil
+        end
+    end
+    if not is_uuid_text(cached.id) or not is_uuid_text(cached.accountId) then
+        return nil
+    end
+    cached.id = string.lower(cached.id)
+    cached.accountId = string.lower(cached.accountId)
+    if cached.id ~= incoming.ID or cached.accountId ~= incoming.AccountID
+        or cached.accountType ~= incoming.AccountType or cached.assetCode ~= incoming.AssetCode then
+        return nil
+    end
+
+    if cached.direction == nil then cached.direction = "" end
+    if cached.overdraftUsed == nil then cached.overdraftUsed = "0" end
+    if cached.allowOverdraft == nil then cached.allowOverdraft = false end
+    if cached.overdraftLimitEnabled == nil then cached.overdraftLimitEnabled = false end
+    if cached.blocked == nil then cached.blocked = false end
+    if cached.overdraftLimit == nil then cached.overdraftLimit = "0" end
+    if cached.balanceScope == nil then cached.balanceScope = "transactional" end
+    if cached.direction ~= "" and cached.direction ~= "credit" and cached.direction ~= "debit" then
+        return nil
+    end
+    if cached.balanceScope ~= "transactional" and cached.balanceScope ~= "internal" then
+        return nil
+    end
+
+    if type(cached.alias) ~= "string" then
+        return nil
+    end
+    if cached.key == nil then cached.key = "default" end
+    if type(cached.key) ~= "string" or cached.key:find("#") then return nil end
+    local modernKey = cached.key == "" and "default" or cached.key
+    local modernAlias = cached.alias
+    local qualifiedAlias, qualifiedKey = modernAlias:match("^([^#]+)#([^#]+)$")
+    if qualifiedAlias then
+        if qualifiedKey ~= modernKey then
+            return nil
+        end
+        modernAlias = qualifiedAlias
+    elseif modernAlias == "" or modernAlias:find("#") then
+        return nil
+    end
+
+    local expectedModernAlias, expectedModernKey = normalize_modern_identity(expectedAlias, incoming.Key)
+    if not expectedModernAlias or modernAlias ~= expectedModernAlias or modernKey ~= expectedModernKey then
+        return nil
+    end
+
+    local moneyFields = { "available", "onHold", "overdraftUsed", "overdraftLimit" }
+    for _, name in ipairs(moneyFields) do
+        if not isCanonicalLimit(cached[name]) then
+            return nil
+        end
+    end
+    if startsWithMinus(cached.onHold) or startsWithMinus(cached.overdraftUsed)
+        or startsWithMinus(cached.overdraftLimit) then
+        return nil
+    end
+    local exactVersion = canonical_version_text(cached.version)
+    if exactVersion == nil then
+        return nil
+    end
+
+    local allowSending = legacy_flag(cached.allowSending)
+    local allowReceiving = legacy_flag(cached.allowReceiving)
+    local blocked = legacy_flag(cached.blocked)
+    local allowOverdraft = legacy_flag(cached.allowOverdraft)
+    local overdraftLimitEnabled = legacy_flag(cached.overdraftLimitEnabled)
+    if allowSending == nil or allowReceiving == nil or blocked == nil or allowOverdraft == nil
+        or overdraftLimitEnabled == nil then
+        return nil
+    end
+
+    cached.ID = cached.id
+    cached.AccountID = cached.accountId
+    cached.Available = cached.available
+    cached.OnHold = cached.onHold
+    cached.OverdraftUsed = cached.overdraftUsed
+    cached.Version = exactVersion
+    cached.AccountType = cached.accountType
+    cached.AssetCode = cached.assetCode
+    cached.AllowSending = allowSending
+    cached.AllowReceiving = allowReceiving
+    cached.Blocked = blocked
+    cached.Alias = expectedAlias
+    cached.Key = incoming.Key
+    cached.Direction = cached.direction
+    cached.AllowOverdraft = allowOverdraft
+    cached.OverdraftLimitEnabled = overdraftLimitEnabled
+    cached.OverdraftLimit = cached.overdraftLimit
+    cached.BalanceScope = cached.balanceScope
+    return cached
+end
+
 local function balance_from_args(i)
     return {
         ID = ARGV[i + 7],
@@ -586,7 +726,7 @@ local function rollback(rollbackBalances, ttl)
   end
 end
 
-local function isCanonicalLimit(value)
+isCanonicalLimit = function(value)
     if type(value) ~= "string" or value == "" then
         return false
     end
@@ -633,7 +773,11 @@ local function hasValidJSONTokens(raw)
     local cursor = 1
     local sawLimit = false
     local sawVersion = false
+    local sawSchemaVersion = false
+    local sawLowerVersion = false
+    local duplicateLowerVersion = false
     local exactVersion
+    local exactSchemaVersion
     while cursor <= #raw do
         local char = raw:sub(cursor, cursor)
         if char == '"' then
@@ -680,6 +824,26 @@ local function hasValidJSONTokens(raw)
                         if not canonical_version_text(exactVersion) then
                             return false, nil, true
                         end
+                    elseif field == "version" then
+                        if sawLowerVersion then duplicateLowerVersion = true end
+                        sawLowerVersion = true
+                    elseif field == "SchemaVersion" then
+                        if sawSchemaVersion then
+                            exactSchemaVersion = "duplicate"
+                        end
+                        sawSchemaVersion = true
+                        following = following + 1
+                        while raw:sub(following, following):match("%s") do
+                            following = following + 1
+                        end
+                        local valueEnd = following
+                        while valueEnd <= #raw and not raw:sub(valueEnd, valueEnd):match("[%s,%]}]") do
+                            valueEnd = valueEnd + 1
+                        end
+                        local exactValue = raw:sub(following, valueEnd - 1)
+                        if exactSchemaVersion ~= "duplicate" then
+                            exactSchemaVersion = exactValue
+                        end
                     end
                 end
             end
@@ -704,7 +868,7 @@ local function hasValidJSONTokens(raw)
         end
         cursor = cursor + 1
     end
-    return true, exactVersion, false
+    return true, exactVersion, false, exactSchemaVersion, duplicateLowerVersion
 end
 
 local function main()
@@ -902,7 +1066,13 @@ local function main()
             if cur then
                 local ok, decoded = pcall(cjson.decode, cur)
                 if ok and type(decoded) == "table" then
-                    blocked = tonumber(decoded.Blocked) or 0
+                    if decoded.Blocked ~= nil then
+                        blocked = tonumber(decoded.Blocked) or 0
+                    elseif decoded.blocked == true then
+                        blocked = 1
+                    elseif decoded.blocked == false then
+                        blocked = 0
+                    end
                 end
             end
 
@@ -917,6 +1087,8 @@ local function main()
     local limitsToNormalize = {}
     local checkedKeys = {}
     local cachedVersions = {}
+    local cachedSchemaVersions = {}
+    local cachedDuplicateLowerVersions = {}
     for i = argvHeader + 1, #ARGV, groupSize do
         local key = ARGV[i]
         if not checkedKeys[key] then
@@ -927,7 +1099,8 @@ local function main()
                 if not ok or type(cached) ~= "table" or not string.match(raw, "^%s*{") then
                     return redis.error_reply("BALANCE_LIMIT_INVALID")
                 end
-                local validTokens, exactVersion, invalidVersion = hasValidJSONTokens(raw)
+                local validTokens, exactVersion, invalidVersion, exactSchemaVersion, duplicateLowerVersion =
+                    hasValidJSONTokens(raw)
                 if invalidVersion then
                     return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
                 end
@@ -935,6 +1108,8 @@ local function main()
                     return redis.error_reply("BALANCE_LIMIT_INVALID")
                 end
                 cachedVersions[key] = exactVersion
+                cachedSchemaVersions[key] = exactSchemaVersion
+                cachedDuplicateLowerVersions[key] = duplicateLowerVersion
                 if cached.OverdraftLimit ~= nil then
                     if type(cached.OverdraftLimit) ~= "string" then
                         return redis.error_reply("BALANCE_LIMIT_INVALID")
@@ -952,8 +1127,8 @@ local function main()
 
     -- Validate every prospective dual projection before the first SET NX. A
     -- malformed later operation must not turn a serializer failure into a
-    -- partially-seeded batch. New-only cache entries intentionally remain a
-    -- future gate: this legacy accounting script requires uppercase authority.
+    -- partially-seeded batch. Pure lower-camel entries are validated and
+    -- promoted in memory; mixed entries retain legacy field authority.
     for i = argvHeader + 1, #ARGV, groupSize do
         if not canonical_version_text(ARGV[i + 10]) then
             return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
@@ -962,15 +1137,26 @@ local function main()
         local raw = redis.call("GET", ARGV[i])
         if raw then
             local ok, decoded = pcall(cjson.decode, raw)
-            if not ok or type(decoded) ~= "table" or decoded.ID == nil then
+            if not ok or type(decoded) ~= "table" then
                 return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
             end
-            if decoded.SchemaVersion ~= nil and decoded.SchemaVersion ~= 2 then
-                return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
+            if has_legacy_field(decoded) then
+                if decoded.ID == nil then
+                    return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
+                end
+                if decoded.SchemaVersion ~= nil and decoded.SchemaVersion ~= 2 then
+                    return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
+                end
+                candidate = decoded
+                candidate.Version = cachedVersions[ARGV[i]]
+                apply_legacy_defaults(candidate)
+            else
+                candidate = decode_new_only_balance(decoded, cachedSchemaVersions[ARGV[i]],
+                    cachedDuplicateLowerVersions[ARGV[i]], balance_from_args(i), ARGV[i + 5])
+                if not candidate then
+                    return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
+                end
             end
-            candidate = decoded
-            candidate.Version = cachedVersions[ARGV[i]]
-            apply_legacy_defaults(candidate)
         else
             candidate = balance_from_args(i)
         end
@@ -1055,17 +1241,28 @@ local function main()
                 return redis.error_reply("0139")
             end
             balance = cjson.decode(currentBalance)
-            local validCurrent, currentVersion, invalidCurrentVersion = hasValidJSONTokens(currentBalance)
-            if not validCurrent or invalidCurrentVersion or not currentVersion then
+            local validCurrent, currentVersion, invalidCurrentVersion, currentSchemaVersion,
+                duplicateLowerVersion =
+                hasValidJSONTokens(currentBalance)
+            if not validCurrent or invalidCurrentVersion then
                 rollback(rollbackBalances, ttl)
                 return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
             end
-            balance.Version = currentVersion
-            apply_legacy_defaults(balance)
-            rollbackBalance = encode_balance(balance)
-            if not rollbackBalance then
-                rollback(rollbackBalances, ttl)
-                return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+            rollbackBalance = currentBalance
+            if has_legacy_field(balance) then
+                if not currentVersion then
+                    rollback(rollbackBalances, ttl)
+                    return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+                end
+                balance.Version = currentVersion
+                apply_legacy_defaults(balance)
+            else
+                balance = decode_new_only_balance(balance, currentSchemaVersion, duplicateLowerVersion,
+                    balance_from_args(i), alias)
+                if not balance then
+                    rollback(rollbackBalances, ttl)
+                    return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
+                end
             end
         end
 

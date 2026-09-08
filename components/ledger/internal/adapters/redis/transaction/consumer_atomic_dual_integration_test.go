@@ -204,7 +204,246 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		assertAtomicDualCache(t, readLimitNormalizationCache(t, infra, op.InternalKey), alias)
 	})
 
-	t.Run("later new-only balance rejects before cold seed or mutation", func(t *testing.T) {
+	t.Run("complete new-only balance mutates and writes coherent dual cache", func(t *testing.T) {
+		alias := "@dual-new-only-complete"
+		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		op.Balance.Version = 9007199254740992
+		newOnly := map[string]any{
+			"SchemaVersion":         2,
+			"id":                    strings.ToUpper(op.Balance.ID),
+			"accountId":             strings.ToUpper(op.Balance.AccountID),
+			"available":             "120",
+			"onHold":                "11",
+			"overdraftUsed":         "0",
+			"version":               "9007199254740992",
+			"accountType":           op.Balance.AccountType,
+			"assetCode":             op.Balance.AssetCode,
+			"allowSending":          false,
+			"allowReceiving":        false,
+			"alias":                 alias,
+			"key":                   "default",
+			"direction":             "credit",
+			"allowOverdraft":        false,
+			"overdraftLimitEnabled": true,
+			"overdraftLimit":        "1000",
+			"balanceScope":          "transactional",
+		}
+		encoded, err := json.Marshal(newOnly)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777789"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+		require.NoError(t, err)
+		require.Len(t, result.Before, 1)
+		require.Len(t, result.After, 1)
+		require.Equal(t, "120", result.Before[0].Available.String())
+		require.Equal(t, "11", result.Before[0].OnHold.String())
+		require.Equal(t, "0", result.Before[0].OverdraftUsed.String())
+		require.Equal(t, int64(9007199254740992), result.Before[0].Version)
+		require.Equal(t, "119", result.After[0].Available.String())
+		require.Equal(t, "11", result.After[0].OnHold.String())
+		require.Equal(t, "0", result.After[0].OverdraftUsed.String())
+		require.Equal(t, int64(9007199254740993), result.After[0].Version)
+
+		cached := readLimitNormalizationCache(t, infra, op.InternalKey)
+		require.Equal(t, 2, decodeSettingsUpdateField[int](t, cached, "SchemaVersion"))
+		for _, pair := range [][2]string{
+			{"ID", "id"},
+			{"AccountID", "accountId"},
+			{"Available", "available"},
+			{"OnHold", "onHold"},
+			{"OverdraftUsed", "overdraftUsed"},
+			{"AccountType", "accountType"},
+			{"AssetCode", "assetCode"},
+			{"Direction", "direction"},
+			{"OverdraftLimit", "overdraftLimit"},
+			{"BalanceScope", "balanceScope"},
+		} {
+			require.Equal(t, decodeSettingsUpdateField[string](t, cached, pair[0]),
+				decodeSettingsUpdateField[string](t, cached, pair[1]), "%s and %s must be coherent", pair[0], pair[1])
+		}
+		require.Equal(t, alias, decodeSettingsUpdateField[string](t, cached, "Alias"))
+		require.Equal(t, alias, decodeSettingsUpdateField[string](t, cached, "alias"))
+		require.Equal(t, alias+"#default", decodeSettingsUpdateField[string](t, cached, "Key"))
+		require.Equal(t, "default", decodeSettingsUpdateField[string](t, cached, "key"))
+		for _, pair := range [][2]string{
+			{"AllowSending", "allowSending"},
+			{"AllowReceiving", "allowReceiving"},
+			{"AllowOverdraft", "allowOverdraft"},
+			{"OverdraftLimitEnabled", "overdraftLimitEnabled"},
+		} {
+			require.Equal(t, decodeSettingsUpdateField[int](t, cached, pair[0]) == 1,
+				decodeSettingsUpdateField[bool](t, cached, pair[1]), "%s and %s must be coherent", pair[0], pair[1])
+		}
+		require.JSONEq(t, `9007199254740993`, string(cached["Version"]))
+		require.Equal(t, "9007199254740993", decodeSettingsUpdateField[string](t, cached, "version"))
+	})
+
+	t.Run("new-only no-op preserves its exact cache image and expiry", func(t *testing.T) {
+		alias := "@dual-new-only-noop"
+		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 0)
+		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		newOnly := map[string]any{
+			"SchemaVersion": 2, "id": op.Balance.ID, "accountId": op.Balance.AccountID,
+			"available": "120", "onHold": "11", "version": "7",
+			"accountType": op.Balance.AccountType, "assetCode": op.Balance.AssetCode,
+			"allowSending": true, "allowReceiving": true, "alias": alias,
+		}
+		encoded, err := json.Marshal(newOnly)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
+		before := captureLimitNormalizationRedisState(t, infra)
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777790"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+		require.NoError(t, err)
+		require.Empty(t, result.Before)
+		require.Empty(t, result.After)
+		require.Equal(t, before[op.InternalKey], captureLimitNormalizationRedisState(t, infra)[op.InternalKey])
+	})
+
+	t.Run("mixed cache never falls back from invalid legacy authority to valid lower fields", func(t *testing.T) {
+		cold := newLimitNormalizationOperation(orgID, ledgerID, "@dual-mixed-cold", 1)
+		cold.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, "@dual-mixed-cold#default")
+		alias := "@dual-mixed-invalid"
+		later := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+		later.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		mixed := map[string]any{
+			"SchemaVersion": 2, "id": later.Balance.ID, "accountId": later.Balance.AccountID,
+			"available": "120", "onHold": "11", "overdraftUsed": "0", "version": "7",
+			"accountType": later.Balance.AccountType, "assetCode": later.Balance.AssetCode,
+			"allowSending": true, "allowReceiving": true, "alias": alias, "key": "default",
+			"direction": "credit", "allowOverdraft": false, "overdraftLimitEnabled": true,
+			"overdraftLimit": "1000", "balanceScope": "transactional",
+			"Available": false,
+		}
+		encoded, err := json.Marshal(mixed)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, later.InternalKey, encoded, time.Hour).Err())
+		before := captureLimitNormalizationRedisState(t, infra)
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777791"), "ACTIVE", false,
+			[]mmodel.BalanceOperation{cold, later})
+		require.Error(t, err)
+		require.Nil(t, result)
+		require.Equal(t, before, captureLimitNormalizationRedisState(t, infra))
+	})
+
+	t.Run("financial refusal restores the raw new-only pre-mutation image", func(t *testing.T) {
+		alias := "@dual-new-only-rollback"
+		first := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+		first.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		newOnly := map[string]any{
+			"SchemaVersion": 2, "id": first.Balance.ID, "accountId": first.Balance.AccountID,
+			"available": "120", "onHold": "11", "overdraftUsed": "0", "version": "7",
+			"accountType": first.Balance.AccountType, "assetCode": first.Balance.AssetCode,
+			"allowSending": true, "allowReceiving": true, "alias": alias, "key": "default",
+			"direction": "credit", "allowOverdraft": false, "overdraftLimitEnabled": true,
+			"overdraftLimit": "1000", "balanceScope": "transactional",
+		}
+		encoded, err := json.Marshal(newOnly)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, first.InternalKey, encoded, time.Hour).Err())
+		before, err := infra.redisContainer.Client.Get(ctx, first.InternalKey).Bytes()
+		require.NoError(t, err)
+
+		refused := newLimitNormalizationOperation(orgID, ledgerID, alias+"-refused", 121)
+		refused.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"-refused#default")
+		seedLimitNormalizationCache(t, infra, refused, "1000")
+		refusedCache := readLimitNormalizationCache(t, infra, refused.InternalKey)
+		refusedCache["AllowOverdraft"] = json.RawMessage(`0`)
+		encodedRefused, err := json.Marshal(refusedCache)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, refused.InternalKey, encodedRefused, time.Hour).Err())
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777792"), "ACTIVE", false,
+			[]mmodel.BalanceOperation{first, refused})
+		require.Error(t, err)
+		require.Nil(t, result)
+		after, getErr := infra.redisContainer.Client.Get(ctx, first.InternalKey).Bytes()
+		require.NoError(t, getErr)
+		require.Equal(t, before, after)
+	})
+
+	t.Run("new-only live overdraft setting overrides stale operation settings and absent optionals default", func(t *testing.T) {
+		alias := "@dual-new-only-live-settings"
+		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 121)
+		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		newOnly := map[string]any{
+			"SchemaVersion": 2, "id": op.Balance.ID, "accountId": op.Balance.AccountID,
+			"available": "120", "onHold": "11", "version": "7",
+			"accountType": op.Balance.AccountType, "assetCode": op.Balance.AssetCode,
+			"allowSending": true, "allowReceiving": true, "alias": alias,
+			"direction": "credit", "allowOverdraft": true,
+		}
+		encoded, err := json.Marshal(newOnly)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777793"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+		require.NoError(t, err)
+		require.Equal(t, "0", result.After[0].Available.String())
+		require.Equal(t, "1", result.After[0].OverdraftUsed.String())
+		cached := readLimitNormalizationCache(t, infra, op.InternalKey)
+		require.Equal(t, 1, decodeSettingsUpdateField[int](t, cached, "AllowOverdraft"))
+		require.True(t, decodeSettingsUpdateField[bool](t, cached, "allowOverdraft"))
+		require.Equal(t, "0", decodeSettingsUpdateField[string](t, cached, "OverdraftLimit"))
+		require.False(t, decodeSettingsUpdateField[bool](t, cached, "overdraftLimitEnabled"))
+		require.Equal(t, "transactional", decodeSettingsUpdateField[string](t, cached, "balanceScope"))
+		require.Equal(t, "default", decodeSettingsUpdateField[string](t, cached, "key"))
+	})
+
+	for _, tc := range []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{name: "schema token is not exact integer two", mutate: func(cache map[string]any) { cache["SchemaVersion"] = json.RawMessage(`2.0`) }},
+		{name: "flag is numeric", mutate: func(cache map[string]any) { cache["allowSending"] = 1 }},
+		{name: "version is numeric", mutate: func(cache map[string]any) { cache["version"] = 7 }},
+		{name: "available is numeric", mutate: func(cache map[string]any) { cache["available"] = 120 }},
+		{name: "required on hold is missing", mutate: func(cache map[string]any) { delete(cache, "onHold") }},
+		{name: "optional money is explicit null", mutate: func(cache map[string]any) { cache["overdraftUsed"] = json.RawMessage(`null`) }},
+		{name: "direction enum is invalid", mutate: func(cache map[string]any) { cache["direction"] = "sideways" }},
+		{name: "scope enum is invalid", mutate: func(cache map[string]any) { cache["balanceScope"] = "available" }},
+		{name: "identity differs from operation", mutate: func(cache map[string]any) { cache["accountId"] = "e4444444-4444-4444-4444-444444444444" }},
+		{name: "domain key contains qualifier", mutate: func(cache map[string]any) { cache["key"] = "alias#default" }},
+		{name: "money is noncanonical", mutate: func(cache map[string]any) { cache["overdraftLimit"] = "1000.0" }},
+	} {
+		t.Run("invalid new-only "+tc.name+" rejects before batch writes", func(t *testing.T) {
+			coldAlias := "@dual-invalid-new-cold-" + strings.ReplaceAll(tc.name, " ", "-")
+			cold := newLimitNormalizationOperation(orgID, ledgerID, coldAlias, 1)
+			cold.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, coldAlias+"#default")
+			alias := "@dual-invalid-new-" + strings.ReplaceAll(tc.name, " ", "-")
+			later := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+			later.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+			newOnly := map[string]any{
+				"SchemaVersion": 2, "id": later.Balance.ID, "accountId": later.Balance.AccountID,
+				"available": "120", "onHold": "11", "overdraftUsed": "0", "version": "7",
+				"accountType": later.Balance.AccountType, "assetCode": later.Balance.AssetCode,
+				"allowSending": true, "allowReceiving": true, "alias": alias, "key": "default",
+				"direction": "credit", "allowOverdraft": false, "overdraftLimitEnabled": true,
+				"overdraftLimit": "1000", "balanceScope": "transactional",
+			}
+			tc.mutate(newOnly)
+			encoded, err := json.Marshal(newOnly)
+			require.NoError(t, err)
+			require.NoError(t, infra.redisContainer.Client.Set(ctx, later.InternalKey, encoded, time.Hour).Err())
+			before := captureLimitNormalizationRedisState(t, infra)
+
+			result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+				uuid.New(), "ACTIVE", false, []mmodel.BalanceOperation{cold, later})
+			require.ErrorContains(t, err, "BALANCE_CACHE_SHAPE_UNSUPPORTED")
+			require.Nil(t, result)
+			require.Equal(t, before, captureLimitNormalizationRedisState(t, infra))
+		})
+	}
+
+	t.Run("later incomplete new-only balance rejects before cold seed or mutation", func(t *testing.T) {
 		cold := newLimitNormalizationOperation(orgID, ledgerID, "@dual-cold", 1)
 		cold.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, "@dual-cold#default")
 		later := newLimitNormalizationOperation(orgID, ledgerID, "@dual-new-only", 1)
