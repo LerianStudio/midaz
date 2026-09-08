@@ -196,3 +196,34 @@ func withoutString(values []string, target string) []string {
 
 	return out
 }
+
+// markRequestBodyOptional clears the `required` flag on one op's request body.
+//
+// Huma marks a RawBody op's request body required unconditionally, which is right for the
+// ops whose body carries the whole request and wrong for one whose body carries a single
+// optional field. Like attachTypedRequestBody this is DOCUMENTATION-ONLY: the runtime
+// never re-reads op.RequestBody.Required, and a RawBody-only op already accepts an empty
+// body — this only stops the published contract from promising otherwise.
+//
+// The op is found by operation ID for the same reason, and a miss is the same defensive
+// no-op.
+func markRequestBodyOptional(api huma.API, operationID string) {
+	if api == nil {
+		return
+	}
+
+	oapi := api.OpenAPI()
+	if oapi == nil {
+		return
+	}
+
+	for _, item := range oapi.Paths {
+		for _, op := range operationsOf(item) {
+			if op.OperationID != operationID || op.RequestBody == nil {
+				continue
+			}
+
+			op.RequestBody.Required = false
+		}
+	}
+}

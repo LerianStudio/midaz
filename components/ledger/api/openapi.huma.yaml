@@ -1745,6 +1745,12 @@ components:
       additionalProperties: false
       description: Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.
       properties:
+        accountBlockExceptionId:
+          description: Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
         amount:
           type: string
         asset:
@@ -2928,6 +2934,16 @@ components:
           examples:
             - Limited Liability
           maxLength: 100
+          type: string
+      type: object
+    LifecycleV2Input:
+      additionalProperties: false
+      properties:
+        accountBlockExceptionId:
+          description: Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
       type: object
     MetadataIndex:
@@ -14229,6 +14245,11 @@ paths:
           schema:
             description: Transaction ID (UUID)
             type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LifecycleV2Input"
       responses:
         "201":
           content:
@@ -14328,6 +14349,11 @@ paths:
           schema:
             description: Transaction ID (UUID)
             type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LifecycleV2Input"
       responses:
         "201":
           content:

@@ -37,9 +37,10 @@ import (
 // transaction_handler_v2.go: they decode the flat v2 body, translate it, and enter
 // the v1 createTransaction funnel (hold with pending=true) under the scope the body
 // resolved. They therefore hang off a path that names no organization and no ledger.
-// The LIFECYCLE terminals (commit/cancel/revert) address an EXISTING transaction and
-// carry no body, so their scope can only come from the URL: they stay under the
-// organization/ledger prefix. They are thin v2-specific shells
+// The LIFECYCLE terminals (commit/cancel/revert) address an EXISTING transaction, and no
+// body of theirs carries a scope — commit and revert accept only an OPTIONAL single-use
+// account-block exception, cancel accepts none — so their scope can only come from the
+// URL: they stay under the organization/ledger prefix. They are thin v2-specific shells
 // (CommitTransactionV2 / CancelTransactionV2 / RevertTransactionV2, also in
 // transaction_handler_v2.go) over the SAME transport-neutral core the v1 shells in
 // transaction_handler_huma.go call (commitTransaction / revertTransaction) — the only
@@ -51,14 +52,15 @@ import (
 
 // RegisterTransactionV2Routes registers the v2 transaction ops on the /v2 version
 // group of the shared Huma API. It registers the create ops `direct`, `hold`, `block`, and `unblock` on the
-// scope-free create path, plus the bodiless lifecycle ops `commit`, `cancel`, and `revert`
+// scope-free create path, plus the lifecycle ops `commit`, `cancel`, and `revert`
 // (by organization, ledger and transaction_id).
 // The lifecycle ops are thin v2 shells over the SAME transport-neutral core the v1 shells
-// call — no idempotency HEADERS, since they carry no body or headers. Auth is the Fiber
+// call — no idempotency HEADERS, since they carry no headers. Auth is the Fiber
 // guard chain attached in RegisterTransactionV2RoutesToApp BEFORE this terminal, not here —
 // the per-op Security metadata is SPEC-ONLY. Every path is declared GROUP-RELATIVE: it names
 // no /v2 segment. Once every op is registered, publishV2CreateBodySchema gives the create ops
-// a typed request-body schema.
+// a typed request-body schema and publishV2LifecycleBodySchema does the same for the optional
+// commit/revert body.
 func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	const transactionsIDBasePath = "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}"
 
@@ -81,13 +83,14 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	}
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "commitTransactionV2",
-		Method:        http.MethodPost,
-		Path:          transactionsIDBasePath + "/commit",
-		Summary:       "Commit a Transaction (v2)",
-		Tags:          []string{transactionsTag},
-		Security:      secTransactionBearer,
-		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
+		OperationID:      "commitTransactionV2",
+		Method:           http.MethodPost,
+		Path:             transactionsIDBasePath + "/commit",
+		Summary:          "Commit a Transaction (v2)",
+		Tags:             []string{transactionsTag},
+		Security:         secTransactionBearer,
+		SkipValidateBody: true, // optional body decoded imperatively (http.DecodeAndValidate), like the create ops.
+		DefaultStatus:    http.StatusCreated,
 	}, h.CommitTransactionV2)
 
 	huma.Register(api, huma.Operation{
@@ -101,16 +104,38 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	}, h.CancelTransactionV2)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "revertTransactionV2",
-		Method:        http.MethodPost,
-		Path:          transactionsIDBasePath + "/revert",
-		Summary:       "Revert a Transaction (v2)",
-		Tags:          []string{transactionsTag},
-		Security:      secTransactionBearer,
-		DefaultStatus: http.StatusCreated, // bodiless lifecycle op — no SkipValidateBody, mirroring v1.
+		OperationID:      "revertTransactionV2",
+		Method:           http.MethodPost,
+		Path:             transactionsIDBasePath + "/revert",
+		Summary:          "Revert a Transaction (v2)",
+		Tags:             []string{transactionsTag},
+		Security:         secTransactionBearer,
+		SkipValidateBody: true, // optional body decoded imperatively (http.DecodeAndValidate), like the create ops.
+		DefaultStatus:    http.StatusCreated,
 	}, h.RevertTransactionV2)
 
 	publishV2CreateBodySchema(api)
+	publishV2LifecycleBodySchema(api)
+}
+
+// v2LifecycleBodyOperationIDs are the /v2 lifecycle ops that accept the optional
+// account-block-exception body. Cancel is absent: it accepts no grant, so it stays
+// bodiless.
+var v2LifecycleBodyOperationIDs = []string{"commitTransactionV2", "revertTransactionV2"}
+
+// publishV2LifecycleBodySchema gives commit and revert the typed schema of their optional
+// body and marks that body NOT REQUIRED.
+//
+// Both are needed because the envelope declares only RawBody: Huma then publishes the
+// body as `string/binary` and marks it required, neither of which describes what the ops
+// accept. The runtime already treats the body as optional (a RawBody-only input
+// unmarshals nothing, so zero bytes is not a decode error) — this makes the CONTRACT say
+// so, which is what keeps a generated client from sending a body the ops never needed.
+func publishV2LifecycleBodySchema(api huma.API) {
+	for _, operationID := range v2LifecycleBodyOperationIDs {
+		attachTypedRequestBody[mtransaction.LifecycleV2Input](api, operationID)
+		markRequestBodyOptional(api, operationID)
+	}
 }
 
 // v2CreateBasePath is the collection the v2 create actions hang off, group-relative to /v2.
@@ -143,9 +168,9 @@ type v2CreateAction struct {
 	terminal    func(*TransactionHandler) v2CreateTerminal
 }
 
-// v2CreateActions are the v2 create ops, the ones that carry a body. The lifecycle ops
-// (commit/cancel/revert) are absent because they are bodiless: they have no request body to
-// describe and no body scope to read.
+// v2CreateActions are the v2 create ops, the ones whose body carries the whole request. The
+// lifecycle ops (commit/cancel/revert) are absent because none of their bodies carries a
+// scope to read: commit and revert accept one optional field, cancel accepts nothing.
 var v2CreateActions = []v2CreateAction{
 	{
 		suffix:      "/direct",

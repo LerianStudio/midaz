@@ -267,7 +267,7 @@ func TestCreateTransactionV2_StampsOperationTypeOverride(t *testing.T) {
 	t.Parallel()
 
 	// block action identity: (pending=false, override="BLOCK").
-	tx, _, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, "BLOCK")
+	tx, _, _, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, "BLOCK")
 	require.NoError(t, err)
 
 	assert.Equal(t, "BLOCK", tx.OperationTypeOverride,
@@ -478,7 +478,7 @@ func TestDecodeAndBuildV2Transaction_BlockUnblockStampOverrideAndForceNonPending
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tx, _, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, tc.override)
+			tx, _, _, err := decodeAndBuildV2Transaction([]byte(v2DirectBody), false, tc.override)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.override, tx.OperationTypeOverride,
@@ -650,7 +650,7 @@ func TestDecodeAndBuildV2Transaction_AdvancedFormAcrossActions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tx, _, err := decodeAndBuildV2Transaction([]byte(v2AdvancedBody), tc.pending, tc.override)
+			tx, _, _, err := decodeAndBuildV2Transaction([]byte(v2AdvancedBody), tc.pending, tc.override)
 			require.NoError(t, err, "the %s action must accept the leg-array spelling", tc.name)
 
 			// One canonical leg per array entry, in submission order, each carrying the value
@@ -710,7 +710,7 @@ func TestDecodeAndBuildV2Transaction_CarriesPerLegDescriptions(t *testing.T) {
 	_, decodeErr := pkgHTTP.DecodeAndValidate([]byte(v2PerLegDescriptionBody), &probe)
 	require.NoError(t, decodeErr, "a per-leg description must not be answered as an unknown field")
 
-	tx, _, err := decodeAndBuildV2Transaction([]byte(v2PerLegDescriptionBody), false, "")
+	tx, _, _, err := decodeAndBuildV2Transaction([]byte(v2PerLegDescriptionBody), false, "")
 	require.NoError(t, err)
 
 	assert.Equal(t, "v2 transaction note", tx.Description,

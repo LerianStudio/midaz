@@ -5,8 +5,11 @@
 package in
 
 import (
+	"bytes"
 	"context"
 	"net/http"
+
+	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -46,6 +49,43 @@ type CreateTransactionInputV2 struct {
 	RawBody        []byte `contentType:"application/json"`
 }
 
+// StateTransactionRequestV2 is the request envelope of the /v2 lifecycle actions that
+// accept a single-use account-block exception: commit and revert. It is the bodiless
+// StateTransactionRequest plus an OPTIONAL JSON body.
+//
+// RawBody keeps the body out of Huma's validator, the same way the create envelope does,
+// so the one field is decoded imperatively through http.DecodeAndValidate and gets the
+// same unknown-field rejection every other body on this surface gets. Declaring only
+// RawBody (and no Body) is also what makes the body optional at runtime: Huma reads the
+// bytes but unmarshals nothing, so an absent body arrives as zero bytes rather than a
+// decode error. Cancel keeps the bodiless envelope — it accepts no grant.
+type StateTransactionRequestV2 struct {
+	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
+	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
+	TransactionID  string `path:"transaction_id" doc:"Transaction ID (UUID)"`
+	RawBody        []byte `contentType:"application/json"`
+}
+
+// decodeLifecycleV2Body reads the optional /v2 lifecycle body and returns the
+// account-block exception it presented, or nil when it presented none.
+//
+// An empty body — no bytes at all, or whitespace — is the no-grant case and is NOT an
+// error: that is what keeps the two actions backward compatible with the bodiless
+// requests they shipped with. A body that is present but malformed, or that names an
+// unknown field, is rejected by DecodeAndValidate exactly like any other body here.
+func decodeLifecycleV2Body(rawBody []byte) (*uuid.UUID, error) {
+	if len(bytes.TrimSpace(rawBody)) == 0 {
+		return nil, nil
+	}
+
+	payload := new(mtransaction.LifecycleV2Input)
+	if _, err := pkgHTTP.DecodeAndValidate(rawBody, payload); err != nil {
+		return nil, err
+	}
+
+	return payload.AccountBlockException()
+}
+
 // createTransactionV2 is the shared body of the v2 create actions. It guards the request
 // context, builds the canonical Transaction and the request's scope from the flat v2 body
 // (decodeAndBuildV2Transaction), delegates to command.CreateTransactionV2 keyed by the
@@ -58,7 +98,7 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	transactionInput, scope, err := decodeAndBuildV2Transaction(rawBody, pending, operationTypeOverride)
+	transactionInput, scope, exceptionID, err := decodeAndBuildV2Transaction(rawBody, pending, operationTypeOverride)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -76,6 +116,8 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 		IdempotencyKey:        idempotencyKey,
 		IdempotencyTTL:        pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
 		IdempotencyHashSource: v2IdempotencyHashSource(rawBody, pending, operationTypeOverride),
+
+		AccountBlockExceptionID: exceptionID,
 	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -94,22 +136,32 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 // override. It returns the transaction alongside the scope Translate resolved from the
 // legs, which together are exactly what createTransactionV2 hands to the funnel — so this
 // is the unit seam for asserting both the translate+stamp result and the resolved scope.
-func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, mtransaction.V2Scope, error) {
+// It also returns the single-use account-block exception the body presented, or nil when
+// it presented none. The identifier deliberately does NOT ride on the canonical
+// Transaction: it is a per-request authorization, not part of the transaction, and the
+// canonical struct is persisted in the body JSONB and doubles as the read model — a
+// consumed grant has no business surviving in either.
+func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, mtransaction.V2Scope, *uuid.UUID, error) {
 	payload := new(mtransaction.CreateTransactionV2Input)
 	if _, err := pkgHTTP.DecodeAndValidate(rawBody, payload); err != nil {
-		return mtransaction.Transaction{}, mtransaction.V2Scope{}, err
+		return mtransaction.Transaction{}, mtransaction.V2Scope{}, nil, err
 	}
 
 	transactionInput, scope, err := payload.Translate(pending)
 	if err != nil {
-		return mtransaction.Transaction{}, mtransaction.V2Scope{}, err
+		return mtransaction.Transaction{}, mtransaction.V2Scope{}, nil, err
+	}
+
+	exceptionID, err := payload.AccountBlockException()
+	if err != nil {
+		return mtransaction.Transaction{}, mtransaction.V2Scope{}, nil, err
 	}
 
 	if operationTypeOverride != "" {
 		transactionInput.OperationTypeOverride = operationTypeOverride
 	}
 
-	return transactionInput, scope, nil
+	return transactionInput, scope, exceptionID, nil
 }
 
 // idempotencyActionDiscriminator returns the action-identity label folded into the v2
@@ -185,12 +237,17 @@ func (handler *TransactionHandler) CreateTransactionUnblockV2(ctx context.Contex
 // confirm-by-transaction two-phase). It differs from the v1 shell in the response
 // envelope — the /v2 wire shape (TransactionV2) instead of the canonical
 // transaction.Transaction — and in the contract it binds. Returns 201.
-func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *StateTransactionRequest) (*StateTransactionOutputV2, error) {
+func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *StateTransactionRequestV2) (*StateTransactionOutputV2, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
+	orgID, ledgerID, txID, err := parseOrgLedgerTxParts(in.OrganizationID, in.LedgerID, in.TransactionID)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	exceptionID, err := decodeLifecycleV2Body(in.RawBody)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -199,6 +256,8 @@ func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		TransactionID:  txID,
+
+		AccountBlockExceptionID: exceptionID,
 	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -237,12 +296,17 @@ func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *
 // the v1 shell in the response envelope (CreateTransactionOutputV2 instead of
 // CreateTransactionResponse) and in the contract it binds — a revert IS a create, so it
 // carries the same 201 + X-Idempotency-Replayed shape as the v2 create actions.
-func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *StateTransactionRequest) (*CreateTransactionOutputV2, error) {
+func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *StateTransactionRequestV2) (*CreateTransactionOutputV2, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	orgID, ledgerID, txID, err := parseOrgLedgerTx(in)
+	orgID, ledgerID, txID, err := parseOrgLedgerTxParts(in.OrganizationID, in.LedgerID, in.TransactionID)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	exceptionID, err := decodeLifecycleV2Body(in.RawBody)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -251,6 +315,8 @@ func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		TransactionID:  txID,
+
+		AccountBlockExceptionID: exceptionID,
 	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)

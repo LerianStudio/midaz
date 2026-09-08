@@ -275,7 +275,7 @@ func TestDecodeAndBuildV2Transaction_ReturnsTheBodyScope(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, scope, err := decodeAndBuildV2Transaction([]byte(tt.body), false, "")
+			_, scope, _, err := decodeAndBuildV2Transaction([]byte(tt.body), false, "")
 			require.NoError(t, err)
 
 			assert.Equal(t, v2ScopeOrgID, scope.OrganizationID, "the resolved scope must be the body's organization")
