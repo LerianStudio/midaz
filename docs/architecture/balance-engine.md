@@ -15,8 +15,9 @@ transaction execution. Cache writers support the dual representation, but this
 does not establish completion of the accounting integration or activation gates.
 Reader compatibility in code does not establish deployment to every consumer.
 The adapter accepts concrete `*redis.Client` connections;
-standalone execution is verified. Sentinel also supplies that concrete type,
-but failover and resolver lifecycle behavior remain unverified.
+standalone execution and replay after a synchronized, manually requested
+Sentinel master switch are verified. Crash-triggered or in-flight failover and
+high-availability Sentinel quorum behavior remain outside that evidence.
 Configured Cluster connections are rejected before accounting is sent.
 
 No activation, request-limit defaults, or receipt/guard retention policy is
@@ -374,8 +375,14 @@ application; explicit replay uses the same execution receipt.
 
 The service selects Sentinel when `REDIS_MASTER_NAME` is set, Cluster when
 `REDIS_HOST` contains multiple addresses without a master name, and standalone
-otherwise. Sentinel returns an accepted `*redis.Client`; failover invalidation
-and resolver lifecycle require real failover tests before activation. Cluster
+otherwise. Sentinel returns an accepted `*redis.Client`. An isolated test uses
+two real Valkey data nodes and one Sentinel to verify discovery, replica state
+synchronization, manual `SENTINEL FAILOVER`, and receipt replay through the same
+provider-owned client after promotion. Docker-only address translation preserves
+and asserts the node addresses returned by Sentinel; it does not replace discovery
+with a static client. Balances, versions, schedule, recovery, receipts, guards, and
+absolute expirations are preserved. This does not prove crash-triggered or
+in-flight failover, partition safety, or a multi-Sentinel quorum. Cluster
 returns `*redis.ClusterClient` and is currently rejected: implementing and
 verifying its transport guarantees is an activation blocker for that supported
 deployment topology. Ring is not selected by the current service configuration.
@@ -644,6 +651,32 @@ Observe request counts, posting types, closed failure enums, CAS attempts,
 indeterminate outcomes, recovery, latency, and payload/pool sizes. Labels must
 not contain money, aliases, metadata, or IDs. Limits and these signals are
 enablement requirements, not follow-up hardening.
+
+### Adapter metrics
+
+The inactive adapter emits metrics through the context-provided
+`MetricsFactory`. Emission failures are logged at Debug and never change the
+accounting result or error. No monetary state or identifiers are emitted.
+
+| Metric | Meaning | Labels |
+| --- | --- | --- |
+| `balance_engine_requests_total` | Every `Execute` invocation, including early rejection and receipt replay | `outcome`: `success`, `refused`, `technical_error`, `indeterminate` |
+| `balance_engine_postings_total` | Requested postings after complete request/recovery validation, including replay; not applied movements or generated companions | `type`: the six supported posting types |
+| `balance_engine_failures_total` | Failed invocations, using recognized protocol codes; unexpected classifications become `unknown` | `code`: closed vocabulary |
+| `balance_engine_cas_attempts_total` | Accounting preflight attempts, including receipt replay and normalization retry; NOSCRIPT fallback is not an additional attempt | None |
+| `balance_engine_indeterminate_total` | Invocations whose accounting outcome cannot be confirmed | None |
+| `balance_engine_duration_ms` | Complete adapter invocation duration, including validation and normalization | None |
+| `balance_engine_request_size_bytes` | Validated Lua JSON payload length; excludes Redis keys and RESP framing | None |
+
+`refused` means a recognized pre-write protocol refusal, not necessarily an HTTP
+business error: missing companions and on-hold underflow remain integrity
+failures. The metrics do not perform public error mapping.
+
+Duration buckets are 1, 5, 10, 25, 50, 100, 250, 500, 1000, and 5000 ms.
+Payload buckets are 1, 4, 16, 64, 256 KiB and 1, 4, 16 MiB; these are observation
+boundaries, not request-limit defaults. Rejected unprepared requests have no
+posting or payload-size sample. Recovery-worker outcomes and full-pool loading
+measurements still require instrumentation before activation.
 
 ## Tentative alternative-engine mapping
 
