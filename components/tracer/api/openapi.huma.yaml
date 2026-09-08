@@ -1094,6 +1094,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ListAuditEventsResponse"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1124,6 +1136,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuditEvent"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1154,6 +1178,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/HashChainVerificationResult"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1268,6 +1304,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ListLimitsResponse"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1297,6 +1345,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: Created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1323,6 +1383,18 @@ paths:
       responses:
         "204":
           description: No Content
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1352,6 +1424,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1389,6 +1473,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1419,6 +1515,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1449,6 +1557,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1479,6 +1599,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Limit"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1509,6 +1641,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/UsageSnapshot"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1539,6 +1683,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReserveResponse"
           description: Created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1569,6 +1725,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/TransactionActionResponse"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1599,6 +1767,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/TransactionActionResponse"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1629,6 +1809,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReservationActionResponse"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1659,6 +1851,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ReservationActionResponse"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1773,6 +1977,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ListRulesResponse"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1802,6 +2018,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: Created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1828,6 +2056,18 @@ paths:
       responses:
         "204":
           description: No Content
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1857,6 +2097,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1894,6 +2146,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1924,6 +2188,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1954,6 +2230,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -1984,6 +2272,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/Rule"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -2098,6 +2398,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ListTransactionValidationsResponse"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
@@ -2129,6 +2441,18 @@ paths:
           description: OK
         "201":
           description: New validation created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
       security:
         - BearerAuth: []
         - ApiKeyAuth: []
@@ -2153,6 +2477,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/TransactionValidation"
           description: OK
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
