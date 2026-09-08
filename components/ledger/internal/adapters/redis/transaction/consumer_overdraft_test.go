@@ -68,8 +68,11 @@ func TestBuildPlan_IncludesOverdraftFields(t *testing.T) {
 
 	repo := &RedisConsumerRepository{conn: newFailOnCallConnection(t)}
 
+	// headerWidth 0 reserves no leading slots, so the per-operation assertions
+	// below index the group from zero. The reservation itself is covered by
+	// TestBuildPlan_ReservesTheRequestedHeader.
 	plan, err := repo.buildBalanceAtomicOperationPlan(
-		t.Context(), constant.APPROVED, false, balanceOps,
+		t.Context(), constant.APPROVED, false, balanceOps, 0,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, plan)
@@ -122,7 +125,7 @@ func TestBuildPlan_DefaultOverdraftFields(t *testing.T) {
 	repo := &RedisConsumerRepository{conn: newFailOnCallConnection(t)}
 
 	plan, err := repo.buildBalanceAtomicOperationPlan(
-		t.Context(), constant.APPROVED, false, balanceOps,
+		t.Context(), constant.APPROVED, false, balanceOps, 0,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, plan)
@@ -221,7 +224,7 @@ func TestBuildPlan_MultipleBalancesOverdraftPositions(t *testing.T) {
 	repo := &RedisConsumerRepository{conn: newFailOnCallConnection(t)}
 
 	plan, err := repo.buildBalanceAtomicOperationPlan(
-		t.Context(), constant.APPROVED, false, balanceOps,
+		t.Context(), constant.APPROVED, false, balanceOps, 0,
 	)
 	require.NoError(t, err)
 	require.Len(t, plan.args, 50, "Two operations × 25 fields = 50 ARGV entries")
@@ -274,7 +277,7 @@ func TestBuildPlan_ExistingFieldPositionsUnchanged(t *testing.T) {
 	repo := &RedisConsumerRepository{conn: newFailOnCallConnection(t)}
 
 	plan, err := repo.buildBalanceAtomicOperationPlan(
-		t.Context(), constant.APPROVED, true, balanceOps,
+		t.Context(), constant.APPROVED, true, balanceOps, 0,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, plan)
@@ -296,4 +299,57 @@ func TestBuildPlan_ExistingFieldPositionsUnchanged(t *testing.T) {
 	assert.Equal(t, 1, plan.args[14], "ARGV[i+14] balance.AllowSending")
 	assert.Equal(t, 0, plan.args[15], "ARGV[i+15] balance.AllowReceiving")
 	assert.Equal(t, "default", plan.args[16], "ARGV[i+16] balance.Key")
+}
+
+// TestBuildPlan_ReservesTheRequestedHeader locks the header reservation the
+// account-block exception rides on: the plan leaves headerWidth leading slots
+// EMPTY for the caller to fill in place, and the first balance operation group
+// starts right after them.
+//
+// Reserving instead of prepending is what keeps the hot path free of a second
+// allocation and a full copy of the ARGV payload — on every transaction,
+// including the ones that present no exception.
+func TestBuildPlan_ReservesTheRequestedHeader(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	balanceOps := []mmodel.BalanceOperation{
+		{
+			Balance: &mmodel.Balance{
+				ID:        uuid.Must(libCommons.GenerateUUIDv7()).String(),
+				Alias:     "@source",
+				Key:       "default",
+				Available: decimal.NewFromInt(100),
+				OnHold:    decimal.Zero,
+				Direction: "credit",
+			},
+			Alias: "@source",
+			Amount: mtransaction.Amount{
+				Asset:     "USD",
+				Value:     decimal.NewFromInt(10),
+				Operation: constant.DEBIT,
+			},
+			InternalKey: utils.BalanceInternalKey(organizationID, ledgerID, "@source#default"),
+		},
+	}
+
+	repo := &RedisConsumerRepository{conn: newFailOnCallConnection(t)}
+
+	for _, headerWidth := range []int{0, luaArgsHeaderFixedSize, luaArgsHeaderFixedSize + 2} {
+		plan, err := repo.buildBalanceAtomicOperationPlan(
+			t.Context(), constant.APPROVED, false, balanceOps, headerWidth,
+		)
+		require.NoError(t, err)
+		require.Len(t, plan.args, headerWidth+luaArgsPerOperation,
+			"the payload is the reserved header plus one group per operation")
+
+		for i := 0; i < headerWidth; i++ {
+			assert.Nilf(t, plan.args[i], "header slot %d must be left for the caller to fill", i)
+		}
+
+		assert.Equal(t, balanceOps[0].InternalKey, plan.args[headerWidth],
+			"the first operation group must start immediately after the reserved header")
+	}
 }

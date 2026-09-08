@@ -144,7 +144,7 @@ func TestIntegration_Overdraft_PendingHoldRejectsOverdraftDraw(t *testing.T) {
 			constant.ONHOLD, constant.PENDING, decimal.NewFromInt(100), decimal.Zero, false)
 
 		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{onHold})
+			uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{onHold}, nil)
 
 		require.Error(t, err, "a hold exceeding available must be rejected, not floored into overdraft")
 		assert.Contains(t, err.Error(), "0018")
@@ -169,7 +169,7 @@ func TestIntegration_Overdraft_PendingHoldRejectsOverdraftDraw(t *testing.T) {
 			constant.ONHOLD, constant.PENDING, decimal.NewFromInt(100), decimal.Zero, true)
 
 		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{debit, onHold})
+			uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{debit, onHold}, nil)
 
 		require.Error(t, err, "a hold exceeding available must be rejected, not floored into overdraft")
 		assert.Contains(t, err.Error(), "0018")
@@ -223,7 +223,7 @@ func TestIntegration_Overdraft_PendingLegacyCancelRestoresCompanion(t *testing.T
 		constant.CREDIT, constant.CANCELED, decimal.NewFromInt(50), decimal.Zero, false)
 
 	cancelResult, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{cancelDefault, cancelCompanion})
+		uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{cancelDefault, cancelCompanion}, nil)
 	require.NoError(t, err)
 	require.Len(t, cancelResult.After, 2)
 
@@ -286,7 +286,7 @@ func TestIntegration_Overdraft_PendingRouteValidationCancelAllowsSameBatchVersio
 		constant.CREDIT, constant.CANCELED, decimal.NewFromInt(50), decimal.Zero, true)
 
 	cancelResult, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{cancelRelease, cancelCredit, cancelCompanion})
+		uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{cancelRelease, cancelCredit, cancelCompanion}, nil)
 	require.NoError(t, err, "same-batch RELEASE must not make the following overdraft CREDIT look stale")
 	require.Len(t, cancelResult.After, 3)
 

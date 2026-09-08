@@ -58,7 +58,7 @@ func TestIntegration_HighMagnitude_InsufficientFunds_Returns0018(t *testing.T) {
 			constant.DEBIT, decimal.RequireFromString("1000000000.00000002"))
 
 		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 		require.Error(t, err, "a debit exceeding available by 1e-8 at 1e9 magnitude must be rejected")
 		assert.Contains(t, err.Error(), constant.ErrInsufficientFunds.Error())
@@ -81,7 +81,7 @@ func TestIntegration_HighMagnitude_InsufficientFunds_Returns0018(t *testing.T) {
 			constant.DEBIT, decimal.RequireFromString("1000000000000000001"))
 
 		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 		require.Error(t, err, "a debit exceeding a 19-digit available by 1 must be rejected")
 		assert.Contains(t, err.Error(), constant.ErrInsufficientFunds.Error())
@@ -103,7 +103,7 @@ func TestIntegration_HighMagnitude_InsufficientFunds_Returns0018(t *testing.T) {
 			constant.ONHOLD, constant.PENDING, decimal.RequireFromString("100000000000000.02"), decimal.Zero, false)
 
 		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{onHold})
+			uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{onHold}, nil)
 
 		require.Error(t, err, "a hold exceeding available at high magnitude must be rejected")
 		assert.Contains(t, err.Error(), constant.ErrInsufficientFunds.Error())
@@ -129,7 +129,7 @@ func TestIntegration_HighMagnitude_InsufficientFunds_Returns0018(t *testing.T) {
 			constant.ONHOLD, constant.PENDING, decimal.RequireFromString("100000000000000.02"), decimal.Zero, true)
 
 		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{debit, onHold})
+			uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{debit, onHold}, nil)
 
 		require.Error(t, err, "a hold exceeding available at high magnitude must be rejected")
 		assert.Contains(t, err.Error(), constant.ErrInsufficientFunds.Error())
@@ -170,7 +170,7 @@ func TestIntegration_HighMagnitude_OverdraftLimit_Returns0167(t *testing.T) {
 			constant.DEBIT, decimal.RequireFromString("100000000000000.02"))
 
 		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 		require.Error(t, err, "deficit=100000000000000.02 with limit=100000000000000.01 must be rejected")
 		assert.Contains(t, err.Error(), constant.ErrOverdraftLimitExceeded.Error())
@@ -192,7 +192,7 @@ func TestIntegration_HighMagnitude_OverdraftLimit_Returns0167(t *testing.T) {
 			constant.DEBIT, decimal.RequireFromString("100000000000000.01"))
 
 		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 		require.NoError(t, err, "deficit==limit is inclusive and must be allowed")
 		require.Len(t, result.After, 1)
@@ -219,7 +219,7 @@ func TestIntegration_HighMagnitude_OverdraftLimit_Returns0167(t *testing.T) {
 			constant.DEBIT, decimal.RequireFromString("1000000000000000001"))
 
 		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 		require.Error(t, err, "deficit exceeding a 19-digit limit by 1 must be rejected")
 		assert.Contains(t, err.Error(), constant.ErrOverdraftLimitExceeded.Error())
@@ -248,7 +248,7 @@ func TestIntegration_HighMagnitude_OverdraftRepayment_ExactSplit(t *testing.T) {
 		constant.CREDIT, credit)
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err)
 	require.Len(t, result.After, 1)
@@ -296,7 +296,7 @@ func TestIntegration_HighMagnitude_OnHoldLifecycle_CommitConservesAmount(t *test
 		constant.CREDIT, constant.APPROVED, amount, decimal.Zero, true)
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, true, []mmodel.BalanceOperation{sourceOp, destOp})
+		uuid.New(), constant.APPROVED, true, []mmodel.BalanceOperation{sourceOp, destOp}, nil)
 	require.NoError(t, err)
 
 	sourceAfter := findBalanceByAliasKey(t, result.After, "@commit-hold-src#"+constant.DefaultBalanceKey)
@@ -338,7 +338,7 @@ func TestIntegration_HighMagnitude_OnHoldLifecycle_CancelConservesAmount(t *test
 		constant.RELEASE, constant.CANCELED, releaseAmount, decimal.Zero, false)
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{release})
+		uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{release}, nil)
 	require.NoError(t, err)
 	require.Len(t, result.After, 1)
 

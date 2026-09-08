@@ -7,16 +7,20 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -129,4 +133,171 @@ func buildAccountBlockExceptionEntry(ctx context.Context, organizationID, ledger
 	}
 
 	return key, value, nil
+}
+
+// GetAccountBlockException reads one exception from the cache. See the interface
+// contract on RedisRepository for the (nil, nil) miss convention and for why
+// this is a read only.
+func (rr *RedisConsumerRepository) GetAccountBlockException(ctx context.Context, organizationID, ledgerID, exceptionID uuid.UUID) (*mmodel.AccountBlockExceptionRedis, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get_account_block_exception")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_block_exception_id", exceptionID.String()),
+	)
+
+	key, err := tenantKeyFromContextOrError(ctx,
+		utils.AccountBlockExceptionInternalKey(organizationID, ledgerID, exceptionID))
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace account block exception key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace account block exception key", libLog.Err(err))
+
+		return nil, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
+
+		return nil, err
+	}
+
+	raw, err := rds.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			span.SetAttributes(attribute.Bool("app.account_block_exception_found", false))
+
+			return nil, nil
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to read account block exception from redis", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to read account block exception from Redis", libLog.Err(err))
+
+		return nil, err
+	}
+
+	var exception mmodel.AccountBlockExceptionRedis
+	if err := json.Unmarshal([]byte(raw), &exception); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to decode account block exception", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to decode account block exception", libLog.Err(err))
+
+		return nil, fmt.Errorf("failed to decode account block exception: %w", err)
+	}
+
+	span.SetAttributes(attribute.Bool("app.account_block_exception_found", true))
+
+	return &exception, nil
+}
+
+// accountBlockExceptionEval is what one presented grant contributes to the
+// balance-mutation EVAL: the exception key the script validates and deletes, the
+// two values it compares the CACHED grant against, and the tenant-namespaced
+// balance keys the grant bypasses the account block on.
+//
+// The BIND itself — which debit leg the grant authorizes, and which
+// system-derived overdraft companions come with it — is decided by
+// mtransaction.ResolveAccountBlockExceptionBinding in the balance step, so the
+// balances the Go pre-validation stops fast-failing are exactly the ones the
+// script bypasses. This type only namespaces that decision for the wire.
+type accountBlockExceptionEval struct {
+	// key is the tenant-namespaced exception key, passed as KEYS[4].
+	key string
+	// alias is the source account alias the transaction debits.
+	alias string
+	// amount is the canonical decimal string of that debit.
+	amount string
+	// balanceKeys are the tenant-namespaced balance keys the grant bypasses the
+	// account block on: the debited source balance plus the overdraft companions
+	// the system derived from it. Never empty when a grant was presented.
+	balanceKeys []string
+}
+
+// resolveAccountBlockExceptionEval namespaces a resolved binding for the EVAL.
+//
+// Every balance key goes through the SAME helper the plan builder runs over each
+// operation, so the bypass list the script matches against is byte-identical to
+// what it reads out of the per-operation ARGV groups. A mismatch there would be
+// invisible: the guard would simply not find the key and reject a valid grant.
+func resolveAccountBlockExceptionEval(ctx context.Context, organizationID, ledgerID uuid.UUID, binding *mtransaction.AccountBlockExceptionBinding) (*accountBlockExceptionEval, error) {
+	if binding == nil {
+		return nil, nil
+	}
+
+	key, err := tenantKeyFromContextOrError(ctx,
+		utils.AccountBlockExceptionInternalKey(organizationID, ledgerID, binding.ID))
+	if err != nil {
+		return nil, err
+	}
+
+	internalKeys := binding.InternalKeys()
+
+	balanceKeys := make([]string, 0, len(internalKeys))
+
+	for _, internalKey := range internalKeys {
+		prefixed, err := tenantKeyFromContextOrError(ctx, internalKey)
+		if err != nil {
+			return nil, err
+		}
+
+		balanceKeys = append(balanceKeys, prefixed)
+	}
+
+	return &accountBlockExceptionEval{
+		key:         key,
+		alias:       binding.Alias,
+		amount:      binding.Amount,
+		balanceKeys: balanceKeys,
+	}, nil
+}
+
+// headerWidth is the number of ARGV slots the eval occupies ahead of the first
+// balance operation group: the two expected values, the bypass-list count, and
+// one slot per bypassed balance key.
+//
+// A nil receiver is the no-grant case and still occupies the three fixed slots,
+// so the script always reads its header from the same three positions and never
+// has to branch on whether a grant exists before it can compute its own stride.
+func (e *accountBlockExceptionEval) headerWidth() int {
+	if e == nil {
+		return luaArgsHeaderFixedSize
+	}
+
+	return luaArgsHeaderFixedSize + len(e.balanceKeys)
+}
+
+// bypassedCount is the number of balances the grant bypasses the account block
+// on, nil-safe so the no-grant span attribute needs no guard at the call site.
+func (e *accountBlockExceptionEval) bypassedCount() int {
+	if e == nil {
+		return 0
+	}
+
+	return len(e.balanceKeys)
+}
+
+// writeHeader fills the reserved header slots of args in place. args must have
+// been allocated with at least headerWidth() leading slots — the plan builder
+// reserves exactly that many, so the header costs no allocation and no copy on
+// either path.
+func (e *accountBlockExceptionEval) writeHeader(args []any) {
+	if e == nil {
+		args[0] = ""
+		args[1] = ""
+		args[2] = "0"
+
+		return
+	}
+
+	args[0] = e.alias
+	args[1] = e.amount
+	args[2] = strconv.Itoa(len(e.balanceKeys))
+
+	for i, balanceKey := range e.balanceKeys {
+		args[luaArgsHeaderFixedSize+i] = balanceKey
+	}
 }

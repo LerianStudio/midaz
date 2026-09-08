@@ -61,7 +61,7 @@ func TestIntegration_DeleteMarker_RejectsAndDoesNotMutate(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(200))
 
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{primeOp})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{primeOp}, nil)
 	require.NoError(t, err)
 
 	before := readCachedBalance(t, infra, primeOp.InternalKey)
@@ -76,7 +76,7 @@ func TestIntegration_DeleteMarker_RejectsAndDoesNotMutate(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(100))
 
 	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{rejectOp})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{rejectOp}, nil)
 
 	require.Error(t, err, "balance carrying a delete marker must be rejected")
 	assert.True(t, strings.Contains(err.Error(), constant.ErrAccountIneligibility.Error()),
@@ -108,7 +108,7 @@ func TestIntegration_DeleteMarker_NoMarker_ProceedsNormally(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(200))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err, "no delete marker -> op must proceed")
 	require.Len(t, result.After, 1)
@@ -139,7 +139,7 @@ func TestIntegration_DeleteMarker_BatchAtomicity(t *testing.T) {
 
 	// Prime both balances in the cache with a healthy batch.
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{opA, opB})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{opA, opB}, nil)
 	require.NoError(t, err)
 
 	beforeA := readCachedBalance(t, infra, opA.InternalKey)
@@ -157,7 +157,7 @@ func TestIntegration_DeleteMarker_BatchAtomicity(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(50))
 
 	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{nextA, nextB})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{nextA, nextB}, nil)
 
 	require.Error(t, err, "batch with a balance carrying a delete marker must be rejected")
 	assert.True(t, strings.Contains(err.Error(), constant.ErrAccountIneligibility.Error()),

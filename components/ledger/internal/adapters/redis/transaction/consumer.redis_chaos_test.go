@@ -896,6 +896,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnDoubleEntry(t *testing.
 
 	result, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, txID, constant.PENDING, true, balanceOps,
+		nil,
 	)
 	require.NoError(t, err, "Phase 1: ProcessBalanceAtomicOperation should succeed through proxy")
 	require.NotNil(t, result, "Phase 1: result must not be nil")
@@ -939,6 +940,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnDoubleEntry(t *testing.
 	require.NotPanics(t, func() {
 		chaosResult, chaosErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, chaosTxID, constant.PENDING, true, chaosBalanceOps,
+			nil,
 		)
 	}, "Phase 3: ProcessBalanceAtomicOperation must not panic on connection loss")
 
@@ -979,6 +981,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnDoubleEntry(t *testing.
 		var err error
 		recoveryResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, recoveryTxID, constant.PENDING, true, recoveryOps,
+			nil,
 		)
 
 		return err
@@ -1043,6 +1046,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry(t *testing.T) 
 
 	result, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, txID, constant.PENDING, true, balanceOps,
+		nil,
 	)
 	require.NoError(t, err, "Phase 1: operation should succeed before latency injection")
 	require.NotNil(t, result, "Phase 1: result must not be nil")
@@ -1093,6 +1097,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry(t *testing.T) 
 		defer close(done)
 		latencyResult, latencyErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			highLatencyCtx, orgID, ledgerID, latencyTxID, constant.PENDING, true, latencyOps,
+			nil,
 		)
 	}()
 
@@ -1168,6 +1173,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnDoubleEntry(t *testing.T) 
 		var err error
 		recoveryResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			context.Background(), orgID, ledgerID, recoveryTxID, constant.PENDING, true, recoveryOps,
+			nil,
 		)
 
 		return err
@@ -1232,6 +1238,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionResetOnDoubleEntry(t *testing
 
 	result1, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, txID1, constant.PENDING, true, ops1,
+		nil,
 	)
 	require.NoError(t, err, "Phase 1: first operation should succeed")
 	require.NotNil(t, result1, "Phase 1: result must not be nil")
@@ -1273,6 +1280,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionResetOnDoubleEntry(t *testing
 	require.NotPanics(t, func() {
 		resetResult, resetErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, txIDChaos, constant.PENDING, true, chaosOps,
+			nil,
 		)
 	}, "Phase 3: operation must not panic during connection reset")
 
@@ -1309,6 +1317,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionResetOnDoubleEntry(t *testing
 		var err error
 		recoveryResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, recoveryTxID, constant.PENDING, true, recoveryOps,
+			nil,
 		)
 
 		return err
@@ -1380,6 +1389,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnApprovedSource(t *testi
 
 	pendingResult, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, pendingTxID, constant.PENDING, true, pendingOps,
+		nil,
 	)
 	require.NoError(t, err, "Pre-condition: PENDING operation should succeed")
 	require.NotNil(t, pendingResult, "Pre-condition: result must not be nil")
@@ -1404,6 +1414,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnApprovedSource(t *testi
 
 	result, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, approvedTxID, constant.APPROVED, true, approvedOps,
+		nil,
 	)
 	require.NoError(t, err, "Phase 1: APPROVED DEBIT should succeed through proxy")
 	require.NotNil(t, result, "Phase 1: result must not be nil")
@@ -1446,6 +1457,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnApprovedSource(t *testi
 	require.NotPanics(t, func() {
 		chaosResult, chaosErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, chaosTxID, constant.APPROVED, true, chaosOps,
+			nil,
 		)
 	}, "Phase 3: APPROVED DEBIT must not panic on connection loss")
 
@@ -1479,6 +1491,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnApprovedSource(t *testi
 		var err error
 		recoveryResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, recoveryTxID, constant.APPROVED, true, recoveryOps,
+			nil,
 		)
 
 		return err
@@ -1551,6 +1564,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnApprovedDestination(t *tes
 
 	result, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, txID, constant.APPROVED, true, ops,
+		nil,
 	)
 	require.NoError(t, err, "Phase 1: APPROVED CREDIT should succeed")
 	require.NotNil(t, result, "Phase 1: result must not be nil")
@@ -1600,6 +1614,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnApprovedDestination(t *tes
 		defer close(done)
 		latencyResult, latencyErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			highLatencyCtx, orgID, ledgerID, latencyTxID, constant.APPROVED, true, latencyOps,
+			nil,
 		)
 	}()
 
@@ -1663,6 +1678,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnApprovedDestination(t *tes
 		var err error
 		recoveryResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			context.Background(), orgID, ledgerID, recoveryTxID, constant.APPROVED, true, recoveryOps,
+			nil,
 		)
 
 		return err
@@ -1725,6 +1741,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnCanceledRelease(t *test
 
 	pendingResult, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, pendingTxID, constant.PENDING, true, pendingOps,
+		nil,
 	)
 	require.NoError(t, err, "Pre-condition: PENDING should succeed")
 	require.NotNil(t, pendingResult)
@@ -1744,6 +1761,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnCanceledRelease(t *test
 
 	result, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, cancelReleaseTxID, constant.CANCELED, true, cancelReleaseOps,
+		nil,
 	)
 	require.NoError(t, err, "Phase 1: RELEASE+CANCELED should succeed")
 	require.NotNil(t, result)
@@ -1789,6 +1807,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnCanceledRelease(t *test
 	require.NotPanics(t, func() {
 		chaosResult, chaosErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, chaosTxID, constant.CANCELED, true, chaosOps,
+			nil,
 		)
 	}, "Phase 3: RELEASE+CANCELED must not panic on connection loss")
 
@@ -1823,6 +1842,7 @@ func TestIntegration_Chaos_BalanceAtomic_ConnectionLossOnCanceledRelease(t *test
 		var err error
 		recoveryResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, recoveryTxID, constant.CANCELED, true, recoveryOps,
+			nil,
 		)
 
 		return err
@@ -1897,6 +1917,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnCanceledCredit(t *testing.
 
 	result, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, txID, constant.CANCELED, true, ops,
+		nil,
 	)
 	require.NoError(t, err, "Phase 1: CREDIT+CANCELED should succeed")
 	require.NotNil(t, result)
@@ -1949,6 +1970,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnCanceledCredit(t *testing.
 		defer close(done)
 		latencyResult, latencyErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			highLatencyCtx, orgID, ledgerID, latencyTxID, constant.CANCELED, true, latencyOps,
+			nil,
 		)
 	}()
 
@@ -2013,6 +2035,7 @@ func TestIntegration_Chaos_BalanceAtomic_HighLatencyOnCanceledCredit(t *testing.
 		var err error
 		recoveryResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			context.Background(), orgID, ledgerID, recoveryTxID, constant.CANCELED, true, recoveryOps,
+			nil,
 		)
 
 		return err
@@ -2078,6 +2101,7 @@ func TestIntegration_Chaos_BalanceAtomic_TimeoutOnApprovedOperation(t *testing.T
 
 	result, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, txID, constant.APPROVED, true, ops,
+		nil,
 	)
 	require.NoError(t, err, "Phase 1: APPROVED operation should succeed")
 	require.NotNil(t, result)
@@ -2126,6 +2150,7 @@ func TestIntegration_Chaos_BalanceAtomic_TimeoutOnApprovedOperation(t *testing.T
 		defer close(done)
 		timeoutResult, timeoutErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			timeoutCtx, orgID, ledgerID, timeoutTxID, constant.APPROVED, true, timeoutOps,
+			nil,
 		)
 	}()
 
@@ -2185,6 +2210,7 @@ func TestIntegration_Chaos_BalanceAtomic_TimeoutOnApprovedOperation(t *testing.T
 		var err error
 		recoveryResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			context.Background(), orgID, ledgerID, recoveryTxID, constant.APPROVED, true, recoveryOps,
+			nil,
 		)
 
 		return err
@@ -2248,6 +2274,7 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 
 	pendingResult, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, pendingTxID, constant.PENDING, true, pendingOps,
+		nil,
 	)
 	require.NoError(t, err, "Pre-condition: PENDING should succeed")
 	require.NotNil(t, pendingResult)
@@ -2269,6 +2296,7 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 
 	releaseResult, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, releaseTxID, constant.CANCELED, true, releaseOps,
+		nil,
 	)
 	require.NoError(t, err, "Phase 1a: RELEASE+CANCELED should succeed")
 	require.NotNil(t, releaseResult)
@@ -2290,6 +2318,7 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 
 	creditResult, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, creditTxID, constant.CANCELED, true, creditOps,
+		nil,
 	)
 	require.NoError(t, err, "Phase 1b: CREDIT+CANCELED should succeed")
 	require.NotNil(t, creditResult)
@@ -2318,6 +2347,7 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 
 	pending2Result, err := infra.proxyRepo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, pending2TxID, constant.PENDING, true, pending2Ops,
+		nil,
 	)
 	require.NoError(t, err, "Phase 1: second PENDING should succeed")
 	require.NotNil(t, pending2Result)
@@ -2346,6 +2376,7 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 	require.NotPanics(t, func() {
 		_, releaseOutageErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, chaosReleaseTxID, constant.CANCELED, true, chaosReleaseOps,
+			nil,
 		)
 	}, "Phase 3: RELEASE must not panic during outage")
 
@@ -2363,6 +2394,7 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 	require.NotPanics(t, func() {
 		_, creditOutageErr = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, chaosCreditTxID, constant.CANCELED, true, chaosCreditOps,
+			nil,
 		)
 	}, "Phase 3: CREDIT must not panic during outage")
 
@@ -2397,6 +2429,7 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 		var err error
 		recoveryReleaseResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, recoveryReleaseTxID, constant.CANCELED, true, recoveryReleaseOps,
+			nil,
 		)
 
 		return err
@@ -2425,6 +2458,7 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 		var err error
 		recoveryCreditResult, err = infra.proxyRepo.ProcessBalanceAtomicOperation(
 			ctx, orgID, ledgerID, recoveryCreditTxID, constant.CANCELED, true, recoveryCreditOps,
+			nil,
 		)
 
 		return err

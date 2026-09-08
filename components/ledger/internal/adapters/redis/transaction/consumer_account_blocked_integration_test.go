@@ -102,7 +102,7 @@ func TestIntegration_AccountBlocked_DirectSourceRejects(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(100))
 
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 	requireAccountBlockedErr(t, err)
 
 	exists, err := infra.redisContainer.Client.Exists(ctx, op.InternalKey).Result()
@@ -127,7 +127,7 @@ func TestIntegration_AccountBlocked_DestinationRejectsAndBatchIsAtomic(t *testin
 	primeSrc := blockedOp(orgID, ledgerID, "@blk-atomic-src", decimal.NewFromInt(500), decimal.Zero, 1, false,
 		constant.DEBIT, decimal.NewFromInt(100))
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{primeSrc})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{primeSrc}, nil)
 	require.NoError(t, err)
 
 	before := readCachedBalance(t, infra, primeSrc.InternalKey)
@@ -138,7 +138,7 @@ func TestIntegration_AccountBlocked_DestinationRejectsAndBatchIsAtomic(t *testin
 		constant.CREDIT, decimal.NewFromInt(50))
 
 	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{src, dst})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{src, dst}, nil)
 	requireAccountBlockedErr(t, err)
 
 	after := readCachedBalance(t, infra, primeSrc.InternalKey)
@@ -161,7 +161,7 @@ func TestIntegration_AccountBlocked_HoldRejects(t *testing.T) {
 		constant.ONHOLD, decimal.NewFromInt(100))
 
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{op}, nil)
 	requireAccountBlockedErr(t, err)
 }
 
@@ -183,7 +183,7 @@ func TestIntegration_AccountBlocked_CommitOfPreBlockPendingRejects(t *testing.T)
 	hold := blockedOp(orgID, ledgerID, "@blk-commit", decimal.NewFromInt(500), decimal.Zero, 1, false,
 		constant.ONHOLD, decimal.NewFromInt(100))
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{hold})
+		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{hold}, nil)
 	require.NoError(t, err, "hold on an open account must succeed")
 
 	// Block the account: in-place rewrite of the live blob.
@@ -197,7 +197,7 @@ func TestIntegration_AccountBlocked_CommitOfPreBlockPendingRejects(t *testing.T)
 		constant.DEBIT, decimal.NewFromInt(100))
 
 	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, true, []mmodel.BalanceOperation{commit})
+		uuid.New(), constant.APPROVED, true, []mmodel.BalanceOperation{commit}, nil)
 	requireAccountBlockedErr(t, err)
 
 	after := readCachedBalance(t, infra, hold.InternalKey)
@@ -219,7 +219,7 @@ func TestIntegration_AccountBlocked_CancelPasses(t *testing.T) {
 	hold := blockedOp(orgID, ledgerID, "@blk-cancel", decimal.NewFromInt(500), decimal.Zero, 1, false,
 		constant.ONHOLD, decimal.NewFromInt(100))
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{hold})
+		uuid.New(), constant.PENDING, true, []mmodel.BalanceOperation{hold}, nil)
 	require.NoError(t, err)
 
 	require.NoError(t, infra.repo.UpdateBalanceCacheBlocked(ctx, orgID, ledgerID,
@@ -230,7 +230,7 @@ func TestIntegration_AccountBlocked_CancelPasses(t *testing.T) {
 		constant.RELEASE, decimal.NewFromInt(100))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{cancel})
+		uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{cancel}, nil)
 	require.NoError(t, err, "cancel must always pass, even on a blocked account (RF-4C)")
 	require.Len(t, result.After, 1)
 
@@ -257,7 +257,7 @@ func TestIntegration_AccountBlocked_CancelFillMaterializesBlocked(t *testing.T) 
 		constant.RELEASE, decimal.NewFromInt(100))
 
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{cancel})
+		uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{cancel}, nil)
 	require.NoError(t, err)
 
 	raw, err := infra.redisContainer.Client.Get(ctx, cancel.InternalKey).Result()
@@ -283,7 +283,7 @@ func TestIntegration_AccountBlocked_BlobWinsOverArgv(t *testing.T) {
 	prime := blockedOp(orgID, ledgerID, "@blk-blobwins", decimal.NewFromInt(500), decimal.Zero, 1, false,
 		constant.DEBIT, decimal.NewFromInt(100))
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{prime})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{prime}, nil)
 	require.NoError(t, err)
 
 	// Stale ARGV claims blocked; the open blob wins and the batch passes.
@@ -292,7 +292,7 @@ func TestIntegration_AccountBlocked_BlobWinsOverArgv(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(50))
 
 	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{staleBlocked})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{staleBlocked}, nil)
 	require.NoError(t, err, "an open live blob must win over a stale blocked ARGV")
 
 	// Flip the blob to blocked; a stale open ARGV must now reject.
@@ -304,7 +304,7 @@ func TestIntegration_AccountBlocked_BlobWinsOverArgv(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(50))
 
 	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{staleOpen})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{staleOpen}, nil)
 	requireAccountBlockedErr(t, err)
 }
 
@@ -334,7 +334,7 @@ func TestIntegration_AccountBlocked_LegacyBlobIsNotBlocked(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(100))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 	require.NoError(t, err, "a legacy blob without the Blocked field must not block")
 	require.Len(t, result.After, 1)
 
@@ -417,7 +417,7 @@ func TestIntegration_UpdateBalanceBlocked_RewritePreservesLiveState(t *testing.T
 	prime := blockedOp(orgID, ledgerID, "@blk-rewrite", decimal.NewFromInt(500), decimal.Zero, 1, false,
 		constant.DEBIT, decimal.NewFromInt(200))
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{prime})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{prime}, nil)
 	require.NoError(t, err)
 
 	before := readCachedBalance(t, infra, prime.InternalKey)

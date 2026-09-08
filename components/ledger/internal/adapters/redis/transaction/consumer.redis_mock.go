@@ -15,6 +15,7 @@ import (
 	time "time"
 
 	mmodel "github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	mtransaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	uuid "github.com/google/uuid"
 	redis "github.com/redis/go-redis/v9"
 	gomock "go.uber.org/mock/gomock"
@@ -145,6 +146,21 @@ func (mr *MockRedisRepositoryMockRecorder) GetBalanceSyncKeysLegacy(ctx, limit a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalanceSyncKeysLegacy", reflect.TypeOf((*MockRedisRepository)(nil).GetBalanceSyncKeysLegacy), ctx, limit)
 }
 
+// GetAccountBlockException mocks base method.
+func (m *MockRedisRepository) GetAccountBlockException(ctx context.Context, organizationID, ledgerID, exceptionID uuid.UUID) (*mmodel.AccountBlockExceptionRedis, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAccountBlockException", ctx, organizationID, ledgerID, exceptionID)
+	ret0, _ := ret[0].(*mmodel.AccountBlockExceptionRedis)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAccountBlockException indicates an expected call of GetAccountBlockException.
+func (mr *MockRedisRepositoryMockRecorder) GetAccountBlockException(ctx, organizationID, ledgerID, exceptionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountBlockException", reflect.TypeOf((*MockRedisRepository)(nil).GetAccountBlockException), ctx, organizationID, ledgerID, exceptionID)
+}
+
 // GetBalancesByKeys mocks base method.
 func (m *MockRedisRepository) GetBalancesByKeys(ctx context.Context, keys []string) (map[string]*mmodel.BalanceRedis, error) {
 	m.ctrl.T.Helper()
@@ -235,18 +251,18 @@ func (mr *MockRedisRepositoryMockRecorder) MGet(ctx, keys any) *gomock.Call {
 }
 
 // ProcessBalanceAtomicOperation mocks base method.
-func (m *MockRedisRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
+func (m *MockRedisRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, binding *mtransaction.AccountBlockExceptionBinding) (*mmodel.BalanceAtomicResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessBalanceAtomicOperation", ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances)
+	ret := m.ctrl.Call(m, "ProcessBalanceAtomicOperation", ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, binding)
 	ret0, _ := ret[0].(*mmodel.BalanceAtomicResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ProcessBalanceAtomicOperation indicates an expected call of ProcessBalanceAtomicOperation.
-func (mr *MockRedisRepositoryMockRecorder) ProcessBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) ProcessBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, binding any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessBalanceAtomicOperation", reflect.TypeOf((*MockRedisRepository)(nil).ProcessBalanceAtomicOperation), ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessBalanceAtomicOperation", reflect.TypeOf((*MockRedisRepository)(nil).ProcessBalanceAtomicOperation), ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, binding)
 }
 
 // ReadAllMessagesFromQueue mocks base method.
