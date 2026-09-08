@@ -624,6 +624,36 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Blocked",
 			Message:    "A source and/or destination account involved in this transaction is blocked and cannot transact. Unblock the account and try again.",
 		},
+		constant.ErrAccountBlockExceptionsRequired: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionsRequired.Error(),
+			Title:      "Missing Account Block Exceptions",
+			Message:    "The 'exceptions' field must carry at least one exception. Please provide the exceptions to create and try again.",
+		},
+		constant.ErrAccountBlockExceptionsBatchTooLarge: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionsBatchTooLarge.Error(),
+			Title:      "Account Block Exception Batch Too Large",
+			Message:    "The 'exceptions' field accepts at most 100 items per request. Please split the batch and try again.",
+		},
+		constant.ErrAccountBlockExceptionInvalidAmount: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionInvalidAmount.Error(),
+			Title:      "Invalid Account Block Exception Amount",
+			Message:    fmt.Sprintf("The 'amount' of the exception at index %v must be a positive decimal value. Please verify the amount and try again.", args...),
+		},
+		constant.ErrAccountBlockExceptionInvalidTTL: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionInvalidTTL.Error(),
+			Title:      "Invalid Account Block Exception TTL",
+			Message:    fmt.Sprintf("The 'ttl' of the exception at index %v must be between 1 and 86400 seconds. Please verify the ttl and try again.", args...),
+		},
+		constant.ErrAccountBlockExceptionAliasNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBlockExceptionAliasNotFound.Error(),
+			Title:      "Account Block Exception Alias Not Found",
+			Message:    fmt.Sprintf("The 'accountAlias' of the exception at index %v does not exist in this ledger: %v. No exception was created. Please verify the alias and try again.", args...),
+		},
 		constant.ErrInsufficientAccountBalance: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrInsufficientAccountBalance.Error(),

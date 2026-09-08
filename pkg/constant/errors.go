@@ -487,6 +487,28 @@ var (
 	// ErrAccountStatusTransactionRestriction (0024), which reflects per-balance
 	// allowSending/allowReceiving permissions.
 	ErrAccountBlocked = errors.New("0502")
+	// ErrAccountBlockExceptionsRequired is returned when the block-exception
+	// create batch is absent or empty. Minting nothing is always a caller
+	// mistake, never a silent success.
+	ErrAccountBlockExceptionsRequired = errors.New("0503")
+	// ErrAccountBlockExceptionsBatchTooLarge is returned when the create batch
+	// exceeds mmodel.AccountBlockExceptionMaxBatchSize. The batch is rejected
+	// whole rather than truncated, so the caller never believes it minted more
+	// grants than it did.
+	ErrAccountBlockExceptionsBatchTooLarge = errors.New("0504")
+	// ErrAccountBlockExceptionInvalidAmount is returned when a batch item's
+	// amount is not a parseable positive decimal. Args: the item's zero-based
+	// index in the batch.
+	ErrAccountBlockExceptionInvalidAmount = errors.New("0505")
+	// ErrAccountBlockExceptionInvalidTTL is returned when a batch item's ttl is
+	// present but outside the accepted range (1..mmodel.AccountBlockExceptionMaxTTLSeconds).
+	// Args: the item's zero-based index in the batch.
+	ErrAccountBlockExceptionInvalidTTL = errors.New("0506")
+	// ErrAccountBlockExceptionAliasNotFound is returned when a batch item names
+	// an alias that does not exist in the organization and ledger of the path.
+	// One unknown alias rejects the WHOLE batch. Args: the item's zero-based
+	// index in the batch, then the offending alias.
+	ErrAccountBlockExceptionAliasNotFound = errors.New("0507")
 )
 
 // List of CRM domain errors.
