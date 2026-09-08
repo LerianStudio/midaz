@@ -675,8 +675,26 @@ failures. The metrics do not perform public error mapping.
 Duration buckets are 1, 5, 10, 25, 50, 100, 250, 500, 1000, and 5000 ms.
 Payload buckets are 1, 4, 16, 64, 256 KiB and 1, 4, 16 MiB; these are observation
 boundaries, not request-limit defaults. Rejected unprepared requests have no
-posting or payload-size sample. Recovery-worker outcomes and full-pool loading
-measurements still require instrumentation before activation.
+posting or payload-size sample. Full-pool loading measurements still require
+instrumentation before activation.
+
+### Recovery metrics
+
+The version-two consumer uses its injected `MetricsFactory` to emit
+`balance_engine_recovery_total` and `balance_engine_recovery_duration_ms` once
+per finalization attempt, including rejection before persistence. Both use the
+closed `outcome` label: `completed`, `context_canceled`, `not_configured`,
+`finalization_failed`, `ack_failed`, `record_changed`, or `invalid_ack`.
+Duration buckets are 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000,
+and 30000 ms. Metric-emission failures are Debug-only and cannot change the
+finalizer's return value or acknowledgment behavior.
+
+`completed` means durable finalization succeeded and conditional acknowledgment
+reported deletion or an already-absent record. It does not prove a terminal
+transaction state and never authorizes receipt or guard expiration. Replacement
+records, persistence failures, and acknowledgment failures retain their existing
+protection. Invalid envelopes rejected before finalization do not enter these
+metrics; they retain the consumer's existing handling.
 
 ## Tentative alternative-engine mapping
 
