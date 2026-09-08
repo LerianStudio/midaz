@@ -82,6 +82,10 @@ type recoveryMongoResolver interface {
 	GetDatabaseForTenant(context.Context, string) (*mongo.Database, error)
 }
 
+type balanceRecoveryFinalizerWithOutcome interface {
+	FinalizeWithOutcome(context.Context, *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineRecoveryOutcome, error)
+}
+
 // tenantRecoveryFinalizer resolves metadata storage inside the existing recovery
 // timeout. Legacy records do not use this finalizer or acquire Mongo connections.
 type tenantRecoveryFinalizer struct {
@@ -91,40 +95,68 @@ type tenantRecoveryFinalizer struct {
 }
 
 func (finalizer *tenantRecoveryFinalizer) Finalize(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) error {
-	if err := ctx.Err(); err != nil {
+	ctx, err := finalizer.resolveContext(ctx, envelope)
+	if err != nil {
 		return err
 	}
 
+	return finalizer.delegate.Finalize(ctx, envelope)
+}
+
+func (finalizer *tenantRecoveryFinalizer) FinalizeWithOutcome(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineRecoveryOutcome, error) {
+	ctx, err := finalizer.resolveContext(ctx, envelope)
+	if err != nil {
+		return command.BalanceEngineRecoveryOutcome{}, err
+	}
+
+	delegate, ok := finalizer.delegate.(balanceRecoveryFinalizerWithOutcome)
+	if !ok {
+		return command.BalanceEngineRecoveryOutcome{}, fmt.Errorf("balance recovery finalizer outcome is not configured")
+	}
+
+	outcome, err := delegate.FinalizeWithOutcome(ctx, envelope)
+	if err != nil {
+		return command.BalanceEngineRecoveryOutcome{}, err
+	}
+
+	return outcome, nil
+}
+
+func (finalizer *tenantRecoveryFinalizer) resolveContext(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (context.Context, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	if finalizer.delegate == nil {
-		return fmt.Errorf("balance recovery finalizer is not configured")
+		return nil, fmt.Errorf("balance recovery finalizer is not configured")
 	}
 
 	if !finalizer.multiTenantEnabled {
-		return finalizer.delegate.Finalize(ctx, envelope)
+		return ctx, nil
 	}
 
 	tenantID := tmcore.GetTenantIDContext(ctx)
 	if tenantID == "" || envelope == nil || envelope.TenantID != tenantID {
-		return fmt.Errorf("balance recovery requires matching authenticated tenant context")
+		return nil, fmt.Errorf("balance recovery requires matching authenticated tenant context")
 	}
 
 	if finalizer.mongoResolver == nil {
-		return fmt.Errorf("balance recovery tenant Mongo resolver is not configured")
+		return nil, fmt.Errorf("balance recovery tenant Mongo resolver is not configured")
 	}
 
 	database, err := finalizer.mongoResolver.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
-		return fmt.Errorf("resolve balance recovery tenant Mongo database: %w", err)
+		return nil, fmt.Errorf("resolve balance recovery tenant Mongo database: %w", err)
 	}
 
 	if database == nil {
-		return fmt.Errorf("balance recovery tenant Mongo database is unavailable")
+		return nil, fmt.Errorf("balance recovery tenant Mongo database is unavailable")
 	}
 
 	ctx = tmcore.ContextWithMB(ctx, database)
 	ctx = tmcore.ContextWithMB(ctx, database, constant.ModuleTransaction)
 
-	return finalizer.delegate.Finalize(ctx, envelope)
+	return ctx, nil
 }
 
 func NewRedisQueueConsumer(logger libLog.Logger, cmd *command.UseCase, qry *query.UseCase) *RedisQueueConsumer {
