@@ -42,8 +42,8 @@ type RedisClientProvider interface {
 }
 
 // Adapter executes the accounting protocol without enabling any application path.
-// It currently supports standalone Redis clients; cluster and ring transports
-// require a separately verified no-retransmission implementation.
+// It currently supports standalone or Sentinel Redis clients; cluster and ring
+// transports require a separately verified no-retransmission implementation.
 type Adapter struct {
 	provider RedisClientProvider
 	limits   Limits
@@ -111,9 +111,8 @@ func technical(code string, uncertain bool, err error) error {
 	return &TechnicalError{Code: code, Indeterminate: uncertain, Err: err}
 }
 
-// Execute uses a dedicated pool with retransmission disabled. A fresh pool per
-// execution preserves tenant-specific auth/TLS options without mutating or
-// closing the provider's shared pool. Only confirmed NOSCRIPT permits fallback.
+// Execute uses the provider's standalone client and disables retransmission on
+// each mutating command. Only confirmed NOSCRIPT permits fallback.
 func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (*engine.Result, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, technical("context_canceled", false, err)
@@ -144,20 +143,14 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (*
 
 	source, ok := shared.(*redis.Client)
 	if !ok || source == nil {
-		return nil, technical("unsupported_transport", false, errors.New("accounting execution requires a standalone Redis client"))
+		return nil, technical("unsupported_transport", false, errors.New("accounting execution requires a standalone or Sentinel Redis client"))
 	}
-
-	options := *source.Options()
-	options.MaxRetries = -1
-
-	client := redis.NewClient(&options)
-	defer client.Close()
 
 	if err := ctx.Err(); err != nil {
 		return nil, technical("context_canceled", false, err)
 	}
 
-	return a.executePrepared(ctx, client, input.Request, prepared.Keys, prepared.Payload)
+	return a.executePrepared(ctx, source, input.Request, prepared.Keys, prepared.Payload)
 }
 
 func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, request engine.Request, keys []string, payload any) (*engine.Result, error) {
@@ -209,12 +202,46 @@ func executeAccounting(ctx context.Context, client *redis.Client, keys []string,
 		return nil, err
 	}
 
-	response, err := client.EvalSha(ctx, accountingScript.Hash(), keys, args...).Result()
+	response, err := executeScriptNoRetry(ctx, client, "evalsha", accountingScript.Hash(), keys, args)
 	if isNoScript(err) {
-		response, err = client.Eval(ctx, accountingScriptSource, keys, args...).Result()
+		response, err = executeScriptNoRetry(ctx, client, "eval", accountingScriptSource, keys, args)
 	}
 
 	return response, err
+}
+
+type noRetryCmd struct {
+	*redis.Cmd
+}
+
+func (c *noRetryCmd) NoRetry() bool {
+	return true
+}
+
+func newNoRetryCommand(ctx context.Context, args ...any) *noRetryCmd {
+	return &noRetryCmd{Cmd: redis.NewCmd(ctx, args...)}
+}
+
+func processNoRetry(ctx context.Context, client *redis.Client, args ...any) *redis.Cmd {
+	scriptCommand := newNoRetryCommand(ctx, args...)
+	if err := client.Process(ctx, scriptCommand); err != nil && scriptCommand.Err() == nil {
+		scriptCommand.SetErr(err)
+	}
+
+	return scriptCommand.Cmd
+}
+
+func executeScriptNoRetry(ctx context.Context, client *redis.Client, operation string, script string, keys []string, args []any) (any, error) {
+	wireArgs := make([]any, 0, 3+len(keys)+len(args))
+
+	wireArgs = append(wireArgs, operation, script, len(keys))
+	for _, key := range keys {
+		wireArgs = append(wireArgs, key)
+	}
+
+	wireArgs = append(wireArgs, args...)
+
+	return processNoRetry(ctx, client, wireArgs...).Result()
 }
 
 func validateRecoveryTenant(input command.EngineExecution, tenantID string) error {

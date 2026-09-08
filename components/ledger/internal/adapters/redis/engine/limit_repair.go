@@ -70,9 +70,27 @@ func repairBalanceLimits(ctx context.Context, client *redis.Client, keys []strin
 		return technical("context_canceled", false, err)
 	}
 
-	response, err := normalizeBalanceLimitsScript.EvalSha(ctx, client, keys, args...).Result()
+	evalSHAArgs := make([]any, 0, 3+len(keys)+len(args))
+
+	evalSHAArgs = append(evalSHAArgs, "evalsha", normalizeBalanceLimitsScript.Hash(), len(keys))
+	for _, key := range keys {
+		evalSHAArgs = append(evalSHAArgs, key)
+	}
+
+	evalSHAArgs = append(evalSHAArgs, args...)
+
+	response, err := processNoRetry(ctx, client, evalSHAArgs...).Result()
 	if isNoScript(err) {
-		response, err = normalizeBalanceLimitsScript.Eval(ctx, client, keys, args...).Result()
+		evalArgs := make([]any, 0, 3+len(keys)+len(args))
+
+		evalArgs = append(evalArgs, "eval", normalizeBalanceLimitsScriptRaw, len(keys))
+		for _, key := range keys {
+			evalArgs = append(evalArgs, key)
+		}
+
+		evalArgs = append(evalArgs, args...)
+
+		response, err = processNoRetry(ctx, client, evalArgs...).Result()
 	}
 
 	if err != nil {

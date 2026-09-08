@@ -43,6 +43,35 @@ type integrationClientProvider struct {
 	calls  int
 }
 
+type integrationCommandHook struct {
+	evalSHA atomic.Int32
+	eval    atomic.Int32
+	noRetry atomic.Int32
+}
+
+func (h *integrationCommandHook) DialHook(next redis.DialHook) redis.DialHook {
+	return next
+}
+
+func (h *integrationCommandHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		if cmd.NoRetry() {
+			h.noRetry.Add(1)
+		}
+		switch strings.ToUpper(cmd.Name()) {
+		case "EVALSHA":
+			h.evalSHA.Add(1)
+		case "EVAL":
+			h.eval.Add(1)
+		}
+		return next(ctx, cmd)
+	}
+}
+
+func (h *integrationCommandHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
+}
+
 func (p *integrationClientProvider) GetClient(context.Context) (redis.UniversalClient, error) {
 	p.calls++
 	return p.client, nil
@@ -189,11 +218,38 @@ func TestIntegration_AdapterExecute_TransportAndReceipt(t *testing.T) {
 			require.Equal(t, "default", shared.Options().Username)
 			require.Equal(t, password, shared.Options().Password)
 			require.Equal(t, 2, shared.Options().DB)
-			require.GreaterOrEqual(t, dials.Load(), int32(3))
-			require.GreaterOrEqual(t, connects.Load(), int32(3))
+			// The shared client may reuse one pooled connection across receipt replays;
+			// a lost response can cause an additional reconnect, but never requires one
+			// connection per Execute call.
+			require.GreaterOrEqual(t, dials.Load(), int32(1))
+			require.GreaterOrEqual(t, connects.Load(), int32(1))
 			require.NoError(t, shared.Ping(ctx).Err(), "adapter must not close the shared client")
 		})
 	}
+}
+
+func TestIntegration_AdapterExecute_UsesSharedCommandHooks(t *testing.T) {
+	ctx := context.Background()
+	inspector, address, password := newAdapterValkey(t)
+	shared := redis.NewClient(&redis.Options{
+		Addr: address, Password: password, DB: 2, Protocol: 2, MaxRetries: 3,
+	})
+	t.Cleanup(func() { require.NoError(t, shared.Close()) })
+	hook := &integrationCommandHook{}
+	shared.AddHook(hook)
+
+	input, limits := richAdapterExecution(t)
+	adapter, err := NewAdapter(&integrationClientProvider{client: shared}, limits)
+	require.NoError(t, err)
+	_, err = adapter.Execute(ctx, input)
+	require.NoError(t, err)
+
+	require.GreaterOrEqual(t, hook.evalSHA.Load(), int32(1), "shared command hook must observe EVALSHA")
+	require.GreaterOrEqual(t, hook.eval.Load(), int32(1), "shared command hook must observe NOSCRIPT EVAL fallback")
+	require.GreaterOrEqual(t, hook.noRetry.Load(), hook.evalSHA.Load()+hook.eval.Load(), "script commands must be marked NoRetry")
+	require.Equal(t, 3, shared.Options().MaxRetries)
+	require.NoError(t, shared.Ping(ctx).Err(), "adapter must not close the shared client")
+	require.NoError(t, inspector.ScriptFlush(ctx).Err())
 }
 
 func TestIntegration_AdapterExecute_WritesDualBalanceCacheContract(t *testing.T) {

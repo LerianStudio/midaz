@@ -33,6 +33,15 @@ func (p *countingProvider) GetClient(context.Context) (redis.UniversalClient, er
 	return nil, errors.New("unexpected provider access")
 }
 
+func TestNoRetryCommand_PreservesWireArguments(t *testing.T) {
+	wire := []any{"evalsha", "digest", 2, "balance:{tenant}:one", "balance:{tenant}:two", "payload", 8192}
+	command := newNoRetryCommand(context.Background(), wire...)
+
+	require.True(t, command.NoRetry())
+	require.False(t, command.Cmd.NoRetry())
+	require.Equal(t, wire, command.Args())
+}
+
 func TestTechnicalError_NeutralClassificationPreservesCause(t *testing.T) {
 	cause := errors.New("redis unavailable")
 
