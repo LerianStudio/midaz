@@ -36,7 +36,10 @@ type Store struct {
 	operations   operationRepository
 }
 
-var _ command.BalanceEngineRecoveryStore = (*Store)(nil)
+var (
+	_ command.BalanceEngineRecoveryStore            = (*Store)(nil)
+	_ command.BalanceEngineRecoveryStoreWithOutcome = (*Store)(nil)
+)
 
 // NewStore shares the existing transaction and operation repositories. Tenant
 // connection selection is delegated to the transaction repository's BeginTx.
@@ -47,25 +50,32 @@ func NewStore(transactions transactionRepository, operations operationRepository
 // Persist inserts or verifies all expected rows in a single SQL transaction.
 // Any failure, including an uncertain commit, leaves recovery to the caller.
 func (store *Store) Persist(ctx context.Context, record command.BalanceEnginePersistenceRecord) (err error) {
+	_, err = store.PersistWithOutcome(ctx, record)
+	return err
+}
+
+// PersistWithOutcome inserts or verifies all expected rows in a single SQL
+// transaction and reports the durable transaction status after commit.
+func (store *Store) PersistWithOutcome(ctx context.Context, record command.BalanceEnginePersistenceRecord) (outcome command.BalanceEngineRecoveryOutcome, err error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return command.BalanceEngineRecoveryOutcome{}, err
 	}
 
 	if err := validateRecord(record); err != nil {
-		return err
+		return command.BalanceEngineRecoveryOutcome{}, err
 	}
 
 	if store == nil || store.transactions == nil || store.operations == nil {
-		return fmt.Errorf("recovery SQL repositories are not configured")
+		return command.BalanceEngineRecoveryOutcome{}, fmt.Errorf("recovery SQL repositories are not configured")
 	}
 
 	tx, err := store.transactions.BeginTx(ctx)
 	if err != nil {
-		return fmt.Errorf("begin recovery persistence: %w", err)
+		return command.BalanceEngineRecoveryOutcome{}, fmt.Errorf("begin recovery persistence: %w", err)
 	}
 
 	if tx == nil {
-		return fmt.Errorf("begin recovery persistence returned a nil transaction")
+		return command.BalanceEngineRecoveryOutcome{}, fmt.Errorf("begin recovery persistence returned a nil transaction")
 	}
 
 	committed := false
@@ -73,45 +83,46 @@ func (store *Store) Persist(ctx context.Context, record command.BalanceEnginePer
 		if !committed {
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
 				err = errors.Join(err, fmt.Errorf("rollback recovery persistence: %w", rollbackErr))
+				outcome = command.BalanceEngineRecoveryOutcome{}
 			}
 		}
 	}()
 
 	querier, ok := tx.(repository.DBQuerier)
 	if !ok {
-		return repository.ErrQueryContextNotSupported
+		return command.BalanceEngineRecoveryOutcome{}, repository.ErrQueryContextNotSupported
 	}
 
-	allowInsert, err := store.persistTransaction(ctx, tx, querier, record)
+	allowInsert, transactionStatus, err := store.persistTransaction(ctx, tx, querier, record)
 	if err != nil {
-		return err
+		return command.BalanceEngineRecoveryOutcome{}, err
 	}
 
 	if allowInsert {
 		// Bulk repositories sort their input slices. Preserve frozen row ordering.
 		operations := append([]*operation.Operation(nil), record.Transaction.Operations...)
 		if _, err := store.operations.CreateBulkTx(ctx, tx, operations); err != nil {
-			return fmt.Errorf("persist recovery operations: %w", err)
+			return command.BalanceEngineRecoveryOutcome{}, fmt.Errorf("persist recovery operations: %w", err)
 		}
 	}
 
 	for _, row := range record.Transaction.Operations {
 		if err := verifyOperation(ctx, querier, row); err != nil {
-			return err
+			return command.BalanceEngineRecoveryOutcome{}, err
 		}
 	}
 
 	if err := ctx.Err(); err != nil {
-		return err
+		return command.BalanceEngineRecoveryOutcome{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit recovery persistence: %w", err)
+		return command.BalanceEngineRecoveryOutcome{}, fmt.Errorf("commit recovery persistence: %w", err)
 	}
 
 	committed = true
 
-	return nil
+	return command.BalanceEngineRecoveryOutcome{TransactionStatus: transactionStatus}, nil
 }
 
 func validateRecord(record command.BalanceEnginePersistenceRecord) error {
@@ -201,52 +212,52 @@ func validateIDs(values ...string) error {
 	return nil
 }
 
-func (store *Store) persistTransaction(ctx context.Context, tx repository.DBTransaction, querier repository.DBQuerier, record command.BalanceEnginePersistenceRecord) (bool, error) {
+func (store *Store) persistTransaction(ctx context.Context, tx repository.DBTransaction, querier repository.DBQuerier, record command.BalanceEnginePersistenceRecord) (bool, string, error) {
 	status, exists, err := verifyTransaction(ctx, querier, record)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 
 	created := false
 
 	if !exists {
 		if record.ExpectedStatus != "" {
-			return false, conflict("pending transaction has not been persisted")
+			return false, "", conflict("pending transaction has not been persisted")
 		}
 
 		inserted, err := store.transactions.CreateBulkTx(ctx, tx, []*transaction.Transaction{record.Transaction})
 		if err != nil {
-			return false, fmt.Errorf("persist recovery transaction: %w", err)
+			return false, "", fmt.Errorf("persist recovery transaction: %w", err)
 		}
 
 		created, err = confirmedTransactionInsert(inserted, record.Transaction.ID)
 		if err != nil {
-			return false, err
+			return false, "", err
 		}
 
 		status, exists, err = verifyTransaction(ctx, querier, record)
 		if err != nil {
-			return false, err
+			return false, "", err
 		}
 
 		if !exists {
-			return false, conflict("transaction missing after insertion")
+			return false, "", conflict("transaction missing after insertion")
 		}
 	}
 
 	if status == record.Transaction.Status.Code {
-		return created, nil
+		return created, status, nil
 	}
 
 	if record.Action == "hold" && terminalTransactionStatus(status) {
 		// The locked transaction already matches the frozen hold identity and
 		// body. Verify every old operation below, without inserting or regressing
 		// the later status, before confirming this earlier execution persisted.
-		return false, nil
+		return false, status, nil
 	}
 
 	if record.ExpectedStatus == "" || status != record.ExpectedStatus {
-		return false, conflict("persisted lifecycle does not match expected state")
+		return false, "", conflict("persisted lifecycle does not match expected state")
 	}
 
 	result, err := tx.ExecContext(ctx, `UPDATE transaction SET status = $1, status_description = $2, updated_at = $3
@@ -254,19 +265,19 @@ WHERE id = $4 AND organization_id = $5 AND ledger_id = $6 AND status = $7 AND de
 		record.Transaction.Status.Code, record.Transaction.Status.Description, record.Transaction.UpdatedAt,
 		record.Transaction.ID, record.Transaction.OrganizationID, record.Transaction.LedgerID, record.ExpectedStatus)
 	if err != nil {
-		return false, fmt.Errorf("update recovery transaction status: %w", err)
+		return false, "", fmt.Errorf("update recovery transaction status: %w", err)
 	}
 
 	count, err := result.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("confirm recovery status update: %w", err)
+		return false, "", fmt.Errorf("confirm recovery status update: %w", err)
 	}
 
 	if count != 1 {
-		return false, conflict("recovery status update did not affect one transaction")
+		return false, "", conflict("recovery status update did not affect one transaction")
 	}
 
-	return true, nil
+	return true, record.Transaction.Status.Code, nil
 }
 
 func terminalTransactionStatus(status string) bool {

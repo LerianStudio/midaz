@@ -203,6 +203,43 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 		})
 	}
 
+	for _, scenario := range []struct {
+		action, terminal string
+	}{
+		{action: "commit", terminal: constant.APPROVED},
+		{action: "cancel", terminal: constant.CANCELED},
+	} {
+		t.Run("public outcome "+scenario.action, func(t *testing.T) {
+			record := recoverySQLRecord(t)
+			record.Action, record.Transaction.Status.Code = "hold", constant.PENDING
+			record.Transaction.Body = mtransaction.Transaction{Pending: true, Send: mtransaction.Send{Asset: "USD", Value: *record.Transaction.Amount}}
+
+			holdOutcome, err := infra.store.PersistWithOutcome(t.Context(), record)
+			require.NoError(t, err)
+			require.Equal(t, constant.PENDING, holdOutcome.TransactionStatus)
+
+			pending := record
+			pendingTransaction := *record.Transaction
+			pending.Transaction = &pendingTransaction
+			record.Action, record.ExpectedStatus, record.Transaction.Status.Code = scenario.action, constant.PENDING, scenario.terminal
+			record.Transaction.UpdatedAt = record.Transaction.CreatedAt.Add(time.Second)
+			row := *record.Transaction.Operations[0]
+			row.ID = uuid.NewSHA1(uuid.MustParse(record.Transaction.ID), []byte("outcome:"+scenario.action)).String()
+			row.CreatedAt, row.UpdatedAt = record.Transaction.UpdatedAt, record.Transaction.UpdatedAt
+			record.Transaction.Operations = []*operation.Operation{&row}
+
+			terminalOutcome, err := infra.store.PersistWithOutcome(t.Context(), record)
+			require.NoError(t, err)
+			require.Equal(t, scenario.terminal, terminalOutcome.TransactionStatus)
+			beforeReplay := recoverySQLState(t, infra.db)
+
+			replayOutcome, err := infra.store.PersistWithOutcome(t.Context(), pending)
+			require.NoError(t, err)
+			require.Equal(t, scenario.terminal, replayOutcome.TransactionStatus)
+			require.Equal(t, beforeReplay, recoverySQLState(t, infra.db), "late hold must report the terminal status without changing persisted rows")
+		})
+	}
+
 	for _, mutation := range []string{"organization", "ledger", "account", "amount", "snapshot"} {
 		t.Run("reject changed "+mutation, func(t *testing.T) {
 			record := recoverySQLRecord(t)

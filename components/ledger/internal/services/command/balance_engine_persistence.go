@@ -23,8 +23,22 @@ type BalanceEnginePersistenceRecord struct {
 	ExpectedStatus string
 }
 
+// BalanceEngineRecoveryOutcome reports the transaction status confirmed by the
+// durable SQL store. It is not derived from the frozen recovery payload.
+type BalanceEngineRecoveryOutcome struct {
+	TransactionStatus string
+}
+
 // BalanceEngineRecoveryStore confirms only durable SQL transaction and operation
 // persistence. Success does not confirm Mongo metadata or authorize backup removal.
 type BalanceEngineRecoveryStore interface {
 	Persist(context.Context, BalanceEnginePersistenceRecord) error
+}
+
+// BalanceEngineRecoveryStoreWithOutcome is the additive recovery-store
+// capability used when callers need the status actually observed in durable
+// SQL. PersistWithOutcome returns successfully only after the SQL transaction
+// commits.
+type BalanceEngineRecoveryStoreWithOutcome interface {
+	PersistWithOutcome(context.Context, BalanceEnginePersistenceRecord) (BalanceEngineRecoveryOutcome, error)
 }

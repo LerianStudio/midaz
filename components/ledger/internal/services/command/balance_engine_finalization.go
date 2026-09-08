@@ -49,56 +49,104 @@ func NewBalanceEngineFinalizer(store BalanceEngineRecoveryStore, metadata balanc
 // Finalize returns nil only after SQL commit and metadata verification succeed.
 // Any error leaves the caller responsible for retaining the recovery envelope.
 func (finalizer *BalanceEngineFinalizer) Finalize(ctx context.Context, envelope *BalanceEngineRecoveryEnvelope) error {
+	_, err := finalizer.finalize(ctx, envelope, false)
+
+	return err
+}
+
+// FinalizeWithOutcome returns the status observed by the durable SQL store only
+// after SQL commit and all frozen metadata verification succeed.
+func (finalizer *BalanceEngineFinalizer) FinalizeWithOutcome(ctx context.Context, envelope *BalanceEngineRecoveryEnvelope) (BalanceEngineRecoveryOutcome, error) {
+	return finalizer.finalize(ctx, envelope, true)
+}
+
+func (finalizer *BalanceEngineFinalizer) finalize(ctx context.Context, envelope *BalanceEngineRecoveryEnvelope, requireOutcome bool) (BalanceEngineRecoveryOutcome, error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return BalanceEngineRecoveryOutcome{}, err
 	}
 
 	if finalizer == nil || finalizer.store == nil || finalizer.metadata == nil {
-		return invalidRecovery("recovery finalizer dependencies are not configured")
+		return BalanceEngineRecoveryOutcome{}, invalidRecovery("recovery finalizer dependencies are not configured")
 	}
 
 	if envelope == nil {
-		return invalidRecovery("recovery envelope is missing")
+		return BalanceEngineRecoveryOutcome{}, invalidRecovery("recovery envelope is missing")
 	}
 
 	if envelope.TenantID != tmcore.GetTenantIDContext(ctx) {
-		return invalidRecovery("recovery tenant does not match authenticated context")
+		return BalanceEngineRecoveryOutcome{}, invalidRecovery("recovery tenant does not match authenticated context")
 	}
 
 	if err := validateRecoveryEnvelope(*envelope); err != nil {
-		return err
+		return BalanceEngineRecoveryOutcome{}, err
 	}
 
 	payload, err := DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
 	if err != nil {
-		return err
+		return BalanceEngineRecoveryOutcome{}, err
 	}
 
 	record, err := frozenPersistenceRecord(*payload, envelope)
 	if err != nil {
-		return err
+		return BalanceEngineRecoveryOutcome{}, err
 	}
 
 	metadata, err := frozenMetadataRecords(record.Transaction, payload.TransactionDate)
 	if err != nil {
-		return err
+		return BalanceEngineRecoveryOutcome{}, err
 	}
 
-	if err := finalizer.store.Persist(ctx, record); err != nil {
-		return fmt.Errorf("persist recovered SQL rows: %w", err)
+	outcome, err := finalizer.persist(ctx, record, requireOutcome)
+	if err != nil {
+		return BalanceEngineRecoveryOutcome{}, err
 	}
 
 	for _, entry := range metadata {
 		if err := ctx.Err(); err != nil {
-			return err
+			return BalanceEngineRecoveryOutcome{}, err
 		}
 
 		if err := finalizer.persistMetadata(ctx, entry); err != nil {
-			return err
+			return BalanceEngineRecoveryOutcome{}, err
 		}
 	}
 
-	return nil
+	return outcome, nil
+}
+
+func (finalizer *BalanceEngineFinalizer) persist(ctx context.Context, record BalanceEnginePersistenceRecord, requireOutcome bool) (BalanceEngineRecoveryOutcome, error) {
+	if !requireOutcome {
+		if err := finalizer.store.Persist(ctx, record); err != nil {
+			return BalanceEngineRecoveryOutcome{}, fmt.Errorf("persist recovered SQL rows: %w", err)
+		}
+
+		return BalanceEngineRecoveryOutcome{}, nil
+	}
+
+	outcomeStore, ok := finalizer.store.(BalanceEngineRecoveryStoreWithOutcome)
+	if !ok {
+		return BalanceEngineRecoveryOutcome{}, invalidRecovery("recovery SQL store does not report durable transaction status")
+	}
+
+	outcome, err := outcomeStore.PersistWithOutcome(ctx, record)
+	if err != nil {
+		return BalanceEngineRecoveryOutcome{}, fmt.Errorf("persist recovered SQL rows: %w", err)
+	}
+
+	if !validRecoveryOutcome(outcome) {
+		return BalanceEngineRecoveryOutcome{}, fmt.Errorf("%w: recovery SQL store reported unknown transaction status", ErrBalanceEnginePersistenceConflict)
+	}
+
+	return outcome, nil
+}
+
+func validRecoveryOutcome(outcome BalanceEngineRecoveryOutcome) bool {
+	switch outcome.TransactionStatus {
+	case constant.PENDING, constant.APPROVED, constant.CANCELED:
+		return true
+	default:
+		return false
+	}
 }
 
 func frozenPersistenceRecord(payload BalanceEngineRecoveryPayload, envelope *BalanceEngineRecoveryEnvelope) (BalanceEnginePersistenceRecord, error) {

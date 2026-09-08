@@ -225,6 +225,77 @@ func TestStorePersistLifecycle(t *testing.T) {
 	}
 }
 
+func TestStorePersistWithOutcomeReportsDurableTransactionStatus(t *testing.T) {
+	for _, scenario := range []struct {
+		name, action, existing, target, expected string
+		create, update                           bool
+	}{
+		{name: "new pending hold", action: "hold", target: constant.PENDING, expected: constant.PENDING, create: true},
+		{name: "new direct approval", action: "direct", target: constant.APPROVED, expected: constant.APPROVED, create: true},
+		{name: "new revert approval", action: "revert", target: constant.APPROVED, expected: constant.APPROVED, create: true},
+		{name: "commit approval", action: "commit", existing: constant.PENDING, target: constant.APPROVED, expected: constant.APPROVED, update: true},
+		{name: "cancel", action: "cancel", existing: constant.PENDING, target: constant.CANCELED, expected: constant.CANCELED, update: true},
+		{name: "late hold after approval", action: "hold", existing: constant.APPROVED, target: constant.PENDING, expected: constant.APPROVED},
+		{name: "late hold after cancellation", action: "hold", existing: constant.CANCELED, target: constant.PENDING, expected: constant.CANCELED},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			store, mock := newStoreTest(t)
+			record := frozenStoreRecord()
+			record.Action, record.Transaction.Status.Code = scenario.action, scenario.target
+			if scenario.action == "hold" {
+				record.Transaction.Body = mtransaction.Transaction{Pending: true, Send: mtransaction.Send{Asset: "USD", Value: *record.Transaction.Amount}}
+			}
+			if scenario.update {
+				record.ExpectedStatus = constant.PENDING
+			}
+
+			mock.ExpectBegin()
+			expectTransaction(mock, scenario.existing, true, true)
+			if scenario.create {
+				mock.ExpectExec("INSERT recovery_transaction").WillReturnResult(sqlmock.NewResult(0, 1))
+				expectTransaction(mock, scenario.target, true, true)
+			}
+			if scenario.update {
+				mock.ExpectExec("UPDATE transaction").WillReturnResult(sqlmock.NewResult(0, 1))
+			}
+			if scenario.create || scenario.update {
+				expectOperations(mock, 1)
+			} else {
+				expectVerifiedOperations(mock, 1)
+			}
+			mock.ExpectCommit()
+
+			outcome, err := store.PersistWithOutcome(t.Context(), record)
+			require.NoError(t, err)
+			assert.Equal(t, scenario.expected, outcome.TransactionStatus)
+		})
+	}
+}
+
+func TestStorePersistWithOutcomeReturnsZeroOnPersistenceFailure(t *testing.T) {
+	for _, stage := range []string{"operation insert", "commit"} {
+		t.Run(stage, func(t *testing.T) {
+			store, mock := newStoreTest(t)
+			failure := errors.New("SQL failure")
+			mock.ExpectBegin()
+			expectTransaction(mock, "", true, true)
+			mock.ExpectExec("INSERT recovery_transaction").WillReturnResult(sqlmock.NewResult(0, 1))
+			expectTransaction(mock, constant.APPROVED, true, true)
+			if stage == "operation insert" {
+				mock.ExpectExec("INSERT recovery_operations").WillReturnError(failure)
+				mock.ExpectRollback()
+			} else {
+				expectOperations(mock, 1)
+				mock.ExpectCommit().WillReturnError(failure)
+			}
+
+			outcome, err := store.PersistWithOutcome(t.Context(), frozenStoreRecord())
+			require.ErrorIs(t, err, failure)
+			assert.Empty(t, outcome.TransactionStatus)
+		})
+	}
+}
+
 func TestStorePersistLateHoldRequiresEveryFrozenRow(t *testing.T) {
 	for _, status := range []string{constant.APPROVED, constant.CANCELED} {
 		for _, proof := range []string{"matching", "missing", "different"} {
