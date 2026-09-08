@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"io"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -550,6 +551,29 @@ func TestGetIdempotencyKeyAndTTL_WithValidValues(t *testing.T) {
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestParseIdempotencyTTL_ClampsToOneWeek(t *testing.T) {
+	assert.Equal(t, time.Duration(604800), ParseIdempotencyTTL("604801"))
+}
+
+func TestParseIdempotencyTTL_BoundariesAndOverflow(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  time.Duration
+	}{
+		{name: "maximum", value: "604800", want: time.Duration(604800)},
+		{name: "below maximum", value: "604799", want: time.Duration(604799)},
+		{name: "large representable integer", value: strconv.Itoa(int(^uint(0) >> 1)), want: time.Duration(604800)},
+		{name: "integer overflow", value: "9223372036854775808", want: time.Duration(300)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ParseIdempotencyTTL(tt.value))
+		})
+	}
 }
 
 func TestGetIdempotencyKeyAndTTL_WithInvalidTTL(t *testing.T) {
