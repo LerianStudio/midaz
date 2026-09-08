@@ -166,6 +166,62 @@ func TestIntegration_ExecuteBalanceEngineWithRetry_RebuildsAgainstLiveValkeyStat
 	}
 }
 
+func TestIntegration_AdapterExecute_UsesLiveOverdraftSettingsWithoutVersionBump(t *testing.T) {
+	ctx := context.Background()
+	client, _, _ := newAdapterValkey(t)
+	fixture := newRetryCompositionFixture(t, 2, 10)
+	fixture.primary.AllowOverdraft = false
+	fixture.primary.OverdraftLimitEnabled = false
+	fixture.primary.OverdraftLimit = decimal.Zero
+	keys, err := resolveAdapterKeys(ctx, core.Request{
+		OrganizationID: fixture.organizationID,
+		LedgerID:       fixture.ledgerID,
+		Balances:       []core.BalanceSnapshot{fixture.primary, fixture.companion},
+	})
+	require.NoError(t, err)
+	seedRetryCompositionBalance(t, ctx, client, keys, fixture.primary)
+	seedRetryCompositionBalance(t, ctx, client, keys, fixture.companion)
+	t.Cleanup(func() { deleteRetryCompositionState(t, client, keys) })
+
+	attempt, err := buildRetryCompositionAttempt(ctx, t, client, keys, fixture)
+	require.NoError(t, err)
+	preparedPrimary := retryCompositionSnapshot(t, attempt.Execution.Request.Balances, "@source#default")
+	require.False(t, preparedPrimary.AllowOverdraft)
+	require.False(t, preparedPrimary.OverdraftLimitEnabled)
+	require.Equal(t, int64(7), preparedPrimary.Version)
+	require.Len(t, attempt.Payload.Projection, 2)
+	require.Equal(t, core.RoleOverdraftCompanion, attempt.Payload.Projection[1].Role)
+	require.Equal(t, "@source#overdraft", attempt.Payload.Projection[1].BalanceRef)
+
+	livePrimary := fixture.primary
+	livePrimary.AllowOverdraft = true
+	livePrimary.OverdraftLimitEnabled = true
+	livePrimary.OverdraftLimit = decimal.NewFromInt(100)
+	require.Equal(t, int64(7), livePrimary.Version)
+	encoded, err := balancecache.Encode(livePrimary, balancecache.FormatDual)
+	require.NoError(t, err)
+	require.NoError(t, client.Set(ctx, keys.Balances[livePrimary.BalanceRef].Balance, encoded, 0).Err())
+
+	provider := &integrationClientProvider{client: client}
+	adapter, err := NewAdapter(provider, guardBootstrapLimits())
+	require.NoError(t, err)
+	result, err := adapter.Execute(ctx, attempt.Execution)
+	require.NoError(t, err)
+	require.Equal(t, 1, provider.calls)
+	require.Equal(t, []string{core.RolePrimary, core.RoleOverdraftCompanion}, retryCompositionMovementRoles(result.Movements))
+	assertRetryCompositionFinal(t, result, "0", "20", 8, "20", 4)
+	assertRetryCompositionPersistedBalances(t, ctx, client, keys, "0", "20", 8, "20", 4)
+	assertRetryCompositionSchedule(t, ctx, client, keys, true)
+
+	rows, err := command.ProjectBalanceEngineOperations(attempt.Payload, *result)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	require.Equal(t, []string{constant.DEBIT, constant.OVERDRAFT}, []string{rows[0].Type, rows[1].Type})
+	require.Equal(t, []string{"10", "20"}, []string{rows[0].Amount.Value.String(), rows[1].Amount.Value.String()})
+	assertRetryCompositionStoredOutcome(t, ctx, client, keys,
+		command.BalanceEngineRetryResult{Attempt: attempt, Result: result}, rows)
+}
+
 type retryCompositionFixture struct {
 	organizationID uuid.UUID
 	ledgerID       uuid.UUID
@@ -176,6 +232,18 @@ type retryCompositionFixture struct {
 	transaction    mtransaction.Transaction
 	validation     *mtransaction.Responses
 	date           time.Time
+}
+
+func retryCompositionSnapshot(t *testing.T, snapshots []core.BalanceSnapshot, balanceRef string) core.BalanceSnapshot {
+	t.Helper()
+	for _, snapshot := range snapshots {
+		if snapshot.BalanceRef == balanceRef {
+			return snapshot
+		}
+	}
+	t.Fatalf("missing snapshot %q", balanceRef)
+
+	return core.BalanceSnapshot{}
 }
 
 func newRetryCompositionFixture(t *testing.T, scenarioIndex int, seedAvailable int64) retryCompositionFixture {
