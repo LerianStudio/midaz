@@ -15,7 +15,7 @@ transaction execution; existing writers have not all migrated to the dual codec.
 Reader compatibility in code does not establish deployment to every consumer.
 The adapter accepts concrete `*redis.Client` connections;
 standalone execution is verified. Sentinel also supplies that concrete type,
-but its cloned-client failover and lifecycle behavior remains unverified.
+but failover and resolver lifecycle behavior remain unverified.
 Configured Cluster connections are rejected before accounting is sent.
 
 No activation, request-limit defaults, or receipt/guard retention policy is
@@ -342,22 +342,21 @@ Preserve execution identity, original intent, dates, row identities, resolved
 fees, tracer reservation, and HTTP idempotency work. Do not restart the whole
 transaction workflow. Context cancellation stops additional attempts.
 
-The adapter uses a dedicated client with automatic retries disabled
-(`MaxRetries=-1`), without changing the shared client's settings. `EVALSHA` to
+Accounting `EVALSHA`/`EVAL` and repair calls use a command wrapper with
+`NoRetry=true`, without changing the shared client's settings. `EVALSHA` to
 `EVAL` fallback occurs only after confirmed NOSCRIPT, never after timeout or
 connection loss. Standalone lost-response integration tests verify a single
 application; explicit replay uses the same execution receipt.
 
 The service selects Sentinel when `REDIS_MASTER_NAME` is set, Cluster when
 `REDIS_HOST` contains multiple addresses without a master name, and standalone
-otherwise. Sentinel returns an accepted `*redis.Client`; cloning its options
-preserves the master-resolving dialer, but failover invalidation remains bound to
-the original client's pools. Clone failover and resolver lifecycle require real
-failover tests before activation. Cluster returns `*redis.ClusterClient` and is
-currently rejected: implementing and verifying its transport guarantees is an
-activation blocker for that supported deployment topology. Ring is not selected
-by the current service configuration. Standalone verification is not permission
-to restrict deployed topology during activation.
+otherwise. Sentinel returns an accepted `*redis.Client`; failover invalidation
+and resolver lifecycle require real failover tests before activation. Cluster
+returns `*redis.ClusterClient` and is currently rejected: implementing and
+verifying its transport guarantees is an activation blocker for that supported
+deployment topology. Ring is not selected by the current service configuration.
+Standalone verification is not permission to restrict deployed topology during
+activation.
 
 Structured refusals use exact `MIDAZ_ENGINE_V1 ` framing followed by
 validated JSON. Accept at most one known Redis `ERR ` framing prefix before the
