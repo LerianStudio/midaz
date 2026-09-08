@@ -7,6 +7,7 @@
 package redis
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_NormalizesExistingDualLimit(t
 	op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
 	op.Balance.Available = decimal.NewFromInt(120)
 	op.Balance.OnHold = decimal.NewFromInt(11)
-	op.Balance.Version = 7
+	op.Balance.Version = 9007199254740993
 	*op.Balance.Settings.OverdraftLimit = decimal.NewFromInt(10).String()
 	seedLimitNormalizationCache(t, infra, op, "1000")
 
@@ -42,10 +43,30 @@ func TestIntegration_ProcessBalanceAtomicOperation_NormalizesExistingDualLimit(t
 	raw, err := client.Get(ctx, op.InternalKey).Result()
 	require.NoError(t, err)
 	raw = strings.Replace(raw, `"OverdraftLimit":"1000"`, `"OverdraftLimit":"010.00"`, 1)
-	raw = strings.TrimSuffix(raw, "}") + `,"SchemaVersion":2,"overdraftLimit":"99","UnknownNumber":9007199254740993}`
+	raw = strings.TrimSuffix(raw, "}") + `,"overdraftLimit":"99","UnknownExtension":{"owner":"observed","number":9007199254740993}}`
 	require.NoError(t, client.Set(ctx, op.InternalKey, raw, time.Minute).Err())
 	expires, err := client.Do(ctx, "PEXPIRETIME", op.InternalKey).Int64()
 	require.NoError(t, err)
+
+	hook := &limitNormalizationCASHook{
+		key: op.InternalKey,
+		onAttempt: func(ctx context.Context, observed string, attempt int) error {
+			if attempt != 1 {
+				return nil
+			}
+
+			concurrent := strings.Replace(
+				observed,
+				`"UnknownExtension":{"owner":"observed","number":9007199254740993}`,
+				`"UnknownExtension":{"owner":"concurrent","number":9007199254740993}`,
+				1,
+			)
+			_, err := client.Eval(ctx, `return redis.call('SET', KEYS[1], ARGV[1], 'KEEPTTL')`, []string{op.InternalKey}, concurrent).Result()
+
+			return err
+		},
+	}
+	newLimitNormalizationHookedClient(t, infra, hook)
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(
 		ctx, orgID, ledgerID, transactionID, "ACTIVE", false,
@@ -55,14 +76,38 @@ func TestIntegration_ProcessBalanceAtomicOperation_NormalizesExistingDualLimit(t
 	require.NotNil(t, result)
 	require.Empty(t, result.Before)
 	require.Empty(t, result.After)
+	require.Equal(t, 2, hook.attempts, "the rejected CAS must trigger a fresh read and repair")
 
-	stored, err := client.Get(ctx, op.InternalKey).Result()
-	require.NoError(t, err)
-	require.Equal(
-		t,
-		strings.Replace(strings.Replace(raw, `"OverdraftLimit":"010.00"`, `"OverdraftLimit":"10"`, 1), `"overdraftLimit":"99"`, `"overdraftLimit":"10"`, 1),
-		stored,
-	)
+	stored := readLimitNormalizationCache(t, infra, op.InternalKey)
+	require.Equal(t, `{"owner":"concurrent","number":9007199254740993}`, string(stored["UnknownExtension"]))
+	require.Equal(t, `9007199254740993`, string(stored["Version"]))
+	require.Equal(t, `"9007199254740993"`, string(stored["version"]))
+	require.JSONEq(t, `"10"`, string(stored["OverdraftLimit"]))
+	require.JSONEq(t, `"10"`, string(stored["overdraftLimit"]))
+	require.JSONEq(t, `2`, string(stored["SchemaVersion"]))
+
+	for _, pair := range [][2]string{
+		{"ID", "id"},
+		{"AccountID", "accountId"},
+		{"Alias", "alias"},
+		{"Available", "available"},
+		{"OnHold", "onHold"},
+		{"OverdraftUsed", "overdraftUsed"},
+		{"Version", "version"},
+		{"AccountType", "accountType"},
+		{"AssetCode", "assetCode"},
+		{"Key", "key"},
+		{"AllowSending", "allowSending"},
+		{"AllowReceiving", "allowReceiving"},
+		{"Direction", "direction"},
+		{"AllowOverdraft", "allowOverdraft"},
+		{"OverdraftLimitEnabled", "overdraftLimitEnabled"},
+		{"OverdraftLimit", "overdraftLimit"},
+		{"BalanceScope", "balanceScope"},
+	} {
+		require.Contains(t, stored, pair[0])
+		require.Contains(t, stored, pair[1])
+	}
 	actualExpires, err := client.Do(ctx, "PEXPIRETIME", op.InternalKey).Int64()
 	require.NoError(t, err)
 	require.Equal(t, expires, actualExpires)

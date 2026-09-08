@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,6 +26,103 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 )
+
+type fixedLimitNormalizationRedisProvider struct {
+	client redisclient.UniversalClient
+}
+
+func (p fixedLimitNormalizationRedisProvider) GetClient(context.Context) (redisclient.UniversalClient, error) {
+	return p.client, nil
+}
+
+type limitNormalizationCASHook struct {
+	mu        sync.Mutex
+	seen      map[string]bool
+	attempts  int
+	key       string
+	onAttempt func(context.Context, string, int) error
+}
+
+func (h *limitNormalizationCASHook) DialHook(next redisclient.DialHook) redisclient.DialHook {
+	return next
+}
+
+func (h *limitNormalizationCASHook) ProcessHook(next redisclient.ProcessHook) redisclient.ProcessHook {
+	return func(ctx context.Context, cmd redisclient.Cmder) error {
+		args := cmd.Args()
+		if !isLimitNormalizationCASCommand(cmd.Name(), args, h.key) {
+			return next(ctx, cmd)
+		}
+
+		observed, ok := args[4].(string)
+		if !ok {
+			return next(ctx, cmd)
+		}
+
+		h.mu.Lock()
+		if h.seen[observed] {
+			h.mu.Unlock()
+			return next(ctx, cmd)
+		}
+		h.seen[observed] = true
+		h.attempts++
+		attempt := h.attempts
+		h.mu.Unlock()
+
+		if err := h.onAttempt(ctx, observed, attempt); err != nil {
+			return err
+		}
+
+		return next(ctx, cmd)
+	}
+}
+
+func (h *limitNormalizationCASHook) ProcessPipelineHook(next redisclient.ProcessPipelineHook) redisclient.ProcessPipelineHook {
+	return next
+}
+
+func isLimitNormalizationCASCommand(name string, args []any, key string) bool {
+	if len(args) < 6 {
+		return false
+	}
+	commandKey, ok := args[3].(string)
+	if !ok || commandKey != key {
+		return false
+	}
+
+	switch strings.ToLower(name) {
+	case "evalsha":
+		hash, ok := args[1].(string)
+		return ok && hash == normalizeBalanceLimitScript.Hash()
+	case "eval":
+		script, ok := args[1].(string)
+		return ok && script == normalizeBalanceLimitLua
+	default:
+		return false
+	}
+}
+
+func newLimitNormalizationHookedClient(
+	t *testing.T,
+	infra *integrationTestInfra,
+	hook *limitNormalizationCASHook,
+) *redisclient.Client {
+	t.Helper()
+	if hook.seen == nil {
+		hook.seen = make(map[string]bool)
+	}
+
+	client := redisclient.NewClient(infra.redisContainer.Client.Options())
+	require.NoError(t, normalizeBalanceLimitScript.Load(t.Context(), client).Err())
+	client.AddHook(hook)
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+	})
+
+	infra.repo.conn = fixedLimitNormalizationRedisProvider{client: client}
+
+	return client
+}
 
 func newLimitNormalizationOperation(orgID, ledgerID uuid.UUID, alias string, amount int64) mmodel.BalanceOperation {
 	op := redistestutil.CreateBalanceOperationWithAvailable(orgID, ledgerID, alias, "USD", constant.DEBIT,
@@ -176,6 +274,58 @@ func TestIntegration_OverdraftLimitNormalization_RepairsWholeBatch(t *testing.T)
 		require.JSONEq(t, `"1000"`, string(cached["OverdraftUsed"]))
 		require.JSONEq(t, `8`, string(cached["Version"]))
 	}
+}
+
+func TestIntegration_OverdraftLimitNormalization_ContinuousCASConflictsExhaustRepairPasses(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	orgID, ledgerID := uuid.New(), uuid.New()
+	op := newLimitNormalizationOperation(orgID, ledgerID, "@continuous-limit-conflict", 0)
+	raw := seedLimitNormalizationCache(t, infra, op, "1E+3")
+	raw = strings.TrimSuffix(raw, "}") + `,"UnknownConflict":"0"}`
+	client := infra.redisContainer.Client
+	require.NoError(t, client.Set(t.Context(), op.InternalKey, raw, time.Minute).Err())
+	expires, err := client.Do(t.Context(), "PEXPIRETIME", op.InternalKey).Int64()
+	require.NoError(t, err)
+
+	hook := &limitNormalizationCASHook{
+		key: op.InternalKey,
+		onAttempt: func(ctx context.Context, observed string, attempt int) error {
+			concurrent := strings.Replace(
+				observed,
+				fmt.Sprintf(`"UnknownConflict":"%d"`, attempt-1),
+				fmt.Sprintf(`"UnknownConflict":"%d"`, attempt),
+				1,
+			)
+			_, err := client.Eval(ctx, `return redis.call('SET', KEYS[1], ARGV[1], 'KEEPTTL')`, []string{op.InternalKey}, concurrent).Result()
+
+			return err
+		},
+	}
+	newLimitNormalizationHookedClient(t, infra, hook)
+
+	result, err := infra.repo.ProcessBalanceAtomicOperation(
+		t.Context(), orgID, ledgerID, uuid.New(), "ACTIVE", false, []mmodel.BalanceOperation{op},
+	)
+	require.Nil(t, result)
+	require.EqualError(t, err, "balance limit normalization did not converge after 3 passes")
+	require.Equal(t, 3, hook.attempts)
+
+	stored := readLimitNormalizationCache(t, infra, op.InternalKey)
+	require.JSONEq(t, `"120"`, string(stored["Available"]))
+	require.JSONEq(t, `"11"`, string(stored["OnHold"]))
+	require.JSONEq(t, `"0"`, string(stored["OverdraftUsed"]))
+	require.JSONEq(t, `7`, string(stored["Version"]))
+	require.JSONEq(t, `"1E+3"`, string(stored["OverdraftLimit"]))
+	require.JSONEq(t, `"3"`, string(stored["UnknownConflict"]))
+	require.NotContains(t, stored, "overdraftLimit")
+	require.NotContains(t, stored, "SchemaVersion")
+	actualExpires, err := client.Do(t.Context(), "PEXPIRETIME", op.InternalKey).Int64()
+	require.NoError(t, err)
+	require.Equal(t, expires, actualExpires)
 }
 
 func TestIntegration_OverdraftLimitNormalization_InvalidBatchIsReadOnly(t *testing.T) {

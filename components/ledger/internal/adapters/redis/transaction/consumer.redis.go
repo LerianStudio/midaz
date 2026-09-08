@@ -1103,7 +1103,7 @@ func (rr *RedisConsumerRepository) runBalanceAtomicScript(ctx context.Context, r
 			return nil, fmt.Errorf("balance limit normalization did not converge after %d passes", maxBalanceLimitRepairPasses)
 		}
 
-		if err := repairBalanceLimits(ctx, rds, repairKeys); err != nil {
+		if err := repairBalanceLimits(ctx, rds, repairKeys, finalArgs); err != nil {
 			return nil, err
 		}
 	}
@@ -1161,11 +1161,29 @@ func decodeBalanceLimitRepairKeys(err error, args []any) ([]string, bool, error)
 	return keys, true, nil
 }
 
-func repairBalanceLimits(ctx context.Context, rds redis.UniversalClient, keys []string) error {
+func repairBalanceLimits(ctx context.Context, rds redis.UniversalClient, keys []string, args []any) error {
 	type preparedRepair struct {
-		key       string
-		original  string
-		canonical string
+		key         string
+		original    string
+		replacement string
+	}
+
+	if len(args)%luaArgsPerOperation != 0 {
+		return errors.New("invalid balance operation arguments during limit normalization")
+	}
+
+	aliases := make(map[string]string, len(args)/luaArgsPerOperation)
+	for i := 0; i < len(args); i += luaArgsPerOperation {
+		key, keyOK := args[i].(string)
+		alias, aliasOK := args[i+5].(string)
+
+		if !keyOK || !aliasOK {
+			return errors.New("invalid balance identity arguments during limit normalization")
+		}
+
+		if _, exists := aliases[key]; !exists {
+			aliases[key] = alias
+		}
 	}
 
 	// Validate every observed value before repairing any of them. A malformed
@@ -1185,49 +1203,33 @@ func repairBalanceLimits(ctx context.Context, rds redis.UniversalClient, keys []
 			return fmt.Errorf("read balance limit for normalization: %w", err)
 		}
 
-		var cached map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(raw), &cached); err != nil || cached == nil {
-			return errors.New("invalid cached balance JSON during limit normalization")
-		}
-
-		encoded, exists := cached["OverdraftLimit"]
-		if !exists {
-			continue
-		}
-
-		var original string
-		if err := json.Unmarshal(encoded, &original); err != nil || bytes.Equal(bytes.TrimSpace(encoded), []byte("null")) {
-			return errors.New("invalid cached balance limit type")
-		}
-
-		limit, err := decimal.NewFromString(original)
+		replacement, err := balancecache.NormalizeLimitDual([]byte(raw), aliases[key])
 		if err != nil {
-			return fmt.Errorf("parse cached balance limit: %w", err)
+			return fmt.Errorf("prepare cached balance limit normalization: %w", err)
 		}
 
-		canonical := limit.String()
-		if canonical == original {
+		if bytes.Equal(replacement, []byte(raw)) {
 			continue
 		}
 
-		repairs = append(repairs, preparedRepair{key: key, original: original, canonical: canonical})
+		repairs = append(repairs, preparedRepair{key: key, original: raw, replacement: string(replacement)})
 	}
 
-	// Each write remains conditional on the observed value. Concurrent settings
-	// updates may win independently; these field-only repairs are not a batch commit.
+	// Each replacement requires the entire observed blob to remain unchanged.
+	// Writes are conditional per key, not an atomic batch commit.
 	for _, repair := range repairs {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 
-		status, err := normalizeBalanceLimitScript.Run(ctx, rds, []string{repair.key}, repair.original, repair.canonical).Int64()
+		status, err := normalizeBalanceLimitScript.Run(ctx, rds, []string{repair.key}, repair.original, repair.replacement).Int64()
 		if err != nil {
 			return fmt.Errorf("normalize cached balance limit: %w", err)
 		}
 
 		switch status {
 		case 0, 1, 2:
-			// Missing keys are not created. A concurrent settings change is
+			// Missing keys are not created. Any concurrent blob change is
 			// re-read only if the next whole-batch preflight requests repair.
 		default:
 			return fmt.Errorf("unexpected balance limit normalization status: %d", status)

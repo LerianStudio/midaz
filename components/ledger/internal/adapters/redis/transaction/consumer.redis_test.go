@@ -133,13 +133,14 @@ func (c *limitRepairClient) EvalSha(ctx context.Context, sha string, keys []stri
 
 func (c *limitRepairClient) Get(ctx context.Context, key string) *redis.StringCmd {
 	cmd := redis.NewStringCmd(ctx)
-	cmd.SetVal(`{"OverdraftLimit":"1e3"}`)
+	cmd.SetVal(`{"ID":"11111111-1111-4111-8111-111111111111","AccountID":"22222222-2222-4222-8222-222222222222","AccountType":"deposit","AssetCode":"USD","Available":"100","OnHold":"0","Version":7,"AllowSending":1,"AllowReceiving":1,"OverdraftLimit":"1e3"}`)
 	return cmd
 }
 
 func TestBalanceLimitRepairWholeBatchBound(t *testing.T) {
 	args := make([]any, 2*luaArgsPerOperation)
 	args[0], args[luaArgsPerOperation] = "balance:a", "balance:b"
+	args[5], args[luaArgsPerOperation+5] = "@a", "@b"
 	for _, tc := range []struct {
 		name                                     string
 		requests, expectedAtomic, expectedRepair int

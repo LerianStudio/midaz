@@ -9,9 +9,10 @@ package redis
 import (
 	"context"
 	_ "embed"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +20,7 @@ import (
 //go:embed scripts/normalize_balance_limit.lua
 var balanceLimitNormalizationTestLua string
 
-func TestIntegration_BalanceLimitNormalization_PreservesUnrelatedBytesAndTTL(t *testing.T) {
+func TestIntegration_BalanceLimitNormalization_WholeBlobCAS(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -27,79 +28,46 @@ func TestIntegration_BalanceLimitNormalization_PreservesUnrelatedBytesAndTTL(t *
 	infra := setupRedisIntegrationInfra(t)
 	client := infra.redisContainer.Client
 	ctx := context.Background()
-	key := "{transactions}:normalization:preserve"
-	raw := `{"Available":"120","OnHold":"37.00","OverdraftUsed":"0.3","OverdraftLimit":"1e+2","Version":9007199254740993,"AllowOverdraft":true,"AccountType":"liability","Direction":"debit","Unknown":{"OverdraftLimit":"8e+1","empty":[],"numbers":[-0,1e9999,1.00,0.001,-1e-9999,1E+3],"text":"escaped \\\" OverdraftLimit"},"Optional":null}`
+	key := "{transactions}:normalization:whole-blob-cas"
+	observed := `{"ID":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","Alias":"@whole-blob","Key":"default","Available":"120","OnHold":"37.00","OverdraftUsed":"0.3","Version":9007199254740993,"AccountType":"liability","AssetCode":"USD","AllowSending":1,"AllowReceiving":1,"Direction":"debit","AllowOverdraft":1,"OverdraftLimitEnabled":1,"OverdraftLimit":"1e+2","BalanceScope":"transactional","Unknown":{"numbers":[-0,1e9999,1.00]}}`
+	replacementBytes, err := balancecache.NormalizeLimitDual([]byte(observed), "@whole-blob")
+	require.NoError(t, err)
+	replacement := string(replacementBytes)
 
-	for _, expiration := range []time.Duration{time.Minute, 0} {
-		t.Run(expiration.String(), func(t *testing.T) {
-			require.NoError(t, client.Set(ctx, key, raw, expiration).Err())
-			before, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
-			require.NoError(t, err)
+	t.Run("matching observation stores validated replacement and preserves absolute expiry", func(t *testing.T) {
+		require.NoError(t, client.Set(ctx, key, observed, time.Minute).Err())
+		before, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
+		require.NoError(t, err)
 
-			status, err := client.Eval(ctx, balanceLimitNormalizationTestLua, []string{key}, "1e+2", "100").Int64()
-			require.NoError(t, err)
-			require.EqualValues(t, 1, status)
+		status, err := client.Eval(ctx, balanceLimitNormalizationTestLua, []string{key}, observed, replacement).Int64()
+		require.NoError(t, err)
+		require.EqualValues(t, 1, status)
 
-			stored, err := client.Get(ctx, key).Result()
-			require.NoError(t, err)
-			require.Equal(t, strings.Replace(raw, `"OverdraftLimit":"1e+2"`, `"OverdraftLimit":"100"`, 1), stored)
-			after, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
-			require.NoError(t, err)
-			require.Equal(t, before, after, "the original absolute expiry must not change")
-		})
-	}
-}
+		stored, err := client.Get(ctx, key).Result()
+		require.NoError(t, err)
+		require.Equal(t, replacement, stored)
+		after, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
+		require.NoError(t, err)
+		require.Equal(t, before, after, "the original absolute expiry must not change")
+	})
 
-func TestIntegration_BalanceLimitNormalization_SynchronizesExistingLowerShadow(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
+	t.Run("exact no-op preserves canonical bytes and expiry", func(t *testing.T) {
+		canonical := replacement
+		require.NoError(t, client.Set(ctx, key, canonical, time.Minute).Err())
+		before, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
+		require.NoError(t, err)
 
-	infra := setupRedisIntegrationInfra(t)
-	client := infra.redisContainer.Client
-	ctx := context.Background()
-	key := "{transactions}:normalization:dual-shadow"
-	tests := []struct {
-		name     string
-		raw      string
-		expected string
-	}{
-		{
-			name:     "lower field before upper field",
-			raw:      `{"overdraftLimit":"99","Available":"120.00","OverdraftLimit":"010.00","Extension":{"overdraftLimit":"nested"}}`,
-			expected: `{"overdraftLimit":"10","Available":"120.00","OverdraftLimit":"10","Extension":{"overdraftLimit":"nested"}}`,
-		},
-		{
-			name:     "escaped lower key ignores nested and string decoys",
-			raw:      `{"OverdraftLimit":"010.00","Note":"\"overdraftLimit\":false","Nested":{"overdraftLimit":"nested"},"overdraft\u004cimit":{"stale":true}}`,
-			expected: `{"OverdraftLimit":"10","Note":"\"overdraftLimit\":false","Nested":{"overdraftLimit":"nested"},"overdraft\u004cimit":"10"}`,
-		},
-		{name: "boolean lower value", raw: `{"OverdraftLimit":"010.00","overdraftLimit":false}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10"}`},
-		{name: "number lower value", raw: `{"OverdraftLimit":"010.00","overdraftLimit":99.00}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10"}`},
-		{name: "null lower value", raw: `{"OverdraftLimit":"010.00","overdraftLimit":null}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10"}`},
-		{name: "array lower value", raw: `{"OverdraftLimit":"010.00","overdraftLimit":[99,{"keep":"nested"}]}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10"}`},
-		{name: "object lower value", raw: `{"OverdraftLimit":"010.00","overdraftLimit":{"value":99}}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10"}`},
-		{name: "escaped quote and backslash in lower string", raw: `{"OverdraftLimit":"010.00","overdraftLimit":"stale\"quote\\tail","Available":"1"}`, expected: `{"OverdraftLimit":"10","overdraftLimit":"10","Available":"1"}`},
-		{name: "missing lower field stays missing", raw: `{"OverdraftLimit":"010.00","Available":"120"}`, expected: `{"OverdraftLimit":"10","Available":"120"}`},
-	}
+		status, err := client.Eval(ctx, balanceLimitNormalizationTestLua, []string{key}, canonical, canonical).Int64()
+		require.NoError(t, err)
+		require.EqualValues(t, 1, status)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, client.Set(ctx, key, tt.raw, time.Minute).Err())
-			expires, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
-			require.NoError(t, err)
-
-			status, err := client.Eval(ctx, balanceLimitNormalizationTestLua, []string{key}, "010.00", "10").Int64()
-			require.NoError(t, err)
-			require.EqualValues(t, 1, status)
-			stored, err := client.Get(ctx, key).Result()
-			require.NoError(t, err)
-			require.Equal(t, tt.expected, stored)
-			actualExpires, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
-			require.NoError(t, err)
-			require.Equal(t, expires, actualExpires)
-		})
-	}
+		stored, err := client.Get(ctx, key).Result()
+		require.NoError(t, err)
+		require.Equal(t, canonical, stored)
+		after, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
+		require.NoError(t, err)
+		require.Equal(t, before, after)
+	})
 }
 
 func TestIntegration_BalanceLimitNormalization_ConditionalUpdate(t *testing.T) {
@@ -111,10 +79,12 @@ func TestIntegration_BalanceLimitNormalization_ConditionalUpdate(t *testing.T) {
 	client := infra.redisContainer.Client
 	ctx := context.Background()
 	key := "{transactions}:normalization:conditional"
+	observed := `{"Available":"120","Version":42,"OverdraftLimit":"1e+2","Unknown":"observed"}`
+	replacement := `{"Available":"120","Version":42,"OverdraftLimit":"100","Unknown":"observed"}`
 
 	t.Run("missing cache does not create a balance", func(t *testing.T) {
 		require.NoError(t, client.Del(ctx, key).Err())
-		status, err := client.Eval(ctx, balanceLimitNormalizationTestLua, []string{key}, "1e+2", "100").Int64()
+		status, err := client.Eval(ctx, balanceLimitNormalizationTestLua, []string{key}, observed, replacement).Int64()
 		require.NoError(t, err)
 		require.Zero(t, status)
 		exists, err := client.Exists(ctx, key).Result()
@@ -122,105 +92,20 @@ func TestIntegration_BalanceLimitNormalization_ConditionalUpdate(t *testing.T) {
 		require.Zero(t, exists)
 	})
 
-	t.Run("concurrent settings update wins", func(t *testing.T) {
-		raw := `{"Available":"120","Version":42,"OverdraftLimit":"250","overdraftLimit":"250","AllowOverdraft":false}`
-		require.NoError(t, client.Set(ctx, key, raw, time.Minute).Err())
+	t.Run("any concurrent blob change wins", func(t *testing.T) {
+		concurrent := `{"Available":"120","Version":9007199254740993,"OverdraftLimit":"1e+2","Unknown":"concurrent"}`
+		require.NoError(t, client.Set(ctx, key, concurrent, time.Minute).Err())
 		expires, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
 		require.NoError(t, err)
 
-		status, err := client.Eval(ctx, balanceLimitNormalizationTestLua, []string{key}, "1e+2", "100").Int64()
+		status, err := client.Eval(ctx, balanceLimitNormalizationTestLua, []string{key}, observed, replacement).Int64()
 		require.NoError(t, err)
 		require.EqualValues(t, 2, status)
 		stored, err := client.Get(ctx, key).Result()
 		require.NoError(t, err)
-		require.Equal(t, raw, stored)
+		require.Equal(t, concurrent, stored)
 		actualExpires, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
 		require.NoError(t, err)
 		require.Equal(t, expires, actualExpires)
 	})
-}
-
-func TestIntegration_BalanceLimitNormalization_RejectsInvalidInputWithoutMutation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
-	infra := setupRedisIntegrationInfra(t)
-	client := infra.redisContainer.Client
-	ctx := context.Background()
-	key := "{transactions}:normalization:invalid"
-	tests := []struct {
-		name        string
-		raw         string
-		replacement string
-	}{
-		{name: "malformed JSON", raw: `{"OverdraftLimit":`, replacement: "100"},
-		{name: "NaN extension", raw: `{"OverdraftLimit":"1e+2","Extension":NaN}`, replacement: "100"},
-		{name: "infinity extension", raw: `{"OverdraftLimit":"1e+2","Extension":Infinity}`, replacement: "100"},
-		{name: "hexadecimal extension", raw: `{"OverdraftLimit":"1e+2","Extension":0x10}`, replacement: "100"},
-		{name: "leading zero extension", raw: `{"OverdraftLimit":"1e+2","Extension":01}`, replacement: "100"},
-		{name: "raw control character", raw: "{\"OverdraftLimit\":\"1e+2\",\"Extension\":\"line\nbreak\"}", replacement: "100"},
-		{name: "array", raw: `[{"OverdraftLimit":"1e+2"}]`, replacement: "100"},
-		{name: "null", raw: `null`, replacement: "100"},
-		{name: "scalar", raw: `"1e+2"`, replacement: "100"},
-		{name: "missing field", raw: `{"Available":"120"}`, replacement: "100"},
-		{name: "number field", raw: `{"OverdraftLimit":100}`, replacement: "100"},
-		{name: "null field", raw: `{"OverdraftLimit":null}`, replacement: "100"},
-		{name: "boolean field", raw: `{"OverdraftLimit":true}`, replacement: "100"},
-		{name: "array field", raw: `{"OverdraftLimit":[]}`, replacement: "100"},
-		{name: "object field", raw: `{"OverdraftLimit":{}}`, replacement: "100"},
-		{name: "duplicate field", raw: `{"OverdraftLimit":"1e+2","OverdraftLimit":"1e+2"}`, replacement: "100"},
-		{name: "escaped duplicate", raw: `{"OverdraftLimit":"1e+2","Overdraft\u004cimit":"1e+2"}`, replacement: "100"},
-		{name: "duplicate with different type", raw: `{"OverdraftLimit":false,"OverdraftLimit":"1e+2"}`, replacement: "100"},
-		{name: "duplicate lower field", raw: `{"OverdraftLimit":"1e+2","overdraftLimit":"99","overdraftLimit":"98"}`, replacement: "100"},
-		{name: "escaped duplicate lower field", raw: `{"OverdraftLimit":"1e+2","overdraftLimit":"99","overdraft\u004cimit":"98"}`, replacement: "100"},
-	}
-	for _, replacement := range []string{"", "+100", "1e2", "01", ".1", "1.", "1.0", "0.10", "-0", "--1", "NaN", "Infinity", " 1", "1 ", "1\n", "1.2.3"} {
-		tests = append(tests, struct {
-			name        string
-			raw         string
-			replacement string
-		}{name: "replacement " + replacement, raw: `{"OverdraftLimit":"1e+2"}`, replacement: replacement})
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.NoError(t, client.Set(ctx, key, tt.raw, time.Minute).Err())
-			expires, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
-			require.NoError(t, err)
-
-			err = client.Eval(ctx, balanceLimitNormalizationTestLua, []string{key}, "1e+2", tt.replacement).Err()
-			require.EqualError(t, err, "ERR BALANCE_LIMIT_INVALID")
-			stored, err := client.Get(ctx, key).Result()
-			require.NoError(t, err)
-			require.Equal(t, tt.raw, stored)
-			actualExpires, err := client.Do(ctx, "PEXPIRETIME", key).Int64()
-			require.NoError(t, err)
-			require.Equal(t, expires, actualExpires)
-		})
-	}
-}
-
-func TestIntegration_BalanceLimitNormalization_DecimalAndJSONTokenBoundaries(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
-	infra := setupRedisIntegrationInfra(t)
-	client := infra.redisContainer.Client
-	ctx := context.Background()
-	key := "{transactions}:normalization:tokens"
-	for _, canonical := range []string{"0", "100", "0.01", "-100", "-0.01", "999999999999999999999999999999999999.123456789"} {
-		t.Run(canonical, func(t *testing.T) {
-			raw := ` { "Nested" : [ {"OverdraftLimit":"nested"} ], "Overdraft\u004cimit" : "1\u0065+2", "tail":"brace } bracket ] quote \" slash \\" } `
-			require.NoError(t, client.Set(ctx, key, raw, 0).Err())
-
-			status, err := client.Eval(ctx, balanceLimitNormalizationTestLua, []string{key}, "1e+2", canonical).Int64()
-			require.NoError(t, err)
-			require.EqualValues(t, 1, status)
-			stored, err := client.Get(ctx, key).Result()
-			require.NoError(t, err)
-			require.Equal(t, strings.Replace(raw, `"1\u0065+2"`, `"`+canonical+`"`, 1), stored)
-		})
-	}
 }
