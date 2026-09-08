@@ -595,9 +595,171 @@ type balanceAtomicOperationPlan struct {
 //   - A single-element result may arrive as a bare object instead of a 1-element array.
 //
 // The implementation uses json.RawMessage to keep each element's raw bytes and
-// unmarshal directly into BalanceRedis, avoiding the double marshal/unmarshal
-// round-trip of parsing into any and re-serializing.
+// routes it through the shared balance-cache decoder. That decoder understands
+// legacy, dual, and new-only fields without case-insensitive struct matching
+// conflating their intentionally different representations.
 type balanceRedisList []mmodel.BalanceRedis
+
+func balanceResponseString(fields map[string]json.RawMessage, uppercase, lowerCamel string) (string, bool, error) {
+	raw, exists := fields[uppercase]
+	if !exists {
+		raw, exists = fields[lowerCamel]
+	}
+
+	if !exists {
+		return "", false, nil
+	}
+
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return "", false, fmt.Errorf("invalid balance response field %s: %w", uppercase, err)
+	}
+
+	return value, true, nil
+}
+
+func qualifiedBalanceReadKeyAllowed(fields map[string]json.RawMessage) bool {
+	_, hasLegacyKey := fields["Key"]
+	_, hasSchemaVersion := fields["SchemaVersion"]
+
+	return hasLegacyKey || !hasSchemaVersion
+}
+
+func normalizeQualifiedBalanceReadKey(raw []byte) (decodeRaw []byte, originalAlias, originalKey string, qualified bool, err error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, "", "", false, fmt.Errorf("decode cached balance object: %w", err)
+	}
+
+	if fields == nil {
+		return nil, "", "", false, errors.New("cached balance entry must be an object")
+	}
+
+	originalKey, hasKey, err := balanceResponseString(fields, "Key", "key")
+	if err != nil {
+		return nil, "", "", false, err
+	}
+
+	originalAlias, hasAlias, err := balanceResponseString(fields, "Alias", "alias")
+	if err != nil {
+		return nil, "", "", false, err
+	}
+
+	keyParts := strings.Split(originalKey, "#")
+	if !hasKey || len(keyParts) == 1 {
+		return raw, originalAlias, originalKey, false, nil
+	}
+
+	if len(keyParts) != 2 || keyParts[0] == "" || keyParts[1] == "" {
+		return nil, "", "", false, errors.New("invalid qualified cached balance key")
+	}
+
+	if !qualifiedBalanceReadKeyAllowed(fields) {
+		return nil, "", "", false, errors.New("qualified key is not permitted in new-only cached balance")
+	}
+
+	if hasAlias && originalAlias != keyParts[0] && originalAlias != originalKey {
+		return nil, "", "", false, errors.New("cached balance alias does not match qualified key")
+	}
+
+	domainKey, err := json.Marshal(keyParts[1])
+	if err != nil {
+		return nil, "", "", false, fmt.Errorf("encode cached balance domain key: %w", err)
+	}
+
+	if _, exists := fields["Key"]; exists {
+		fields["Key"] = domainKey
+	}
+
+	if _, exists := fields["key"]; exists {
+		fields["key"] = domainKey
+	}
+
+	decodeRaw, err = json.Marshal(fields)
+	if err != nil {
+		return nil, "", "", false, fmt.Errorf("encode normalized cached balance: %w", err)
+	}
+
+	return decodeRaw, originalAlias, originalKey, true, nil
+}
+
+func decodeBalanceRedisResponseEntry(raw json.RawMessage) (mmodel.BalanceRedis, error) {
+	balance, err := decodeBalanceRedisForRead(raw)
+	if err != nil {
+		return mmodel.BalanceRedis{}, fmt.Errorf("decode balance response entry: %w", err)
+	}
+
+	return *balance, nil
+}
+
+func decodeBalanceResponseArray(trimmed []byte) (balanceRedisList, error) {
+	var items []json.RawMessage
+	if err := json.Unmarshal(trimmed, &items); err != nil {
+		return nil, fmt.Errorf("decode balance response array: %w", err)
+	}
+
+	result := make(balanceRedisList, 0, len(items))
+	for i, raw := range items {
+		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			continue
+		}
+
+		balance, err := decodeBalanceRedisResponseEntry(raw)
+		if err != nil {
+			return nil, fmt.Errorf("decode balance response array item %d: %w", i, err)
+		}
+
+		result = append(result, balance)
+	}
+
+	return result, nil
+}
+
+func decodeBalanceResponseObject(trimmed []byte) (balanceRedisList, error) {
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &object); err != nil {
+		return nil, fmt.Errorf("decode balance response object: %w", err)
+	}
+
+	if len(object) == 0 {
+		return nil, nil
+	}
+
+	numericWrapper := true
+
+	for key := range object {
+		index, err := strconv.ParseUint(key, 10, 64)
+		if err != nil || index == 0 {
+			numericWrapper = false
+			break
+		}
+	}
+
+	if !numericWrapper {
+		single, err := decodeBalanceRedisResponseEntry(trimmed)
+		if err != nil {
+			return nil, fmt.Errorf("decode single balance response: %w", err)
+		}
+
+		return balanceRedisList{single}, nil
+	}
+
+	result := make(balanceRedisList, 0, len(object))
+	for key, raw := range object {
+		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			continue
+		}
+
+		balance, err := decodeBalanceRedisResponseEntry(raw)
+		if err != nil {
+			return nil, fmt.Errorf("decode balance response wrapper item %s: %w", key, err)
+		}
+
+		result = append(result, balance)
+	}
+
+	return result, nil
+}
 
 func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
 	trimmed := bytes.TrimSpace(data)
@@ -607,130 +769,32 @@ func (l *balanceRedisList) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	// Fast path: standard JSON array — try direct unmarshal first.
-	if trimmed[0] == '[' {
-		var items []json.RawMessage
-		if err := json.Unmarshal(trimmed, &items); err != nil {
-			return err
-		}
+	var err error
 
-		result := make([]mmodel.BalanceRedis, 0, len(items))
-
-		for _, raw := range items {
-			if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-				continue
-			}
-
-			var b mmodel.BalanceRedis
-			if err := json.Unmarshal(raw, &b); err != nil {
-				continue
-			}
-
-			result = append(result, b)
-		}
-
-		*l = result
-
-		return nil
+	switch trimmed[0] {
+	case '[':
+		*l, err = decodeBalanceResponseArray(trimmed)
+	case '{':
+		*l, err = decodeBalanceResponseObject(trimmed)
+	default:
+		return fmt.Errorf("balanceRedisList: unexpected JSON token %q", trimmed[0])
 	}
 
-	// Slow path: cjson returned an object instead of an array.
-	// Empty object {} means empty array — return early.
-	if trimmed[0] == '{' {
-		if bytes.Equal(trimmed, []byte("{}")) {
-			*l = nil
-			return nil
-		}
-
-		// Try as a single BalanceRedis object.
-		var single mmodel.BalanceRedis
-		if err := json.Unmarshal(trimmed, &single); err == nil && single.ID != "" {
-			*l = balanceRedisList{single}
-			return nil
-		}
-
-		// Fallback: object with numeric keys wrapping nested balance objects.
-		// cjson may encode a Lua array-table as {"1":{...},"2":{...}}.
-		var nested map[string]json.RawMessage
-		if err := json.Unmarshal(trimmed, &nested); err != nil {
-			return err
-		}
-
-		result := make([]mmodel.BalanceRedis, 0, len(nested))
-
-		for _, raw := range nested {
-			if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-				continue
-			}
-
-			var b mmodel.BalanceRedis
-			if err := json.Unmarshal(raw, &b); err != nil {
-				continue
-			}
-
-			result = append(result, b)
-		}
-
-		*l = result
-
-		return nil
-	}
-
-	return fmt.Errorf("balanceRedisList: unexpected JSON token %q", trimmed[0])
+	return err
 }
 
 // UnmarshalJSON handles cjson's empty-array-as-object encoding quirk.
 // When no balance changes occurred, cjson may return {"before":{},"after":{}} instead
 // of {"before":[],"after":[]}. This method normalizes both forms.
 func (r *balanceAtomicResponse) UnmarshalJSON(data []byte) error {
-	// Try standard unmarshal first (works when cjson returns proper arrays)
 	type Alias balanceAtomicResponse
 
 	var alias Alias
-	if err := json.Unmarshal(data, &alias); err == nil {
-		*r = balanceAtomicResponse(alias)
-		return nil
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return fmt.Errorf("decode balance atomic response: %w", err)
 	}
 
-	// Fallback: handle cjson empty-object-as-array quirk
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-
-	unmarshalField := func(field json.RawMessage) ([]mmodel.BalanceRedis, error) {
-		trimmed := string(field)
-		if trimmed == "{}" {
-			return []mmodel.BalanceRedis{}, nil
-		}
-
-		var result []mmodel.BalanceRedis
-		if err := json.Unmarshal(field, &result); err != nil {
-			return nil, err
-		}
-
-		return result, nil
-	}
-
-	var err error
-
-	if replayedData, ok := raw["replayed"]; ok {
-		if err = json.Unmarshal(replayedData, &r.Replayed); err != nil {
-			return fmt.Errorf("unmarshal replayed: %w", err)
-		}
-	}
-
-	if beforeData, ok := raw["before"]; ok {
-		if r.Before, err = unmarshalField(beforeData); err != nil {
-			return fmt.Errorf("unmarshal before: %w", err)
-		}
-	}
-
-	if afterData, ok := raw["after"]; ok {
-		if r.After, err = unmarshalField(afterData); err != nil {
-			return fmt.Errorf("unmarshal after: %w", err)
-		}
-	}
+	*r = balanceAtomicResponse(alias)
 
 	return nil
 }
@@ -2021,12 +2085,17 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 }
 
 func decodeBalanceRedisForRead(raw []byte) (*mmodel.BalanceRedis, error) {
-	snapshot, err := balancecache.DecodeForRead(raw)
+	decodeRaw, originalAlias, originalKey, qualifiedKey, err := normalizeQualifiedBalanceReadKey(raw)
 	if err != nil {
 		return nil, err
 	}
 
-	return &mmodel.BalanceRedis{
+	snapshot, err := balancecache.DecodeForRead(decodeRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	balance := &mmodel.BalanceRedis{
 		ID:                    snapshot.ID.String(),
 		Alias:                 snapshot.Alias,
 		Key:                   snapshot.Key,
@@ -2045,7 +2114,16 @@ func decodeBalanceRedisForRead(raw []byte) (*mmodel.BalanceRedis, error) {
 		OverdraftUsed:         snapshot.OverdraftUsed.String(),
 		OverdraftLimit:        snapshot.OverdraftLimit.String(),
 		BalanceScope:          snapshot.BalanceScope,
-	}, nil
+	}
+	if qualifiedKey {
+		balance.Key = originalKey
+	}
+
+	if originalAlias != "" {
+		balance.Alias = originalAlias
+	}
+
+	return balance, nil
 }
 
 func boolToRedisFlag(value bool) int {
@@ -2061,6 +2139,11 @@ func boolToRedisFlag(value bool) int {
 // the same policy prevents configuration edits from changing cache lifecycle
 // semantics relative to ordinary transaction mutations.
 const balanceCacheSettingsTTL = cachepolicy.BalanceTTL
+
+// maxBalanceSettingsCASAttempts bounds retries caused by confirmed concurrent
+// cache mutations. Redis transport errors are returned immediately because an
+// EVAL error may be commit-ambiguous and the client controls transport retries.
+const maxBalanceSettingsCASAttempts = 3
 
 // resolveBalanceSettingsArgs normalizes a settings payload into the four
 // primitive values scripts/update_balance_settings.lua assigns verbatim onto
@@ -2094,28 +2177,16 @@ func resolveBalanceSettingsArgs(settings *mmodel.BalanceSettings) (allowOverdraf
 	return boolToInt(settings.AllowOverdraft), boolToInt(settings.OverdraftLimitEnabled), overdraftLimit, balanceScope, nil
 }
 
-// UpdateBalanceCacheSettings applies a settings-only PATCH to a cached
-// balance JSON blob in a single atomic Lua EVAL, preserving the live
-// transactional state (Available, OnHold, Version, OverdraftUsed) that the
-// balance atomic script may have mutated but not yet flushed to PostgreSQL.
-//
-// The mutation runs inside scripts/update_balance_settings.lua rather than
-// in Go: Redis serializes EVAL execution, so this write and any concurrent
-// balance_atomic_operation.lua debit/credit on the same key can never
-// interleave. The script decodes the cached blob, overwrites only the
-// settings-derived fields (dropping any legacy camelCase alias a pre-fix
-// writer left behind), and re-encodes it in one server-side step, using the
-// same cjson.decode/cjson.encode round trip the atomic script already
-// performs on every transaction.
+// UpdateBalanceCacheSettings applies a settings-only PATCH to a cached balance
+// while preserving exact live monetary and version state. Go prepares a
+// precision-safe dual-format replacement and Lua commits it only if the cache
+// bytes still match the observation used to prepare it.
 //
 // Flow:
-//  1. Resolve the settings payload into the four primitive ARGV values
-//     (resolveBalanceSettingsArgs).
-//  2. EVAL the script against the tenant-prefixed internal key.
-//  3. Result 1 commits; 0 is a cache miss (key absent) and a no-op — the
-//     next transaction's SETNX will load the just-persisted settings from
-//     PostgreSQL; -2 means the cached value was not valid JSON, a technical
-//     error.
+//  1. Resolve the settings payload and GET the current blob.
+//  2. Convert legacy, dual, or new-only fields through balancecache.
+//  3. EVAL an exact-byte CAS. A confirmed mismatch is retried from a fresh GET
+//     up to maxBalanceSettingsCASAttempts total observations.
 //
 // Errors are surfaced to the caller so the command layer can decide whether to
 // log (best-effort) or escalate; this method does not swallow them internally.
@@ -2154,41 +2225,76 @@ func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Contex
 	}
 
 	ttlSeconds := strconv.FormatInt(int64(balanceCacheSettingsTTL/time.Second), 10)
-
-	result, err := updateBalanceSettingsScript.Run(ctx, rds, []string{prefixedKey},
-		allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope, ttlSeconds).Result()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to run settings update script on redis", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to run settings update script on Redis", libLog.Err(err))
-
-		return err
+	patch := balancecache.SettingsPatch{
+		AllowOverdraft:        allowOverdraft == 1,
+		OverdraftLimitEnabled: overdraftLimitEnabled == 1,
+		OverdraftLimit:        overdraftLimit,
+		BalanceScope:          balanceScope,
 	}
 
-	scriptResult, ok := result.(int64)
-	if !ok {
-		castErr := fmt.Errorf("unexpected result type from settings update script: %T", result)
-		libOpentelemetry.HandleSpanError(span, "Unexpected result type from settings update script", castErr)
-		logger.Log(ctx, libLog.LevelError, "Unexpected result type from settings update script", libLog.Err(castErr))
+	for attempt := 0; attempt < maxBalanceSettingsCASAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 
-		return castErr
+		observed, err := rds.Get(ctx, prefixedKey).Bytes()
+		if errors.Is(err, redis.Nil) {
+			logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
+			return nil
+		}
+
+		if err != nil {
+			return fmt.Errorf("read balance cache for settings update: %w", err)
+		}
+
+		replacement, err := balancecache.PatchSettingsDual(observed, patch)
+		if err != nil {
+			invalidJSONErr := fmt.Errorf("invalid cached balance JSON: %w", err)
+			libOpentelemetry.HandleSpanError(span, "Cached balance is not valid JSON", invalidJSONErr)
+			logger.Log(ctx, libLog.LevelError, "Cached balance is not valid JSON", libLog.Err(invalidJSONErr))
+
+			return invalidJSONErr
+		}
+
+		replacement, _, _, _, err = normalizeQualifiedBalanceReadKey(replacement)
+		if err != nil {
+			invalidKeyErr := fmt.Errorf("normalize cached balance key for settings update: %w", err)
+			libOpentelemetry.HandleSpanError(span, "Cached balance key is invalid", invalidKeyErr)
+			logger.Log(ctx, libLog.LevelError, "Cached balance key is invalid", libLog.Err(invalidKeyErr))
+
+			return invalidKeyErr
+		}
+
+		scriptResult, err := updateBalanceSettingsScript.Run(ctx, rds, []string{prefixedKey},
+			observed, replacement, ttlSeconds).Int64()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to run settings update script on redis", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to run settings update script on Redis", libLog.Err(err))
+
+			return fmt.Errorf("update balance cache settings: %w", err)
+		}
+
+		switch scriptResult {
+		case 1:
+			logger.Log(ctx, libLog.LevelDebug, "Balance cache settings updated in place")
+			return nil
+		case 0:
+			logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
+			return nil
+		case 2:
+			continue
+		default:
+			unexpectedErr := fmt.Errorf("unexpected update balance settings result: %d", scriptResult)
+			libOpentelemetry.HandleSpanError(span, "Unexpected settings update script result", unexpectedErr)
+
+			return unexpectedErr
+		}
 	}
 
-	switch scriptResult {
-	case 1:
-		logger.Log(ctx, libLog.LevelDebug, "Balance cache settings updated in place")
+	conflictErr := fmt.Errorf("balance cache settings update conflicted after %d attempts", maxBalanceSettingsCASAttempts)
+	libOpentelemetry.HandleSpanError(span, "Balance cache settings update conflict", conflictErr)
 
-		return nil
-	case 0:
-		logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
-
-		return nil
-	default:
-		corruptErr := fmt.Errorf("corrupt cached balance: settings update script returned %d", scriptResult)
-		libOpentelemetry.HandleSpanError(span, "Corrupt cached balance blob on settings update", corruptErr)
-		logger.Log(ctx, libLog.LevelError, "Corrupt cached balance blob on settings update", libLog.Err(corruptErr))
-
-		return corruptErr
-	}
+	return conflictErr
 }
 
 // UpdateBalanceCacheBlocked applies the account-level Blocked flag to every

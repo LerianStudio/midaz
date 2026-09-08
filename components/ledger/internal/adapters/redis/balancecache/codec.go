@@ -40,6 +40,16 @@ const (
 	FormatNewOnly
 )
 
+// SettingsPatch contains the settings values that a cache PATCH writer owns.
+// Callers resolve domain defaults before constructing this value; the codec is
+// responsible only for applying it to the wire representation.
+type SettingsPatch struct {
+	AllowOverdraft        bool
+	OverdraftLimitEnabled bool
+	OverdraftLimit        string
+	BalanceScope          string
+}
+
 // NoncanonicalLimitError requires an explicit conditional repair of a live limit.
 // Decode never returns a usable snapshot alongside this error.
 type NoncanonicalLimitError struct {
@@ -239,6 +249,219 @@ func isJSONNumber(raw json.RawMessage) bool {
 	}
 
 	return raw[0] == '-' || raw[0] >= '0' && raw[0] <= '9'
+}
+
+func authoritativeField(fields map[string]json.RawMessage, name string) (json.RawMessage, bool, bool) {
+	if raw, exists := fields[name]; exists {
+		return raw, true, true
+	}
+
+	raw, exists := fields[lowerName(name)]
+
+	return raw, exists, false
+}
+
+func dualTextField(name string, raw json.RawMessage) (json.RawMessage, json.RawMessage, error) {
+	var value string
+	if len(raw) == 0 || raw[0] != '"' || json.Unmarshal(raw, &value) != nil {
+		return nil, nil, fmt.Errorf("invalid cached balance field %s", name)
+	}
+
+	return raw, raw, nil
+}
+
+func dualFlagField(name string, raw json.RawMessage, numeric bool) (json.RawMessage, json.RawMessage, error) {
+	var enabled bool
+
+	if numeric {
+		switch string(raw) {
+		case "0":
+			enabled = false
+		case "1":
+			enabled = true
+		default:
+			return nil, nil, fmt.Errorf("invalid cached balance field %s", name)
+		}
+	} else {
+		switch string(raw) {
+		case "false":
+			enabled = false
+		case "true":
+			enabled = true
+		default:
+			return nil, nil, fmt.Errorf("invalid cached balance field %s", name)
+		}
+	}
+
+	legacy := json.RawMessage("0")
+	modern := json.RawMessage("false")
+
+	if enabled {
+		legacy = json.RawMessage("1")
+		modern = json.RawMessage("true")
+	}
+
+	return legacy, modern, nil
+}
+
+func dualMoneyField(name string, raw json.RawMessage, legacyRepresentation bool) (json.RawMessage, json.RawMessage, error) {
+	value, validRepresentation := moneyText(raw, legacyRepresentation)
+	if !validRepresentation {
+		return nil, nil, fmt.Errorf("invalid cached balance field %s", name)
+	}
+
+	parsed, err := decimal.NewFromString(value)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid cached balance field %s", name)
+	}
+
+	canonical := parsed.String()
+	if !legacyRepresentation && canonical != value {
+		return nil, nil, fmt.Errorf("invalid cached balance field %s", name)
+	}
+
+	modern, err := json.Marshal(canonical)
+	if err != nil {
+		return nil, nil, fmt.Errorf("encode cached balance field %s: %w", name, err)
+	}
+
+	if legacyRepresentation {
+		return raw, modern, nil
+	}
+
+	return modern, modern, nil
+}
+
+func dualVersionField(raw json.RawMessage, numeric bool) (json.RawMessage, json.RawMessage, error) {
+	text := string(raw)
+
+	if !numeric {
+		var value string
+		if len(raw) == 0 || raw[0] != '"' || json.Unmarshal(raw, &value) != nil {
+			return nil, nil, errors.New("invalid cached balance field Version")
+		}
+
+		text = value
+	}
+
+	version, err := strconv.ParseInt(text, 10, 64)
+	if err != nil || version < 0 || strconv.FormatInt(version, 10) != text {
+		return nil, nil, errors.New("invalid cached balance field Version")
+	}
+
+	legacy := json.RawMessage(strconv.FormatInt(version, 10))
+
+	modern, err := json.Marshal(strconv.FormatInt(version, 10))
+	if err != nil {
+		return nil, nil, fmt.Errorf("encode cached balance field Version: %w", err)
+	}
+
+	return legacy, modern, nil
+}
+
+func encodeSettingsPatch(patch SettingsPatch) (map[string][2]json.RawMessage, error) {
+	limit, err := decimal.NewFromString(patch.OverdraftLimit)
+	if err != nil || limit.String() != patch.OverdraftLimit {
+		return nil, errors.New("invalid balance settings overdraft limit")
+	}
+
+	limitJSON, err := json.Marshal(patch.OverdraftLimit)
+	if err != nil {
+		return nil, fmt.Errorf("encode balance settings overdraft limit: %w", err)
+	}
+
+	scopeJSON, err := json.Marshal(patch.BalanceScope)
+	if err != nil {
+		return nil, fmt.Errorf("encode balance settings scope: %w", err)
+	}
+
+	allowLegacy, allowModern, _ := dualFlagField("AllowOverdraft", json.RawMessage(strconv.FormatBool(patch.AllowOverdraft)), false)
+	limitEnabledLegacy, limitEnabledModern, _ := dualFlagField("OverdraftLimitEnabled", json.RawMessage(strconv.FormatBool(patch.OverdraftLimitEnabled)), false)
+
+	return map[string][2]json.RawMessage{
+		"AllowOverdraft":        {allowLegacy, allowModern},
+		"OverdraftLimitEnabled": {limitEnabledLegacy, limitEnabledModern},
+		"OverdraftLimit":        {limitJSON, limitJSON},
+		"BalanceScope":          {scopeJSON, scopeJSON},
+	}, nil
+}
+
+// PatchSettingsDual converts a legacy, dual, or new-only cache object to the
+// dual representation while changing only settings semantics. Uppercase fields
+// are authoritative whenever present. Unknown fields and raw legacy monetary
+// representations are retained so PATCH cannot round live state or erase
+// extensions.
+//
+// This conversion intentionally does not call Decode or validateSnapshot. Old
+// entries may omit Alias or use legacy monetary representations. Partial cache
+// objects are tolerated by dualizing only the known fields that are present;
+// all four settings fields are always emitted from patch.
+func PatchSettingsDual(raw []byte, patch SettingsPatch) ([]byte, error) {
+	fields, err := decodeObject(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	settings, err := encodeSettingsPatch(patch)
+	if err != nil {
+		return nil, err
+	}
+
+	// Pre-schema lower-camel DTOs used the same numeric flag/version and
+	// permissive money representations as uppercase legacy cache entries.
+	legacyLowerShape := fields["SchemaVersion"] == nil
+
+	for _, name := range fieldNames {
+		source, exists, uppercase := authoritativeField(fields, name)
+		delete(fields, name)
+		delete(fields, lowerName(name))
+
+		if setting, patched := settings[name]; patched {
+			fields[name] = setting[0]
+			fields[lowerName(name)] = setting[1]
+
+			continue
+		}
+
+		if !exists {
+			continue
+		}
+
+		legacyRepresentation := uppercase || legacyLowerShape
+
+		var legacy, modern json.RawMessage
+
+		switch name {
+		case "AllowSending", "AllowReceiving":
+			legacy, modern, err = dualFlagField(name, source, legacyRepresentation)
+		case "Available", "OnHold", "OverdraftUsed":
+			legacy, modern, err = dualMoneyField(name, source, legacyRepresentation)
+		case "Version":
+			legacy, modern, err = dualVersionField(source, legacyRepresentation)
+		default:
+			legacy, modern, err = dualTextField(name, source)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		fields[name] = legacy
+		fields[lowerName(name)] = modern
+	}
+
+	delete(fields, "allowoverdraft")
+	delete(fields, "overdraftlimitenabled")
+	delete(fields, "overdraftlimit")
+	delete(fields, "balancescope")
+	fields["SchemaVersion"] = json.RawMessage("2")
+
+	encoded, err := json.Marshal(fields)
+	if err != nil {
+		return nil, fmt.Errorf("encode cached balance: %w", err)
+	}
+
+	return encoded, nil
 }
 
 func (r *fieldReader) version() int64 {

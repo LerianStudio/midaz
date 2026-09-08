@@ -439,20 +439,17 @@ type Balances struct {
 //
 // This is an internal model not exposed via API.
 //
-// CACHE JSON CASING CONTRACT: the Redis balance entry is a JSON string whose
-// keys are CamelCase (e.g. "Available", "Direction", "AllowOverdraft") because
-// the original writer is the Lua atomic script (cjson.encode on a table with
-// CamelCase keys) and Lua table access is case-sensitive. Every Go writer to
-// the same key MUST emit CamelCase. If a Go writer uses the default BalanceRedis
-// struct tags (which are camelCase: "available", "direction", etc.), the next
-// Lua cjson.decode will see balance.Available == nil and arithmetic helpers
-// will fail with "attempt to compare nil with number".
+// CACHE JSON CASING CONTRACT: the shared Go balance-cache codec owns lossless
+// dual encoding and decoding. CamelCase keys (e.g. "Available", "Direction",
+// "AllowOverdraft") remain the legacy representation consumed by the active
+// Lua atomic writer; lowerCamel keys are its dual representation. Do not
+// marshal BalanceRedis directly into the cache: its JSON tags are the new
+// lowerCamel representation, not the complete dual wire format.
 //
 // Settings writes use scripts/update_balance_settings.lua through
 // UpdateBalanceCacheSettings in adapters/redis/transaction/consumer.redis.go.
-// They preserve live monetary state and emit the CamelCase fields required by
-// the accounting script. Do not marshal BalanceRedis directly into the cache:
-// its JSON tags are not the cache wire format.
+// They preserve live monetary state and emit the legacy fields required by the
+// accounting script. The shared codec owns the dual wire format.
 type BalanceRedis struct {
 	// Unique identifier for the balance (UUID format)
 	ID string `json:"id"`

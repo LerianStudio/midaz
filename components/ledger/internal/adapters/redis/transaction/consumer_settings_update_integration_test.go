@@ -20,6 +20,26 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
+func decodeSettingsUpdateField[T any](t *testing.T, cached map[string]json.RawMessage, field string) T {
+	t.Helper()
+	var value T
+	require.NoError(t, json.Unmarshal(cached[field], &value))
+
+	return value
+}
+
+func readCachedBalanceFields(t *testing.T, infra *integrationTestInfra, key string) map[string]json.RawMessage {
+	t.Helper()
+
+	raw, err := infra.redisContainer.Client.Get(context.Background(), key).Result()
+	require.NoError(t, err, "balance cache key %q must exist", key)
+
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(raw), &fields))
+
+	return fields
+}
+
 // TestIntegration_UpdateBalanceCacheSettings_HappyPath exercises
 // UpdateBalanceCacheSettings end to end against a real Redis: the settings
 // fields land, the live transactional state the Lua script owns is
@@ -70,20 +90,22 @@ func TestIntegration_UpdateBalanceCacheSettings_HappyPath(t *testing.T) {
 
 	require.NoError(t, infra.repo.UpdateBalanceCacheSettings(ctx, orgID, ledgerID, balanceKey, newSettings))
 
-	final := readCachedBalance(t, infra, internalKey)
+	final := readLimitNormalizationCache(t, infra, internalKey)
 
 	// Settings-derived fields reflect the new payload.
-	assert.Equal(t, 1, final.AllowOverdraft)
-	assert.Equal(t, 1, final.OverdraftLimitEnabled)
-	assert.Equal(t, "1000", final.OverdraftLimit)
-	assert.Equal(t, mmodel.BalanceScopeTransactional, final.BalanceScope)
+	assert.Equal(t, 1, decodeSettingsUpdateField[int](t, final, "AllowOverdraft"))
+	assert.True(t, decodeSettingsUpdateField[bool](t, final, "allowOverdraft"))
+	assert.Equal(t, 1, decodeSettingsUpdateField[int](t, final, "OverdraftLimitEnabled"))
+	assert.True(t, decodeSettingsUpdateField[bool](t, final, "overdraftLimitEnabled"))
+	assert.Equal(t, "1000", decodeSettingsUpdateField[string](t, final, "OverdraftLimit"))
+	assert.Equal(t, mmodel.BalanceScopeTransactional, decodeSettingsUpdateField[string](t, final, "BalanceScope"))
 
 	// Live transactional state is preserved verbatim.
-	assert.Equal(t, "7777", final.Available)
-	assert.Equal(t, "123", final.OnHold)
-	assert.Equal(t, int64(42), final.Version)
-	assert.Equal(t, "250.50", final.OverdraftUsed)
-	assert.Equal(t, seeded.ID, final.ID)
+	assert.Equal(t, "7777", decodeSettingsUpdateField[string](t, final, "Available"))
+	assert.Equal(t, "123", decodeSettingsUpdateField[string](t, final, "OnHold"))
+	assert.Equal(t, int64(42), decodeSettingsUpdateField[int64](t, final, "Version"))
+	assert.Equal(t, "250.50", decodeSettingsUpdateField[string](t, final, "OverdraftUsed"))
+	assert.Equal(t, seeded.ID, decodeSettingsUpdateField[string](t, final, "ID"))
 
 	ttl, err := infra.redisContainer.Client.TTL(ctx, internalKey).Result()
 	require.NoError(t, err)

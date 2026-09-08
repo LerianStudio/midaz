@@ -21,10 +21,10 @@ func TestBalanceAtomicResponse_UnmarshalJSON_SingleObjectAfter(t *testing.T) {
 
 	payload := []byte(`{
 		"before": [{
-			"id": "before-id",
+			"id": "11111111-1111-4111-8111-111111111111",
 			"alias": "@before",
 			"key": "default",
-			"accountId": "acc-before",
+			"accountId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
 			"assetCode": "USD",
 			"available": "100.00",
 			"onHold": "0",
@@ -34,10 +34,10 @@ func TestBalanceAtomicResponse_UnmarshalJSON_SingleObjectAfter(t *testing.T) {
 			"allowReceiving": 1
 		}],
 		"after": {
-			"id": "after-id",
+			"id": "22222222-2222-4222-8222-222222222222",
 			"alias": "@after",
 			"key": "default",
-			"accountId": "acc-after",
+			"accountId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
 			"assetCode": "USD",
 			"available": "90.00",
 			"onHold": "10.00",

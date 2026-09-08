@@ -1119,3 +1119,27 @@ func TestParseSyncKeysFromLuaResult_ByteSliceElements(t *testing.T) {
 	assert.Equal(t, "key1", out[0].Key)
 	assert.Equal(t, float64(500), out[0].Score)
 }
+
+func TestDecodeBalanceRedisForReadRejectsQualifiedNewOnlyKey(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"SchemaVersion":2,
+		"id":"11111111-1111-4111-8111-111111111111",
+		"accountId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+		"accountType":"deposit",
+		"assetCode":"USD",
+		"alias":"@source",
+		"key":"@source#default",
+		"available":"100",
+		"onHold":"0",
+		"version":"1",
+		"allowSending":true,
+		"allowReceiving":true
+	}`)
+
+	_, err := decodeBalanceRedisForRead(raw)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "qualified key is not permitted in new-only cached balance")
+}

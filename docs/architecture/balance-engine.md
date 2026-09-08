@@ -236,6 +236,14 @@ the legacy fields while preserving stale lowerCamel fields, so selecting fields
 by schema version would read stale money. Readers must also accept new-only
 blobs; a dual writer reading one reconstructs both representations coherently.
 
+Settings PATCH now uses the shared Go codec for lossless dual conversion, while
+Lua performs the exact-raw-byte CAS. Uppercase fields remain authoritative when
+present. Go emits canonical new money, booleans, and Version strings while
+preserving the exact legacy Version raw token and unknown extensions. The
+operation observes at most three attempts: only a confirmed CAS conflict is
+retryable, a missing cache key is a no-op, and a successful settings write
+refreshes the unchanged 24-hour balance TTL.
+
 The writer inventory includes cold seeds, accounting mutations, settings PATCH,
 conditional limit repair, and any recovery rehydration. Settings writers change
 only settings, preserving live money and Version. Cache-aside readers still need
@@ -522,6 +530,15 @@ batch reader preserves all 17 `BalanceRedis` fields; `ListBalanceByKey` keeps
 its existing limited domain projection. Cache keys remain scoped to
 organization and ledger, and alias/key identity is verified.
 
+Parser integration accepts Lua responses encoded as arrays, single objects,
+empty objects, or numeric-indexed objects through the shared codec. It preserves
+original legacy alias/key correlation; invalid entries become technical errors
+and are not silently discarded after a possible commit. For canonical decode
+and PATCH replacement, the adapter normalizes legacy-qualified `alias#domainKey`
+values in a copy, preserving response correlation without arbitrary Redis or
+organization-prefix stripping. PATCH writes domain-only keys after conversion
+and does not change financial or version semantics.
+
 For `GetBalancesByKeys`, a Redis `MGET` nil means only that the key is absent.
 A present malformed, undecodable, or unexpected-typed value is a whole-batch
 read error. `SyncBalancesBatch` therefore retains all claimed work for retry;
@@ -532,7 +549,7 @@ without float conversion. Schema-version-2 new-only blobs retain strict
 canonical-string decoding and existing validation rules.
 
 Current legacy cache writers, the atomic Lua parser, and repair path remain
-active and unchanged; they are not migrated by this change. The new engine
+active and legacy; they are not migrated by this change. The new engine
 writer remains inactive. Other consumers,
 converters, and writers are not activated by reader compatibility alone.
 
