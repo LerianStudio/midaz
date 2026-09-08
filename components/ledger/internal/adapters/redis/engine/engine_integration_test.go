@@ -430,6 +430,57 @@ func TestIntegrationEngineAtomicRefusals(t *testing.T) {
 	}
 }
 
+func TestIntegrationEngineRejectsInvalidRecoveryPayloadWithoutWrites(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+	container := redistestutil.SetupReusableContainer(t)
+	for _, tt := range []struct {
+		name    string
+		payload string
+	}{
+		{name: "malformed_json", payload: "{"},
+		{name: "scalar_json", payload: "7"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newIntegrationFixture(t, container.Client)
+			f.addCompanion("0")
+			for i := range f.input.Request.Balances {
+				f.seed(t, i, f.input.Request.Balances[i])
+			}
+			ctx := context.Background()
+			require.NoError(t, container.Client.ZAdd(
+				ctx, f.resolved.Schedule,
+				redis.Z{Score: 17, Member: f.resolved.Balances["@source#default"].Balance},
+				redis.Z{Score: 23, Member: f.resolved.Balances["@source#overdraft"].Balance},
+			).Err())
+			for _, key := range []string{f.resolved.Recovery, f.resolved.Receipts, f.resolved.Guards} {
+				require.NoError(t, container.Client.HSet(ctx, key, "unrelated", "preserve").Err())
+			}
+			for _, key := range []string{
+				f.resolved.Schedule, f.resolved.Recovery, f.resolved.Receipts, f.resolved.Guards,
+				f.resolved.Balances["@source#default"].Balance,
+				f.resolved.Balances["@source#overdraft"].Balance,
+			} {
+				require.True(t, container.Client.Expire(ctx, key, 45*time.Minute).Val())
+			}
+
+			raw := string(f.prepared(t).Payload)
+			valid, err := json.Marshal(string(f.input.Recovery[0].Payload))
+			require.NoError(t, err)
+			invalid, err := json.Marshal(tt.payload)
+			require.NoError(t, err)
+			mutated := strings.Replace(raw, `"recoveryPayload":`+string(valid), `"recoveryPayload":`+string(invalid), 1)
+			require.NotEqual(t, raw, mutated)
+
+			before := f.capture(t)
+			_, err = f.runRaw(t, mutated)
+			require.ErrorContains(t, err, "MIDAZ_ENGINE_TECH_V1 ")
+			require.Equal(t, before, f.capture(t), "invalid recovery must preserve every value and absolute expiration")
+		})
+	}
+}
+
 func TestIntegrationEngineReplayAndInt64(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
@@ -723,6 +774,94 @@ func TestIntegrationEngineMultipleTransactions(t *testing.T) {
 		require.Equal(t, wantAvailable, envelope.Result.Final[0].Available.String())
 		require.Equal(t, int64(i+1), envelope.Result.Final[0].Version)
 	}
+}
+
+func TestIntegrationEngineThirdTransactionRefusalPreservesAllState(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+	container := redistestutil.SetupReusableContainer(t)
+	f := newIntegrationFixture(t, container.Client)
+	f.addCompanion("0")
+	f.input.Request.Transactions[0].Postings[0].Amount = decimal.NewFromInt(30)
+	originalPostingRef := f.input.Request.Transactions[0].Postings[0].Ref
+	originalDrawPolicy := f.input.Request.Transactions[0].Postings[0].DrawPolicy
+	for i, id := range []string{"1935edb9-c953-4f87-bea4-c98f57dff8b4", "770c910c-6539-471d-9e3c-e8f6346b3d76"} {
+		transaction := f.input.Request.Transactions[0]
+		transaction.Postings = append([]engine.Posting(nil), transaction.Postings...)
+		transaction.ID = uuid.MustParse(id)
+		transaction.Postings[0].Ref = "posting-" + strconv.Itoa(i+2)
+		if i == 1 {
+			transaction.Postings[0].Amount = decimal.NewFromInt(50)
+			transaction.Postings[0].DrawPolicy = engine.DrawForbidden
+		}
+		f.input.Request.Transactions = append(f.input.Request.Transactions, transaction)
+		f.input.Guards = append(f.input.Guards, command.ExecutionGuard{TransactionID: transaction.ID, NextToken: "committed"})
+		f.input.Recovery = append(f.input.Recovery, command.RecoveryIntent{TransactionID: transaction.ID, Payload: json.RawMessage(`{"opaque":true}`)})
+	}
+	require.Equal(t, originalPostingRef, f.input.Request.Transactions[0].Postings[0].Ref)
+	require.Equal(t, "posting-2", f.input.Request.Transactions[1].Postings[0].Ref)
+	require.Equal(t, "posting-3", f.input.Request.Transactions[2].Postings[0].Ref)
+	require.True(t, f.input.Request.Transactions[0].Postings[0].Amount.Equal(decimal.NewFromInt(30)))
+	require.True(t, f.input.Request.Transactions[1].Postings[0].Amount.Equal(decimal.NewFromInt(30)))
+	require.True(t, f.input.Request.Transactions[2].Postings[0].Amount.Equal(decimal.NewFromInt(50)))
+	require.Equal(t, originalDrawPolicy, f.input.Request.Transactions[0].Postings[0].DrawPolicy)
+	require.Equal(t, originalDrawPolicy, f.input.Request.Transactions[1].Postings[0].DrawPolicy)
+	require.Equal(t, engine.DrawForbidden, f.input.Request.Transactions[2].Postings[0].DrawPolicy)
+	for i := range f.input.Request.Balances {
+		f.seed(t, i, f.input.Request.Balances[i])
+	}
+	ctx := context.Background()
+	require.NoError(t, container.Client.ZAdd(
+		ctx, f.resolved.Schedule,
+		redis.Z{Score: 17, Member: f.resolved.Balances["@source#default"].Balance},
+		redis.Z{Score: 23, Member: f.resolved.Balances["@source#overdraft"].Balance},
+	).Err())
+	for _, key := range []string{f.resolved.Recovery, f.resolved.Receipts, f.resolved.Guards} {
+		require.NoError(t, container.Client.HSet(ctx, key, "unrelated", "preserve").Err())
+	}
+	for _, key := range []string{
+		f.resolved.Schedule, f.resolved.Recovery, f.resolved.Receipts, f.resolved.Guards,
+		f.resolved.Balances["@source#default"].Balance,
+		f.resolved.Balances["@source#overdraft"].Balance,
+	} {
+		require.True(t, container.Client.Expire(ctx, key, 45*time.Minute).Val())
+	}
+
+	before := f.capture(t)
+	_, err := f.run(t)
+	require.ErrorContains(t, err, `"code":"insufficient_funds"`)
+	require.ErrorContains(t, err, `"transactionIndex":2`)
+	require.Equal(t, before, f.capture(t), "third-transaction refusal must preserve every value and absolute expiration")
+}
+
+func TestIntegrationEngineScheduleOverwritesOnlyChangedBalances(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+	container := redistestutil.SetupReusableContainer(t)
+	f := newIntegrationFixture(t, container.Client)
+	f.addCompanion("0")
+	for i := range f.input.Request.Balances {
+		f.seed(t, i, f.input.Request.Balances[i])
+	}
+	changed := f.resolved.Balances["@source#default"].Balance
+	untouched := f.resolved.Balances["@source#overdraft"].Balance
+	ctx := context.Background()
+	require.NoError(t, container.Client.ZAdd(
+		ctx, f.resolved.Schedule,
+		redis.Z{Score: 17, Member: changed},
+		redis.Z{Score: 23, Member: untouched},
+	).Err())
+
+	_, err := f.run(t)
+	require.NoError(t, err)
+	changedScore, err := container.Client.ZScore(ctx, f.resolved.Schedule, changed).Result()
+	require.NoError(t, err)
+	untouchedScore, err := container.Client.ZScore(ctx, f.resolved.Schedule, untouched).Result()
+	require.NoError(t, err)
+	require.NotEqual(t, float64(17), changedScore, "changed balance must receive the current schedule score")
+	require.Equal(t, float64(23), untouchedScore, "untouched balance must retain its existing schedule score")
 }
 
 func TestIntegrationEngineUnusedPoolDoesNotParticipate(t *testing.T) {
