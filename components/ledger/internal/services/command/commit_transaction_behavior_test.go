@@ -167,7 +167,7 @@ func TestPendingTransition_BalanceFailureRemovesSeedAndReleasesLock(t *testing.T
 	redisRepo.EXPECT().GetBytes(gomock.Any(), gomock.Any()).Return(nil, errors.New("cache miss")).AnyTimes()
 	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 	redisRepo.EXPECT().AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
-	redisRepo.EXPECT().ProcessBalanceAtomicOperation(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+	redisRepo.EXPECT().ProcessBalanceAtomicOperation(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, errLuaUnavailable).Times(1)
 	redisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
@@ -265,7 +265,7 @@ func newCommittingUseCase(t *testing.T, tran *transaction.Transaction) (*UseCase
 	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 	redisRepo.EXPECT().AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil, errors.New("no backup entry")).AnyTimes()
-	redisRepo.EXPECT().ProcessBalanceAtomicOperation(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+	redisRepo.EXPECT().ProcessBalanceAtomicOperation(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&mmodel.BalanceAtomicResult{}, nil).AnyTimes()
 
 	reserver := &stubReserver{}
@@ -287,4 +287,82 @@ func newCommittingUseCase(t *testing.T, tran *transaction.Transaction) (*UseCase
 	}
 
 	return uc, redisRepo, reserver
+}
+
+// TestPendingTransition_GrantMissRejectsAndReleasesLock proves the /v2 commit
+// unwinds its one compensation when the presented account-block exception cannot
+// be read: the Redis lock is released, so the pending stays committable by a
+// retry.
+//
+// The lock is taken before the grant is read, and the read sits before the atomic
+// mutation — so this branch has the lock to release and nothing else. It must also
+// stop there: the mock allows no AddMessageToQueue and no
+// ProcessBalanceAtomicOperation, so a pipeline that fell through to move balances
+// on an unauthorized commit fails here.
+func TestPendingTransition_GrantMissRejectsAndReleasesLock(t *testing.T) {
+	tran := pendingTransaction(false)
+
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+
+	redisRepo.EXPECT().GetBytes(gomock.Any(), gomock.Any()).Return(nil, errors.New("cache miss")).AnyTimes()
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
+
+	// The identifier has no live key: never minted, already consumed, or expired.
+	redisRepo.EXPECT().GetAccountBlockException(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, nil).Times(1)
+
+	// The compensation: the lock is released so a retry can run.
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	// Nothing past the grant read may happen.
+	redisRepo.EXPECT().AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	redisRepo.EXPECT().ProcessBalanceAtomicOperation(
+		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+	).Times(0)
+
+	reader := &pendingReader{pending: tran}
+	uc := &UseCase{TransactionRedisRepo: redisRepo, TransactionReader: reader}
+
+	in := pendingTransitionInputFor(tran)
+	exceptionID := uuid.New()
+	in.AccountBlockExceptionID = &exceptionID
+
+	_, err := uc.CommitTransactionV2(context.Background(), in)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), constant.ErrAccountBlockExceptionInvalid.Error(),
+		"an unreadable grant must reject with the exception code")
+}
+
+// TestPendingTransition_V1CommitNeverReadsAGrant is the version guard's runtime
+// half: the /v1 commit names the resolver nowhere, so even an input carrying an
+// identifier reads no grant. The mock registers no GetAccountBlockException
+// expectation, so any read fails the test.
+func TestPendingTransition_V1CommitNeverReadsAGrant(t *testing.T) {
+	tran := pendingTransaction(false)
+
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+
+	redisRepo.EXPECT().GetBytes(gomock.Any(), gomock.Any()).Return(nil, errors.New("cache miss")).AnyTimes()
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
+	redisRepo.EXPECT().AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	redisRepo.EXPECT().ProcessBalanceAtomicOperation(
+		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+	).Return(nil, errLuaUnavailable).Times(1)
+	redisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	reader := &pendingReader{pending: tran}
+	uc := &UseCase{TransactionRedisRepo: redisRepo, TransactionReader: reader}
+
+	in := pendingTransitionInputFor(tran)
+	exceptionID := uuid.New()
+	in.AccountBlockExceptionID = &exceptionID
+
+	_, err := uc.CommitTransactionV1(context.Background(), in)
+
+	require.ErrorIs(t, err, errLuaUnavailable,
+		"the /v1 commit must reach the balance step without ever reading a grant")
 }

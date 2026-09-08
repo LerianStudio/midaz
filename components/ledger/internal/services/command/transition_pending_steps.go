@@ -275,6 +275,12 @@ func (uc *UseCase) commitPendingBalances(ctx context.Context, span trace.Span, l
 		Validate:          run.validate,
 		BalanceOperations: run.balanceOps,
 		TransactionStatus: run.status,
+
+		// Nil unless the /v2 commit presented one. A state transition skips the Go
+		// balance-rule validation entirely, so a grant on this path is purely the
+		// script's business: it releases the account-block guard for the debited
+		// balance and is consumed in the same atomic step.
+		AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
 	})
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)

@@ -34,6 +34,12 @@ type CreateTransactionV2Input struct {
 	// submitted, with the action discriminator folded in. Empty falls back to the
 	// canonical serialized transaction.
 	IdempotencyHashSource string
+
+	// AccountBlockExceptionID is the single-use account-block exception the body
+	// presented, or nil when it presented none. The direct action accepts it; the
+	// hold rejects it at decode (a two-phase transaction would need two grants),
+	// so a pending create never reaches here carrying one.
+	AccountBlockExceptionID *uuid.UUID
 }
 
 // CreateTransactionV2 posts a transaction under the /v2 contract: the fee engine,
@@ -198,6 +204,17 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 
 	run.action = mtransaction.StatusToAction(run.status)
 
+	// Account-block exception: read the presented grant before balances are
+	// staged, so the Go pre-validation inside ProcessBalanceOperations can honor
+	// it. An identifier with no live key rejects here, before any balance moves.
+	run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(ctx, span, logger,
+		run.organizationID, run.ledgerID, in.AccountBlockExceptionID)
+	if err != nil {
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
 	ctx, err = uc.stageBalances(ctx, span, logger, run)
 	if err != nil {
 		return nil, false, err
@@ -227,6 +244,8 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 		Validate:          run.validate,
 		BalanceOperations: run.balanceOps,
 		TransactionStatus: run.status,
+
+		AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
 	})
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
