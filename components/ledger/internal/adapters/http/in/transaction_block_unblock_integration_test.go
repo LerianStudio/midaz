@@ -104,6 +104,7 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 		TransactionRepo:         transactionRepo,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
+		AccountRepo:             newAbsentAccountRepo(t),
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
 		OnboardingRedisRepo:     onboardingRedisRepo,
