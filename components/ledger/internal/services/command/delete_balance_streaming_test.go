@@ -58,8 +58,16 @@ func newDeleteBalanceStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller,
 		Return(true, nil).
 		AnyTimes()
 	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), gomock.Any()).
+		Return("", nil).
+		AnyTimes()
+	mockRedisRepo.EXPECT().
 		Del(gomock.Any(), gomock.Any()).
 		Return(nil).
+		AnyTimes()
+	mockRedisRepo.EXPECT().
+		ExpireIfValue(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
 		AnyTimes()
 
 	return &UseCase{
