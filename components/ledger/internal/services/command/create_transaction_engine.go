@@ -238,11 +238,22 @@ func (uc *UseCase) buildCreateBalanceEngineAttempt(run *createTransactionRun, fr
 			Transactions: []engine.Transaction{prepared.transaction}, Balances: prepared.pool.Snapshots,
 		},
 		IntentFingerprint: fingerprint,
+		RetentionSeconds:  idempotencyRetentionSeconds(run.idempotencyTTL),
 		Guards:            []ExecutionGuard{frozen.guard},
 		Recovery:          []RecoveryIntent{{TransactionID: run.transactionID, Payload: raw}},
 	}
 
 	return BalanceEngineAttempt{Execution: execution, Payload: payload}, nil
+}
+
+// idempotencyRetentionSeconds accepts the repository's historical seconds-count
+// convention and a real time.Duration used by internal callers and fixtures.
+func idempotencyRetentionSeconds(ttl time.Duration) int64 {
+	if ttl >= time.Second || ttl <= -time.Second {
+		return int64(ttl / time.Second)
+	}
+
+	return int64(ttl)
 }
 
 func createBalanceEngineEnvelope(result BalanceEngineRetryResult) (*BalanceEngineRecoveryEnvelope, error) {

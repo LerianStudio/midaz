@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 type balanceRecoveryFinalizer interface {
@@ -30,10 +31,25 @@ type recoveryRecordAcknowledger interface {
 	CompareAndDeleteRecovery(context.Context, string, string) (int64, error)
 }
 
+type recoveryProtectionAcknowledger interface {
+	CompareAndDeleteRecoveryWithProtection(context.Context, uuid.UUID, uuid.UUID, string, string, bool, time.Time) (int64, error)
+}
+
 // WithBalanceEngineFinalizer supplies durable SQL and metadata completion for
 // version-two records. A missing finalizer leaves those records in the queue.
 func (r *RedisQueueConsumer) WithBalanceEngineFinalizer(finalizer balanceRecoveryFinalizer) *RedisQueueConsumer {
 	r.recoveryFinalizer = finalizer
+	return r
+}
+
+// WithRecoveryClock injects the clock used to timestamp durable terminal
+// completion. Production constructors use time.Now; deterministic tests supply
+// a fixed clock. A nil clock leaves the existing clock unchanged.
+func (r *RedisQueueConsumer) WithRecoveryClock(clock func() time.Time) *RedisQueueConsumer {
+	if clock != nil {
+		r.recoveryClock = clock
+	}
+
 	return r
 }
 
@@ -172,7 +188,20 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, 
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	if err := r.recoveryFinalizer.Finalize(ctx, envelope); err != nil {
+	var finalization command.BalanceEngineFinalizationResult
+
+	var err error
+
+	finalizedWithOutcome := false
+
+	if finalizer, ok := r.recoveryFinalizer.(balanceRecoveryFinalizerWithOutcome); ok {
+		finalization, err = finalizer.FinalizeWithOutcome(ctx, envelope)
+		finalizedWithOutcome = err == nil
+	} else {
+		err = r.recoveryFinalizer.Finalize(ctx, envelope)
+	}
+
+	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			outcome = recoveryMetricOutcomeContextCanceled
 		} else {
@@ -187,7 +216,29 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, 
 		return err
 	}
 
-	status, err := acknowledger.CompareAndDeleteRecovery(ctx, field, raw)
+	var status int64
+
+	if protected, ok := r.queue.(recoveryProtectionAcknowledger); ok && finalizedWithOutcome {
+		terminal, validStatus := durableRecoveryTerminal(finalization.Outcome.TransactionStatus)
+		if !validStatus {
+			outcome = recoveryMetricOutcomeFinalizationFailed
+			return fmt.Errorf("finalize balance recovery: durable SQL reported unsupported status %q", finalization.Outcome.TransactionStatus)
+		}
+
+		if r.recoveryClock == nil {
+			outcome = recoveryMetricOutcomeNotConfigured
+			return errors.New("durable balance recovery completion clock is not configured")
+		}
+
+		completedAt := r.recoveryClock()
+
+		status, err = protected.CompareAndDeleteRecoveryWithProtection(
+			ctx, envelope.OrganizationID, envelope.LedgerID, field, raw, terminal, completedAt,
+		)
+	} else {
+		status, err = acknowledger.CompareAndDeleteRecovery(ctx, field, raw)
+	}
+
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			outcome = recoveryMetricOutcomeContextCanceled
@@ -207,5 +258,16 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, 
 	default:
 		outcome = recoveryMetricOutcomeInvalidAck
 		return errors.New("invalid conditional recovery acknowledgment result")
+	}
+}
+
+func durableRecoveryTerminal(status string) (terminal, valid bool) {
+	switch status {
+	case constant.APPROVED, constant.CANCELED:
+		return true, true
+	case constant.PENDING:
+		return false, true
+	default:
+		return false, false
 	}
 }

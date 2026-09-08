@@ -275,7 +275,7 @@ func TestAccountingError_OutcomeCertaintyAndNormalizationScope(t *testing.T) {
 		assertAdapterTechnical(t, err, code, test.uncertain)
 		require.ErrorIs(t, err, cause)
 	}
-	keys := []string{"schedule", "recovery", "receipt", "guard", "balance", "balance:deleted"}
+	keys := []string{"schedule", "recovery", "receipt", "guard", "protection", "balance", "balance:deleted"}
 	for _, test := range []struct {
 		raw, code string
 		uncertain bool

@@ -83,13 +83,13 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 	prefix := "test:" + strings.ReplaceAll(t.Name(), "/", ":") + ":"
 	replace := func(key string) string { return strings.Replace(key, "tenant:fixture:", prefix, 1) }
 	resolved.Schedule, resolved.Recovery = replace(resolved.Schedule), replace(resolved.Recovery)
-	resolved.Receipts, resolved.Guards = replace(resolved.Receipts), replace(resolved.Guards)
+	resolved.Receipts, resolved.Guards, resolved.Protection = replace(resolved.Receipts), replace(resolved.Guards), replace(resolved.Protection)
 	for ref, pair := range resolved.Balances {
 		resolved.Balances[ref] = resolvedBalanceKeys{Balance: replace(pair.Balance), Deleted: replace(pair.Deleted)}
 	}
 	fixture := &integrationFixture{input: input, limits: limits, resolved: resolved, client: client}
 	t.Cleanup(func() {
-		keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards}
+		keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection}
 		for _, pair := range fixture.resolved.Balances {
 			keys = append(keys, pair.Balance, pair.Deleted)
 		}
@@ -371,7 +371,7 @@ func TestIntegrationEngineAtomicRefusals(t *testing.T) {
 		t.Skip("requires Valkey")
 	}
 	container := redistestutil.SetupReusableContainer(t)
-	for _, kind := range []string{"late posting", "schedule type", "backup type", "guard type", "receipt type", "guard conflict", "orphan recovery", "prepared budget", "stale balance", "stale companion", "version overflow", "deleted balance"} {
+	for _, kind := range []string{"late posting", "schedule type", "backup type", "guard type", "receipt type", "protection type", "guard conflict", "orphan recovery", "prepared budget", "stale balance", "stale companion", "version overflow", "deleted balance"} {
 		t.Run(kind, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
 			f.seed(t, 0, f.input.Request.Balances[0])
@@ -394,6 +394,8 @@ func TestIntegrationEngineAtomicRefusals(t *testing.T) {
 				require.NoError(t, container.Client.Set(context.Background(), f.resolved.Guards, "wrong", time.Hour).Err())
 			case "receipt type":
 				require.NoError(t, container.Client.Set(context.Background(), f.resolved.Receipts, "wrong", time.Hour).Err())
+			case "protection type":
+				require.NoError(t, container.Client.Set(context.Background(), f.resolved.Protection, "wrong", time.Hour).Err())
 			case "guard conflict":
 				require.NoError(t, container.Client.HSet(context.Background(), f.resolved.Guards, f.input.Guards[0].TransactionID.String(), "other").Err())
 			case "orphan recovery":

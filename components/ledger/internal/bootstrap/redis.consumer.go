@@ -76,6 +76,7 @@ type RedisQueueConsumer struct {
 	tenantCache        *tenantcache.TenantCache
 	pgManager          *tmpostgres.Manager
 	recoveryFinalizer  balanceRecoveryFinalizer
+	recoveryClock      func() time.Time
 }
 
 type recoveryMongoResolver interface {
@@ -161,10 +162,11 @@ func (finalizer *tenantRecoveryFinalizer) resolveContext(ctx context.Context, en
 
 func NewRedisQueueConsumer(logger libLog.Logger, cmd *command.UseCase, qry *query.UseCase) *RedisQueueConsumer {
 	return &RedisQueueConsumer{
-		Logger:  logger,
-		Command: cmd,
-		Query:   qry,
-		queue:   cmd.TransactionRedisRepo,
+		Logger:        logger,
+		Command:       cmd,
+		Query:         qry,
+		queue:         cmd.TransactionRedisRepo,
+		recoveryClock: time.Now,
 	}
 }
 

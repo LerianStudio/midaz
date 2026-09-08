@@ -36,8 +36,13 @@ type ExecutionGuard struct {
 type EngineExecution struct {
 	Request           engine.Request
 	IntentFingerprint string
-	Guards            []ExecutionGuard
-	Recovery          []RecoveryIntent
+	// RetentionSeconds is the effective request idempotency/retry window. Zero
+	// means the HTTP default; values above the HTTP maximum are rejected.
+	// The cleanup deadline starts only after durable terminal completion, never
+	// at EVAL. Protection remains indefinite until a cleanup owner is selected.
+	RetentionSeconds int64
+	Guards           []ExecutionGuard
+	Recovery         []RecoveryIntent
 }
 
 // BalanceEngine applies balance changes and records their recovery data atomically.

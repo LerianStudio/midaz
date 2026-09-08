@@ -570,10 +570,30 @@ identities so delayed cleanup cannot erase a later transition's backup.
 
 Receipt and guard retention is not balance-cache TTL. The 30-second deletion-marker
 TTL is a separate, unchanged delete-operation guard and is not the balance-cache
-TTL either. Receipts and guards must survive pending
-finalization and, after confirmed persistence, cover the retry/idempotency window
-and terminal-state verification. The concrete retention policy must be defined
-with recovery workers before activation; absence of that policy blocks enablement.
+TTL either. Receipts and guards survive pending finalization and, after confirmed
+persistence, must cover the full retry/idempotency window measured from durable
+terminal completion.
+
+Each new receipt freezes its effective retention window (default 300 seconds,
+maximum 604,800), transaction members, and recovery fields. A separate
+tenant/scoped protection hash is an explicit key in the accounting EVAL. It
+coordinates every execution that still protects a transaction. Recovery ACK
+atomically compares the exact envelope, records that member's acknowledgement,
+and records the SQL-confirmed terminal completion time. One member of a batch
+cannot make the receipt eligible; all members must be acknowledged and terminal.
+A later commit/cancel propagates terminal proof to an earlier acknowledged
+PENDING execution, so that execution's own window starts at the transition's
+durable completion rather than at its original EVAL.
+
+The protocol currently records `cleanupAfterMs` only after those conditions hold
+and remains deliberately non-destructive. Valkey 8.1 does not provide independent
+expiry for hash fields, while receipts and guards share hashes across executions.
+Expiring either whole hash is unsafe, and deleting fields immediately after ACK
+would not preserve the retry window across a crash. A future idempotent sweeper
+or migration to individual keys must own deletion. Legacy receipts do not receive
+retroactive eligibility without equivalent proof. Until that cleanup owner is
+implemented and validated, receipt, guard, and protection fields remain without
+TTL and activation stays blocked.
 
 ### Finalization outcomes
 
@@ -634,10 +654,12 @@ guarantee, and a successful finalizer return does not prove event delivery.
 
 Only after SQL and metadata verification succeeds does the consumer request an
 atomic comparison of the exact original envelope bytes and deletion of its raw
-backup field. A matching attempt counter is cleared in that same operation.
-Missing records are already acknowledged; replacements and failed or unknown
-acknowledgments are not reported as successful deletion. Receipt and guard data
-are not deleted, and this acknowledgment assigns no retention or TTL defaults.
+backup field. A matching attempt counter is cleared in that same operation. For
+new receipts, the same atomic ACK also updates the member/completion proof and
+the eventual cleanup deadline described above. Missing records are already
+acknowledged; replacements and failed or unknown acknowledgments are not reported
+as successful deletion. The ACK itself never deletes receipt, guard, or protection
+data and never assigns a TTL.
 
 ## Compatibility changes and activation gates
 

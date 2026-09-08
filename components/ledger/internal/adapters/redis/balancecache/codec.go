@@ -432,7 +432,7 @@ func PatchSettingsDual(raw []byte, patch SettingsPatch) ([]byte, error) {
 		var legacy, modern json.RawMessage
 
 		switch name {
-		case "AllowSending", "AllowReceiving":
+		case "AllowSending", "AllowReceiving", "Blocked":
 			legacy, modern, err = dualFlagField(name, source, legacyRepresentation)
 		case "Available", "OnHold", "OverdraftUsed":
 			legacy, modern, err = dualMoneyField(name, source, legacyRepresentation)
@@ -688,7 +688,7 @@ func limitRepairDualField(
 	legacyRepresentation := uppercase || legacyLowerShape
 
 	switch name {
-	case "AllowSending", "AllowReceiving", "AllowOverdraft", "OverdraftLimitEnabled":
+	case "AllowSending", "AllowReceiving", "Blocked", "AllowOverdraft", "OverdraftLimitEnabled":
 		return dualFlagField(name, source, legacyRepresentation)
 	case "Available", "OnHold":
 		return dualMoneyField(name, source, legacyRepresentation)
@@ -764,6 +764,8 @@ func snapshotDualField(snapshot engine.BalanceSnapshot, name string) (json.RawMe
 		return dualFlagField(name, json.RawMessage(strconv.FormatBool(snapshot.AllowSending)), false)
 	case "AllowReceiving":
 		return dualFlagField(name, json.RawMessage(strconv.FormatBool(snapshot.AllowReceiving)), false)
+	case "Blocked":
+		return dualFlagField(name, json.RawMessage(strconv.FormatBool(snapshot.Blocked)), false)
 	case "AllowOverdraft":
 		return dualFlagField(name, json.RawMessage(strconv.FormatBool(snapshot.AllowOverdraft)), false)
 	case "OverdraftLimitEnabled":

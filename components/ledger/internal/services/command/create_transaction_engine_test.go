@@ -493,6 +493,14 @@ func mustCreateEngineRecovery(t *testing.T, execution EngineExecution) *BalanceE
 	return payload
 }
 
+func TestIdempotencyRetentionSecondsSupportsBothDurationConventions(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, int64(300), idempotencyRetentionSeconds(time.Duration(300)))
+	require.Equal(t, int64(60), idempotencyRetentionSeconds(time.Minute))
+	require.Equal(t, int64(604800), idempotencyRetentionSeconds(7*24*time.Hour))
+}
+
 var (
 	_ BalanceEngineOutcomeFinalizer = (*createEngineFinalizer)(nil)
 	_ BalanceEngine                 = (*applyingCreateEngine)(nil)

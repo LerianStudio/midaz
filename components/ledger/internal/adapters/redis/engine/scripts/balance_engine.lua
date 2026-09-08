@@ -683,13 +683,14 @@ local function decodeRequest(raw)
     uuid(request.ledgerId)
     uuid(request.executionId)
     text(request.intentFingerprint, false)
+    if smallInteger(request.retentionSeconds, 604800) < 1 then technical("invalid_protocol", "invalid retention window") end
     if request.receiptField ~= request.executionId then technical("invalid_protocol", "invalid receipt field") end
-    if smallInteger(request.scheduleKeyIndex, #KEYS) ~= 1 or smallInteger(request.recoveryKeyIndex, #KEYS) ~= 2 or smallInteger(request.receiptKeyIndex, #KEYS) ~= 3 or smallInteger(request.guardKeyIndex, #KEYS) ~= 4 then
+    if smallInteger(request.scheduleKeyIndex, #KEYS) ~= 1 or smallInteger(request.recoveryKeyIndex, #KEYS) ~= 2 or smallInteger(request.receiptKeyIndex, #KEYS) ~= 3 or smallInteger(request.guardKeyIndex, #KEYS) ~= 4 or smallInteger(request.protectionKeyIndex, #KEYS) ~= 5 then
         technical("invalid_protocol", "invalid shared key indices")
     end
     requireArray(request.balances)
     requireArray(request.transactions)
-    if #request.transactions == 0 or #KEYS ~= 4 + 2 * #request.balances then technical("invalid_protocol", "invalid execution cardinality") end
+    if #request.transactions == 0 or #KEYS ~= 5 + 2 * #request.balances then technical("invalid_protocol", "invalid execution cardinality") end
     local seenKeys = {}
     for _, key in ipairs(KEYS) do
         local _, opens = key:gsub("{", "")
@@ -704,10 +705,10 @@ local function decodeRequest(raw)
         requireObject(balance)
         logicalRef(balance.balanceRef)
         if refs[balance.balanceRef] then technical("invalid_protocol", "duplicate balance reference") end
-        if smallInteger(balance.keyIndex, #KEYS) ~= 3 + 2 * i or smallInteger(balance.deleteKeyIndex, #KEYS) ~= 4 + 2 * i then
+        if smallInteger(balance.keyIndex, #KEYS) ~= 4 + 2 * i or smallInteger(balance.deleteKeyIndex, #KEYS) ~= 5 + 2 * i then
             technical("invalid_protocol", "invalid balance key indices")
         end
-        if KEYS[4 + 2 * i] ~= KEYS[3 + 2 * i] .. balance_deletion_marker_suffix then technical("invalid_protocol", "invalid deletion marker key") end
+        if KEYS[5 + 2 * i] ~= KEYS[4 + 2 * i] .. balance_deletion_marker_suffix then technical("invalid_protocol", "invalid deletion marker key") end
         local seed = balance.snapshot
         requireObject(seed)
         canonicalMoney(seed.available)
@@ -838,6 +839,25 @@ local function decodeStoredReceipt(raw, request)
     if receipt.intentFingerprint ~= request.intentFingerprint then
         technical("execution_fingerprint_conflict", "execution identity was reused for a different intent")
     end
+    if receipt.protection ~= nil then
+        local protection = receipt.protection
+        requireObject(protection)
+        if smallInteger(protection.formatVersion, 1) ~= 1 or smallInteger(protection.retentionSeconds, 604800) < 1 then
+            technical("invalid_receipt", "invalid saved receipt protection")
+        end
+        requireArray(protection.transactions)
+        requireArray(protection.recoveryFields)
+        requireObject(protection.acknowledged)
+        requireObject(protection.terminalCompletedAtMs)
+        if #protection.transactions ~= #request.transactions or #protection.recoveryFields ~= #request.transactions then
+            technical("invalid_receipt", "saved receipt protection cardinality differs")
+        end
+        for index, transaction in ipairs(request.transactions) do
+            if protection.transactions[index] ~= transaction.id or protection.recoveryFields[index] ~= transaction.recoveryField then
+                technical("invalid_receipt", "saved receipt protection identity differs")
+            end
+        end
+    end
     text(receipt.response, false)
     validateStoredResponse(receipt.response, request)
     return receipt.response
@@ -939,6 +959,9 @@ local function execute(request, maximumPrepared)
     expectRedisType(KEYS[1], "zset")
     expectRedisType(KEYS[2], "hash")
     expectRedisType(KEYS[4], "hash")
+    local protectionKey = KEYS[5]
+    expectRedisType(protectionKey, "hash")
+    local preparedProtection = {}
     for _, transaction in ipairs(request.transactions) do
         local current = redis.call("HGET", KEYS[4], transaction.guardField)
         if (current or "") ~= transaction.expectedGuard then
@@ -947,11 +970,28 @@ local function execute(request, maximumPrepared)
         if redis.call("HEXISTS", KEYS[2], transaction.recoveryField) == 1 then
             technical("execution_outcome_unknown", "recovery exists without a complete execution receipt")
         end
+        local rawCoordinator = redis.call("HGET", protectionKey, transaction.id)
+        local coordinator
+        if rawCoordinator then
+            coordinator = decodeJSON(rawCoordinator)
+            requireObject(coordinator)
+            requireObject(coordinator.executions)
+            if smallInteger(coordinator.formatVersion, 1) ~= 1 then
+                technical("invalid_protocol", "invalid transaction protection coordinator")
+            end
+        else
+            coordinator = { formatVersion = 1, executions = object() }
+        end
+        coordinator.executions[request.executionId] = 0
+        preparedProtection[#preparedProtection + 1] = {
+            field = transaction.id,
+            value = encodeJSON(coordinator)
+        }
     end
     local pool, companions, items = {}, {}, {}
     local normalization = array()
     for i, balance in ipairs(request.balances) do
-        local keyIndex, markerIndex = 3 + 2 * i, 4 + 2 * i
+        local keyIndex, markerIndex = 4 + 2 * i, 5 + 2 * i
         expectRedisType(KEYS[keyIndex], "string")
         expectRedisType(KEYS[markerIndex], "string")
         local raw = redis.call("GET", KEYS[keyIndex])
@@ -1076,6 +1116,10 @@ local function execute(request, maximumPrepared)
         preparedBytes = preparedBytes + #value
         return value
     end
+    for _, coordinator in ipairs(preparedProtection) do
+        charge(coordinator.field)
+        charge(coordinator.value)
+    end
     local preparedBalances, preparedBackups = {}, {}
     for _, item in ipairs(touched) do
         preparedBalances[#preparedBalances + 1] = { key = KEYS[item.keyIndex], value = charge(encodeBalance(item)) }
@@ -1100,10 +1144,20 @@ local function execute(request, maximumPrepared)
             }))
         }
     end
+    local protectedTransactions, protectedRecoveryFields = array(), array()
+    for _, transaction in ipairs(request.transactions) do
+        protectedTransactions[#protectedTransactions + 1] = transaction.id
+        protectedRecoveryFields[#protectedRecoveryFields + 1] = transaction.recoveryField
+    end
     local receipt = charge(encodeJSON({
         formatVersion = 1, tenantId = request.tenantId, organizationId = request.organizationId,
         ledgerId = request.ledgerId, executionId = request.executionId,
-        intentFingerprint = request.intentFingerprint, response = response
+        intentFingerprint = request.intentFingerprint, response = response,
+        protection = {
+            formatVersion = 1, retentionSeconds = request.retentionSeconds,
+            transactions = protectedTransactions, recoveryFields = protectedRecoveryFields,
+            acknowledged = object(), terminalCompletedAtMs = object()
+        }
     }))
     for _, transaction in ipairs(request.transactions) do
         charge(transaction.guardField)
@@ -1120,6 +1174,7 @@ local function execute(request, maximumPrepared)
     for _, balance in ipairs(preparedBalances) do redis.call("ZADD", KEYS[1], score, balance.key) end
     for _, backup in ipairs(preparedBackups) do redis.call("HSET", KEYS[2], backup.field, backup.value) end
     for _, transaction in ipairs(request.transactions) do redis.call("HSET", KEYS[4], transaction.guardField, transaction.nextGuard) end
+    for _, coordinator in ipairs(preparedProtection) do redis.call("HSET", protectionKey, coordinator.field, coordinator.value) end
     redis.call("HSET", KEYS[3], request.receiptField, receipt)
     return response
 end

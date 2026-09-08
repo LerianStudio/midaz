@@ -64,22 +64,27 @@ var normalizeBalanceLimitLua string
 //go:embed scripts/compare_delete_recovery.lua
 var compareDeleteRecoveryLua string
 
+//go:embed scripts/acknowledge_engine_recovery.lua
+var acknowledgeEngineRecoveryLua string
+
 // balanceAtomicScript, claimBalanceSyncScript, updateBalanceSettingsScript,
 // updateBalanceBlockedScript, updateBalanceAllowFlagsScript, deleteIfValueScript,
-// expireIfValueScript, normalizeBalanceLimitScript, and compareDeleteRecoveryScript
-// are built once at package init. redis.NewScript computes the source SHA1 eagerly,
-// so hoisting these out of the per-call hot paths avoids re-hashing on every
-// invocation. *redis.Script is safe for concurrent use.
+// expireIfValueScript, normalizeBalanceLimitScript, compareDeleteRecoveryScript,
+// and acknowledgeEngineRecoveryScript are built once at package init.
+// redis.NewScript computes the source SHA1 eagerly, so hoisting these out of the
+// per-call hot paths avoids re-hashing on every invocation. *redis.Script is
+// safe for concurrent use.
 var (
-	balanceAtomicScript           = redis.NewScript(balanceAtomicOperationLua)
-	claimBalanceSyncScript        = redis.NewScript(claimBalanceSyncKeysLua)
-	updateBalanceSettingsScript   = redis.NewScript(updateBalanceSettingsLua)
-	updateBalanceBlockedScript    = redis.NewScript(updateBalanceBlockedLua)
-	updateBalanceAllowFlagsScript = redis.NewScript(updateBalanceAllowFlagsLua)
-	deleteIfValueScript           = redis.NewScript(deleteIfValueLua)
-	expireIfValueScript           = redis.NewScript(expireIfValueLua)
-	normalizeBalanceLimitScript   = redis.NewScript(normalizeBalanceLimitLua)
-	compareDeleteRecoveryScript   = redis.NewScript(compareDeleteRecoveryLua)
+	balanceAtomicScript             = redis.NewScript(balanceAtomicOperationLua)
+	claimBalanceSyncScript          = redis.NewScript(claimBalanceSyncKeysLua)
+	updateBalanceSettingsScript     = redis.NewScript(updateBalanceSettingsLua)
+	updateBalanceBlockedScript      = redis.NewScript(updateBalanceBlockedLua)
+	updateBalanceAllowFlagsScript   = redis.NewScript(updateBalanceAllowFlagsLua)
+	deleteIfValueScript             = redis.NewScript(deleteIfValueLua)
+	expireIfValueScript             = redis.NewScript(expireIfValueLua)
+	normalizeBalanceLimitScript     = redis.NewScript(normalizeBalanceLimitLua)
+	compareDeleteRecoveryScript     = redis.NewScript(compareDeleteRecoveryLua)
+	acknowledgeEngineRecoveryScript = redis.NewScript(acknowledgeEngineRecoveryLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
@@ -1733,6 +1738,96 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecovery(ctx context.Context,
 	}
 
 	return result, nil
+}
+
+// CompareAndDeleteRecoveryWithProtection acknowledges a durably finalized
+// engine recovery member and atomically records the completion deadline needed
+// by future finite receipt/guard cleanup. Shared hashes and Valkey 8.1 cannot
+// safely provide independent field expiry, so this prerequisite never deletes
+// protection fields. Legacy receipts without equivalent proof metadata are
+// acknowledged but never gain retroactive cleanup eligibility.
+func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtection(
+	ctx context.Context,
+	organizationID, ledgerID uuid.UUID,
+	field, expectedPayload string,
+	terminal bool,
+	completedAt time.Time,
+) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	transactionRaw, executionRaw, err := protectedRecoveryIDs(
+		organizationID, ledgerID, field, expectedPayload, completedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	scope := organizationID.String() + ":" + ledgerID.String()
+
+	keys, err := tenantKeysFromContext(ctx, []string{
+		TransactionBackupQueue,
+		TransactionBackupAttemptsQueue,
+		"engine:" + cachepolicy.HashTag + ":receipts:" + scope,
+		"engine:" + cachepolicy.HashTag + ":guards:" + scope,
+		"engine:" + cachepolicy.HashTag + ":protection:" + scope,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("resolve protected recovery acknowledgement keys: %w", err)
+	}
+
+	counterField, err := tenantKeyFromContextOrError(ctx, field)
+	if err != nil {
+		return 0, fmt.Errorf("resolve protected recovery attempt field: %w", err)
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get protected recovery acknowledgement client: %w", err)
+	}
+
+	terminalFlag := "0"
+	if terminal {
+		terminalFlag = "1"
+	}
+
+	result, err := acknowledgeEngineRecoveryScript.Run(ctx, client, keys,
+		field, expectedPayload, counterField, transactionRaw, executionRaw, terminalFlag, completedAt.UnixMilli()).Int64()
+	if err != nil {
+		return 0, fmt.Errorf("acknowledge protected recovery: %w", err)
+	}
+
+	if result != RecoveryAckMissing && result != RecoveryAckDeleted && result != RecoveryAckReplaced {
+		return 0, fmt.Errorf("invalid protected recovery acknowledgement result")
+	}
+
+	return result, nil
+}
+
+func protectedRecoveryIDs(
+	organizationID, ledgerID uuid.UUID,
+	field, expectedPayload string,
+	completedAt time.Time,
+) (string, string, error) {
+	if expectedPayload == "" || organizationID == uuid.Nil || ledgerID == uuid.Nil || completedAt.IsZero() {
+		return "", "", fmt.Errorf("invalid protected recovery acknowledgement")
+	}
+
+	transactionRaw, executionRaw, ok := strings.Cut(field, ":")
+	if !ok {
+		return "", "", fmt.Errorf("invalid protected recovery acknowledgement")
+	}
+
+	transactionID, transactionErr := uuid.Parse(transactionRaw)
+	executionID, executionErr := uuid.Parse(executionRaw)
+
+	if transactionErr != nil || executionErr != nil || transactionID == uuid.Nil || executionID == uuid.Nil ||
+		transactionID.String() != transactionRaw || executionID.String() != executionRaw {
+		return "", "", fmt.Errorf("invalid protected recovery acknowledgement")
+	}
+
+	return transactionRaw, executionRaw, nil
 }
 
 // IncrementBackupAttempt atomically increments the per-record failure counter in

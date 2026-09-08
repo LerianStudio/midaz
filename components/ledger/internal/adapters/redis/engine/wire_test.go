@@ -45,16 +45,18 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	require.Equal(t, input.Request.ExecutionID.String(), wire.ExecutionID)
 	require.Equal(t, input.IntentFingerprint, wire.IntentFingerprint)
 	require.Equal(t, []string{
-		resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards,
+		resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection,
 		resolved.Balances["@source#default"].Balance, resolved.Balances["@source#default"].Deleted,
 	}, first.Keys)
 	require.Equal(t, 1, wire.ScheduleKeyIndex)
 	require.Equal(t, 2, wire.RecoveryKeyIndex)
 	require.Equal(t, 3, wire.ReceiptKeyIndex)
 	require.Equal(t, 4, wire.GuardKeyIndex)
+	require.Equal(t, 5, wire.ProtectionKeyIndex)
+	require.Equal(t, defaultRetentionSeconds, wire.RetentionSeconds)
 	require.Len(t, wire.Balances, 1)
-	require.Equal(t, 5, wire.Balances[0].KeyIndex)
-	require.Equal(t, 6, wire.Balances[0].DeleteKeyIndex)
+	require.Equal(t, 6, wire.Balances[0].KeyIndex)
+	require.Equal(t, 7, wire.Balances[0].DeleteKeyIndex)
 	require.Equal(t, "9223372036854775807", wire.Balances[0].Snapshot.Version)
 	require.Equal(t, "12345678901234567890.1234567890123456789", wire.Balances[0].Snapshot.Available)
 	require.Equal(t, "0.0000000000000000001", wire.Transactions[0].Postings[0].Amount)
@@ -199,6 +201,7 @@ func TestPrepareExecutionRejectsInvalidInputs(t *testing.T) {
 			delete(k.Balances, old)
 		}},
 		{"missing resolved keys", func(_ *command.EngineExecution, _ *Limits, k *resolvedExecutionKeys) { k.Balances = nil }},
+		{"missing protection key", func(_ *command.EngineExecution, _ *Limits, k *resolvedExecutionKeys) { k.Protection = "" }},
 		{"wrong hash slot", func(_ *command.EngineExecution, _ *Limits, k *resolvedExecutionKeys) {
 			k.Schedule = "schedule:{other}:sync"
 		}},
@@ -269,7 +272,7 @@ func validWireExecution() (command.EngineExecution, Limits, resolvedExecutionKey
 	prefix := "tenant:fixture:"
 	scope := organizationID.String() + ":" + ledgerID.String()
 	balanceKey := prefix + "balance:{transactions}:" + scope + ":@source#default"
-	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + "backup_queue:{transactions}", Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": {Balance: balanceKey, Deleted: balanceKey + ":deleted"}}}
+	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + "backup_queue:{transactions}", Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Protection: prefix + "engine:{transactions}:protection:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": {Balance: balanceKey, Deleted: balanceKey + ":deleted"}}}
 	return input, Limits{MaxTransactions: 10, MaxPostings: 100, MaxBalances: 100, MaxRecoveryBytes: 4096, MaxRequestBytes: 16384, MaxPreparedBytes: 1048576}, resolved
 }
 
@@ -303,9 +306,9 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 		wantBytes  int
 		maxTouched int
 	}{
-		{name: "two postings", postings: 2, pool: 2, wantBytes: 2088, maxTouched: 2},
-		{name: "ten postings", postings: 10, pool: 20, wantBytes: 12927, maxTouched: 10},
-		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 61912, maxTouched: 50},
+		{name: "two postings", postings: 2, pool: 2, wantBytes: 2134, maxTouched: 2},
+		{name: "ten postings", postings: 10, pool: 20, wantBytes: 12974, maxTouched: 10},
+		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 61960, maxTouched: 50},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

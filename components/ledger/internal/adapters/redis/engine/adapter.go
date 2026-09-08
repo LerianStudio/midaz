@@ -286,12 +286,13 @@ func resolveAdapterKeys(ctx context.Context, request engine.Request) (resolvedEx
 
 	resolved := resolvedExecutionKeys{
 		TenantID: tmcore.GetTenantIDContext(ctx), Schedule: utils.BalanceSyncScheduleKey,
-		Recovery: "backup_queue:" + cachepolicy.HashTag,
-		Receipts: "engine:" + cachepolicy.HashTag + ":receipts:" + scope,
-		Guards:   "engine:" + cachepolicy.HashTag + ":guards:" + scope,
-		Balances: make(map[string]resolvedBalanceKeys, len(request.Balances)),
+		Recovery:   "backup_queue:" + cachepolicy.HashTag,
+		Receipts:   "engine:" + cachepolicy.HashTag + ":receipts:" + scope,
+		Guards:     "engine:" + cachepolicy.HashTag + ":guards:" + scope,
+		Protection: "engine:" + cachepolicy.HashTag + ":protection:" + scope,
+		Balances:   make(map[string]resolvedBalanceKeys, len(request.Balances)),
 	}
-	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards} {
+	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection} {
 		prefixed, err := tmvalkey.GetKeyContext(ctx, *key)
 		if err != nil {
 			return resolvedExecutionKeys{}, err
@@ -356,7 +357,7 @@ func classifyAccountingError(err error, request engine.Request, keys []string) e
 		}
 
 		allowed := make(map[string]bool, len(keys)/2)
-		for i := 4; i < len(keys); i += 2 {
+		for i := 5; i < len(keys); i += 2 {
 			allowed[keys[i]] = true
 		}
 

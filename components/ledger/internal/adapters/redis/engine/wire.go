@@ -33,12 +33,13 @@ type Limits struct {
 // resolvedExecutionKeys is supplied by the authenticated adapter boundary,
 // never by request JSON. Hash fields remain in the payload, not in KEYS.
 type resolvedExecutionKeys struct {
-	TenantID string
-	Schedule string
-	Recovery string
-	Receipts string
-	Guards   string
-	Balances map[string]resolvedBalanceKeys
+	TenantID   string
+	Schedule   string
+	Recovery   string
+	Receipts   string
+	Guards     string
+	Protection string
+	Balances   map[string]resolvedBalanceKeys
 }
 
 type resolvedBalanceKeys struct {
@@ -52,19 +53,21 @@ type preparedExecution struct {
 }
 
 type wireRequest struct {
-	ProtocolVersion   int               `json:"protocolVersion"`
-	TenantID          string            `json:"tenantId"`
-	OrganizationID    string            `json:"organizationId"`
-	LedgerID          string            `json:"ledgerId"`
-	ExecutionID       string            `json:"executionId"`
-	IntentFingerprint string            `json:"intentFingerprint"`
-	ScheduleKeyIndex  int               `json:"scheduleKeyIndex"`
-	RecoveryKeyIndex  int               `json:"recoveryKeyIndex"`
-	ReceiptKeyIndex   int               `json:"receiptKeyIndex"`
-	GuardKeyIndex     int               `json:"guardKeyIndex"`
-	ReceiptField      string            `json:"receiptField"`
-	Transactions      []wireTransaction `json:"transactions"`
-	Balances          []wireBalance     `json:"balances"`
+	ProtocolVersion    int               `json:"protocolVersion"`
+	TenantID           string            `json:"tenantId"`
+	OrganizationID     string            `json:"organizationId"`
+	LedgerID           string            `json:"ledgerId"`
+	ExecutionID        string            `json:"executionId"`
+	IntentFingerprint  string            `json:"intentFingerprint"`
+	ScheduleKeyIndex   int               `json:"scheduleKeyIndex"`
+	RecoveryKeyIndex   int               `json:"recoveryKeyIndex"`
+	ReceiptKeyIndex    int               `json:"receiptKeyIndex"`
+	GuardKeyIndex      int               `json:"guardKeyIndex"`
+	ProtectionKeyIndex int               `json:"protectionKeyIndex"`
+	ReceiptField       string            `json:"receiptField"`
+	RetentionSeconds   int64             `json:"retentionSeconds"`
+	Transactions       []wireTransaction `json:"transactions"`
+	Balances           []wireBalance     `json:"balances"`
 }
 
 type wireTransaction struct {
@@ -143,11 +146,17 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 	}
 
 	request := input.Request
+
+	retentionSeconds, err := effectiveRetentionSeconds(input.RetentionSeconds)
+	if err != nil {
+		return nil, err
+	}
+
 	wire := wireRequest{
 		ProtocolVersion: 1, TenantID: resolved.TenantID,
 		OrganizationID: request.OrganizationID.String(), LedgerID: request.LedgerID.String(), ExecutionID: request.ExecutionID.String(),
-		IntentFingerprint: input.IntentFingerprint, ScheduleKeyIndex: 1, RecoveryKeyIndex: 2, ReceiptKeyIndex: 3, GuardKeyIndex: 4,
-		ReceiptField: request.ExecutionID.String(), Transactions: transactions, Balances: wireBalances,
+		IntentFingerprint: input.IntentFingerprint, ScheduleKeyIndex: 1, RecoveryKeyIndex: 2, ReceiptKeyIndex: 3, GuardKeyIndex: 4, ProtectionKeyIndex: 5,
+		ReceiptField: request.ExecutionID.String(), RetentionSeconds: retentionSeconds, Transactions: transactions, Balances: wireBalances,
 	}
 
 	encoded, err := json.Marshal(wire)
@@ -160,6 +169,27 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 	}
 
 	return &preparedExecution{Keys: keys, Payload: encoded}, nil
+}
+
+const (
+	defaultRetentionSeconds int64 = 300
+	maximumRetentionSeconds int64 = 604800
+)
+
+func effectiveRetentionSeconds(requested int64) (int64, error) {
+	if requested < 0 {
+		return 0, fmt.Errorf("accounting execution retention must not be negative")
+	}
+
+	if requested == 0 {
+		return defaultRetentionSeconds, nil
+	}
+
+	if requested > maximumRetentionSeconds {
+		return 0, fmt.Errorf("accounting execution retention exceeds maximum")
+	}
+
+	return requested, nil
 }
 
 func validateExecutionEnvelope(input command.EngineExecution, limits Limits) error {
@@ -259,7 +289,7 @@ func prepareBalances(ctx context.Context, request engine.Request, limits Limits)
 		}
 
 		balances[balance.BalanceRef], identities[balance.ID], accounts[balance.AccountID], aliases[balance.Alias] = balance, true, balance, balance.AccountID
-		prepared = append(prepared, wireBalance{BalanceRef: balance.BalanceRef, KeyIndex: 5 + 2*i, DeleteKeyIndex: 6 + 2*i, Snapshot: snapshot})
+		prepared = append(prepared, wireBalance{BalanceRef: balance.BalanceRef, KeyIndex: 6 + 2*i, DeleteKeyIndex: 7 + 2*i, Snapshot: snapshot})
 	}
 
 	return prepared, balances, nil
@@ -349,7 +379,11 @@ func prepareKeys(balances []engine.BalanceSnapshot, resolved resolvedExecutionKe
 		return nil, fmt.Errorf("resolved accounting key inventory does not match snapshots")
 	}
 
-	keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards}
+	if resolved.Protection == "" {
+		return nil, fmt.Errorf("missing resolved accounting protection key")
+	}
+
+	keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection}
 	for _, balance := range balances {
 		pair, exists := resolved.Balances[balance.BalanceRef]
 		if !exists || pair.Deleted != pair.Balance+cachepolicy.DeletionMarkerSuffix {
