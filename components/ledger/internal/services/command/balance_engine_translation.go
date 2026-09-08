@@ -161,6 +161,39 @@ type translationPostingSpec struct {
 }
 
 func translationPostingSpecs(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
+	switch input.Action {
+	case constant.ActionDirect:
+		return composeDirectPostings(input, amount, side)
+	case constant.ActionRevert:
+		return composeRevertPostings(input, amount, side)
+	case constant.ActionHold:
+		return composePendingCreatePostings(input, amount, side)
+	case constant.ActionCommit:
+		return composeCommitPostings(input, amount, side)
+	case constant.ActionCancel:
+		return composeCancelPostings(input, amount, side)
+	default:
+		return nil, invalidBalanceEngineTranslation("unsupported transaction action")
+	}
+}
+
+func composeDirectPostings(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
+	if input.TransactionStatus != constant.CREATED {
+		return nil, invalidBalanceEngineTranslation("direct or revert action requires created status")
+	}
+
+	return composeConclusivePostings(amount, side), nil
+}
+
+func composeRevertPostings(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
+	if input.TransactionStatus != constant.CREATED {
+		return nil, invalidBalanceEngineTranslation("direct or revert action requires created status")
+	}
+
+	return composeConclusivePostings(amount, side), nil
+}
+
+func composeConclusivePostings(amount mtransaction.Amount, side string) []translationPostingSpec {
 	credit := translationPostingSpec{
 		postingType: engine.PostingCredit, rowType: constant.CREDIT, direction: constant.DirectionCredit,
 		compatibilityPath: ProjectionStandard, overdraftAmount: amount.OverdraftAmount, mayMoveOverdraft: true,
@@ -170,82 +203,82 @@ func translationPostingSpecs(input BalanceEngineTranslationInput, amount mtransa
 		compatibilityPath: ProjectionStandard, allowDraw: true, mayMoveOverdraft: true,
 	}
 
-	switch input.Action {
-	case constant.ActionDirect, constant.ActionRevert:
-		if input.TransactionStatus != constant.CREATED {
-			return nil, invalidBalanceEngineTranslation("direct or revert action requires created status")
-		}
+	if side == ProjectionSideFrom {
+		return []translationPostingSpec{debit}
+	}
 
-		if side == ProjectionSideFrom {
-			return []translationPostingSpec{debit}, nil
-		}
+	return []translationPostingSpec{credit}
+}
 
-		return []translationPostingSpec{credit}, nil
-	case constant.ActionHold:
-		if input.TransactionStatus != constant.PENDING {
-			return nil, invalidBalanceEngineTranslation("hold action requires pending status")
-		}
+func composePendingCreatePostings(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
+	if input.TransactionStatus != constant.PENDING {
+		return nil, invalidBalanceEngineTranslation("hold action requires pending status")
+	}
 
-		if side == ProjectionSideTo {
-			return nil, nil
-		}
+	if side == ProjectionSideTo {
+		return nil, nil
+	}
 
-		if !amount.RouteValidationEnabled {
-			return []translationPostingSpec{{
-				postingType: engine.PostingHold, rowType: constant.ONHOLD, direction: constant.DirectionDebit,
-				compatibilityPath: ProjectionStandard,
-			}}, nil
-		}
-
-		return []translationPostingSpec{
-			{postingType: engine.PostingDebit, rowType: constant.DEBIT, direction: constant.DirectionDebit, compatibilityPath: ProjectionValidatedHoldDebit},
-			{postingType: engine.PostingReserve, rowType: constant.ONHOLD, direction: constant.DirectionCredit, compatibilityPath: ProjectionValidatedHoldReserve},
-		}, nil
-	case constant.ActionCommit:
-		if input.TransactionStatus != constant.APPROVED {
-			return nil, invalidBalanceEngineTranslation("commit action requires approved status")
-		}
-
-		if side == ProjectionSideTo {
-			return []translationPostingSpec{credit}, nil
-		}
-
-		rowType := constant.DEBIT
-		if amount.RouteValidationEnabled {
-			rowType = constant.ONHOLD
-		}
-
+	if !amount.RouteValidationEnabled {
 		return []translationPostingSpec{{
-			postingType: engine.PostingUnreserve, rowType: rowType, direction: constant.DirectionDebit,
+			postingType: engine.PostingHold, rowType: constant.ONHOLD, direction: constant.DirectionDebit,
 			compatibilityPath: ProjectionStandard,
 		}}, nil
-	case constant.ActionCancel:
-		if input.TransactionStatus != constant.CANCELED {
-			return nil, invalidBalanceEngineTranslation("cancel action requires canceled status")
-		}
-
-		if side == ProjectionSideTo {
-			return nil, nil
-		}
-
-		if !amount.RouteValidationEnabled {
-			return []translationPostingSpec{{
-				postingType: engine.PostingRelease, rowType: constant.RELEASE, direction: constant.DirectionCredit,
-				compatibilityPath: ProjectionStandard, overdraftAmount: amount.OverdraftAmount,
-				mayMoveOverdraft: amount.OverdraftAmount.IsPositive(),
-			}}, nil
-		}
-
-		return []translationPostingSpec{
-			{postingType: engine.PostingUnreserve, rowType: constant.RELEASE, direction: constant.DirectionDebit, compatibilityPath: ProjectionValidatedCancelRelease},
-			{
-				postingType: engine.PostingCredit, rowType: constant.CREDIT, direction: constant.DirectionCredit,
-				compatibilityPath: ProjectionValidatedCancelCredit, overdraftAmount: amount.OverdraftAmount, mayMoveOverdraft: true,
-			},
-		}, nil
-	default:
-		return nil, invalidBalanceEngineTranslation("unsupported transaction action")
 	}
+
+	return []translationPostingSpec{
+		{postingType: engine.PostingDebit, rowType: constant.DEBIT, direction: constant.DirectionDebit, compatibilityPath: ProjectionValidatedHoldDebit},
+		{postingType: engine.PostingReserve, rowType: constant.ONHOLD, direction: constant.DirectionCredit, compatibilityPath: ProjectionValidatedHoldReserve},
+	}, nil
+}
+
+func composeCommitPostings(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
+	if input.TransactionStatus != constant.APPROVED {
+		return nil, invalidBalanceEngineTranslation("commit action requires approved status")
+	}
+
+	if side == ProjectionSideTo {
+		return []translationPostingSpec{{
+			postingType: engine.PostingCredit, rowType: constant.CREDIT, direction: constant.DirectionCredit,
+			compatibilityPath: ProjectionStandard, overdraftAmount: amount.OverdraftAmount, mayMoveOverdraft: true,
+		}}, nil
+	}
+
+	rowType := constant.DEBIT
+	if amount.RouteValidationEnabled {
+		rowType = constant.ONHOLD
+	}
+
+	return []translationPostingSpec{{
+		postingType: engine.PostingUnreserve, rowType: rowType, direction: constant.DirectionDebit,
+		compatibilityPath: ProjectionStandard,
+	}}, nil
+}
+
+func composeCancelPostings(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
+	if input.TransactionStatus != constant.CANCELED {
+		return nil, invalidBalanceEngineTranslation("cancel action requires canceled status")
+	}
+
+	if side == ProjectionSideTo {
+		return nil, nil
+	}
+
+	if !amount.RouteValidationEnabled {
+		return []translationPostingSpec{{
+			postingType: engine.PostingRelease, rowType: constant.RELEASE, direction: constant.DirectionCredit,
+			compatibilityPath: ProjectionStandard, overdraftAmount: amount.OverdraftAmount,
+			mayMoveOverdraft: amount.OverdraftAmount.IsPositive(),
+		}}, nil
+	}
+
+	return []translationPostingSpec{
+		{postingType: engine.PostingUnreserve, rowType: constant.RELEASE, direction: constant.DirectionDebit, compatibilityPath: ProjectionValidatedCancelRelease},
+		{
+			postingType: engine.PostingCredit, rowType: constant.CREDIT, direction: constant.DirectionCredit,
+			compatibilityPath: ProjectionValidatedCancelCredit, overdraftAmount: amount.OverdraftAmount, mayMoveOverdraft: true,
+		},
+	}, nil
 }
 
 func newFrozenProjectionContext(input BalanceEngineTranslationInput, leg mtransaction.FromTo, balance *mmodel.Balance, postingRef, originRef, side, rowType, direction, routeID string, requestedAmount decimal.Decimal, compatibilityPath string) FrozenProjectionContext {

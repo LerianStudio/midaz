@@ -198,6 +198,114 @@ func TestTranslateBalanceEngineTransactionLifecyclePaths(t *testing.T) {
 	}
 }
 
+func TestTranslationPostingSpecsDispatchesToNamedCompositors(t *testing.T) {
+	type compositor func(BalanceEngineTranslationInput, mtransaction.Amount, string) ([]translationPostingSpec, error)
+
+	tests := []struct {
+		name       string
+		action     string
+		status     string
+		compositor compositor
+	}{
+		{name: "direct", action: constant.ActionDirect, status: constant.CREATED, compositor: composeDirectPostings},
+		{name: "revert", action: constant.ActionRevert, status: constant.CREATED, compositor: composeRevertPostings},
+		{name: "pending create", action: constant.ActionHold, status: constant.PENDING, compositor: composePendingCreatePostings},
+		{name: "commit", action: constant.ActionCommit, status: constant.APPROVED, compositor: composeCommitPostings},
+		{name: "cancel", action: constant.ActionCancel, status: constant.CANCELED, compositor: composeCancelPostings},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := BalanceEngineTranslationInput{Action: tt.action, TransactionStatus: tt.status}
+			amount := mtransaction.Amount{
+				Value:                  decimal.NewFromInt(10),
+				OverdraftAmount:        decimal.NewFromInt(3),
+				RouteValidationEnabled: true,
+			}
+
+			want, err := tt.compositor(input, amount, ProjectionSideFrom)
+			require.NoError(t, err)
+			got, err := translationPostingSpecs(input, amount, ProjectionSideFrom)
+			require.NoError(t, err)
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
+func TestLifecyclePostingCompositorsPreserveGoldenSpecs(t *testing.T) {
+	type compositor func(BalanceEngineTranslationInput, mtransaction.Amount, string) ([]translationPostingSpec, error)
+
+	credit := func(overdraftAmount decimal.Decimal) translationPostingSpec {
+		return translationPostingSpec{
+			postingType:       engine.PostingCredit,
+			rowType:           constant.CREDIT,
+			direction:         constant.DirectionCredit,
+			compatibilityPath: ProjectionStandard,
+			overdraftAmount:   overdraftAmount,
+			mayMoveOverdraft:  true,
+		}
+	}
+	debit := translationPostingSpec{
+		postingType:       engine.PostingDebit,
+		rowType:           constant.DEBIT,
+		direction:         constant.DirectionDebit,
+		compatibilityPath: ProjectionStandard,
+		allowDraw:         true,
+		mayMoveOverdraft:  true,
+	}
+
+	overdraftAmount := decimal.NewFromInt(3)
+	tests := []struct {
+		name       string
+		action     string
+		status     string
+		routed     bool
+		side       string
+		compositor compositor
+		want       []translationPostingSpec
+	}{
+		{name: "direct source", action: constant.ActionDirect, status: constant.CREATED, side: ProjectionSideFrom, compositor: composeDirectPostings, want: []translationPostingSpec{debit}},
+		{name: "direct destination", action: constant.ActionDirect, status: constant.CREATED, side: ProjectionSideTo, compositor: composeDirectPostings, want: []translationPostingSpec{credit(overdraftAmount)}},
+		{name: "revert source", action: constant.ActionRevert, status: constant.CREATED, side: ProjectionSideFrom, compositor: composeRevertPostings, want: []translationPostingSpec{debit}},
+		{name: "revert destination", action: constant.ActionRevert, status: constant.CREATED, side: ProjectionSideTo, compositor: composeRevertPostings, want: []translationPostingSpec{credit(overdraftAmount)}},
+		{name: "pending legacy source", action: constant.ActionHold, status: constant.PENDING, side: ProjectionSideFrom, compositor: composePendingCreatePostings, want: []translationPostingSpec{{
+			postingType: engine.PostingHold, rowType: constant.ONHOLD, direction: constant.DirectionDebit, compatibilityPath: ProjectionStandard,
+		}}},
+		{name: "pending routed source", action: constant.ActionHold, status: constant.PENDING, routed: true, side: ProjectionSideFrom, compositor: composePendingCreatePostings, want: []translationPostingSpec{
+			{postingType: engine.PostingDebit, rowType: constant.DEBIT, direction: constant.DirectionDebit, compatibilityPath: ProjectionValidatedHoldDebit},
+			{postingType: engine.PostingReserve, rowType: constant.ONHOLD, direction: constant.DirectionCredit, compatibilityPath: ProjectionValidatedHoldReserve},
+		}},
+		{name: "pending destination", action: constant.ActionHold, status: constant.PENDING, routed: true, side: ProjectionSideTo, compositor: composePendingCreatePostings, want: nil},
+		{name: "commit legacy source", action: constant.ActionCommit, status: constant.APPROVED, side: ProjectionSideFrom, compositor: composeCommitPostings, want: []translationPostingSpec{{
+			postingType: engine.PostingUnreserve, rowType: constant.DEBIT, direction: constant.DirectionDebit, compatibilityPath: ProjectionStandard,
+		}}},
+		{name: "commit routed source", action: constant.ActionCommit, status: constant.APPROVED, routed: true, side: ProjectionSideFrom, compositor: composeCommitPostings, want: []translationPostingSpec{{
+			postingType: engine.PostingUnreserve, rowType: constant.ONHOLD, direction: constant.DirectionDebit, compatibilityPath: ProjectionStandard,
+		}}},
+		{name: "commit destination", action: constant.ActionCommit, status: constant.APPROVED, side: ProjectionSideTo, compositor: composeCommitPostings, want: []translationPostingSpec{credit(overdraftAmount)}},
+		{name: "cancel legacy source", action: constant.ActionCancel, status: constant.CANCELED, side: ProjectionSideFrom, compositor: composeCancelPostings, want: []translationPostingSpec{{
+			postingType: engine.PostingRelease, rowType: constant.RELEASE, direction: constant.DirectionCredit, compatibilityPath: ProjectionStandard,
+			overdraftAmount: overdraftAmount, mayMoveOverdraft: true,
+		}}},
+		{name: "cancel routed source", action: constant.ActionCancel, status: constant.CANCELED, routed: true, side: ProjectionSideFrom, compositor: composeCancelPostings, want: []translationPostingSpec{
+			{postingType: engine.PostingUnreserve, rowType: constant.RELEASE, direction: constant.DirectionDebit, compatibilityPath: ProjectionValidatedCancelRelease},
+			{postingType: engine.PostingCredit, rowType: constant.CREDIT, direction: constant.DirectionCredit, compatibilityPath: ProjectionValidatedCancelCredit, overdraftAmount: overdraftAmount, mayMoveOverdraft: true},
+		}},
+		{name: "cancel destination", action: constant.ActionCancel, status: constant.CANCELED, routed: true, side: ProjectionSideTo, compositor: composeCancelPostings, want: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := BalanceEngineTranslationInput{Action: tt.action, TransactionStatus: tt.status}
+			amount := mtransaction.Amount{OverdraftAmount: overdraftAmount, RouteValidationEnabled: tt.routed}
+
+			got, err := tt.compositor(input, amount, tt.side)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestTranslateBalanceEngineTransactionFreezesRoutedCompanionContext(t *testing.T) {
 	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
