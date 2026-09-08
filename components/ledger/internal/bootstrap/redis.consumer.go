@@ -26,6 +26,7 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -512,26 +513,16 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 	balances := make([]*mmodel.Balance, 0, len(m.Balances))
 	for _, balance := range m.Balances {
-		balanceKey := balance.Key
-		if balanceKey == "" {
-			balanceKey = constant.DefaultBalanceKey
+		projected, err := balanceRedisToBalance(balance, m.OrganizationID.String(), m.LedgerID.String())
+		if err != nil {
+			projectionErr := fmt.Errorf("project legacy replay balance: %w", err)
+			libOpentelemetry.HandleSpanError(msgSpan, "Failed to project legacy replay balance", projectionErr)
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to project legacy replay balance", libLog.Err(projectionErr))
+
+			return
 		}
 
-		balances = append(balances, &mmodel.Balance{
-			Alias:          balance.Alias,
-			ID:             balance.ID,
-			AccountID:      balance.AccountID,
-			Key:            balanceKey,
-			Available:      balance.Available,
-			OnHold:         balance.OnHold,
-			Version:        balance.Version,
-			AccountType:    balance.AccountType,
-			AllowSending:   balance.AllowSending == 1,
-			AllowReceiving: balance.AllowReceiving == 1,
-			AssetCode:      balance.AssetCode,
-			OrganizationID: m.OrganizationID.String(),
-			LedgerID:       m.LedgerID.String(),
-		})
+		balances = append(balances, projected)
 	}
 
 	// Parse AFTER balances from backup queue (nil for legacy entries written by old pods)
@@ -539,26 +530,16 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	if len(m.BalancesAfter) > 0 {
 		balancesAfter = make([]*mmodel.Balance, 0, len(m.BalancesAfter))
 		for _, balance := range m.BalancesAfter {
-			balanceKey := balance.Key
-			if balanceKey == "" {
-				balanceKey = constant.DefaultBalanceKey
+			projected, err := balanceRedisToBalance(balance, m.OrganizationID.String(), m.LedgerID.String())
+			if err != nil {
+				projectionErr := fmt.Errorf("project legacy replay after-balance: %w", err)
+				libOpentelemetry.HandleSpanError(msgSpan, "Failed to project legacy replay after-balance", projectionErr)
+				logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to project legacy replay after-balance", libLog.Err(projectionErr))
+
+				return
 			}
 
-			balancesAfter = append(balancesAfter, &mmodel.Balance{
-				Alias:          balance.Alias,
-				ID:             balance.ID,
-				AccountID:      balance.AccountID,
-				Key:            balanceKey,
-				Available:      balance.Available,
-				OnHold:         balance.OnHold,
-				Version:        balance.Version,
-				AccountType:    balance.AccountType,
-				AllowSending:   balance.AllowSending == 1,
-				AllowReceiving: balance.AllowReceiving == 1,
-				AssetCode:      balance.AssetCode,
-				OrganizationID: m.OrganizationID.String(),
-				LedgerID:       m.LedgerID.String(),
-			})
+			balancesAfter = append(balancesAfter, projected)
 		}
 
 		logger.Log(ctx, libLog.LevelDebug, "Using AFTER balances from backup for direct persistence", libLog.Int("balance_count", len(balancesAfter)))
@@ -717,6 +698,59 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	// record itself is removed downstream by the async write path after the
 	// confirmed Postgres persist (RemoveTransactionFromRedisQueueIfStatus).
 	r.clearBackupAttempt(msgCtxWithSpan, logger, key)
+}
+
+func balanceRedisToBalance(balance mmodel.BalanceRedis, organizationID, ledgerID string) (*mmodel.Balance, error) {
+	overdraftUsed := decimal.Zero
+
+	if balance.OverdraftUsed != "" {
+		parsed, err := decimal.NewFromString(balance.OverdraftUsed)
+		if err != nil {
+			return nil, fmt.Errorf("parse overdraft used: %w", err)
+		}
+
+		overdraftUsed = parsed
+	}
+
+	var overdraftLimit *string
+
+	if balance.OverdraftLimit != "" {
+		_, err := decimal.NewFromString(balance.OverdraftLimit)
+		if err != nil {
+			return nil, fmt.Errorf("parse overdraft limit: %w", err)
+		}
+
+		overdraftLimit = &balance.OverdraftLimit
+	}
+
+	balanceKey := balance.Key
+	if balanceKey == "" {
+		balanceKey = constant.DefaultBalanceKey
+	}
+
+	return &mmodel.Balance{
+		Alias:          balance.Alias,
+		ID:             balance.ID,
+		AccountID:      balance.AccountID,
+		Key:            balanceKey,
+		Available:      balance.Available,
+		OnHold:         balance.OnHold,
+		Version:        balance.Version,
+		AccountType:    balance.AccountType,
+		AllowSending:   balance.AllowSending == 1,
+		AllowReceiving: balance.AllowReceiving == 1,
+		AssetCode:      balance.AssetCode,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Direction:      balance.Direction,
+		OverdraftUsed:  overdraftUsed,
+		Settings: &mmodel.BalanceSettings{
+			AllowOverdraft:        balance.AllowOverdraft == 1,
+			OverdraftLimitEnabled: balance.OverdraftLimitEnabled == 1,
+			OverdraftLimit:        overdraftLimit,
+			BalanceScope:          balance.BalanceScope,
+		},
+	}, nil
 }
 
 // quarantinePoisonRecord enforces THE INVARIANT for poison backup records: a
