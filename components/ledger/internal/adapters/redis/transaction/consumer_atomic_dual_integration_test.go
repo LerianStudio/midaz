@@ -9,9 +9,11 @@ package redis
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
@@ -316,7 +318,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		})
 	}
 
-	t.Run("exponent version mirrors the serialized legacy numeric value", func(t *testing.T) {
+	t.Run("high version remains an exact integer across the public result and dual cache", func(t *testing.T) {
 		alias := "@dual-exponent"
 		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
 		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
@@ -326,15 +328,302 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		encoded, err := json.Marshal(cached)
 		require.NoError(t, err)
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
-		_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
 			transactionID, "ACTIVE", false, []mmodel.BalanceOperation{op})
-		require.Error(t, err, "the legacy public int64 decoder cannot consume the cjson exponent token")
-		cached = readLimitNormalizationCache(t, infra, op.InternalKey)
-		require.Contains(t, string(cached["Version"]), "e+")
-		serializedVersion, err := decimal.NewFromString(string(cached["Version"]))
 		require.NoError(t, err)
-		require.Equal(t, "9007199254741000", serializedVersion.String())
-		require.Equal(t, serializedVersion.String(), decodeSettingsUpdateField[string](t, cached, "version"))
+		require.Equal(t, int64(9007199254740992), result.Before[0].Version)
+		require.Equal(t, int64(9007199254740993), result.After[0].Version)
+		cached = readLimitNormalizationCache(t, infra, op.InternalKey)
+		require.JSONEq(t, `9007199254740993`, string(cached["Version"]))
+		require.Equal(t, "9007199254740993", decodeSettingsUpdateField[string](t, cached, "version"))
 		require.Equal(t, "119", decodeSettingsUpdateField[string](t, cached, "Available"))
+		messages, err := infra.repo.ReadAllMessagesFromQueue(ctx)
+		require.NoError(t, err)
+		var recovery mmodel.TransactionRedisQueue
+		require.NoError(t, json.Unmarshal([]byte(messages[utils.TransactionInternalKey(orgID, ledgerID, transactionID.String())]), &recovery))
+		require.Equal(t, int64(9007199254740992), recovery.Balances[0].Version)
+		require.Equal(t, int64(9007199254740993), recovery.BalancesAfter[0].Version)
+	})
+
+	t.Run("adjacent high versions do not collide during stale detection", func(t *testing.T) {
+		alias := "@dual-high-stale"
+		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 121)
+		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		op.Balance.Version = 9007199254740993
+		seedLimitNormalizationCache(t, infra, op, "1000")
+		cached := readLimitNormalizationCache(t, infra, op.InternalKey)
+		cached["Version"] = json.RawMessage(`9007199254740992`)
+		encoded, err := json.Marshal(cached)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
+		before, err := infra.redisContainer.Client.Get(ctx, op.InternalKey).Bytes()
+		require.NoError(t, err)
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777778"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+		require.ErrorContains(t, err, "0174")
+		require.Nil(t, result)
+		after, getErr := infra.redisContainer.Client.Get(ctx, op.InternalKey).Bytes()
+		require.NoError(t, getErr)
+		require.JSONEq(t, string(before), string(after))
+	})
+
+	t.Run("cold seed preserves a high version in cache result and recovery", func(t *testing.T) {
+		alias := "@dual-high-cold"
+		txID := uuid.MustParse("e7777777-7777-7777-7777-777777777779")
+		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		op.Balance.Version = 9007199254740992
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			txID, "ACTIVE", false, []mmodel.BalanceOperation{op})
+		require.NoError(t, err)
+		require.Equal(t, int64(9007199254740992), result.Before[0].Version)
+		require.Equal(t, int64(9007199254740993), result.After[0].Version)
+		cached := readLimitNormalizationCache(t, infra, op.InternalKey)
+		require.JSONEq(t, `9007199254740993`, string(cached["Version"]))
+		require.Equal(t, "9007199254740993", decodeSettingsUpdateField[string](t, cached, "version"))
+
+		messages, err := infra.repo.ReadAllMessagesFromQueue(ctx)
+		require.NoError(t, err)
+		var recovery mmodel.TransactionRedisQueue
+		require.NoError(t, json.Unmarshal([]byte(messages[utils.TransactionInternalKey(orgID, ledgerID, txID.String())]), &recovery))
+		require.Equal(t, int64(9007199254740992), recovery.Balances[0].Version)
+		require.Equal(t, int64(9007199254740993), recovery.BalancesAfter[0].Version)
+	})
+
+	t.Run("repeated same-key operations advance the exact current version", func(t *testing.T) {
+		alias := "@dual-high-repeated"
+		first := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+		first.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		seedLimitNormalizationCache(t, infra, first, "1000")
+		cached := readLimitNormalizationCache(t, infra, first.InternalKey)
+		cached["Version"] = json.RawMessage(`9007199254740992`)
+		encoded, err := json.Marshal(cached)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, first.InternalKey, encoded, time.Hour).Err())
+		second := first
+
+		_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777784"), "ACTIVE", false,
+			[]mmodel.BalanceOperation{first, second})
+		require.NoError(t, err)
+		cached = readLimitNormalizationCache(t, infra, first.InternalKey)
+		require.Equal(t, "118", decodeSettingsUpdateField[string](t, cached, "Available"))
+		require.JSONEq(t, `9007199254740994`, string(cached["Version"]))
+		require.Equal(t, "9007199254740994", decodeSettingsUpdateField[string](t, cached, "version"))
+	})
+
+	t.Run("repeated canceled same-key release and credit accept the current version", func(t *testing.T) {
+		alias := "@dual-canceled-repeated"
+		release := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+		release.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		seedLimitNormalizationCache(t, infra, release, "1000")
+		cached := readLimitNormalizationCache(t, infra, release.InternalKey)
+		cached["Available"] = json.RawMessage(`"0"`)
+		cached["OnHold"] = json.RawMessage(`"1"`)
+		cached["OverdraftUsed"] = json.RawMessage(`"10"`)
+		cached["Version"] = json.RawMessage(`9007199254740992`)
+		encoded, err := json.Marshal(cached)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, release.InternalKey, encoded, time.Hour).Err())
+
+		release.Amount.Operation = "RELEASE"
+		release.Amount.RouteValidationEnabled = true
+		release.Balance.Available = decimal.Zero
+		release.Balance.OnHold = decimal.NewFromInt(1)
+		release.Balance.OverdraftUsed = decimal.NewFromInt(10)
+		release.Balance.Version = 9007199254740992
+		credit := release
+		credit.Amount.Operation = "CREDIT"
+		credit.Balance.Version = 9007199254740992
+		credit.Balance.Available = decimal.Zero
+		credit.Balance.OnHold = decimal.Zero
+		credit.Balance.OverdraftUsed = decimal.NewFromInt(10)
+		txID := uuid.MustParse("e7777777-7777-7777-7777-777777777785")
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			txID, constant.CANCELED, true, []mmodel.BalanceOperation{release, credit})
+		require.NoError(t, err)
+		require.Len(t, result.Before, 2)
+		require.Len(t, result.After, 2)
+		require.Equal(t, int64(9007199254740992), result.Before[0].Version)
+		require.Equal(t, int64(9007199254740993), result.Before[1].Version)
+		require.Equal(t, int64(9007199254740993), result.After[0].Version)
+		require.Equal(t, int64(9007199254740994), result.After[1].Version)
+		require.Equal(t, "0", result.After[0].Available.String())
+		require.Equal(t, "0", result.After[0].OnHold.String())
+		require.Equal(t, "10", result.After[0].OverdraftUsed.String())
+		require.Equal(t, "0", result.After[1].Available.String())
+		require.Equal(t, "0", result.After[1].OnHold.String())
+		require.Equal(t, "9", result.After[1].OverdraftUsed.String())
+		cached = readLimitNormalizationCache(t, infra, release.InternalKey)
+		require.JSONEq(t, `9007199254740994`, string(cached["Version"]))
+		require.Equal(t, "9007199254740994", decodeSettingsUpdateField[string](t, cached, "version"))
+		messages, err := infra.repo.ReadAllMessagesFromQueue(ctx)
+		require.NoError(t, err)
+		var recovery mmodel.TransactionRedisQueue
+		require.NoError(t, json.Unmarshal([]byte(messages[utils.TransactionInternalKey(orgID, ledgerID, txID.String())]), &recovery))
+		require.Len(t, recovery.Balances, 2)
+		require.Len(t, recovery.BalancesAfter, 2)
+		require.Equal(t, int64(9007199254740992), recovery.Balances[0].Version)
+		require.Equal(t, int64(9007199254740993), recovery.Balances[1].Version)
+		require.Equal(t, int64(9007199254740993), recovery.BalancesAfter[0].Version)
+		require.Equal(t, int64(9007199254740994), recovery.BalancesAfter[1].Version)
+	})
+
+	t.Run("raw version scanner accepts escaped key and ignores nested decoy", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			raw  func(string) string
+		}{
+			{name: "escaped top-level key", raw: func(raw string) string {
+				return strings.Replace(raw, `"Version":7`, `"\u0056ersion":9007199254740992`, 1)
+			}},
+			{name: "nested key", raw: func(raw string) string {
+				return strings.Replace(raw, `"Version":7`, `"Version":9007199254740992,"Nested":{"Version":7}`, 1)
+			}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				alias := "@dual-raw-" + strings.ReplaceAll(tc.name, " ", "-")
+				op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+				op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+				seed := seedLimitNormalizationCache(t, infra, op, "1000")
+				require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, tc.raw(seed), time.Hour).Err())
+				op.Balance.Version = 9007199254740992
+				result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+					uuid.MustParse("e7777777-7777-7777-7777-777777777787"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+				require.NoError(t, err)
+				require.Equal(t, int64(9007199254740992), result.Before[0].Version)
+				require.Equal(t, int64(9007199254740993), result.After[0].Version)
+				cached := readLimitNormalizationCache(t, infra, op.InternalKey)
+				require.JSONEq(t, `9007199254740993`, string(cached["Version"]))
+			})
+		}
+
+		t.Run("plain and escaped duplicate rejects before writes", func(t *testing.T) {
+			alias := "@dual-raw-duplicate"
+			op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+			op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+			seed := seedLimitNormalizationCache(t, infra, op, "1000")
+			raw := strings.Replace(seed, `"Version":7`, `"Version":9007199254740992,"\u0056ersion":9007199254740992`, 1)
+			require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, raw, time.Hour).Err())
+			before := captureLimitNormalizationRedisState(t, infra)
+			op.Balance.Version = 9007199254740992
+			result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+				uuid.MustParse("e7777777-7777-7777-7777-777777777788"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+			require.Error(t, err)
+			require.Nil(t, result)
+			require.Equal(t, before, captureLimitNormalizationRedisState(t, infra))
+		})
+	})
+
+	t.Run("max int64 minus one increments exactly to max int64", func(t *testing.T) {
+		alias := "@dual-version-max"
+		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
+		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		seedLimitNormalizationCache(t, infra, op, "1000")
+		cached := readLimitNormalizationCache(t, infra, op.InternalKey)
+		cached["Version"] = json.RawMessage(`9223372036854775806`)
+		encoded, err := json.Marshal(cached)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777780"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+		require.NoError(t, err)
+		require.Equal(t, int64(9223372036854775806), result.Before[0].Version)
+		require.Equal(t, int64(9223372036854775807), result.After[0].Version)
+		cached = readLimitNormalizationCache(t, infra, op.InternalKey)
+		require.JSONEq(t, `9223372036854775807`, string(cached["Version"]))
+		require.Equal(t, "9223372036854775807", decodeSettingsUpdateField[string](t, cached, "version"))
+	})
+
+	t.Run("max int64 no-op remains valid and byte preserving", func(t *testing.T) {
+		alias := "@dual-version-max-noop"
+		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 0)
+		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
+		seedLimitNormalizationCache(t, infra, op, "1000")
+		cached := readLimitNormalizationCache(t, infra, op.InternalKey)
+		cached["Version"] = json.RawMessage(`9223372036854775807`)
+		encoded, err := json.Marshal(cached)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
+		before, err := infra.redisContainer.Client.Get(ctx, op.InternalKey).Bytes()
+		require.NoError(t, err)
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777781"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+		require.NoError(t, err)
+		require.Empty(t, result.Before)
+		require.Empty(t, result.After)
+		after, err := infra.redisContainer.Client.Get(ctx, op.InternalKey).Bytes()
+		require.NoError(t, err)
+		require.Equal(t, before, after)
+	})
+
+	t.Run("late version overflow restores exact balances and writes no recovery", func(t *testing.T) {
+		first := newLimitNormalizationOperation(orgID, ledgerID, "@dual-overflow-first", 1)
+		first.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, "@dual-overflow-first#default")
+		seedLimitNormalizationCache(t, infra, first, "1000")
+		firstCache := readLimitNormalizationCache(t, infra, first.InternalKey)
+		firstCache["Version"] = json.RawMessage(`9007199254740992`)
+		encodedFirst, err := json.Marshal(firstCache)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, first.InternalKey, encodedFirst, time.Hour).Err())
+
+		last := newLimitNormalizationOperation(orgID, ledgerID, "@dual-overflow-last", 1)
+		last.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, "@dual-overflow-last#default")
+		seedLimitNormalizationCache(t, infra, last, "1000")
+		lastCache := readLimitNormalizationCache(t, infra, last.InternalKey)
+		lastCache["Version"] = json.RawMessage(`9223372036854775807`)
+		encodedLast, err := json.Marshal(lastCache)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, last.InternalKey, encodedLast, time.Hour).Err())
+
+		firstBefore, err := infra.redisContainer.Client.Get(ctx, first.InternalKey).Bytes()
+		require.NoError(t, err)
+		lastBefore, err := infra.redisContainer.Client.Get(ctx, last.InternalKey).Bytes()
+		require.NoError(t, err)
+		txID := uuid.MustParse("e7777777-7777-7777-7777-777777777782")
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			txID, "ACTIVE", false, []mmodel.BalanceOperation{first, last})
+		require.ErrorContains(t, err, "BALANCE_VERSION_OVERFLOW")
+		require.Nil(t, result)
+		firstAfter, getErr := infra.redisContainer.Client.Get(ctx, first.InternalKey).Bytes()
+		require.NoError(t, getErr)
+		lastAfter, getErr := infra.redisContainer.Client.Get(ctx, last.InternalKey).Bytes()
+		require.NoError(t, getErr)
+		require.JSONEq(t, string(firstBefore), string(firstAfter))
+		require.JSONEq(t, string(lastBefore), string(lastAfter))
+		messages, readErr := infra.repo.ReadAllMessagesFromQueue(ctx)
+		require.NoError(t, readErr)
+		_, found := messages[utils.TransactionInternalKey(orgID, ledgerID, txID.String())]
+		require.False(t, found)
+	})
+
+	t.Run("later invalid incoming version rejects before any batch write", func(t *testing.T) {
+		first := newLimitNormalizationOperation(orgID, ledgerID, "@dual-invalid-first", 1)
+		first.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, "@dual-invalid-first#default")
+		seedLimitNormalizationCache(t, infra, first, "1000")
+		last := newLimitNormalizationOperation(orgID, ledgerID, "@dual-invalid-last", 1)
+		last.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, "@dual-invalid-last#default")
+		seedLimitNormalizationCache(t, infra, last, "1000")
+		last.Balance.Version = -1
+		firstBefore, err := infra.redisContainer.Client.Get(ctx, first.InternalKey).Bytes()
+		require.NoError(t, err)
+		lastBefore, err := infra.redisContainer.Client.Get(ctx, last.InternalKey).Bytes()
+		require.NoError(t, err)
+
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.MustParse("e7777777-7777-7777-7777-777777777783"), "ACTIVE", false,
+			[]mmodel.BalanceOperation{first, last})
+		require.ErrorContains(t, err, "BALANCE_DUAL_PROJECTION_INVALID")
+		require.Nil(t, result)
+		firstAfter, getErr := infra.redisContainer.Client.Get(ctx, first.InternalKey).Bytes()
+		require.NoError(t, getErr)
+		lastAfter, getErr := infra.redisContainer.Client.Get(ctx, last.InternalKey).Bytes()
+		require.NoError(t, getErr)
+		require.Equal(t, firstBefore, firstAfter)
+		require.Equal(t, lastBefore, lastAfter)
 	})
 }
