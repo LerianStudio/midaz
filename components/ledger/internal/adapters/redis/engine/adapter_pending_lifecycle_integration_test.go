@@ -8,6 +8,7 @@ package engine
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -63,17 +64,78 @@ func (r *pendingLifecycleReader) ValidateAccountingRules(context.Context, uuid.U
 }
 
 func (r *pendingLifecycleReader) GetWriteBehindTransaction(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*postgresTransaction.Transaction, error) {
-	return r.persisted, nil
+	return clonePendingLifecycleTransaction(r.persisted), nil
 }
 
 func (r *pendingLifecycleReader) GetTransactionWithOperationsByID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*postgresTransaction.Transaction, error) {
-	return r.persisted, nil
+	return clonePendingLifecycleTransaction(r.persisted), nil
+}
+
+func clonePendingLifecycleTransaction(input *postgresTransaction.Transaction) *postgresTransaction.Transaction {
+	if input == nil {
+		return nil
+	}
+	cloned := *input
+	cloned.Body.Send.Source.From = append([]mtransaction.FromTo(nil), input.Body.Send.Source.From...)
+	cloned.Body.Send.Distribute.To = append([]mtransaction.FromTo(nil), input.Body.Send.Distribute.To...)
+	cloned.Operations = append(cloned.Operations[:0:0], input.Operations...)
+	return &cloned
+}
+
+type pendingLifecycleClientProvider struct {
+	client redis.UniversalClient
+}
+
+func (p pendingLifecycleClientProvider) GetClient(context.Context) (redis.UniversalClient, error) {
+	return p.client, nil
 }
 
 type pendingLifecycleAdapter struct {
 	delegate   *Adapter
 	executions []command.EngineExecution
 	bootstraps []command.ExecutionGuard
+}
+
+type racingPendingLifecycleAdapter struct {
+	delegate *Adapter
+
+	mu         sync.Mutex
+	armed      bool
+	executions []command.EngineExecution
+	bootstraps []command.ExecutionGuard
+	arrived    chan struct{}
+	release    chan struct{}
+}
+
+func (a *racingPendingLifecycleAdapter) Execute(ctx context.Context, execution command.EngineExecution) (*core.Result, error) {
+	a.mu.Lock()
+	a.executions = append(a.executions, execution)
+	armed := a.armed
+	a.mu.Unlock()
+	if armed {
+		a.arrived <- struct{}{}
+		<-a.release
+	}
+	return a.delegate.Execute(ctx, execution)
+}
+
+func (a *racingPendingLifecycleAdapter) EnsureTransactionGuard(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, nextToken string) error {
+	a.mu.Lock()
+	a.bootstraps = append(a.bootstraps, command.ExecutionGuard{TransactionID: transactionID, NextToken: nextToken})
+	a.mu.Unlock()
+	return a.delegate.EnsureTransactionGuard(ctx, organizationID, ledgerID, transactionID, nextToken)
+}
+
+func (a *racingPendingLifecycleAdapter) arm() {
+	a.mu.Lock()
+	a.armed = true
+	a.mu.Unlock()
+}
+
+func (a *racingPendingLifecycleAdapter) captured() ([]command.EngineExecution, []command.ExecutionGuard) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]command.EngineExecution(nil), a.executions...), append([]command.ExecutionGuard(nil), a.bootstraps...)
 }
 
 func (a *pendingLifecycleAdapter) Execute(ctx context.Context, execution command.EngineExecution) (*core.Result, error) {
@@ -89,6 +151,19 @@ func (a *pendingLifecycleAdapter) EnsureTransactionGuard(ctx context.Context, or
 type pendingLifecycleFinalizer struct {
 	outcomes  []string
 	envelopes []*command.BalanceEngineRecoveryEnvelope
+}
+
+type pendingRaceFinalizer struct {
+	envelopes []*command.BalanceEngineRecoveryEnvelope
+}
+
+func (f *pendingRaceFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineRecoveryOutcome, error) {
+	payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	if err != nil {
+		return command.BalanceEngineRecoveryOutcome{}, err
+	}
+	f.envelopes = append(f.envelopes, envelope)
+	return command.BalanceEngineRecoveryOutcome{TransactionStatus: payload.TransactionStatus}, nil
 }
 
 func (f *pendingLifecycleFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineRecoveryOutcome, error) {
@@ -304,6 +379,182 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 	}
 }
 
+func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-pending-race")
+	ctx = libObservability.ContextWithHeaderID(ctx, "request-pending-race")
+	client, _, _ := newAdapterValkey(t)
+	organizationID := uuid.MustParse("a1111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("a2222222-2222-4222-8222-222222222222")
+	reader := &pendingLifecycleReader{
+		settings: mmodel.LedgerSettings{Tracer: mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce}},
+		balances: []*mmodel.Balance{
+			adapterCreateBalance(organizationID, ledgerID, "a3333333-3333-4333-8333-333333333333", "a4444444-4444-4444-8444-444444444444", "@source", 100, 7),
+			adapterCreateBalance(organizationID, ledgerID, "a5555555-5555-4555-8555-555555555555", "a6666666-6666-4666-8666-666666666666", "@target", 20, 3),
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	redisRepository := txredis.NewMockRedisRepository(ctrl)
+	stored := make(chan struct{})
+	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil)
+	redisRepository.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
+		func(context.Context, string, string, time.Duration) error { close(stored); return nil },
+	)
+	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).Return(true, nil).Times(2)
+	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	realAdapter, err := NewAdapter(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
+	require.NoError(t, err)
+	executor := &racingPendingLifecycleAdapter{
+		delegate: realAdapter,
+		arrived:  make(chan struct{}),
+		release:  make(chan struct{}),
+	}
+	finalizer := &pendingRaceFinalizer{}
+	tracerControl := &pendingLifecycleTracer{reservationID: uuid.MustParse("a7777777-7777-4777-8777-777777777777")}
+	uc := &command.UseCase{
+		TransactionRedisRepo:   redisRepository,
+		TransactionReader:      reader,
+		BalanceEngine:          executor,
+		BalanceEngineFinalizer: finalizer,
+		TracerReserver:         tracerControl,
+	}
+
+	amount := decimal.NewFromInt(30)
+	pending, replayed, err := uc.CreateTransactionV2(ctx, command.CreateTransactionV2Input{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Transaction: mtransaction.Transaction{
+			Description: "pending race",
+			Pending:     true,
+			Send: mtransaction.Send{
+				Asset: "USD",
+				Value: amount,
+				Source: mtransaction.Source{From: []mtransaction.FromTo{{
+					AccountAlias: "@source",
+					Amount:       &mtransaction.Amount{Asset: "USD", Value: amount},
+				}}},
+				Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{
+					AccountAlias: "@target",
+					Amount:       &mtransaction.Amount{Asset: "USD", Value: amount},
+				}}},
+			},
+		},
+		TransactionStatus: constant.PENDING,
+		IdempotencyTTL:    time.Minute,
+	})
+	require.NoError(t, err)
+	require.False(t, replayed)
+	require.Equal(t, constant.PENDING, pending.Status.Code)
+	select {
+	case <-stored:
+	case <-time.After(time.Second):
+		t.Fatal("pending create did not populate idempotency")
+	}
+
+	reader.persisted = pending
+	reader.balances[0].Available = decimal.NewFromInt(70)
+	reader.balances[0].OnHold = decimal.NewFromInt(30)
+	reader.balances[0].Version = 8
+	executor.arm()
+	transitionInput := command.PendingTransitionInput{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		TransactionID:  uuid.MustParse(pending.ID),
+	}
+	type raceOutcome struct {
+		requestedStatus string
+		transaction     *postgresTransaction.Transaction
+		err             error
+	}
+	outcomes := make(chan raceOutcome, 2)
+	go func() {
+		transaction, transitionErr := uc.CommitTransactionV2(ctx, transitionInput)
+		outcomes <- raceOutcome{requestedStatus: constant.APPROVED, transaction: transaction, err: transitionErr}
+	}()
+	go func() {
+		transaction, transitionErr := uc.CancelTransactionV2(ctx, transitionInput)
+		outcomes <- raceOutcome{requestedStatus: constant.CANCELED, transaction: transaction, err: transitionErr}
+	}()
+
+	for range 2 {
+		select {
+		case <-executor.arrived:
+		case <-time.After(time.Second):
+			close(executor.release)
+			t.Fatal("both pending transitions did not reach the adapter")
+		}
+	}
+	close(executor.release)
+	first, second := <-outcomes, <-outcomes
+	var winner, loser raceOutcome
+	if first.err == nil {
+		winner, loser = first, second
+	} else {
+		winner, loser = second, first
+	}
+	require.NoError(t, winner.err)
+	require.NotNil(t, winner.transaction)
+	require.Equal(t, winner.requestedStatus, winner.transaction.Status.Code)
+	require.Error(t, loser.err)
+	require.Nil(t, loser.transaction)
+	require.NotEqual(t, winner.requestedStatus, loser.requestedStatus)
+
+	executions, bootstraps := executor.captured()
+	require.Len(t, executions, 3)
+	require.Len(t, bootstraps, 2)
+	for _, bootstrap := range bootstraps {
+		require.Equal(t, command.ExecutionGuard{TransactionID: uuid.MustParse(pending.ID), NextToken: constant.PENDING}, bootstrap)
+	}
+	var winningExecution, losingExecution command.EngineExecution
+	for _, execution := range executions[1:] {
+		require.Equal(t, pending.ID, execution.Request.Transactions[0].ID.String())
+		if execution.Guards[0].NextToken == winner.requestedStatus {
+			winningExecution = execution
+		} else {
+			losingExecution = execution
+		}
+	}
+	require.NotEqual(t, uuid.Nil, winningExecution.Request.ExecutionID)
+	require.NotEqual(t, uuid.Nil, losingExecution.Request.ExecutionID)
+	require.NotEqual(t, winningExecution.Request.ExecutionID, losingExecution.Request.ExecutionID)
+	require.Len(t, finalizer.envelopes, 2)
+	winnerEnvelope := finalizer.envelopes[1]
+	require.Equal(t, winningExecution.Request.ExecutionID, winnerEnvelope.ExecutionID)
+	require.Equal(t, winningExecution.IntentFingerprint, winnerEnvelope.IntentFingerprint)
+	assertPendingLifecycleProjection(t, winnerEnvelope, winner.transaction)
+
+	keys, err := resolveAdapterKeys(ctx, winningExecution.Request)
+	require.NoError(t, err)
+	t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, client, keys) })
+	require.Equal(t, winner.requestedStatus, client.HGet(ctx, keys.Guards, pending.ID).Val())
+	require.Equal(t, int64(1), client.HLen(ctx, keys.Guards).Val())
+	require.Equal(t, int64(2), client.HLen(ctx, keys.Recovery).Val())
+	require.Equal(t, int64(2), client.HLen(ctx, keys.Receipts).Val())
+	require.False(t, client.HExists(ctx, keys.Recovery, pending.ID+":"+losingExecution.Request.ExecutionID.String()).Val())
+	require.False(t, client.HExists(ctx, keys.Receipts, losingExecution.Request.ExecutionID.String()).Val())
+	assertPendingLifecycleRecovery(t, ctx, client, keys, winningExecution, winner.transaction)
+
+	if winner.requestedStatus == constant.APPROVED {
+		require.Equal(t, []uuid.UUID{uuid.MustParse(pending.ID)}, tracerControl.confirmedTxns)
+		require.Empty(t, tracerControl.releasedTxns)
+		assertPendingLifecycleBalances(t, ctx, client, keys, []pendingLifecycleBalanceExpectation{
+			{ref: "@source#default", available: "70", onHold: "0", version: 9},
+			{ref: "@target#default", available: "50", onHold: "0", version: 4},
+		})
+	} else {
+		require.Empty(t, tracerControl.confirmedTxns)
+		require.Equal(t, []uuid.UUID{uuid.MustParse(pending.ID)}, tracerControl.releasedTxns)
+		assertPendingLifecycleBalances(t, ctx, client, keys, []pendingLifecycleBalanceExpectation{
+			{ref: "@source#default", available: "100", onHold: "0", version: 9},
+		})
+	}
+	require.Len(t, tracerControl.reserveRequests, 1)
+	require.Empty(t, tracerControl.confirmedIDs)
+	require.Empty(t, tracerControl.releasedIDs)
+}
+
 type pendingLifecycleBalanceExpectation struct {
 	ref       string
 	available string
@@ -356,6 +607,9 @@ var (
 	_ command.TransactionReader              = (*pendingLifecycleReader)(nil)
 	_ command.BalanceEngine                  = (*pendingLifecycleAdapter)(nil)
 	_ command.BalanceEngineGuardBootstrapper = (*pendingLifecycleAdapter)(nil)
+	_ command.BalanceEngine                  = (*racingPendingLifecycleAdapter)(nil)
+	_ command.BalanceEngineGuardBootstrapper = (*racingPendingLifecycleAdapter)(nil)
 	_ command.BalanceEngineOutcomeFinalizer  = (*pendingLifecycleFinalizer)(nil)
+	_ command.BalanceEngineOutcomeFinalizer  = (*pendingRaceFinalizer)(nil)
 	_ command.TracerReserver                 = (*pendingLifecycleTracer)(nil)
 )
