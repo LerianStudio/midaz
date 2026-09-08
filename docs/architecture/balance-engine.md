@@ -10,9 +10,11 @@ warm-cache repair protect that path independently of the new contract.
 The posting Lua implementation and Redis adapter, dual-format cache codec, and
 typed version-2 recovery payload/projector are implemented and tested foundations.
 The compatible recovery consumer is wired in bootstrap to the real SQL store and
-MongoDB metadata repository. The posting engine remains disconnected from normal
-transaction execution. Cache writers support the dual representation, but this
-does not establish completion of the accounting integration or activation gates.
+MongoDB metadata repository. The v1/v2 create, revert, and pending commit/cancel
+pipelines have opt-in engine branches, but bootstrap still leaves the execution
+port unset. Annotation requests retain their separate legacy path. Cache writers
+support the dual representation, but this does not establish completion of the
+accounting integration or activation gates.
 Reader compatibility in code does not establish deployment to every consumer.
 The adapter accepts concrete `*redis.Client` connections;
 standalone execution and replay after a synchronized, manually requested
@@ -174,8 +176,7 @@ BalanceAfter in a named Go compatibility projection; never overwrite truthful
 movement state to imitate a row. Normal finalization and recovery use the same
 projector and must produce identical operation IDs, rows, and versions.
 
-The command layer provides two additive preparation functions, still disconnected
-from the active transaction pipeline:
+The opt-in transaction paths compose two preparation functions:
 
 - `LoadBalanceEngineSnapshotPool` reads explicit targets and deduplicated optional
   overdraft candidates within the same organization and ledger. Candidate loading
@@ -195,7 +196,26 @@ postings or calculating their amounts. Only returned movements materialize those
 rows. Frozen attribution and real before/after states are accepted by the same
 version-2 recovery validator and projector. Annotation input is explicitly
 non-executable at this seam; the caller must retain its separate annotation path.
-These functions alone do not provide normal-path retry, persistence, or activation.
+Preparation presents ordered explicit-leg DTOs to existing route validation and
+preserves the static double-entry hold shape. Account validation receives one
+entry per original leg, not the full snapshot pool or generated companions.
+Repeated legs on one balance therefore retain their validation cardinality.
+Balance reads request the primary, and cancellation is checked again after route
+lookup. These functions alone do not activate the engine.
+
+Pending commit/cancel confirms the transaction and its operations in scoped
+primary SQL before bootstrapping a missing `PENDING` guard. Existing terminal
+guards are never replaced. A terminal SQL transaction retains the existing
+not-pending error even when its pending body has already been cleared.
+Cancellation reads source balances only and derives any historical repayment
+cap from persisted operations, never from current overdraft debt. Cloning the
+persisted input preserves JSON numeric metadata without a float conversion.
+Each action captures its own execution identity and timestamps outside retry.
+
+Revert creates a new child transaction with the original transaction as its
+parent. Its v2 path performs a new tracer reservation and does not inherit the
+original transaction's tracer skip. Neither revert nor pending transitions
+rewrite the atomic recovery backup through the legacy write-behind path.
 
 ## Precision and cache representation
 
@@ -391,13 +411,25 @@ fees, tracer reservation, and HTTP idempotency work. Do not restart the whole
 transaction workflow. Context cancellation stops additional attempts.
 
 `ExecuteBalanceEngineWithRetry` implements this retry boundary for one prepared
-transaction, but remains disconnected from the normal pipeline. It validates each
+transaction and is used by the opt-in create, revert, and pending transitions.
+It validates each
 attempt's canonical recovery payload and preserves copied execution/guard identity
 and posting refs, balances, types, amounts, and repayment caps. Snapshots, live
 settings, optional companion contexts, and draw policy can be rebuilt. A technical
 error wrapping stale-version is not retryable. Nil/malformed success results and
 contradictory result-plus-error returns are classified as indeterminate, retaining
 the latest attempt and available result for reconciliation.
+
+Create prepares the first snapshot-dependent attempt before reserving tracer
+capacity. The v2 path reserves once and reuses that handle across stale retries;
+v1 does not invoke fees or tracer. NOTED stays on its separate legacy path.
+Unknown or indeterminate execution failures, malformed results, and failures
+after confirmed accounting retain the idempotency claim and recovery evidence.
+Only confirmed precommit failures permit compensation. Normal completion uses
+the frozen recovery projector and durable finalizer, without invoking legacy
+queue seeds, backup rewrites, or BTO persistence. The normal response preserves
+CREATED while SQL stores APPROVED. The recovery consumer owns exact-byte backup
+acknowledgment; successful normal finalization does not delete receipts or guards.
 
 Accounting `EVALSHA`/`EVAL` and repair calls use a command wrapper with
 `NoRetry=true`, without changing the shared client's settings. `EVALSHA` to
@@ -585,6 +617,20 @@ in MongoDB. Existing metadata is never overwritten to force replay equivalence.
 A late pending-hold record after terminal completion is accepted only when every
 historical row already exists exactly; it cannot insert old rows or regress the
 terminal transaction. Persistence conflicts retain the backup.
+
+`NewBalanceEngineFinalizerWithEvents` optionally dispatches the existing
+transaction, overdraft, and balance-change emitters after SQL and frozen metadata
+have both been confirmed. It requires a store reporting the actual committed
+`created`, `updated`, or `noop` lifecycle phase; an absent or unknown phase fails
+without dispatch. The original finalizer constructor remains persistence-only.
+Both paths project the same deterministic rows and preserve the legacy public
+source/destination aliases without balance keys or generated companions.
+Bootstrap supplies the same tenant-aware, event-enabled finalizer to command and
+the recovery consumer, while leaving the engine execution port unset.
+
+Event dispatch retains the existing independent emitter timeouts and cancellation
+detachment. It remains best-effort: this capability adds no outbox or delivery
+guarantee, and a successful finalizer return does not prove event delivery.
 
 Only after SQL and metadata verification succeeds does the consumer request an
 atomic comparison of the exact original envelope bytes and deletion of its raw
