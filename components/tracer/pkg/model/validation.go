@@ -481,16 +481,47 @@ func (r *ValidationRequest) validateMerchant() error {
 	return nil
 }
 
+// validateMetadata measures every metadata map the request carries against the
+// entry-count, key-length and key-character ceilings. The nested contexts each
+// hold their own map and reach both the CEL activation and the persisted
+// validation, so leaving them unmeasured let a client push metadata past the
+// limits the API advertises through any nested object.
 func (r *ValidationRequest) validateMetadata() error {
-	if r.Metadata == nil {
+	carried := []map[string]any{r.Metadata, r.Account.Metadata}
+
+	if r.Segment != nil {
+		carried = append(carried, r.Segment.Metadata)
+	}
+
+	if r.Portfolio != nil {
+		carried = append(carried, r.Portfolio.Metadata)
+	}
+
+	if r.Merchant != nil {
+		carried = append(carried, r.Merchant.Metadata)
+	}
+
+	for _, metadata := range carried {
+		if err := validateMetadataMap(metadata); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateMetadataMap holds one metadata map to the advertised ceilings. A nil
+// map is absent, not empty, and passes.
+func validateMetadataMap(metadata map[string]any) error {
+	if metadata == nil {
 		return nil
 	}
 
-	if len(r.Metadata) > trcConstant.MaxMetadataEntries {
+	if len(metadata) > trcConstant.MaxMetadataEntries {
 		return constant.ErrMetadataEntriesExceeded
 	}
 
-	for key := range r.Metadata {
+	for key := range metadata {
 		if len(key) > trcConstant.MaxMetadataKeyLength {
 			return constant.ErrMetadataKeyLengthExceeded
 		}
