@@ -1772,6 +1772,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtection(
 		"engine:" + cachepolicy.HashTag + ":receipts:" + scope,
 		"engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		"engine:" + cachepolicy.HashTag + ":protection:" + scope,
+		EngineRecoveryCleanupSchedule,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("resolve protected recovery acknowledgement keys: %w", err)

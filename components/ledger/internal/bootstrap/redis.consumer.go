@@ -398,6 +398,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	// Computed from the records already in hand so no extra Redis round-trip is
 	// needed. Depth is reported even on an empty cycle.
 	r.emitDepthGauge(ctx, int64(len(messages)))
+	r.cleanupEngineRecovery(ctx)
 
 	if len(messages) == 0 {
 		return

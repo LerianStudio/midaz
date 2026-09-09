@@ -31,7 +31,7 @@ func TestIntegrationDelayedFinalizationKeepsReplayProtectionThroughFullWindow(t 
 	resolved, err := resolveAdapterKeys(ctx, input.Request)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection}
+		keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection, txredis.EngineRecoveryCleanupSchedule}
 		for _, pair := range resolved.Balances {
 			keys = append(keys, pair.Balance, pair.Deleted)
 		}
@@ -68,11 +68,21 @@ func TestIntegrationDelayedFinalizationKeepsReplayProtectionThroughFullWindow(t 
 	require.NoError(t, json.Unmarshal(receiptRaw, &receipt))
 	require.Equal(t, completedAt.Add(7*24*time.Hour).UnixMilli(), receipt.Protection.CleanupAfterMS)
 
-	// Until a supported cleanup owner is selected, the proven deadline is
-	// non-destructive: retries continue to replay and never mutate balances.
+	cleanup, err := recoveryRepo.CleanupEngineRecovery(ctx, completedAt.Add(7*24*time.Hour-time.Millisecond), 10)
+	require.NoError(t, err)
+	require.Zero(t, cleanup.Scanned)
+
+	// The full retry window remains non-destructive through its last millisecond.
 	replayed, err := adapter.Execute(ctx, input)
 	require.NoError(t, err)
 	require.Equal(t, first, replayed)
 	require.True(t, client.HExists(ctx, resolved.Receipts, executionID.String()).Val())
 	require.True(t, client.HExists(ctx, resolved.Guards, transactionID.String()).Val())
+
+	cleanup, err = recoveryRepo.CleanupEngineRecovery(ctx, completedAt.Add(7*24*time.Hour), 10)
+	require.NoError(t, err)
+	require.Equal(t, txredis.RecoveryCleanupResult{Scanned: 1, Cleaned: 1}, cleanup)
+	require.False(t, client.HExists(ctx, resolved.Receipts, executionID.String()).Val())
+	require.False(t, client.HExists(ctx, resolved.Guards, transactionID.String()).Val())
+	require.False(t, client.HExists(ctx, resolved.Protection, transactionID.String()).Val())
 }

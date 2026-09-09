@@ -29,7 +29,21 @@ func (retentionFinalizer) FinalizeWithOutcome(context.Context, *command.BalanceE
 
 type retentionQueue struct {
 	transaction.RedisRepository
-	completedAt time.Time
+	completedAt  time.Time
+	cleanupAt    time.Time
+	cleanupLimit int
+	cleanupCalls int
+}
+
+func (queue *retentionQueue) ReadAllMessagesFromQueue(context.Context) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (queue *retentionQueue) CleanupEngineRecovery(_ context.Context, now time.Time, limit int) (transaction.RecoveryCleanupResult, error) {
+	queue.cleanupCalls++
+	queue.cleanupAt = now
+	queue.cleanupLimit = limit
+	return transaction.RecoveryCleanupResult{}, nil
 }
 
 func (queue *retentionQueue) CompareAndDeleteRecovery(context.Context, string, string) (int64, error) {
@@ -61,4 +75,17 @@ func TestRecoveryCompletionUsesInjectedClockAfterDurableOutcome(t *testing.T) {
 	err := consumer.finalizeRecoveryRecord(t.Context(), "field", "raw", envelope)
 	require.NoError(t, err)
 	require.Equal(t, fixed, queue.completedAt)
+}
+
+func TestRecoveryCleanupUsesInjectedClockWhenBackupQueueIsEmpty(t *testing.T) {
+	fixed := time.Date(2042, time.April, 5, 6, 7, 8, 9, time.UTC)
+	queue := &retentionQueue{}
+	consumer := (&RedisQueueConsumer{Logger: recoveryQuietLogger{}, queue: queue}).
+		WithRecoveryClock(func() time.Time { return fixed })
+
+	consumer.readMessagesAndProcess(t.Context())
+
+	require.Equal(t, 1, queue.cleanupCalls)
+	require.Equal(t, fixed, queue.cleanupAt)
+	require.Equal(t, 100, queue.cleanupLimit)
 }

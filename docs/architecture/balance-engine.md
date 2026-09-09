@@ -585,15 +585,24 @@ A later commit/cancel propagates terminal proof to an earlier acknowledged
 PENDING execution, so that execution's own window starts at the transition's
 durable completion rather than at its original EVAL.
 
-The protocol currently records `cleanupAfterMs` only after those conditions hold
-and remains deliberately non-destructive. Valkey 8.1 does not provide independent
-expiry for hash fields, while receipts and guards share hashes across executions.
-Expiring either whole hash is unsafe, and deleting fields immediately after ACK
-would not preserve the retry window across a crash. A future idempotent sweeper
-or migration to individual keys must own deletion. Legacy receipts do not receive
-retroactive eligibility without equivalent proof. Until that cleanup owner is
-implemented and validated, receipt, guard, and protection fields remain without
-TTL and activation stays blocked.
+Once those conditions hold, ACK records `cleanupAfterMs` on the receipt and each
+transaction coordinator and adds the execution to a tenant-global, same-slot due
+index. Valkey 8.1 does not provide independent expiry for hash fields, while
+receipts and guards share hashes across executions, so the recovery consumer owns
+bounded cleanup instead of expiring a whole hash. Each consumer cycle sweeps due
+members even when the recovery hash is empty. Cleanup revalidates the exact due
+score, receipt scope and membership, terminal acknowledgement proof, absence of
+every recovery member, and every coordinator deadline in one atomic script. It
+removes only that receipt and its coordinator links. A transaction guard is
+removed only when no other execution remains linked to that transaction, so an
+earlier deadline cannot erase a newer transition's protection. Missing receipts
+remove only their stale due-index member; changed deadlines are rescheduled.
+Malformed or inconsistent proofs fail without artifact writes.
+
+Legacy receipts never enter the due index and do not receive retroactive cleanup
+eligibility. Pending, partially acknowledged, and durably incomplete executions
+also remain unscheduled. The engine execution port remains unset; finite cleanup
+does not activate it or relax the separate activation gates.
 
 ### Finalization outcomes
 

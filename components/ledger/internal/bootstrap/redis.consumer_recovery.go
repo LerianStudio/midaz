@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -34,6 +35,12 @@ type recoveryRecordAcknowledger interface {
 type recoveryProtectionAcknowledger interface {
 	CompareAndDeleteRecoveryWithProtection(context.Context, uuid.UUID, uuid.UUID, string, string, bool, time.Time) (int64, error)
 }
+
+type recoveryCleanupOwner interface {
+	CleanupEngineRecovery(context.Context, time.Time, int) (txRedis.RecoveryCleanupResult, error)
+}
+
+const recoveryCleanupBatchSize = 100
 
 // WithBalanceEngineFinalizer supplies durable SQL and metadata completion for
 // version-two records. A missing finalizer leaves those records in the queue.
@@ -51,6 +58,30 @@ func (r *RedisQueueConsumer) WithRecoveryClock(clock func() time.Time) *RedisQue
 	}
 
 	return r
+}
+
+func (r *RedisQueueConsumer) cleanupEngineRecovery(ctx context.Context) {
+	owner, ok := r.queue.(recoveryCleanupOwner)
+	if !ok {
+		return
+	}
+
+	if r.recoveryClock == nil {
+		r.Logger.Log(ctx, libLog.LevelWarn, "Engine recovery cleanup clock is not configured")
+		return
+	}
+
+	result, err := owner.CleanupEngineRecovery(ctx, r.recoveryClock(), recoveryCleanupBatchSize)
+	if err != nil {
+		r.Logger.Log(ctx, libLog.LevelWarn, "Failed to clean protected engine recovery artifacts", libLog.Err(err))
+		return
+	}
+
+	r.Logger.Log(ctx, libLog.LevelDebug, "Cleaned protected engine recovery artifacts",
+		libLog.Int("scanned_count", result.Scanned),
+		libLog.Int("cleaned_count", result.Cleaned),
+		libLog.Int("stale_count", result.Stale),
+		libLog.Int("rescheduled_count", result.Rescheduled))
 }
 
 // backupRecordVersion permits legacy decoding only when the discriminator is

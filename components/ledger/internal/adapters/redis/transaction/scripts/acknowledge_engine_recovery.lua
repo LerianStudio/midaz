@@ -2,10 +2,11 @@
 -- Use of this source code is governed by the Elastic License 2.0
 -- that can be found in the LICENSE file.
 
--- KEYS: backup hash, attempt hash, receipt hash, guard hash, protection hash.
+-- KEYS: backup hash, attempt hash, receipt hash, guard hash, protection hash,
+--       cleanup schedule.
 -- ARGV: recovery field, exact envelope, attempt field, transaction UUID,
 --       execution UUID, terminal flag (0|1), durable completion unix millis.
-if #KEYS ~= 5 or #ARGV ~= 7 then
+if #KEYS ~= 6 or #ARGV ~= 7 then
     return redis.error_reply("ERR invalid protected recovery acknowledgement arguments")
 end
 
@@ -15,11 +16,17 @@ local function redisType(key)
     return result
 end
 
-for _, key in ipairs(KEYS) do
+for index = 1, 5 do
+    local key = KEYS[index]
     local kind = redisType(key)
     if kind ~= "none" and kind ~= "hash" then
         return redis.error_reply("WRONGTYPE protected recovery acknowledgement requires hashes")
     end
+end
+
+local scheduleKind = redisType(KEYS[6])
+if scheduleKind ~= "none" and scheduleKind ~= "zset" then
+    return redis.error_reply("WRONGTYPE protected recovery cleanup schedule must be a sorted set")
 end
 
 local protectionKey = KEYS[5]
@@ -45,6 +52,10 @@ local function decodeReceipt(raw, expectedExecution)
     if not ok or type(receipt) ~= "table" then return nil, "invalid receipt JSON" end
     if receipt.executionId ~= expectedExecution then return nil, "receipt execution differs" end
     if receipt.protection == nil then return receipt, nil end
+    if type(receipt.organizationId) ~= "string" or receipt.organizationId == "" or
+        type(receipt.ledgerId) ~= "string" or receipt.ledgerId == "" then
+        return nil, "receipt scope differs"
+    end
     local p = receipt.protection
     if type(p) ~= "table" or p.formatVersion ~= 1 or type(p.retentionSeconds) ~= "number" or
         p.retentionSeconds < 1 or p.retentionSeconds > 604800 or p.retentionSeconds % 1 ~= 0 or
@@ -121,7 +132,7 @@ if coordinatorRaw then
     end
 end
 
-local deadlines = {}
+local deadlines, scheduleMembers = {}, {}
 for linkedExecution, linked in pairs(receipts) do
     local ready, terminalAt = true, 0
     for _, id in ipairs(linked.protection.transactions) do
@@ -136,6 +147,7 @@ for linkedExecution, linked in pairs(receipts) do
         local deadline = terminalAt + linked.protection.retentionSeconds * 1000
         linked.protection.cleanupAfterMs = deadline
         deadlines[linkedExecution] = deadline
+        scheduleMembers[linkedExecution] = linked.organizationId .. ":" .. linked.ledgerId .. ":" .. linkedExecution
     end
 end
 
@@ -167,14 +179,13 @@ for linkedExecution, deadline in pairs(deadlines) do
                     end
                 end
                 -- Valkey 8.1 lacks per-hash-field expiry. Keep the fully proven
-                -- deadline in the coordinator;
-                -- no field is removed until a separate idempotent sweeper or a
-                -- standalone-key migration is operationally selected.
+                -- deadline in the coordinator for the bounded cleanup owner.
                 if allReady then state.cleanupAfterMs = guardDeadline end
                 redis.call("HSET", protectionKey, id, cjson.encode(state))
             end
         end
     end
+    redis.call("ZADD", KEYS[6], deadline, scheduleMembers[linkedExecution])
 end
 
 return 1

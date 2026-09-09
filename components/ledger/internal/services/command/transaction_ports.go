@@ -39,7 +39,7 @@ type EngineExecution struct {
 	// RetentionSeconds is the effective request idempotency/retry window. Zero
 	// means the HTTP default; values above the HTTP maximum are rejected.
 	// The cleanup deadline starts only after durable terminal completion, never
-	// at EVAL. Protection remains indefinite until a cleanup owner is selected.
+	// at EVAL. The recovery consumer removes protection only after that deadline.
 	RetentionSeconds int64
 	Guards           []ExecutionGuard
 	Recovery         []RecoveryIntent
