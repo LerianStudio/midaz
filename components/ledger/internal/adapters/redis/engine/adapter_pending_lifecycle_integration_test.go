@@ -8,6 +8,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -155,6 +157,23 @@ type pendingLifecycleFinalizer struct {
 
 type pendingRaceFinalizer struct {
 	envelopes []*command.BalanceEngineRecoveryEnvelope
+}
+
+type pendingLockExpiryFinalizer struct {
+	pendingRaceFinalizer
+	failAfter int
+	err       error
+}
+
+func (f *pendingLockExpiryFinalizer) FinalizeWithOutcome(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
+	result, err := f.pendingRaceFinalizer.FinalizeWithOutcome(ctx, envelope)
+	if err != nil {
+		return command.BalanceEngineFinalizationResult{}, err
+	}
+	if len(f.envelopes) > f.failAfter {
+		return command.BalanceEngineFinalizationResult{}, f.err
+	}
+	return result, nil
 }
 
 func (f *pendingRaceFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
@@ -575,6 +594,148 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	require.Empty(t, tracerControl.releasedIDs)
 }
 
+func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-pending-lock-expiry")
+	ctx = libObservability.ContextWithHeaderID(ctx, "request-pending-lock-expiry")
+	client, _, _ := newAdapterValkey(t)
+	organizationID := uuid.MustParse("b1111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("b2222222-2222-4222-8222-222222222222")
+	reader := &pendingLifecycleReader{
+		balances: []*mmodel.Balance{
+			adapterCreateBalance(organizationID, ledgerID, "b3333333-3333-4333-8333-333333333333", "b4444444-4444-4444-8444-444444444444", "@source", 100, 7),
+			adapterCreateBalance(organizationID, ledgerID, "b5555555-5555-4555-8555-555555555555", "b6666666-6666-4666-8666-666666666666", "@target", 20, 3),
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	redisRepository := txredis.NewMockRedisRepository(ctrl)
+	stored := make(chan struct{})
+	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil)
+	redisRepository.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
+		func(context.Context, string, string, time.Duration) error { close(stored); return nil },
+	)
+	lockAcquisitions := 0
+	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).DoAndReturn(
+		func(context.Context, string, string, time.Duration) (bool, error) {
+			lockAcquisitions++
+			return true, nil
+		},
+	).Times(3)
+	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(2)
+
+	realAdapter, err := NewAdapter(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
+	require.NoError(t, err)
+	executor := &pendingLifecycleAdapter{delegate: realAdapter}
+	finalizationErr := errors.New("pending transition persistence unavailable")
+	finalizer := &pendingLockExpiryFinalizer{failAfter: 1, err: finalizationErr}
+	uc := &command.UseCase{
+		TransactionRedisRepo:   redisRepository,
+		TransactionReader:      reader,
+		BalanceEngine:          executor,
+		BalanceEngineFinalizer: finalizer,
+	}
+
+	amount := decimal.NewFromInt(30)
+	pending, replayed, err := uc.CreateTransactionV2(ctx, command.CreateTransactionV2Input{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Transaction: mtransaction.Transaction{
+			Description: "pending lock expiry",
+			Pending:     true,
+			Send: mtransaction.Send{
+				Asset: "USD",
+				Value: amount,
+				Source: mtransaction.Source{From: []mtransaction.FromTo{{
+					AccountAlias: "@source",
+					Amount:       &mtransaction.Amount{Asset: "USD", Value: amount},
+				}}},
+				Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{
+					AccountAlias: "@target",
+					Amount:       &mtransaction.Amount{Asset: "USD", Value: amount},
+				}}},
+			},
+		},
+		TransactionStatus: constant.PENDING,
+		IdempotencyTTL:    time.Minute,
+	})
+	require.NoError(t, err)
+	require.False(t, replayed)
+	require.Equal(t, constant.PENDING, pending.Status.Code)
+	select {
+	case <-stored:
+	case <-time.After(time.Second):
+		t.Fatal("pending create did not populate idempotency")
+	}
+
+	reader.persisted = pending
+	reader.balances[0].Available = decimal.NewFromInt(70)
+	reader.balances[0].OnHold = decimal.NewFromInt(30)
+	reader.balances[0].Version = 8
+	transitionInput := command.PendingTransitionInput{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		TransactionID:  uuid.MustParse(pending.ID),
+	}
+
+	transitioned, err := uc.CommitTransactionV2(ctx, transitionInput)
+	require.ErrorIs(t, err, finalizationErr)
+	require.Nil(t, transitioned)
+	require.Equal(t, 1, lockAcquisitions)
+	require.Len(t, executor.executions, 2)
+	require.Len(t, finalizer.envelopes, 2)
+	winningExecution := executor.executions[1]
+	keys, err := resolveAdapterKeys(ctx, winningExecution.Request)
+	require.NoError(t, err)
+	t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, client, keys) })
+	require.Equal(t, constant.APPROVED, client.HGet(ctx, keys.Guards, pending.ID).Val())
+	assertPendingLifecycleBalances(t, ctx, client, keys, []pendingLifecycleBalanceExpectation{
+		{ref: "@source#default", available: "70", onHold: "0", version: 9},
+		{ref: "@target#default", available: "50", onHold: "0", version: 4},
+	})
+
+	// A successful SetNX is the command-visible state after the expiring Go lock
+	// has disappeared. Both later commands reacquire it, but neither may cross the
+	// durable PENDING -> APPROVED engine guard a second time.
+	transitioned, err = uc.CommitTransactionV2(ctx, transitionInput)
+	requirePendingLifecycleLockConflict(t, err)
+	require.Nil(t, transitioned)
+	require.Equal(t, 2, lockAcquisitions)
+
+	transitioned, err = uc.CancelTransactionV2(ctx, transitionInput)
+	requirePendingLifecycleLockConflict(t, err)
+	require.Nil(t, transitioned)
+	require.Equal(t, 3, lockAcquisitions)
+	require.Len(t, executor.executions, 4)
+	require.Len(t, finalizer.envelopes, 2)
+	require.Equal(t, command.ExecutionGuard{TransactionID: transitionInput.TransactionID, ExpectedToken: constant.PENDING, NextToken: constant.APPROVED}, executor.executions[2].Guards[0])
+	require.Equal(t, command.ExecutionGuard{TransactionID: transitionInput.TransactionID, ExpectedToken: constant.PENDING, NextToken: constant.CANCELED}, executor.executions[3].Guards[0])
+	require.Equal(t, constant.APPROVED, client.HGet(ctx, keys.Guards, pending.ID).Val())
+	require.Equal(t, int64(2), client.HLen(ctx, keys.Recovery).Val())
+	require.Equal(t, int64(2), client.HLen(ctx, keys.Receipts).Val())
+	for _, rejected := range executor.executions[2:] {
+		require.False(t, client.HExists(ctx, keys.Recovery, pending.ID+":"+rejected.Request.ExecutionID.String()).Val())
+		require.False(t, client.HExists(ctx, keys.Receipts, rejected.Request.ExecutionID.String()).Val())
+	}
+	winningPayload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(finalizer.envelopes[1].Payload))
+	require.NoError(t, err)
+	winningRecord, err := command.ComposeBalanceEnginePersistenceRecord(*winningPayload, finalizer.envelopes[1].Result)
+	require.NoError(t, err)
+	assertPendingLifecycleRecovery(t, ctx, client, keys, winningExecution, winningRecord.Transaction)
+	assertPendingLifecycleBalances(t, ctx, client, keys, []pendingLifecycleBalanceExpectation{
+		{ref: "@source#default", available: "70", onHold: "0", version: 9},
+		{ref: "@target#default", available: "50", onHold: "0", version: 4},
+	})
+}
+
+func requirePendingLifecycleLockConflict(t *testing.T, err error) {
+	t.Helper()
+	require.Error(t, err)
+	var conflict pkg.EntityConflictError
+	require.True(t, errors.As(err, &conflict))
+	require.Equal(t, constant.ErrPendingTransactionLocked.Error(), conflict.Code)
+}
+
 type pendingLifecycleBalanceExpectation struct {
 	ref       string
 	available string
@@ -631,5 +792,6 @@ var (
 	_ command.BalanceEngineGuardBootstrapper = (*racingPendingLifecycleAdapter)(nil)
 	_ command.BalanceEngineOutcomeFinalizer  = (*pendingLifecycleFinalizer)(nil)
 	_ command.BalanceEngineOutcomeFinalizer  = (*pendingRaceFinalizer)(nil)
+	_ command.BalanceEngineOutcomeFinalizer  = (*pendingLockExpiryFinalizer)(nil)
 	_ command.TracerReserver                 = (*pendingLifecycleTracer)(nil)
 )
