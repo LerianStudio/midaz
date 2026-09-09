@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -424,6 +425,77 @@ func TestRepeatedConfirmDoesNotCountTheSpendTwice(t *testing.T) {
 	defer mu.Unlock()
 
 	assert.Equal(t, 1, countedSpend, "a repeated confirm must not count the spend twice")
+}
+
+// tenantSpy records the tenant each retry attempt carried on its context.
+type tenantSpy struct {
+	mu    sync.Mutex
+	seen  []string
+	calls int
+}
+
+func (s *tenantSpy) Reserve(_ context.Context, _ tracer.ReserveRequest) (*tracer.ReserveResult, error) {
+	return &tracer.ReserveResult{}, nil
+}
+
+func (s *tenantSpy) Confirm(ctx context.Context, _ uuid.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.calls++
+	s.seen = append(s.seen, tmcore.GetTenantIDContext(ctx))
+
+	if s.calls < 3 {
+		return fmt.Errorf("down: %w", tracer.ErrTracerUnavailable)
+	}
+
+	return nil
+}
+
+func (s *tenantSpy) Release(_ context.Context, _ uuid.UUID) error              { return nil }
+func (s *tenantSpy) ConfirmByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
+func (s *tenantSpy) ReleaseByTransaction(_ context.Context, _ uuid.UUID) error { return nil }
+
+func (s *tenantSpy) tenants() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return append([]string(nil), s.seen...)
+}
+
+// TestRetryKeepsTheTenantAfterTheRequestEnds guards the two properties that make
+// a detached retry correct in a multi-tenant deployment.
+//
+// The first is that it runs at all: the request's context is cancelled the
+// moment the response is written, and a retry bound to it would die before its
+// first attempt. The second is that it still speaks for the right customer —
+// the tracer client reads the tenant off the context it is handed, so a
+// detachment that dropped the tenant would send the confirm to the wrong
+// tenant's data, or to none, which on a spending limit is worse than not
+// sending it.
+func TestRetryKeepsTheTenantAfterTheRequestEnds(t *testing.T) {
+	const tenant = "acme-tenant-1"
+
+	requestCtx, endRequest := context.WithCancel(tmcore.ContextWithTenantID(context.Background(), tenant))
+
+	spy := &tenantSpy{}
+	retrier := newReservationRetrier(fastRetryPolicy())
+
+	retrier.schedule(requestCtx, spy, &capturingLogger{}, retryTransition(),
+		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
+
+	// The response is written and the request context is cancelled while the
+	// ledger still owes the tracer a confirm.
+	endRequest()
+
+	retrier.wait()
+
+	seen := spy.tenants()
+	require.NotEmpty(t, seen, "the retry must outlive the request whose context was cancelled")
+
+	for attempt, got := range seen {
+		assert.Equal(t, tenant, got, "attempt %d must still speak for the tenant that owns the transaction", attempt+1)
+	}
 }
 
 // TestAnchorHandsAFailedTransitionToTheRetrier wires the two halves together:
