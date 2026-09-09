@@ -30,6 +30,17 @@ type ProcessBalanceOperationsInput struct {
 	Validate          *mtransaction.Responses
 	BalanceOperations []mmodel.BalanceOperation
 	TransactionStatus string
+
+	// AccountBlockExceptionGrant is the single-use account-block exception the
+	// request presented, as read from the cache, or nil when it presented none.
+	//
+	// It authorizes nothing on its own. This step binds it to the ONE logical
+	// debit of the batch it covers — the primary debit leg on the granted alias
+	// plus the overdraft companions the system derived from it — and that binding
+	// relaxes the account block and the sending/receiving deny on exactly those
+	// balances. It is validated against the transaction and consumed inside the
+	// atomic balance script: never here, and never by the Go validation.
+	AccountBlockExceptionGrant *mtransaction.AccountBlockExceptionGrant
 }
 
 // ProcessBalanceOperations validates balance rules and executes the atomic Lua
@@ -62,7 +73,29 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 		attribute.String("app.transaction_status", input.TransactionStatus),
 		attribute.Int("app.balance_operations_count", len(input.BalanceOperations)),
 		attribute.Bool("app.skip_balance_validation", skipBalanceValidation),
+		attribute.Bool("app.request.account_block_exception_presented", input.AccountBlockExceptionGrant != nil),
 	)
+
+	// Bind a presented account-block exception to the ONE logical debit of this
+	// batch it authorizes: the primary debit leg on the granted alias plus the
+	// overdraft companion legs the system derived from it. Resolving it HERE, once,
+	// is what keeps the Go pre-validation and the atomic script agreeing on exactly
+	// which balances the grant covers.
+	//
+	// A bind that cannot be made rejects before the script runs, so the identifier
+	// is not consumed and stays available for the transaction it was minted for.
+	binding, err := mtransaction.ResolveAccountBlockExceptionBinding(
+		input.AccountBlockExceptionGrant,
+		accountBlockExceptionLegs(input.BalanceOperations),
+	)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account block exception does not bind to a debit of this transaction", err)
+		logger.Log(ctx, libLog.LevelWarn, "Account block exception does not bind to a debit of this transaction", libLog.Err(err))
+
+		return nil, err
+	}
+
+	span.SetAttributes(attribute.Int("app.account_block_exception_bypassed_balances", len(binding.InternalKeys())))
 
 	// Validate balance rules (eligibility, asset codes, sending/receiving permissions).
 	// Skipped for state transitions where rules were enforced on the original transaction.
@@ -80,6 +113,7 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 			*input.TransactionInput,
 			*input.Validate,
 			txBalances,
+			binding,
 		); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance rule validation failed", err)
 
@@ -99,6 +133,7 @@ func (uc *UseCase) ProcessBalanceOperations(ctx context.Context, input ProcessBa
 		input.TransactionStatus,
 		input.Validate.Pending,
 		input.BalanceOperations,
+		binding,
 	)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute atomic balance operation", err)
@@ -142,4 +177,32 @@ func deduplicateBalances(operations []mmodel.BalanceOperation) ([]*mtransaction.
 	}
 
 	return balances, nil
+}
+
+// accountBlockExceptionLegs projects the batch onto what the binding resolution
+// reads. It lives here rather than in mtransaction because that package is
+// imported BY the model and so cannot import it back.
+//
+// Operations without a balance are skipped: they carry no alias or balance key to
+// bind against, and counting one would bind a grant to a leg with no balance to
+// bypass the block on.
+func accountBlockExceptionLegs(operations []mmodel.BalanceOperation) []mtransaction.AccountBlockExceptionLeg {
+	legs := make([]mtransaction.AccountBlockExceptionLeg, 0, len(operations))
+
+	for _, op := range operations {
+		if op.Balance == nil {
+			continue
+		}
+
+		legs = append(legs, mtransaction.AccountBlockExceptionLeg{
+			Alias:       op.Balance.Alias,
+			BalanceKey:  op.Balance.Key,
+			EntryKey:    op.Alias,
+			Direction:   op.Amount.Direction,
+			Amount:      op.Amount.Value.String(),
+			InternalKey: op.InternalKey,
+		})
+	}
+
+	return legs
 }

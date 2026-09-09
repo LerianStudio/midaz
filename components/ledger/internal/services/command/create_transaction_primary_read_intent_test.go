@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
@@ -158,11 +159,18 @@ func newPrimaryReadCapturingUseCase(ctrl *gomock.Controller) (*primaryReadCaptur
 
 	mockRedis := redis.NewMockRedisRepository(ctrl)
 	mockBalance := balance.NewMockRepository(ctrl)
+	mockAccount := account.NewMockRepository(ctrl)
 
 	// Cache miss on every alias: empty value -> GetBalances falls through to DB.
 	mockRedis.EXPECT().
 		Get(gomock.Any(), gomock.Any()).
 		Return("", nil).
+		AnyTimes()
+
+	// The blocked-hydration lookup on the miss path; no blocked accounts here.
+	mockAccount.EXPECT().
+		ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return([]*mmodel.Account{}, nil).
 		AnyTimes()
 
 	mockBalance.EXPECT().
@@ -183,6 +191,7 @@ func newPrimaryReadCapturingUseCase(ctrl *gomock.Controller) (*primaryReadCaptur
 
 	uc := &query.UseCase{
 		BalanceRepo:          mockBalance,
+		AccountRepo:          mockAccount,
 		TransactionRedisRepo: mockRedis,
 	}
 

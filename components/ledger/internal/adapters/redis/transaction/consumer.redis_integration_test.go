@@ -278,7 +278,7 @@ func TestIntegration_Redis_BalanceConsistency(t *testing.T) {
 			}
 		}
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 		require.NoError(t, err, "operation %d should succeed", i)
 
 		// Verify balance after each operation is non-negative
@@ -324,7 +324,7 @@ func TestIntegration_Redis_PendingTransactionFlow(t *testing.T) {
 	}
 
 	// Execute as pending (isPending=true)
-	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "PENDING", true, balanceOps)
+	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "PENDING", true, balanceOps, nil)
 	require.NoError(t, err, "pending operation should succeed")
 	require.NotNil(t, result, "should return balances")
 
@@ -340,7 +340,7 @@ func TestIntegration_Redis_PendingTransactionFlow(t *testing.T) {
 		),
 	}
 
-	result, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, commitOps)
+	result, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, commitOps, nil)
 	require.NoError(t, err, "commit operation should succeed")
 
 	t.Log("Integration test passed: pending transaction flow verified")
@@ -442,7 +442,7 @@ func TestIntegration_Chaos_Redis_RestartRecovery(t *testing.T) {
 		),
 	}
 
-	chaosResult, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	chaosResult, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 	require.NoError(t, err, "initial balance operation should succeed")
 	require.NotNil(t, chaosResult, "should return balances")
 	t.Logf("Initial balance operation successful: %d balances updated", len(chaosResult.After))
@@ -474,7 +474,7 @@ func TestIntegration_Chaos_Redis_RestartRecovery(t *testing.T) {
 	}
 
 	chaos.AssertRecoveryWithin(t, func() error {
-		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID2, "ACTIVE", false, balanceOps2)
+		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID2, "ACTIVE", false, balanceOps2, nil)
 		return err
 	}, 30*time.Second, "Redis should recover and process operations after restart")
 
@@ -570,7 +570,7 @@ func TestIntegration_Chaos_Redis_NetworkLatency(t *testing.T) {
 		),
 	}
 
-	balances, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	balances, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 	require.NoError(t, err, "initial operation through proxy should succeed")
 	require.NotNil(t, balances, "should return balances")
 	t.Log("Initial operation successful through proxy")
@@ -595,7 +595,7 @@ func TestIntegration_Chaos_Redis_NetworkLatency(t *testing.T) {
 		}
 
 		start := time.Now()
-		_, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, ops)
+		_, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, ops, nil)
 		elapsed := time.Since(start)
 
 		require.NoError(t, err, "operation %d with latency should succeed", i+1)
@@ -620,7 +620,7 @@ func TestIntegration_Chaos_Redis_NetworkLatency(t *testing.T) {
 	}
 
 	start := time.Now()
-	_, err = infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	_, err = infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 	elapsed := time.Since(start)
 	require.NoError(t, err, "operation after removing latency should succeed")
 	t.Logf("Operation after latency removal completed in %v", elapsed)
@@ -656,7 +656,7 @@ func TestIntegration_Chaos_Redis_NetworkPartition(t *testing.T) {
 		),
 	}
 
-	_, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	_, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 	require.NoError(t, err, "baseline operation should succeed")
 	t.Log("Baseline operation successful")
 
@@ -678,7 +678,7 @@ func TestIntegration_Chaos_Redis_NetworkPartition(t *testing.T) {
 	}
 
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
-	_, err = infra.proxyRepo.ProcessBalanceAtomicOperation(ctxWithTimeout, orgID, ledgerID, transactionID, "ACTIVE", false, partitionOps)
+	_, err = infra.proxyRepo.ProcessBalanceAtomicOperation(ctxWithTimeout, orgID, ledgerID, transactionID, "ACTIVE", false, partitionOps, nil)
 	cancel()
 
 	// Expect error during network partition
@@ -703,7 +703,7 @@ func TestIntegration_Chaos_Redis_NetworkPartition(t *testing.T) {
 	}
 
 	chaos.AssertRecoveryWithin(t, func() error {
-		_, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, recoveryOps)
+		_, err := infra.proxyRepo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, recoveryOps, nil)
 		return err
 	}, 10*time.Second, "operations should succeed after network recovery")
 
@@ -756,6 +756,7 @@ func TestIntegration_Chaos_Redis_ConcurrentBalanceOperations(t *testing.T) {
 
 			atomicResult, err := infra.repo.ProcessBalanceAtomicOperation(
 				ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps,
+				nil,
 			)
 			results <- result{workerID: workerID, balances: atomicResult, err: err}
 		}(i)
@@ -829,6 +830,7 @@ func TestIntegration_Chaos_Redis_InsufficientFundsUnderLoad(t *testing.T) {
 
 			_, err := infra.repo.ProcessBalanceAtomicOperation(
 				ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps,
+				nil,
 			)
 			results <- result{workerID: workerID, err: err}
 		}(i)
@@ -893,7 +895,7 @@ func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 		),
 	}
 
-	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 	require.NoError(t, err, "normal operation should work")
 
 	// Test with cancelled context (simulates timeout/unavailability)
@@ -904,7 +906,7 @@ func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 		t,
 		func() error {
 			transactionID := uuid.New()
-			_, err := infra.repo.ProcessBalanceAtomicOperation(cancelledCtx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+			_, err := infra.repo.ProcessBalanceAtomicOperation(cancelledCtx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 			return err
 		},
 		nil, // Any error is acceptable for graceful degradation
@@ -913,7 +915,7 @@ func TestIntegration_Chaos_Redis_GracefulDegradation(t *testing.T) {
 
 	// Verify normal operation still works
 	transactionID2 := uuid.New()
-	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID2, "ACTIVE", false, balanceOps)
+	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID2, "ACTIVE", false, balanceOps, nil)
 	require.NoError(t, err, "normal operation should work after graceful degradation")
 
 	t.Log("Chaos test passed: graceful degradation verified")
@@ -970,7 +972,7 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 			),
 		}
 
-		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 
 		require.NoError(t, err, "credit to external account from zero balance must succeed under the new rules")
 		require.NotNil(t, balances, "should return balances")
@@ -998,7 +1000,7 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 			),
 		}
 
-		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 
 		// Should succeed because result is -50 (still negative)
 		require.NoError(t, err, "credit to external account that stays negative should succeed")
@@ -1026,7 +1028,7 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 			),
 		}
 
-		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 
 		require.NoError(t, err, "credit to external account that crosses zero must succeed under the new rules")
 		require.NotNil(t, balances, "should return balances")
@@ -1053,7 +1055,7 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 			),
 		}
 
-		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 
 		// Should succeed - internal accounts can have positive balance
 		require.NoError(t, err, "credit to internal account should succeed")
@@ -1077,7 +1079,7 @@ func TestIntegration_Redis_ExternalAccountCreditValidation(t *testing.T) {
 			),
 		}
 
-		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps)
+		balances, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, "ACTIVE", false, balanceOps, nil)
 
 		// Should succeed - result is -200 (negative), not positive
 		require.NoError(t, err, "debit to external account should succeed when result stays negative")
@@ -1132,6 +1134,7 @@ func TestIntegration_Redis_PendingDestinationNoVersionIncrement(t *testing.T) {
 			ctx, orgID, ledgerID, transactionID,
 			constant.PENDING, true, // isPending = true
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "PENDING source ON_HOLD should succeed")
@@ -1165,6 +1168,7 @@ func TestIntegration_Redis_PendingDestinationNoVersionIncrement(t *testing.T) {
 			ctx, orgID, ledgerID, transactionID,
 			constant.PENDING, true, // isPending = true
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "PENDING destination CREDIT should succeed")
@@ -1197,6 +1201,7 @@ func TestIntegration_Redis_PendingDestinationNoVersionIncrement(t *testing.T) {
 			ctx, orgID, ledgerID, transactionID,
 			constant.APPROVED, true, // isPending = true (was pending transaction)
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "APPROVED source DEBIT should succeed")
@@ -1228,6 +1233,7 @@ func TestIntegration_Redis_PendingDestinationNoVersionIncrement(t *testing.T) {
 			ctx, orgID, ledgerID, transactionID,
 			constant.APPROVED, true, // isPending = true (was pending transaction)
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "APPROVED destination CREDIT should succeed")
@@ -1258,6 +1264,7 @@ func TestIntegration_Redis_PendingDestinationNoVersionIncrement(t *testing.T) {
 			ctx, orgID, ledgerID, transactionID,
 			"ACTIVE", false, // isPending = false (normal transaction)
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "normal CREDIT should succeed")
@@ -1309,6 +1316,7 @@ func TestIntegration_Redis_VersionContinuity(t *testing.T) {
 			ctx, orgID, ledgerID, pendingTxID,
 			constant.PENDING, true,
 			[]mmodel.BalanceOperation{sourceOp},
+			nil,
 		)
 		require.NoError(t, err, "PENDING source should succeed")
 		require.Len(t, sourceResult.After, 1, "source should be in returnBalances")
@@ -1326,6 +1334,7 @@ func TestIntegration_Redis_VersionContinuity(t *testing.T) {
 			ctx, orgID, ledgerID, pendingTxID,
 			constant.PENDING, true,
 			[]mmodel.BalanceOperation{destOp},
+			nil,
 		)
 		require.NoError(t, err, "PENDING destination should succeed")
 		// KEY: Destination should NOT be in returnBalances (no change)
@@ -1348,6 +1357,7 @@ func TestIntegration_Redis_VersionContinuity(t *testing.T) {
 			ctx, orgID, ledgerID, approvedTxID,
 			constant.APPROVED, true,
 			[]mmodel.BalanceOperation{sourceOpApproved},
+			nil,
 		)
 		require.NoError(t, err, "APPROVED source should succeed")
 		require.Len(t, sourceResultApproved.After, 1, "source should be in returnBalances")
@@ -1365,6 +1375,7 @@ func TestIntegration_Redis_VersionContinuity(t *testing.T) {
 			ctx, orgID, ledgerID, approvedTxID,
 			constant.APPROVED, true,
 			[]mmodel.BalanceOperation{destOpApproved},
+			nil,
 		)
 		require.NoError(t, err, "APPROVED destination should succeed")
 		require.Len(t, destResultApproved.After, 1, "destination should be in returnBalances on APPROVED")
@@ -1447,6 +1458,7 @@ func TestIntegration_Redis_CanceledTransactionRelease(t *testing.T) {
 			ctx, orgID, ledgerID, transactionID,
 			constant.CANCELED, true, // isPending = true (was pending transaction)
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "CANCELED RELEASE should succeed")
@@ -1479,6 +1491,7 @@ func TestIntegration_Redis_CanceledTransactionRelease(t *testing.T) {
 			ctx, orgID, ledgerID, transactionID,
 			constant.CANCELED, true, // isPending = true
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "CANCELED destination CREDIT should succeed")
@@ -1543,6 +1556,7 @@ func TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_TwoOps(t *t
 			ctx, orgID, ledgerID, transactionID,
 			constant.PENDING, true,
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "PENDING DEBIT+ONHOLD with routeValidation should succeed")
@@ -1597,6 +1611,7 @@ func TestIntegration_Redis_DoubleEntryPending_RouteValidationEnabled_TwoOps(t *t
 			ctx, orgID, ledgerID, transactionID,
 			constant.PENDING, true,
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "PENDING ON_HOLD without routeValidation should succeed")
@@ -1661,6 +1676,7 @@ func TestIntegration_Redis_DoubleEntryPending_SourceAndDestination(t *testing.T)
 		ctx, orgID, ledgerID, transactionID,
 		constant.PENDING, true,
 		[]mmodel.BalanceOperation{sourceOp, destOp},
+		nil,
 	)
 
 	require.NoError(t, err, "double-entry PENDING should succeed")
@@ -1719,6 +1735,7 @@ func TestIntegration_Redis_DoubleEntryPending_VersionChainConsistency(t *testing
 		ctx, orgID, ledgerID, pendingTxID,
 		constant.PENDING, true,
 		[]mmodel.BalanceOperation{pendingOp},
+		nil,
 	)
 	require.NoError(t, err, "PENDING phase should succeed")
 	require.Len(t, pendingResult.After, 1)
@@ -1751,6 +1768,7 @@ func TestIntegration_Redis_DoubleEntryPending_VersionChainConsistency(t *testing
 		ctx, orgID, ledgerID, approvedTxID,
 		constant.APPROVED, true,
 		[]mmodel.BalanceOperation{approvedOp},
+		nil,
 	)
 	require.NoError(t, err, "APPROVED phase should succeed")
 	require.Len(t, approvedResult.After, 1)
@@ -1802,6 +1820,7 @@ func TestIntegration_Redis_DoubleEntryPending_InsufficientFunds_Rollback(t *test
 		ctx, orgID, ledgerID, transactionID,
 		constant.PENDING, true,
 		balanceOps,
+		nil,
 	)
 
 	require.Error(t, err, "should return error for insufficient funds")
@@ -1860,6 +1879,7 @@ func TestIntegration_Redis_DoubleEntryPending_MultipleSourcesSameTransaction(t *
 		ctx, orgID, ledgerID, transactionID,
 		constant.PENDING, true,
 		[]mmodel.BalanceOperation{source1Debit, source1OnHold, source2Debit, source2OnHold},
+		nil,
 	)
 
 	require.NoError(t, err, "multiple sources PENDING with double-entry should succeed")
@@ -2174,6 +2194,7 @@ func TestIntegration_Redis_DoubleEntryCanceled_RouteValidationEnabled_PerFieldAt
 			ctx, orgID, ledgerID, transactionID,
 			constant.CANCELED, true,
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "CANCELED RELEASE with routeValidation should succeed")
@@ -2228,6 +2249,7 @@ func TestIntegration_Redis_DoubleEntryCanceled_RouteValidationEnabled_PerFieldAt
 			ctx, orgID, ledgerID, transactionID,
 			constant.CANCELED, true,
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "CANCELED CREDIT with routeValidation should succeed")
@@ -2275,6 +2297,7 @@ func TestIntegration_Redis_DoubleEntryCanceled_RouteValidationEnabled_PerFieldAt
 			ctx, orgID, ledgerID, transactionID,
 			constant.CANCELED, true,
 			balanceOps,
+			nil,
 		)
 
 		require.NoError(t, err, "CANCELED RELEASE without routeValidation should succeed")
@@ -2341,6 +2364,7 @@ func TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle(t *testing.T)
 		ctx, orgID, ledgerID, pendingTxID,
 		constant.PENDING, true,
 		[]mmodel.BalanceOperation{pendingOp},
+		nil,
 	)
 	require.NoError(t, err, "PENDING phase should succeed")
 	require.Len(t, pendingResult.After, 1)
@@ -2371,6 +2395,7 @@ func TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle(t *testing.T)
 		ctx, orgID, ledgerID, cancelTxID,
 		constant.CANCELED, true,
 		[]mmodel.BalanceOperation{releaseOp},
+		nil,
 	)
 	require.NoError(t, err, "CANCELED RELEASE phase should succeed")
 	require.Len(t, releaseResult.After, 1)
@@ -2399,6 +2424,7 @@ func TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle(t *testing.T)
 		ctx, orgID, ledgerID, cancelTxID,
 		constant.CANCELED, true,
 		[]mmodel.BalanceOperation{creditOp},
+		nil,
 	)
 	require.NoError(t, err, "CANCELED CREDIT phase should succeed")
 	require.Len(t, creditResult.After, 1)
@@ -2457,6 +2483,7 @@ func TestIntegration_Redis_DoubleEntryApproved_FullSourceLifecycle(t *testing.T)
 		ctx, orgID, ledgerID, pendingTxID,
 		constant.PENDING, true,
 		[]mmodel.BalanceOperation{pendingOp},
+		nil,
 	)
 	require.NoError(t, err, "PENDING phase should succeed")
 	require.Len(t, pendingResult.After, 1)
@@ -2486,6 +2513,7 @@ func TestIntegration_Redis_DoubleEntryApproved_FullSourceLifecycle(t *testing.T)
 		ctx, orgID, ledgerID, approvedTxID,
 		constant.APPROVED, true,
 		[]mmodel.BalanceOperation{approvedSourceOp},
+		nil,
 	)
 	require.NoError(t, err, "APPROVED source DEBIT should succeed")
 	require.Len(t, approvedResult.After, 1)
@@ -2538,6 +2566,7 @@ func TestIntegration_Redis_DoubleEntryApproved_DestinationCredit(t *testing.T) {
 		ctx, orgID, ledgerID, pendingTxID,
 		constant.PENDING, true,
 		[]mmodel.BalanceOperation{pendingDestOp},
+		nil,
 	)
 	require.NoError(t, err, "PENDING destination CREDIT should succeed")
 	// No change during PENDING for destination
@@ -2557,6 +2586,7 @@ func TestIntegration_Redis_DoubleEntryApproved_DestinationCredit(t *testing.T) {
 		ctx, orgID, ledgerID, approvedTxID,
 		constant.APPROVED, true,
 		[]mmodel.BalanceOperation{approvedDestOp},
+		nil,
 	)
 	require.NoError(t, err, "APPROVED destination CREDIT should succeed")
 	require.Len(t, approvedDestResult.After, 1, "destination should appear in results on APPROVED")
@@ -2629,6 +2659,7 @@ func TestIntegration_Redis_DoubleEntryCanceled_SourceAndDestination(t *testing.T
 		ctx, orgID, ledgerID, transactionID,
 		constant.CANCELED, true,
 		[]mmodel.BalanceOperation{releaseOp, creditOp, destOp},
+		nil,
 	)
 
 	require.NoError(t, err, "CANCELED with source RELEASE+CREDIT and destination should succeed")
@@ -2696,6 +2727,7 @@ func TestIntegration_Redis_DoubleEntryApproved_FullTransaction_SourceAndDestinat
 		ctx, orgID, ledgerID, pendingTxID,
 		constant.PENDING, true,
 		[]mmodel.BalanceOperation{pendingSourceOp, pendingDestOp},
+		nil,
 	)
 	require.NoError(t, err, "PENDING phase should succeed")
 	// Only source changes during PENDING (ON_HOLD only modifies OnHold, version +1)
@@ -2725,6 +2757,7 @@ func TestIntegration_Redis_DoubleEntryApproved_FullTransaction_SourceAndDestinat
 		ctx, orgID, ledgerID, approvedTxID,
 		constant.APPROVED, true,
 		[]mmodel.BalanceOperation{approvedSourceOp, approvedDestOp},
+		nil,
 	)
 	require.NoError(t, err, "APPROVED phase should succeed")
 	require.Len(t, approvedResult.After, 2, "both source and destination should appear in APPROVED results")
@@ -2799,6 +2832,7 @@ func TestIntegration_Redis_DoubleEntryCanceled_MultipleSources(t *testing.T) {
 		ctx, orgID, ledgerID, transactionID,
 		constant.CANCELED, true,
 		[]mmodel.BalanceOperation{source1ReleaseOp, source2ReleaseOp},
+		nil,
 	)
 
 	require.NoError(t, err, "multiple sources CANCELED RELEASE should succeed")

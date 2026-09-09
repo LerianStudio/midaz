@@ -45,7 +45,8 @@ const revertV2RoutePath = "/v2/organizations/:organization_id/ledgers/:ledger_id
 // clients key off, and whether the op carries a request body. The create actions name no
 // organization or ledger — they are scoped by the request body; the lifecycle actions
 // address an existing transaction, so they stay under the organization/ledger prefix and
-// hang off :transaction_id, and they are bodiless. Defaulting to 201 Created holds for all
+// hang off :transaction_id — commit and revert accept an OPTIONAL single-field body, cancel
+// accepts none, and no lifecycle body carries a scope. Defaulting to 201 Created holds for all
 // of them, so it is asserted as a shared invariant instead of a per-case field. opPath is
 // spelled out rather than derived from fiberPath so a typo in either const cannot pass both
 // the mount and the contract assertion.
@@ -54,7 +55,13 @@ var v2Routes = []struct {
 	fiberPath   string
 	opPath      string
 	operationID string
-	hasBody     bool
+	// hasBody marks the ops whose body carries the whole request: the four create
+	// actions. Commit and revert also accept a body, but an OPTIONAL one carrying a
+	// single field, which is what bodySchema distinguishes.
+	hasBody bool
+	// bodySchema is the component name the op's request body $refs, or empty when the
+	// op advertises no request body at all.
+	bodySchema string
 }{
 	{
 		action:      "direct",
@@ -62,6 +69,7 @@ var v2Routes = []struct {
 		opPath:      "/transactions/direct",
 		operationID: "createTransactionDirectV2",
 		hasBody:     true,
+		bodySchema:  v2CreateBodySchemaName,
 	},
 	{
 		action:      "hold",
@@ -69,6 +77,7 @@ var v2Routes = []struct {
 		opPath:      "/transactions/hold",
 		operationID: "createTransactionHoldV2",
 		hasBody:     true,
+		bodySchema:  v2CreateBodySchemaName,
 	},
 	{
 		action:      "block",
@@ -76,6 +85,7 @@ var v2Routes = []struct {
 		opPath:      "/transactions/block",
 		operationID: "createTransactionBlockV2",
 		hasBody:     true,
+		bodySchema:  v2CreateBodySchemaName,
 	},
 	{
 		action:      "unblock",
@@ -83,12 +93,14 @@ var v2Routes = []struct {
 		opPath:      "/transactions/unblock",
 		operationID: "createTransactionUnblockV2",
 		hasBody:     true,
+		bodySchema:  v2CreateBodySchemaName,
 	},
 	{
 		action:      "commit",
 		fiberPath:   commitV2RoutePath,
 		opPath:      "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit",
 		operationID: "commitTransactionV2",
+		bodySchema:  v2LifecycleBodySchemaName,
 	},
 	{
 		action:      "cancel",
@@ -101,6 +113,7 @@ var v2Routes = []struct {
 		fiberPath:   revertV2RoutePath,
 		opPath:      "/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert",
 		operationID: "revertTransactionV2",
+		bodySchema:  v2LifecycleBodySchemaName,
 	},
 }
 
@@ -271,20 +284,22 @@ func TestV2CreateOps_ContractPathsSitBehindTheGuardChain(t *testing.T) {
 	// a missing token short-circuits with 401 first).
 	app, oapi := registerV2TransactionSurfaceForTest(&middleware.AuthClient{Enabled: true, Address: "http://auth.invalid"})
 
-	// The create ops are exactly the ops carrying a request body; the lifecycle ops are
-	// bodiless, which is asserted independently by the create-body-schema test.
-	contractCreatePaths := make([]string, 0, len(v2CreateActions))
+	// Every op that advertises a request body: the four create actions, plus commit and
+	// revert, whose OPTIONAL account-block-exception body makes them body-carrying too.
+	// Which schema each one publishes, and whether its body is required, is asserted
+	// independently by the body-schema test. Cancel advertises none.
+	contractBodyPaths := make([]string, 0, len(v2CreateActions)+len(v2LifecycleBodyOperationIDs))
 
 	for opPath, item := range oapi.Paths {
 		if item.Post != nil && item.Post.RequestBody != nil {
-			contractCreatePaths = append(contractCreatePaths, opPath)
+			contractBodyPaths = append(contractBodyPaths, opPath)
 		}
 	}
 
-	require.Len(t, contractCreatePaths, len(v2CreateActions),
-		"the contract must advertise one body-carrying op per v2 create action")
+	require.Len(t, contractBodyPaths, len(v2CreateActions)+len(v2LifecycleBodyOperationIDs),
+		"the contract must advertise one body-carrying op per v2 create action, plus commit and revert")
 
-	for _, opPath := range contractCreatePaths {
+	for _, opPath := range contractBodyPaths {
 		t.Run(opPath, func(t *testing.T) {
 			t.Parallel()
 
@@ -342,9 +357,11 @@ func TestV2CreateOps_ScopedPathIsNotRouted(t *testing.T) {
 var v2LifecycleActions = []string{"commit", "cancel", "revert"}
 
 // TestV2LifecycleOps_StayOrganizationAndLedgerScoped locks the lifecycle ops to the
-// organization/ledger-scoped path on BOTH sides of the surface. They create no transaction and
-// carry no body, so they have no body scope to read: their scope can only come from the URL, and
-// dropping it from their path would leave them unable to name the transaction they act on.
+// organization/ledger-scoped path on BOTH sides of the surface. They act on an existing
+// transaction and their bodies carry no scope — commit and revert accept only an optional
+// account-block exception, cancel accepts none — so the organization, ledger and
+// transaction they name can only come from the URL. Dropping it from their path would
+// leave them unable to name the transaction they act on.
 func TestV2LifecycleOps_StayOrganizationAndLedgerScoped(t *testing.T) {
 	t.Parallel()
 
@@ -370,8 +387,22 @@ func TestV2LifecycleOps_StayOrganizationAndLedgerScoped(t *testing.T) {
 			pathItem, ok := oapi.Paths[opPrefix+action]
 			require.Truef(t, ok, "the %s op must stay published on the organization/ledger-scoped contract path", action)
 			require.NotNilf(t, pathItem.Post, "the %s op path must carry a POST operation", action)
-			assert.Nilf(t, pathItem.Post.RequestBody,
-				"the %s op stays bodiless, so it has no body scope to read", action)
+
+			// Whatever body an action does or does not accept, none of them declares a
+			// scope field: no body on this surface can supply the organization, ledger
+			// or transaction the URL names.
+			if pathItem.Post.RequestBody == nil {
+				return
+			}
+
+			media, ok := pathItem.Post.RequestBody.Content[v2CreateBodyContentType]
+			require.Truef(t, ok, "the %s op body must be application/json", action)
+			require.NotNilf(t, media, "the %s op application/json media type must not be nil", action)
+			require.NotNilf(t, media.Schema, "the %s op body must carry a schema", action)
+			assert.Equalf(t, "#/components/schemas/"+v2LifecycleBodySchemaName, media.Schema.Ref,
+				"the %s op body must be the single-field lifecycle body, which carries no scope", action)
+			assert.Falsef(t, pathItem.Post.RequestBody.Required,
+				"the %s op body must stay OPTIONAL, so the bodiless request it shipped with still works", action)
 		})
 	}
 }
@@ -383,8 +414,12 @@ func TestV2LifecycleOps_StayOrganizationAndLedgerScoped(t *testing.T) {
 const (
 	v2CreateBodySchemaName = "CreateTransactionV2Input"
 	v2CreateBodySchemaRef  = "#/components/schemas/" + v2CreateBodySchemaName
-	v2LegSchemaName        = "V2LegInput"
-	v2ShareSchemaName      = "V2ShareInput"
+
+	// v2LifecycleBodySchemaName is the component the OPTIONAL commit/revert body is
+	// published under, spelled literally for the same reason.
+	v2LifecycleBodySchemaName = "LifecycleV2Input"
+	v2LegSchemaName           = "V2LegInput"
+	v2ShareSchemaName         = "V2ShareInput"
 
 	// v1ResponseSchemaName is the component the v1 ops answer with. The v2 one is
 	// v2TransactionSchemaName, declared once in transaction_output_v2_test.go: a second
@@ -511,7 +546,7 @@ func TestRegisterTransactionV2Routes_PublishesCreateBodySchema(t *testing.T) {
 					require.Equalf(t, rt.operationID, pathItem.Post.OperationID,
 						"assembly must leave the %s operation ID alone", rt.action)
 
-					if !rt.hasBody {
+					if rt.bodySchema == "" {
 						assert.Nilf(t, pathItem.Post.RequestBody,
 							"bodiless lifecycle op %s must not advertise a requestBody", rt.action)
 
@@ -520,13 +555,18 @@ func TestRegisterTransactionV2Routes_PublishesCreateBodySchema(t *testing.T) {
 
 					require.NotNilf(t, pathItem.Post.RequestBody, "%s op should advertise a requestBody", rt.action)
 
+					// A create body carries the whole request and is required; the
+					// lifecycle body carries one optional field and must not be.
+					assert.Equalf(t, rt.hasBody, pathItem.Post.RequestBody.Required,
+						"%s op requestBody required flag should match what the op actually needs", rt.action)
+
 					media, ok := pathItem.Post.RequestBody.Content[v2CreateBodyContentType]
 					require.Truef(t, ok, "%s op requestBody should carry an application/json media type", rt.action)
 					require.NotNilf(t, media, "%s op application/json media type should not be nil", rt.action)
 					require.NotNilf(t, media.Schema, "%s op application/json media type should carry a schema", rt.action)
 
-					assert.Equalf(t, v2CreateBodySchemaRef, media.Schema.Ref,
-						"%s op body schema should $ref the published v2 input component", rt.action)
+					assert.Equalf(t, "#/components/schemas/"+rt.bodySchema, media.Schema.Ref,
+						"%s op body schema should $ref its published input component", rt.action)
 					assert.Emptyf(t, media.Schema.Format,
 						"%s op body schema must not stay the opaque binary RawBody schema", rt.action)
 				})

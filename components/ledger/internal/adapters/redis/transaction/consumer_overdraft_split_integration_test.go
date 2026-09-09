@@ -89,6 +89,7 @@ type cachedBalance struct {
 	OverdraftLimitEnabled int    `json:"OverdraftLimitEnabled"`
 	OverdraftLimit        string `json:"OverdraftLimit"`
 	BalanceScope          string `json:"BalanceScope"`
+	Blocked               int    `json:"Blocked"`
 }
 
 // =============================================================================
@@ -112,7 +113,7 @@ func TestIntegration_Overdraft_DirectionAwareDebit_NoOverdraft(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(200))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err)
 	require.Len(t, result.After, 1)
@@ -147,7 +148,7 @@ func TestIntegration_Overdraft_UnlimitedSplit_FloorsAtZero(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(250))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err)
 	require.Len(t, result.After, 1)
@@ -183,7 +184,7 @@ func TestIntegration_Overdraft_LimitExceeded_Returns0167(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(200))
 
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.Error(t, err, "deficit=100 with limit=50 must be rejected")
 	assert.True(t, strings.Contains(err.Error(), constant.ErrOverdraftLimitExceeded.Error()),
@@ -224,7 +225,7 @@ func TestIntegration_Overdraft_LimitBoundary_Allowed(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(200))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err, "deficit=limit=100 is inclusive and must be allowed")
 	require.Len(t, result.After, 1)
@@ -258,7 +259,7 @@ func TestIntegration_Overdraft_CumulativeAccrual(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(50))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err)
 	require.Len(t, result.After, 1)
@@ -287,7 +288,7 @@ func TestIntegration_Overdraft_ExternalAccount_BypassesOverdraft(t *testing.T) {
 		constant.DEBIT, decimal.NewFromInt(200))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err, "external DEBIT must succeed even when going negative")
 	require.Len(t, result.After, 1)
@@ -324,7 +325,7 @@ func TestIntegration_CustomExternal_DebitDirection_DebitIncreasesAvailable(t *te
 		constant.DEBIT, decimal.NewFromInt(200))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err, "DEBIT on a debit-direction custom external must succeed")
 	require.Len(t, result.After, 1)
@@ -363,7 +364,7 @@ func TestIntegration_CustomExternal_DebitDirection_BypassesInsufficientFunds(t *
 		constant.CREDIT, decimal.NewFromInt(200))
 
 	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 
 	require.NoError(t, err,
 		"external type must bypass the 0018 insufficient-funds rejection even when Available goes negative")

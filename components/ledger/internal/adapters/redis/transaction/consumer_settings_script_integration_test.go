@@ -170,7 +170,7 @@ func TestIntegration_UpdateBalanceSettingsScript_ParityWithBalanceAtomicScript(t
 		constant.DEBIT, decimal.NewFromInt(100))
 
 	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 	require.NoError(t, err)
 
 	before := readCachedBalance(t, infra, internalKey)

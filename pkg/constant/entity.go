@@ -8,6 +8,7 @@ package constant
 // These replace reflect.TypeOf(mmodel.Foo{}).Name() calls scattered across the codebase.
 const (
 	EntityAccount               = "Account"
+	EntityAccountBlockException = "AccountBlockException"
 	EntityAccountRule           = "AccountRule"
 	EntityAccountType           = "AccountType"
 	EntityAsset                 = "Asset"

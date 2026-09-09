@@ -38,9 +38,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vmihailenco/msgpack/v5"
+	"go.uber.org/mock/gomock"
 
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -123,6 +125,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
 		LedgerRepo:              ledgerRepo,
+		AccountRepo:             newAbsentAccountRepo(t),
 		OperationRouteRepo:      operationRouteRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
@@ -158,6 +161,33 @@ func setupTestInfra(t *testing.T) *testInfra {
 	infra.setupRoutes()
 
 	return infra
+}
+
+// newAbsentAccountRepo satisfies the balance read path's account lookup, which
+// this harness otherwise leaves unwired.
+//
+// Every cache-miss balance read hydrates the owning account's blocked flag
+// through AccountRepo.ListAccountsByIDs, so an unwired repository is a nil
+// interface the read dereferences. The `accounts` table belongs to the
+// onboarding migration set, which this transaction-only container does not
+// load, so a real repository would fail on a missing relation instead — hence a
+// mock, following the wireEmptyLedgerSettings precedent for the ledger table.
+//
+// Returning NO rows is the faithful answer, not a convenience: production
+// resolves a balance whose account row is absent to not-blocked, which is
+// exactly the legacy behavior every test in this package was written against.
+func newAbsentAccountRepo(t *testing.T) *account.MockRepository {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockAccountRepo.EXPECT().
+		ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return([]*mmodel.Account{}, nil).
+		AnyTimes()
+
+	return mockAccountRepo
 }
 
 // seedLedgerSettings provisions a minimal `ledger` table and a single settings
@@ -701,6 +731,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
 		LedgerRepo:              ledgerRepo,
+		AccountRepo:             newAbsentAccountRepo(t),
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
 	}

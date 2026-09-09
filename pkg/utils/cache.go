@@ -66,6 +66,33 @@ func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	return builder.String()
 }
 
+// AccountBlockExceptionInternalKey returns a key with the following format to be used on redis cluster:
+// "account_block_exception:{transactions}:organizationID:ledgerID:exceptionID"
+//
+// The {transactions} hash tag is the SAME literal tag BalanceInternalKey uses, so an
+// exception key and the balance keys of any account land in one Redis Cluster slot.
+// That co-location is load-bearing: the exception is validated and deleted inside the
+// same multi-key EVAL that mutates the balances, and a cross-slot EVAL is illegal.
+func AccountBlockExceptionInternalKey(organizationID, ledgerID, exceptionID uuid.UUID) string {
+	var builder strings.Builder
+
+	builder.Grow(151) // "account_block_exception:{transactions}:" + 3×UUID + 2×":"
+
+	builder.WriteString("account_block_exception")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString("transactions")
+	builder.WriteString(endKey)
+	builder.WriteString(keySeparator)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(exceptionID.String())
+
+	return builder.String()
+}
+
 // IdempotencyReverseKey returns a key with the following format to be used on redis cluster:
 // "idempotency_reverse:{organizationID:ledgerID}:transactionID"
 // This key maps a transactionID to its idempotency key for reverse lookups.
