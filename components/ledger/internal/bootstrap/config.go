@@ -230,6 +230,22 @@ type Config struct {
 	FeesPrefixedMongoTLSCACert    string `env:"MONGO_FEES_TLS_CA_CERT"`
 
 	// --- RabbitMQ (transaction domain only) ---
+	//
+	// The two port variables read the opposite way round to their names, and the
+	// names are a shipped contract (charts and deployments set them), so read the
+	// comments and not the names:
+	//
+	//   RABBITMQ_PORT_HOST is the AMQP port. It is the port composed into the
+	//   amqp:// URL the producer, the consumer and the readiness probe dial
+	//   (buildRabbitMQConnectionString). The bundled broker listens on 3003.
+	//
+	//   RABBITMQ_PORT_AMQP is the management HTTP port. It reaches
+	//   RabbitMQConnection.Port, which lib-commons uses only to derive the
+	//   allowed hosts for RABBITMQ_HEALTH_CHECK_URL; nothing dials AMQP with it.
+	//   The bundled broker serves management on 3004.
+	//
+	// Putting the AMQP port in RABBITMQ_PORT_AMQP makes every connection dial the
+	// management port over AMQP and fail at wiring.
 	RabbitURI                                string `env:"RABBITMQ_URI"`
 	RabbitMQHost                             string `env:"RABBITMQ_HOST"`
 	RabbitMQPortHost                         string `env:"RABBITMQ_PORT_HOST"`
