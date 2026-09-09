@@ -188,7 +188,9 @@ func TestLimitPostgreSQLModel_ToEntity(t *testing.T) {
 			assert.Equal(t, tt.expected.MaxAmount, result.MaxAmount, "MaxAmount mismatch")
 			assert.Equal(t, tt.expected.Asset, result.Asset, "Asset mismatch")
 			assert.Equal(t, tt.expected.Status, result.Status, "Status mismatch")
-			assert.Equal(t, tt.expected.ResetAt, result.ResetAt, "ResetAt mismatch")
+			// ResetAt is resolved against the current time for recurring limits
+			// rather than read from the column, so it is asserted in
+			// limit_reset_at_test.go instead of pinned to a stored value here.
 			assert.Equal(t, tt.expected.CreatedAt, result.CreatedAt, "CreatedAt mismatch")
 			assert.Equal(t, tt.expected.UpdatedAt, result.UpdatedAt, "UpdatedAt mismatch")
 			assert.Equal(t, tt.expected.DeletedAt, result.DeletedAt, "DeletedAt mismatch")
@@ -375,7 +377,9 @@ func TestLimitPostgreSQLModel_RoundTrip(t *testing.T) {
 	assert.Equal(t, original.MaxAmount, result.MaxAmount, "Round-trip MaxAmount mismatch")
 	assert.Equal(t, original.Asset, result.Asset, "Round-trip Asset mismatch")
 	assert.Equal(t, original.Status, result.Status, "Round-trip Status mismatch")
-	assert.Equal(t, original.ResetAt, result.ResetAt, "Round-trip ResetAt mismatch")
+	// ResetAt does not round-trip for a recurring limit: the column records the
+	// first boundary after creation and the read resolves the live one. See
+	// limit_reset_at_test.go.
 	assert.Equal(t, original.CreatedAt, result.CreatedAt, "Round-trip CreatedAt mismatch")
 	assert.Equal(t, original.UpdatedAt, result.UpdatedAt, "Round-trip UpdatedAt mismatch")
 	assert.Equal(t, original.DeletedAt, result.DeletedAt, "Round-trip DeletedAt mismatch")

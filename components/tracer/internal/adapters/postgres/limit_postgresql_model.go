@@ -126,7 +126,7 @@ func (m *LimitPostgreSQLModel) ToEntity() (*model.Limit, error) {
 		customEndDate = &m.CustomEndDate.Time
 	}
 
-	return &model.Limit{
+	entity := &model.Limit{
 		ID:              id,
 		Name:            m.Name,
 		Description:     description,
@@ -143,7 +143,17 @@ func (m *LimitPostgreSQLModel) ToEntity() (*model.Limit, error) {
 		CreatedAt:       m.CreatedAt,
 		UpdatedAt:       m.UpdatedAt,
 		DeletedAt:       deletedAt,
-	}, nil
+	}
+
+	// reset_at is stored once, when the limit is created, and is never advanced
+	// for a recurring limit — so the stored value is the first boundary after
+	// creation and sits in the past for every period after that one. Enforcement
+	// never reads the column: the counter period is recomputed from server time
+	// on every validation. Resolve the boundary the same way here so every read
+	// of a limit reports the moment its cap actually refreshes.
+	entity.ResetAt = entity.NextResetAt(time.Now().UTC())
+
+	return entity, nil
 }
 
 // FromEntity converts a domain entity to a database model.

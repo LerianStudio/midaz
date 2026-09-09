@@ -123,7 +123,10 @@ type Limit struct {
 	// format: date-time
 	CustomEndDate *time.Time `json:"customEndDate,omitempty" format:"date-time" example:"2021-12-31T23:59:59Z"`
 
-	// Next reset timestamp, null for PER_TRANSACTION limits
+	// Next reset timestamp, null for PER_TRANSACTION limits.
+	// Recurring limits resolve it against the current time on every read
+	// (NextResetAt), because the stored column holds the first boundary after
+	// the limit was created and is never advanced.
 	// format: date-time
 	ResetAt *time.Time `json:"resetAt,omitempty" format:"date-time" example:"2021-01-02T00:00:00Z"`
 
@@ -213,6 +216,27 @@ func CalculateResetAt(limitType LimitType, now time.Time) *time.Time {
 	default:
 		return nil
 	}
+}
+
+// NextResetAt returns the boundary the limit's counter next rolls over at,
+// resolved against now.
+//
+// DAILY, WEEKLY and MONTHLY limits recur, so their boundary has to be computed
+// from the current time. The value recorded when the limit was created is the
+// first boundary after creation and is in the past for every period after that
+// one, while the counter that governs enforcement rolls over on the live
+// boundary — so reporting the recorded value told an operator the cap refreshes
+// at a moment that already passed.
+//
+// CUSTOM limits do not recur: their boundary comes from the customEndDate the
+// operator set, so the recorded value stands. PER_TRANSACTION limits have no
+// counter to reset and return nil.
+func (l *Limit) NextResetAt(now time.Time) *time.Time {
+	if l.LimitType == LimitTypeCustom {
+		return l.ResetAt
+	}
+
+	return CalculateResetAt(l.LimitType, now)
 }
 
 // CalculateCustomResetAt computes reset time for CUSTOM limits.
