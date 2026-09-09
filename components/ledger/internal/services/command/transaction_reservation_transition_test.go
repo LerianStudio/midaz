@@ -88,6 +88,8 @@ func rendered(lines []capturedLogLine) string {
 // transaction and how much, because the tracer's own store — the only other
 // place that mapping exists — may be exactly what is unreachable.
 func TestLostConfirmIsReportedWithTheTransactionAndAmount(t *testing.T) {
+	withFastSharedRetrier(t)
+
 	ctx := context.Background()
 	_, span := noop.NewTracerProvider().Tracer("t").Start(ctx, "test")
 

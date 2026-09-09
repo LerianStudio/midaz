@@ -283,10 +283,12 @@ func firstSourceAccountID(sources []string, balances []*mmodel.Balance) string {
 }
 
 // confirmReservations commits held reservations after a successful balance
-// commit (F3-T14, the success phase). Transport is best-effort: a failure is
-// logged at Warn, span-recorded, and never propagated — the TTL reaper is the
-// durability backstop (design call G). A nil reserver or empty handle is a
-// no-op.
+// commit (F3-T14, the success phase). Transport never blocks the request: a
+// failure is logged at Warn, span-recorded, and never propagated, because the
+// money has already moved and the response is owed now. The failure is NOT
+// dropped, though — it is handed to the retrier, which keeps trying off the
+// request path until the tracer accepts it or the budget runs out. A nil
+// reserver or empty handle is a no-op.
 func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
 	if uc.TracerReserver == nil {
 		return
@@ -327,8 +329,10 @@ func (uc *UseCase) releaseReservations(ctx context.Context, span trace.Span, log
 func (uc *UseCase) recordReservationTransportFailure(ctx context.Context, span trace.Span, logger libLog.Logger, transition reservationTransition, err error) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+transition.Action+" transport failed", err)
 
-	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation transport failed on the first attempt",
+	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation transport failed on the first attempt; retrying off the request path",
 		append(transition.logFields(), libLog.Err(err)))
+
+	uc.scheduleReservationRetry(ctx, logger, transition, err)
 }
 
 // confirmReservationsByTransaction commits a transaction's held reservations at
@@ -339,9 +343,8 @@ func (uc *UseCase) recordReservationTransportFailure(ctx context.Context, span t
 // the /v1 contract carries no tracer. Beyond that it is gated on the per-ledger tracer
 // settings (off / nil reserver → no call) and on an honored per-call tracer skip (so a
 // skip honored at create removes the gRPC cost here rather than relocating it to
-// commit); same best-effort, non-blocking posture as the by-id transport: a failure is
-// logged at Warn, span-recorded, and never propagated, with the TTL reaper as the
-// durability backstop.
+// commit); same non-blocking posture as the by-id transport: a failure is logged at
+// Warn, span-recorded and never propagated, and then retried off the request path.
 //
 // Living only on the /v2 pipeline carries an accepted cost. A by-transaction call cannot
 // tell whether the transaction holds reservations, so a PENDING created on /v2 and
@@ -389,8 +392,10 @@ func (uc *UseCase) tracerReservationEnabled(settings mmodel.TracerSettings) bool
 func (uc *UseCase) recordReservationByTransactionFailure(ctx context.Context, span trace.Span, logger libLog.Logger, transition reservationTransition, err error) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+transition.Action+" by transaction transport failed", err)
 
-	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation by-transaction transport failed on the first attempt",
+	logger.Log(ctx, libLog.LevelWarn, "Tracer reservation by-transaction transport failed on the first attempt; retrying off the request path",
 		append(transition.logFields(), libLog.Err(err)))
+
+	uc.scheduleReservationRetry(ctx, logger, transition, err)
 }
 
 // reservationTTLForStatus selects the TTL policy from the transaction status:
