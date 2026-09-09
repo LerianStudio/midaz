@@ -745,6 +745,38 @@ Activation has a consumer-first sequence:
    backup queues, and quarantine are inventoried and drained. A 24-hour balance
    TTL is not proof that historical recovery records are gone.
 
+The balance-cache participant inventory is:
+
+| Role | Entry point | Current write/read contract |
+| --- | --- | --- |
+| Writer | `transaction/scripts/balance_atomic_operation.lua`: cold seed and successful monetary mutation | complete dual |
+| Writer | `engine/scripts/balance_engine.lua`: inactive engine cold seed and successful monetary mutation | complete dual |
+| Writer | `RedisConsumerRepository.UpdateBalanceCacheSettings` via `balancecache.PatchSettingsDual` | complete dual |
+| Writer | `transaction.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |
+| Writer | `engine.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |
+| Writer | `balance_atomic_operation.lua` rollback | exact original bytes; never a format conversion |
+| Reader | `balancecache.DecodeForRead`, used by `ListBalanceByKey`, `GetBalancesByKeys`, query overlays, and balance sync | legacy, dual, new-only |
+| Reader | `balance_atomic_operation.lua` `decode_cached_balance` | legacy, mixed, dual, new-only; uppercase wins when present |
+| Reader | `balance_engine.lua` `decodeBalance` | legacy, mixed, dual, new-only; uppercase wins when present |
+
+`balancecache.ClassifyShape` and `balancecache.BuildInventory` provide the
+read-only format check for a complete externally supplied key walk. The report
+sorts issues by physical key, rejects duplicate or empty keys, and treats legacy,
+mixed, invalid, or semantically divergent dual values as not format-ready. A
+zero-entry report is also not format-ready, because it cannot distinguish an
+empty cache from an incomplete key walk. The classifier independently decodes
+the lower-only projection of a dual value, so stale shadows cannot satisfy the
+check merely by being present. It deliberately does not enumerate Redis keys
+itself: the caller must prove that its tenant-aware key walk covered the entire
+target deployment. It also does not infer elapsed rollout time.
+
+There is no runtime writer-format switch. Dedicated writers already emit the
+complete dual representation, and adding a legacy-output branch would weaken
+that invariant. A future new-only switch must be introduced only when every
+writer above honors one atomic selection and the complete inventory, compatible
+consumer rollout, rollback floor, and elapsed-time conditions are independently
+verified. The format report alone is not activation evidence.
+
 Once new-only blobs are written, rollback requires a reader that accepts them.
 The dual-compatible reader is the minimum cache rollback target; a precompatible
 binary cannot safely resume against new-only data. Historical fixtures may remain
