@@ -419,7 +419,7 @@ func TestUsageCounterRepository_GetByLimitID_ConnectionError(t *testing.T) {
 	repo := NewUsageCounterRepositoryWithConnection(mockConn)
 
 	ctx := context.Background()
-	_, err := repo.GetByLimitID(ctx, testutil.MustDeterministicUUID(996))
+	_, err := repo.GetByLimitID(ctx, testutil.MustDeterministicUUID(996), "2025-01")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get database connection")
@@ -447,7 +447,7 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 					ID:            testutil.MustDeterministicUUID(3),
 					LimitID:       limitID,
 					ScopeKey:      "acct:456",
-					PeriodKey:     "2025-01",
+					PeriodKey:     "2025-01", // same period as counter1: the query is period-scoped
 					CurrentUsage:  decimal.RequireFromString("25"),
 					LastUpdatedAt: testutil.DefaultTestTime,
 				}
@@ -456,8 +456,8 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 					AddRow(counter1.ID, counter1.LimitID, counter1.ScopeKey, counter1.PeriodKey, counter1.CurrentUsage, counter1.LastUpdatedAt).
 					AddRow(counter2.ID, counter2.LimitID, counter2.ScopeKey, counter2.PeriodKey, counter2.CurrentUsage, counter2.LastUpdatedAt)
 
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 ORDER BY period_key DESC, scope_key ASC`)).
-					WithArgs(limitID).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 ORDER BY period_key DESC, scope_key ASC`)).
+					WithArgs(limitID, "2025-01").
 					WillReturnRows(rows)
 			},
 			wantCount: 2,
@@ -468,8 +468,8 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows(usageCounterColumns())
 
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 ORDER BY period_key DESC, scope_key ASC`)).
-					WithArgs(limitID).
+				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters WHERE limit_id = $1 AND period_key = $2 ORDER BY period_key DESC, scope_key ASC`)).
+					WithArgs(limitID, "2025-01").
 					WillReturnRows(rows)
 			},
 			wantCount: 0,
@@ -479,7 +479,7 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 			limitID: limitID,
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(regexp.QuoteMeta(`SELECT id, limit_id, scope_key, period_key, current_usage, last_updated_at FROM usage_counters`)).
-					WithArgs(limitID).
+					WithArgs(limitID, "2025-01").
 					WillReturnError(errors.New("database error"))
 			},
 			wantErr: true,
@@ -495,7 +495,7 @@ func TestUsageCounterRepository_GetByLimitID(t *testing.T) {
 			tt.mockSetup(sqlMock)
 
 			ctx := context.Background()
-			counters, err := repo.GetByLimitID(ctx, tt.limitID)
+			counters, err := repo.GetByLimitID(ctx, tt.limitID, "2025-01")
 
 			if tt.wantErr {
 				require.Error(t, err)

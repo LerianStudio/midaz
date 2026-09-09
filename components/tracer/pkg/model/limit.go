@@ -1039,10 +1039,15 @@ type ListLimitsResult struct {
 // UsageSnapshot represents aggregated usage information for a limit.
 // This is the response structure for GetLimitUsage as defined in api-design.md section 4.3.3.
 // For PER_TRANSACTION limits, CurrentUsage is always 0 and ResetAt is nil.
+//
+// The snapshot covers the period that is live when it is taken. Elapsed periods
+// are excluded even though their counters are still retained, so the reported
+// usage is what the limit has consumed of the cap now rather than a lifetime
+// total.
 type UsageSnapshot struct {
 	// Limit identifier
 	LimitID uuid.UUID `json:"limitId" swaggertype:"string" format:"uuid"`
-	// Current usage amount (sum of all counters)
+	// Usage recorded in the current period, across the limit's scopes
 	CurrentUsage decimal.Decimal `json:"currentUsage" swaggertype:"string" example:"500.00"`
 	// Total limit amount (from Limit.MaxAmount)
 	LimitAmount decimal.Decimal `json:"limitAmount" swaggertype:"string" example:"1000.00"`
@@ -1059,6 +1064,11 @@ const NearLimitThreshold = 80.0
 
 // NewUsageSnapshot creates a UsageSnapshot from a Limit and its usage counters.
 // For PER_TRANSACTION limits, currentUsage is always 0 and resetAt is nil.
+//
+// counters must already be narrowed to one period; the caller owns that
+// (LimitService.GetLimitUsage asks the repository for the live period only).
+// Passing counters from several periods produces a lifetime total that can
+// exceed the cap without the cap having been reached.
 func NewUsageSnapshot(limit *Limit, counters []UsageCounter) *UsageSnapshot {
 	currentUsage := decimal.Zero
 

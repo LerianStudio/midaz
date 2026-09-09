@@ -40,10 +40,16 @@ type UsageCounterRepository interface {
 	// If expiresAt is nil, the counter will never be automatically deleted (fail-safe behavior).
 	UpsertAndIncrementAtomic(ctx context.Context, db pgdb.DB, limitID uuid.UUID, scopeKey string, periodKey string, amount decimal.Decimal, maxAmount decimal.Decimal, expiresAt *time.Time) (decimal.Decimal, error)
 
-	// GetByLimitID retrieves all usage counters for a specific limit.
-	// Used for the GET /limits/{id}/usage endpoint.
-	// Returns empty slice if no counters exist.
-	GetByLimitID(ctx context.Context, limitID uuid.UUID) ([]model.UsageCounter, error)
+	// GetByLimitID retrieves the usage counters for a specific limit in ONE
+	// period. Used for the GET /limits/{id}/usage endpoint.
+	//
+	// periodKey is mandatory because counters are retained for
+	// CounterRetentionDays after their period ends, so a limit accumulates one
+	// dead counter per elapsed period. Aggregating those into the snapshot made
+	// the reported usage climb past the cap without the cap ever being reached.
+	//
+	// Returns empty slice if no counters exist for that period.
+	GetByLimitID(ctx context.Context, limitID uuid.UUID, periodKey string) ([]model.UsageCounter, error)
 
 	// GetUsageForLimits retrieves current usage for multiple limits using the provided database connection.
 	// This allows callers to pass either a regular DB connection or a transaction (*sql.Tx),

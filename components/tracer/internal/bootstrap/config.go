@@ -1081,7 +1081,7 @@ func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, c
 		return nil, fmt.Errorf("failed to create list limits query: %w", err)
 	}
 
-	service := services.NewLimitService(createLimitCmd, updateLimitCmd, activateLimitCmd, deactivateLimitCmd, draftLimitCmd, deleteLimitCmd, getLimitQuery, listLimitsQuery, usageCounterRepo)
+	service := services.NewLimitService(createLimitCmd, updateLimitCmd, activateLimitCmd, deactivateLimitCmd, draftLimitCmd, deleteLimitCmd, getLimitQuery, listLimitsQuery, usageCounterRepo, clk)
 
 	// The reservation repository and the reaper's sweep surface over it are built
 	// once here so the HTTP reserve/confirm/release seam and the TTL reaper share

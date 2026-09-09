@@ -14,6 +14,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
@@ -30,6 +31,8 @@ type LimitService struct {
 	getQuery         *query.GetLimitQuery
 	listQuery        *query.ListLimitsQuery
 	usageCounterRepo query.UsageCounterRepository
+	// clock resolves which period the usage snapshot reports on.
+	clock clock.Clock
 }
 
 // NewLimitService creates a new limit service facade.
@@ -43,6 +46,7 @@ func NewLimitService(
 	getQuery *query.GetLimitQuery,
 	listQuery *query.ListLimitsQuery,
 	usageCounterRepo query.UsageCounterRepository,
+	clk clock.Clock,
 ) *LimitService {
 	return &LimitService{
 		createCmd:        createCmd,
@@ -54,6 +58,7 @@ func NewLimitService(
 		getQuery:         getQuery,
 		listQuery:        listQuery,
 		usageCounterRepo: usageCounterRepo,
+		clock:            clk,
 	}
 }
 
@@ -97,10 +102,17 @@ func (s *LimitService) ListLimits(ctx context.Context, filter *model.ListLimitsF
 	return s.listQuery.Execute(ctx, filter)
 }
 
-// GetLimitUsage retrieves a usage snapshot for a limit.
-// Returns aggregated usage information including currentUsage (sum of all counters),
-// utilizationPercent, nearLimit flag (>80%), and resetAt time.
-// For PER_TRANSACTION limits, currentUsage is always 0 and resetAt is nil.
+// GetLimitUsage retrieves a usage snapshot for a limit, reporting on the period
+// that is live now.
+//
+// Returns currentUsage, utilizationPercent, the nearLimit flag (>80%) and the
+// resetAt time. For PER_TRANSACTION limits, currentUsage is always 0 and resetAt
+// is nil.
+//
+// Only the current period's counters are read. Counters are retained past the
+// end of their period, so including them made a recurring limit's reported
+// usage a lifetime total that climbed past 100% of the cap and latched nearLimit
+// on permanently, with the cap never breached.
 func (s *LimitService) GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*model.UsageSnapshot, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -123,7 +135,20 @@ func (s *LimitService) GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*m
 		return nil, err
 	}
 
-	counters, err := s.usageCounterRepo.GetByLimitID(ctx, limitID)
+	periodKey, err := model.CalculatePeriodKey(limit.LimitType, s.clock.Now())
+	if err != nil {
+		libOtel.HandleSpanError(span, "Failed to resolve the current period", err)
+
+		logger.With(
+			libLog.String("operation", "service.limit.get_usage"),
+			libLog.String("limit_id", limitID.String()),
+			libLog.String("error", err.Error()),
+		).Log(ctx, libLog.LevelError, "Failed to resolve the current period for the limit")
+
+		return nil, err
+	}
+
+	counters, err := s.usageCounterRepo.GetByLimitID(ctx, limitID, periodKey)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get usage counters", err)
 

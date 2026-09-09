@@ -618,8 +618,15 @@ func (r *UsageCounterRepository) UpsertAndReserveAtomic(
 	return reservedUsage, nil
 }
 
-// GetByLimitID retrieves all usage counters for a specific limit.
-func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.UUID) ([]model.UsageCounter, error) {
+// GetByLimitID retrieves the usage counters for a specific limit within ONE
+// period.
+//
+// The period predicate is not optional. Counters survive CounterRetentionDays
+// past the end of their period, so without it a recurring limit returns one
+// counter per elapsed period and the caller's aggregate becomes a lifetime
+// total: a daily limit's reported usage crosses its own ceiling after a couple
+// of days of ordinary traffic, with the ceiling never actually reached.
+func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.UUID, periodKey string) ([]model.UsageCounter, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "repository.usage_counter.get_by_limit_id")
@@ -635,7 +642,7 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 
 	query := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
 		From(usageCountersTable).
-		Where(sq.Eq{"limit_id": limitID}).
+		Where(sq.Eq{"limit_id": limitID, "period_key": periodKey}).
 		OrderBy("period_key DESC", "scope_key ASC").
 		PlaceholderFormat(sq.Dollar)
 
