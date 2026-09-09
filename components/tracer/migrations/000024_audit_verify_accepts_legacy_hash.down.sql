@@ -1,8 +1,13 @@
--- Restore the single-formula verifier from migration 000017.
+-- Restore the single-formula verifier from migration 000017 and discard the
+-- re-baseline boundary.
 --
 -- After this runs, an upgraded deployment holding pre-000017 audit rows reports
 -- is_valid = false on every verification again, and the scan stops at the first
 -- historical row.
+--
+-- The restored function body below MUST stay byte-identical to the one
+-- migration 000017 defines: nothing here may depend on the boundary table,
+-- because the boundary table is dropped at the end of this file.
 
 DROP FUNCTION IF EXISTS verify_audit_hash_chain(BIGINT, BIGINT);
 
@@ -70,3 +75,7 @@ BEGIN
     RETURN QUERY SELECT chain_valid, invalid_id, checked_count, err_detail;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Discard the boundary. The append-only rules go with the table, and a later
+-- re-apply of 000024 recomputes the same value from the same rows.
+DROP TABLE IF EXISTS audit_hash_legacy_boundary;
