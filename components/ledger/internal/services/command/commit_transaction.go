@@ -162,11 +162,13 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 		return nil, err
 	}
 
+	identity := run.reservationIdentity()
+
 	switch run.status {
 	case constant.APPROVED:
-		uc.confirmReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.tran.IDtoUUID(), run.honoredTracerSkip)
+		uc.confirmReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, identity, run.honoredTracerSkip)
 	case constant.CANCELED:
-		uc.releaseReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.tran.IDtoUUID(), run.honoredTracerSkip)
+		uc.releaseReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, identity, run.honoredTracerSkip)
 	}
 
 	return uc.finalizePendingTransition(ctx, span, logger, run, unlock)

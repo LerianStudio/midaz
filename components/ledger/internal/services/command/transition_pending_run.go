@@ -40,3 +40,23 @@ type pendingTransitionRun struct {
 
 	result *mmodel.BalanceAtomicResult
 }
+
+// reservationIdentity is the identity the tracer's by-transaction confirm/release
+// is addressed and REPORTED with. The create-time reserve handle does not survive
+// into the separate /commit or /cancel request, so the transaction id is the
+// address; the amount and asset come off the persisted transaction so a transition
+// that cannot be delivered is still legible as a quantity of uncounted spending.
+// A transaction persisted without an amount yields the decimal zero rather than
+// panicking on the nil pointer — reporting a zero is a worse log line, never a
+// dropped transition.
+func (run *pendingTransitionRun) reservationIdentity() reservationHandle {
+	identity := reservationHandle{Asset: run.tran.AssetCode}
+
+	identity.TransactionID = run.tran.IDtoUUID()
+
+	if run.tran.Amount != nil {
+		identity.Amount = *run.tran.Amount
+	}
+
+	return identity
+}
