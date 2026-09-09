@@ -8,7 +8,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -37,7 +36,8 @@ func BenchmarkAdapterExecute(b *testing.B) {
 				}
 				client := redis.NewClient(&redis.Options{Addr: address, Password: password, DB: 2, Protocol: 2})
 				b.Cleanup(func() { require.NoError(b, client.Close()) })
-				adapter, err := NewAdapter(&integrationClientProvider{client: client}, Limits{MaxTransactions: 4, MaxPostings: 64, MaxBalances: 128, MaxRecoveryBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20})
+				limits := Limits{MaxTransactions: 4, MaxPostings: 64, MaxBalances: 128, MaxRecoveryBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20}
+				adapter, err := NewAdapter(&integrationClientProvider{client: client}, limits)
 				require.NoError(b, err)
 
 				warmup := benchmarkExecution(b, postings, balanceCount, -1)
@@ -47,11 +47,14 @@ func BenchmarkAdapterExecute(b *testing.B) {
 				assertBenchmarkResult(b, warmResult, postings)
 				require.NoError(b, inspector.FlushDB(ctx).Err())
 
-				serialized, err := json.Marshal(benchmarkExecution(b, postings, balanceCount, 0))
+				measurementInput := benchmarkExecution(b, postings, balanceCount, 0)
+				resolved, err := resolveAdapterKeys(ctx, measurementInput.Request)
+				require.NoError(b, err)
+				prepared, err := prepareExecution(ctx, measurementInput, limits, resolved)
 				require.NoError(b, err)
 				b.ReportAllocs()
 				b.ResetTimer()
-				b.ReportMetric(float64(len(serialized)), "execution_json_bytes")
+				b.ReportMetric(float64(len(prepared.Payload)), "prepared_wire_bytes")
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
 					input := benchmarkExecution(b, postings, balanceCount, i)
