@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -136,6 +137,8 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 			libLog.Int("rules.truncated_to", q.config.MaxRulesPerRequest),
 		).Log(ctx, libLog.LevelWarn, "Truncating rules due to max limit")
 
+		orderRulesForTruncation(rules)
+
 		rules = rules[:q.config.MaxRulesPerRequest]
 		truncated = true
 	}
@@ -179,4 +182,55 @@ func (q *EvaluateRulesQuery) Execute(ctx context.Context, req *model.ValidationR
 	)
 
 	return result.WithTruncationInfo(originalCount, truncated), nil
+}
+
+// orderRulesForTruncation sorts the candidate set in place so the cut that
+// MaxRulesPerRequest applies is reproducible and never trades a DENY away for a
+// weaker action.
+//
+// The candidate set reaches this query in Go map iteration order, which is
+// randomised per call. Cutting a raw prefix of that order kept a different
+// subset every time, so two identical validations on an over-ceiling account
+// could reach opposite decisions: a rule that denies the transaction survived
+// one call and was discarded from the next.
+//
+// The order applied here is the precedence the decision already uses — DENY,
+// then REVIEW, then ALLOW — with the rule id breaking ties. Rules that survive
+// the cut are therefore the same rules on every call, and the strictest rules
+// are the ones that survive.
+func orderRulesForTruncation(rules []*model.Rule) {
+	sort.SliceStable(rules, func(i, j int) bool {
+		left, right := rules[i], rules[j]
+
+		leftRank, rightRank := truncationRank(left), truncationRank(right)
+		if leftRank != rightRank {
+			return leftRank < rightRank
+		}
+
+		if left == nil || right == nil {
+			return false
+		}
+
+		return left.ID.String() < right.ID.String()
+	})
+}
+
+// truncationRank ranks a rule by the action it produces, following the
+// DENY > REVIEW > ALLOW precedence the decision maker applies. A nil rule or an
+// unrecognised action ranks last so it is the first thing the cut discards.
+func truncationRank(rule *model.Rule) int {
+	if rule == nil {
+		return 4
+	}
+
+	switch rule.Action {
+	case model.DecisionDeny:
+		return 0
+	case model.DecisionReview:
+		return 1
+	case model.DecisionAllow:
+		return 2
+	default:
+		return 3
+	}
 }
