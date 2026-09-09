@@ -729,6 +729,13 @@ func validateTransactionValidation(tv *model.TransactionValidation) error {
 }
 
 // buildRequestSnapshot creates the request snapshot map used for audit event persistence.
+//
+// Every metadata map the snapshot carries goes through sanitize.SanitizeMetadata,
+// the same redaction the transaction_validations row applies. The audit_events
+// row this snapshot feeds is immutable by database rule — UPDATE and DELETE are
+// discarded — so a client-supplied value that lands here verbatim can never be
+// scrubbed afterwards. The sanitizer returns a copy, so the request the decision
+// path evaluates keeps the values the client actually sent.
 func buildRequestSnapshot(req *model.ValidationRequest) map[string]any {
 	requestSnapshot := map[string]any{
 		"requestId":       req.RequestID.String(),
@@ -741,9 +748,9 @@ func buildRequestSnapshot(req *model.ValidationRequest) map[string]any {
 			"id":       req.Account.ID.String(),
 			"type":     req.Account.Type,
 			"status":   req.Account.Status,
-			"metadata": req.Account.Metadata,
+			"metadata": sanitize.SanitizeMetadata(req.Account.Metadata),
 		},
-		"metadata": req.Metadata,
+		"metadata": sanitize.SanitizeMetadata(req.Metadata),
 	}
 
 	if req.Segment != nil {
@@ -751,7 +758,7 @@ func buildRequestSnapshot(req *model.ValidationRequest) map[string]any {
 		requestSnapshot["segment"] = map[string]any{
 			"segmentId": req.Segment.ID.String(),
 			"name":      req.Segment.Name,
-			"metadata":  req.Segment.Metadata,
+			"metadata":  sanitize.SanitizeMetadata(req.Segment.Metadata),
 		}
 	}
 
@@ -760,7 +767,7 @@ func buildRequestSnapshot(req *model.ValidationRequest) map[string]any {
 		requestSnapshot["portfolio"] = map[string]any{
 			"portfolioId": req.Portfolio.ID.String(),
 			"name":        req.Portfolio.Name,
-			"metadata":    req.Portfolio.Metadata,
+			"metadata":    sanitize.SanitizeMetadata(req.Portfolio.Metadata),
 		}
 	}
 
@@ -770,7 +777,7 @@ func buildRequestSnapshot(req *model.ValidationRequest) map[string]any {
 			"name":       req.Merchant.Name,
 			"category":   req.Merchant.Category,
 			"country":    req.Merchant.Country,
-			"metadata":   req.Merchant.Metadata,
+			"metadata":   sanitize.SanitizeMetadata(req.Merchant.Metadata),
 		}
 	}
 
