@@ -201,8 +201,11 @@ type Config struct {
 	CleanupIntervalHours string `env:"CLEANUP_INTERVAL_HOURS"`
 
 	// Reservation Reaper Worker
-	// ReservationReaperEnabled enables/disables the background reservation reaper (default: false).
-	// Set RESERVATION_REAPER_ENABLED=true to release expired two-phase reservations.
+	// ReservationReaperEnabled enables/disables the background reservation reaper
+	// (default: true, applied by ApplyReservationReaperDefaults because
+	// SetConfigFromEnvVars cannot tell "unset" from "false"). The reaper is the
+	// only path that returns capacity held past a reservation's stated expiry.
+	// Set RESERVATION_REAPER_ENABLED=false to turn it off explicitly.
 	ReservationReaperEnabled bool `env:"RESERVATION_REAPER_ENABLED"`
 	// ReservationReaperIntervalSeconds is the sub-minute interval between reaper sweeps in seconds (default: 30).
 	ReservationReaperIntervalSeconds string `env:"RESERVATION_REAPER_INTERVAL_SECONDS"`
@@ -599,9 +602,34 @@ func LoadCleanupWorkerConfig(ctx context.Context, cfg *Config, logger libLog.Log
 	}, nil
 }
 
+// ApplyReservationReaperDefaults turns the expired-reservation sweep ON unless
+// the operator explicitly disabled it.
+//
+// Every reservation is written with an expiry that the API returns to the
+// client, and the sweep is the ONLY path that returns capacity when that expiry
+// passes: confirm and release both require the ledger to come back, and the
+// ledger deliberately swallows a lost confirm or release because the sweep is
+// its stated backstop. Off by default, an expiry is a number the product reports
+// and never acts on, and a ledger transaction that crashed mid-flight holds a
+// slice of the customer's cap until the counter's period rolls — never, for a
+// custom period.
+//
+// lib-commons SetConfigFromEnvVars cannot distinguish "unset" from "false", so
+// probe the raw variable, mirroring the MULTI_TENANT_REDIS_TLS default.
+// RESERVATION_REAPER_ENABLED=false still disables the sweep.
+func ApplyReservationReaperDefaults(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+
+	if _, present := os.LookupEnv("RESERVATION_REAPER_ENABLED"); !present {
+		cfg.ReservationReaperEnabled = true
+	}
+}
+
 // LoadReservationReaperConfig creates a ReservationReaperWorkerConfig from
-// environment configuration. Returns a nil config (no error) when the reaper is
-// disabled (RESERVATION_REAPER_ENABLED=false, the default) so the caller can
+// environment configuration. Returns a nil config (no error) when the operator
+// disabled the reaper (RESERVATION_REAPER_ENABLED=false) so the caller can
 // propagate the "disabled" signal end-to-end exactly like LoadCleanupWorkerConfig.
 // Returns an error if config or logger is nil, or if the interval is invalid.
 func LoadReservationReaperConfig(ctx context.Context, cfg *Config, logger libLog.Logger) (*workers.ReservationReaperWorkerConfig, error) {
@@ -1857,6 +1885,10 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// Required because lib-commons v4 SetConfigFromEnvVars does not honor
 	// `envDefault` struct tags; this is the single source of truth for defaults.
 	ApplyMultiTenantDefaults(cfg)
+
+	// The expired-reservation sweep is on unless explicitly disabled: it is the
+	// only path that returns capacity held past a reservation's stated expiry.
+	ApplyReservationReaperDefaults(cfg)
 
 	// initCoreInfra also builds the streaming emitter once logger + telemetry
 	// are up. Disabled (the default) yields a NoopEmitter plus a no-op close

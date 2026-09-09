@@ -5,6 +5,7 @@
 package bootstrap
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -103,6 +104,42 @@ func TestLoadReservationReaperConfig(t *testing.T) {
 
 			require.NotNil(t, got)
 			assert.Equal(t, tt.expectedInterval, got.ReapInterval)
+		})
+	}
+}
+
+// TestApplyReservationReaperDefaults covers the posture of the sweep an operator
+// never configured. Every reservation carries an expiry the API returns, and the
+// sweep is the only path that returns capacity when that expiry passes, so it
+// must run unless the operator explicitly turned it off.
+func TestApplyReservationReaperDefaults(t *testing.T) {
+	tests := []struct {
+		name        string
+		envValue    string
+		envSet      bool
+		wantEnabled bool
+	}{
+		{name: "unset enables the sweep", wantEnabled: true},
+		{name: "explicit false disables the sweep", envValue: "false", envSet: true, wantEnabled: false},
+		{name: "explicit true keeps the sweep", envValue: "true", envSet: true, wantEnabled: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envSet {
+				t.Setenv("RESERVATION_REAPER_ENABLED", tt.envValue)
+			} else {
+				t.Setenv("RESERVATION_REAPER_ENABLED", "")
+				require.NoError(t, os.Unsetenv("RESERVATION_REAPER_ENABLED"))
+			}
+
+			// The bool mirrors what lib-commons parsed from the environment: it
+			// cannot tell "unset" from "false", so both arrive here as false.
+			cfg := &Config{ReservationReaperEnabled: tt.envValue == "true"}
+
+			ApplyReservationReaperDefaults(cfg)
+
+			assert.Equal(t, tt.wantEnabled, cfg.ReservationReaperEnabled)
 		})
 	}
 }
