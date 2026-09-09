@@ -35,6 +35,10 @@
 --      written under the pre-000017 formula (0 when the deployment holds no
 --      such row). This is the floor 000017 told operators to write down by
 --      hand and nothing ever recorded, computed from the data itself.
+--      The floor is recorded once and kept: the down migration does not drop it
+--      and a re-apply does not re-measure it, so the first honest measurement
+--      survives every rollback. An append-only floor that a rollback resets is
+--      not append-only.
 --   2. verify_audit_hash_chain accepts a row when its stored hash matches the
 --      CURRENT nine-field formula (migrations 000017 / 000023), or — only for
 --      a row at or below that boundary — the LEGACY five-field formula
@@ -129,7 +133,9 @@
 --     The verifier this migration replaces refuses such a row, so on this one
 --     point the change trades detection for the ability to verify at all. It
 --     narrows the previous repair's equivalent hole, which stood permanently,
---     to the interval before the upgrade.
+--     to the interval before the upgrade - and to that interval ONCE: the down
+--     migration keeps the floor and this INSERT never re-measures it, so a
+--     migration cycle cannot re-open the window.
 --
 --   Only the verifier changes. calculate_audit_event_hash() still writes the
 --   nine-field formula, so every newly inserted row is covered in full.
@@ -167,7 +173,7 @@ SET LOCAL statement_timeout = 0;
 -- 1. Record the re-baseline boundary.
 -- ============================================
 
-CREATE TABLE audit_hash_legacy_boundary (
+CREATE TABLE IF NOT EXISTS audit_hash_legacy_boundary (
     -- One row, forever: the CHECK plus the primary key make a second one
     -- impossible.
     singleton     BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
@@ -186,6 +192,12 @@ CREATE TABLE audit_hash_legacy_boundary (
 COMMENT ON TABLE audit_hash_legacy_boundary IS
     'Audit hash-chain re-baseline floor (migration 000024). max_legacy_id is the highest audit_events.id written under the pre-000017 five-field hash formula; verify_audit_hash_chain offers the legacy formula only at or below it. Append-only, like audit_events itself: raising this value re-opens the legacy formula on rows written after the re-baseline.';
 
+-- Measured ONCE, and never re-measured. The HAVING makes a re-apply a no-op
+-- instead of a second measurement, and the down migration keeps the table for
+-- the same reason: a floor re-derived after the trail has been altered is a
+-- floor the alteration chose. Without this pair, anyone able to run a migration
+-- cycle re-opens the pre-upgrade window at will, and the honest recording -
+-- recorded_at included - is overwritten by the new one.
 INSERT INTO audit_hash_legacy_boundary (singleton, max_legacy_id)
 SELECT TRUE, COALESCE(MAX(id), 0)
 FROM audit_events
@@ -193,15 +205,16 @@ WHERE hash = encode(sha256((COALESCE(previous_hash, 'GENESIS')
         || '|' || event_id::text
         || '|' || event_type
         || '|' || to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
-        || '|' || resource_id)::bytea), 'hex');
+        || '|' || resource_id)::bytea), 'hex')
+HAVING NOT EXISTS (SELECT 1 FROM audit_hash_legacy_boundary);
 
 -- Same append-only protection audit_events carries (migration 000004). The
 -- boundary decides which rows may be read under the weaker formula, so it must
 -- be no easier to move than the trail it guards.
-CREATE RULE prevent_audit_hash_legacy_boundary_update AS
+CREATE OR REPLACE RULE prevent_audit_hash_legacy_boundary_update AS
     ON UPDATE TO audit_hash_legacy_boundary DO INSTEAD NOTHING;
 
-CREATE RULE prevent_audit_hash_legacy_boundary_delete AS
+CREATE OR REPLACE RULE prevent_audit_hash_legacy_boundary_delete AS
     ON DELETE TO audit_hash_legacy_boundary DO INSTEAD NOTHING;
 
 -- TRUNCATE bypasses RULEs, which is why migration 000004 pairs its rules with a

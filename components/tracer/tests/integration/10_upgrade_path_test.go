@@ -778,3 +778,157 @@ func assertUpgradedStateForLegacyVersion(ctx context.Context, t *testing.T, dsn 
 			"idx_audit_events_validation_dedup must exist after upgrade from v=%d", legacyVersion)
 	})
 }
+
+// preRebaselineVersion is the last schema version whose audit trigger still
+// wrote the pre-000017 five-field hash. Stopping the migrator here is how a
+// test manufactures genuine historical audit records.
+const preRebaselineVersion = 16
+
+// headMigrator builds a raw golang-migrate instance over the HEAD migration
+// set. libPostgres.NewMigrator only exposes Up, and the rollback cycle below
+// needs Migrate and Steps as well.
+func headMigrator(t *testing.T, dsn, migrationsDir string) *migrate.Migrate {
+	t.Helper()
+
+	db, err := sql.Open("pgx", dsn)
+	require.NoError(t, err, "open db for the HEAD migrator")
+
+	driver, err := migratepostgres.WithInstance(db, &migratepostgres.Config{
+		DatabaseName:          "tracer_test",
+		SchemaName:            "public",
+		MultiStatementEnabled: false,
+	})
+	require.NoError(t, err, "build HEAD migrate postgres driver")
+
+	mig, err := migrate.NewWithDatabaseInstance("file://"+migrationsDir, "tracer_test", driver)
+	require.NoError(t, err, "build HEAD migrate instance")
+
+	t.Cleanup(func() {
+		if srcErr, dbErr := mig.Close(); srcErr != nil || dbErr != nil {
+			t.Logf("close HEAD migrator: source=%v database=%v", srcErr, dbErr)
+		}
+	})
+
+	return mig
+}
+
+// TestUpgradePath_ReBaselineFloorSurvivesARollbackCycle pins the one property
+// that makes the audit re-baseline floor worth recording: it is measured once.
+//
+// The floor is the highest audit id written under the pre-000017 hash formula,
+// and records at or below it may be judged by that shorter formula. If a
+// rollback dropped the floor, the next upgrade would re-measure it against
+// whatever the trail said at that moment — so anyone able to run a migration
+// cycle could convert a record in between, have the floor raised to cover it,
+// and get a fresh recording timestamp that hides when the real measurement
+// happened. That is the difference between an append-only floor and a floor.
+//
+// So: the rollback keeps the floor, the re-apply does not re-measure it, and a
+// conversion planted between the two does not move it and is still reported.
+func TestUpgradePath_ReBaselineFloorSurvivesARollbackCycle(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	dsn := startUpgradePathContainer(ctx, t)
+	migrationsDir := resolveHeadMigrationsDir(ctx, t)
+	mig := headMigrator(t, dsn, migrationsDir)
+
+	// Genuine historical records: written while the pre-000017 trigger is the
+	// live one, so their stored hashes really are five-field digests.
+	require.NoError(t, mig.Migrate(preRebaselineVersion),
+		"migrate to the last version whose audit trigger wrote the five-field hash")
+
+	withTestDB(t, dsn, "open db to seed historical audit records", func(db *sql.DB) {
+		_, err := db.ExecContext(ctx, `
+			INSERT INTO audit_events (event_type, action, result, resource_id, resource_type,
+			    actor_type, actor_id, actor_name, actor_ip_address)
+			SELECT 'RULE_CREATED','CREATE','SUCCESS','res-'||g,'rule','user','u'||g,'n'||g,'10.0.0.'||g
+			FROM generate_series(1,5) g`)
+		require.NoError(t, err, "seed five historical audit records")
+	})
+
+	require.NoError(t, mig.Up(), "apply the remaining migrations, which records the floor")
+
+	// Two records written by the live nine-field trigger, so the trail has rows
+	// on both sides of the floor. The conversion below targets one of these:
+	// above the floor it must be reported, and re-measuring the floor after the
+	// conversion is planted is exactly what would stop it being reported.
+	withTestDB(t, dsn, "open db to seed current audit records", func(db *sql.DB) {
+		_, err := db.ExecContext(ctx, `
+			INSERT INTO audit_events (event_type, action, result, resource_id, resource_type,
+			    actor_type, actor_id, actor_name, actor_ip_address)
+			SELECT 'RULE_CREATED','CREATE','SUCCESS','cur-'||g,'rule','user','u'||g,'n'||g,'10.0.1.'||g
+			FROM generate_series(1,2) g`)
+		require.NoError(t, err, "seed two current audit records")
+	})
+
+	// readFloor returns the recorded floor and its recording timestamp, the
+	// pair an auditor compares against the deployment's upgrade window.
+	readFloor := func(t *testing.T) (id int64, recordedAt time.Time) {
+		t.Helper()
+
+		withTestDB(t, dsn, "open db to read the floor", func(db *sql.DB) {
+			require.NoError(t, db.QueryRowContext(ctx,
+				"SELECT max_legacy_id, recorded_at FROM audit_hash_legacy_boundary",
+			).Scan(&id, &recordedAt), "the floor must be recorded")
+		})
+
+		return id, recordedAt
+	}
+
+	firstID, firstRecordedAt := readFloor(t)
+	require.Equal(t, int64(5), firstID, "the floor must be the highest historical audit id")
+
+	// --- the rollback must not discard the measurement -----------------------
+	require.NoError(t, mig.Steps(-1), "roll the re-baseline migration back")
+
+	afterDownID, afterDownRecordedAt := readFloor(t)
+	require.Equal(t, firstID, afterDownID,
+		"the rollback MUST keep the floor; re-measuring it later is what re-opens the pre-upgrade window")
+	require.True(t, firstRecordedAt.Equal(afterDownRecordedAt),
+		"the rollback MUST keep the recording timestamp, which is the auditor's out-of-band check")
+
+	// --- a conversion planted between down and up must not move it -----------
+	withTestDB(t, dsn, "open db to plant a conversion", func(db *sql.DB) {
+		for _, stmt := range []string{
+			"ALTER TABLE audit_events DISABLE RULE prevent_audit_event_update",
+			`UPDATE audit_events SET hash = encode(sha256((
+			      COALESCE(previous_hash, 'GENESIS')
+			   || '|' || event_id::text
+			   || '|' || event_type
+			   || '|' || to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+			   || '|' || resource_id)::bytea),'hex')
+			 WHERE id = (SELECT max(id) FROM audit_events)`,
+			"ALTER TABLE audit_events ENABLE RULE prevent_audit_event_update",
+		} {
+			_, err := db.ExecContext(ctx, stmt)
+			require.NoError(t, err, "plant the conversion: %s", stmt)
+		}
+	})
+
+	require.NoError(t, mig.Up(), "re-apply the re-baseline migration")
+
+	secondID, secondRecordedAt := readFloor(t)
+	require.Equal(t, firstID, secondID,
+		"the re-apply MUST NOT re-measure the floor; a conversion planted in between would otherwise raise it")
+	require.True(t, firstRecordedAt.Equal(secondRecordedAt),
+		"the re-apply MUST leave the recording timestamp byte-identical to the first measurement")
+
+	withTestDB(t, dsn, "open db to verify the trail", func(db *sql.DB) {
+		var (
+			isValid        bool
+			firstInvalidID sql.NullInt64
+			totalChecked   int64
+			detail         sql.NullString
+		)
+
+		require.NoError(t, db.QueryRowContext(ctx,
+			"SELECT is_valid, first_invalid_id, total_checked, error_detail FROM verify_audit_hash_chain(1, NULL)",
+		).Scan(&isValid, &firstInvalidID, &totalChecked, &detail), "verify the trail")
+
+		require.False(t, isValid,
+			"the record converted between the rollback and the re-apply MUST still be reported")
+		require.Equal(t, int64(7), firstInvalidID.Int64,
+			"the converted record, which sits above the floor, MUST be the one flagged")
+	})
+}

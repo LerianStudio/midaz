@@ -133,7 +133,8 @@ func recordRebaselineBoundary(t *testing.T, tx *sql.Tx) {
 		         || '|' || event_id::text
 		         || '|' || event_type
 		         || '|' || to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
-		         || '|' || resource_id)::bytea), 'hex')`,
+		         || '|' || resource_id)::bytea), 'hex')
+		 HAVING NOT EXISTS (SELECT 1 FROM audit_hash_legacy_boundary)`,
 	} {
 		_, err := tx.ExecContext(ctx, stmt)
 		require.NoError(t, err, "record the re-baseline boundary: %s", stmt)

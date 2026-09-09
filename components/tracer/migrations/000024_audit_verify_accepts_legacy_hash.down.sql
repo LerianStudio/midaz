@@ -1,13 +1,22 @@
--- Restore the single-formula verifier from migration 000017 and discard the
--- re-baseline boundary.
+-- Restore the single-formula verifier from migration 000017.
 --
 -- After this runs, an upgraded deployment holding pre-000017 audit rows reports
 -- is_valid = false on every verification again, and the scan stops at the first
 -- historical row.
 --
+-- audit_hash_legacy_boundary is deliberately NOT dropped. It records, once,
+-- where the trail stood at upgrade time, and that measurement is only worth
+-- something if it cannot be taken again. Dropping it would let the next up
+-- migration re-measure the floor against whatever the trail says then, so
+-- anyone able to run a down/up cycle could plant a record in between, have the
+-- floor raised to cover it, and get a fresh recorded_at that hides when the
+-- real measurement happened. The up migration creates the table only if it is
+-- absent and records the floor only if none is recorded, so leaving it here is
+-- what makes the cycle safe. Its append-only rules and TRUNCATE guard stay with
+-- it.
+--
 -- The restored function body below MUST stay byte-identical to the one
--- migration 000017 defines: nothing here may depend on the boundary table,
--- because the boundary table is dropped at the end of this file.
+-- migration 000017 defines: nothing here may depend on the boundary table.
 
 DROP FUNCTION IF EXISTS verify_audit_hash_chain(BIGINT, BIGINT);
 
@@ -75,7 +84,3 @@ BEGIN
     RETURN QUERY SELECT chain_valid, invalid_id, checked_count, err_detail;
 END;
 $$ LANGUAGE plpgsql;
-
--- Discard the boundary. The append-only rules go with the table, and a later
--- re-apply of 000024 recomputes the same value from the same rows.
-DROP TABLE IF EXISTS audit_hash_legacy_boundary;
