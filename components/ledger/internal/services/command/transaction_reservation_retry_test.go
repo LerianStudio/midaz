@@ -146,13 +146,16 @@ func failNTimes(n int) func(int) error {
 	}
 }
 
-// retryTransition is the confirm a test redelivers.
+// retryTransition is the confirm a test redelivers. The amount carries non-zero
+// decimals on purpose: shopspring renders "400.00" as "400", and a bare "400" also
+// occurs inside random UUID hex, so asserting on it would pass without the amount
+// ever being logged. "1234.56" cannot appear in a uuid.
 func retryTransition() reservationTransition {
 	return reservationTransition{
 		Action:        reservationActionConfirm,
 		TransactionID: uuid.New(),
 		ReservationID: uuid.New(),
-		Amount:        decimal.RequireFromString("400.00"),
+		Amount:        decimal.RequireFromString("1234.56"),
 		Asset:         "BRL",
 	}
 }
@@ -281,17 +284,30 @@ func TestRetryKeepsTryingPastTheHoldExpiry(t *testing.T) {
 		"the confirm that landed is the one issued after the hold expired")
 }
 
-// TestShippedRetryBudgetOutlastsTheHold locks the load-bearing relationship
-// between the two services' clocks. The tracer gives a direct transaction's hold
-// a five-minute lifetime (reservationTTL in components/tracer's reservation
-// service) and sweeps it at expiry. If the ledger gave up before that, every
-// tracer outage longer than the retry budget but shorter than the hold would
-// lose a spend that a slightly more patient ledger would have counted.
-func TestShippedRetryBudgetOutlastsTheHold(t *testing.T) {
-	const tracerDirectHoldLifetime = 5 * time.Minute
+// TestShippedRetryBudgetOutlastsTheDirectHold locks the relationship between the
+// two services' clocks for DIRECT transactions, and only for those. The tracer
+// gives a direct hold a five-minute lifetime (reservationTTL in components/tracer's
+// reservation service) and sweeps it at expiry; if the ledger gave up first, a
+// tracer outage longer than the budget but shorter than the hold would lose a
+// spend that a slightly more patient ledger would have counted.
+//
+// The relationship is INVERTED for a pending transaction and the test says so
+// rather than pretending otherwise: that hold is thirty days by default, four
+// orders of magnitude past any retry budget worth having. A pending transition
+// the budget cannot place leaves the row RESERVED -- capacity held, limit
+// over-enforcing -- until the tracer's own sweep expires it, at which point an
+// undelivered confirm becomes an uncounted spend. That gap is the durable-store
+// problem, not a timer to lengthen.
+func TestShippedRetryBudgetOutlastsTheDirectHold(t *testing.T) {
+	const (
+		tracerDirectHoldLifetime    = 5 * time.Minute
+		tracerLongLivedHoldLifetime = 720 * time.Hour
+	)
 
 	assert.Greater(t, defaultReservationRetryPolicy.Budget, tracerDirectHoldLifetime,
-		"the ledger must still be trying when the tracer's own hold expires")
+		"the ledger must still be trying when a direct transaction's hold expires")
+	assert.Less(t, defaultReservationRetryPolicy.Budget, tracerLongLivedHoldLifetime,
+		"and must NOT be sized against the pending hold; a thirty-day retry sequence is not the answer there")
 	assert.Positive(t, defaultReservationRetryPolicy.MaxAttempts)
 	assert.Positive(t, defaultReservationRetryPolicy.MaxInFlight)
 }
@@ -326,11 +342,70 @@ func TestRetryReportsATransitionItCannotDeliver(t *testing.T) {
 	assert.Contains(t, reported, "will not be counted against the limit")
 	assert.Contains(t, reported, transition.TransactionID.String())
 	assert.Contains(t, reported, transition.ReservationID.String())
-	assert.Contains(t, reported, "400")
+	assert.Contains(t, reported, "1234.56")
 	assert.Contains(t, reported, "BRL")
 
 	errors := logger.atLevelOrMoreSevere(libLog.LevelError)
 	assert.NotEmpty(t, errors, "a spend the ledger gave up on is an Error, not a Warn")
+}
+
+// TestRetryReportsALostReleaseAsHeldCapacity is the release half of the loss
+// report, and it exists because the confirm half is not merely incomplete for a
+// release -- it is false. A release that never lands means NO money moved and
+// the customer's capacity is stuck; telling an operator that "the spend will not
+// be counted" sends them hunting an uncounted spend that does not exist, while
+// the customer sits denied inside their own limit.
+func TestRetryReportsALostReleaseAsHeldCapacity(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	closedAddr := listener.Addr().String()
+	require.NoError(t, listener.Close())
+
+	client, err := tracer.NewTracerClient("http://" + closedAddr)
+	require.NoError(t, err)
+
+	logger := &capturingLogger{}
+
+	transition := retryTransition()
+	transition.Action = reservationActionRelease
+
+	retrier := newReservationRetrier(fastRetryPolicy())
+	retrier.schedule(context.Background(), client, logger, transition,
+		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
+	retrier.wait()
+
+	reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelError))
+	require.NotEmpty(t, reported, "an undeliverable release must never be silent either")
+
+	assert.Contains(t, reported, "capacity stays held",
+		"the report must describe held capacity, which is what a lost release actually costs")
+	assert.Contains(t, reported, "over-enforces",
+		"and must name the direction: a lost release makes the limit too strict, not too loose")
+	assert.NotContains(t, reported, "the spend will not be counted",
+		"a lost release is not an uncounted spend; no money moved")
+	assert.Contains(t, reported, transition.TransactionID.String())
+	assert.Contains(t, reported, "1234.56")
+}
+
+// TestRetryReportsALateReleaseAsOverEnforcement is the same distinction on the
+// success path: a release that only lands on retry held the customer's capacity
+// in the meantime, which is the opposite of what a late confirm did.
+func TestRetryReportsALateReleaseAsOverEnforcement(t *testing.T) {
+	logger := &capturingLogger{}
+	reserver := &scriptedReserver{confirm: failNTimes(0)}
+
+	transition := retryTransition()
+	transition.Action = reservationActionRelease
+
+	retrier := newReservationRetrier(fastRetryPolicy())
+	retrier.schedule(context.Background(), reserver, logger, transition,
+		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
+	retrier.wait()
+
+	reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelWarn))
+	assert.Contains(t, reported, "over-enforced until now")
+	assert.NotContains(t, reported, "under-enforced until now")
 }
 
 // TestRetryReportsATransitionItHasNoCapacityFor proves the concurrency cap fails
@@ -364,7 +439,7 @@ func TestRetryReportsATransitionItHasNoCapacityFor(t *testing.T) {
 	reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelError))
 	assert.Contains(t, reported, "too many retries already in flight")
 	assert.Contains(t, reported, turnedAway.TransactionID.String())
-	assert.Contains(t, reported, "400")
+	assert.Contains(t, reported, "1234.56")
 
 	attempts, _ := rejected.attempts()
 	assert.Zero(t, attempts, "a turned-away transition is reported, never quietly retried later")

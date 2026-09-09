@@ -26,12 +26,23 @@ const reservationRetryComponent = "ledger.tracer-reservation-retry"
 // trying to hand the tracer a confirm or release the first attempt could not
 // deliver.
 //
-// Budget is deliberately LONGER than the tracer's default reservation lifetime
-// (five minutes for a direct transaction). A retry landing after the hold has
-// already expired is not wasted: the tracer settles a late confirm by counting
-// the spend without touching the capacity its expiry sweep already returned. So
-// the ledger would rather deliver the confirm late — the spend counted, the
-// window logged — than stop trying because the hold is gone.
+// Budget is sized against the DIRECT transaction's hold, which the tracer gives
+// five minutes. Six minutes deliberately outlasts it, because a retry landing
+// after the hold expired is not wasted: the tracer settles a late confirm by
+// counting the spend without touching the capacity its expiry sweep already
+// returned. The ledger would rather deliver the confirm late — the spend
+// counted, the window logged — than stop trying because the hold is gone.
+//
+// It does NOT outlast a PENDING transaction's hold, and nothing sensible could:
+// that one is thirty days by default (RESERVATION_LONG_LIVED_TTL_HOURS). Those
+// are the transitions /commit and /cancel carry by transaction id, and if the
+// budget runs out on one, the row simply stays RESERVED. That is the safe
+// direction while it lasts — the capacity is still held, so the limit
+// over-enforces rather than under-enforces — but it is not a fix: when the
+// tracer's own sweep finally expires the row, a confirm that was never
+// delivered becomes a spend that is never counted. Six minutes covers a tracer
+// restart, which is the failure this retrier exists for; a pending transition
+// lost for longer needs the durable store, not a longer timer.
 type reservationRetryPolicy struct {
 	// MaxAttempts is how many further attempts follow the inline one.
 	MaxAttempts int
@@ -125,7 +136,7 @@ func (r *reservationRetrier) schedule(ctx context.Context, reserver TracerReserv
 		// place the ledger knowingly gives up on a spend, and an operator has
 		// to see it as a saturation signal, not as a one-off.
 		logger.Log(ctx, libLog.LevelError,
-			"Tracer reservation transition dropped: too many retries already in flight; the spend will not be counted against the limit",
+			"Tracer reservation transition dropped: too many retries already in flight; "+transition.lossConsequence(),
 			append(transition.logFields(),
 				libLog.Int("retries_in_flight", r.policy.MaxInFlight),
 				libLog.Err(cause)))
@@ -177,12 +188,11 @@ func (r *reservationRetrier) run(ctx context.Context, reserver TracerReserver, l
 		if err == nil {
 			span.SetAttributes(attribute.Int("app.reservation.retry_attempts", attempt))
 
-			// Worth a Warn rather than a Debug: between the failed inline
-			// attempt and this one the limit was under-enforced, because the
-			// capacity was held (or, past the expiry, already returned) while
-			// the spend went uncounted.
+			// Worth a Warn rather than a Debug: the limit did not match reality
+			// in the window between the failed inline attempt and this one, and
+			// which way it was wrong depends on the action.
 			logger.Log(ctx, libLog.LevelWarn,
-				"Tracer reservation transition delivered on retry; the limit was under-enforced until now",
+				"Tracer reservation transition delivered on retry; "+transition.delayConsequence(),
 				append(transition.logFields(),
 					libLog.Int("attempts", attempt),
 					libLog.String("elapsed", time.Since(started).String())))
@@ -228,15 +238,17 @@ func (r *reservationRetrier) delay(attempt int) time.Duration {
 }
 
 // reportExhausted is the last word on a transition the ledger could not place.
-// It is an Error, not a Warn: for a confirm it means a transaction whose money
-// moved will never be counted against the customer's spending limit, so the
-// limit under-enforces until someone acts on this line.
+// It is an Error, not a Warn, and it says which of the two failures happened:
+// a confirm that never landed is money that moved and will never be counted, a
+// release that never landed is capacity held against a transaction that moved
+// nothing. They need opposite remediations, so the message names the direction
+// rather than assuming the confirm case.
 func (r *reservationRetrier) reportExhausted(ctx context.Context, span trace.Span, logger libLog.Logger, transition reservationTransition, cause error, attempts int, started time.Time) {
 	libOpentelemetry.HandleSpanError(span, "Tracer reservation "+transition.Action+" could not be delivered", cause)
 	span.SetAttributes(attribute.Bool("app.reservation.retry_exhausted", true))
 
 	logger.Log(ctx, libLog.LevelError,
-		"Tracer reservation transition could not be delivered; the spend will not be counted against the limit",
+		"Tracer reservation transition could not be delivered; "+transition.lossConsequence(),
 		append(transition.logFields(),
 			libLog.Int("attempts", attempts),
 			libLog.String("elapsed", time.Since(started).String()),

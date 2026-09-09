@@ -55,6 +55,33 @@ func (t reservationTransition) byTransaction() bool {
 	return t.ReservationID == uuid.Nil
 }
 
+// lossConsequence names, in the operator's terms, what it costs when this
+// transition is never placed. The two actions fail in OPPOSITE directions and a
+// single sentence written for one is false for the other: a lost confirm means
+// money moved that the limit will never count, so the cap under-enforces; a lost
+// release means capacity held against a transaction that moved no money at all,
+// so the cap over-enforces and denies the customer inside their own limit. The
+// remediation differs too, which is why this belongs in the message an operator
+// is paged on and not only in a structured field.
+func (t reservationTransition) lossConsequence() string {
+	if t.Action == reservationActionRelease {
+		return "the capacity stays held against a transaction that moved no money, so the limit over-enforces until the hold expires"
+	}
+
+	return "the spend will not be counted against the limit"
+}
+
+// delayConsequence is the same distinction for a transition that did land, late:
+// it names what was wrong in the window between the failed first attempt and the
+// delivery.
+func (t reservationTransition) delayConsequence() string {
+	if t.Action == reservationActionRelease {
+		return "the limit over-enforced until now"
+	}
+
+	return "the limit was under-enforced until now"
+}
+
 // logFields renders the transition's identity for a structured log line. The
 // reservation id is emitted only when the transition carries one, so the
 // by-transaction form does not log a nil uuid that reads like a real handle.

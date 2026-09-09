@@ -302,7 +302,11 @@ func (uc *UseCase) confirmReservations(ctx context.Context, span trace.Span, log
 }
 
 // releaseReservations returns held reservations on an aborted transaction
-// (F3-T14, the abort phase). Same best-effort posture as confirmReservations.
+// (F3-T14, the abort phase). Same non-blocking, retried posture as
+// confirmReservations: a failure never fails the request and is redelivered off
+// the request path. The direction of the loss is the opposite one — a release
+// that never lands leaves capacity held against a transaction that moved no
+// money — which is why the report distinguishes them.
 func (uc *UseCase) releaseReservations(ctx context.Context, span trace.Span, logger libLog.Logger, handle reservationHandle) {
 	if uc.TracerReserver == nil {
 		return
