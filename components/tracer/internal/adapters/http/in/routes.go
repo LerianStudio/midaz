@@ -376,6 +376,11 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	// qualifications). See pkgHTTP.InstallSchemaNamer.
 	pkgHTTP.InstallSchemaNamer(humaAPI)
 
+	// Stamp the per-occurrence reference (RFC 9457 `instance`) on every error body
+	// this API writes. Must wrap BEFORE any huma.Register: Register captures the
+	// API it is handed, and only that API's Transform runs on the way out.
+	humaAPI = pkgHTTP.WithProblemInstance(humaAPI)
+
 	// Declare the security schemes referenced by per-op Security metadata so the
 	// generated spec resolves them instead of dangling. SPEC metadata only —
 	// runtime auth stays the Fiber guard.With middleware. BearerAuth comes from

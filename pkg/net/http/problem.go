@@ -206,6 +206,12 @@ func withProblem(c fiber.Ctx, err error) error {
 			http.StatusText(http.StatusInternalServerError), "internal error")
 	}
 
+	// The per-occurrence reference the customer quotes to support. ProblemDetail
+	// takes no context (378 Huma paths reach it without one), so each transport
+	// stamps it where the request context is in hand: here for Fiber, and
+	// WithProblemInstance's Transform for Huma.
+	body.Instance = TraceReference(c.Context())
+
 	// The media type is passed to JSON rather than Set beforehand: fiber's JSON
 	// overwrites Content-Type with application/json unless it is given one, so a
 	// prior Set is silently discarded.
@@ -330,6 +336,8 @@ func withProblemStatus(c fiber.Ctx, status int, err error) error {
 	if errs := fieldsToErrors(err); errs != nil {
 		body.Errors = errs
 	}
+
+	body.Instance = TraceReference(c.Context())
 
 	return c.Status(status).JSON(body, problemContentType)
 }

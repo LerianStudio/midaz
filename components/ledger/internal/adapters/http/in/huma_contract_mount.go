@@ -254,7 +254,11 @@ func AssembleHumaContract(app *fiber.App, group fiber.Router, cfg openapi.Config
 
 	openapi.DeclareBearerAuth(api)
 
-	return api
+	// Stamp the per-occurrence reference (RFC 9457 `instance`) on every error body
+	// this API writes. Wrapping here, before the caller registers any operation,
+	// is what makes it reach all of them: huma.Register captures the API it is
+	// handed and only that API's Transform runs when a response is written.
+	return pkgHTTP.WithProblemInstance(api)
 }
 
 // FinalizeContract runs every post-registration pass over the assembled document,
