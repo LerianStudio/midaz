@@ -58,6 +58,15 @@ func TestLimitToEntity_RecurringResetAtIsResolvedOnRead(t *testing.T) {
 			before := time.Now().UTC()
 
 			entity, err := storedLimitRow(tt.limitType, sql.NullTime{Time: tt.storedResetAt, Valid: true}, createdAt).ToEntity()
+
+			// ToEntity reads the clock itself, somewhere in [before, after]. On
+			// the ~1ns per day when that span straddles midnight, a Monday or
+			// the first of a month, the entity correctly reports the boundary of
+			// the period that just began while `before` still names the one that
+			// just ended. Accepting either endpoint's boundary keeps the
+			// assertion exact without making the suite fail on the calendar.
+			after := time.Now().UTC()
+
 			require.NoError(t, err)
 			require.NotNil(t, entity.ResetAt)
 
@@ -65,7 +74,13 @@ func TestLimitToEntity_RecurringResetAtIsResolvedOnRead(t *testing.T) {
 				"reported a boundary that has already passed: %s", entity.ResetAt.Format(time.RFC3339))
 			assert.NotEqual(t, tt.storedResetAt, *entity.ResetAt,
 				"reported the boundary recorded when the limit was created")
-			assert.Equal(t, *model.CalculateResetAt(model.LimitType(tt.limitType), before), *entity.ResetAt)
+			assert.Contains(t,
+				[]time.Time{
+					*model.CalculateResetAt(model.LimitType(tt.limitType), before),
+					*model.CalculateResetAt(model.LimitType(tt.limitType), after),
+				},
+				*entity.ResetAt,
+				"the boundary must be the one resolved from the moment ToEntity ran, not the one stored at creation")
 		})
 	}
 }
