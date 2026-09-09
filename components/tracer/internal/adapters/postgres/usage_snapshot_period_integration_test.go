@@ -49,7 +49,7 @@ func TestIntegration_GetLimitUsage_ReportsOnlyTheLivePeriod(t *testing.T) {
 	now := time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC)
 	livePeriod := "2026-03-15"
 
-	limitID := seedDailyLimit(t, db, 1000)
+	limitID := seedDailyLimit(ctx, t, db, 1000)
 	t.Cleanup(func() {
 		if _, err := db.Exec("DELETE FROM limits WHERE id = $1", limitID); err != nil {
 			t.Logf("cleanup limit %s: %v", limitID, err)
@@ -57,10 +57,10 @@ func TestIntegration_GetLimitUsage_ReportsOnlyTheLivePeriod(t *testing.T) {
 	})
 
 	// Two scopes inside the live period, and two whole periods that have elapsed.
-	seedCounter(t, db, limitID, "acct:live-a", livePeriod, "300")
-	seedCounter(t, db, limitID, "acct:live-b", livePeriod, "200")
-	seedCounter(t, db, limitID, "acct:live-a", "2026-03-14", "900")
-	seedCounter(t, db, limitID, "acct:live-a", "2026-03-13", "900")
+	seedCounter(ctx, t, db, limitID, "acct:live-a", livePeriod, "300")
+	seedCounter(ctx, t, db, limitID, "acct:live-b", livePeriod, "200")
+	seedCounter(ctx, t, db, limitID, "acct:live-a", "2026-03-14", "900")
+	seedCounter(ctx, t, db, limitID, "acct:live-a", "2026-03-13", "900")
 
 	adapter := &testutil.IntegrationDBAdapter{DB: db}
 	limitRepo := postgres.NewLimitRepositoryWithConnection(adapter)
@@ -87,12 +87,12 @@ func TestIntegration_GetLimitUsage_ReportsOnlyTheLivePeriod(t *testing.T) {
 	require.Equal(t, "1000", snapshot.LimitAmount.String(), "the cap itself is unchanged")
 }
 
-func seedDailyLimit(t *testing.T, db *sql.DB, maxAmount int64) uuid.UUID {
+func seedDailyLimit(ctx context.Context, t *testing.T, db *sql.DB, maxAmount int64) uuid.UUID {
 	t.Helper()
 
 	limitID := uuid.New()
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(ctx, `
 		INSERT INTO limits (id, name, limit_type, max_amount, asset, scopes, status)
 		VALUES ($1, $2, 'DAILY', $3, 'USD', '[]', 'ACTIVE')`,
 		limitID, "usage-period-"+limitID.String()[:8], decimal.NewFromInt(maxAmount))
@@ -101,10 +101,10 @@ func seedDailyLimit(t *testing.T, db *sql.DB, maxAmount int64) uuid.UUID {
 	return limitID
 }
 
-func seedCounter(t *testing.T, db *sql.DB, limitID uuid.UUID, scopeKey, periodKey, amount string) {
+func seedCounter(ctx context.Context, t *testing.T, db *sql.DB, limitID uuid.UUID, scopeKey, periodKey, amount string) {
 	t.Helper()
 
-	_, err := db.Exec(`
+	_, err := db.ExecContext(ctx, `
 		INSERT INTO usage_counters (id, limit_id, scope_key, period_key, current_usage)
 		VALUES ($1, $2, $3, $4, $5)`,
 		uuid.New(), limitID, scopeKey, periodKey, decimal.RequireFromString(amount))
