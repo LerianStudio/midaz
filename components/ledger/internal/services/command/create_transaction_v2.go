@@ -259,8 +259,9 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 		uc.rollbackCreateSeed(ctx, logger, run)
 
 		// The balance commit failed (no funds moved), so return the held
-		// reservation capacity. Best-effort: a transport failure here is
-		// reconciled by the TTL reaper.
+		// reservation capacity. Non-blocking: a transport failure here is
+		// retried off the request path, and the hold's expiry sweep returns
+		// the capacity anyway if every attempt fails.
 		uc.releaseReservations(ctx, span, logger, reservation.Handle)
 
 		return nil, false, err

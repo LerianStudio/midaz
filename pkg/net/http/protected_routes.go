@@ -78,6 +78,22 @@ func MarkTrustedAuthAssertion() fiber.Handler {
 		if tenantID := firstNonEmptyStringClaim(claims, "tenantId"); tenantID != "" && tmcore.IsValidTenantID(tenantID) {
 			ctx := withTenantIDBaggage(tmcore.ContextWithTenantID(c.Context(), tenantID), tenantID)
 
+			// Re-seeds the context logger so every log emitted downstream of
+			// this point — the warning below included — carries the tenant.
+			// The access-log line cannot be fixed from here:
+			// lib-observability's WithHTTPLogging binds its request logger
+			// before c.Next() and this middleware runs inside it, so that line
+			// resolves its own tenant field after c.Next() (needs a
+			// lib-observability release carrying that change).
+			//
+			// The raw claim, not the parsed UUID: logs must agree with the
+			// span attribute seeded into baggage above, and the two per-tenant
+			// channels deliberately differ in form. Seeded before the UUID
+			// branch on purpose — a non-UUID tenant carries no metric
+			// attestation, so this field is the only tenant signal it gets.
+			ctx = libObservability.ContextWithLogger(ctx,
+				libObservability.NewLoggerFromContext(ctx).With(libLog.String(obsconst.AttrKeyTenantID, tenantID)))
+
 			// The telemetry middleware labels per-tenant metrics only from an
 			// identity attested here; a client-supplied header or baggage member
 			// is never promoted to that trust level. tmcore.IsValidTenantID

@@ -5,13 +5,17 @@
 package http
 
 import (
+	"context"
 	"fmt"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	obsconst "github.com/LerianStudio/lib-observability/v4/constants"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/gofiber/fiber/v3"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -214,4 +218,181 @@ func TestMarkTrustedAuthAssertion_SetsTenantIDContextAlongsideAttestation(t *tes
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusNoContent, resp.StatusCode)
 	assert.Equal(t, slugTenant, got)
+}
+
+// tenantFieldLogger records the fields bound to each logger derived from it,
+// so a test can assert what a handler's log record carried. Every derived
+// logger shares one sink because the middleware hands the handler a logger
+// two With calls removed from the one seeded here.
+type tenantFieldLogger struct {
+	sink  *tenantFieldSink
+	bound []libLog.Field
+}
+
+type tenantFieldSink struct {
+	mu      sync.Mutex
+	records []tenantFieldRecord
+}
+
+type tenantFieldRecord struct {
+	message string
+	fields  []libLog.Field
+}
+
+func newTenantFieldLogger() *tenantFieldLogger {
+	return &tenantFieldLogger{sink: &tenantFieldSink{}}
+}
+
+func (l *tenantFieldLogger) Log(_ context.Context, _ int, msg string, fields ...any) {
+	l.sink.mu.Lock()
+	defer l.sink.mu.Unlock()
+
+	l.sink.records = append(l.sink.records, tenantFieldRecord{
+		message: msg,
+		fields:  append(append([]libLog.Field(nil), l.bound...), libLog.Fields(fields...)...),
+	})
+}
+
+func (l *tenantFieldLogger) With(fields ...any) libLog.Logger {
+	return &tenantFieldLogger{
+		sink:  l.sink,
+		bound: append(append([]libLog.Field(nil), l.bound...), libLog.Fields(fields...)...),
+	}
+}
+
+func (l *tenantFieldLogger) WithGroup(_ string) libLog.Logger { return l }
+
+func (l *tenantFieldLogger) Enabled(_ int) bool { return true }
+
+func (l *tenantFieldLogger) Sync(_ context.Context) error { return nil }
+
+func (l *tenantFieldLogger) records() []tenantFieldRecord {
+	l.sink.mu.Lock()
+	defer l.sink.mu.Unlock()
+
+	return append([]tenantFieldRecord(nil), l.sink.records...)
+}
+
+// recordsWithMessage isolates the records a specific emitter produced. The
+// non-UUID path also logs a one-time attestation warning, so selecting by
+// position would make the assertion depend on which subtest tripped the
+// sync.Once first.
+func (l *tenantFieldLogger) recordsWithMessage(msg string) []tenantFieldRecord {
+	var out []tenantFieldRecord
+
+	for _, rec := range l.records() {
+		if rec.message == msg {
+			out = append(out, rec)
+		}
+	}
+
+	return out
+}
+
+func tenantFieldsOf(record []libLog.Field) []string {
+	var values []string
+
+	for _, field := range record {
+		if field.Key != obsconst.AttrKeyTenantID {
+			continue
+		}
+
+		value, _ := field.Value.(string)
+		values = append(values, value)
+	}
+
+	return values
+}
+
+func TestMarkTrustedAuthAssertion_ReseedsContextLoggerWithTenantID(t *testing.T) {
+	t.Parallel()
+
+	// Both tenant shapes, because the re-seed sits outside the UUID branch on
+	// purpose: a non-UUID tenant gets no metric attestation, so the log field
+	// is the only per-tenant signal it has.
+	cases := []struct {
+		name     string
+		tenantID string
+	}{
+		{name: "uuid tenant", tenantID: "0f6e2b3a-1c4d-4e5f-8a9b-0c1d2e3f4a5b"},
+		{name: "non-uuid tenant", tenantID: "org_01KHVKQQP6D2N4RDJK0ADEKQX1"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := newTenantFieldLogger()
+
+			app := fiber.New()
+
+			// Stands in for lib-observability's WithHTTPLogging, which binds
+			// the request logger into the context BEFORE the auth chain runs.
+			app.Use(func(c fiber.Ctx) error {
+				c.SetContext(libObservability.ContextWithLogger(c.Context(), logger))
+
+				return c.Next()
+			})
+			app.Use(MarkTrustedAuthAssertion())
+			app.Get("/test", func(c fiber.Ctx) error {
+				libObservability.NewLoggerFromContext(c.Context()).
+					Log(c.Context(), libLog.LevelInfo, "handler ran")
+
+				return c.SendStatus(fiber.StatusNoContent)
+			})
+
+			req := httptest.NewRequest("GET", "/test", nil)
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s",
+				mustUnsignedToken(t, jwt.MapClaims{"sub": "u", "tenantId": tc.tenantID})))
+
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			require.Equal(t, fiber.StatusNoContent, resp.StatusCode)
+
+			records := logger.recordsWithMessage("handler ran")
+			require.Len(t, records, 1, "the handler must emit exactly one record")
+			assert.Equal(t, []string{tc.tenantID}, tenantFieldsOf(records[0].fields),
+				"a handler log must carry the raw tenantId claim once, matching the span attribute")
+
+			// The non-UUID warning is itself about this tenant, so it must be
+			// attributable to it too - the re-seed sits above that branch.
+			for _, warned := range logger.recordsWithMessage(
+				"Tenant claim is not a UUID; per-tenant metrics will not be labelled for it") {
+				assert.Equal(t, []string{tc.tenantID}, tenantFieldsOf(warned.fields))
+			}
+		})
+	}
+}
+
+func TestMarkTrustedAuthAssertion_LeavesContextLoggerAloneWithoutTenantClaim(t *testing.T) {
+	t.Parallel()
+
+	logger := newTenantFieldLogger()
+
+	app := fiber.New()
+	app.Use(func(c fiber.Ctx) error {
+		c.SetContext(libObservability.ContextWithLogger(c.Context(), logger))
+
+		return c.Next()
+	})
+	app.Use(MarkTrustedAuthAssertion())
+	app.Get("/test", func(c fiber.Ctx) error {
+		libObservability.NewLoggerFromContext(c.Context()).
+			Log(c.Context(), libLog.LevelInfo, "handler ran")
+
+		return c.SendStatus(fiber.StatusNoContent)
+	})
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s",
+		mustUnsignedToken(t, jwt.MapClaims{"sub": "u"})))
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusNoContent, resp.StatusCode)
+
+	records := logger.recordsWithMessage("handler ran")
+	require.Len(t, records, 1)
+	assert.Empty(t, tenantFieldsOf(records[0].fields),
+		"a token without a tenantId claim must add no tenant.id field, not an empty one")
 }
