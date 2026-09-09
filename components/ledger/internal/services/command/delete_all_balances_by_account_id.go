@@ -17,6 +17,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -37,10 +38,15 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 	}()
 
 	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", accountID.String()),
 		attribute.String("app.request.request_id", requestID),
 	)
 
-	balances, err := uc.BalanceRepo.ListByAccountID(ctx, organizationID, ledgerID, accountID)
+	readCtx := readrouting.WithPrimaryRead(ctx)
+
+	balances, err := uc.BalanceRepo.ListByAccountID(readCtx, organizationID, ledgerID, accountID)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances by account id on repo", err)
 
@@ -55,20 +61,32 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 
 	// Plant delete markers so the honored-lock pre-pass rejects concurrent mutations for the
 	// whole delete. Release them only when the delete fails, so a rejected guard, permission
-	// flip, or soft-delete leaves the account usable; a successful delete lets the delete marker
-	// expire by its own TTL.
-	release := uc.plantBalanceDeleteMarkers(ctx, organizationID, ledgerID, balances)
+	// flip, or soft-delete leaves the account usable; a successful delete evicts each cache and
+	// shortens only the marker whose eviction succeeded.
+	markerLease, markerErr := uc.plantBalanceDeleteMarkerLease(ctx, organizationID, ledgerID, balances)
+	if markerErr != nil {
+		err = markerErr
+
+		var conflictErr pkg.EntityConflictError
+		if errors.As(err, &conflictErr) {
+			logger.Log(ctx, libLog.LevelWarn, "Balance delete marker is already owned", libLog.Err(err))
+		} else {
+			logger.Log(ctx, libLog.LevelError, "Error planting balance delete markers", libLog.Err(err))
+		}
+
+		return err
+	}
 
 	defer func() {
 		if err != nil {
-			release()
+			uc.releaseBalanceDeleteMarkers(ctx, markerLease)
 		}
 	}()
 
 	for _, balance := range balances {
 		cacheBalance, cacheErr := uc.TransactionRedisRepo.ListBalanceByKey(ctx, organizationID, ledgerID, fmt.Sprintf("%s#%s", balance.Alias, balance.Key))
 		if cacheErr != nil && !errors.Is(cacheErr, redis.Nil) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance by key on redis", cacheErr)
+			libOpentelemetry.HandleSpanError(span, "Failed to get balance by key on redis", cacheErr)
 
 			logger.Log(ctx, libLog.LevelError, "Error getting balance by key on redis", libLog.Err(cacheErr))
 
@@ -76,7 +94,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		}
 
 		if cacheBalance != nil {
-			if !cacheBalance.Available.IsZero() || !cacheBalance.OnHold.IsZero() {
+			if balanceHasFunds(cacheBalance) {
 				err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "ListBalanceByAccountIDAndKey")
 
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
@@ -87,7 +105,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 			}
 		}
 
-		if !balance.Available.IsZero() || !balance.OnHold.IsZero() {
+		if balanceHasFunds(balance) {
 			err = pkg.ValidateBusinessError(constant.ErrBalancesCantBeDeleted, "DeleteAllBalancesByAccountID")
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance cannot be deleted because it still has funds in it.", err)
@@ -128,7 +146,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 
 	// Drop the stale cache entries now that the rows are soft-deleted. Non-fatal: a failed
 	// eviction is logged and never fails the already-committed delete.
-	uc.evictBalanceCaches(ctx, organizationID, ledgerID, balances)
+	uc.evictBalanceCaches(ctx, organizationID, ledgerID, balances, markerLease)
 
 	return nil
 }

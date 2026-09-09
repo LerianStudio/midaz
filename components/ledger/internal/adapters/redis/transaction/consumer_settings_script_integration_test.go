@@ -52,6 +52,85 @@ func TestIntegration_UpdateBalanceSettingsScript_AbsentKeyIsNoOp(t *testing.T) {
 	assert.Zero(t, exists, "the script must not create the key on a no-op")
 }
 
+func TestIntegration_UpdateBalanceSettingsScript_DeleteMarkerBlocksMutation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	key := "balance:{transactions}:settings-script-test:" + uuid.NewString()
+	markerKey := deleteMarkerKeyForIntegration(key)
+	original := `{"Available":"100","OnHold":"0","Version":1}`
+
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, key, original, time.Hour).Err())
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, markerKey, "owner", time.Hour).Err())
+
+	result, err := updateBalanceSettingsScript.Run(ctx, infra.redisContainer.Client,
+		[]string{key}, 1, 1, "500.00", mmodel.BalanceScopeTransactional, "86400").Result()
+
+	require.Error(t, err, "a live delete marker must reject settings mutation")
+	assert.Contains(t, err.Error(), constant.ErrAccountIneligibility.Error())
+	assert.Nil(t, result)
+
+	unchanged, getErr := infra.redisContainer.Client.Get(ctx, key).Result()
+	require.NoError(t, getErr)
+	assert.Equal(t, original, unchanged, "the guarded settings update must leave the balance intact")
+}
+
+func TestIntegration_UpdateBalanceSettingsScript_LegacyDeleteMarkerBlocksMutation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	key := "balance:{transactions}:settings-script-legacy-marker-test:" + uuid.NewString()
+	original := `{"Available":"100","OnHold":"0","Version":1}`
+
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, key, original, time.Hour).Err())
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, legacyDeleteMarkerKeyForIntegration(key), "owner", time.Hour).Err())
+
+	result, err := updateBalanceSettingsScript.Run(ctx, infra.redisContainer.Client,
+		[]string{key}, 1, 1, "500.00", mmodel.BalanceScopeTransactional, "86400").Result()
+
+	require.Error(t, err, "a live legacy delete marker must reject settings mutation")
+	assert.Contains(t, err.Error(), constant.ErrAccountIneligibility.Error())
+	assert.Nil(t, result)
+
+	unchanged, getErr := infra.redisContainer.Client.Get(ctx, key).Result()
+	require.NoError(t, getErr)
+	assert.Equal(t, original, unchanged, "the legacy-guarded settings update must leave the balance intact")
+}
+
+func TestIntegration_UpdateBalanceSettingsScript_TenantMarkerBlocksMutation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	tenantID := "settings-marker-tenant-" + uuid.NewString()
+	ctx := context.Background()
+	key := "balance:{transactions}:settings-script-test:" + uuid.NewString()
+	physicalKey := "tenant:" + tenantID + ":" + key
+	physicalMarkerKey := "tenant:" + tenantID + ":" + deleteMarkerKeyForIntegration(key)
+	original := `{"Available":"100","OnHold":"0","Version":1}`
+
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, physicalKey, original, time.Hour).Err())
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, physicalMarkerKey, "owner", time.Hour).Err())
+
+	result, err := updateBalanceSettingsScript.Run(ctx, infra.redisContainer.Client,
+		[]string{physicalKey}, 1, 1, "500.00", mmodel.BalanceScopeTransactional, "86400").Result()
+
+	require.Error(t, err, "a tenant-prefixed delete marker must reject settings mutation")
+	assert.Contains(t, err.Error(), constant.ErrAccountIneligibility.Error())
+	assert.Nil(t, result)
+
+	unchanged, getErr := infra.redisContainer.Client.Get(ctx, physicalKey).Result()
+	require.NoError(t, getErr)
+	assert.Equal(t, original, unchanged, "the tenant-guarded settings update must leave the balance intact")
+}
+
 func TestIntegration_UpdateBalanceSettingsScript_CorruptBlobReturnsErrorCodeAndLeavesValueIntact(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

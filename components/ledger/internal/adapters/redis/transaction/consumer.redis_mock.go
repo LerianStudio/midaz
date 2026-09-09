@@ -101,6 +101,36 @@ func (mr *MockRedisRepositoryMockRecorder) Del(ctx, key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Del", reflect.TypeOf((*MockRedisRepository)(nil).Del), ctx, key)
 }
 
+// DeleteIfValue mocks base method.
+func (m *MockRedisRepository) DeleteIfValue(ctx context.Context, key, value string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteIfValue", ctx, key, value)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExpireIfValue mocks base method.
+func (m *MockRedisRepository) ExpireIfValue(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExpireIfValue", ctx, key, value, ttl)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExpireIfValue indicates an expected call of ExpireIfValue.
+func (mr *MockRedisRepositoryMockRecorder) ExpireIfValue(ctx, key, value, ttl any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExpireIfValue", reflect.TypeOf((*MockRedisRepository)(nil).ExpireIfValue), ctx, key, value, ttl)
+}
+
+// DeleteIfValue indicates an expected call of DeleteIfValue.
+func (mr *MockRedisRepositoryMockRecorder) DeleteIfValue(ctx, key, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIfValue", reflect.TypeOf((*MockRedisRepository)(nil).DeleteIfValue), ctx, key, value)
+}
+
 // Get mocks base method.
 func (m *MockRedisRepository) Get(ctx context.Context, key string) (string, error) {
 	m.ctrl.T.Helper()

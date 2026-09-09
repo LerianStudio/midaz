@@ -45,17 +45,26 @@ var updateBalanceSettingsLua string
 //go:embed scripts/update_balance_blocked.lua
 var updateBalanceBlockedLua string
 
-// balanceAtomicScript, claimBalanceSyncScript, updateBalanceSettingsScript, and
-// updateBalanceBlockedScript are built once at package init. redis.NewScript
-// computes the source SHA1 eagerly, so hoisting these out of the per-call hot
-// paths (runBalanceAtomicScript, GetBalanceSyncKeys, GetBalanceSyncKeysLegacy,
-// UpdateBalanceCacheSettings, UpdateBalanceCacheBlocked) avoids re-hashing on
+//go:embed scripts/delete_if_value.lua
+var deleteIfValueLua string
+
+//go:embed scripts/expire_if_value.lua
+var expireIfValueLua string
+
+// balanceAtomicScript, claimBalanceSyncScript, updateBalanceSettingsScript,
+// updateBalanceBlockedScript, deleteIfValueScript and expireIfValueScript are
+// built once at package init. redis.NewScript computes the source SHA1 eagerly,
+// so hoisting these out of the per-call hot paths (runBalanceAtomicScript,
+// GetBalanceSyncKeys, GetBalanceSyncKeysLegacy, UpdateBalanceCacheSettings,
+// UpdateBalanceCacheBlocked, DeleteIfValue, ExpireIfValue) avoids re-hashing on
 // every invocation. *redis.Script is safe for concurrent use.
 var (
 	balanceAtomicScript         = redis.NewScript(balanceAtomicOperationLua)
 	claimBalanceSyncScript      = redis.NewScript(claimBalanceSyncKeysLua)
 	updateBalanceSettingsScript = redis.NewScript(updateBalanceSettingsLua)
 	updateBalanceBlockedScript  = redis.NewScript(updateBalanceBlockedLua)
+	deleteIfValueScript         = redis.NewScript(deleteIfValueLua)
+	expireIfValueScript         = redis.NewScript(expireIfValueLua)
 )
 
 //go:embed scripts/remove_balance_sync_keys_batch.lua
@@ -104,6 +113,14 @@ type RedisRepository interface {
 	MGet(ctx context.Context, keys []string) (map[string]string, error)
 	// Del removes a key from Redis.
 	Del(ctx context.Context, key string) error
+	// DeleteIfValue atomically removes a key only when its current value equals value.
+	// It returns true when the key was removed and false when it was missing or owned by
+	// another caller.
+	DeleteIfValue(ctx context.Context, key, value string) (bool, error)
+	// ExpireIfValue atomically shortens a key's TTL only when its current value equals value.
+	// It returns true when the owned key's expiry was updated and false when it was missing or
+	// owned by another caller. ttl is expressed as a whole-second count, matching SetNX.
+	ExpireIfValue(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	// Incr atomically increments a key's integer value and returns the new value.
 	// Returns 0 on error (connection failure, namespace failure).
 	Incr(ctx context.Context, key string) int64
@@ -154,6 +171,9 @@ type RedisRepository interface {
 	ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error
 	// ListBalanceByKey retrieves a single balance from Redis by its internal key
 	// and converts it from the cache format (BalanceRedis) to the domain model (Balance).
+	// An empty cached OverdraftUsed reads as zero (pre-overdraft snapshot shape), while a
+	// non-empty value that does not parse as a decimal returns an error so callers guarding
+	// money never read unreadable debt as zero.
 	ListBalanceByKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (*mmodel.Balance, error)
 	// GetBalancesByKeys retrieves multiple balance values by their Redis keys using MGET.
 	// Returns a map of key -> *mmodel.BalanceRedis (nil if key does not exist).
@@ -407,6 +427,87 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	logger.Log(ctx, libLog.LevelDebug, "Key deleted from Redis", libLog.Any("deleted_count", val))
 
 	return nil
+}
+
+// DeleteIfValue atomically removes key only when its current value matches value.
+// This prevents an expired marker owner's late rollback from deleting a newer owner's
+// marker that was acquired under the same key.
+func (rr *RedisConsumerRepository) DeleteIfValue(ctx context.Context, key, value string) (bool, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.delete_if_value")
+	defer span.End()
+
+	key, err := tenantKeyFromContextOrError(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+
+		return false, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
+
+		return false, err
+	}
+
+	result, err := deleteIfValueScript.Run(ctx, rds, []string{key}, value).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to delete key by value on redis", err)
+
+		return false, err
+	}
+
+	deleted, ok := result.(int64)
+	if !ok {
+		err = fmt.Errorf("unexpected result type from delete-if-value script: %T", result)
+		libOpentelemetry.HandleSpanError(span, "Unexpected result type", err)
+
+		return false, err
+	}
+
+	return deleted == 1, nil
+}
+
+// ExpireIfValue atomically shortens key's TTL only when its current value matches value.
+// This keeps the successful-delete marker barrier in place without a release/reacquire gap.
+func (rr *RedisConsumerRepository) ExpireIfValue(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.expire_if_value")
+	defer span.End()
+
+	key, err := tenantKeyFromContextOrError(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+
+		return false, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
+
+		return false, err
+	}
+
+	result, err := expireIfValueScript.Run(ctx, rds, []string{key}, value, strconv.FormatInt(int64(ttl), 10)).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to expire key by value on redis", err)
+
+		return false, err
+	}
+
+	expired, ok := result.(int64)
+	if !ok {
+		err = fmt.Errorf("unexpected result type from expire-if-value script: %T", result)
+		libOpentelemetry.HandleSpanError(span, "Unexpected result type", err)
+
+		return false, err
+	}
+
+	return expired == 1, nil
 }
 
 func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
@@ -1638,6 +1739,27 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 		return nil, err
 	}
 
+	// OverdraftUsed is stored as a decimal string in Redis. An empty value is the
+	// pre-overdraft snapshot shape and reads as zero; a non-empty malformed value is
+	// unreadable debt, so it is reported as an error instead of being flattened to zero
+	// and letting a funds guard clear a balance that still owes money.
+	overdraftUsed := decimal.Zero
+
+	if balanceRedis.OverdraftUsed != "" {
+		parsed, parseErr := decimal.NewFromString(balanceRedis.OverdraftUsed)
+		if parseErr != nil {
+			wrappedErr := fmt.Errorf("failed to parse overdraft used from balance cache: %w", parseErr)
+
+			libOpentelemetry.HandleSpanError(span, "Failed to parse overdraft used from balance cache", wrappedErr)
+
+			logger.Log(ctx, libLog.LevelError, "Failed to parse overdraft used from balance cache", libLog.Err(wrappedErr))
+
+			return nil, wrappedErr
+		}
+
+		overdraftUsed = parsed
+	}
+
 	balance := &mmodel.Balance{
 		ID:             balanceRedis.ID,
 		AccountID:      balanceRedis.AccountID,
@@ -1653,6 +1775,7 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 		Key:            balanceRedis.Key,
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
+		OverdraftUsed:  overdraftUsed,
 	}
 
 	return balance, nil
