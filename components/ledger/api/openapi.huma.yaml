@@ -12376,6 +12376,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/AccountBlockExceptions"
           description: Created
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
         default:
           content:
             application/problem+json:
