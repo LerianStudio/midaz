@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -74,9 +75,31 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 		idempotencyTTL: in.IdempotencyTTL,
 	}
 
-	if err := uc.prepareCreateTransaction(ctx, span, logger, run); err != nil {
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
 		return nil, false, err
 	}
+
+	run.transactionID = transactionID
+
+	transactionDate, err := formatTransactionDate(ctx, span, run.input, run.status)
+	if err != nil {
+		return nil, false, err
+	}
+
+	run.transactionDate = transactionDate
+
+	spanattr.RecordSafePayloadAttributes(span, run.input)
+
+	if err := validatePositiveTransactionValue(ctx, span, logger, run.input.Send.Value); err != nil {
+		return nil, false, err
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
 
 	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, in.IdempotencyHashSource)
 	if err != nil {
