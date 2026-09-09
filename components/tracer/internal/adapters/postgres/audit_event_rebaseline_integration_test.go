@@ -542,3 +542,71 @@ func TestIntegration_AuditHashChain_BoundaryIsAppendOnly(t *testing.T) {
 		"SELECT count(*) FROM audit_hash_legacy_boundary").Scan(&rows))
 	require.Equal(t, int64(1), rows, "the floor MUST remain a single row")
 }
+
+// TestIntegration_AuditHashChain_VerifiesALegacyRowWhoseResourceIDHoldsASeparator
+// is the customer-visible half of the boundary rule.
+//
+// resource_id is VARCHAR(255) with no CHECK constraint, and NewAuditEvent only
+// trims whitespace, so nothing stops a pre-000017 record from holding a '|'.
+// Nothing ever did: RecordReservationExpiryBatch writes an RFC3339Nano
+// timestamp there today, not an identifier, so "resource_id holds uuids" was
+// never a property of the product.
+//
+// Under a separator-counting fallback such a record reports "tampered with" and
+// the scan STOPS on it, which is the defect this migration set out to fix,
+// reproduced for any deployment holding one such row. Under the boundary rule
+// the row is below the floor, the five-field formula applies to it, and the
+// whole trail is walked.
+func TestIntegration_AuditHashChain_VerifiesALegacyRowWhoseResourceIDHoldsASeparator(t *testing.T) {
+	tx := beginRolledBackTx(t)
+	legacyChainFixture(t, tx, 3, 2, "res|with|separators")
+
+	var resourceID string
+	require.NoError(t, tx.QueryRowContext(context.Background(),
+		"SELECT resource_id FROM audit_events ORDER BY id ASC LIMIT 1",
+	).Scan(&resourceID), "read the oldest historical row")
+	require.Contains(t, resourceID, "|",
+		"the fixture must actually put a separator in the field both formulas share")
+
+	isValid, firstInvalidID, totalChecked := verifyFromGenesis(t, tx)
+
+	require.True(t, isValid,
+		"a genuine pre-000017 record MUST verify whatever characters its resource_id holds; nothing constrains that column")
+	require.False(t, firstInvalidID.Valid,
+		"first_invalid_id MUST be NULL on a clean chain; got %d", firstInvalidID.Int64)
+	require.Equal(t, int64(5), totalChecked,
+		"the verifier MUST walk the whole chain; stopping on such a row leaves every later row unchecked")
+}
+
+// TestIntegration_AuditHashChain_RefusesTheLegacyFormulaAboveTheBoundary pins
+// that the floor is a floor and not a blanket pass, on a trail that has rows on
+// both sides of it.
+//
+// The row under attack carries a separator-bearing resource_id, so a
+// separator-counting guard would refuse it for the wrong reason. It must be
+// refused because of where it sits, not because of what it contains.
+func TestIntegration_AuditHashChain_RefusesTheLegacyFormulaAboveTheBoundary(t *testing.T) {
+	tx := beginRolledBackTx(t)
+	legacyChainFixture(t, tx, 3, 2, "res|with|separators")
+
+	ctx := context.Background()
+	boundary := readBoundary(t, tx)
+	require.Positive(t, boundary, "the fixture must record a non-zero floor")
+
+	var target int64
+	require.NoError(t, tx.QueryRowContext(ctx,
+		"SELECT max(id) FROM audit_events").Scan(&target), "pick the newest row")
+	require.Greater(t, target, boundary, "the row under attack must sit above the floor")
+
+	_, err := tx.ExecContext(ctx,
+		"UPDATE audit_events SET resource_id = 'post|with|separators' WHERE id = $1", target)
+	require.NoError(t, err, "give the row above the floor a separator-bearing resource_id")
+
+	convertToLegacyDigest(t, tx, target)
+
+	isValid, firstInvalidID, _ := verifyFromGenesis(t, tx)
+
+	require.False(t, isValid,
+		"a row above the floor MUST be judged by the nine-field formula alone, whatever its resource_id holds")
+	require.Equal(t, target, firstInvalidID.Int64, "the row above the floor MUST be the one flagged")
+}
