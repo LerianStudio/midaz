@@ -443,8 +443,15 @@ func checkStructNonSerializable(v reflect.Value, visited map[uintptr]bool) (stri
 
 // checkMapNonSerializable checks map types for cyclic references.
 // Marks the map as visited to detect cycles in recursive sanitization calls.
+//
+// An EMPTY map is neither checked nor marked. Cycle detection keys on the
+// address behind the value, and the Go runtime is free to give distinct empty
+// containers the same address, so two unrelated empty values in one payload
+// collide and the second is reported as a cycle. A container with no elements
+// cannot hold a reference back to itself, so it can never participate in a
+// cycle and skipping it loses no detection.
 func checkMapNonSerializable(v reflect.Value, visited map[uintptr]bool) (string, bool) {
-	if v.IsNil() {
+	if v.IsNil() || v.Len() == 0 {
 		return "", false
 	}
 
@@ -461,8 +468,13 @@ func checkMapNonSerializable(v reflect.Value, visited map[uintptr]bool) (string,
 
 // checkSliceNonSerializable checks slice types for cyclic references.
 // Marks the slice as visited to detect cycles in recursive sanitization calls.
+//
+// An EMPTY slice is neither checked nor marked, for the reason given on
+// checkMapNonSerializable. This is the reachable case of the two: the runtime
+// allocates every zero-length slice at one shared address, so ANY request body
+// carrying two empty JSON arrays hit the collision.
 func checkSliceNonSerializable(v reflect.Value, visited map[uintptr]bool) (string, bool) {
-	if v.IsNil() {
+	if v.IsNil() || v.Len() == 0 {
 		return "", false
 	}
 

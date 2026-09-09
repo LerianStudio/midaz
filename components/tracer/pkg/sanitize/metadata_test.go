@@ -5,6 +5,7 @@
 package sanitize
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -584,4 +585,77 @@ func BenchmarkIsSensitiveKey(b *testing.B) {
 			_ = sanitizer.IsSensitiveKey(key)
 		}
 	}
+}
+
+// TestSanitizeKeepsEveryEmptyContainer pins the cycle-detection fix.
+//
+// Cycle detection keys on the address behind a value. The Go runtime allocates
+// every zero-length slice at one shared address, so before the fix the SECOND
+// empty array in a payload was mistaken for a cycle and stored as the marker
+// string "[non-serializable: cyclic reference]" — which also changed the value's
+// JSON type from array to string. In the Tracer audit row that is permanent:
+// UPDATE and DELETE on audit_events are discarded by database rule.
+//
+// Driven from decoded JSON rather than Go literals, because that is the shape a
+// request body actually produces.
+func TestSanitizeKeepsEveryEmptyContainer(t *testing.T) {
+	t.Parallel()
+
+	const body = `{
+		"tags": [], "labels": [], "groups": [], "buckets": [],
+		"limits": {}, "flags": {}, "counters": {},
+		"rows": [[], [], ["v"]],
+		"nested": {"inner_a": [], "inner_b": [], "inner_c": {}, "inner_d": {}},
+		"keep": "visible"
+	}`
+
+	var metadata map[string]any
+	require.NoError(t, json.Unmarshal([]byte(body), &metadata))
+
+	got := NewMetadataSanitizer(DefaultSensitivePatterns).Sanitize(metadata)
+
+	// Round-tripping through JSON is the assertion that matters: it is what the
+	// repository does before the value reaches the append-only row.
+	encoded, err := json.Marshal(got)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "cyclic reference",
+		"no distinct empty container may be recorded as a cycle; got %s", encoded)
+
+	for _, key := range []string{"tags", "labels", "groups", "buckets"} {
+		require.Equal(t, []any{}, got[key], "empty array %q must survive as an empty array", key)
+	}
+
+	for _, key := range []string{"limits", "flags", "counters"} {
+		require.Equal(t, map[string]any{}, got[key], "empty object %q must survive as an empty object", key)
+	}
+
+	require.Equal(t, []any{[]any{}, []any{}, []any{"v"}}, got["rows"],
+		"empty arrays nested inside an array must each survive")
+
+	nested, ok := got["nested"].(map[string]any)
+	require.True(t, ok, "nested object must survive as an object")
+	require.Equal(t, []any{}, nested["inner_a"])
+	require.Equal(t, []any{}, nested["inner_b"])
+	require.Equal(t, map[string]any{}, nested["inner_c"])
+	require.Equal(t, map[string]any{}, nested["inner_d"])
+
+	require.Equal(t, "visible", got["keep"])
+}
+
+// TestSanitizeStillMarksARealCycle is the negative control for the fix above:
+// exempting empty containers must not stop a genuine self-reference being
+// caught, because the repository marshals the result and a cycle would panic
+// encoding/json.
+func TestSanitizeStillMarksARealCycle(t *testing.T) {
+	t.Parallel()
+
+	inner := map[string]any{"name": "loop"}
+	inner["self"] = inner
+
+	got := NewMetadataSanitizer(DefaultSensitivePatterns).Sanitize(map[string]any{"outer": inner})
+
+	encoded, err := json.Marshal(got)
+	require.NoError(t, err, "a genuine cycle must be broken before marshalling, not marshalled")
+	require.Contains(t, string(encoded), "cyclic reference",
+		"a genuine self-reference must still be reported as a cycle; got %s", encoded)
 }

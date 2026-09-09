@@ -5,6 +5,7 @@
 package services
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -152,4 +153,95 @@ func TestBuildRequestSnapshotKeepsAbsentMetadataAbsent(t *testing.T) {
 	require.NotContains(t, snapshot, "segment")
 	require.NotContains(t, snapshot, "portfolio")
 	require.NotContains(t, snapshot, "merchant")
+}
+
+// TestBuildRequestSnapshotPreservesEmptyContainersInEveryMetadataMap is the
+// preservation half of the snapshot contract, which the redaction test could not
+// see: it asserted only on scalar strings.
+//
+// An ordinary body with more than one empty JSON array in a metadata map used to
+// have the second one written into the audit row as
+// "[non-serializable: cyclic reference]" — a value the client never sent, of the
+// wrong JSON type, in a row that database rule makes unscrubbable. The metadata
+// is decoded from JSON rather than written as Go literals so the test exercises
+// the shape a real request produces, and it is placed in all five maps because
+// the batch moved redaction onto all five.
+func TestBuildRequestSnapshotPreservesEmptyContainersInEveryMetadataMap(t *testing.T) {
+	t.Parallel()
+
+	emptyContainers := func() map[string]any {
+		const body = `{
+			"tags": [], "labels": [], "groups": [], "buckets": [],
+			"limits": {}, "flags": {}, "counters": {},
+			"rows": [[], [], ["v"]],
+			"tier": "gold"
+		}`
+
+		var metadata map[string]any
+		require.NoError(t, json.Unmarshal([]byte(body), &metadata))
+
+		return metadata
+	}
+
+	req := &model.ValidationRequest{
+		RequestID:            testutil.MustDeterministicUUID(1),
+		TransactionType:      model.TransactionTypeCard,
+		Amount:               decimal.NewFromInt(100),
+		Asset:                "USD",
+		TransactionTimestamp: time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC),
+		Account: model.AccountContext{
+			ID:       testutil.MustDeterministicUUID(2),
+			Metadata: emptyContainers(),
+		},
+		Segment:   &model.SegmentContext{ID: testutil.MustDeterministicUUID(3), Metadata: emptyContainers()},
+		Portfolio: &model.PortfolioContext{ID: testutil.MustDeterministicUUID(4), Metadata: emptyContainers()},
+		Merchant:  &model.MerchantContext{ID: testutil.MustDeterministicUUID(5), Metadata: emptyContainers()},
+		Metadata:  emptyContainers(),
+	}
+
+	snapshot := buildRequestSnapshot(req)
+
+	// The repository marshals the snapshot into the row, so the serialized form
+	// is what a compliance reader eventually sees.
+	encoded, err := json.Marshal(snapshot)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "cyclic reference",
+		"no value the client sent may be recorded as a cycle marker in the append-only audit row; got %s", encoded)
+
+	paths := map[string][]string{
+		"request":   {"metadata"},
+		"account":   {"account", "metadata"},
+		"segment":   {"segment", "metadata"},
+		"portfolio": {"portfolio", "metadata"},
+		"merchant":  {"merchant", "metadata"},
+	}
+
+	for name, path := range paths {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			current := snapshot
+
+			for _, key := range path {
+				next, ok := current[key].(map[string]any)
+				require.Truef(t, ok, "expected a map at %q", key)
+				current = next
+			}
+
+			for _, key := range []string{"tags", "labels", "groups", "buckets"} {
+				require.Equalf(t, []any{}, current[key],
+					"%s metadata: empty array %q must reach the audit row as an empty array", name, key)
+			}
+
+			for _, key := range []string{"limits", "flags", "counters"} {
+				require.Equalf(t, map[string]any{}, current[key],
+					"%s metadata: empty object %q must reach the audit row as an empty object", name, key)
+			}
+
+			require.Equalf(t, []any{[]any{}, []any{}, []any{"v"}}, current["rows"],
+				"%s metadata: empty arrays inside an array must each reach the audit row", name)
+
+			require.Equal(t, "gold", current["tier"])
+		})
+	}
 }
