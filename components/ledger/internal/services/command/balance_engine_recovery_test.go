@@ -22,7 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-func recoveryContractFixture(t *testing.T) (BalanceEngineRecoveryPayload, engine.Result) {
+func recoveryContractFixture(t testing.TB) (BalanceEngineRecoveryPayload, engine.Result) {
 	t.Helper()
 	date := time.Date(2026, time.September, 4, 12, 0, 0, 0, time.UTC)
 	payload := BalanceEngineRecoveryPayload{
@@ -101,7 +101,7 @@ func recoveryContractFinal(payload BalanceEngineRecoveryPayload, movements []eng
 	return final
 }
 
-func recoveryContractEnvelope(t *testing.T, payload BalanceEngineRecoveryPayload, result engine.Result) BalanceEngineRecoveryEnvelope {
+func recoveryContractEnvelope(t testing.TB, payload BalanceEngineRecoveryPayload, result engine.Result) BalanceEngineRecoveryEnvelope {
 	t.Helper()
 	raw, err := EncodeBalanceEngineRecoveryPayload(payload)
 	require.NoError(t, err)

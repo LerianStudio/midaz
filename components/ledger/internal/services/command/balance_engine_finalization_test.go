@@ -136,7 +136,7 @@ func (repo *finalizationMetadataStub) FindByEntity(_ context.Context, collection
 	return actual, nil
 }
 
-func finalizationFixture(t *testing.T) (context.Context, *BalanceEngineRecoveryEnvelope) {
+func finalizationFixture(t testing.TB) (context.Context, *BalanceEngineRecoveryEnvelope) {
 	t.Helper()
 	payload, result := recoveryContractFixture(t)
 	parent := uuid.MustParse("99999999-9999-4999-8999-999999999999")

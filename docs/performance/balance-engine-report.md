@@ -7,8 +7,8 @@ claim a public before/after comparison while the engine execution port is unset.
 
 The benchmark covers 2, 10, and 50 postings with a touched pool and a pool twice that
 size. The payload metric is the prepared wire JSON sent to the Lua script; it excludes
-Redis keys and RESP framing. Recovery finalization remains a separate correctness check
-because there is no stable recovery benchmark fixture.
+Redis keys and RESP framing. Recovery finalization has a separate deterministic benchmark
+for decoding, projection, cloning, and metadata verification without database or network I/O.
 
 ## Reproduction
 
@@ -19,12 +19,17 @@ ALLOW_INSECURE_TLS=true go test -tags=integration \
   -benchtime=200ms -count=3
 go test ./components/ledger/internal/bootstrap \
   -run 'Recovery|recovery' -count=1
+go test ./components/ledger/internal/services/command \
+  -run '^$' -bench '^BenchmarkBalanceEngineFinalizer$' \
+  -benchmem -benchtime=500ms -count=3
 ```
 
 `BenchmarkAdapterExecute` uses deterministic input shapes and covers postings 2/10/50
 with `pool_touched` and `pool_larger`. It requires the local Valkey test dependency.
-The recovery command is a correctness check, not a latency result. Add a dedicated
-recovery benchmark only when the consumer seam has a stable benchmark fixture.
+The bootstrap recovery command is a correctness check, not a latency result. The
+finalization benchmark excludes PostgreSQL, MongoDB, Valkey, queue consumption, and
+event publication, so it is an in-process cost baseline rather than end-to-end recovery
+latency.
 
 ## Results
 
@@ -46,9 +51,9 @@ the Lua script. It is distinct from the serialized `EngineExecution` input objec
 10-posting timing inversion is within this short run's variance and is not evidence that
 the larger pool is faster.
 
-Recovery outcome and duration are intentionally absent from the table: the correctness
-suite exercises recovery, but the repository does not yet contain a benchmark that can
-produce a comparable duration measurement.
+Recovery finalization was measured separately with `-benchtime=500ms -count=3` on the
+same host. The median was 54,830 ns/op, 80,077 B/op, and 1,052 allocs/op. This is the
+in-process finalization cost described above, not consumer or persistence latency.
 
 ## Public k6 status
 
