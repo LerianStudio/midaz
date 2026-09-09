@@ -162,7 +162,7 @@ func (r ResourceType) IsValid() bool {
 
 // Actor represents who performed the action.
 type Actor struct {
-	ActorType ActorType `json:"actorType" swaggertype:"string" enums:"user,api_key,system" example:"user"`
+	ActorType ActorType `json:"actorType" swaggertype:"string" enums:"user,api_key,system" enum:"user,api_key,system" example:"user"`
 	ID        string    `json:"id" example:"00000000-0000-0000-0000-000000000000"`
 	Name      string    `json:"name" example:"Jane Doe"`
 	Role      string    `json:"role,omitempty" example:"admin"`
@@ -198,7 +198,7 @@ type AuditEvent struct {
 	// Type of event that occurred
 	// example: TRANSACTION_VALIDATED
 	// enums: TRANSACTION_VALIDATED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED
-	EventType AuditEventType `json:"eventType" swaggertype:"string" enums:"TRANSACTION_VALIDATED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED" example:"TRANSACTION_VALIDATED"`
+	EventType AuditEventType `json:"eventType" swaggertype:"string" enums:"TRANSACTION_VALIDATED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED" enum:"TRANSACTION_VALIDATED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED" example:"TRANSACTION_VALIDATED"`
 
 	// Timestamp when the event occurred
 	// format: date-time
@@ -207,12 +207,12 @@ type AuditEvent struct {
 	// Action performed
 	// example: VALIDATE
 	// enums: VALIDATE,CREATE,UPDATE,DELETE,ACTIVATE,DEACTIVATE,DRAFT,RESERVE,CONFIRM,RELEASE,EXPIRE,SKIP
-	Action AuditAction `json:"action" swaggertype:"string" enums:"VALIDATE,CREATE,UPDATE,DELETE,ACTIVATE,DEACTIVATE,DRAFT,RESERVE,CONFIRM,RELEASE,EXPIRE,SKIP" example:"VALIDATE"`
+	Action AuditAction `json:"action" swaggertype:"string" enums:"VALIDATE,CREATE,UPDATE,DELETE,ACTIVATE,DEACTIVATE,DRAFT,RESERVE,CONFIRM,RELEASE,EXPIRE,SKIP" enum:"VALIDATE,CREATE,UPDATE,DELETE,ACTIVATE,DEACTIVATE,DRAFT,RESERVE,CONFIRM,RELEASE,EXPIRE,SKIP" example:"VALIDATE"`
 
 	// Outcome: ALLOW/DENY/REVIEW for validations; SUCCESS/FAILED for CRUD operations
 	// example: ALLOW
 	// enums: ALLOW,DENY,REVIEW,SUCCESS,FAILED
-	Result AuditResult `json:"result" swaggertype:"string" enums:"ALLOW,DENY,REVIEW,SUCCESS,FAILED" example:"ALLOW"`
+	Result AuditResult `json:"result" swaggertype:"string" enums:"ALLOW,DENY,REVIEW,SUCCESS,FAILED" enum:"ALLOW,DENY,REVIEW,SUCCESS,FAILED" example:"ALLOW"`
 
 	// ID of the resource affected by this event
 	// example: 00000000-0000-0000-0000-000000000000
@@ -221,7 +221,7 @@ type AuditEvent struct {
 	// Type of resource affected
 	// example: transaction
 	// enums: transaction,rule,limit,reservation
-	ResourceType ResourceType `json:"resourceType" swaggertype:"string" enums:"transaction,rule,limit,reservation" example:"transaction"`
+	ResourceType ResourceType `json:"resourceType" swaggertype:"string" enums:"transaction,rule,limit,reservation" enum:"transaction,rule,limit,reservation" example:"transaction"`
 
 	// Actor who performed the action
 	Actor Actor `json:"actor"`

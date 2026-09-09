@@ -134,7 +134,7 @@ type Scope struct {
 
 	// Transaction type the scope is restricted to (optional)
 	// example: CARD
-	TransactionType *TransactionType `json:"transactionType,omitempty" validate:"omitempty,transactiontype" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
+	TransactionType *TransactionType `json:"transactionType,omitempty" validate:"omitempty,transactiontype" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" enum:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
 
 	// SubType is normalized to lowercase canonical form; matching is case-insensitive.
 	// example: purchase

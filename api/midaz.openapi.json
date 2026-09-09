@@ -28432,6 +28432,11 @@
         "additionalProperties": false,
         "properties": {
           "actorType": {
+            "enum": [
+              "user",
+              "api_key",
+              "system"
+            ],
             "examples": [
               "user"
             ],
@@ -28474,6 +28479,20 @@
         "additionalProperties": false,
         "properties": {
           "action": {
+            "enum": [
+              "VALIDATE",
+              "CREATE",
+              "UPDATE",
+              "DELETE",
+              "ACTIVATE",
+              "DEACTIVATE",
+              "DRAFT",
+              "RESERVE",
+              "CONFIRM",
+              "RELEASE",
+              "EXPIRE",
+              "SKIP"
+            ],
             "examples": [
               "VALIDATE"
             ],
@@ -28501,6 +28520,26 @@
             "type": "string"
           },
           "eventType": {
+            "enum": [
+              "TRANSACTION_VALIDATED",
+              "RULE_CREATED",
+              "RULE_UPDATED",
+              "RULE_ACTIVATED",
+              "RULE_DEACTIVATED",
+              "RULE_DRAFTED",
+              "RULE_DELETED",
+              "LIMIT_CREATED",
+              "LIMIT_UPDATED",
+              "LIMIT_DELETED",
+              "LIMIT_ACTIVATED",
+              "LIMIT_DEACTIVATED",
+              "LIMIT_DRAFTED",
+              "RESERVATION_RESERVED",
+              "RESERVATION_CONFIRMED",
+              "RESERVATION_RELEASED",
+              "RESERVATION_EXPIRED",
+              "RESERVATION_SKIPPED"
+            ],
             "examples": [
               "TRANSACTION_VALIDATED"
             ],
@@ -28529,12 +28568,25 @@
             "type": "string"
           },
           "resourceType": {
+            "enum": [
+              "transaction",
+              "rule",
+              "limit",
+              "reservation"
+            ],
             "examples": [
               "transaction"
             ],
             "type": "string"
           },
           "result": {
+            "enum": [
+              "ALLOW",
+              "DENY",
+              "REVIEW",
+              "SUCCESS",
+              "FAILED"
+            ],
             "examples": [
               "ALLOW"
             ],
@@ -28653,6 +28705,13 @@
             "type": "string"
           },
           "limitType": {
+            "enum": [
+              "DAILY",
+              "WEEKLY",
+              "MONTHLY",
+              "CUSTOM",
+              "PER_TRANSACTION"
+            ],
             "examples": [
               "DAILY"
             ],
@@ -28688,6 +28747,12 @@
             ]
           },
           "status": {
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "INACTIVE",
+              "DELETED"
+            ],
             "examples": [
               "ACTIVE"
             ],
@@ -28746,6 +28811,13 @@
             "type": "string"
           },
           "period": {
+            "enum": [
+              "DAILY",
+              "MONTHLY",
+              "PER_TRANSACTION",
+              "WEEKLY",
+              "CUSTOM"
+            ],
             "examples": [
               "DAILY"
             ],
@@ -28978,6 +29050,10 @@
             "type": "string"
           },
           "status": {
+            "enum": [
+              "CONFIRMED",
+              "RELEASED"
+            ],
             "examples": [
               "CONFIRMED"
             ],
@@ -29025,6 +29101,11 @@
         "additionalProperties": false,
         "properties": {
           "action": {
+            "enum": [
+              "ALLOW",
+              "DENY",
+              "REVIEW"
+            ],
             "examples": [
               "DENY"
             ],
@@ -29094,6 +29175,12 @@
             ]
           },
           "status": {
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "INACTIVE",
+              "DELETED"
+            ],
             "examples": [
               "ACTIVE"
             ],
@@ -29158,6 +29245,12 @@
             "type": "string"
           },
           "transactionType": {
+            "enum": [
+              "CARD",
+              "WIRE",
+              "PIX",
+              "CRYPTO"
+            ],
             "examples": [
               "CARD"
             ],
@@ -29203,6 +29296,10 @@
             "type": "integer"
           },
           "status": {
+            "enum": [
+              "CONFIRMED",
+              "RELEASED"
+            ],
             "examples": [
               "CONFIRMED"
             ],
@@ -29246,6 +29343,11 @@
             "type": "string"
           },
           "decision": {
+            "enum": [
+              "ALLOW",
+              "DENY",
+              "REVIEW"
+            ],
             "examples": [
               "ALLOW"
             ],
@@ -29335,6 +29437,12 @@
             "type": "string"
           },
           "transactionType": {
+            "enum": [
+              "CARD",
+              "WIRE",
+              "PIX",
+              "CRYPTO"
+            ],
             "examples": [
               "CARD"
             ],
@@ -29424,6 +29532,11 @@
         "additionalProperties": false,
         "properties": {
           "decision": {
+            "enum": [
+              "ALLOW",
+              "DENY",
+              "REVIEW"
+            ],
             "examples": [
               "ALLOW"
             ],
@@ -29545,6 +29658,11 @@
             "type": "string"
           },
           "decision": {
+            "enum": [
+              "ALLOW",
+              "DENY",
+              "REVIEW"
+            ],
             "examples": [
               "ALLOW"
             ],
@@ -29592,6 +29710,12 @@
             "type": "string"
           },
           "transactionType": {
+            "enum": [
+              "CARD",
+              "WIRE",
+              "PIX",
+              "CRYPTO"
+            ],
             "examples": [
               "CARD"
             ],

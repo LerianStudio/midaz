@@ -14,7 +14,7 @@ import (
 type EvaluationResult struct {
 	// Final decision produced by rule evaluation
 	// enums: ALLOW,DENY,REVIEW
-	Decision Decision `json:"decision" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" example:"ALLOW"`
+	Decision Decision `json:"decision" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" enum:"ALLOW,DENY,REVIEW" example:"ALLOW"`
 
 	// IDs of rules that matched the transaction scope and CEL expression
 	MatchedRuleIDs []uuid.UUID `json:"matchedRuleIds" swaggertype:"array,string" format:"uuid"`

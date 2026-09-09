@@ -18594,6 +18594,10 @@ components:
       additionalProperties: false
       properties:
         actorType:
+          enum:
+            - user
+            - api_key
+            - system
           examples:
             - user
           type: string
@@ -18623,6 +18627,19 @@ components:
       additionalProperties: false
       properties:
         action:
+          enum:
+            - VALIDATE
+            - CREATE
+            - UPDATE
+            - DELETE
+            - ACTIVATE
+            - DEACTIVATE
+            - DRAFT
+            - RESERVE
+            - CONFIRM
+            - RELEASE
+            - EXPIRE
+            - SKIP
           examples:
             - VALIDATE
           type: string
@@ -18642,6 +18659,25 @@ components:
           format: uuid
           type: string
         eventType:
+          enum:
+            - TRANSACTION_VALIDATED
+            - RULE_CREATED
+            - RULE_UPDATED
+            - RULE_ACTIVATED
+            - RULE_DEACTIVATED
+            - RULE_DRAFTED
+            - RULE_DELETED
+            - LIMIT_CREATED
+            - LIMIT_UPDATED
+            - LIMIT_DELETED
+            - LIMIT_ACTIVATED
+            - LIMIT_DEACTIVATED
+            - LIMIT_DRAFTED
+            - RESERVATION_RESERVED
+            - RESERVATION_CONFIRMED
+            - RESERVATION_RELEASED
+            - RESERVATION_EXPIRED
+            - RESERVATION_SKIPPED
           examples:
             - TRANSACTION_VALIDATED
           type: string
@@ -18661,10 +18697,21 @@ components:
             - 00000000-0000-0000-0000-000000000000
           type: string
         resourceType:
+          enum:
+            - transaction
+            - rule
+            - limit
+            - reservation
           examples:
             - transaction
           type: string
         result:
+          enum:
+            - ALLOW
+            - DENY
+            - REVIEW
+            - SUCCESS
+            - FAILED
           examples:
             - ALLOW
           type: string
@@ -18749,6 +18796,12 @@ components:
           format: uuid
           type: string
         limitType:
+          enum:
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+            - CUSTOM
+            - PER_TRANSACTION
           examples:
             - DAILY
           type: string
@@ -18773,6 +18826,11 @@ components:
             - array
             - 'null'
         status:
+          enum:
+            - DRAFT
+            - ACTIVE
+            - INACTIVE
+            - DELETED
           examples:
             - ACTIVE
           type: string
@@ -18815,6 +18873,12 @@ components:
           format: uuid
           type: string
         period:
+          enum:
+            - DAILY
+            - MONTHLY
+            - PER_TRANSACTION
+            - WEEKLY
+            - CUSTOM
           examples:
             - DAILY
           type: string
@@ -18976,6 +19040,9 @@ components:
           format: uuid
           type: string
         status:
+          enum:
+            - CONFIRMED
+            - RELEASED
           examples:
             - CONFIRMED
           type: string
@@ -19009,6 +19076,10 @@ components:
       additionalProperties: false
       properties:
         action:
+          enum:
+            - ALLOW
+            - DENY
+            - REVIEW
           examples:
             - DENY
           type: string
@@ -19057,6 +19128,11 @@ components:
             - array
             - 'null'
         status:
+          enum:
+            - DRAFT
+            - ACTIVE
+            - INACTIVE
+            - DELETED
           examples:
             - ACTIVE
           type: string
@@ -19104,6 +19180,11 @@ components:
           maxLength: 50
           type: string
         transactionType:
+          enum:
+            - CARD
+            - WIRE
+            - PIX
+            - CRYPTO
           examples:
             - CARD
           type: string
@@ -19135,6 +19216,9 @@ components:
           format: int64
           type: integer
         status:
+          enum:
+            - CONFIRMED
+            - RELEASED
           examples:
             - CONFIRMED
           type: string
@@ -19165,6 +19249,10 @@ components:
           format: date-time
           type: string
         decision:
+          enum:
+            - ALLOW
+            - DENY
+            - REVIEW
           examples:
             - ALLOW
           type: string
@@ -19229,6 +19317,11 @@ components:
           format: date-time
           type: string
         transactionType:
+          enum:
+            - CARD
+            - WIRE
+            - PIX
+            - CRYPTO
           examples:
             - CARD
           type: string
@@ -19296,6 +19389,10 @@ components:
       additionalProperties: false
       properties:
         decision:
+          enum:
+            - ALLOW
+            - DENY
+            - REVIEW
           examples:
             - ALLOW
           type: string
@@ -19385,6 +19482,10 @@ components:
           format: date-time
           type: string
         decision:
+          enum:
+            - ALLOW
+            - DENY
+            - REVIEW
           examples:
             - ALLOW
           type: string
@@ -19418,6 +19519,11 @@ components:
           format: uuid
           type: string
         transactionType:
+          enum:
+            - CARD
+            - WIRE
+            - PIX
+            - CRYPTO
           examples:
             - CARD
           type: string

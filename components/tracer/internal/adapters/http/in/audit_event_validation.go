@@ -180,8 +180,8 @@ type ListAuditEventsInput struct {
 	// Pagination
 	Limit     *int   `query:"limit"`
 	Cursor    string `query:"cursor"`
-	SortBy    string `query:"sort_by" enums:"created_at,event_type"`
-	SortOrder string `query:"sort_order" enums:"ASC,DESC"`
+	SortBy    string `query:"sort_by" enums:"created_at,event_type" enum:"created_at,event_type"`
+	SortOrder string `query:"sort_order" enums:"ASC,DESC" enum:"ASC,DESC"`
 }
 
 // Validate validates the ListAuditEventsInput struct.

@@ -119,7 +119,7 @@ type CreateRuleInput struct {
 	Name        string         `json:"name" validate:"required,min=1,max=255"`
 	Description string         `json:"description" validate:"max=1000"`
 	Expression  string         `json:"expression" validate:"required,min=1,max=5000"`
-	Action      model.Decision `json:"action" validate:"required,decision" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" example:"DENY"`
+	Action      model.Decision `json:"action" validate:"required,decision" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" enum:"ALLOW,DENY,REVIEW" example:"DENY"`
 	Scopes      []model.Scope  `json:"scopes" validate:"max=100,dive,scopenotempty"`
 }
 
@@ -145,7 +145,7 @@ type UpdateRuleInput struct {
 	Name        *string         `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
 	Description *string         `json:"description,omitempty" validate:"omitempty,max=1000"`
 	Expression  *string         `json:"expression,omitempty" validate:"omitempty,min=1,max=5000"`
-	Action      *model.Decision `json:"action,omitempty" validate:"omitempty,decision" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" example:"DENY"`
+	Action      *model.Decision `json:"action,omitempty" validate:"omitempty,decision" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" enum:"ALLOW,DENY,REVIEW" example:"DENY"`
 	Scopes      *[]model.Scope  `json:"scopes,omitempty" validate:"omitempty,max=100,dive,scopenotempty"`
 }
 
@@ -187,8 +187,8 @@ type ListRulesInput struct {
 	SubType         *string           `query:"sub_type" validate:"omitempty,max=50"`
 	Limit           *int              `query:"limit"`
 	Cursor          string            `query:"cursor"`
-	SortBy          string            `query:"sort_by" enums:"created_at,updated_at,name,status"`
-	SortOrder       string            `query:"sort_order" enums:"ASC,DESC"`
+	SortBy          string            `query:"sort_by" enums:"created_at,updated_at,name,status" enum:"created_at,updated_at,name,status"`
+	SortOrder       string            `query:"sort_order" enums:"ASC,DESC" enum:"ASC,DESC"`
 }
 
 // Validate validates the ListRulesInput struct.

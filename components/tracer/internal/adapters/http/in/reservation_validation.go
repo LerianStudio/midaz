@@ -75,7 +75,7 @@ type ReserveResponse struct {
 // returns the same terminal status with HTTP 200.
 type ReservationActionResponse struct {
 	ReservationID uuid.UUID `json:"reservationId" swaggertype:"string" format:"uuid"`
-	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
+	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" enum:"CONFIRMED,RELEASED" example:"CONFIRMED"`
 }
 
 // TransactionActionResponse is the body returned by the by-transaction confirm and
@@ -87,6 +87,6 @@ type ReservationActionResponse struct {
 // already terminal.
 type TransactionActionResponse struct {
 	TransactionID uuid.UUID `json:"transactionId" swaggertype:"string" format:"uuid"`
-	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" example:"CONFIRMED"`
+	Status        string    `json:"status" enums:"CONFIRMED,RELEASED" enum:"CONFIRMED,RELEASED" example:"CONFIRMED"`
 	Flipped       int       `json:"flipped" example:"2"`
 }

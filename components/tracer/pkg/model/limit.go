@@ -93,7 +93,7 @@ type Limit struct {
 
 	// Period type for usage accumulation
 	// enums: DAILY,WEEKLY,MONTHLY,CUSTOM,PER_TRANSACTION
-	LimitType LimitType `json:"limitType" swaggertype:"string" enums:"DAILY,WEEKLY,MONTHLY,CUSTOM,PER_TRANSACTION" example:"DAILY"`
+	LimitType LimitType `json:"limitType" swaggertype:"string" enums:"DAILY,WEEKLY,MONTHLY,CUSTOM,PER_TRANSACTION" enum:"DAILY,WEEKLY,MONTHLY,CUSTOM,PER_TRANSACTION" example:"DAILY"`
 
 	// Maximum amount allowed within the period
 	MaxAmount decimal.Decimal `json:"maxAmount" swaggertype:"string" example:"1000.00"`
@@ -107,7 +107,7 @@ type Limit struct {
 
 	// Current lifecycle status of the limit
 	// enums: DRAFT,ACTIVE,INACTIVE,DELETED
-	Status LimitStatus `json:"status" swaggertype:"string" enums:"DRAFT,ACTIVE,INACTIVE,DELETED" example:"ACTIVE"`
+	Status LimitStatus `json:"status" swaggertype:"string" enums:"DRAFT,ACTIVE,INACTIVE,DELETED" enum:"DRAFT,ACTIVE,INACTIVE,DELETED" example:"ACTIVE"`
 
 	// Start of the daily time window when the limit is active (HH:MM), null means 24/7
 	ActiveTimeStart *TimeOfDay `json:"activeTimeStart,omitempty" swaggertype:"string" example:"09:00"`
@@ -942,8 +942,8 @@ func (u *UsageCounter) Validate() error {
 // Cursor-based pagination: Cursor contains base64-encoded cursor with sort info.
 type ListLimitsFilter struct {
 	Name        *string      `json:"name,omitempty"` // Filter by name (case-insensitive partial match / contains)
-	Status      *LimitStatus `json:"status,omitempty" swaggertype:"string" enums:"DRAFT,ACTIVE,INACTIVE,DELETED" example:"ACTIVE"`
-	LimitType   *LimitType   `json:"limitType,omitempty" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
+	Status      *LimitStatus `json:"status,omitempty" swaggertype:"string" enums:"DRAFT,ACTIVE,INACTIVE,DELETED" enum:"DRAFT,ACTIVE,INACTIVE,DELETED" example:"ACTIVE"`
+	LimitType   *LimitType   `json:"limitType,omitempty" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" enum:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
 	Asset       *string      `json:"asset,omitempty"`
 	ScopeFilter *Scope       `json:"scopeFilter,omitempty"` // Optional scope filter for JSONB scope matching
 	Limit       int          `json:"limit"`

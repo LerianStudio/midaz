@@ -89,7 +89,7 @@ func validateLimitStatus(fl validator.FieldLevel) bool {
 type CreateLimitInput struct {
 	Name            string           `json:"name" validate:"required,min=1,max=255"`
 	Description     *string          `json:"description,omitempty" validate:"omitempty,max=1000"`
-	LimitType       model.LimitType  `json:"limitType" validate:"required,limittype" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
+	LimitType       model.LimitType  `json:"limitType" validate:"required,limittype" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" enum:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
 	MaxAmount       decimal.Decimal  `json:"maxAmount" validate:"required" swaggertype:"string" example:"1000.00"`
 	Asset           string           `json:"asset" validate:"required,len=3,uppercase" minLength:"3" maxLength:"3" example:"USD"`
 	Scopes          []model.Scope    `json:"scopes" validate:"required,min=1,max=100,dive,scopenotempty"`

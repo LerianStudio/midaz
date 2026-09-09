@@ -60,14 +60,14 @@ type Rule struct {
 
 	// Decision produced when this rule matches
 	// enums: ALLOW,DENY,REVIEW
-	Action Decision `json:"action" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" example:"DENY"`
+	Action Decision `json:"action" swaggertype:"string" enums:"ALLOW,DENY,REVIEW" enum:"ALLOW,DENY,REVIEW" example:"DENY"`
 
 	// Scopes that restrict which transactions this rule applies to
 	Scopes []Scope `json:"scopes"`
 
 	// Current lifecycle status of the rule
 	// enums: DRAFT,ACTIVE,INACTIVE,DELETED
-	Status RuleStatus `json:"status" swaggertype:"string" enums:"DRAFT,ACTIVE,INACTIVE,DELETED" example:"ACTIVE"`
+	Status RuleStatus `json:"status" swaggertype:"string" enums:"DRAFT,ACTIVE,INACTIVE,DELETED" enum:"DRAFT,ACTIVE,INACTIVE,DELETED" example:"ACTIVE"`
 
 	// Timestamp when the rule was created
 	// format: date-time

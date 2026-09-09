@@ -27,7 +27,7 @@ type TransactionValidation struct {
 
 	// Type of the transaction that was validated
 	// example: CARD
-	TransactionType TransactionType `json:"transactionType" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
+	TransactionType TransactionType `json:"transactionType" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" enum:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
 
 	// SubType is stored in its lowercase canonical form; matching is case-insensitive.
 	// example: purchase

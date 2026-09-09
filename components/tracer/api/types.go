@@ -8,7 +8,7 @@ package api
 // /readyz contract. Top-level Status is "healthy" iff every check is in
 // {up, skipped, n/a}; any "down" or "degraded" check forces "unhealthy" + 503.
 type ReadyzResponse struct {
-	Status         string                 `json:"status" example:"healthy" enums:"healthy,unhealthy"`
+	Status         string                 `json:"status" example:"healthy" enums:"healthy,unhealthy" enum:"healthy,unhealthy"`
 	Draining       bool                   `json:"draining,omitempty" example:"false"`
 	Checks         map[string]ReadyzCheck `json:"checks"`
 	Version        string                 `json:"version" example:"1.2.3"`
@@ -38,7 +38,7 @@ type ReadyzResponse struct {
 // OpenAPI spec would mean SDK consumers building dashboards on data that never
 // arrives. Re-add only when a producer lands.
 type ReadyzCheck struct {
-	Status    string `json:"status" example:"up" enums:"up,down,degraded,skipped,n/a"`
+	Status    string `json:"status" example:"up" enums:"up,down,degraded,skipped,n/a" enum:"up,down,degraded,skipped,n/a"`
 	LatencyMs int64  `json:"latency_ms,omitempty" example:"3"`
 	TLS       *bool  `json:"tls,omitempty" example:"true"`
 	Reason    string `json:"reason,omitempty" example:"MULTI_TENANT_ENABLED=false"`

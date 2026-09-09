@@ -71,7 +71,7 @@ const (
 // SubType is normalized to lowercase canonical form; matching is case-insensitive.
 type ValidationRequest struct {
 	RequestID       uuid.UUID       `json:"requestId" validate:"required" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
-	TransactionType TransactionType `json:"transactionType" validate:"required" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
+	TransactionType TransactionType `json:"transactionType" validate:"required" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" enum:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
 	// SubType is normalized to lowercase canonical form; matching is case-insensitive.
 	SubType              *string           `json:"subType,omitempty" validate:"omitempty,max=50" maxLength:"50" extensions:"x-normalization=lowercase" example:"purchase"`
 	Amount               decimal.Decimal   `json:"amount" validate:"required" swaggertype:"string" example:"100.00"`
@@ -235,7 +235,7 @@ type LimitUsageDetail struct {
 	// the bare word "global".
 	Scope string `json:"scope" example:"(account:00000000-0000-0000-0000-000000000000)"`
 	// Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION).
-	Period LimitType `json:"period" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
+	Period LimitType `json:"period" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" enum:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
 	// CurrentUsage represents the PROJECTED usage after applying the transaction amount,
 	// not the actual persisted counter value. This is calculated as:
 	// (counter.CurrentUsage + input.Amount) for DAILY/WEEKLY/MONTHLY/CUSTOM limits, or 0 for PER_TRANSACTION.
