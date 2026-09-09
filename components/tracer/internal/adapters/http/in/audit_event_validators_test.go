@@ -14,11 +14,11 @@ import (
 )
 
 // TestAuditEventEnumValidators exercises the custom validator.Func enum checks
-// registered for audit-event query parameters. Each validator accepts only a
-// specific allow-list of enum values; values outside the list (including model
-// constants that belong to a different surface, e.g. RESERVE actions) MUST be
-// rejected. The validators are driven through the shared getValidator()
-// instance via v.Var so the registered tags themselves are under test.
+// registered for audit-event query parameters. Each validator accepts exactly
+// the values the audit writer records — the reservation lifecycle and API-key
+// actors included, since those reach the trail — and rejects anything else. The
+// validators are driven through the shared getValidator() instance via v.Var so
+// the registered tags themselves are under test.
 func TestAuditEventEnumValidators(t *testing.T) {
 	v, err := getValidator()
 	require.NoError(t, err)
@@ -34,14 +34,14 @@ func TestAuditEventEnumValidators(t *testing.T) {
 		{"eventtype valid TRANSACTION_VALIDATED", "auditeventtype", string(model.AuditEventTransactionValidated), true},
 		{"eventtype valid RULE_DEACTIVATED", "auditeventtype", string(model.AuditEventRuleDeactivated), true},
 		{"eventtype valid LIMIT_DEACTIVATED", "auditeventtype", string(model.AuditEventLimitDeactivated), true},
-		{"eventtype rejects reservation type", "auditeventtype", string(model.AuditEventReservationConfirmed), false},
+		{"eventtype valid RESERVATION_CONFIRMED", "auditeventtype", string(model.AuditEventReservationConfirmed), true},
 		{"eventtype rejects garbage", "auditeventtype", "NOT_AN_EVENT", false},
 
 		// auditaction
 		{"action valid VALIDATE", "auditaction", string(model.AuditActionValidate), true},
 		{"action valid DEACTIVATE", "auditaction", string(model.AuditActionDeactivate), true},
-		{"action rejects RESERVE (reservation surface)", "auditaction", string(model.AuditActionReserve), false},
-		{"action rejects CONFIRM (reservation surface)", "auditaction", string(model.AuditActionConfirm), false},
+		{"action valid RESERVE", "auditaction", string(model.AuditActionReserve), true},
+		{"action valid CONFIRM", "auditaction", string(model.AuditActionConfirm), true},
 		{"action rejects garbage", "auditaction", "FROBNICATE", false},
 
 		// auditresult
@@ -53,13 +53,13 @@ func TestAuditEventEnumValidators(t *testing.T) {
 		{"resourcetype valid transaction", "resourcetype", string(model.ResourceTypeTransaction), true},
 		{"resourcetype valid rule", "resourcetype", string(model.ResourceTypeRule), true},
 		{"resourcetype valid limit", "resourcetype", string(model.ResourceTypeLimit), true},
-		{"resourcetype rejects reservation", "resourcetype", string(model.ResourceTypeReservation), false},
+		{"resourcetype valid reservation", "resourcetype", string(model.ResourceTypeReservation), true},
 		{"resourcetype rejects garbage", "resourcetype", "account", false},
 
 		// actortype
 		{"actortype valid user", "actortype", string(model.ActorTypeUser), true},
 		{"actortype valid system", "actortype", string(model.ActorTypeSystem), true},
-		{"actortype rejects api_key (not in audit allow-list)", "actortype", string(model.ActorTypeAPIKey), false},
+		{"actortype valid api_key", "actortype", string(model.ActorTypeAPIKey), true},
 		{"actortype rejects garbage", "actortype", "robot", false},
 	}
 

@@ -19338,22 +19338,22 @@
             }
           },
           {
-            "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*)",
+            "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*, RESERVATION_*)",
             "explode": false,
             "in": "query",
             "name": "event_type",
             "schema": {
-              "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*)",
+              "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*, RESERVATION_*)",
               "type": "string"
             }
           },
           {
-            "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)",
+            "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, RESERVE, CONFIRM, RELEASE, EXPIRE, SKIP)",
             "explode": false,
             "in": "query",
             "name": "action",
             "schema": {
-              "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)",
+              "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, RESERVE, CONFIRM, RELEASE, EXPIRE, SKIP)",
               "type": "string"
             }
           },
@@ -19368,12 +19368,12 @@
             }
           },
           {
-            "description": "Filter by resource type (transaction, rule, limit)",
+            "description": "Filter by resource type (transaction, rule, limit, reservation)",
             "explode": false,
             "in": "query",
             "name": "resource_type",
             "schema": {
-              "description": "Filter by resource type (transaction, rule, limit)",
+              "description": "Filter by resource type (transaction, rule, limit, reservation)",
               "type": "string"
             }
           },
@@ -19388,12 +19388,12 @@
             }
           },
           {
-            "description": "Filter by actor type (user, system)",
+            "description": "Filter by actor type (user, api_key, system)",
             "explode": false,
             "in": "query",
             "name": "actor_type",
             "schema": {
-              "description": "Filter by actor type (user, system)",
+              "description": "Filter by actor type (user, api_key, system)",
               "type": "string"
             }
           },

@@ -43,116 +43,82 @@ func registerAuditEventValidations(v *validator.Validate) error {
 	return nil
 }
 
-// validateAuditEventType validates that the AuditEventType is a valid enum value.
+// auditEnumFilter unwraps an optional enum filter into its string value. An
+// absent filter carries nothing to check, so the second result is false and the
+// caller reports the field valid (omitempty semantics).
+func auditEnumFilter(fl validator.FieldLevel) (string, bool) {
+	field := fl.Field()
+
+	if field.Kind() == reflect.Pointer {
+		if field.IsNil() {
+			return "", false
+		}
+
+		field = field.Elem()
+	}
+
+	return field.String(), true
+}
+
+// The five audit query filters below accept exactly the values the audit writer
+// records, by asking the model's own enum for each. They used to restate a
+// narrower list, and that list drifted: the reservation lifecycle and API-key
+// actors were written to the trail but rejected as query values, so those
+// records could not be filtered for at all.
+
+// validateAuditEventType validates that the AuditEventType is a value the audit
+// writer records.
 func validateAuditEventType(fl validator.FieldLevel) bool {
-	field := fl.Field()
-	if field.Kind() == reflect.Pointer {
-		if field.IsNil() {
-			return true
-		}
-
-		field = field.Elem()
-	}
-
-	eventType := model.AuditEventType(field.String())
-	switch eventType {
-	case model.AuditEventTransactionValidated,
-		model.AuditEventRuleCreated, model.AuditEventRuleUpdated,
-		model.AuditEventRuleActivated, model.AuditEventRuleDeactivated,
-		model.AuditEventRuleDrafted, model.AuditEventRuleDeleted,
-		model.AuditEventLimitCreated, model.AuditEventLimitUpdated,
-		model.AuditEventLimitActivated, model.AuditEventLimitDeactivated,
-		model.AuditEventLimitDrafted, model.AuditEventLimitDeleted:
+	value, present := auditEnumFilter(fl)
+	if !present {
 		return true
-	default:
-		return false
 	}
+
+	return model.AuditEventType(value).IsValid()
 }
 
-// validateAuditAction validates that the AuditAction is a valid enum value.
+// validateAuditAction validates that the AuditAction is a value the audit writer
+// records.
 func validateAuditAction(fl validator.FieldLevel) bool {
-	field := fl.Field()
-	if field.Kind() == reflect.Pointer {
-		if field.IsNil() {
-			return true
-		}
-
-		field = field.Elem()
-	}
-
-	action := model.AuditAction(field.String())
-	switch action {
-	case model.AuditActionValidate, model.AuditActionCreate,
-		model.AuditActionUpdate, model.AuditActionDelete,
-		model.AuditActionActivate, model.AuditActionDeactivate,
-		model.AuditActionDraft:
+	value, present := auditEnumFilter(fl)
+	if !present {
 		return true
-	default:
-		return false
 	}
+
+	return model.AuditAction(value).IsValid()
 }
 
-// validateAuditResult validates that the AuditResult is a valid enum value.
+// validateAuditResult validates that the AuditResult is a value the audit writer
+// records.
 func validateAuditResult(fl validator.FieldLevel) bool {
-	field := fl.Field()
-	if field.Kind() == reflect.Pointer {
-		if field.IsNil() {
-			return true
-		}
-
-		field = field.Elem()
-	}
-
-	result := model.AuditResult(field.String())
-	switch result {
-	case model.AuditResultSuccess, model.AuditResultFailed,
-		model.AuditResultAllow, model.AuditResultDeny,
-		model.AuditResultReview:
+	value, present := auditEnumFilter(fl)
+	if !present {
 		return true
-	default:
-		return false
 	}
+
+	return model.AuditResult(value).IsValid()
 }
 
-// validateResourceType validates that the ResourceType is a valid enum value.
+// validateResourceType validates that the ResourceType is a value the audit
+// writer records.
 func validateResourceType(fl validator.FieldLevel) bool {
-	field := fl.Field()
-	if field.Kind() == reflect.Pointer {
-		if field.IsNil() {
-			return true
-		}
-
-		field = field.Elem()
-	}
-
-	resourceType := model.ResourceType(field.String())
-	switch resourceType {
-	case model.ResourceTypeTransaction, model.ResourceTypeRule,
-		model.ResourceTypeLimit:
+	value, present := auditEnumFilter(fl)
+	if !present {
 		return true
-	default:
-		return false
 	}
+
+	return model.ResourceType(value).IsValid()
 }
 
-// validateActorType validates that the ActorType is a valid enum value.
+// validateActorType validates that the ActorType is a value the audit writer
+// records.
 func validateActorType(fl validator.FieldLevel) bool {
-	field := fl.Field()
-	if field.Kind() == reflect.Pointer {
-		if field.IsNil() {
-			return true
-		}
-
-		field = field.Elem()
-	}
-
-	actorType := model.ActorType(field.String())
-	switch actorType {
-	case model.ActorTypeUser, model.ActorTypeSystem:
+	value, present := auditEnumFilter(fl)
+	if !present {
 		return true
-	default:
-		return false
 	}
+
+	return model.ActorType(value).IsValid()
 }
 
 // ListAuditEventsInput represents the input for listing audit events with filters and pagination.
