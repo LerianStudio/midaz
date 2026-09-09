@@ -180,6 +180,31 @@
 -- transaction and nothing else.
 SET LOCAL statement_timeout = 0;
 
+-- The floor, the verifier and the verifier's pin all have to land next to the
+-- TRAIL. An unqualified name lands wherever the MIGRATING SESSION's path
+-- points, which is not the same thing: current_schema() is the first EXISTING
+-- schema in that path, so one `CREATE SCHEMA <migrating role>` between two
+-- releases - PostgreSQL's own per-user-schema pattern, and the reason '"$user"'
+-- leads the default path - moves all three into a schema that holds no
+-- audit_events. This migration then reports success, because its own boundary
+-- pass still finds the trail through the session path, and every later
+-- verification raises 'relation "audit_events" does not exist'. Permanently,
+-- for every caller, where the previous verifier answered.
+--
+-- So resolve the trail's own schema from the catalog and make it the path for
+-- the rest of this transaction. 'audit_events'::regclass is resolved against
+-- the incoming path, which is how the trail is found wherever it lives; from
+-- there on every unqualified name in this file - and current_schema() at the
+-- pin below - means the schema that holds the trail. LOCAL scopes it to this
+-- migration's transaction, exactly like the timeout above.
+SELECT set_config(
+    'search_path',
+    quote_ident((SELECT n.nspname
+                 FROM pg_class c
+                 JOIN pg_namespace n ON n.oid = c.relnamespace
+                 WHERE c.oid = 'audit_events'::regclass)) || ', pg_temp',
+    TRUE);
+
 -- ============================================
 -- 1. Record the re-baseline boundary.
 -- ============================================
@@ -358,13 +383,14 @@ $$ LANGUAGE plpgsql;
 -- on every verification it runs.
 --
 -- The pin has to name the RESOLVED schema. `SET search_path FROM CURRENT`
--- captures the literal TEXT of the migration session's path - PostgreSQL's
--- default '"$user", public' wherever nothing sets one - and $user is
--- re-resolved to the CALLING role at execution time, so a schema named after
--- that role still shadows the floor. Measured: that variant refuses an
--- arbitrary schema and still accepts a role-named one. current_schema() is the
--- schema the CREATE TABLE above just used, whatever that schema is, and holds
--- no element a caller can influence.
+-- captures the literal TEXT of the session's path, and on a deployment that
+-- migrates without setting one that text is PostgreSQL's default
+-- '"$user", public'; $user is re-resolved to the CALLING role at execution
+-- time, so a schema named after that role still shadows the floor. Measured:
+-- that variant refuses an arbitrary schema and still accepts a role-named one.
+-- current_schema() is the schema the CREATE TABLE above just used, which is the
+-- schema holding the trail because this transaction set its path to it, and it
+-- holds no element a caller can influence.
 --
 -- pg_temp is named LAST, and naming it at all is the point. PostgreSQL searches
 -- the session's TEMPORARY schema before every schema in the path when it

@@ -932,3 +932,101 @@ func TestUpgradePath_ReBaselineFloorSurvivesARollbackCycle(t *testing.T) {
 			"the converted record, which sits above the floor, MUST be the one flagged")
 	})
 }
+
+// TestUpgradePath_ReBaselineFloorLandsBesideTheAuditTrail pins WHERE the
+// re-baseline migration installs what it installs.
+//
+// The floor, the verifier and the verifier's pinned path all have to sit in the
+// schema that holds audit_events. An unqualified name in a migration lands
+// wherever the MIGRATING SESSION's path points, and PostgreSQL's default path
+// leads with "$user" — so one `CREATE SCHEMA <migrating role>` between two
+// releases, its own documented per-user-schema pattern, is enough to make that
+// a schema holding no audit trail at all.
+//
+// The migration then reports success, because its own boundary pass still finds
+// the trail through the session path. What breaks is everything afterwards:
+// GET /v1/audit-events/{id}/verify raises `relation "audit_events" does not
+// exist` from inside the pinned function, permanently, for every caller —
+// where the previous verifier answered.
+func TestUpgradePath_ReBaselineFloorLandsBesideTheAuditTrail(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	dsn := startUpgradePathContainer(ctx, t)
+	migrationsDir := resolveHeadMigrationsDir(ctx, t)
+	mig := headMigrator(t, dsn, migrationsDir)
+
+	// The version immediately before the re-baseline migration, so the one
+	// step that follows is the migration under test.
+	const (
+		lastVersionBeforeTheReBaseline = 23
+		seededRecords                  = 3
+	)
+
+	require.NoError(t, mig.Migrate(lastVersionBeforeTheReBaseline),
+		"apply every migration up to the one before the re-baseline")
+
+	withTestDB(t, dsn, "open db to seed audit records", func(db *sql.DB) {
+		_, err := db.ExecContext(ctx, `
+			INSERT INTO audit_events (event_type, action, result, resource_id, resource_type,
+			    actor_type, actor_id, actor_name, actor_ip_address)
+			SELECT 'RULE_CREATED','CREATE','SUCCESS','res-'||g,'rule','user','u'||g,'n'||g,'10.0.0.'||g
+			FROM generate_series(1,3) g`)
+		require.NoError(t, err, "seed audit records")
+	})
+
+	// The divergence: a schema named after the migrating role, which the
+	// default '"$user", public' puts ahead of the schema holding the trail.
+	var trailSchema string
+
+	withTestDB(t, dsn, "open db to create the role-named schema", func(db *sql.DB) {
+		// Omitting the schema name is PostgreSQL's own shorthand for "name it
+		// after the role", which is the shape "$user" resolves to.
+		_, err := db.ExecContext(ctx, "CREATE SCHEMA AUTHORIZATION CURRENT_USER")
+		require.NoError(t, err, "create a schema named after the migrating role")
+
+		require.NoError(t, db.QueryRowContext(ctx, `
+			SELECT n.nspname
+			FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+			WHERE c.oid = 'audit_events'::regclass`).Scan(&trailSchema), "locate the audit trail")
+
+		var sessionSchema string
+		require.NoError(t, db.QueryRowContext(ctx, "SELECT current_schema()").Scan(&sessionSchema),
+			"read the migrating session's schema")
+		require.NotEqual(t, trailSchema, sessionSchema,
+			"the fixture only means something while the two differ")
+	})
+
+	require.NoError(t, mig.Up(), "apply the re-baseline migration")
+
+	withTestDB(t, dsn, "open db to inspect the re-baseline install", func(db *sql.DB) {
+		var floorSchema, functionSchema, pin string
+		require.NoError(t, db.QueryRowContext(ctx, `
+			SELECT (SELECT n.nspname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+			        WHERE c.relname = 'audit_hash_legacy_boundary'),
+			       (SELECT n.nspname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+			        WHERE p.proname = 'verify_audit_hash_chain'),
+			       (SELECT p.proconfig[1] FROM pg_proc p WHERE p.proname = 'verify_audit_hash_chain')`,
+		).Scan(&floorSchema, &functionSchema, &pin), "inspect what the migration installed")
+
+		require.Equal(t, trailSchema, floorSchema,
+			"the floor MUST be created beside the trail it measures, not in the migrating session's schema")
+		require.Equal(t, trailSchema, functionSchema,
+			"the verifier MUST replace the one callers already resolve, not appear in a schema of its own")
+		require.Equal(t, "search_path="+trailSchema+", pg_temp", pin,
+			"the pin MUST name the schema that holds the trail, with the temporary schema searched last")
+
+		var (
+			isValid        bool
+			firstInvalidID sql.NullInt64
+			totalChecked   int64
+			detail         sql.NullString
+		)
+		require.NoError(t, db.QueryRowContext(ctx,
+			"SELECT is_valid, first_invalid_id, total_checked, error_detail FROM verify_audit_hash_chain(1, NULL)",
+		).Scan(&isValid, &firstInvalidID, &totalChecked, &detail),
+			"the verify endpoint MUST still answer after the upgrade")
+		require.True(t, isValid, "the untouched trail MUST report intact: %v", detail.String)
+		require.Equal(t, int64(seededRecords), totalChecked, "every seeded record MUST be walked")
+	})
+}
