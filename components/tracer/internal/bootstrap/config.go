@@ -984,6 +984,14 @@ type limitServiceDeps struct {
 	service          *services.LimitService
 	usageCounterRepo *postgres.UsageCounterRepository
 	limitRepo        *postgres.LimitRepository
+	// reservationRepo backs the two-phase reservation lifecycle. It lives here
+	// rather than inside the HTTP wiring because the TTL reaper needs the same
+	// instance, and the multi-tenant supervisor is assembled before the HTTP
+	// server.
+	reservationRepo *postgres.UsageReservationRepository
+	// reaperRepo is the narrow sweep surface the reservation reaper consumes:
+	// find the RESERVED rows past their TTL and release each as EXPIRED.
+	reaperRepo *postgres.ReservationReaperRepository
 }
 
 // initLimitService creates the limit service with all its dependencies.
@@ -1047,10 +1055,18 @@ func initLimitService(pgConn pgdb.Connection, auditWriter command.AuditWriter, c
 
 	service := services.NewLimitService(createLimitCmd, updateLimitCmd, activateLimitCmd, deactivateLimitCmd, draftLimitCmd, deleteLimitCmd, getLimitQuery, listLimitsQuery, usageCounterRepo)
 
+	// The reservation repository and the reaper's sweep surface over it are built
+	// once here so the HTTP reserve/confirm/release seam and the TTL reaper share
+	// one instance in both boot modes.
+	reservationRepo := postgres.NewUsageReservationRepositoryWithConnection(usageCounterRepo)
+	reaperRepo := postgres.NewReservationReaperRepository(pgConn, txBeginner, reservationRepo)
+
 	return &limitServiceDeps{
 		service:          service,
 		usageCounterRepo: usageCounterRepo,
 		limitRepo:        limitRepo,
+		reservationRepo:  reservationRepo,
+		reaperRepo:       reaperRepo,
 	}, nil
 }
 
@@ -1124,7 +1140,7 @@ func initHTTPServer(
 	// checker as the limit resolver and the shared audit writer / txBeginner so
 	// the reserve/confirm/release counter moves commit atomically with their
 	// audit rows — the same atomicity discipline as the validate path.
-	reservationRepo := postgres.NewUsageReservationRepositoryWithConnection(limitDeps.usageCounterRepo)
+	reservationRepo := limitDeps.reservationRepo
 
 	longLivedTTL, err := parseReservationLongLivedTTLHours(cfg.ReservationLongLivedTTLHours)
 	if err != nil {
@@ -1319,6 +1335,42 @@ func initCleanupWorker(ctx context.Context, cfg *Config, usageCounterRepo *postg
 	return cleanupWorker, nil
 }
 
+// initReaperWorker creates the single-tenant reservation reaper if enabled. The
+// reaper is the only path that returns capacity held by a reservation the ledger
+// never confirmed or released, so without it a crashed transaction's hold is
+// permanent and later transactions are denied against a limit whose real usage is
+// lower.
+func initReaperWorker(
+	ctx context.Context,
+	cfg *Config,
+	reaperRepo *postgres.ReservationReaperRepository,
+	auditor *command.RecordAuditEventCommand,
+	logger libLog.Logger,
+	clk clock.Clock,
+) (*workers.ReservationReaperWorker, error) {
+	reaperConfig, err := LoadReservationReaperConfig(ctx, cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("invalid reservation reaper configuration: %w", err)
+	}
+
+	if reaperConfig == nil {
+		return nil, nil
+	}
+
+	// tenantID is empty in single-tenant mode; the supervisor passes the real tenantID in MT mode.
+	reaperWorker, err := workers.NewReservationReaperWorker(reaperRepo, auditor, *reaperConfig, logger, clk, "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create reservation reaper worker: %w", err)
+	}
+
+	logger.With(
+		libLog.String("component", "reservation_reaper_worker"),
+		libLog.String("reap_interval", reaperConfig.ReapInterval.String()),
+	).Log(ctx, libLog.LevelInfo, "Reservation reaper worker initialized")
+
+	return reaperWorker, nil
+}
+
 // buildMultiTenantStack assembles the multi-tenant metrics sink and the
 // multi-tenant components in a single call. In single-tenant mode the metrics
 // sink is a zero-cost no-op and mtComponents stays nil; both modes share the
@@ -1332,6 +1384,7 @@ func buildMultiTenantStack(
 	ruleCache *cache.RuleCache,
 	ruleSyncRepo *postgres.RuleSyncRepository,
 	limitDeps *limitServiceDeps,
+	auditWriter *command.RecordAuditEventCommand,
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
 ) (*componentsMT, metrics.MultiTenantMetrics, error) {
@@ -1348,7 +1401,7 @@ func buildMultiTenantStack(
 	// (rare fallback path that should never fire in production).
 	mtMetrics := metrics.NewMultiTenantMetrics(cfg.MultiTenantEnabled, mtFactory, logger)
 
-	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk, mtMetrics)
+	mtComponents, err := initMultiTenant(ctx, cfg, logger, ruleCache, ruleSyncRepo, limitDeps, auditWriter, celAdapter, clk, mtMetrics)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1372,6 +1425,7 @@ func initMultiTenant(
 	ruleCache *cache.RuleCache,
 	ruleSyncRepo *postgres.RuleSyncRepository,
 	limitDeps *limitServiceDeps,
+	auditWriter *command.RecordAuditEventCommand,
 	celAdapter *cel.Adapter,
 	clk clock.Clock,
 	mtMetrics metrics.MultiTenantMetrics,
@@ -1401,6 +1455,22 @@ func initMultiTenant(
 
 	if cleanupEnabled {
 		resolvedCleanup = *cleanupCfg
+	}
+
+	// The reservation reaper mirrors the cleanup worker's disabled-signal
+	// propagation: LoadReservationReaperConfig returns nil when the reaper is
+	// off, and nil means the supervisor must not spawn per-tenant reapers.
+	reaperCfg, err := LoadReservationReaperConfig(ctx, cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	var resolvedReaper workers.ReservationReaperWorkerConfig
+
+	reaperEnabled := reaperCfg != nil
+
+	if reaperEnabled {
+		resolvedReaper = *reaperCfg
 	}
 
 	syncCBConfig := workers.DefaultSyncCircuitBreakerConfig()
@@ -1438,6 +1508,12 @@ func initMultiTenant(
 			MaxTenants: cfg.MultiTenantMaxTenantPools,
 			Service:    cfg.ApplicationName,
 			Metrics:    mtMetrics,
+			// Per-tenant reservation reaper. buildSupervisorDeps only overwrites
+			// the fields it names, so these survive onto the supervisor.
+			ReaperRepo:          limitDeps.reaperRepo,
+			ReaperAuditor:       auditWriter,
+			ReaperConfig:        resolvedReaper,
+			ReaperWorkerEnabled: reaperEnabled,
 		},
 	)
 	if err != nil {
@@ -1487,6 +1563,7 @@ func initWorkers(
 	ctx context.Context,
 	cfg *Config,
 	limitDeps *limitServiceDeps,
+	auditWriter *command.RecordAuditEventCommand,
 	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
 	grpcServer *GRPCServer,
@@ -1524,7 +1601,13 @@ func initWorkers(
 		return nil, err
 	}
 
+	reaperWorker, err := initReaperWorker(ctx, cfg, limitDeps.reaperRepo, auditWriter, logger, clk)
+	if err != nil {
+		return nil, err
+	}
+
 	svc.cleanupWorker = cleanupWorker
+	svc.reaperWorker = reaperWorker
 	svc.syncWorker = syncWorker
 
 	return svc, nil
@@ -1901,7 +1984,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 		return nil, err
 	}
 
-	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, celAdapter, clk)
+	mtComponents, mtMetrics, err := buildMultiTenantStack(ctx, cfg, logger, telemetry, ruleCache, ruleSyncRepo, limitDeps, auditWriter, celAdapter, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -1948,7 +2031,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// finalizeStartup also builds the opt-in reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
-	svc, err := finalizeStartup(ctx, cfg, limitDeps, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose)
+	svc, err := finalizeStartup(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose)
 	if err != nil {
 		return nil, err
 	}
@@ -2114,6 +2197,7 @@ func finalizeStartup(
 	ctx context.Context,
 	cfg *Config,
 	limitDeps *limitServiceDeps,
+	auditWriter *command.RecordAuditEventCommand,
 	syncWorker *workers.RuleSyncWorker,
 	serverAPI *HTTPServer,
 	reservationService *services.ReservationService,
@@ -2136,7 +2220,7 @@ func finalizeStartup(
 		return nil, err
 	}
 
-	svc, err := initWorkers(ctx, cfg, limitDeps, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose)
+	svc, err := initWorkers(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, grpcServer, postgresConn, healthChecker, logger, clk, mtComponents, streamingEmitter, streamingClose)
 	if err != nil {
 		return nil, err
 	}
