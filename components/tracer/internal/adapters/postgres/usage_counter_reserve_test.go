@@ -74,6 +74,23 @@ func TestUsageCounterReserveCTEThreeTermGuard(t *testing.T) {
 		"reserve CTE must NOT use the legacy two-term increment guard")
 }
 
+// TestUsageCounterIncrementCTEThreeTermGuard locks the same ceiling on the OTHER
+// writer. The synchronous validation path shares a counter bucket with the reserve
+// path, so its DO UPDATE guard must read reserved_usage too. A two-term guard here
+// lets committed spending plus outstanding holds run to nearly twice the cap.
+func TestUsageCounterIncrementCTEThreeTermGuard(t *testing.T) {
+	normalized := regexp.MustCompile(`\s+`).ReplaceAllString(upsertAndIncrementCTEQuery, " ")
+
+	assert.Contains(t, normalized,
+		"WHERE usage_counters.current_usage + usage_counters.reserved_usage + $9 <= $10",
+		"increment CTE must guard on the three-term sum current_usage + reserved_usage + amount")
+	assert.Contains(t, normalized,
+		"current_usage = usage_counters.current_usage + $7",
+		"increment CTE UPDATE must increment current_usage, not reserved_usage")
+	assert.False(t, strings.Contains(normalized, "WHERE usage_counters.current_usage + $9 <= $10"),
+		"increment CTE must NOT regress to the two-term guard that ignores held capacity")
+}
+
 func TestUsageCounterRepository_UpsertAndReserveAtomic(t *testing.T) {
 	testutil.SetupTestTracing(t)
 

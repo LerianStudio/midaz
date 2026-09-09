@@ -539,3 +539,210 @@ func TestIntegration_UsageReservationRepository_FractionalCap_Denies(t *testing.
 	assert.True(t, half.Equal(reserved),
 		"denied reserve must leave reserved_usage at the first 0.50; got %s", reserved)
 }
+
+// TestIntegration_UsageReservationRepository_ReserveReplay_HandleOwnsExistingRow
+// reproduces the ledger's ordinary at-least-once retry end to end: reserve,
+// retry the SAME reserve, then confirm with the handle the retry returned, and
+// assert what the cap counted.
+//
+// The retry builds a SECOND model.NewReservation for the same 4-tuple, which is
+// exactly what the reservation service does per call — a FRESH row id. Before the
+// fix ReserveWithTx left that fresh id untouched on the replay branch, so the
+// caller held a handle matching zero rows: the confirm failed with
+// ErrReservationNotFound, the ledger swallowed it at Warn, and a spend that
+// actually committed was never counted against the customer's cap.
+func TestIntegration_UsageReservationRepository_ReserveReplay_HandleOwnsExistingRow(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimit(t, db, 8531)
+	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
+
+	scopeKey := "acct:8531-" + testutil.MustDeterministicUUID(8541).String()[:8]
+	periodKey := "2026-06"
+
+	ctx := context.Background()
+	now := testutil.FixedTime()
+	txID := testutil.MustDeterministicUUID(8551)
+	amount := decimal.NewFromInt(400)
+	maxAmount := decimal.NewFromInt(1000)
+
+	newReserve := func() *model.Reservation {
+		res, err := model.NewReservation(limitID, txID, scopeKey, periodKey, amount, now.Add(5*time.Minute), now)
+		require.NoError(t, err)
+
+		return res
+	}
+
+	first := newReserve()
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReserveWithTx(ctx, tx, first, maxAmount)
+	}))
+
+	// The retry: same 4-tuple, fresh row id, exactly as the service generates it.
+	retry := newReserve()
+	require.NotEqual(t, first.ID, retry.ID, "the retry must start with a fresh id, as the service generates it")
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReserveWithTx(ctx, tx, retry, maxAmount)
+	}))
+
+	assert.Equal(t, first.ID, retry.ID,
+		"a replayed reserve must hand back the id of the row that owns the held capacity")
+
+	current, reserved := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, current.IsZero(), "replay must not touch current_usage; got %s", current)
+	assert.True(t, amount.Equal(reserved), "replay must not double-hold; want 400 got %s", reserved)
+
+	// The ledger commits and confirms with the handle the RETRY returned.
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ConfirmWithTx(ctx, tx, retry.ID)
+	}), "confirm with the retried reserve's handle must find the row")
+
+	current, reserved = readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, amount.Equal(current),
+		"the committed spend must be counted against the cap; want 400 got %s", current)
+	assert.True(t, reserved.IsZero(), "confirm must drain the hold; got %s", reserved)
+	assert.Equal(t, string(model.StatusConfirmed), readReservationStatus(t, db, first.ID))
+}
+
+// TestIntegration_UsageReservationRepository_ConfirmAfterExpiry_CountsTheSpendOnce
+// covers the window the sweep opens: the sweep returns a hold's capacity at its
+// stated expiry without waiting for the ledger, and then the ledger's confirm
+// arrives for a transaction that really did commit.
+//
+// The spend happened, so the cap must reflect it exactly once. The expiry already
+// returned the hold, so the late confirm adds the amount to counted spending and
+// must NOT touch the hold bucket again.
+func TestIntegration_UsageReservationRepository_ConfirmAfterExpiry_CountsTheSpendOnce(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimit(t, db, 8561)
+	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
+
+	scopeKey := "acct:8561-" + testutil.MustDeterministicUUID(8571).String()[:8]
+	periodKey := "2026-06"
+
+	ctx := context.Background()
+	now := testutil.FixedTime()
+	amount := decimal.NewFromInt(400)
+
+	res, err := model.NewReservation(
+		limitID,
+		testutil.MustDeterministicUUID(8581),
+		scopeKey,
+		periodKey,
+		amount,
+		now.Add(5*time.Minute),
+		now,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(1000))
+	}))
+
+	current, held := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, current.IsZero(), "after reserve: counted spending must be 0, got %s", current)
+	assert.True(t, amount.Equal(held), "after reserve: hold must be 400, got %s", held)
+
+	// The sweep expires it. This is exactly what the reaper does per row.
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusExpired)
+	}))
+
+	current, held = readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, current.IsZero(), "after expiry: counted spending must still be 0, got %s", current)
+	assert.True(t, held.IsZero(), "after expiry: the hold must be returned, got %s", held)
+	assert.Equal(t, string(model.StatusExpired), readReservationStatus(t, db, res.ID))
+
+	// The ledger committed and confirms late. The spend must land on the cap.
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ConfirmWithTx(ctx, tx, res.ID)
+	}), "a confirm for a transaction that committed must not be discarded because its hold expired")
+
+	current, held = readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, amount.Equal(current),
+		"after the late confirm: the committed spend must be counted; want 400 got %s", current)
+	assert.True(t, held.IsZero(), "after the late confirm: the hold must stay returned, got %s", held)
+	assert.Equal(t, string(model.StatusConfirmed), readReservationStatus(t, db, res.ID))
+
+	// Retrying the late confirm must not count the spend twice.
+	err = inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ConfirmWithTx(ctx, tx, res.ID)
+	})
+	require.ErrorIs(t, err, constant.ErrReservationAlreadyTerminal)
+
+	current, held = readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, amount.Equal(current), "a retried late confirm must not double-count; got %s", current)
+	assert.True(t, held.IsZero())
+}
+
+// TestIntegration_UsageReservationRepository_ConfirmByTransactionAfterExpiry_CountsTheSpendOnce
+// is the same window on the pending-transaction route, where the ledger holds only
+// the transaction id at commit time.
+func TestIntegration_UsageReservationRepository_ConfirmByTransactionAfterExpiry_CountsTheSpendOnce(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimit(t, db, 8562)
+	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
+
+	scopeKey := "acct:8562-" + testutil.MustDeterministicUUID(8572).String()[:8]
+	periodKey := "2026-06"
+
+	ctx := context.Background()
+	now := testutil.FixedTime()
+	txID := testutil.MustDeterministicUUID(8582)
+	amount := decimal.NewFromInt(250)
+
+	res, err := model.NewReservation(limitID, txID, scopeKey, periodKey, amount, now.Add(5*time.Minute), now)
+	require.NoError(t, err)
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReserveWithTx(ctx, tx, res, decimal.NewFromInt(1000))
+	}))
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReleaseWithTx(ctx, tx, res.ID, model.StatusExpired)
+	}))
+
+	current, held := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	require.True(t, current.IsZero())
+	require.True(t, held.IsZero())
+
+	var flipped []*model.Reservation
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		var cErr error
+		flipped, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
+
+		return cErr
+	}))
+	assert.Len(t, flipped, 1, "the pending commit must find the expired hold and settle it")
+
+	current, held = readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, amount.Equal(current),
+		"the committed pending spend must be counted; want 250 got %s", current)
+	assert.True(t, held.IsZero())
+	assert.Equal(t, string(model.StatusConfirmed), readReservationStatus(t, db, res.ID))
+
+	// Re-running the commit confirm must be a no-op.
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		var cErr error
+		flipped, cErr = repo.ConfirmByTransactionWithTx(ctx, tx, txID)
+
+		return cErr
+	}))
+	assert.Empty(t, flipped)
+
+	current, _ = readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, amount.Equal(current), "a re-run must not double-count; got %s", current)
+}

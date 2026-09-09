@@ -21,6 +21,7 @@ import (
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/buildinfo"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -192,6 +193,12 @@ func NewUnifiedServer(
 				libLog.String("drain_delay", DefaultDrainDelay.String()))
 			time.Sleep(DefaultDrainDelay)
 			logger.Log(context.Background(), libLog.LevelInfo, "Drain delay complete, proceeding with shutdown")
+
+			// Name any confirm/release still owed to the tracer. The retry that
+			// redelivers them is in-process, so whatever is still in flight here
+			// dies with the process; a rolling deploy would otherwise drop
+			// uncounted spends and held capacity with no log line at all.
+			command.ReportOutstandingReservationRetries(context.Background(), logger)
 
 			return nil
 		})

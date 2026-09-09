@@ -95,7 +95,7 @@ const upsertAtomicSQL = `
 				current_usage = usage_counters.current_usage + $7,
 				last_updated_at = $8,
 				expires_at = $11
-			WHERE usage_counters.current_usage + $9 <= $10
+			WHERE usage_counters.current_usage + usage_counters.reserved_usage + $9 <= $10
 			RETURNING current_usage, true as succeeded
 		)
 		SELECT 

@@ -96,16 +96,35 @@ collapsing the two into one failure/scale unit.
   the balance commit; a reject returns *before* any balance moves (`create_transaction_v2.go`).
   The tracer must therefore be **low-latency**, but each reservation's work is bounded per transaction.
 
-- **Confirm / Release are post-commit and best-effort (non-blocking).** After a successful balance
+- **Confirm / Release are post-commit and non-blocking.** After a successful balance
   commit, `confirmReservations` runs for non-PENDING transactions; on a commit failure
   `releaseReservations` runs (`services/command/create_transaction_v2.go`); PENDING defers confirm to
   `/commit` and release to `/cancel`, which the versioned transition use case answers
   (`services/command/commit_transaction.go`, `transitionPendingV2`, which names
   `confirmReservationsByTransaction` / `releaseReservationsByTransaction`).
-  Transport failures on confirm/release are logged at Warn,
-  span-recorded, and **never propagated** — the TTL reaper is the durability backstop
-  (`transaction_reservation_anchor.go:246-261, 282-289`). A tracer outage during the confirm/release
-  window degrades to reaper reconciliation, not request failure.
+  Transport failures on confirm/release are logged at Warn, span-recorded and **never propagated**,
+  so a tracer outage during this window never fails a transaction whose balances already moved.
+  They are **not dropped**, though: the failed transition is handed to
+  `transaction_reservation_retry.go`, which redelivers it off the request path with exponential
+  backoff and jitter — about six minutes across twenty attempts, capped at 256 concurrent sequences
+  process-wide. The retry is safe because the tracer, not the ledger, guarantees the repeat is free:
+  a confirm settles a reservation only while it is still settleable and the row flip is guarded on
+  the status read under the lock, so re-delivering a confirm whose response was lost moves no counter
+  twice.
+
+  The budget deliberately outlasts the tracer's own five-minute hold, because a confirm that arrives
+  after the hold expired is still worth delivering — the tracer counts the spend without disturbing
+  the capacity its expiry sweep already returned.
+
+  Two failures remain and both are reported at Error naming the transaction, the reservation and the
+  amount: a sequence that exhausts its budget, and a transition turned away because the concurrency
+  cap is full. The expiry sweep is no longer the durability story for a confirm; it is the backstop
+  for the CAPACITY only, and it returns capacity without ever counting the spend.
+
+  Residual, and deliberately not solved here: the retry is in-process, so a ledger restart with
+  sequences in flight loses them. Closing that needs durable state for the pending transition (the
+  `outbox` primitives in lib-commons, or reservation state on the transaction row) plus a sweeper —
+  a persistence decision, not a defect fix.
 
 Net: the tracer can stay a small replica set and tolerate occasional saturation on the post-commit path,
 while the pre-commit reserve path is the only latency-sensitive RPC — which is what co-scheduling (§2)
