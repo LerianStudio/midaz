@@ -29,7 +29,7 @@
 ### Primary Pattern: Hexagonal Architecture (Ports & Adapters)
 
 Midaz implements hexagonal architecture with clear separation between:
-- **Domain Layer**: Business logic in `services/command/` and `services/query/`
+- **Domain Layer**: Entities and value objects in `internal/domain/<context>/`; use-case orchestration in `services/command/` and `services/query/`
 - **Port Layer**: Interfaces defined where they are used (in the adapter or service package that owns the contract); the only cross-module port in `pkg/mbootstrap/` is the metadata-index contract
 - **Adapter Layer**: Technology-specific implementations in `adapters/`
 - **Bootstrap Layer**: Dependency injection in `bootstrap/`
@@ -113,6 +113,7 @@ components/{service}/
 │   ├── services/
 │   │   ├── command/          # Write operations (CQRS)
 │   │   └── query/            # Read operations (CQRS)
+│   ├── domain/                # Service-private entities and value objects, grouped by context
 │   └── bootstrap/            # DI & initialization
 ├── migrations/               # Database migrations
 ├── api/                      # OpenAPI (Huma OAS 3.1) docs — openapi.huma.yaml
@@ -130,11 +131,29 @@ components/{service}/
 | `mbootstrap/` | Service composition interfaces (Runnable, Service, MetadataIndexRepository) | `interfaces.go`, `metadata-index-repo.go` |
 | `constant/` | Error codes (4-digit core + `CRM-` prefixed), enums, constants | `errors.go`, `account.go`, `transaction.go` |
 | `net/http/` | HTTP utilities, error handling, Fiber middleware | HTTP response helpers |
-| `mtransaction/` | Transaction domain logic (balance validations, operation calculations); formerly `pkg/transaction` | `input.go`, `overdraft.go`, direction/refund/time helpers |
+| `mtransaction/` | Shared transaction domain logic and canonical types (balance validations, operation calculations); formerly `pkg/transaction` | `overdraft.go`, direction/refund/time helpers |
 | `streaming/` | lib-streaming event modeling (`pkgStreaming`) | `emit.go`, `tenant.go`, `events/` |
 | `mongo/` | MongoDB connection utilities | `ExtractMongoPortAndParameters` |
 | `shell/` | Shell execution utilities | Script helpers |
 | `utils/` | Common utilities (encryption, pointers, metrics) | General helpers, `metrics.go` |
+
+### Contract and Type Ownership
+
+Place a type with the layer that owns its semantics instead of collecting structs in a generic package:
+
+| Type | Owner | Naming |
+|------|-------|--------|
+| HTTP payload or projection | `internal/adapters/http/in/` (or the adapter for that transport) | `Request` / `Response` |
+| Use-case contract | The matching `services/command/` or `services/query/` package | `Input` / `Result` |
+| Service-private entity or value object | `components/<service>/internal/domain/<context>/` | Domain name, without `Input`, `DTO`, or `Model` |
+| Persistence representation | The owning PostgreSQL, MongoDB, Redis, or other outbound adapter | Private `record` / `row` type where possible |
+
+Do not create catch-all packages named `internal/pkg`, `models`, `dto`, `common`, or `shared`.
+The root `pkg/` tree remains for contracts that are genuinely shared across deploy surfaces; its existence
+does not make it the default home for new Ledger types. Migrate existing types gradually by vertical flow,
+updating callers to the new owner as each type moves. Do not perform a big-bang relocation or keep facade
+aliases solely to preserve the old Go import path. Wire compatibility (JSON fields, validation, and published
+OpenAPI schema names) must remain stable during an ownership migration.
 
 ### Components
 
