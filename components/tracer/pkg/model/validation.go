@@ -510,6 +510,28 @@ func (r *ValidationRequest) validateMetadata() error {
 	return nil
 }
 
+// MetadataKeyTooLongError reports a metadata key that is longer than the
+// key-length ceiling, and names the key and the ceiling that rejected it.
+//
+// The rejection the client reads has to say which key to shorten and how short
+// it must be; the bare sentinel carries neither, and the message built from it
+// left both blanks unfilled. Unwrap returns the sentinel, so anything matching
+// on constant.ErrMetadataKeyLengthExceeded keeps matching.
+type MetadataKeyTooLongError struct {
+	Key       string
+	MaxLength int
+}
+
+// Error returns the error code, matching what the bare sentinel produced.
+func (e MetadataKeyTooLongError) Error() string {
+	return constant.ErrMetadataKeyLengthExceeded.Error()
+}
+
+// Unwrap exposes the shared sentinel behind the named rejection.
+func (e MetadataKeyTooLongError) Unwrap() error {
+	return constant.ErrMetadataKeyLengthExceeded
+}
+
 // validateMetadataMap holds one metadata map to the advertised ceilings. A nil
 // map is absent, not empty, and passes.
 func validateMetadataMap(metadata map[string]any) error {
@@ -523,7 +545,7 @@ func validateMetadataMap(metadata map[string]any) error {
 
 	for key := range metadata {
 		if len(key) > trcConstant.MaxMetadataKeyLength {
-			return constant.ErrMetadataKeyLengthExceeded
+			return MetadataKeyTooLongError{Key: key, MaxLength: trcConstant.MaxMetadataKeyLength}
 		}
 
 		if !metadataKeyPattern.MatchString(key) {

@@ -145,7 +145,7 @@ func (h *ValidationHandler) validate(ctx context.Context, rawBody []byte) (*serv
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Request validation failed", err)
 
-		return nil, pkg.ValidateBusinessError(err, constant.EntityValidationRequest)
+		return nil, renderRequestRejection(err, constant.EntityValidationRequest)
 	}
 
 	span.SetAttributes(
@@ -204,4 +204,26 @@ func (h *ValidationHandler) classifyValidationError(span trace.Span, err error) 
 
 		return pkg.InternalServerError{Code: constant.ErrInternalServer.Error(), Title: "Internal Server Error", Message: "The server encountered an unexpected error. Please try again later or contact support."}
 	}
+}
+
+// renderRequestRejection turns a normalize-and-validate failure into the error
+// body the client receives.
+//
+// Most rejections are a bare sentinel the shared registry renders on its own.
+// The metadata key-length rejection is the exception: its message names the
+// offending key and the ceiling, and those only exist at the branch that
+// rejected the key, so they are passed through here. Without them the client
+// received Go format markers where the key and the number belong.
+func renderRequestRejection(err error, entityType string) error {
+	var keyTooLong model.MetadataKeyTooLongError
+	if errors.As(err, &keyTooLong) {
+		return pkg.ValidateBusinessError(
+			constant.ErrMetadataKeyLengthExceeded,
+			entityType,
+			keyTooLong.Key,
+			keyTooLong.MaxLength,
+		)
+	}
+
+	return pkg.ValidateBusinessError(err, entityType)
 }

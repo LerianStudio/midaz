@@ -128,7 +128,7 @@ func (h *ReservationHandler) reserve(ctx context.Context, rawBody []byte) (*Rese
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Request validation failed", err)
 
-		return nil, pkg.ValidateBusinessError(err, constant.EntityReservation)
+		return nil, renderRequestRejection(err, constant.EntityReservation)
 	}
 
 	span.SetAttributes(
