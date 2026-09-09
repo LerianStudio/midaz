@@ -379,6 +379,65 @@ live_observed: true
 unit: "1"
 ```
 
+### balance_engine_requests_total
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:98
+description: Accounting adapter invocations by bounded outcome, including replay and preflight rejection.
+labels: [outcome]
+label_values: [success, refused, technical_error, indeterminate]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### balance_engine_postings_total
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:58
+description: Requested postings in validated invocations, including replay; not applied movements or generated companions.
+labels: [type]
+label_values: [debit, credit, reserve, unreserve, hold, release]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### balance_engine_failures_total
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:101
+description: Accounting adapter failures by a closed protocol classification vocabulary.
+labels: [code]
+label_values: [context_canceled, invalid_scope, invalid_request, invalid_recovery, connection_unavailable, unsupported_transport, invalid_response, transport, invalid_failure, invalid_technical_failure, invalid_json, invalid_protocol, invalid_balance, balance_identity_mismatch, wrong_key_type, execution_fingerprint_conflict, execution_guard_conflict, version_overflow, invalid_companion, prepared_bytes_exceeded, request_bytes_exceeded, serialization_failed, script_runtime_failed, indeterminate, execution_outcome_unknown, invalid_receipt, unknown_technical_failure, invalid_normalization_failure, normalization_required, script_runtime, normalization_read_failed, normalization_balance_missing, normalization_invalid_balance, normalization_repair_failed, insufficient_funds, overdraft_limit_exceeded, overdraft_not_eligible, overdraft_companion_missing, stale_version, balance_deleted, onhold_underflow, balance_missing, unknown]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### balance_engine_cas_attempts_total / balance_engine_indeterminate_total
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/adapter.go:216 / components/ledger/internal/adapters/redis/engine/telemetry.go:105
+description: Accounting preflight attempts and invocations whose accounting outcome is unknown.
+labels: []
+label_cardinality_estimate: none
+live_observed: unknown
+unit: "1"
+```
+
+### balance_engine_recovery_total
+
+```yaml
+declared_at: components/ledger/internal/bootstrap/redis.consumer_recovery_metrics.go:24
+description: Bounded balance-engine recovery finalization outcomes.
+labels: [outcome]
+label_values: [completed, context_canceled, not_configured, finalization_failed, ack_failed, record_changed, invalid_ack]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
 ---
 
 ## Histograms
@@ -417,6 +476,50 @@ description: Time taken for one bulk processing batch.
 labels: []
 live_observed: true
 unit: ms
+```
+
+### balance_engine_duration_ms_milliseconds
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:19
+description: Complete accounting adapter invocation duration, including validation and normalization.
+labels: []
+label_cardinality_estimate: none
+live_observed: unknown
+unit: ms
+```
+
+### balance_engine_recovery_duration_ms_milliseconds
+
+```yaml
+declared_at: components/ledger/internal/bootstrap/redis.consumer_recovery_metrics.go:25
+description: Recovery finalization duration in milliseconds.
+labels: [outcome]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: ms
+```
+
+### balance_engine_request_size_bytes
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:25
+description: Validated accounting Lua JSON payload size, excluding Redis keys and RESP framing.
+labels: []
+label_cardinality_estimate: none
+live_observed: unknown
+unit: By
+```
+
+### balance_engine_pool_balance_count / balance_engine_touched_balance_count
+
+```yaml
+declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:31-37
+description: Full snapshot pool size and distinct balance references targeted by validated postings.
+labels: []
+label_cardinality_estimate: none
+live_observed: unknown
+unit: "1"
 ```
 
 Milliseconds rather than seconds throughout: the factory exposes `Int64Histogram`, so
