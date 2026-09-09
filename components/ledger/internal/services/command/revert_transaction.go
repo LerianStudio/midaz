@@ -33,6 +33,11 @@ type RevertTransactionInput struct {
 	OrganizationID uuid.UUID
 	LedgerID       uuid.UUID
 	TransactionID  uuid.UUID
+
+	// AccountBlockExceptionID is the single-use account-block exception the
+	// request presented, or nil when it presented none. Only the /v2 revert
+	// carries a body that can name one, and only createRevertV2 resolves it.
+	AccountBlockExceptionID *uuid.UUID
 }
 
 // KNOWN DEFECT — REVERT IDEMPOTENCY IS NOT SCOPED BY ORIGIN.
@@ -226,6 +231,8 @@ func (uc *UseCase) newRevertRun(in RevertTransactionInput, transactionReverted m
 		status:              constant.CREATED,
 		action:              constant.ActionRevert,
 		idempotencyTTL:      pkgHTTP.ParseIdempotencyTTL(""),
+
+		accountBlockExceptionID: in.AccountBlockExceptionID,
 	}
 }
 
@@ -447,6 +454,17 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
 	}
 
+	// Account-block exception: the /v2 revert accepts a grant, so resolve the
+	// presented identifier before balances are staged. createRevertV1 names this
+	// resolver nowhere, which is what keeps the /v1 revert free of the field.
+	run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(ctx, span, logger,
+		run.organizationID, run.ledgerID, run.accountBlockExceptionID)
+	if err != nil {
+		uc.rollbackCreateClaim(ctx, run)
+
+		return nil, false, err
+	}
+
 	ctx, err = uc.stageBalances(ctx, span, logger, run)
 	if err != nil {
 		return nil, false, err
@@ -472,6 +490,8 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 		Validate:          run.validate,
 		BalanceOperations: run.balanceOps,
 		TransactionStatus: run.status,
+
+		AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
 	})
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)

@@ -89,6 +89,7 @@ func TestProcessBalanceOperations(t *testing.T) {
 				constant.CREATED,
 				false,
 				gomock.Any(), // balance operations
+				gomock.Any(),
 			).
 			Return(&mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil)
 
@@ -295,8 +296,9 @@ func TestProcessBalanceOperations_DoubleEntrySplitting(t *testing.T) {
 					tt.transactionType,
 					false,
 					gomock.Any(),
+					gomock.Any(),
 				).
-				DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ uuid.UUID, _ string, _ bool, ops []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
+				DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ uuid.UUID, _ string, _ bool, ops []mmodel.BalanceOperation, _ *mtransaction.AccountBlockExceptionBinding) (*mmodel.BalanceAtomicResult, error) {
 					capturedOps = ops
 					return &mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil
 				})
@@ -413,8 +415,9 @@ func TestProcessBalanceOperations_DoubleEntry_SeenDeduplication(t *testing.T) {
 			constant.PENDING,
 			true, // validate.Pending
 			gomock.Any(),
+			gomock.Any(),
 		).
-		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ uuid.UUID, _ string, _ bool, ops []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ uuid.UUID, _ string, _ bool, ops []mmodel.BalanceOperation, _ *mtransaction.AccountBlockExceptionBinding) (*mmodel.BalanceAtomicResult, error) {
 			capturedOps = ops
 			return &mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil
 		})
@@ -594,6 +597,7 @@ func TestProcessBalanceOperations_RedisAtomicOperationFailure(t *testing.T) {
 			constant.CREATED,
 			false,
 			gomock.Any(),
+			gomock.Any(),
 		).
 		Return(nil, redisErr)
 
@@ -682,6 +686,7 @@ func TestProcessBalanceOperations_SkipsValidationWhenTransactionInputNil(t *test
 			gomock.Any(),
 			constant.APPROVED,
 			false,
+			gomock.Any(),
 			gomock.Any(),
 		).
 		Return(&mmodel.BalanceAtomicResult{Before: balances, After: balances}, nil)

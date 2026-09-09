@@ -284,6 +284,7 @@ POST	/v2/organizations/:organization_id/ledgers	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	4
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/block-exceptions	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	4
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	4

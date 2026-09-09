@@ -5,6 +5,7 @@
 package utils
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -360,4 +361,73 @@ func TestCacheKeyConstants(t *testing.T) {
 
 		assert.Equal(t, "lock:{transactions}:balance-sync:", BalanceSyncLockPrefix)
 	})
+}
+
+func TestAccountBlockExceptionInternalKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		exceptionID    uuid.UUID
+		expected       string
+	}{
+		{
+			name:           "standard exception key",
+			organizationID: uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
+			ledgerID:       uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
+			exceptionID:    uuid.MustParse("018f2c1e-6a3b-7c4d-8e5f-0a1b2c3d4e5f"),
+			expected:       "account_block_exception:{transactions}:550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:018f2c1e-6a3b-7c4d-8e5f-0a1b2c3d4e5f",
+		},
+		{
+			name:           "nil UUIDs (zero value)",
+			organizationID: uuid.Nil,
+			ledgerID:       uuid.Nil,
+			exceptionID:    uuid.Nil,
+			expected:       "account_block_exception:{transactions}:00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected,
+				AccountBlockExceptionInternalKey(tt.organizationID, tt.ledgerID, tt.exceptionID))
+		})
+	}
+}
+
+// TestAccountBlockExceptionInternalKey_SharesBalanceHashSlot locks the
+// co-location invariant the transaction EVAL depends on: an exception key and
+// the balance keys of the same ledger carry the IDENTICAL hash tag, so a
+// multi-key EVAL over both is legal in Redis Cluster. A key builder that
+// dropped or renamed the tag would route the exception to another slot and make
+// the consumption script fail at runtime, in cluster mode only.
+func TestAccountBlockExceptionInternalKey_SharesBalanceHashSlot(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+	exceptionKey := AccountBlockExceptionInternalKey(orgID, ledgerID, uuid.New())
+	balanceKey := BalanceInternalKey(orgID, ledgerID, "@fraud_account#default")
+
+	assert.Equal(t, hashTagOf(t, balanceKey), hashTagOf(t, exceptionKey),
+		"the exception key must share the balance keys' hash slot")
+}
+
+// hashTagOf extracts the "{...}" hash tag Redis Cluster keys a slot on.
+func hashTagOf(t *testing.T, key string) string {
+	t.Helper()
+
+	start := strings.Index(key, "{")
+	end := strings.Index(key, "}")
+
+	if start < 0 || end < start {
+		t.Fatalf("key %q carries no hash tag", key)
+	}
+
+	return key[start : end+1]
 }

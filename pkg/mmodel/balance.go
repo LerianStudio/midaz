@@ -82,6 +82,12 @@ type Balance struct {
 	// example: true
 	AllowReceiving bool `json:"allowReceiving" example:"true"`
 
+	// Blocked mirrors the owning account's blocked flag (accounts.blocked).
+	// Account-level cache-only state used by the transaction flow; excluded
+	// from JSON so balance API responses keep their contract — the account
+	// resource is the public surface for the blocked flag.
+	Blocked bool `json:"-"`
+
 	// Direction is the accounting direction of the balance. One of
 	// "credit" or "debit". Empty string denotes legacy rows predating the
 	// overdraft feature and is treated as "credit" by the engine.
@@ -268,6 +274,7 @@ func (b *Balance) ToTransactionBalance() (*mtransaction.Balance, error) {
 		AccountType:    b.AccountType,
 		AllowSending:   b.AllowSending,
 		AllowReceiving: b.AllowReceiving,
+		Blocked:        b.Blocked,
 		Direction:      b.Direction,
 		OverdraftUsed:  b.OverdraftUsed,
 		CreatedAt:      b.CreatedAt,
@@ -484,6 +491,10 @@ type BalanceRedis struct {
 
 	// Whether the account can receive funds (1=true, 0=false)
 	AllowReceiving int `json:"allowReceiving"`
+
+	// Whether the owning account is blocked (1=true, 0=false for Lua).
+	// Legacy blobs lack the field and decode as 0 (not blocked).
+	Blocked int `json:"blocked"`
 
 	// Accounting direction of the balance ("credit" or "debit")
 	Direction string `json:"direction"`

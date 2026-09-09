@@ -292,7 +292,7 @@ end
 local function main()
     local ttl = 86400 -- 1 day
 
-    local groupSize = 24
+    local groupSize = 25
     local returnBalances = {}
     local returnBalancesAfter = {}
     local rollbackBalances = {}
@@ -300,6 +300,86 @@ local function main()
     local transactionBackupQueue = KEYS[1]
     local transactionKey = KEYS[2]
     local scheduleKey = KEYS[3]
+
+    -- KEYS[4] is the account-block exception key, present ONLY when the request
+    -- body carried an accountBlockExceptionId. It shares the balance keys'
+    -- {transactions} hash tag, which is what makes this multi-key EVAL legal in
+    -- cluster mode and is why the grant can be validated and deleted in the same
+    -- atomic step that mutates the balances.
+    local exceptionKey = KEYS[4]
+
+    -- ARGV carries a header ahead of the per-operation groups. Its first THREE
+    -- slots are always present, whether or not a grant was presented:
+    --   ARGV[1] -> the source alias the caller's transaction debits, as Go
+    --              resolved it from the batch for the presented grant ("" when none)
+    --   ARGV[2] -> the amount that alias is debited by, canonical decimal string
+    --   ARGV[3] -> how many bypassed balance keys follow ("0" when none)
+    --   ARGV[4 .. 3+N] -> those N balance keys
+    --
+    -- The count makes the header self-describing, so the stride of every loop
+    -- below is derived once here and no loop has to know whether a grant exists.
+    local argvHeaderFixed = 3
+    local expectedGrantAlias = ARGV[1] or ""
+    local expectedGrantAmount = ARGV[2] or ""
+    local grantedKeyCount = tonumber(ARGV[3]) or 0
+    local argvHeader = argvHeaderFixed + grantedKeyCount
+
+    -- One logical debit can touch MORE THAN ONE balance of the granted account:
+    -- when the debit overdraws, the system derives an overdraft companion leg on
+    -- the same account. The companion's blob carries the same account-level
+    -- Blocked flag, so a bypass naming only the primary would be rejected on the
+    -- companion and a valid grant would be unusable on every overdrawing
+    -- transaction. Go decides the exact set; this is a lookup over it.
+    local grantedBalanceKeys = {}
+
+    for i = 1, grantedKeyCount do
+        grantedBalanceKeys[ARGV[argvHeaderFixed + i]] = true
+    end
+
+    -- Account-block exception: validate the presented grant against the
+    -- transaction BEFORE the block guard, so the guard can honor it, and delete
+    -- it only at the very END of a fully successful batch. Validating early and
+    -- deleting late is what makes the grant survive an abort: a script that
+    -- returns an error leaves its writes applied (Redis has no rollback), so a
+    -- DEL placed up here would burn a single-use grant on a batch that moved no
+    -- money. Single use is still guaranteed, because EVAL is atomic: two
+    -- concurrent transactions presenting the same identifier cannot both see the
+    -- key, and the one that reaches the DEL is the one that mutated balances.
+    --
+    -- A grant is consumed whenever it is presented and valid, even by a
+    -- transaction that needed no bypass -- an identifier must not survive a
+    -- request that presented it.
+    --
+    -- Expiry needs no comparison here: the key carries a native Redis TTL, so an
+    -- expired grant is simply absent.
+    local grantValidated = false
+
+    if exceptionKey then
+        if expectedGrantAlias == "" or expectedGrantAmount == "" or grantedKeyCount < 1 then
+            return redis.error_reply("0508")
+        end
+
+        local raw = redis.call("GET", exceptionKey)
+        if not raw then
+            return redis.error_reply("0508")
+        end
+
+        local ok, decoded = pcall(cjson.decode, raw)
+        if not ok or type(decoded) ~= "table" then
+            return redis.error_reply("0508")
+        end
+
+        if type(decoded.Alias) ~= "string" or type(decoded.Amount) ~= "string" then
+            return redis.error_reply("0508")
+        end
+
+        if decoded.Alias ~= expectedGrantAlias or
+            cmp_decimal(decoded.Amount, expectedGrantAmount) ~= 0 then
+            return redis.error_reply("0508")
+        end
+
+        grantValidated = true
+    end
 
     -- Schedule balance sync immediately (eligible for worker pickup right away).
     -- The worker uses a dual-trigger (size OR timeout) to batch multiple keys
@@ -319,16 +399,52 @@ local function main()
     -- shares the balance key's {transactions} hash slot. Running this pre-pass
     -- ahead of the first SET below means a rejection here leaves zero side
     -- effects across the batch, so no rollback is required. The stride mirrors
-    -- the main loop below (groupSize=24; ARGV[i] is the balance key). A bounded
+    -- the main loop below (groupSize=25; ARGV[i] is the balance key). A bounded
     -- per-key EXISTS check early-returns on the first delete marker found, so the
     -- whole batch is rejected without unpacking a client-influenced number of keys.
-    for i = 1, #ARGV, groupSize do
+    for i = argvHeader + 1, #ARGV, groupSize do
         if redis.call("EXISTS", ARGV[i] .. ":deleted") == 1 then
             return redis.error_reply("0019")
         end
     end
 
-    for i = 1, #ARGV, groupSize do
+    -- Account-block guard: reject the whole batch with 0502 before any mutation
+    -- when any involved balance (source AND destination -- the block is
+    -- bidirectional) belongs to a blocked account. The effective state mirrors
+    -- the SET NX semantics of the main loop: an existing cached blob wins over
+    -- the caller-supplied ARGV value (a legacy blob without the field counts as
+    -- not blocked); an absent key falls back to ARGV[i+24], the value the Go
+    -- hydration read from PostgreSQL. CANCELED batches skip the guard entirely
+    -- (RF-4C: a cancel only returns on-hold funds or aborts a future credit,
+    -- so blocking it would deadlock an innocent counterparty). A pending
+    -- created before the block is rejected on commit because this guard runs
+    -- on every execution. Like the delete-marker guard above, a rejection here
+    -- leaves zero side effects, so no rollback is required.
+    --
+    -- A validated single-use grant bypasses the rejection for exactly the
+    -- balances it authorizes (grantedBalanceKeys: the debited source balance plus
+    -- the overdraft companions the system derived from that same debit). Every
+    -- other balance in the batch still answers to the guard, so neither a blocked
+    -- destination nor a sibling balance of the source is let through.
+    for i = argvHeader + 1, #ARGV, groupSize do
+        if ARGV[i + 2] ~= "CANCELED" then
+            local blocked = tonumber(ARGV[i + 24]) or 0
+
+            local cur = redis.call("GET", ARGV[i])
+            if cur then
+                local ok, decoded = pcall(cjson.decode, cur)
+                if ok and type(decoded) == "table" then
+                    blocked = tonumber(decoded.Blocked) or 0
+                end
+            end
+
+            if blocked == 1 and not (grantValidated and grantedBalanceKeys[ARGV[i]]) then
+                return redis.error_reply("0502")
+            end
+        end
+    end
+
+    for i = argvHeader + 1, #ARGV, groupSize do
         local redisBalanceKey = ARGV[i]
         local isPending = tonumber(ARGV[i + 1])
         local transactionStatus = ARGV[i + 2]
@@ -356,6 +472,7 @@ local function main()
         --   - OverdraftLimitEnabled:Gates the OverdraftLimit check
         --   - OverdraftLimit:       Hard cap on OverdraftUsed (when enabled)
         --   - BalanceScope:         "transactional" / "internal" (cache-only)
+        --   - Blocked:              Account-block flag read by the pre-mutation guard above
         --
         -- Fields NOT used by Lua, but required in cache for Go pre-validation:
         --   - AssetCode:      Used by ValidateIfBalanceExistsOnRedis for validation 0034
@@ -386,6 +503,9 @@ local function main()
             OverdraftLimitEnabled = tonumber(ARGV[i + 20]),
             OverdraftLimit = ARGV[i + 21],
             BalanceScope = ARGV[i + 22],
+            -- Account-block flag (cache-only mirror of accounts.blocked;
+            -- enforced by the account-block guard pre-pass above)
+            Blocked = tonumber(ARGV[i + 24]),
         }
 
         -- Exact overdraft delta supplied by Go for pending-cancel reversals.
@@ -426,6 +546,9 @@ local function main()
             end
             if balance.BalanceScope == nil then
                 balance.BalanceScope = "transactional"
+            end
+            if balance.Blocked == nil then
+                balance.Blocked = 0
             end
         end
 
@@ -709,6 +832,13 @@ local function main()
 
             redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
         end
+    end
+
+    -- Consume the grant. Every abort above returns before this point, so an
+    -- identifier is burned only by a batch that ran to completion -- and it is
+    -- burned by every such batch, including one that needed no bypass.
+    if grantValidated then
+        redis.call("DEL", exceptionKey)
     end
 
     -- Handle empty array case: cjson encodes {} as object, but Go expects array

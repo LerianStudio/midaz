@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -80,6 +81,25 @@ type CreateTransactionV2Input struct {
 	// The controls it opts out of — the fee engine and the tracer reservation — exist only
 	// on this contract, so the field does too.
 	Skip *TransactionSkip `json:"skip,omitempty"`
+
+	// AccountBlockExceptionID presents a single-use account-block exception,
+	// minted by the block-exception create route. It authorizes ONE debit of an
+	// exact amount out of a blocked source account, and dies on this use.
+	//
+	// Additive and optional: an absent field leaves every barrier exactly as it
+	// was before the field existed. Present, it is validated and CONSUMED even by
+	// a transaction that needed no bypass — an identifier must not outlive a
+	// request that presented it — and a presented identifier that does not
+	// authorize this transaction's source account and debited amount rejects it.
+	//
+	// The DIRECT action accepts it; the HOLD rejects it (Translate, 0509), because
+	// a two-phase transaction would need two grants: one for the hold and one for
+	// the commit. A pending is released by presenting a grant on the commit.
+	//
+	// The field lives on this contract only, the same way Skip does, because the
+	// route that mints an exception is /v2-only: a /v1 body naming it is a 400
+	// unknown field.
+	AccountBlockExceptionID *string `json:"accountBlockExceptionId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid" doc:"Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action."`
 }
 
 // V2LegInput is one leg of a transaction side. Exactly ONE value expression per leg:
@@ -248,6 +268,10 @@ func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, V2Scope
 		return Transaction{}, V2Scope{}, err
 	}
 
+	if err := in.validateAccountBlockExceptionSurface(pending); err != nil {
+		return Transaction{}, V2Scope{}, err
+	}
+
 	value, err := decimal.NewFromString(in.Amount)
 	if err != nil || value.LessThanOrEqual(decimal.Zero) {
 		return Transaction{}, V2Scope{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
@@ -284,6 +308,76 @@ func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, V2Scope
 		Send:        send,
 		Skip:        cloneTransactionSkip(in.Skip),
 	}, scope, nil
+}
+
+// LifecycleV2Input is the OPTIONAL request body of the /v2 lifecycle actions that accept
+// a single-use account-block exception: commit and revert.
+//
+// Those two actions address an existing transaction and take every other input from the
+// URL, so they shipped bodiless. The grant cannot come from the URL — it is a secret an
+// operator mints out of band and hands to one request — so the actions grow a body whose
+// only field is that grant, and the body stays OPTIONAL: a request that sends none is the
+// exact request they accepted before, byte for byte.
+//
+// Cancel is deliberately absent. A cancel is never barred by an account block (it returns
+// on-hold funds or aborts a future credit, so blocking it would deadlock an innocent
+// counterparty), which leaves it nothing a grant could unlock.
+type LifecycleV2Input struct {
+	// AccountBlockExceptionID presents a single-use account-block exception. Optional;
+	// see CreateTransactionV2Input.AccountBlockExceptionID for what a grant authorizes
+	// and when it is consumed.
+	AccountBlockExceptionID *string `json:"accountBlockExceptionId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid" doc:"Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action."`
+}
+
+// AccountBlockException returns the presented exception identifier parsed into a UUID, or
+// nil when the body presented none.
+func (in LifecycleV2Input) AccountBlockException() (*uuid.UUID, error) {
+	return ParseAccountBlockExceptionID(in.AccountBlockExceptionID)
+}
+
+// validateAccountBlockExceptionSurface rejects an account-block exception presented on
+// the HOLD action. The two create actions share one body shape, so the surface rule
+// cannot be expressed as a field's presence or absence — it has to be checked against
+// the caller's pending intent, which is what the endpoint carries.
+//
+// The rejection is EXPLICIT rather than a silent drop: a caller who mints a grant and
+// presents it on a hold has to learn that the hold consumed nothing, otherwise it looks
+// like the pending is already authorized and the commit fails later for reasons that
+// name no field.
+func (in CreateTransactionV2Input) validateAccountBlockExceptionSurface(pending bool) error {
+	if pending && in.AccountBlockExceptionID != nil {
+		return pkg.ValidateBusinessError(constant.ErrAccountBlockExceptionNotSupported, constant.EntityTransaction, "hold")
+	}
+
+	return nil
+}
+
+// AccountBlockException returns the presented exception identifier parsed into a UUID,
+// or nil when the body presented none.
+func (in CreateTransactionV2Input) AccountBlockException() (*uuid.UUID, error) {
+	return ParseAccountBlockExceptionID(in.AccountBlockExceptionID)
+}
+
+// ParseAccountBlockExceptionID parses an optional account-block exception identifier.
+// nil in, nil out.
+//
+// An HTTP caller never reaches the failure branch: the field's `uuid` validate tag
+// refuses a malformed value at decode with a 400 naming the field. What does reach it
+// is an input assembled in Go that skipped the decoder, and a value that cannot be a
+// UUID cannot name a minted exception either — so it is refused as an invalid
+// exception (0508) rather than dropped, which would silently downgrade the request to
+// one presenting no grant at all.
+func ParseAccountBlockExceptionID(raw *string) (*uuid.UUID, error) {
+	if raw == nil {
+		return nil, nil
+	}
+
+	parsed, err := uuid.Parse(*raw)
+	if err != nil {
+		return nil, pkg.ValidateBusinessError(constant.ErrAccountBlockExceptionInvalid, constant.EntityTransaction)
+	}
+
+	return &parsed, nil
 }
 
 // validateSidesPresent rejects a request whose debit or credit side is empty, naming the field
