@@ -365,10 +365,20 @@ $$ LANGUAGE plpgsql;
 -- arbitrary schema and still accepts a role-named one. current_schema() is the
 -- schema the CREATE TABLE above just used, whatever that schema is, and holds
 -- no element a caller can influence.
+--
+-- pg_temp is named LAST, and naming it at all is the point. PostgreSQL searches
+-- the session's TEMPORARY schema before every schema in the path when it
+-- resolves a relation, unless the path lists pg_temp explicitly - in which case
+-- it is searched in the position given. Pinning the migration's schema alone
+-- therefore leaves the cheapest shadow of all open: any connected role runs
+-- CREATE TEMP TABLE audit_hash_legacy_boundary and every verification on that
+-- session reads a floor of its choosing. It needs no CREATE anywhere, only the
+-- TEMPORARY privilege, which PostgreSQL grants to PUBLIC on every database by
+-- default. Listing pg_temp last puts the real floor first.
 DO $pin$
 BEGIN
     EXECUTE format(
-        'ALTER FUNCTION verify_audit_hash_chain(BIGINT, BIGINT) SET search_path = %I',
+        'ALTER FUNCTION verify_audit_hash_chain(BIGINT, BIGINT) SET search_path = %I, pg_temp',
         current_schema());
 END
 $pin$;

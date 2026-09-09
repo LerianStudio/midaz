@@ -570,12 +570,16 @@ func TestIntegration_AuditHashChain_BoundaryIsAppendOnly(t *testing.T) {
 // create its own floor in a schema it owns and have every verification it runs
 // read that one instead.
 //
-// Two shapes are pinned, because the obvious one-clause fix only stops the
-// first. `SET search_path FROM CURRENT` captures the literal text of the
-// migrating session's path, which is `"$user", public` wherever nothing sets
-// one; $user is re-resolved to the CALLING role at execution time, so a schema
-// named after that role keeps shadowing the floor. The migration pins the
-// RESOLVED schema instead, which stops both.
+// Three shapes are pinned, because each obvious fix stops only the one before
+// it. `SET search_path FROM CURRENT` captures the literal text of the migrating
+// session's path, which is `"$user", public` wherever nothing sets one; $user
+// is re-resolved to the CALLING role at execution time, so a schema named after
+// that role keeps shadowing the floor. Pinning the RESOLVED schema stops both
+// of those and still leaves the temporary schema, which PostgreSQL searches
+// before the whole path unless the path names pg_temp — and which costs a
+// caller nothing at all, since TEMPORARY is granted to PUBLIC by default. The
+// migration pins the resolved schema and names pg_temp last, which stops all
+// three.
 func TestIntegration_AuditHashChain_RefusesAShadowFloorFromTheCallersSearchPath(t *testing.T) {
 	// plantShadowFloor builds a maximal floor in schemaSQL, an expression the
 	// caller supplies so the schema can be named after the connecting role.
@@ -648,6 +652,60 @@ func TestIntegration_AuditHashChain_RefusesAShadowFloorFromTheCallersSearchPath(
 		isValid, firstInvalidID, _ := verifyFromGenesis(t, tx)
 		require.False(t, isValid,
 			`the verifier MUST NOT resolve the floor through the "$user" element of a search_path, which names the CALLING role`)
+		require.Equal(t, target, firstInvalidID.Int64, "the converted row MUST still be flagged")
+	})
+
+	t.Run("a temp table planted by a role that can create nothing permanent", func(t *testing.T) {
+		tx := beginRolledBackTx(t)
+		ctx := context.Background()
+		target := aSleeperAboveTheFloor(t, tx)
+
+		// The cheapest shadow of the three, and the one a pinned path does not
+		// close on its own: PostgreSQL searches the session's TEMPORARY schema
+		// before every schema in the path when it resolves a relation, unless
+		// the path lists pg_temp. So the caller needs no schema and no CREATE
+		// anywhere — only a connection.
+		for _, stmt := range []string{
+			"CREATE ROLE floor_shadow_reader NOLOGIN",
+			"GRANT USAGE ON SCHEMA public TO floor_shadow_reader",
+			"GRANT SELECT ON audit_events TO floor_shadow_reader",
+		} {
+			_, err := tx.ExecContext(ctx, stmt)
+			require.NoError(t, err, "provision the least-privilege reader: %s", stmt)
+		}
+
+		// Migration 000004's own production guidance describes exactly this
+		// role: it reads the trail and owns nothing. Asserted, not assumed,
+		// because "any connected role" is what makes this shadow worth closing.
+		var canCreateInDB, canCreateInSchema, canCreateTemp bool
+		require.NoError(t, tx.QueryRowContext(ctx, `
+			SELECT has_database_privilege('floor_shadow_reader', current_database(), 'CREATE'),
+			       has_schema_privilege('floor_shadow_reader', 'public', 'CREATE'),
+			       has_database_privilege('floor_shadow_reader', current_database(), 'TEMPORARY')`,
+		).Scan(&canCreateInDB, &canCreateInSchema, &canCreateTemp), "read the reader's privileges")
+		require.False(t, canCreateInDB, "the reader must hold no CREATE on the database")
+		require.False(t, canCreateInSchema, "the reader must hold no CREATE on the schema")
+		require.True(t, canCreateTemp,
+			"PostgreSQL grants TEMPORARY to PUBLIC on every database, which is the whole cost of this attack")
+
+		_, err := tx.ExecContext(ctx, "SET LOCAL ROLE floor_shadow_reader")
+		require.NoError(t, err, "become the least-privilege reader")
+
+		for _, stmt := range []string{
+			`CREATE TEMP TABLE audit_hash_legacy_boundary (
+			     singleton BOOLEAN PRIMARY KEY DEFAULT TRUE,
+			     max_legacy_id BIGINT NOT NULL,
+			     recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
+			`INSERT INTO pg_temp.audit_hash_legacy_boundary (singleton, max_legacy_id)
+			 VALUES (TRUE, 9223372036854775807)`,
+		} {
+			_, err := tx.ExecContext(ctx, stmt)
+			require.NoError(t, err, "plant the temp-schema shadow floor: %s", stmt)
+		}
+
+		isValid, firstInvalidID, _ := verifyFromGenesis(t, tx)
+		require.False(t, isValid,
+			"the verifier MUST NOT resolve the floor through the session's temporary schema, which every connected role can write")
 		require.Equal(t, target, firstInvalidID.Int64, "the converted row MUST still be flagged")
 	})
 }
