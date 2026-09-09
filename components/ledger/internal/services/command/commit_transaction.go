@@ -141,8 +141,9 @@ func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransiti
 // capacity but deferred the confirm/release to this state transition; /commit and
 // /cancel carry only the transaction id, so the tracer is addressed by transaction id
 // and flips every RESERVED reservation the transaction holds. Non-blocking: a transport
-// failure never fails the request — the TTL reaper reconciles. The long-lived TTL hint
-// set at create-pending keeps these reservations alive until this transition.
+// failure never fails the request; it is retried off the request path instead. The
+// long-lived TTL hint set at create-pending keeps these reservations alive until this
+// transition.
 func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransitionRun) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -162,11 +163,13 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 		return nil, err
 	}
 
+	identity := run.reservationIdentity()
+
 	switch run.status {
 	case constant.APPROVED:
-		uc.confirmReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.tran.IDtoUUID(), run.honoredTracerSkip)
+		uc.confirmReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, identity, run.honoredTracerSkip)
 	case constant.CANCELED:
-		uc.releaseReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.tran.IDtoUUID(), run.honoredTracerSkip)
+		uc.releaseReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, identity, run.honoredTracerSkip)
 	}
 
 	return uc.finalizePendingTransition(ctx, span, logger, run, unlock)
