@@ -290,7 +290,11 @@ local function rollback(rollbackBalances, ttl)
 end
 
 local function main()
-    local ttl = 86400 -- 1 day
+    -- Balance snapshots live for 86400 seconds. The command-layer delete marker
+    -- deliberately lives longer than this snapshot lifetime, so a failed
+    -- post-commit cache eviction cannot expose a deleted balance to a later
+    -- atomic operation after the marker expires.
+    local ttl = 86400 -- 1 day; keep in sync with balanceCacheSnapshotTTLSeconds
 
     local groupSize = 25
     local returnBalances = {}
@@ -394,16 +398,25 @@ local function main()
     local dueAt = tonumber(timeNow[1]) + tonumber(timeNow[2]) / 1000000
 
     -- Delete marker guard: reject the whole batch before any mutation if any balance
-    -- in it carries a live deletion marker. The delete marker is a SEPARATE key
-    -- "<balanceKey>:deleted" that never overwrites the balance itself, and it
-    -- shares the balance key's {transactions} hash slot. Running this pre-pass
+    -- in it carries a live deletion marker. New writers use a dedicated top-level namespace,
+    -- while the legacy :deleted marker remains honored during one rolling-deploy release.
+    -- The namespace shares the balance key's {transactions} hash slot. Running this pre-pass
     -- ahead of the first SET below means a rejection here leaves zero side
     -- effects across the batch, so no rollback is required. The stride mirrors
     -- the main loop below (groupSize=25; ARGV[i] is the balance key). A bounded
     -- per-key EXISTS check early-returns on the first delete marker found, so the
     -- whole batch is rejected without unpacking a client-influenced number of keys.
+    local deleteMarkerNamespacePrefix = "balance_delete_marker:{transactions}:"
+    local balanceNamespacePrefix = "balance:{transactions}:"
     for i = argvHeader + 1, #ARGV, groupSize do
-        if redis.call("EXISTS", ARGV[i] .. ":deleted") == 1 then
+        local markerKey, replacements = string.gsub(ARGV[i], balanceNamespacePrefix, deleteMarkerNamespacePrefix, 1)
+        if replacements == 0 then
+            markerKey = deleteMarkerNamespacePrefix .. ARGV[i]
+        end
+
+        -- Keep this legacy check until all old binaries are retired. New writers dual-write both
+        -- markers so old Lua, which only checks this suffix, remains safe in the mixed fleet.
+        if redis.call("EXISTS", markerKey) == 1 or redis.call("EXISTS", ARGV[i] .. ":deleted") == 1 then
             return redis.error_reply("0019")
         end
     end
