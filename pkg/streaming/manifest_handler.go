@@ -19,6 +19,9 @@ import (
 // triple. It is the single source of truth for how a Definition becomes a
 // catalog entry, shared by the per-binary emitter catalog (which may append
 // extra entries, e.g. billing) and the catalog-only manifest built here.
+//
+// Every entry carries deliveryPolicy() so the policy the manifest advertises is
+// the policy the binary implements.
 func CatalogEntriesFromDefinitions(defs []events.Definition) []libStreaming.EventDefinition {
 	entries := make([]libStreaming.EventDefinition, 0, len(defs))
 
@@ -28,10 +31,35 @@ func CatalogEntriesFromDefinitions(defs []events.Definition) []libStreaming.Even
 			ResourceType:  def.ResourceType,
 			EventType:     def.EventType,
 			SchemaVersion: def.SchemaVersion,
+			DefaultPolicy: deliveryPolicy(),
 		})
 	}
 
 	return entries
+}
+
+// deliveryPolicy is the delivery policy midaz can honour for every event it
+// publishes: a direct publish to the application topic, the library's DLQ
+// routing on a routable failure, and NO outbox.
+//
+// Outbox is pinned to OutboxModeNever because midaz passes neither an outbox
+// writer nor an outbox repository and registers no relay. Left unset, the
+// library backfills its own default (fallback_on_circuit_open), which the
+// manifest then publishes on the /v1/streaming/manifest document as a retained
+// copy on broker failure — a copy nothing writes, next to a publisher block
+// that already reports outboxSupported=false. A consumer that reconciles on
+// "the record exists, so the event cannot have been lost" diverges silently.
+//
+// Enabled is set explicitly: lib-streaming only treats a FULL zero-value policy
+// as "use the default", and a partial policy that leaves Enabled false makes
+// every Emit a silent no-op.
+func deliveryPolicy() libStreaming.DeliveryPolicy {
+	return libStreaming.DeliveryPolicy{
+		Enabled: true,
+		Direct:  libStreaming.DirectModeDirect,
+		Outbox:  libStreaming.OutboxModeNever,
+		DLQ:     libStreaming.DLQModeOnRoutableFailure,
+	}
 }
 
 // NewManifestHandler builds the catalog-only lib-streaming manifest HTTP handler

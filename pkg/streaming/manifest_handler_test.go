@@ -23,16 +23,23 @@ import (
 // (eventKey) and its class.
 type manifestEnvelope struct {
 	Publisher struct {
-		ServiceName string `json:"serviceName"`
-		Source      string `json:"source"`
+		ServiceName     string `json:"serviceName"`
+		Source          string `json:"source"`
+		OutboxSupported bool   `json:"outboxSupported"`
 	} `json:"publisher"`
 	Topic         string `json:"topic"`
 	DLQTopic      string `json:"dlqTopic"`
 	CommandsTopic string `json:"commandsTopic"`
 	Events        []struct {
-		Key      string `json:"key"`
-		EventKey string `json:"eventKey"`
-		Class    string `json:"class"`
+		Key           string `json:"key"`
+		EventKey      string `json:"eventKey"`
+		Class         string `json:"class"`
+		DefaultPolicy struct {
+			Enabled bool   `json:"enabled"`
+			Direct  string `json:"direct"`
+			Outbox  string `json:"outbox"`
+			DLQ     string `json:"dlq"`
+		} `json:"defaultPolicy"`
 	} `json:"events"`
 }
 
@@ -173,5 +180,58 @@ func TestCatalogEntriesFromDefinitions_Mapping(t *testing.T) {
 		require.Equal(t, def.ResourceType, entries[i].ResourceType)
 		require.Equal(t, def.EventType, entries[i].EventType)
 		require.Equal(t, def.SchemaVersion, entries[i].SchemaVersion)
+	}
+}
+
+// TestManifestAdvertisesNoOutboxFallback pins the delivery policy the manifest
+// publishes for every event. Midaz wires no outbox writer and no relay, so an
+// advertised outbox fallback is a durability guarantee no deployment can honour:
+// a consumer reading defaultPolicy.outbox would build reconciliation on a
+// retained copy that is never written. The policy must therefore name the
+// outbox mode midaz implements (never), while delivery itself stays enabled --
+// a partial policy that forgets Enabled makes lib-streaming drop every event.
+func TestManifestAdvertisesNoOutboxFallback(t *testing.T) {
+	t.Parallel()
+
+	handler, err := pkgStreaming.NewManifestHandler("ledger", "ledger", sampleDefs())
+	require.NoError(t, err)
+
+	doc := serveManifest(t, handler)
+	require.Len(t, doc.Events, len(sampleDefs()))
+
+	require.False(t, doc.Publisher.OutboxSupported,
+		"midaz declares no outbox support; the per-event policy must agree with it")
+
+	for _, event := range doc.Events {
+		require.Equal(t, "never", event.DefaultPolicy.Outbox,
+			"event %q must not advertise an outbox path midaz never writes to", event.EventKey)
+		require.True(t, event.DefaultPolicy.Enabled,
+			"event %q must stay enabled; a disabled policy silently drops every emit", event.EventKey)
+		require.Equal(t, "direct", event.DefaultPolicy.Direct,
+			"event %q publishes straight to the broker", event.EventKey)
+		require.Equal(t, "on_routable_failure", event.DefaultPolicy.DLQ,
+			"event %q keeps the library DLQ routing", event.EventKey)
+	}
+}
+
+// TestCatalogEntriesDeclareNoOutbox locks the same policy on the shared mapper,
+// which feeds both binaries' emitter catalogs as well as their manifests, and
+// resolves it through the function the emit hot path calls. lib-streaming
+// rejects an event whose resolved policy is not Enabled, so this is the guard
+// that a declared policy never turns the producer into a silent no-op.
+func TestCatalogEntriesDeclareNoOutbox(t *testing.T) {
+	t.Parallel()
+
+	for _, entry := range pkgStreaming.CatalogEntriesFromDefinitions(sampleDefs()) {
+		require.Equal(t, libStreaming.OutboxModeNever, entry.DefaultPolicy.Outbox, entry.Key)
+
+		resolved, err := libStreaming.ResolveDeliveryPolicy(
+			entry,
+			libStreaming.DeliveryPolicyOverride{},
+			libStreaming.DeliveryPolicyOverride{},
+		)
+		require.NoError(t, err, entry.Key)
+		require.True(t, resolved.Enabled, "%s must stay deliverable", entry.Key)
+		require.Equal(t, libStreaming.OutboxModeNever, resolved.Outbox, entry.Key)
 	}
 }
