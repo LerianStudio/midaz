@@ -47,6 +47,37 @@ const reserveScopeLockSQL = `SELECT pg_advisory_xact_lock($1)`
 // starve the pool.
 const reserveLockTimeout = 3 * time.Second
 
+// insertReservationReturningIDSQL inserts the reservation row idempotently on the
+// (transaction_id, limit_id, scope_key, period_key) tuple and returns the id of
+// the row that owns the capacity, together with whether THIS call created it.
+//
+// The two branches are mutually exclusive by construction: the data-modifying CTE
+// runs to completion first, so either it produced a row (a first insert, inserted
+// = true) or it produced none and the NOT EXISTS lets the plain SELECT return the
+// pre-existing row (a replay, inserted = false).
+//
+// Returning the existing row's id on the replay is what keeps a retried reserve's
+// handle valid. Without it the caller keeps its freshly generated id, which
+// matches no row, and the ledger's confirm against that handle fails with
+// ErrReservationNotFound while the capacity stays held.
+const insertReservationReturningIDSQL = `
+	WITH inserted AS (
+		INSERT INTO usage_reservations (
+			id, limit_id, scope_key, period_key, amount, status,
+			transaction_id, reservation_expires_at, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) DO NOTHING
+		RETURNING id
+	)
+	SELECT id, true AS inserted FROM inserted
+	UNION ALL
+	SELECT id, false AS inserted
+	FROM usage_reservations
+	WHERE transaction_id = $7 AND limit_id = $2 AND scope_key = $3 AND period_key = $4
+	  AND NOT EXISTS (SELECT 1 FROM inserted)
+`
+
 // reserveLockTimeoutSQL bounds the reserve transaction's lock wait. set_config with
 // is_local=true is the SET LOCAL equivalent that accepts a bind parameter, so the
 // timeout applies only within the current transaction and reverts at commit/rollback,
@@ -60,10 +91,12 @@ const reserveLockTimeoutSQL = `SELECT set_config('lock_timeout', $1, true)`
 // move, AND the caller's audit write all commit in ONE transaction owned by the
 // service (mirroring the RuleRepository/LimitRepository *WithTx pattern).
 //
-//   - ReserveWithTx: inserts the reservation row (idempotent on the 4-tuple) FIRST,
-//     then seeds usage_counters.reserved_usage via the reserve CTE (guarded on
+//   - ReserveWithTx: inserts the reservation row (idempotent on the 4-tuple) FIRST
+//     and reads back the id of the row that owns the capacity, then seeds
+//     usage_counters.reserved_usage via the reserve CTE (guarded on
 //     current_usage + reserved_usage + amount <= maxAmount) only when that insert
-//     added a new row, so a replay never moves the counter twice.
+//     added a new row, so a replay never moves the counter twice and never hands
+//     back a handle that owns no row.
 //   - ConfirmWithTx: moves the amount reserved_usage -> current_usage AND flips the
 //     row to CONFIRMED, guarded WHERE status='RESERVED'.
 //   - ReleaseWithTx: returns the amount from reserved_usage AND flips the row to
@@ -120,8 +153,13 @@ func (r *UsageReservationRepository) AcquireReserveScopeLock(ctx context.Context
 // limit_id, scope_key, period_key) tuple FIRST, then — only when that insert added a
 // new row — seeds the counter's reserved_usage via the reserve CTE, both on the
 // supplied transaction handle. A replay for an existing 4-tuple hits ON CONFLICT DO
-// NOTHING (zero rows affected) and returns without touching the counter, so the held
-// capacity is never counted twice.
+// NOTHING and returns without touching the counter, so the held capacity is never
+// counted twice.
+//
+// On BOTH branches reservation.ID is overwritten with the id of the row that owns
+// the capacity. On a first insert that is the caller's own generated id; on a
+// replay it is the existing row's id, so the handle the caller goes on to confirm
+// or release with always addresses a real row.
 //
 // maxAmount is the limit ceiling the reserve CTE guards against; it is supplied by
 // the caller (the limit it resolved) and is NOT stored on the reservation row.
@@ -156,18 +194,14 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		return err
 	}
 
-	insertSQL := `
-		INSERT INTO usage_reservations (
-			id, limit_id, scope_key, period_key, amount, status,
-			transaction_id, reservation_expires_at, created_at
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) DO NOTHING
-	`
+	var (
+		rowID    uuid.UUID
+		inserted bool
+	)
 
-	result, err := db.ExecContext(
+	err := db.QueryRowContext(
 		ctx,
-		insertSQL,
+		insertReservationReturningIDSQL,
 		reservation.ID,
 		reservation.LimitID,
 		reservation.ScopeKey,
@@ -177,21 +211,36 @@ func (r *UsageReservationRepository) ReserveWithTx(ctx context.Context, db pgdb.
 		reservation.TransactionID,
 		reservation.ReservationExpiresAt,
 		reservation.CreatedAt,
-	)
+	).Scan(&rowID, &inserted)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		// Neither branch produced a row: the conflicting row was written by a
+		// transaction this statement's snapshot cannot see. The per-account
+		// advisory lock the reserve takes first makes that unreachable in
+		// production; fail closed rather than hand back a handle that owns
+		// nothing, which is the very defect this query exists to prevent.
+		err = errors.New("reserve resolved no owning reservation row")
+
+		libOtel.HandleSpanError(span, "Reserve resolved no owning reservation row", err)
+
+		return err
+	}
+
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to insert reservation row", err)
 		return fmt.Errorf("failed to insert reservation row: %w", err)
 	}
 
-	inserted, err := result.RowsAffected()
-	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to read reservation rows affected", err)
-		return fmt.Errorf("failed to read reservation rows affected: %w", err)
-	}
+	// The row that owns the capacity is authoritative over the caller's generated
+	// id. On a first insert they are the same; on a replay this adopts the
+	// existing row's id so the handle the caller confirms or releases with
+	// addresses a real row.
+	reservation.ID = rowID
 
-	// Zero rows means the 4-tuple already exists: an idempotent replay. The capacity
-	// was reserved on the first call, so return without re-moving the counter.
-	if inserted == 0 {
+	// Not inserted means the 4-tuple already exists: an idempotent replay. The
+	// capacity was reserved on the first call, so return without re-moving the
+	// counter.
+	if !inserted {
 		span.SetAttributes(attribute.Bool("app.reservation_replay", true))
 
 		logger.With(

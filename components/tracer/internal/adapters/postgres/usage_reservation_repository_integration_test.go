@@ -539,3 +539,71 @@ func TestIntegration_UsageReservationRepository_FractionalCap_Denies(t *testing.
 	assert.True(t, half.Equal(reserved),
 		"denied reserve must leave reserved_usage at the first 0.50; got %s", reserved)
 }
+
+// TestIntegration_UsageReservationRepository_ReserveReplay_HandleOwnsExistingRow
+// reproduces the ledger's ordinary at-least-once retry end to end: reserve,
+// retry the SAME reserve, then confirm with the handle the retry returned, and
+// assert what the cap counted.
+//
+// The retry builds a SECOND model.NewReservation for the same 4-tuple, which is
+// exactly what the reservation service does per call — a FRESH row id. Before the
+// fix ReserveWithTx left that fresh id untouched on the replay branch, so the
+// caller held a handle matching zero rows: the confirm failed with
+// ErrReservationNotFound, the ledger swallowed it at Warn, and a spend that
+// actually committed was never counted against the customer's cap.
+func TestIntegration_UsageReservationRepository_ReserveReplay_HandleOwnsExistingRow(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	repo := newReservationRepoIntegration(db)
+
+	limitID := createTestLimit(t, db, 8531)
+	t.Cleanup(func() { cleanupTestLimit(t, db, limitID) })
+
+	scopeKey := "acct:8531-" + testutil.MustDeterministicUUID(8541).String()[:8]
+	periodKey := "2026-06"
+
+	ctx := context.Background()
+	now := testutil.FixedTime()
+	txID := testutil.MustDeterministicUUID(8551)
+	amount := decimal.NewFromInt(400)
+	maxAmount := decimal.NewFromInt(1000)
+
+	newReserve := func() *model.Reservation {
+		res, err := model.NewReservation(limitID, txID, scopeKey, periodKey, amount, now.Add(5*time.Minute), now)
+		require.NoError(t, err)
+
+		return res
+	}
+
+	first := newReserve()
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReserveWithTx(ctx, tx, first, maxAmount)
+	}))
+
+	// The retry: same 4-tuple, fresh row id, exactly as the service generates it.
+	retry := newReserve()
+	require.NotEqual(t, first.ID, retry.ID, "the retry must start with a fresh id, as the service generates it")
+
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ReserveWithTx(ctx, tx, retry, maxAmount)
+	}))
+
+	assert.Equal(t, first.ID, retry.ID,
+		"a replayed reserve must hand back the id of the row that owns the held capacity")
+
+	current, reserved := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, current.IsZero(), "replay must not touch current_usage; got %s", current)
+	assert.True(t, amount.Equal(reserved), "replay must not double-hold; want 400 got %s", reserved)
+
+	// The ledger commits and confirms with the handle the RETRY returned.
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error {
+		return repo.ConfirmWithTx(ctx, tx, retry.ID)
+	}), "confirm with the retried reserve's handle must find the row")
+
+	current, reserved = readCounterDecimal(t, db, limitID, scopeKey, periodKey)
+	assert.True(t, amount.Equal(current),
+		"the committed spend must be counted against the cap; want 400 got %s", current)
+	assert.True(t, reserved.IsZero(), "confirm must drain the hold; got %s", reserved)
+	assert.Equal(t, string(model.StatusConfirmed), readReservationStatus(t, db, first.ID))
+}
