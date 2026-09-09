@@ -217,6 +217,12 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 		return nil, err
 	}
 
+	if update.AllowSending != nil || update.AllowReceiving != nil {
+		if err := uc.propagateBalanceAllowFlagsToCache(ctx, span, logger, organizationID, ledgerID, balance, update); err != nil {
+			return nil, err
+		}
+	}
+
 	// Publish events for both branches in order: the companion's
 	// config_changed{overdraft_enabled} (when ensureOverdraftBalance
 	// materialized a fresh row), then the parent's
@@ -229,29 +235,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 
 	uc.emitBalanceConfigChangedEvent(ctx, span, logger, balance, events.BalanceConfigChangeTypeSettingsUpdated)
 
-	// Overlay amounts from Redis cache when available to ensure freshest values
-	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balance.Alias+"#"+balance.Key)
-
-	value, rerr := uc.TransactionRedisRepo.Get(ctx, internalKey)
-	if rerr != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache value on redis", rerr)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to get balance cache value on Redis", libLog.Err(rerr))
-	}
-
-	if value != "" {
-		cached := mmodel.BalanceRedis{}
-		if uerr := json.Unmarshal([]byte(value), &cached); uerr != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal balance cache value", libLog.Err(uerr))
-		} else {
-			balance.Available = cached.Available
-			balance.OnHold = cached.OnHold
-			balance.Version = cached.Version
-
-			if ou, perr := decimal.NewFromString(cached.OverdraftUsed); perr == nil {
-				balance.OverdraftUsed = ou
-			}
-		}
-	}
+	uc.overlayBalanceAmountsFromCache(ctx, span, logger, organizationID, ledgerID, balance)
 
 	// When the caller updates overdraft/scope Settings, rewrite ONLY those
 	// fields in the cached JSON blob in place. Deleting the key would discard
@@ -265,9 +249,9 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	// above. A cache miss inside the repo is a no-op — the next transaction
 	// will load the freshly-persisted settings via the Lua SETNX path.
 	//
-	// Non-settings updates (e.g. AllowSending, AllowReceiving) do not trigger
-	// this rewrite: those fields are not part of the settings contract this
-	// method guards, and leaving the cache alone avoids a useless round-trip.
+	// AllowSending/AllowReceiving are not part of the settings contract this
+	// rewrite guards; they travel through their own fail-closed propagation
+	// above (propagateBalanceAllowFlagsToCache).
 	//
 	// This is best-effort: the PostgreSQL write is already durable, so a
 	// Redis-side failure here is logged and swallowed. A subsequent cache
@@ -281,6 +265,71 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	}
 
 	return balance, nil
+}
+
+// overlayBalanceAmountsFromCache overlays amounts from the Redis cache onto a
+// balance when available, to ensure the freshest values: the cached blob is the
+// live transactional state the Lua atomic script mutates, and may be ahead of
+// PostgreSQL while write-behind sync is pending.
+//
+// Best-effort: a Redis read failure or an undecodable blob leaves the
+// PostgreSQL-derived values in place and is logged at Warn.
+func (uc *UseCase) overlayBalanceAmountsFromCache(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) {
+	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balance.Alias+"#"+balance.Key)
+
+	value, rerr := uc.TransactionRedisRepo.Get(ctx, internalKey)
+	if rerr != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache value on redis", rerr)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to get balance cache value on Redis", libLog.Err(rerr))
+	}
+
+	if value == "" {
+		return
+	}
+
+	cached := mmodel.BalanceRedis{}
+	if uerr := json.Unmarshal([]byte(value), &cached); uerr != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal balance cache value", libLog.Err(uerr))
+
+		return
+	}
+
+	balance.Available = cached.Available
+	balance.OnHold = cached.OnHold
+	balance.Version = cached.Version
+
+	if ou, perr := decimal.NewFromString(cached.OverdraftUsed); perr == nil {
+		balance.OverdraftUsed = ou
+	}
+}
+
+// propagateBalanceAllowFlagsToCache rewrites AllowSending/AllowReceiving in
+// place on the balance's cached blob after a PATCH that carries either flag.
+// PostgreSQL was updated first (source of truth); the rewrite runs as ONE
+// atomic Lua EVAL, preserving live transactional state pending write-behind
+// sync (no DEL). Only the flags present in the payload are written — the
+// repository resolves the absent ones to "keep".
+//
+// Fail-closed: the transaction pre-validation reads the flags from the cached
+// blob, which takes precedence over PostgreSQL and has its TTL renewed by every
+// operation — on a hot balance a stale flag never self-heals. Returning success
+// with a stale cache would therefore keep a frozen balance transacting, so the
+// error fails the PATCH; the client's retry is idempotent and heals the blob.
+// A cache miss and a blob the script cannot decode are not errors (neither can
+// approve a transaction on the old flags). These failures are TECHNICAL
+// (infrastructure, not caller error), so they flip the span red and log at
+// Error for operator attention.
+func (uc *UseCase) propagateBalanceAllowFlagsToCache(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, balance *mmodel.Balance, update mmodel.UpdateBalance) error {
+	cacheKey := balance.Alias + "#" + balance.Key
+
+	if err := uc.TransactionRedisRepo.UpdateBalanceCacheAllowFlags(ctx, organizationID, ledgerID, cacheKey, update.AllowSending, update.AllowReceiving); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to update balance cache allow flags", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to update balance cache allow flags on Redis", libLog.Err(err))
+
+		return err
+	}
+
+	return nil
 }
 
 // emitBalanceConfigChangedEvent publishes the balance.config_changed
