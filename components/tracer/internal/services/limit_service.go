@@ -135,7 +135,14 @@ func (s *LimitService) GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*m
 		return nil, err
 	}
 
-	periodKey, err := model.CalculatePeriodKey(limit.LimitType, s.clock.Now())
+	// One instant governs the whole snapshot: the period whose counters are
+	// summed AND the boundary reported next to them. The repository resolves
+	// ResetAt against its own read of the wall clock, which is a different
+	// instant — and at a period boundary a different period — so the snapshot
+	// could pair this period's counters with the next period's reset moment.
+	now := s.clock.Now()
+
+	periodKey, err := model.CalculatePeriodKey(limit.LimitType, now)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to resolve the current period", err)
 
@@ -160,6 +167,9 @@ func (s *LimitService) GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*m
 
 		return nil, err
 	}
+
+	// Re-resolve the boundary against the instant the counters were selected for.
+	limit.ResetAt = limit.NextResetAt(now)
 
 	// Create the usage snapshot
 	snapshot := model.NewUsageSnapshot(limit, counters)
