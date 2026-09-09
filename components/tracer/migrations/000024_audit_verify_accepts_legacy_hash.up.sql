@@ -109,15 +109,24 @@
 --     reported invalid unconditionally, along with every other historical row,
 --     which is an alarm that fires on a clean trail rather than tamper
 --     evidence.
---   * RESIDUAL 1 — rolling deploys. Two replica generations writing at once can
---     commit a handful of current-format rows below the last legacy id, and
---     those rows sit under the boundary. They verify under the current formula,
---     so nothing about them changes unless they are rewritten — but if one is,
---     the absorption shape above is available on it. The window is the overlap
---     of the two generations and is bounded by the boundary row's id.
---     Conversely, an old replica that commits a legacy-format row AFTER this
---     migration takes its snapshot lands above the boundary and is reported
---     invalid. Draining the old generation before upgrading avoids both.
+--   * RESIDUAL 1 — inserts that straddled migration 000017's own commit. The
+--     formulas do not live in the application: calculate_audit_event_hash() is
+--     a BEFORE INSERT trigger and the repository's INSERT supplies neither hash
+--     nor previous_hash, so every replica writes through whichever single
+--     formula the database holds at that instant and two application
+--     generations cannot disagree about it. Rolling deploys are therefore not
+--     the window.
+--     The window is migration 000017 itself, on a schema still numbered by the
+--     BIGSERIAL default: id was evaluated from the column default OUTSIDE the
+--     advisory lock the trigger takes, so a transaction that took a low id
+--     before 000017 committed could store a current-format hash below a row
+--     that stored a legacy-format one. Those few current-format rows sit under
+--     the boundary. They verify under the current formula, so nothing about
+--     them changes unless one is rewritten — but if one is, the absorption
+--     shape above is available on it. Migration 000023 assigns the id inside
+--     the lock and closes the reordering; the window is bounded by the boundary
+--     row's id and only ever existed for transactions in flight across 000017.
+--     Draining writers before applying a hash-formula migration avoids it.
 --   * RESIDUAL 2 — a conversion made BEFORE this migration runs. The boundary
 --     is computed from the data, and a sleeper planted before it runs is, by
 --     construction, indistinguishable from genuine pre-000017 data: a row whose
@@ -151,16 +160,18 @@
 --   an inherited one - an RDS/Aurora parameter group, a DBA default, a BYOC
 --   standard - would abort the pass mid-transaction. The data rolls back
 --   cleanly, but golang-migrate leaves schema_migrations at version 24 with
---   dirty = true and refuses every later apply. SET LOCAL below removes the
---   timeout for this migration's transaction only, so that cannot happen.
+--   dirty = true and refuses every later apply. SET LOCAL below clears the
+--   statement timeout for this migration's transaction only, so an inherited
+--   one cannot abort the pass. A cancelled session or a dropped connection
+--   still can, so the recovery below stays worth knowing.
 --
 --   If an operator still meets a wedged tenant, from an earlier apply or a
 --   cancelled session:
 --     migrate -path <migrations> -database <url> force 23
 --     migrate -path <migrations> -database <url> up
---   force 23 only clears the dirty flag; the boundary table and the new
---   function were rolled back with the aborted transaction, so the re-run
---   recomputes them from the same rows.
+--   force 23 only clears the dirty flag. An aborted transaction rolls back
+--   everything it created, so the re-run records the floor from the same rows;
+--   if an earlier apply already recorded one, the re-run keeps that one.
 -- ============================================
 
 -- The pass over audit_events below is proportional to the trail, so an
@@ -221,8 +232,8 @@ CREATE OR REPLACE RULE prevent_audit_hash_legacy_boundary_delete AS
 -- prevent_truncate() trigger on every immutable table. Without the trigger here
 -- the floor is strictly easier to move than the trail it guards: TRUNCATE plus
 -- one INSERT raises it above every row, with no DDL and no rule dropped, and
--- forges recorded_at along with it. DROP TABLE takes this trigger with it, so
--- the down migration needs nothing.
+-- forges recorded_at along with it. The down migration keeps the floor table,
+-- so this trigger stays with it and a re-apply replaces it in place.
 CREATE OR REPLACE TRIGGER prevent_audit_hash_legacy_boundary_truncate_trigger
     BEFORE TRUNCATE ON audit_hash_legacy_boundary
     FOR EACH STATEMENT
@@ -347,12 +358,13 @@ $$ LANGUAGE plpgsql;
 -- on every verification it runs.
 --
 -- The pin has to name the RESOLVED schema. `SET search_path FROM CURRENT`
--- captures the literal text of the migration session's path, which is
--- '"$user", public' on any deployment that migrates without setting one, and
--- $user is re-resolved to the CALLING role at execution time - so a schema
--- named after that role still shadows the floor. current_schema() is the schema
--- the CREATE TABLE above just used, differs per tenant, and holds no element a
--- caller can influence.
+-- captures the literal TEXT of the migration session's path - PostgreSQL's
+-- default '"$user", public' wherever nothing sets one - and $user is
+-- re-resolved to the CALLING role at execution time, so a schema named after
+-- that role still shadows the floor. Measured: that variant refuses an
+-- arbitrary schema and still accepts a role-named one. current_schema() is the
+-- schema the CREATE TABLE above just used, whatever that schema is, and holds
+-- no element a caller can influence.
 DO $pin$
 BEGIN
     EXECUTE format(
