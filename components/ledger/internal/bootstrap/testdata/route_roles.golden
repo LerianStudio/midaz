@@ -186,6 +186,7 @@ POST	/v2/organizations/:organization_id/ledgers	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/account-types	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances	transaction
+POST	/v2/organizations/:organization_id/ledgers/:ledger_id/accounts/block-exceptions	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/assets	onboarding
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/billing/calculate	fees

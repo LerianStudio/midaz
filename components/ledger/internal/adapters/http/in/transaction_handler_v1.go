@@ -351,17 +351,24 @@ func (handler *TransactionHandler) RevertTransaction(ctx context.Context, in *St
 // parseOrgLedgerTx resolves the three path strings the state/patch/get-by-id shells
 // carry. ParseUUIDPathParameters has already validated them on the wired path.
 func parseOrgLedgerTx(in *StateTransactionRequest) (orgID, ledgerID, txID uuid.UUID, err error) {
-	orgID, ledgerID, err = parseOrgLedger(in.OrganizationID, in.LedgerID)
+	return parseOrgLedgerTxParts(in.OrganizationID, in.LedgerID, in.TransactionID)
+}
+
+// parseOrgLedgerTxParts is parseOrgLedgerTx over the three raw path values, so the /v2
+// lifecycle envelope — which carries an optional body alongside the same three params and
+// is therefore a different struct — parses them through the same code.
+func parseOrgLedgerTxParts(organizationID, ledgerID, transactionID string) (uuid.UUID, uuid.UUID, uuid.UUID, error) {
+	orgUUID, ledgerUUID, err := parseOrgLedger(organizationID, ledgerID)
 	if err != nil {
 		return uuid.Nil, uuid.Nil, uuid.Nil, err
 	}
 
-	txID, err = parsePathUUID(in.TransactionID, "transaction_id")
+	txUUID, err := parsePathUUID(transactionID, "transaction_id")
 	if err != nil {
 		return uuid.Nil, uuid.Nil, uuid.Nil, err
 	}
 
-	return orgID, ledgerID, txID, nil
+	return orgUUID, ledgerUUID, txUUID, nil
 }
 
 // --- PATCH /transactions/{transaction_id} -------------------------------------

@@ -46,5 +46,15 @@ type createTransactionRun struct {
 	honoredFeeSkip    bool
 	honoredTracerSkip bool
 
+	// accountBlockExceptionID is the single-use account-block exception the
+	// request presented, before it is looked up. Nil when none was presented — a
+	// transport whose contract carries no such field always leaves it nil.
+	accountBlockExceptionID *uuid.UUID
+
+	// accountBlockExceptionGrant is that exception resolved from the cache. Only
+	// the /v2 pipelines name the resolver, so a /v1 request leaves it nil and
+	// every barrier behaves as it did before the field existed.
+	accountBlockExceptionGrant *mtransaction.AccountBlockExceptionGrant
+
 	result *mmodel.BalanceAtomicResult
 }

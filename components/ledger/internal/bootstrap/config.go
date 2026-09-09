@@ -984,6 +984,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	organizationHandler := &httpin.OrganizationHandler{Command: commandUseCase, Query: queryUseCase}
 	segmentHandler := &httpin.SegmentHandler{Command: commandUseCase, Query: queryUseCase}
 	accountTypeHandler := &httpin.AccountTypeHandler{Command: commandUseCase, Query: queryUseCase}
+	accountBlockExceptionHandler := &httpin.AccountBlockExceptionHandler{Command: commandUseCase}
 
 	// === Tracer reservation client ===
 	// Built before the handler so the reserver is available for injection.
@@ -1107,7 +1108,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// by NAME so the CRM↔Fees tenant-option pairing cannot silently swap.
 	humaMountDeps := buildHumaMountDeps(
 		auth,
-		organizationHandler, ledgerHandler, portfolioHandler, segmentHandler, accountHandler, accountTypeHandler, metadataIndexHandler, assetHandler, assetRateHandler,
+		organizationHandler, ledgerHandler, portfolioHandler, segmentHandler, accountHandler, accountTypeHandler, accountBlockExceptionHandler, metadataIndexHandler, assetHandler, assetRateHandler,
 		balanceHandler, operationHandler, operationRouteHandler, transactionRouteHandler,
 		transactionHandler,
 		crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler,
@@ -1751,6 +1752,7 @@ func buildHumaMountDeps(
 	segmentHandler *httpin.SegmentHandler,
 	accountHandler *httpin.AccountHandler,
 	accountTypeHandler *httpin.AccountTypeHandler,
+	accountBlockExceptionHandler *httpin.AccountBlockExceptionHandler,
 	metadataIndexHandler *httpin.MetadataIndexHandler,
 	assetHandler *httpin.AssetHandler,
 	assetRateHandler *httpin.AssetRateHandler,
@@ -1774,12 +1776,15 @@ func buildHumaMountDeps(
 	return httpin.HumaMountDeps{
 		Auth: auth,
 
-		Organization:  organizationHandler,
-		Ledger:        ledgerHandler,
-		Portfolio:     portfolioHandler,
-		Segment:       segmentHandler,
-		Account:       accountHandler,
-		AccountType:   accountTypeHandler,
+		Organization: organizationHandler,
+		Ledger:       ledgerHandler,
+		Portfolio:    portfolioHandler,
+		Segment:      segmentHandler,
+		Account:      accountHandler,
+		AccountType:  accountTypeHandler,
+
+		AccountBlockException: accountBlockExceptionHandler,
+
 		MetadataIndex: metadataIndexHandler,
 		Asset:         assetHandler,
 		AssetRate:     assetRateHandler,

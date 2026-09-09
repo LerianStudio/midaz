@@ -127,11 +127,11 @@ func TestRouteOptionsBinding(t *testing.T) {
 
 // buildHumaMountDepsWithNilHandlers exercises the mapper with the setup under test and nil
 // handlers: the binding this test pins is the option pairing, not the handler wiring, and nil
-// pointers make the call site read as one argument list of options rather than 24 of noise.
+// pointers make the call site read as one argument list of options rather than 25 of noise.
 func buildHumaMountDepsWithNilHandlers(setup *unifiedRouteSetup) httpin.HumaMountDeps {
 	return buildHumaMountDeps(
 		&middleware.AuthClient{},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, nil,
 		nil,
 		nil, nil, nil, nil, nil,

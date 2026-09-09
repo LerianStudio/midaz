@@ -149,7 +149,7 @@ func TestIntegration_UpdateBalanceCacheSettings_ConcurrentWithAtomicDebits_G2(t 
 			op := buildSettingsStressDebitOp(orgID, ledgerID, alias, internalKey, debitAmount)
 
 			_, opErr := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-				uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op})
+				uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
 			if opErr != nil {
 				debitErrs.Add(1)
 			}

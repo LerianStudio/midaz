@@ -708,28 +708,14 @@ func TestIntegration_TransactionV2Revert_IneligibilityAndIDErrors(t *testing.T) 
 			wantCode:   cn.ErrRouteNotBidirectional.Error(),
 		},
 		{
-			// KNOWN DEFECT (tracked externally) — this expectation records the
-			// CURRENT behavior, not the intended contract. A missing entity must render 404
-			// (error-handling standard E3/E5), and
-			// commit/cancel do exactly that for the same input class (404/0007, section 15).
-			// Revert diverges because its read path FindWithOperations
-			// (adapters/postgres/transaction/transaction.postgresql.go) has no sql.ErrNoRows
-			// arm — unlike FindByParentID in the same file — so zero join rows return the
-			// zero-value &Transaction{} with a nil error. The empty status "" then trips the
-			// non-APPROVED gate, and the client sees 409/0099 instead of 404/0007.
-			//
-			// If this starts returning 404/0007 the not-found gap was fixed — update this
-			// expectation, do NOT revert the fix.
-			//
-			// Fixing the read path is OUT OF SCOPE here, and whoever does it must land the
-			// caller guard in the SAME change: revertTransaction dereferences the result
-			// (tran.ParentTransactionID) immediately after the error check, so a fix that
-			// returns (nil, nil) — or any nil transaction with a nil error — converts this
-			// wrong status into a nil-pointer panic.
-			name:       "revert of an unknown transaction id currently conflicts (0099) instead of 404 — KNOWN DEFECT",
+			// A missing entity renders 404/0007 (error-handling standard E3/E5). Revert
+			// answers the same way commit and cancel do for this input class (section 15):
+			// which lifecycle surface a caller happens to hit must not change how "there is
+			// no such transaction" is reported.
+			name:       "revert of an unknown transaction id is not found",
 			url:        v2RevertURL(infra.orgID, infra.ledgerID, unknownTxID),
-			wantStatus: nethttp.StatusConflict,
-			wantCode:   cn.ErrCommitTransactionNotPending.Error(),
+			wantStatus: nethttp.StatusNotFound,
+			wantCode:   cn.ErrEntityNotFound.Error(),
 		},
 		{
 			// Malformed transaction_id is rejected by ParseUUIDPathParameters on the Fiber

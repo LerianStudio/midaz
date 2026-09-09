@@ -15,6 +15,7 @@ import (
 	time "time"
 
 	mmodel "github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	mtransaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	uuid "github.com/google/uuid"
 	redis "github.com/redis/go-redis/v9"
 	gomock "go.uber.org/mock/gomock"
@@ -70,6 +71,20 @@ func (m *MockRedisRepository) ClearBackupAttempt(ctx context.Context, key string
 func (mr *MockRedisRepositoryMockRecorder) ClearBackupAttempt(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearBackupAttempt", reflect.TypeOf((*MockRedisRepository)(nil).ClearBackupAttempt), ctx, key)
+}
+
+// CreateAccountBlockExceptions mocks base method.
+func (m *MockRedisRepository) CreateAccountBlockExceptions(ctx context.Context, organizationID, ledgerID uuid.UUID, exceptions []AccountBlockException) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateAccountBlockExceptions", ctx, organizationID, ledgerID, exceptions)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateAccountBlockExceptions indicates an expected call of CreateAccountBlockExceptions.
+func (mr *MockRedisRepositoryMockRecorder) CreateAccountBlockExceptions(ctx, organizationID, ledgerID, exceptions any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccountBlockExceptions", reflect.TypeOf((*MockRedisRepository)(nil).CreateAccountBlockExceptions), ctx, organizationID, ledgerID, exceptions)
 }
 
 // Del mocks base method.
@@ -129,6 +144,21 @@ func (m *MockRedisRepository) GetBalanceSyncKeysLegacy(ctx context.Context, limi
 func (mr *MockRedisRepositoryMockRecorder) GetBalanceSyncKeysLegacy(ctx, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalanceSyncKeysLegacy", reflect.TypeOf((*MockRedisRepository)(nil).GetBalanceSyncKeysLegacy), ctx, limit)
+}
+
+// GetAccountBlockException mocks base method.
+func (m *MockRedisRepository) GetAccountBlockException(ctx context.Context, organizationID, ledgerID, exceptionID uuid.UUID) (*mmodel.AccountBlockExceptionRedis, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAccountBlockException", ctx, organizationID, ledgerID, exceptionID)
+	ret0, _ := ret[0].(*mmodel.AccountBlockExceptionRedis)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAccountBlockException indicates an expected call of GetAccountBlockException.
+func (mr *MockRedisRepositoryMockRecorder) GetAccountBlockException(ctx, organizationID, ledgerID, exceptionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountBlockException", reflect.TypeOf((*MockRedisRepository)(nil).GetAccountBlockException), ctx, organizationID, ledgerID, exceptionID)
 }
 
 // GetBalancesByKeys mocks base method.
@@ -221,18 +251,18 @@ func (mr *MockRedisRepositoryMockRecorder) MGet(ctx, keys any) *gomock.Call {
 }
 
 // ProcessBalanceAtomicOperation mocks base method.
-func (m *MockRedisRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation) (*mmodel.BalanceAtomicResult, error) {
+func (m *MockRedisRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balances []mmodel.BalanceOperation, binding *mtransaction.AccountBlockExceptionBinding) (*mmodel.BalanceAtomicResult, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessBalanceAtomicOperation", ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances)
+	ret := m.ctrl.Call(m, "ProcessBalanceAtomicOperation", ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, binding)
 	ret0, _ := ret[0].(*mmodel.BalanceAtomicResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ProcessBalanceAtomicOperation indicates an expected call of ProcessBalanceAtomicOperation.
-func (mr *MockRedisRepositoryMockRecorder) ProcessBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) ProcessBalanceAtomicOperation(ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, binding any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessBalanceAtomicOperation", reflect.TypeOf((*MockRedisRepository)(nil).ProcessBalanceAtomicOperation), ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessBalanceAtomicOperation", reflect.TypeOf((*MockRedisRepository)(nil).ProcessBalanceAtomicOperation), ctx, organizationID, ledgerID, transactionID, transactionStatus, pending, balances, binding)
 }
 
 // ReadAllMessagesFromQueue mocks base method.
@@ -349,6 +379,20 @@ func (m *MockRedisRepository) SetNX(ctx context.Context, key, value string, ttl 
 func (mr *MockRedisRepositoryMockRecorder) SetNX(ctx, key, value, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockRedisRepository)(nil).SetNX), ctx, key, value, ttl)
+}
+
+// UpdateBalanceCacheBlocked mocks base method.
+func (m *MockRedisRepository) UpdateBalanceCacheBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKeys []string, blocked bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBalanceCacheBlocked", ctx, organizationID, ledgerID, cacheKeys, blocked)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateBalanceCacheBlocked indicates an expected call of UpdateBalanceCacheBlocked.
+func (mr *MockRedisRepositoryMockRecorder) UpdateBalanceCacheBlocked(ctx, organizationID, ledgerID, cacheKeys, blocked any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBalanceCacheBlocked", reflect.TypeOf((*MockRedisRepository)(nil).UpdateBalanceCacheBlocked), ctx, organizationID, ledgerID, cacheKeys, blocked)
 }
 
 // UpdateBalanceCacheSettings mocks base method.

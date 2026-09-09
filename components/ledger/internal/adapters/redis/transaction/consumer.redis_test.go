@@ -458,6 +458,7 @@ func TestProcessBalanceAtomicOperation_NotedStatus(t *testing.T) {
 				constant.NOTED,
 				false,
 				balanceOps,
+				nil,
 			)
 
 			// Assert

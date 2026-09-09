@@ -21,6 +21,12 @@ type PendingTransitionInput struct {
 	OrganizationID uuid.UUID
 	LedgerID       uuid.UUID
 	TransactionID  uuid.UUID
+
+	// AccountBlockExceptionID is the single-use account-block exception the
+	// commit presented, or nil when it presented none. Only the /v2 commit
+	// carries a body that can name one; cancel accepts no grant on any contract,
+	// because a cancel is never barred by an account block to begin with.
+	AccountBlockExceptionID *uuid.UUID
 }
 
 // CommitTransactionV1 approves a PENDING transaction under the /v1 contract, frozen
@@ -88,6 +94,8 @@ func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransition
 		ledgerID:       in.LedgerID,
 		tran:           tran,
 		status:         constant.APPROVED,
+
+		accountBlockExceptionID: in.AccountBlockExceptionID,
 	})
 }
 
@@ -156,6 +164,19 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 	}
 
 	if err := uc.preparePendingTransition(ctx, span, logger, run, unlock); err != nil {
+		return nil, err
+	}
+
+	// Account-block exception: a pending created before its source account was
+	// blocked is only released by a grant presented on the commit, and only the
+	// /v2 commit carries one. transitionPendingV1 names this resolver nowhere.
+	// An identifier with no live key rejects here, before any balance moves —
+	// the lock is released, and the pending is left untouched for a retry.
+	run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(ctx, span, logger,
+		run.organizationID, run.ledgerID, run.accountBlockExceptionID)
+	if err != nil {
+		unlock()
+
 		return nil, err
 	}
 

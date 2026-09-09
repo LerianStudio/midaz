@@ -34,6 +34,15 @@ type pendingTransitionRun struct {
 	ledgerSettings    mmodel.LedgerSettings
 	honoredTracerSkip bool
 
+	// accountBlockExceptionID is the single-use account-block exception the
+	// commit presented, before it is looked up. Only /v2 commit carries a body
+	// that can name one; /v1 commit and both cancels always leave it nil.
+	accountBlockExceptionID *uuid.UUID
+
+	// accountBlockExceptionGrant is that exception resolved from the cache. Only
+	// transitionPendingV2 names the resolver, so a /v1 transition leaves it nil.
+	accountBlockExceptionGrant *mtransaction.AccountBlockExceptionGrant
+
 	balanceOps       []mmodel.BalanceOperation
 	companionFromTos []mtransaction.FromTo
 	routeCache       *mmodel.TransactionRouteCache
