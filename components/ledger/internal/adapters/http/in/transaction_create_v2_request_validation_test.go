@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package mtransaction_test
+package in
 
 import (
 	"context"
@@ -59,7 +59,7 @@ func shareLegsAt(index int, share string) string {
 	return strings.Join(append(legs, `{"alias":"@srcA",`+scopeJSON+`,"share":`+share+`}`), ",")
 }
 
-// TestV2LegInput_NoRemainingExpression locks the v2 leg down to the two value expressions
+// TestTransactionV2LegRequest_NoRemainingExpression locks the v2 leg down to the two value expressions
 // the surface publishes. A `remaining` leg resolves during validation but contributes no
 // operation row and no balance movement, committing an unbalanced transaction, so the v2
 // surface must not offer the expression at all: with no field to decode into, a client that
@@ -69,14 +69,14 @@ func shareLegsAt(index int, share string) string {
 // reflective "the struct has no Remaining field" assertion would restate the same rule one
 // layer earlier and fail for the same reason, which makes it a change detector rather than a
 // second guarantee.
-func TestV2LegInput_NoRemainingExpression(t *testing.T) {
+func TestTransactionV2LegRequest_NoRemainingExpression(t *testing.T) {
 	t.Parallel()
 
 	body := `{"asset":"BRL","amount":"100",` +
 		`"debits":[{"alias":"@srcA",` + scopeJSON + `,"amount":"60"},{"alias":"@srcB",` + scopeJSON + `,"remaining":true}],` +
 		`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`
 
-	var in mtransaction.CreateTransactionV2Input
+	var in CreateTransactionV2Request
 
 	_, err := nethttp.DecodeAndValidate([]byte(body), &in)
 	require.Error(t, err, "a leg spelling `remaining` must be rejected")
@@ -88,21 +88,21 @@ func TestV2LegInput_NoRemainingExpression(t *testing.T) {
 		"the rejection must point the caller at the unsupported expression")
 }
 
-// TestV2LegInput_DescriptionIsAKnownField pins that a leg may spell its own `description`: the
+// TestTransactionV2LegRequest_DescriptionIsAKnownField pins that a leg may spell its own `description`: the
 // description the operation that leg produces is persisted with.
 //
 // The decoder answers any field the struct does not publish with the unknown-field rejection, so
 // a leg description is only reachable while the field stays on the struct — dropping it turns
 // every describing body into a 400. Both sides are swept because a debit and a credit produce
 // separate operations, so each has to carry its own value rather than share one.
-func TestV2LegInput_DescriptionIsAKnownField(t *testing.T) {
+func TestTransactionV2LegRequest_DescriptionIsAKnownField(t *testing.T) {
 	t.Parallel()
 
 	body := `{"asset":"BRL","amount":"100","description":"transaction note",` +
 		`"debits":[{"alias":"@srcA",` + scopeJSON + `,"amount":"100","description":"debit leg note"}],` +
 		`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100","description":"credit leg note"}]}`
 
-	var in mtransaction.CreateTransactionV2Input
+	var in CreateTransactionV2Request
 
 	_, err := nethttp.DecodeAndValidate([]byte(body), &in)
 	require.NoError(t, err, "a leg spelling `description` must decode as a known field")
@@ -117,10 +117,10 @@ func TestV2LegInput_DescriptionIsAKnownField(t *testing.T) {
 		"a leg description must decode alongside the transaction-level one, not over it")
 }
 
-// TestV2LegInput_DescriptionLengthBound locks the published 256-character ceiling on a leg
+// TestTransactionV2LegRequest_DescriptionLengthBound locks the published 256-character ceiling on a leg
 // description. The bound is what keeps an oversized value a clean 400 naming the field instead of
 // a persistence failure raised after the transaction has already been assembled.
-func TestV2LegInput_DescriptionLengthBound(t *testing.T) {
+func TestTransactionV2LegRequest_DescriptionLengthBound(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -141,7 +141,7 @@ func TestV2LegInput_DescriptionLengthBound(t *testing.T) {
 				`"description":"` + strings.Repeat("d", tt.length) + `"}],` +
 				`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`
 
-			var in mtransaction.CreateTransactionV2Input
+			var in CreateTransactionV2Request
 
 			_, err := nethttp.DecodeAndValidate([]byte(body), &in)
 			if tt.wantErr {
@@ -159,10 +159,10 @@ func TestV2LegInput_DescriptionLengthBound(t *testing.T) {
 	}
 }
 
-// TestCreateTransactionV2Input_LegArrayCap locks the published per-side leg cap. It is the only
+// TestCreateTransactionV2Request_LegArrayCap locks the published per-side leg cap. It is the only
 // bound on the leg count: the request-body byte limit alone admits tens of thousands of legs,
 // each carrying its own downstream cost.
-func TestCreateTransactionV2Input_LegArrayCap(t *testing.T) {
+func TestCreateTransactionV2Request_LegArrayCap(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -178,7 +178,7 @@ func TestCreateTransactionV2Input_LegArrayCap(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var in mtransaction.CreateTransactionV2Input
+			var in CreateTransactionV2Request
 
 			_, err := nethttp.DecodeAndValidate([]byte(legArrayBody(tt.legs)), &in)
 			if tt.wantErr {
@@ -196,7 +196,7 @@ func TestCreateTransactionV2Input_LegArrayCap(t *testing.T) {
 	}
 }
 
-// TestV2ShareInput_PercentageBounds locks the share bounds. A zero or negative percentage
+// TestTransactionV2ShareRequest_PercentageBounds locks the share bounds. A zero or negative percentage
 // clears struct validation today and reaches the funnel, where the leg silently produces no
 // operation row (zero) or an inverted movement (negative) while the transaction commits.
 //
@@ -208,7 +208,7 @@ func TestCreateTransactionV2Input_LegArrayCap(t *testing.T) {
 // the per-leg tags are evaluated at EVERY index rather than only at the head of the array.
 // The rendered field message carries no index — that is a property of the shared decoder, not
 // of these tags — so the index case asserts that the tag fires, not what it prints.
-func TestV2ShareInput_PercentageBounds(t *testing.T) {
+func TestTransactionV2ShareRequest_PercentageBounds(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -278,7 +278,7 @@ func TestV2ShareInput_PercentageBounds(t *testing.T) {
 				`"debits":[` + shareLegsAt(tt.atIndex, tt.share) + `],` +
 				`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`
 
-			var in mtransaction.CreateTransactionV2Input
+			var in CreateTransactionV2Request
 
 			_, err := nethttp.DecodeAndValidate([]byte(body), &in)
 			if tt.wantErr {
@@ -298,7 +298,7 @@ func TestV2ShareInput_PercentageBounds(t *testing.T) {
 	}
 }
 
-// TestV2ShareInput_ResolvesPerLegAmounts pins what each share expression RESOLVES TO, per leg.
+// TestTransactionV2ShareRequest_ResolvesPerLegAmounts pins what each share expression RESOLVES TO, per leg.
 // The resolver computes total x (percentage/100) x (percentageOfPercentage/100), and the per-leg
 // figure is the only observable that distinguishes one factor pair from another: the side's sum
 // and the transaction total agree for many wrong splits, and Responses.Total is assigned from the
@@ -306,8 +306,8 @@ func TestV2ShareInput_PercentageBounds(t *testing.T) {
 //
 // Every balancing row is asymmetric in BOTH factors, so dropping either one of them out of the
 // product changes some leg's resolved amount instead of being absorbed by a sibling. The
-// per-factor bounds themselves are locked in TestV2ShareInput_PercentageBounds.
-func TestV2ShareInput_ResolvesPerLegAmounts(t *testing.T) {
+// per-factor bounds themselves are locked in TestTransactionV2ShareRequest_PercentageBounds.
+func TestTransactionV2ShareRequest_ResolvesPerLegAmounts(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -361,7 +361,7 @@ func TestV2ShareInput_ResolvesPerLegAmounts(t *testing.T) {
 				`"debits":[` + tt.debitLegs + `],` +
 				`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`
 
-			var in mtransaction.CreateTransactionV2Input
+			var in CreateTransactionV2Request
 
 			_, err := nethttp.DecodeAndValidate([]byte(body), &in)
 			require.NoError(t, err, "a share expression is a whole-body property, not a request-shape violation")
@@ -400,17 +400,17 @@ func TestV2ShareInput_ResolvesPerLegAmounts(t *testing.T) {
 	}
 }
 
-// TestV2LegInput_AliasRequired proves the leg alias obligation is enforced twice, and that
+// TestTransactionV2LegRequest_AliasRequired proves the leg alias obligation is enforced twice, and that
 // the two guards are complementary rather than redundant. This case exercises the struct tag,
 // which is the guard every HTTP caller meets: it fires at the decode boundary, before Translate
 // runs. The imperative sibling in buildLeg is what covers a caller that builds the input in Go
-// and never runs it through the decoder (TestCreateTransactionV2Input_Translate's
+// and never runs it through the decoder (TestCreateTransactionV2Request_Translate's
 // "leg without an alias is rejected").
 //
 // Both name the offending entry by index. The tag does so inside the rendered message, which
 // the shared decoder builds from the validator's full field namespace; the map KEY stays the
 // bare leaf name.
-func TestV2LegInput_AliasRequired(t *testing.T) {
+func TestTransactionV2LegRequest_AliasRequired(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -438,7 +438,7 @@ func TestV2LegInput_AliasRequired(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var in mtransaction.CreateTransactionV2Input
+			var in CreateTransactionV2Request
 
 			_, err := nethttp.DecodeAndValidate([]byte(tt.body), &in)
 			require.Error(t, err, "a leg without an alias must be rejected at decode")
@@ -450,7 +450,7 @@ func TestV2LegInput_AliasRequired(t *testing.T) {
 	}
 }
 
-// TestV2LegInput_NonPositivePercentageRejectedByTranslate proves Translate rejects a share leg
+// TestTransactionV2LegRequest_NonPositivePercentageRejectedByTranslate proves Translate rejects a share leg
 // whose percentage is not positive on its own, rather than relying on the decoder's `gt=0` tag.
 // Translate is exported from a shared package, so a caller that assembles the input in Go and
 // never runs DecodeAndValidate gets no tag evaluation — and the funnel resolves a zero-percentage
@@ -459,18 +459,18 @@ func TestV2LegInput_AliasRequired(t *testing.T) {
 //
 // This mirrors the alias obligation, which is enforced by tag and imperatively for the same
 // reason. The tag stays because only it names the offending leg's field in the decode rejection.
-func TestV2LegInput_NonPositivePercentageRejectedByTranslate(t *testing.T) {
+func TestTransactionV2LegRequest_NonPositivePercentageRejectedByTranslate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name  string
-		share *mtransaction.V2ShareInput
+		share *TransactionV2ShareRequest
 	}{
-		{name: "zero percentage", share: &mtransaction.V2ShareInput{Percentage: 0}},
-		{name: "negative percentage", share: &mtransaction.V2ShareInput{Percentage: -50}},
+		{name: "zero percentage", share: &TransactionV2ShareRequest{Percentage: 0}},
+		{name: "negative percentage", share: &TransactionV2ShareRequest{Percentage: -50}},
 		{
 			name:  "zero percentage with a narrowing factor",
-			share: &mtransaction.V2ShareInput{Percentage: 0, PercentageOfPercentage: 50},
+			share: &TransactionV2ShareRequest{Percentage: 0, PercentageOfPercentage: 50},
 		},
 	}
 
@@ -479,8 +479,8 @@ func TestV2LegInput_NonPositivePercentageRejectedByTranslate(t *testing.T) {
 			t.Parallel()
 
 			input := arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@srcA", Share: tt.share}},
-				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@srcA", Share: tt.share}},
+				[]TransactionV2LegRequest{{Alias: "@dstA", Amount: "1000"}},
 			)
 
 			got, _, err := input.Translate(false)
@@ -496,13 +496,13 @@ func TestV2LegInput_NonPositivePercentageRejectedByTranslate(t *testing.T) {
 	}
 }
 
-// TestCreateTransactionV2Input_EmptySideArrayIsAKnownField pins that an explicit `"debits": []`
+// TestCreateTransactionV2Request_EmptySideArrayIsAKnownField pins that an explicit `"debits": []`
 // (or `"credits": []`) stays a KNOWN field: the array carries no json `omitempty`, so it
 // survives the re-marshal the decoder diffs against the submitted body and is answered by the
 // `min=1` struct-validation rejection instead of the unknown-field one. Silently dropping the
 // key would leave the client unable to tell "this side is empty" apart from "this side does not
 // exist".
-func TestCreateTransactionV2Input_EmptySideArrayIsAKnownField(t *testing.T) {
+func TestCreateTransactionV2Request_EmptySideArrayIsAKnownField(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -523,7 +523,7 @@ func TestCreateTransactionV2Input_EmptySideArrayIsAKnownField(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var in mtransaction.CreateTransactionV2Input
+			var in CreateTransactionV2Request
 
 			_, err := nethttp.DecodeAndValidate([]byte(tt.body), &in)
 			require.Error(t, err, "an explicitly empty side array must be rejected by min=1")
@@ -535,11 +535,11 @@ func TestCreateTransactionV2Input_EmptySideArrayIsAKnownField(t *testing.T) {
 	}
 }
 
-// TestCreateTransactionV2Input_RemovedFieldsAreUnknown pins that the retired scalar fields
+// TestCreateTransactionV2Request_RemovedFieldsAreUnknown pins that the retired scalar fields
 // (`from`, `to`) and their retired array names (`sources`, `destinations`) are answered as
 // unknown fields now that the wire contract exposes only `debits` and `credits`. A caller still
 // spelling the old contract must be told the field does not exist, not have it silently dropped.
-func TestCreateTransactionV2Input_RemovedFieldsAreUnknown(t *testing.T) {
+func TestCreateTransactionV2Request_RemovedFieldsAreUnknown(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -581,7 +581,7 @@ func TestCreateTransactionV2Input_RemovedFieldsAreUnknown(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var in mtransaction.CreateTransactionV2Input
+			var in CreateTransactionV2Request
 
 			_, err := nethttp.DecodeAndValidate([]byte(tt.body), &in)
 			require.Errorf(t, err, "a body carrying the retired %q field must be rejected", tt.field)
@@ -601,25 +601,25 @@ func TestCreateTransactionV2Input_RemovedFieldsAreUnknown(t *testing.T) {
 // pins that a rule covers the whole surface.
 var v2AliasPositions = []struct {
 	name  string
-	build func(alias string) mtransaction.CreateTransactionV2Input
+	build func(alias string) CreateTransactionV2Request
 	read  func(mtransaction.Transaction) string
 }{
 	{
 		name: "debit leg",
-		build: func(alias string) mtransaction.CreateTransactionV2Input {
+		build: func(alias string) CreateTransactionV2Request {
 			return arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: alias, Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: alias, Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 			)
 		},
 		read: func(tr mtransaction.Transaction) string { return tr.Send.Source.From[0].AccountAlias },
 	},
 	{
 		name: "credit leg",
-		build: func(alias string) mtransaction.CreateTransactionV2Input {
+		build: func(alias string) CreateTransactionV2Request {
 			return arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Alias: alias, Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person1", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: alias, Amount: "1000"}},
 			)
 		},
 		read: func(tr mtransaction.Transaction) string { return tr.Send.Distribute.To[0].AccountAlias },
@@ -690,31 +690,31 @@ func TestV2Alias_AcceptedAliasReachesTheLegUnchanged(t *testing.T) {
 	}
 }
 
-// TestV2LegInput_EmptyAliasRejectedByTranslate proves Translate rejects a leg with no
+// TestTransactionV2LegRequest_EmptyAliasRejectedByTranslate proves Translate rejects a leg with no
 // account on its own, rather than relying on the decoder's `required` tag. Translate is
 // exported from a shared package, so a caller that assembles the input in Go and never runs
 // DecodeAndValidate gets no tag evaluation — and an empty alias reaching the funnel names no
 // account at all. The tag stays because only it can name the offending leg by index in the
 // missing-field rejection; the two guards are complementary, not redundant.
-func TestV2LegInput_EmptyAliasRejectedByTranslate(t *testing.T) {
+func TestTransactionV2LegRequest_EmptyAliasRejectedByTranslate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name  string
-		input mtransaction.CreateTransactionV2Input
+		input CreateTransactionV2Request
 	}{
 		{
 			name: "debit leg",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "", Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 			),
 		},
 		{
 			name: "credit leg",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Alias: "", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person1", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "", Amount: "1000"}},
 			),
 		},
 	}
@@ -734,7 +734,7 @@ func TestV2LegInput_EmptyAliasRejectedByTranslate(t *testing.T) {
 	}
 }
 
-// TestV2LegInput_ValueExpressionErrorNamesTheLeg locks the two properties of the
+// TestTransactionV2LegRequest_ValueExpressionErrorNamesTheLeg locks the two properties of the
 // one-value-expression rejection that a caller at the 500-leg cap depends on:
 //
 //   - the message names the two expressions THIS surface accepts. The sentinel is shared with
@@ -743,20 +743,20 @@ func TestV2LegInput_EmptyAliasRejectedByTranslate(t *testing.T) {
 //     v2 leg is answered with a different 400.
 //   - the message names the offending leg by INDEX, matching the shape the decoder's per-leg
 //     tag rejections use, so both classes of leg error are equally locatable.
-func TestV2LegInput_ValueExpressionErrorNamesTheLeg(t *testing.T) {
+func TestTransactionV2LegRequest_ValueExpressionErrorNamesTheLeg(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name     string
-		input    mtransaction.CreateTransactionV2Input
+		input    CreateTransactionV2Request
 		wantRef  string
 		wantCode error
 	}{
 		{
 			name: "second debit leg carries neither expression",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "60"}, {Alias: "@srcB"}},
-				[]mtransaction.V2LegInput{{Alias: "@dstA", Amount: "100"}},
+				[]TransactionV2LegRequest{{Alias: "@srcA", Amount: "60"}, {Alias: "@srcB"}},
+				[]TransactionV2LegRequest{{Alias: "@dstA", Amount: "100"}},
 			),
 			wantRef:  "debits[1]",
 			wantCode: constant.ErrInvalidTransactionType,
@@ -764,10 +764,10 @@ func TestV2LegInput_ValueExpressionErrorNamesTheLeg(t *testing.T) {
 		{
 			name: "second credit leg carries both expressions",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@srcA", Amount: "100"}},
-				[]mtransaction.V2LegInput{
+				[]TransactionV2LegRequest{{Alias: "@srcA", Amount: "100"}},
+				[]TransactionV2LegRequest{
 					{Alias: "@dstA", Amount: "60"},
-					{Alias: "@dstB", Amount: "40", Share: &mtransaction.V2ShareInput{Percentage: 40}},
+					{Alias: "@dstB", Amount: "40", Share: &TransactionV2ShareRequest{Percentage: 40}},
 				},
 			),
 			wantRef:  "credits[1]",

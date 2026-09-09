@@ -20,6 +20,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	ledgerin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -93,7 +94,7 @@ func TestPrepareExecutionPreservesTransactionAndSnapshotOrder(t *testing.T) {
 	second.ID = secondID
 	input.Request.Transactions = append(input.Request.Transactions, second)
 	input.Guards = append([]command.ExecutionGuard{{TransactionID: secondID, NextToken: "next-two"}}, input.Guards...)
-	input.Recovery = append([]command.RecoveryIntent{{TransactionID: secondID, Payload: json.RawMessage(`{"value":"two"}`)}}, input.Recovery...)
+	input.Recovery = append([]command.CompletionPlanRecord{{TransactionID: secondID, Payload: json.RawMessage(`{"value":"two"}`)}}, input.Recovery...)
 	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
 	require.NoError(t, err)
 	var wire wireRequest
@@ -119,7 +120,7 @@ func TestPrepareExecutionRejectsInvalidInputs(t *testing.T) {
 		{"empty fingerprint", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) { x.IntentFingerprint = " " }},
 		{"zero limits", func(_ *command.EngineExecution, l *Limits, _ *resolvedExecutionKeys) { l.MaxBalances = 0 }},
 		{"request bytes", func(_ *command.EngineExecution, l *Limits, _ *resolvedExecutionKeys) { l.MaxRequestBytes = 600 }},
-		{"recovery bytes", func(_ *command.EngineExecution, l *Limits, _ *resolvedExecutionKeys) { l.MaxRecoveryBytes = 1 }},
+		{"recovery bytes", func(_ *command.EngineExecution, l *Limits, _ *resolvedExecutionKeys) { l.MaxCompletionPlanBytes = 1 }},
 		{"missing guard", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) { x.Guards = nil }},
 		{"unrelated guard", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
 			x.Guards[0].TransactionID = x.Request.ExecutionID
@@ -278,13 +279,13 @@ func validWireExecution() (command.EngineExecution, Limits, resolvedExecutionKey
 		},
 		IntentFingerprint: "immutable-intent",
 		Guards:            []command.ExecutionGuard{{TransactionID: transactionID, NextToken: "pending-token"}},
-		Recovery:          []command.RecoveryIntent{{TransactionID: transactionID, Payload: json.RawMessage("{\n  \"version\": 9223372036854775807, \"amount\": \"123456789.123456789\"\n}")}},
+		Recovery:          []command.CompletionPlanRecord{{TransactionID: transactionID, Payload: json.RawMessage("{\n  \"version\": 9223372036854775807, \"amount\": \"123456789.123456789\"\n}")}},
 	}
 	prefix := "tenant:fixture:"
 	scope := organizationID.String() + ":" + ledgerID.String()
 	balanceKey := prefix + "balance:{transactions}:" + scope + ":@source#default"
 	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + "backup_queue:{transactions}", Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Protection: prefix + "engine:{transactions}:protection:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": {Balance: balanceKey, Deleted: balanceKey + ":deleted"}}}
-	return input, Limits{MaxTransactions: 10, MaxPostings: 100, MaxBalances: 100, MaxRecoveryBytes: 4096, MaxRequestBytes: 16384, MaxPreparedBytes: 1048576}, resolved
+	return input, Limits{MaxTransactions: 10, MaxPostings: 100, MaxBalances: 100, MaxCompletionPlanBytes: 4096, MaxRequestBytes: 16384, MaxPreparedBytes: 1048576}, resolved
 }
 
 func TestWireArraysAreNotNull(t *testing.T) {
@@ -350,7 +351,7 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 // projection metadata, while the prepared wire contains recovery again. Route
 // expansion and one projection context per leg can add bytes after this point,
 // so a mathematically safe v1
-// MaxRecoveryBytes/MaxRequestBytes/MaxPreparedBytes or cardinality cap cannot be
+// MaxCompletionPlanBytes/MaxRequestBytes/MaxPreparedBytes or cardinality cap cannot be
 // chosen from this single request without changing the shipped v1 acceptance
 // surface. This test is the guard against doing so accidentally.
 func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
@@ -360,7 +361,7 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 	require.GreaterOrEqual(t, len(body), bodyLimit-16*1024)
 	require.Less(t, len(body), bodyLimit)
 
-	decoded := new(mtransaction.CreateTransactionInput)
+	decoded := new(ledgerin.CreateTransactionRequest)
 	_, err := pkgHTTP.DecodeAndValidate(body, decoded)
 	require.NoError(t, err)
 	transaction := *decoded.BuildTransaction()
@@ -389,18 +390,18 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 			{BalanceRef: destinationRef, ID: destinationID, AccountID: destinationID, AccountType: "deposit", AssetCode: "USD", Alias: "@destination", Key: "default", Direction: "credit", BalanceScope: "transactional", Available: decimal.Zero, AllowSending: true, AllowReceiving: true},
 		},
 	}
-	projectionBalance := command.FrozenProjectionBalance{OrganizationID: orgID.String(), LedgerID: ledgerID.String(), ID: sourceID.String(), AccountID: sourceID.String(), Alias: "@source", Key: "default", AssetCode: "USD", AccountType: "deposit"}
-	payload := command.BalanceEngineRecoveryPayload{
-		FormatVersion: command.BalanceEngineRecoveryVersion, TenantID: "fixture", HeaderID: "header", TransactionID: txID,
+	projectionBalance := command.OperationBalanceContext{OrganizationID: orgID.String(), LedgerID: ledgerID.String(), ID: sourceID.String(), AccountID: sourceID.String(), Alias: "@source", Key: "default", AssetCode: "USD", AccountType: "deposit"}
+	payload := command.TransactionCompletionPlan{
+		FormatVersion: command.TransactionCompletionFormatVersion, TenantID: "fixture", HeaderID: "header", TransactionID: txID,
 		OrganizationID: orgID, LedgerID: ledgerID, ExecutionID: executionID, IntentFingerprint: strings.Repeat("a", 64), TransactionInput: transaction, Validate: validate, TTL: fixedSizingTime(),
 		TransactionStatus: constant.CREATED, Action: constant.ActionCommit, TransactionDate: fixedSizingTime(), TransactionCreatedAt: fixedSizingTime(), TransactionUpdatedAt: fixedSizingTime(), OperationUpdatedAt: fixedSizingTime(),
-		Projection: []command.FrozenProjectionContext{{TransactionID: txID, PostingRef: "from:0:debit", BalanceRef: sourceRef, Role: "primary", Side: command.ProjectionSideFrom, RowType: "DEBIT", Direction: "credit", Description: "description", ChartOfAccounts: "1000", Metadata: input.Send.Source.From[0].Metadata, Balance: projectionBalance, RequestedAmount: decimal.NewFromInt(1), CompatibilityPath: command.ProjectionStandard}},
+		OperationSpecs: []command.OperationRecordSpec{{TransactionID: txID, PostingRef: "from:0:debit", BalanceRef: sourceRef, Role: "primary", Side: command.ProjectionSideFrom, RowType: "DEBIT", Direction: "credit", Description: "description", ChartOfAccounts: "1000", Metadata: input.Send.Source.From[0].Metadata, Balance: projectionBalance, RequestedAmount: decimal.NewFromInt(1), CompatibilityPath: command.ProjectionStandard}},
 	}
-	recovery, err := command.EncodeBalanceEngineRecoveryPayload(payload)
+	recovery, err := command.EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 
-	limits := Limits{MaxTransactions: 1, MaxPostings: 2, MaxBalances: 2, MaxRecoveryBytes: len(recovery) + 1, MaxRequestBytes: bodyLimit * 4, MaxPreparedBytes: bodyLimit * 4}
-	inputExecution := command.EngineExecution{Request: request, IntentFingerprint: "immutable-intent", Guards: []command.ExecutionGuard{{TransactionID: txID, ExpectedToken: "old", NextToken: "next"}}, Recovery: []command.RecoveryIntent{{TransactionID: txID, Payload: recovery}}}
+	limits := Limits{MaxTransactions: 1, MaxPostings: 2, MaxBalances: 2, MaxCompletionPlanBytes: len(recovery) + 1, MaxRequestBytes: bodyLimit * 4, MaxPreparedBytes: bodyLimit * 4}
+	inputExecution := command.EngineExecution{Request: request, IntentFingerprint: "immutable-intent", Guards: []command.ExecutionGuard{{TransactionID: txID, ExpectedToken: "old", NextToken: "next"}}, Recovery: []command.CompletionPlanRecord{{TransactionID: txID, Payload: recovery}}}
 	resolved := sizingResolvedKeys(request.Balances)
 	prepared, err := prepareExecution(context.Background(), inputExecution, limits, resolved)
 	require.NoError(t, err)
@@ -454,15 +455,15 @@ func prepareTransactionBodyWithFees(t *testing.T, feeCount int) preparedSize {
 
 	organizationID := uuid.MustParse("ef73c171-f889-4a9d-a5d3-421ee069d736")
 	ledgerID := uuid.MustParse("fbe630e6-fde0-4396-bb3b-b5e5da509ae0")
-	input := mtransaction.CreateTransactionV2Input{
+	input := ledgerin.CreateTransactionV2Request{
 		Asset: "USD", Amount: "1",
-		Debits:  []mtransaction.V2LegInput{{Alias: "@source", OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), Amount: "1"}},
-		Credits: []mtransaction.V2LegInput{{Alias: "@destination", OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), Amount: "1"}},
+		Debits:  []ledgerin.TransactionV2LegRequest{{Alias: "@source", OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), Amount: "1"}},
+		Credits: []ledgerin.TransactionV2LegRequest{{Alias: "@destination", OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), Amount: "1"}},
 	}
 	body, err := json.Marshal(input)
 	require.NoError(t, err)
 
-	decoded := new(mtransaction.CreateTransactionV2Input)
+	decoded := new(ledgerin.CreateTransactionV2Request)
 	_, err = pkgHTTP.DecodeAndValidate(body, decoded)
 	require.NoError(t, err)
 	transaction, scope, err := decoded.Translate(false)
@@ -539,14 +540,14 @@ func prepareTransactionBodyWithFees(t *testing.T, feeCount int) preparedSize {
 	require.Len(t, translated.Postings, 1<<(feeCount+1))
 	require.Len(t, projection, 1<<(feeCount+1))
 
-	payload := command.BalanceEngineRecoveryPayload{
-		FormatVersion: command.BalanceEngineRecoveryVersion, TenantID: "fixture", HeaderID: "header", TransactionID: transactionID,
+	payload := command.TransactionCompletionPlan{
+		FormatVersion: command.TransactionCompletionFormatVersion, TenantID: "fixture", HeaderID: "header", TransactionID: transactionID,
 		OrganizationID: organizationID, LedgerID: ledgerID, ExecutionID: executionID, IntentFingerprint: strings.Repeat("a", 64),
 		TransactionInput: transaction, Validate: validate, TTL: fixedSizingTime(), TransactionStatus: constant.CREATED,
 		Action: constant.ActionDirect, TransactionDate: fixedSizingTime(), TransactionCreatedAt: fixedSizingTime(),
-		TransactionUpdatedAt: fixedSizingTime(), OperationUpdatedAt: fixedSizingTime(), Projection: projection,
+		TransactionUpdatedAt: fixedSizingTime(), OperationUpdatedAt: fixedSizingTime(), OperationSpecs: projection,
 	}
-	recovery, err := command.EncodeBalanceEngineRecoveryPayload(payload)
+	recovery, err := command.EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 
 	request := engine.Request{
@@ -555,12 +556,12 @@ func prepareTransactionBodyWithFees(t *testing.T, feeCount int) preparedSize {
 	}
 	limits := Limits{
 		MaxTransactions: 1, MaxPostings: len(translated.Postings), MaxBalances: len(pool.Snapshots),
-		MaxRecoveryBytes: len(recovery) + 1, MaxRequestBytes: 16 * 1024 * 1024, MaxPreparedBytes: 16 * 1024 * 1024,
+		MaxCompletionPlanBytes: len(recovery) + 1, MaxRequestBytes: 16 * 1024 * 1024, MaxPreparedBytes: 16 * 1024 * 1024,
 	}
 	execution := command.EngineExecution{
 		Request: request, IntentFingerprint: "immutable-intent",
 		Guards:   []command.ExecutionGuard{{TransactionID: transactionID, ExpectedToken: "old", NextToken: "next"}},
-		Recovery: []command.RecoveryIntent{{TransactionID: transactionID, Payload: recovery}},
+		Recovery: []command.CompletionPlanRecord{{TransactionID: transactionID, Payload: recovery}},
 	}
 	prepared, err := prepareExecution(t.Context(), execution, limits, sizingResolvedKeys(request.Balances))
 	require.NoError(t, err)
@@ -582,10 +583,10 @@ func sizingBalance(organizationID, ledgerID uuid.UUID, alias, key string, availa
 	}
 }
 
-func nearV1Body(t *testing.T, target int) ([]byte, mtransaction.CreateTransactionInput) {
+func nearV1Body(t *testing.T, target int) ([]byte, ledgerin.CreateTransactionRequest) {
 	t.Helper()
 	value := strings.Repeat("\\\"\n", 666) + "\\\""
-	makeInput := func(count int) mtransaction.CreateTransactionInput {
+	makeInput := func(count int) ledgerin.CreateTransactionRequest {
 		from := make([]mtransaction.FromTo, count)
 		to := make([]mtransaction.FromTo, count)
 		for i := 0; i < count; i++ {
@@ -594,7 +595,7 @@ func nearV1Body(t *testing.T, target int) ([]byte, mtransaction.CreateTransactio
 			to[i] = mtransaction.FromTo{AccountAlias: "@destination-" + fmt.Sprintf("%05d", i), Amount: &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1)}}
 		}
 		from[0].Metadata = map[string]any{"escaped": value}
-		return mtransaction.CreateTransactionInput{Send: mtransaction.Send{Asset: "USD", Value: decimal.NewFromInt(int64(count)), Source: mtransaction.Source{From: from}, Distribute: mtransaction.Distribute{To: to}}}
+		return ledgerin.CreateTransactionRequest{Send: mtransaction.Send{Asset: "USD", Value: decimal.NewFromInt(int64(count)), Source: mtransaction.Source{From: from}, Distribute: mtransaction.Distribute{To: to}}}
 	}
 	low, high := 0, 100_000
 	for low+1 < high {

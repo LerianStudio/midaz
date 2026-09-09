@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package mtransaction
+package in
 
 import (
 	"strconv"
@@ -13,18 +13,20 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-// CreateTransactionV2Input is the request payload for the Transaction API v2. It
+// CreateTransactionV2Request is the request payload for the Transaction API v2. It
 // mirrors the canonical Transaction shape explicitly rather than embedding
 // mmodel/canonical types, so domain evolution never leaks onto the wire contract.
+// It is published as CreateTransactionV2Input to preserve the existing OpenAPI contract.
 //
 // Each side of the transaction is a leg array (Debits/Credits): one debit paired with
 // many credits, or the reverse, is a valid request. Each leg names the account alias
 // and the organization and ledger that account belongs to. Description, Code, Asset,
 // Amount, RouteID, OperationRouteID and Metadata sit alongside the two leg arrays.
 // Amount is the transaction total that the legs' share expressions divide.
-type CreateTransactionV2Input struct {
+type CreateTransactionV2Request struct {
 	// Human-readable description of the transaction.
 	Description string `json:"description,omitempty"`
 
@@ -57,11 +59,11 @@ type CreateTransactionV2Input struct {
 	// them instead of discovering them by rejection. `nullable:"false"` keeps `null` out of
 	// the published type: a nil slice is refused, and a schema admitting null would promise a
 	// generated client that the server accepts a body it answers 400 to.
-	Debits []V2LegInput `json:"debits" validate:"min=1,max=500,dive" minItems:"1" maxItems:"500" nullable:"false"`
+	Debits []TransactionV2LegRequest `json:"debits" validate:"min=1,max=500,dive" minItems:"1" maxItems:"500" nullable:"false"`
 
 	// Credits are the credit legs of the transaction, tagged for the same reasons as
 	// Debits.
-	Credits []V2LegInput `json:"credits" validate:"min=1,max=500,dive" minItems:"1" maxItems:"500" nullable:"false"`
+	Credits []TransactionV2LegRequest `json:"credits" validate:"min=1,max=500,dive" minItems:"1" maxItems:"500" nullable:"false"`
 
 	// RouteID is the optional TRANSACTION route UUID. Validated as a UUID at
 	// decode (same tag as the v1 input) so a malformed value is a clean 400, not
@@ -80,7 +82,7 @@ type CreateTransactionV2Input struct {
 	// matching per-ledger override is enabled; otherwise the request is rejected with 422.
 	// The controls it opts out of — the fee engine and the tracer reservation — exist only
 	// on this contract, so the field does too.
-	Skip *TransactionSkip `json:"skip,omitempty"`
+	Skip *mtransaction.TransactionSkip `json:"skip,omitempty"`
 
 	// AccountBlockExceptionID presents a single-use account-block exception,
 	// minted by the block-exception create route. It authorizes ONE debit of an
@@ -102,10 +104,11 @@ type CreateTransactionV2Input struct {
 	AccountBlockExceptionID *string `json:"accountBlockExceptionId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid" doc:"Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action."`
 }
 
-// V2LegInput is one leg of a transaction side. Exactly ONE value expression per leg:
+// TransactionV2LegRequest is one leg of a transaction side. Exactly ONE value expression per leg:
 // an explicit Amount or a Share of the transaction total. The leg exposes no
 // balance key, chart of accounts or metadata.
-type V2LegInput struct {
+// It is published as V2LegInput to preserve the existing OpenAPI contract.
+type TransactionV2LegRequest struct {
 	// Alias is the leg's account alias. The obligation is enforced BOTH by this tag and by
 	// an imperative check in Translate; see buildLeg for why the two are complementary.
 	Alias string `json:"alias" validate:"required"`
@@ -136,7 +139,7 @@ type V2LegInput struct {
 
 	// Share expresses the leg's value as a percentage of the transaction total
 	// instead of an absolute amount.
-	Share *V2ShareInput `json:"share,omitempty"`
+	Share *TransactionV2ShareRequest `json:"share,omitempty"`
 
 	// OperationRouteID is the leg's OPERATION route UUID, overriding the
 	// request-level OperationRouteID for this leg. Validated as a UUID at decode
@@ -145,7 +148,8 @@ type V2LegInput struct {
 	OperationRouteID *string `json:"operationRouteId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 }
 
-// V2ShareInput expresses a leg's value as a percentage of the transaction total. The resolver
+// TransactionV2ShareRequest expresses a leg's value as a percentage of the transaction total.
+// It is published as V2ShareInput to preserve the existing OpenAPI contract. The resolver
 // computes total x (percentage/100) x (percentageOfPercentage/100).
 //
 // Both factors carry the same upper bound of 100, so whether a body is accepted does not depend on
@@ -156,11 +160,11 @@ type V2LegInput struct {
 //
 // Whether a side's legs sum to the transaction total stays a whole-body property that no per-field
 // bound can decide; the funnel's total check owns that rule.
-type V2ShareInput struct {
+type TransactionV2ShareRequest struct {
 	// Percentage is the leg's share of the transaction total, in percent, bounded to 1..100. It
 	// must be positive: a zero share moves nothing while the transaction still commits, and a
 	// negative one inverts the leg's accounting direction. buildLeg enforces the lower bound
-	// imperatively as well, covering a caller that builds the input in Go and skips the decoder.
+	// imperatively as well, covering adapter tests that build the request in Go and skip the decoder.
 	//
 	// The `minimum` and `maximum` tags publish the bounds in the contract, so a client reads them
 	// instead of discovering them by rejection. They do not enforce anything: the create ops
@@ -179,13 +183,13 @@ type V2ShareInput struct {
 	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty" validate:"omitempty,gte=0,lte=100" example:"50" minimum:"0" maximum:"100"`
 }
 
-// V2Scope is the organization and ledger a v2 request is scoped by: the pair every leg of the
+// TransactionV2Scope is the organization and ledger a v2 request is scoped by: the pair every leg of the
 // request named. Translate resolves it from the body and hands it back, so a caller scopes the
 // transaction by what the request says rather than by where it was posted.
 //
 // The identifiers are carried as the client spelled them. Their UUID shape is a contract
 // obligation the decode boundary answers, so this type asserts no format of its own.
-type V2Scope struct {
+type TransactionV2Scope struct {
 	// OrganizationID is the organization every leg named.
 	OrganizationID string
 
@@ -198,7 +202,7 @@ type V2Scope struct {
 // The comparison ignores letter case because a UUID's text spelling does: two legs that spell one
 // ledger in different cases name one ledger, and refusing that body would reject a request that
 // never left a single ledger.
-func (s V2Scope) namesSameAs(other V2Scope) bool {
+func (s TransactionV2Scope) namesSameAs(other TransactionV2Scope) bool {
 	return strings.EqualFold(s.OrganizationID, other.OrganizationID) &&
 		strings.EqualFold(s.LedgerID, other.LedgerID)
 }
@@ -206,13 +210,13 @@ func (s V2Scope) namesSameAs(other V2Scope) bool {
 // v2ScopeRef is one leg's scope paired with the field reference a rejection names it by, so the
 // scope rules can report the offending entry.
 type v2ScopeRef struct {
-	scope V2Scope
+	scope TransactionV2Scope
 	ref   string
 }
 
 // scope reads the scope off a leg.
-func (l V2LegInput) scope() V2Scope {
-	return V2Scope{OrganizationID: l.OrganizationID, LedgerID: l.LedgerID}
+func (l TransactionV2LegRequest) scope() TransactionV2Scope {
+	return TransactionV2Scope{OrganizationID: l.OrganizationID, LedgerID: l.LedgerID}
 }
 
 // validateV2Alias rejects a v2 account alias carrying AliasSeparator. Every alias the v2 surface
@@ -233,14 +237,14 @@ func (l V2LegInput) scope() V2Scope {
 // account carries and the only way to spell funding or withdrawal on a surface with no
 // inflow/outflow action.
 func validateV2Alias(alias string) error {
-	if strings.ContainsRune(alias, AliasSeparator) {
+	if strings.ContainsRune(alias, mtransaction.AliasSeparator) {
 		return pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, constant.EntityTransaction)
 	}
 
 	return nil
 }
 
-// Translate converts the flat v2 input into the canonical Transaction and the V2Scope the
+// Translate converts the flat v2 request into the canonical Transaction and TransactionV2Scope the
 // request is scoped by. The pending flag encodes the action intent (direct=false, hold=true)
 // and is set by the endpoint, not the request body.
 //
@@ -263,43 +267,43 @@ func validateV2Alias(alias string) error {
 // sides, are NOT checked here: the total check needs the resolved per-leg values, which Translate
 // does not compute, and the same-account check needs the resolved balance-key entries the funnel
 // builds. Both stay ValidateSendSourceAndDistribute's job.
-func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, V2Scope, error) {
+func (in CreateTransactionV2Request) Translate(pending bool) (mtransaction.Transaction, TransactionV2Scope, error) {
 	if err := in.validateSidesPresent(); err != nil {
-		return Transaction{}, V2Scope{}, err
+		return mtransaction.Transaction{}, TransactionV2Scope{}, err
 	}
 
 	if err := in.validateAccountBlockExceptionSurface(pending); err != nil {
-		return Transaction{}, V2Scope{}, err
+		return mtransaction.Transaction{}, TransactionV2Scope{}, err
 	}
 
 	value, err := decimal.NewFromString(in.Amount)
 	if err != nil || value.LessThanOrEqual(decimal.Zero) {
-		return Transaction{}, V2Scope{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
+		return mtransaction.Transaction{}, TransactionV2Scope{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
 	}
 
 	from, err := in.buildLegs(in.Debits, true, "debits")
 	if err != nil {
-		return Transaction{}, V2Scope{}, err
+		return mtransaction.Transaction{}, TransactionV2Scope{}, err
 	}
 
 	to, err := in.buildLegs(in.Credits, false, "credits")
 	if err != nil {
-		return Transaction{}, V2Scope{}, err
+		return mtransaction.Transaction{}, TransactionV2Scope{}, err
 	}
 
 	scope, err := in.resolveScope()
 	if err != nil {
-		return Transaction{}, V2Scope{}, err
+		return mtransaction.Transaction{}, TransactionV2Scope{}, err
 	}
 
-	send := Send{
+	send := mtransaction.Send{
 		Asset:      in.Asset,
 		Value:      value,
-		Source:     Source{From: from},
-		Distribute: Distribute{To: to},
+		Source:     mtransaction.Source{From: from},
+		Distribute: mtransaction.Distribute{To: to},
 	}
 
-	return Transaction{
+	return mtransaction.Transaction{
 		Description: in.Description,
 		Code:        in.Code,
 		Pending:     pending,
@@ -310,7 +314,7 @@ func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, V2Scope
 	}, scope, nil
 }
 
-// LifecycleV2Input is the OPTIONAL request body of the /v2 lifecycle actions that accept
+// LifecycleV2Request is the OPTIONAL request body of the /v2 lifecycle actions that accept
 // a single-use account-block exception: commit and revert.
 //
 // Those two actions address an existing transaction and take every other input from the
@@ -322,16 +326,16 @@ func (in CreateTransactionV2Input) Translate(pending bool) (Transaction, V2Scope
 // Cancel is deliberately absent. A cancel is never barred by an account block (it returns
 // on-hold funds or aborts a future credit, so blocking it would deadlock an innocent
 // counterparty), which leaves it nothing a grant could unlock.
-type LifecycleV2Input struct {
+type LifecycleV2Request struct {
 	// AccountBlockExceptionID presents a single-use account-block exception. Optional;
-	// see CreateTransactionV2Input.AccountBlockExceptionID for what a grant authorizes
+	// see CreateTransactionV2Request.AccountBlockExceptionID for what a grant authorizes
 	// and when it is consumed.
 	AccountBlockExceptionID *string `json:"accountBlockExceptionId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid" doc:"Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action."`
 }
 
 // AccountBlockException returns the presented exception identifier parsed into a UUID, or
 // nil when the body presented none.
-func (in LifecycleV2Input) AccountBlockException() (*uuid.UUID, error) {
+func (in LifecycleV2Request) AccountBlockException() (*uuid.UUID, error) {
 	return ParseAccountBlockExceptionID(in.AccountBlockExceptionID)
 }
 
@@ -344,7 +348,7 @@ func (in LifecycleV2Input) AccountBlockException() (*uuid.UUID, error) {
 // presents it on a hold has to learn that the hold consumed nothing, otherwise it looks
 // like the pending is already authorized and the commit fails later for reasons that
 // name no field.
-func (in CreateTransactionV2Input) validateAccountBlockExceptionSurface(pending bool) error {
+func (in CreateTransactionV2Request) validateAccountBlockExceptionSurface(pending bool) error {
 	if pending && in.AccountBlockExceptionID != nil {
 		return pkg.ValidateBusinessError(constant.ErrAccountBlockExceptionNotSupported, constant.EntityTransaction, "hold")
 	}
@@ -354,7 +358,7 @@ func (in CreateTransactionV2Input) validateAccountBlockExceptionSurface(pending 
 
 // AccountBlockException returns the presented exception identifier parsed into a UUID,
 // or nil when the body presented none.
-func (in CreateTransactionV2Input) AccountBlockException() (*uuid.UUID, error) {
+func (in CreateTransactionV2Request) AccountBlockException() (*uuid.UUID, error) {
 	return ParseAccountBlockExceptionID(in.AccountBlockExceptionID)
 }
 
@@ -384,9 +388,9 @@ func ParseAccountBlockExceptionID(raw *string) (*uuid.UUID, error) {
 // the caller has to fill.
 //
 // The obligation is enforced here as well as by the two arrays' `min=1` tags, for the same
-// reason the leg alias obligation is: Translate is exported from a shared package, so a caller
-// that assembles the input in Go and skips the decoder meets no tag at all.
-func (in CreateTransactionV2Input) validateSidesPresent() error {
+// reason the leg alias obligation is: adapter code and tests can assemble the request in Go and
+// skip the decoder, in which case no validation tag runs.
+func (in CreateTransactionV2Request) validateSidesPresent() error {
 	if len(in.Debits) == 0 {
 		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, "debits")
 	}
@@ -407,12 +411,12 @@ func (in CreateTransactionV2Input) validateSidesPresent() error {
 // rule, so widening it later is a change here and nowhere else.
 //
 // The pair returned is the FIRST leg's spelling, and the legs are walked source side first.
-func (in CreateTransactionV2Input) resolveScope() (V2Scope, error) {
-	var resolved V2Scope
+func (in CreateTransactionV2Request) resolveScope() (TransactionV2Scope, error) {
+	var resolved TransactionV2Scope
 
 	for i, ref := range in.scopeRefs() {
 		if err := ref.requireComplete(); err != nil {
-			return V2Scope{}, err
+			return TransactionV2Scope{}, err
 		}
 
 		if i == 0 {
@@ -422,7 +426,7 @@ func (in CreateTransactionV2Input) resolveScope() (V2Scope, error) {
 		}
 
 		if !resolved.namesSameAs(ref.scope) {
-			return V2Scope{}, pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
+			return TransactionV2Scope{}, pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
 		}
 	}
 
@@ -431,7 +435,7 @@ func (in CreateTransactionV2Input) resolveScope() (V2Scope, error) {
 
 // scopeRefs lists one entry per leg of the request, debit side first, each carrying the field
 // reference its rejections are named by.
-func (in CreateTransactionV2Input) scopeRefs() []v2ScopeRef {
+func (in CreateTransactionV2Request) scopeRefs() []v2ScopeRef {
 	refs := make([]v2ScopeRef, 0, len(in.Debits)+len(in.Credits))
 	refs = appendSideScopeRefs(refs, in.Debits, "debits")
 
@@ -440,7 +444,7 @@ func (in CreateTransactionV2Input) scopeRefs() []v2ScopeRef {
 
 // appendSideScopeRefs appends one entry per leg of a single side, referenced by index.
 // legsField names the side.
-func appendSideScopeRefs(refs []v2ScopeRef, legs []V2LegInput, legsField string) []v2ScopeRef {
+func appendSideScopeRefs(refs []v2ScopeRef, legs []TransactionV2LegRequest, legsField string) []v2ScopeRef {
 	for i, leg := range legs {
 		refs = append(refs, v2ScopeRef{scope: leg.scope(), ref: legReference(legsField, i)})
 	}
@@ -452,8 +456,8 @@ func appendSideScopeRefs(refs []v2ScopeRef, legs []V2LegInput, legsField string)
 // caller has to fill.
 //
 // The obligation is enforced here as well as by the leg arrays' `required` tags, for the same
-// reason the alias obligation is: Translate is exported from a shared package, so a caller that
-// assembles the input in Go meets no tag at all.
+// reason the alias obligation is: adapter code and tests can assemble the request in Go and skip
+// the decoder, in which case no validation tag runs.
 func (r v2ScopeRef) requireComplete() error {
 	switch {
 	case r.scope.OrganizationID == "":
@@ -467,8 +471,8 @@ func (r v2ScopeRef) requireComplete() error {
 
 // buildLegs expands one side's leg array into canonical legs, one per entry. fieldName names the
 // side in the per-leg error messages.
-func (in CreateTransactionV2Input) buildLegs(legs []V2LegInput, isFrom bool, fieldName string) ([]FromTo, error) {
-	out := make([]FromTo, 0, len(legs))
+func (in CreateTransactionV2Request) buildLegs(legs []TransactionV2LegRequest, isFrom bool, fieldName string) ([]mtransaction.FromTo, error) {
+	out := make([]mtransaction.FromTo, 0, len(legs))
 
 	for i, leg := range legs {
 		built, err := in.buildLeg(leg, isFrom, legReference(fieldName, i))
@@ -501,17 +505,17 @@ func legReference(fieldName string, i int) string {
 // The alias obligation and the share's positive-percentage obligation are each enforced here AND
 // as a struct tag. They are complementary, not redundant: the tag is the guard every HTTP caller
 // meets, because it fires at the decode boundary before Translate runs, while these checks are the
-// only ones covering a caller that builds the input in Go and skips the decoder — Translate is
-// exported from a shared package. An empty alias reaching the funnel names no account at all, and
+// only ones covering adapter code or tests that build the request in Go and skip the decoder. An
+// empty alias reaching the funnel names no account at all, and
 // a non-positive percentage resolves to no operation row (zero) or an inverted movement
 // (negative) while the transaction still commits.
-func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef string) (FromTo, error) {
+func (in CreateTransactionV2Request) buildLeg(leg TransactionV2LegRequest, isFrom bool, legRef string) (mtransaction.FromTo, error) {
 	if leg.Alias == "" {
-		return FromTo{}, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, legRef+".alias")
+		return mtransaction.FromTo{}, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, legRef+".alias")
 	}
 
 	if err := validateV2Alias(leg.Alias); err != nil {
-		return FromTo{}, err
+		return mtransaction.FromTo{}, err
 	}
 
 	route := leg.OperationRouteID
@@ -519,7 +523,7 @@ func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef 
 		route = in.OperationRouteID
 	}
 
-	built := FromTo{
+	built := mtransaction.FromTo{
 		AccountAlias: leg.Alias,
 		Description:  leg.Description,
 		RouteID:      cloneStringPtr(route),
@@ -534,21 +538,21 @@ func (in CreateTransactionV2Input) buildLeg(leg V2LegInput, isFrom bool, legRef 
 	case leg.Amount != "" && leg.Share == nil:
 		value, err := decimal.NewFromString(leg.Amount)
 		if err != nil || value.LessThanOrEqual(decimal.Zero) {
-			return FromTo{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
+			return mtransaction.FromTo{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
 		}
 
-		built.Amount = &Amount{Asset: in.Asset, Value: value}
+		built.Amount = &mtransaction.Amount{Asset: in.Asset, Value: value}
 	case leg.Share != nil && leg.Amount == "":
 		if leg.Share.Percentage <= 0 {
-			return FromTo{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
+			return mtransaction.FromTo{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
 		}
 
-		built.Share = &Share{
+		built.Share = &mtransaction.Share{
 			Percentage:             leg.Share.Percentage,
 			PercentageOfPercentage: leg.Share.PercentageOfPercentage,
 		}
 	default:
-		return FromTo{}, invalidLegExpression(legRef)
+		return mtransaction.FromTo{}, invalidLegExpression(legRef)
 	}
 
 	return built, nil
@@ -577,7 +581,7 @@ func cloneStringPtr(p *string) *string {
 
 // cloneTransactionSkip returns an independent copy of s, or nil when s is nil, so the
 // produced transaction never aliases the decoded input's skip block.
-func cloneTransactionSkip(s *TransactionSkip) *TransactionSkip {
+func cloneTransactionSkip(s *mtransaction.TransactionSkip) *mtransaction.TransactionSkip {
 	if s == nil {
 		return nil
 	}

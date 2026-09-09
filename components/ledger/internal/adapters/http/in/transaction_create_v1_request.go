@@ -2,16 +2,18 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package mtransaction
+package in
 
 import (
 	"github.com/shopspring/decimal"
 
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-// CreateTransactionInput is a struct design to encapsulate payload data.
-type CreateTransactionInput struct {
+// CreateTransactionRequest is the transport payload for a v1 transaction create.
+// It is published as CreateTransactionInput to preserve the existing OpenAPI contract.
+type CreateTransactionRequest struct {
 	// Chart of accounts group name for accounting purposes
 	// example: FUNDING
 	// maxLength: 256
@@ -48,16 +50,16 @@ type CreateTransactionInput struct {
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// format: date-time
-	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	TransactionDate *mtransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including source and distribution
 	// required: true
-	Send Send `json:"send" validate:"required,dive"`
+	Send mtransaction.Send `json:"send" validate:"required,dive"`
 }
 
-// BuildTransaction converts a CreateTransactionInput to a Transaction.
-func (cti *CreateTransactionInput) BuildTransaction() *Transaction {
-	fromClone := make([]FromTo, len(cti.Send.Source.From))
+// BuildTransaction converts a CreateTransactionRequest to the canonical transaction.
+func (cti *CreateTransactionRequest) BuildTransaction() *mtransaction.Transaction {
+	fromClone := make([]mtransaction.FromTo, len(cti.Send.Source.From))
 	copy(fromClone, cti.Send.Source.From)
 
 	for i := range fromClone {
@@ -67,7 +69,7 @@ func (cti *CreateTransactionInput) BuildTransaction() *Transaction {
 	send := cti.Send
 	send.Source.From = fromClone
 
-	return &Transaction{
+	return &mtransaction.Transaction{
 		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
 		Description:              cti.Description,
 		Code:                     cti.Code,
@@ -80,15 +82,17 @@ func (cti *CreateTransactionInput) BuildTransaction() *Transaction {
 	}
 }
 
-// SendInflow structure for marshaling/unmarshalling JSON for inflow transactions.
-type SendInflow struct {
-	Asset      string          `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value      decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
-	Distribute Distribute      `json:"distribute,omitempty" validate:"required"`
+// TransactionInflowSendRequest is the transport send block for inflow transactions.
+// It is published as SendInflow to preserve the existing OpenAPI contract.
+type TransactionInflowSendRequest struct {
+	Asset      string                  `json:"asset,omitempty" validate:"required" example:"BRL"`
+	Value      decimal.Decimal         `json:"value,omitempty" validate:"required" example:"1000"`
+	Distribute mtransaction.Distribute `json:"distribute,omitempty" validate:"required"`
 }
 
-// CreateTransactionInflowInput is a struct designed to encapsulate payload data for inflow transactions.
-type CreateTransactionInflowInput struct {
+// CreateTransactionInflowRequestBody is the transport payload for a v1 inflow create.
+// It is published as CreateTransactionInflowInput to preserve the existing OpenAPI contract.
+type CreateTransactionInflowRequestBody struct {
 	// Chart of accounts group name for accounting purposes
 	// example: FUNDING
 	// maxLength: 256
@@ -121,25 +125,25 @@ type CreateTransactionInflowInput struct {
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// format: date-time
-	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	TransactionDate *mtransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including distribution only (no source)
 	// required: true
-	Send SendInflow `json:"send" validate:"required,dive"`
+	Send TransactionInflowSendRequest `json:"send" validate:"required,dive"`
 }
 
-// BuildInflowEntry converts a CreateTransactionInflowInput to a Transaction.
-func (c *CreateTransactionInflowInput) BuildInflowEntry() *Transaction {
-	from := FromTo{
+// BuildInflowEntry converts a CreateTransactionInflowRequestBody to the canonical transaction.
+func (c *CreateTransactionInflowRequestBody) BuildInflowEntry() *mtransaction.Transaction {
+	from := mtransaction.FromTo{
 		IsFrom:       true,
 		AccountAlias: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
-		Amount: &Amount{
+		Amount: &mtransaction.Amount{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,
 		},
 	}
 
-	return &Transaction{
+	return &mtransaction.Transaction{
 		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
 		Description:              c.Description,
 		Code:                     c.Code,
@@ -147,26 +151,28 @@ func (c *CreateTransactionInflowInput) BuildInflowEntry() *Transaction {
 		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
 		RouteID:                  c.RouteID,
-		Send: Send{
+		Send: mtransaction.Send{
 			Asset:      c.Send.Asset,
 			Value:      c.Send.Value,
 			Distribute: c.Send.Distribute,
-			Source: Source{
-				From: []FromTo{from},
+			Source: mtransaction.Source{
+				From: []mtransaction.FromTo{from},
 			},
 		},
 	}
 }
 
-// SendOutflow structure for marshaling/unmarshalling JSON for outflow transactions.
-type SendOutflow struct {
-	Asset  string          `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value  decimal.Decimal `json:"value,omitempty" validate:"required" example:"1000"`
-	Source Source          `json:"source,omitempty" validate:"required"`
+// TransactionOutflowSendRequest is the transport send block for outflow transactions.
+// It is published as SendOutflow to preserve the existing OpenAPI contract.
+type TransactionOutflowSendRequest struct {
+	Asset  string              `json:"asset,omitempty" validate:"required" example:"BRL"`
+	Value  decimal.Decimal     `json:"value,omitempty" validate:"required" example:"1000"`
+	Source mtransaction.Source `json:"source,omitempty" validate:"required"`
 }
 
-// CreateTransactionOutflowInput is a struct design to encapsulate payload data for outflow transactions.
-type CreateTransactionOutflowInput struct {
+// CreateTransactionOutflowRequestBody is the transport payload for a v1 outflow create.
+// It is published as CreateTransactionOutflowInput to preserve the existing OpenAPI contract.
+type CreateTransactionOutflowRequestBody struct {
 	// Chart of accounts group name for accounting purposes
 	// example: WITHDRAWAL
 	// maxLength: 256
@@ -203,32 +209,32 @@ type CreateTransactionOutflowInput struct {
 	// TransactionDate Period from transaction creation date until now
 	// Example "2021-01-01T00:00:00Z"
 	// format: date-time
-	TransactionDate *TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	TransactionDate *mtransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
 	// Send operation details including source only (no distribution)
 	// required: true
-	Send SendOutflow `json:"send" validate:"required,dive"`
+	Send TransactionOutflowSendRequest `json:"send" validate:"required,dive"`
 }
 
-// BuildOutflowEntry converts a CreateTransactionOutflowInput to a Transaction.
-func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *Transaction {
-	to := FromTo{
+// BuildOutflowEntry converts a CreateTransactionOutflowRequestBody to the canonical transaction.
+func (c *CreateTransactionOutflowRequestBody) BuildOutflowEntry() *mtransaction.Transaction {
+	to := mtransaction.FromTo{
 		IsFrom:       false,
 		AccountAlias: cn.DefaultExternalAccountAliasPrefix + c.Send.Asset,
-		Amount: &Amount{
+		Amount: &mtransaction.Amount{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,
 		},
 	}
 
-	fromClone := make([]FromTo, len(c.Send.Source.From))
+	fromClone := make([]mtransaction.FromTo, len(c.Send.Source.From))
 	copy(fromClone, c.Send.Source.From)
 
 	for i := range fromClone {
 		fromClone[i].IsFrom = true
 	}
 
-	return &Transaction{
+	return &mtransaction.Transaction{
 		ChartOfAccountsGroupName: c.ChartOfAccountsGroupName,
 		Description:              c.Description,
 		Code:                     c.Code,
@@ -237,14 +243,14 @@ func (c *CreateTransactionOutflowInput) BuildOutflowEntry() *Transaction {
 		TransactionDate:          c.TransactionDate,
 		Route:                    c.Route,
 		RouteID:                  c.RouteID,
-		Send: Send{
+		Send: mtransaction.Send{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,
-			Source: Source{
+			Source: mtransaction.Source{
 				From: fromClone,
 			},
-			Distribute: Distribute{
-				To: []FromTo{to},
+			Distribute: mtransaction.Distribute{
+				To: []mtransaction.FromTo{to},
 			},
 		},
 	}

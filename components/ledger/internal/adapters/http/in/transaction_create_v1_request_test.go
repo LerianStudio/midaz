@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package mtransaction
+package in
 
 import (
 	"testing"
@@ -12,24 +12,25 @@ import (
 	"github.com/stretchr/testify/require"
 
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
+func TestCreateTransactionRequest_BuildTransaction(t *testing.T) {
 	t.Parallel()
 
-	transactionDate := &TransactionDate{}
+	transactionDate := &mtransaction.TransactionDate{}
 
 	tests := []struct {
 		name     string
-		input    CreateTransactionInput
-		validate func(t *testing.T, result *Transaction)
+		input    CreateTransactionRequest
+		validate func(t *testing.T, result *mtransaction.Transaction)
 	}{
 		{
 			name: "minimal input without send",
-			input: CreateTransactionInput{
+			input: CreateTransactionRequest{
 				Description: "Minimal transaction",
 			},
-			validate: func(t *testing.T, result *Transaction) {
+			validate: func(t *testing.T, result *mtransaction.Transaction) {
 				assert.Equal(t, "Minimal transaction", result.Description)
 				assert.Empty(t, result.ChartOfAccountsGroupName)
 				assert.Empty(t, result.Code)
@@ -39,7 +40,7 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 		},
 		{
 			name: "input with all fields except send",
-			input: CreateTransactionInput{
+			input: CreateTransactionRequest{
 				ChartOfAccountsGroupName: "FUNDING",
 				Description:              "Full transaction",
 				Code:                     "TX-001",
@@ -48,7 +49,7 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 				Route:                    "route-123",
 				TransactionDate:          transactionDate,
 			},
-			validate: func(t *testing.T, result *Transaction) {
+			validate: func(t *testing.T, result *mtransaction.Transaction) {
 				assert.Equal(t, "FUNDING", result.ChartOfAccountsGroupName)
 				assert.Equal(t, "Full transaction", result.Description)
 				assert.Equal(t, "TX-001", result.Code)
@@ -60,16 +61,16 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 		},
 		{
 			name: "input with send and from entries",
-			input: CreateTransactionInput{
+			input: CreateTransactionRequest{
 				Description: "Transaction with send",
-				Send: Send{
+				Send: mtransaction.Send{
 					Asset: "USD",
 					Value: decimal.NewFromInt(1000),
-					Source: Source{
-						From: []FromTo{
+					Source: mtransaction.Source{
+						From: []mtransaction.FromTo{
 							{
 								AccountAlias: "@sender1",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "USD",
 									Value: decimal.NewFromInt(600),
 								},
@@ -77,7 +78,7 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 							},
 							{
 								AccountAlias: "@sender2",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "USD",
 									Value: decimal.NewFromInt(400),
 								},
@@ -85,11 +86,11 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 							},
 						},
 					},
-					Distribute: Distribute{
-						To: []FromTo{
+					Distribute: mtransaction.Distribute{
+						To: []mtransaction.FromTo{
 							{
 								AccountAlias: "@receiver",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "USD",
 									Value: decimal.NewFromInt(1000),
 								},
@@ -98,7 +99,7 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result *Transaction) {
+			validate: func(t *testing.T, result *mtransaction.Transaction) {
 				assert.Equal(t, "Transaction with send", result.Description)
 				assert.Equal(t, "USD", result.Send.Asset)
 				assert.True(t, result.Send.Value.Equal(decimal.NewFromInt(1000)))
@@ -115,10 +116,10 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 		},
 		{
 			name: "input with zero-value send",
-			input: CreateTransactionInput{
+			input: CreateTransactionRequest{
 				Description: "No send",
 			},
-			validate: func(t *testing.T, result *Transaction) {
+			validate: func(t *testing.T, result *mtransaction.Transaction) {
 				assert.Equal(t, "No send", result.Description)
 				// Send should be empty/zero value
 				assert.True(t, result.Send.Value.IsZero())
@@ -138,28 +139,28 @@ func TestCreateTransactionInput_BuildTransaction(t *testing.T) {
 	}
 }
 
-func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
+func TestCreateTransactionInflowRequestBody_BuildInflowEntry(t *testing.T) {
 	t.Parallel()
 
-	transactionDate := &TransactionDate{}
+	transactionDate := &mtransaction.TransactionDate{}
 
 	tests := []struct {
 		name     string
-		input    CreateTransactionInflowInput
-		validate func(t *testing.T, result *Transaction)
+		input    CreateTransactionInflowRequestBody
+		validate func(t *testing.T, result *mtransaction.Transaction)
 	}{
 		{
 			name: "minimal inflow",
-			input: CreateTransactionInflowInput{
+			input: CreateTransactionInflowRequestBody{
 				Description: "Minimal inflow",
-				Send: SendInflow{
+				Send: TransactionInflowSendRequest{
 					Asset: "USD",
 					Value: decimal.NewFromInt(500),
-					Distribute: Distribute{
-						To: []FromTo{
+					Distribute: mtransaction.Distribute{
+						To: []mtransaction.FromTo{
 							{
 								AccountAlias: "@receiver",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "USD",
 									Value: decimal.NewFromInt(500),
 								},
@@ -168,7 +169,7 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result *Transaction) {
+			validate: func(t *testing.T, result *mtransaction.Transaction) {
 				assert.Equal(t, "Minimal inflow", result.Description)
 				assert.Equal(t, "USD", result.Send.Asset)
 				assert.True(t, result.Send.Value.Equal(decimal.NewFromInt(500)))
@@ -189,23 +190,23 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 		},
 		{
 			name: "inflow with all fields",
-			input: CreateTransactionInflowInput{
+			input: CreateTransactionInflowRequestBody{
 				ChartOfAccountsGroupName: "FUNDING",
 				Description:              "Full inflow",
 				Code:                     "INF-001",
 				Metadata:                 map[string]any{"source": "external"},
 				Route:                    "inflow-route",
 				TransactionDate:          transactionDate,
-				Send: SendInflow{
+				Send: TransactionInflowSendRequest{
 					Asset: "BRL",
 					Value: decimal.NewFromInt(1000),
-					Distribute: Distribute{
-						To: []FromTo{
+					Distribute: mtransaction.Distribute{
+						To: []mtransaction.FromTo{
 							{
 								AccountAlias:    "@account1",
 								Description:     "Credit to account1",
 								ChartOfAccounts: "4001",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "BRL",
 									Value: decimal.NewFromInt(600),
 								},
@@ -214,7 +215,7 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 								AccountAlias:    "@account2",
 								Description:     "Credit to account2",
 								ChartOfAccounts: "4002",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "BRL",
 									Value: decimal.NewFromInt(400),
 								},
@@ -223,7 +224,7 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result *Transaction) {
+			validate: func(t *testing.T, result *mtransaction.Transaction) {
 				assert.Equal(t, "FUNDING", result.ChartOfAccountsGroupName)
 				assert.Equal(t, "Full inflow", result.Description)
 				assert.Equal(t, "INF-001", result.Code)
@@ -241,16 +242,16 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 		},
 		{
 			name: "inflow with different asset",
-			input: CreateTransactionInflowInput{
+			input: CreateTransactionInflowRequestBody{
 				Description: "EUR inflow",
-				Send: SendInflow{
+				Send: TransactionInflowSendRequest{
 					Asset: "EUR",
 					Value: decimal.NewFromInt(250),
-					Distribute: Distribute{
-						To: []FromTo{
+					Distribute: mtransaction.Distribute{
+						To: []mtransaction.FromTo{
 							{
 								AccountAlias: "@euro_account",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "EUR",
 									Value: decimal.NewFromInt(250),
 								},
@@ -259,7 +260,7 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result *Transaction) {
+			validate: func(t *testing.T, result *mtransaction.Transaction) {
 				// Verify external account uses correct asset
 				require.Len(t, result.Send.Source.From, 1)
 				assert.Equal(t, cn.DefaultExternalAccountAliasPrefix+"EUR", result.Send.Source.From[0].AccountAlias)
@@ -280,28 +281,28 @@ func TestCreateTransactionInflowInput_BuildInflowEntry(t *testing.T) {
 	}
 }
 
-func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
+func TestCreateTransactionOutflowRequestBody_BuildOutflowEntry(t *testing.T) {
 	t.Parallel()
 
-	transactionDate := &TransactionDate{}
+	transactionDate := &mtransaction.TransactionDate{}
 
 	tests := []struct {
 		name     string
-		input    CreateTransactionOutflowInput
-		validate func(t *testing.T, result *Transaction)
+		input    CreateTransactionOutflowRequestBody
+		validate func(t *testing.T, result *mtransaction.Transaction)
 	}{
 		{
 			name: "minimal outflow",
-			input: CreateTransactionOutflowInput{
+			input: CreateTransactionOutflowRequestBody{
 				Description: "Minimal outflow",
-				Send: SendOutflow{
+				Send: TransactionOutflowSendRequest{
 					Asset: "USD",
 					Value: decimal.NewFromInt(500),
-					Source: Source{
-						From: []FromTo{
+					Source: mtransaction.Source{
+						From: []mtransaction.FromTo{
 							{
 								AccountAlias: "@sender",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "USD",
 									Value: decimal.NewFromInt(500),
 								},
@@ -311,7 +312,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result *Transaction) {
+			validate: func(t *testing.T, result *mtransaction.Transaction) {
 				assert.Equal(t, "Minimal outflow", result.Description)
 				assert.Equal(t, "USD", result.Send.Asset)
 				assert.True(t, result.Send.Value.Equal(decimal.NewFromInt(500)))
@@ -331,7 +332,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 		},
 		{
 			name: "outflow with all fields",
-			input: CreateTransactionOutflowInput{
+			input: CreateTransactionOutflowRequestBody{
 				ChartOfAccountsGroupName: "WITHDRAWAL",
 				Description:              "Full outflow",
 				Code:                     "OUT-001",
@@ -339,16 +340,16 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 				Metadata:                 map[string]any{"destination": "external"},
 				Route:                    "outflow-route",
 				TransactionDate:          transactionDate,
-				Send: SendOutflow{
+				Send: TransactionOutflowSendRequest{
 					Asset: "BRL",
 					Value: decimal.NewFromInt(1000),
-					Source: Source{
-						From: []FromTo{
+					Source: mtransaction.Source{
+						From: []mtransaction.FromTo{
 							{
 								AccountAlias:    "@account1",
 								Description:     "Debit from account1",
 								ChartOfAccounts: "5001",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "BRL",
 									Value: decimal.NewFromInt(600),
 								},
@@ -357,7 +358,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 								AccountAlias:    "@account2",
 								Description:     "Debit from account2",
 								ChartOfAccounts: "5002",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "BRL",
 									Value: decimal.NewFromInt(400),
 								},
@@ -366,7 +367,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result *Transaction) {
+			validate: func(t *testing.T, result *mtransaction.Transaction) {
 				assert.Equal(t, "WITHDRAWAL", result.ChartOfAccountsGroupName)
 				assert.Equal(t, "Full outflow", result.Description)
 				assert.Equal(t, "OUT-001", result.Code)
@@ -388,16 +389,16 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 		},
 		{
 			name: "outflow with different asset",
-			input: CreateTransactionOutflowInput{
+			input: CreateTransactionOutflowRequestBody{
 				Description: "EUR outflow",
-				Send: SendOutflow{
+				Send: TransactionOutflowSendRequest{
 					Asset: "EUR",
 					Value: decimal.NewFromInt(250),
-					Source: Source{
-						From: []FromTo{
+					Source: mtransaction.Source{
+						From: []mtransaction.FromTo{
 							{
 								AccountAlias: "@euro_account",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "EUR",
 									Value: decimal.NewFromInt(250),
 								},
@@ -406,7 +407,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result *Transaction) {
+			validate: func(t *testing.T, result *mtransaction.Transaction) {
 				// Verify external account uses correct asset
 				require.Len(t, result.Send.Distribute.To, 1)
 				assert.Equal(t, cn.DefaultExternalAccountAliasPrefix+"EUR", result.Send.Distribute.To[0].AccountAlias)
@@ -415,17 +416,17 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 		},
 		{
 			name: "outflow not pending",
-			input: CreateTransactionOutflowInput{
+			input: CreateTransactionOutflowRequestBody{
 				Description: "Non-pending outflow",
 				Pending:     false,
-				Send: SendOutflow{
+				Send: TransactionOutflowSendRequest{
 					Asset: "USD",
 					Value: decimal.NewFromInt(100),
-					Source: Source{
-						From: []FromTo{
+					Source: mtransaction.Source{
+						From: []mtransaction.FromTo{
 							{
 								AccountAlias: "@account",
-								Amount: &Amount{
+								Amount: &mtransaction.Amount{
 									Asset: "USD",
 									Value: decimal.NewFromInt(100),
 								},
@@ -434,7 +435,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 					},
 				},
 			},
-			validate: func(t *testing.T, result *Transaction) {
+			validate: func(t *testing.T, result *mtransaction.Transaction) {
 				assert.False(t, result.Pending, "Pending flag should be false")
 			},
 		},
@@ -459,7 +460,7 @@ func TestCreateTransactionOutflowInput_BuildOutflowEntry(t *testing.T) {
 func TestBuildEntries_CarryNoSkip(t *testing.T) {
 	t.Parallel()
 
-	assert.Nil(t, (&CreateTransactionInput{}).BuildTransaction().Skip)
-	assert.Nil(t, (&CreateTransactionInflowInput{}).BuildInflowEntry().Skip)
-	assert.Nil(t, (&CreateTransactionOutflowInput{}).BuildOutflowEntry().Skip)
+	assert.Nil(t, (&CreateTransactionRequest{}).BuildTransaction().Skip)
+	assert.Nil(t, (&CreateTransactionInflowRequestBody{}).BuildInflowEntry().Skip)
+	assert.Nil(t, (&CreateTransactionOutflowRequestBody{}).BuildOutflowEntry().Skip)
 }

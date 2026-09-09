@@ -28,7 +28,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -705,7 +704,7 @@ const v2PerLegDescriptionBody = `{"description":"v2 transaction note","asset":"B
 func TestDecodeAndBuildV2Transaction_CarriesPerLegDescriptions(t *testing.T) {
 	t.Parallel()
 
-	var probe mtransaction.CreateTransactionV2Input
+	var probe CreateTransactionV2Request
 
 	_, decodeErr := pkgHTTP.DecodeAndValidate([]byte(v2PerLegDescriptionBody), &probe)
 	require.NoError(t, decodeErr, "a per-leg description must not be answered as an unknown field")
@@ -768,7 +767,7 @@ func TestDecodeV2Body_RemainingLegRejectionIsSpellingSensitive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			payload := new(mtransaction.CreateTransactionV2Input)
+			payload := new(CreateTransactionV2Request)
 
 			_, err := pkgHTTP.DecodeAndValidate([]byte(tc.body), payload)
 
@@ -838,7 +837,7 @@ func TestDecodeV2Body_ExternalAccountAliasSurvivesTheLegPositions(t *testing.T) 
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			payload := new(mtransaction.CreateTransactionV2Input)
+			payload := new(CreateTransactionV2Request)
 
 			_, err := pkgHTTP.DecodeAndValidate([]byte(tc.body), payload)
 			require.NoError(t, err,

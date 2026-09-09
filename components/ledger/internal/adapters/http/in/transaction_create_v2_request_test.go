@@ -2,13 +2,15 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package mtransaction_test
+package in
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,21 +33,21 @@ const (
 // never name different scopes.
 const scopeJSON = `"organizationId":"` + testOrgID + `","ledgerId":"` + testLedgerID + `"`
 
-// testScope is the V2Scope a body built from the helpers below resolves to.
-func testScope() mtransaction.V2Scope {
-	return mtransaction.V2Scope{OrganizationID: testOrgID, LedgerID: testLedgerID}
+// testScope is the TransactionV2Scope a body built from the helpers below resolves to.
+func testScope() TransactionV2Scope {
+	return TransactionV2Scope{OrganizationID: testOrgID, LedgerID: testLedgerID}
 }
 
 // v2Leg spells a leg naming alias and amount inside the shared test scope.
-func v2Leg(alias, amount string) mtransaction.V2LegInput {
-	return mtransaction.V2LegInput{Alias: alias, Amount: amount, OrganizationID: testOrgID, LedgerID: testLedgerID}
+func v2Leg(alias, amount string) TransactionV2LegRequest {
+	return TransactionV2LegRequest{Alias: alias, Amount: amount, OrganizationID: testOrgID, LedgerID: testLedgerID}
 }
 
 // scopedLegs fills the shared test scope on every leg that leaves it blank, so a case's leg
 // literal states only the fields the case is about. A leg that names its own scope is left
 // alone, which is how the disagreement cases spell divergence.
-func scopedLegs(legs []mtransaction.V2LegInput) []mtransaction.V2LegInput {
-	out := make([]mtransaction.V2LegInput, 0, len(legs))
+func scopedLegs(legs []TransactionV2LegRequest) []TransactionV2LegRequest {
+	out := make([]TransactionV2LegRequest, 0, len(legs))
 
 	for _, leg := range legs {
 		if leg.OrganizationID == "" {
@@ -62,29 +64,126 @@ func scopedLegs(legs []mtransaction.V2LegInput) []mtransaction.V2LegInput {
 	return out
 }
 
-// validV2Input returns a fully populated, valid CreateTransactionV2Input: one debit leg and
+// validV2Input returns a fully populated, valid CreateTransactionV2Request: one debit leg and
 // one credit leg, each carrying the whole transaction total.
-func validV2Input() mtransaction.CreateTransactionV2Input {
+func validV2Input() CreateTransactionV2Request {
 	routeID := "00000000-0000-0000-0000-000000000000"
 	operationRouteID := "11111111-1111-1111-1111-111111111111"
 
-	return mtransaction.CreateTransactionV2Input{
+	return CreateTransactionV2Request{
 		Description:      "New Transaction",
 		Code:             "TR12345",
 		Asset:            "BRL",
 		Amount:           "1000",
-		Debits:           []mtransaction.V2LegInput{v2Leg("@person1", "1000")},
-		Credits:          []mtransaction.V2LegInput{v2Leg("@person2", "1000")},
+		Debits:           []TransactionV2LegRequest{v2Leg("@person1", "1000")},
+		Credits:          []TransactionV2LegRequest{v2Leg("@person2", "1000")},
 		RouteID:          &routeID,
 		OperationRouteID: &operationRouteID,
 		Metadata:         map[string]any{"reference": "TRANSACTION-001"},
 	}
 }
 
-// arrayV2Input returns a valid CreateTransactionV2Input built from the caller's debit and
+func TestV2Request_AccountBlockExceptionSurfaces(t *testing.T) {
+	t.Parallel()
+
+	exceptionID := uuid.NewString()
+	tests := []struct {
+		name        string
+		pending     bool
+		presentedID *string
+		wantErr     error
+	}{
+		{name: "direct accepts the identifier", presentedID: &exceptionID},
+		{name: "direct without the identifier"},
+		{name: "hold without the identifier", pending: true},
+		{name: "hold rejects the identifier", pending: true, presentedID: &exceptionID, wantErr: constant.ErrAccountBlockExceptionNotSupported},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			input := validV2Input()
+			input.AccountBlockExceptionID = tt.presentedID
+
+			tran, _, err := input.Translate(tt.pending)
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr.Error())
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.pending, tran.Pending)
+		})
+	}
+}
+
+func TestV2Request_AccountBlockExceptionDoesNotRideOnTransaction(t *testing.T) {
+	t.Parallel()
+
+	presented := uuid.New()
+	raw := presented.String()
+	input := validV2Input()
+	input.AccountBlockExceptionID = &raw
+
+	tran, _, err := input.Translate(false)
+	require.NoError(t, err)
+
+	encoded, err := json.Marshal(tran)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "accountBlockExceptionId")
+	assert.NotContains(t, string(encoded), raw)
+
+	parsed, err := input.AccountBlockException()
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+	assert.Equal(t, presented, *parsed)
+}
+
+func TestParseAccountBlockExceptionID(t *testing.T) {
+	t.Parallel()
+
+	parsed, err := ParseAccountBlockExceptionID(nil)
+	require.NoError(t, err)
+	assert.Nil(t, parsed)
+
+	want := uuid.New()
+	raw := want.String()
+	parsed, err = ParseAccountBlockExceptionID(&raw)
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+	assert.Equal(t, want, *parsed)
+
+	for _, malformed := range []string{"", "not-a-uuid", "550e8400-e29b-41d4-a716"} {
+		value := malformed
+		parsed, err = ParseAccountBlockExceptionID(&value)
+		require.Error(t, err)
+		assert.Nil(t, parsed)
+		assert.Contains(t, err.Error(), constant.ErrAccountBlockExceptionInvalid.Error())
+	}
+}
+
+func TestLifecycleV2Request_AccountBlockException(t *testing.T) {
+	t.Parallel()
+
+	empty, err := (LifecycleV2Request{}).AccountBlockException()
+	require.NoError(t, err)
+	assert.Nil(t, empty)
+
+	want := uuid.New()
+	raw := want.String()
+	parsed, err := (LifecycleV2Request{AccountBlockExceptionID: &raw}).AccountBlockException()
+	require.NoError(t, err)
+	require.NotNil(t, parsed)
+	assert.Equal(t, want, *parsed)
+}
+
+// arrayV2Input returns a valid CreateTransactionV2Request built from the caller's debit and
 // credit leg groups. The transaction total stays on the request, since the legs' share
 // expressions divide it.
-func arrayV2Input(debits, credits []mtransaction.V2LegInput) mtransaction.CreateTransactionV2Input {
+func arrayV2Input(debits, credits []TransactionV2LegRequest) CreateTransactionV2Request {
 	in := validV2Input()
 	in.Debits = scopedLegs(debits)
 	in.Credits = scopedLegs(credits)
@@ -92,52 +191,52 @@ func arrayV2Input(debits, credits []mtransaction.V2LegInput) mtransaction.Create
 	return in
 }
 
-func TestCreateTransactionV2Input_Validation(t *testing.T) {
+func TestCreateTransactionV2Request_Validation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
-		mutate  func(in *mtransaction.CreateTransactionV2Input)
+		mutate  func(in *CreateTransactionV2Request)
 		wantErr bool
 	}{
 		{
 			name:    "fully populated valid input passes",
-			mutate:  func(_ *mtransaction.CreateTransactionV2Input) {},
+			mutate:  func(_ *CreateTransactionV2Request) {},
 			wantErr: false,
 		},
 		{
 			name:    "missing asset fails",
-			mutate:  func(in *mtransaction.CreateTransactionV2Input) { in.Asset = "" },
+			mutate:  func(in *CreateTransactionV2Request) { in.Asset = "" },
 			wantErr: true,
 		},
 		{
 			name:    "missing amount fails",
-			mutate:  func(in *mtransaction.CreateTransactionV2Input) { in.Amount = "" },
+			mutate:  func(in *CreateTransactionV2Request) { in.Amount = "" },
 			wantErr: true,
 		},
 		{
 			name:    "empty debits fails (min=1)",
-			mutate:  func(in *mtransaction.CreateTransactionV2Input) { in.Debits = []mtransaction.V2LegInput{} },
+			mutate:  func(in *CreateTransactionV2Request) { in.Debits = []TransactionV2LegRequest{} },
 			wantErr: true,
 		},
 		{
 			name:    "nil debits fails (min=1)",
-			mutate:  func(in *mtransaction.CreateTransactionV2Input) { in.Debits = nil },
+			mutate:  func(in *CreateTransactionV2Request) { in.Debits = nil },
 			wantErr: true,
 		},
 		{
 			name:    "empty credits fails (min=1)",
-			mutate:  func(in *mtransaction.CreateTransactionV2Input) { in.Credits = []mtransaction.V2LegInput{} },
+			mutate:  func(in *CreateTransactionV2Request) { in.Credits = []TransactionV2LegRequest{} },
 			wantErr: true,
 		},
 		{
 			name: "leg array form with several legs per side passes struct validation",
-			mutate: func(in *mtransaction.CreateTransactionV2Input) {
-				in.Debits = scopedLegs([]mtransaction.V2LegInput{
+			mutate: func(in *CreateTransactionV2Request) {
+				in.Debits = scopedLegs([]TransactionV2LegRequest{
 					{Alias: "@person1", Amount: "600"},
 					{Alias: "@person3", Amount: "400"},
 				})
-				in.Credits = scopedLegs([]mtransaction.V2LegInput{
+				in.Credits = scopedLegs([]TransactionV2LegRequest{
 					{Alias: "@person2", Amount: "250"},
 					{Alias: "@person4", Amount: "750"},
 				})
@@ -148,36 +247,36 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 			// The leg names its scope, so the route is the only rule the body leaves broken —
 			// which is what keeps the rejection attributable to the uuid tag under test.
 			name: "non-UUID per-leg operationRouteId fails (dive + uuid tag)",
-			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+			mutate: func(in *CreateTransactionV2Request) {
 				bad := "not-a-uuid"
-				in.Debits = scopedLegs([]mtransaction.V2LegInput{{Alias: "@person1", OperationRouteID: &bad}})
+				in.Debits = scopedLegs([]TransactionV2LegRequest{{Alias: "@person1", OperationRouteID: &bad}})
 			},
 			wantErr: true,
 		},
 		{
 			name: "metadata key over 100 chars fails (keymax)",
-			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+			mutate: func(in *CreateTransactionV2Request) {
 				in.Metadata = map[string]any{strings.Repeat("k", 101): "value"}
 			},
 			wantErr: true,
 		},
 		{
 			name: "metadata value over 2000 chars fails (valuemax)",
-			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+			mutate: func(in *CreateTransactionV2Request) {
 				in.Metadata = map[string]any{"key": strings.Repeat("v", 2001)}
 			},
 			wantErr: true,
 		},
 		{
 			name: "nested metadata value fails (nonested)",
-			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+			mutate: func(in *CreateTransactionV2Request) {
 				in.Metadata = map[string]any{"key": map[string]any{"nested": "value"}}
 			},
 			wantErr: true,
 		},
 		{
 			name: "non-UUID routeId fails (uuid tag)",
-			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+			mutate: func(in *CreateTransactionV2Request) {
 				bad := "not-a-uuid"
 				in.RouteID = &bad
 			},
@@ -185,7 +284,7 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 		},
 		{
 			name: "non-UUID operationRouteId fails (uuid tag)",
-			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+			mutate: func(in *CreateTransactionV2Request) {
 				bad := "not-a-uuid"
 				in.OperationRouteID = &bad
 			},
@@ -193,7 +292,7 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 		},
 		{
 			name: "nil route ids pass (omitempty)",
-			mutate: func(in *mtransaction.CreateTransactionV2Input) {
+			mutate: func(in *CreateTransactionV2Request) {
 				in.RouteID = nil
 				in.OperationRouteID = nil
 			},
@@ -219,7 +318,7 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 	}
 }
 
-// TestCreateTransactionV2Input_SideFieldsMirrorTheWireShape asserts the two side fields are
+// TestCreateTransactionV2Request_SideFieldsMirrorTheWireShape asserts the two side fields are
 // slices of the v2 leg type, typed independently of the canonical transaction. Embedding a
 // canonical or mmodel type here would leak domain evolution straight onto the published wire
 // contract, and nothing else in the suite would notice — the shapes coincide today, so every
@@ -228,21 +327,21 @@ func TestCreateTransactionV2Input_Validation(t *testing.T) {
 // The tag assertions this test used to carry were dropped. Each tag it pinned has a behavioural
 // sibling that fails for the same change, which makes a reflective restatement a change detector
 // rather than a second guarantee: no json `omitempty` is proved by
-// TestCreateTransactionV2Input_EmptySideArrayIsAKnownField, `min=1` by
-// TestCreateTransactionV2Input_Validation, `dive` by TestV2LegInput_AliasRequired, and
-// `max=500` by TestCreateTransactionV2Input_LegArrayCap. The field TYPE has no such sibling,
+// TestCreateTransactionV2Request_EmptySideArrayIsAKnownField, `min=1` by
+// TestCreateTransactionV2Request_Validation, `dive` by TestTransactionV2LegRequest_AliasRequired, and
+// `max=500` by TestCreateTransactionV2Request_LegArrayCap. The field TYPE has no such sibling,
 // which is why it stays.
-func TestCreateTransactionV2Input_SideFieldsMirrorTheWireShape(t *testing.T) {
+func TestCreateTransactionV2Request_SideFieldsMirrorTheWireShape(t *testing.T) {
 	t.Parallel()
 
-	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
+	inputType := reflect.TypeFor[CreateTransactionV2Request]()
 
 	tests := []struct {
 		field    string
 		wantType reflect.Type
 	}{
-		{field: "Debits", wantType: reflect.TypeFor[[]mtransaction.V2LegInput]()},
-		{field: "Credits", wantType: reflect.TypeFor[[]mtransaction.V2LegInput]()},
+		{field: "Debits", wantType: reflect.TypeFor[[]TransactionV2LegRequest]()},
+		{field: "Credits", wantType: reflect.TypeFor[[]TransactionV2LegRequest]()},
 	}
 
 	for _, tt := range tests {
@@ -250,28 +349,28 @@ func TestCreateTransactionV2Input_SideFieldsMirrorTheWireShape(t *testing.T) {
 			t.Parallel()
 
 			field, ok := inputType.FieldByName(tt.field)
-			require.Truef(t, ok, "CreateTransactionV2Input should carry a %s field", tt.field)
+			require.Truef(t, ok, "CreateTransactionV2Request should carry a %s field", tt.field)
 			assert.Equalf(t, tt.wantType, field.Type,
 				"%s must mirror the v2 wire shape explicitly, not embed a canonical type", tt.field)
 		})
 	}
 }
 
-// TestCreateTransactionV2Input_DecodeLegGroups drives the leg groups through the real
+// TestCreateTransactionV2Request_DecodeLegGroups drives the leg groups through the real
 // request pipeline (DecodeAndValidate: unmarshal -> unknown-field re-marshal ->
 // struct validation), which is where the no-`omitempty` and `dive` tag choices become
 // observable: explicit empty arrays stay known fields (and are then rejected by
-// `min=1`, proved in TestCreateTransactionV2Input_EmptySideArrayIsAKnownField), a leg
+// `min=1`, proved in TestCreateTransactionV2Request_EmptySideArrayIsAKnownField), a leg
 // field the group does not expose is rejected, and a malformed per-leg route is caught
 // at the decode boundary instead of deep in the funnel.
-func TestCreateTransactionV2Input_DecodeLegGroups(t *testing.T) {
+func TestCreateTransactionV2Request_DecodeLegGroups(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
 		body    string
 		wantErr bool
-		verify  func(t *testing.T, in mtransaction.CreateTransactionV2Input)
+		verify  func(t *testing.T, in CreateTransactionV2Request)
 	}{
 		{
 			name: "populated leg arrays decode every value expression",
@@ -279,7 +378,7 @@ func TestCreateTransactionV2Input_DecodeLegGroups(t *testing.T) {
 				`"debits":[{"alias":"@person1",` + scopeJSON + `,"share":{"percentage":60,"percentageOfPercentage":50}},` +
 				`{"alias":"@person2",` + scopeJSON + `,"amount":"400"}],` +
 				`"credits":[{"alias":"@person3",` + scopeJSON + `,"amount":"1000","operationRouteId":"11111111-1111-1111-1111-111111111111"}]}`,
-			verify: func(t *testing.T, in mtransaction.CreateTransactionV2Input) {
+			verify: func(t *testing.T, in CreateTransactionV2Request) {
 				t.Helper()
 
 				require.Len(t, in.Debits, 2)
@@ -320,7 +419,7 @@ func TestCreateTransactionV2Input_DecodeLegGroups(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var in mtransaction.CreateTransactionV2Input
+			var in CreateTransactionV2Request
 
 			_, err := nethttp.DecodeAndValidate([]byte(tt.body), &in)
 			if tt.wantErr {
@@ -336,7 +435,7 @@ func TestCreateTransactionV2Input_DecodeLegGroups(t *testing.T) {
 	}
 }
 
-// TestCreateTransactionV2Input_Translate exercises the flat -> canonical mapping
+// TestCreateTransactionV2Request_Translate exercises the flat -> canonical mapping
 // for both spellings: happy-path field propagation, two-level route mapping
 // (transaction route vs per-leg operation route), the pending flag, leg-array
 // expansion across both value expressions, every combination of the two per-side
@@ -346,14 +445,14 @@ func TestCreateTransactionV2Input_DecodeLegGroups(t *testing.T) {
 // different HTTP statuses: request-shape violations are ValidationError (400) and
 // value violations are UnprocessableOperationError (422). Its zero value asserts
 // the 422 class, so every pre-existing case keeps its original expectation.
-func TestCreateTransactionV2Input_Translate(t *testing.T) {
+func TestCreateTransactionV2Request_Translate(t *testing.T) {
 	t.Parallel()
 
 	legRoute := "22222222-2222-2222-2222-222222222222"
 
 	tests := []struct {
 		name                string
-		input               mtransaction.CreateTransactionV2Input
+		input               CreateTransactionV2Request
 		pending             bool
 		wantErr             bool
 		wantCode            string
@@ -415,10 +514,10 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			// regardless of what the request-level amount is. Asset still propagates to every
 			// leg's Amount, since a leg names no asset of its own.
 			name: "asset propagates to every leg; top-level amount sets only the transaction total",
-			input: func() mtransaction.CreateTransactionV2Input {
+			input: func() CreateTransactionV2Request {
 				in := arrayV2Input(
-					[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}},
-					[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+					[]TransactionV2LegRequest{{Alias: "@person1", Amount: "1000"}},
+					[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 				)
 				in.Asset = "USD"
 				in.Amount = "42.55"
@@ -452,7 +551,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		},
 		{
 			name: "nil RouteID leaves transaction route unset",
-			input: func() mtransaction.CreateTransactionV2Input {
+			input: func() CreateTransactionV2Request {
 				in := validV2Input()
 				in.RouteID = nil
 
@@ -466,7 +565,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		},
 		{
 			name: "nil OperationRouteID leaves both legs without an operation route",
-			input: func() mtransaction.CreateTransactionV2Input {
+			input: func() CreateTransactionV2Request {
 				in := validV2Input()
 				in.OperationRouteID = nil
 
@@ -483,7 +582,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		},
 		{
 			name: "empty amount is a business error",
-			input: func() mtransaction.CreateTransactionV2Input {
+			input: func() CreateTransactionV2Request {
 				in := validV2Input()
 				in.Amount = ""
 
@@ -494,7 +593,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		},
 		{
 			name: "non-numeric amount is a business error",
-			input: func() mtransaction.CreateTransactionV2Input {
+			input: func() CreateTransactionV2Request {
 				in := validV2Input()
 				in.Amount = "abc"
 
@@ -505,7 +604,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		},
 		{
 			name: "zero amount is a non-positive business error",
-			input: func() mtransaction.CreateTransactionV2Input {
+			input: func() CreateTransactionV2Request {
 				in := validV2Input()
 				in.Amount = "0"
 
@@ -516,7 +615,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		},
 		// The same-account-on-both-sides case moved: Translate no longer resolves the
 		// funnel's balance-key entries, so it cannot decide ambiguity on its own. See
-		// TestCreateTransactionV2Input_SameAliasIsAmbiguousAtTheFunnel in
+		// TestCreateTransactionV2Request_SameAliasIsAmbiguousAtTheFunnel in
 		// v2_input_scope_test.go, which runs Translate's output through
 		// ValidateSendSourceAndDistribute — the same path production code takes.
 
@@ -525,8 +624,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "one debit to many credits expands per-leg amounts",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}},
-				[]mtransaction.V2LegInput{
+				[]TransactionV2LegRequest{{Alias: "@person1", Amount: "1000"}},
+				[]TransactionV2LegRequest{
 					{Alias: "@person2", Amount: "600"},
 					{Alias: "@person3", Amount: "400"},
 				},
@@ -562,11 +661,11 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "many debits to one credit expands per-leg amounts",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{
+				[]TransactionV2LegRequest{
 					{Alias: "@person1", Amount: "600"},
 					{Alias: "@person2", Amount: "400"},
 				},
-				[]mtransaction.V2LegInput{{Alias: "@person3", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person3", Amount: "1000"}},
 			),
 			verify: func(t *testing.T, got mtransaction.Transaction) {
 				t.Helper()
@@ -590,11 +689,11 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "many debits to many credits expands both sides",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{
+				[]TransactionV2LegRequest{
 					{Alias: "@person1", Amount: "700"},
 					{Alias: "@person2", Amount: "300"},
 				},
-				[]mtransaction.V2LegInput{
+				[]TransactionV2LegRequest{
 					{Alias: "@person3", Amount: "250"},
 					{Alias: "@person4", Amount: "750"},
 				},
@@ -619,11 +718,11 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "amount and share legs map to their own value expressions",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{
-					{Alias: "@person1", Share: &mtransaction.V2ShareInput{Percentage: 60, PercentageOfPercentage: 50}},
+				[]TransactionV2LegRequest{
+					{Alias: "@person1", Share: &TransactionV2ShareRequest{Percentage: 60, PercentageOfPercentage: 50}},
 					{Alias: "@person2", Amount: "400"},
 				},
-				[]mtransaction.V2LegInput{{Alias: "@person3", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person3", Amount: "1000"}},
 			),
 			verify: func(t *testing.T, got mtransaction.Transaction) {
 				t.Helper()
@@ -647,8 +746,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "share leg without percentage-of-percentage leaves it zero",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Share: &mtransaction.V2ShareInput{Percentage: 100}}},
-				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person1", Share: &TransactionV2ShareRequest{Percentage: 100}}},
+				[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 			),
 			verify: func(t *testing.T, got mtransaction.Transaction) {
 				t.Helper()
@@ -665,8 +764,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			// opposite halves of it, so the two must not be collapsed into one value.
 			name: "each leg's description reaches its own built leg",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000", Description: "debit leg note"}},
-				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000", Description: "credit leg note"}},
+				[]TransactionV2LegRequest{{Alias: "@person1", Amount: "1000", Description: "debit leg note"}},
+				[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000", Description: "credit leg note"}},
 			),
 			verify: func(t *testing.T, got mtransaction.Transaction) {
 				t.Helper()
@@ -687,8 +786,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			// Filling it here instead would make the two indistinguishable downstream.
 			name: "leg without a description leaves it empty at translate",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person1", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 			),
 			verify: func(t *testing.T, got mtransaction.Transaction) {
 				t.Helper()
@@ -704,8 +803,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "leg operation route wins over the request-level one",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000", OperationRouteID: &legRoute}},
-				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person1", Amount: "1000", OperationRouteID: &legRoute}},
+				[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 			),
 			verify: func(t *testing.T, got mtransaction.Transaction) {
 				t.Helper()
@@ -724,10 +823,10 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		},
 		{
 			name: "no request and no leg operation route leaves every leg unrouted",
-			input: func() mtransaction.CreateTransactionV2Input {
+			input: func() CreateTransactionV2Request {
 				in := arrayV2Input(
-					[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}},
-					[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+					[]TransactionV2LegRequest{{Alias: "@person1", Amount: "1000"}},
+					[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 				)
 				in.OperationRouteID = nil
 
@@ -747,7 +846,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 
 		{
 			name: "nil debits is a missing-field validation error",
-			input: func() mtransaction.CreateTransactionV2Input {
+			input: func() CreateTransactionV2Request {
 				in := validV2Input()
 				in.Debits = nil
 
@@ -760,7 +859,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		},
 		{
 			name: "nil credits is a missing-field validation error",
-			input: func() mtransaction.CreateTransactionV2Input {
+			input: func() CreateTransactionV2Request {
 				in := validV2Input()
 				in.Credits = nil
 
@@ -773,7 +872,7 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		},
 		{
 			name:                "explicit empty leg arrays leave both sides empty",
-			input:               arrayV2Input([]mtransaction.V2LegInput{}, []mtransaction.V2LegInput{}),
+			input:               arrayV2Input([]TransactionV2LegRequest{}, []TransactionV2LegRequest{}),
 			wantErr:             true,
 			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
 			wantValidationError: true,
@@ -786,8 +885,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 			// evaluation, and an empty alias reaching the funnel names no account at all.
 			name: "leg without an alias is rejected",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 			),
 			wantErr:             true,
 			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
@@ -797,8 +896,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "leg with both amount and share is an invalid transaction type",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000", Share: &mtransaction.V2ShareInput{Percentage: 100}}},
-				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person1", Amount: "1000", Share: &TransactionV2ShareRequest{Percentage: 100}}},
+				[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 			),
 			wantErr:             true,
 			wantCode:            constant.ErrInvalidTransactionType.Error(),
@@ -808,8 +907,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "leg without any value expression is an invalid transaction type",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1"}},
-				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person1"}},
+				[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 			),
 			wantErr:             true,
 			wantCode:            constant.ErrInvalidTransactionType.Error(),
@@ -819,8 +918,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "credit leg without any value expression names the credits field",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Alias: "@person2"}},
+				[]TransactionV2LegRequest{{Alias: "@person1", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person2"}},
 			),
 			wantErr:             true,
 			wantCode:            constant.ErrInvalidTransactionType.Error(),
@@ -830,8 +929,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "credit leg without an alias is rejected",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "1000"}},
-				[]mtransaction.V2LegInput{{Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person1", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Amount: "1000"}},
 			),
 			wantErr:             true,
 			wantCode:            constant.ErrMissingFieldsInRequest.Error(),
@@ -841,8 +940,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "non-numeric leg amount is a non-positive business error",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "abc"}},
-				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person1", Amount: "abc"}},
+				[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 			),
 			wantErr:  true,
 			wantCode: constant.ErrInvalidTransactionNonPositiveValue.Error(),
@@ -850,8 +949,8 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 		{
 			name: "zero leg amount is a non-positive business error",
 			input: arrayV2Input(
-				[]mtransaction.V2LegInput{{Alias: "@person1", Amount: "0"}},
-				[]mtransaction.V2LegInput{{Alias: "@person2", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@person1", Amount: "0"}},
+				[]TransactionV2LegRequest{{Alias: "@person2", Amount: "1000"}},
 			),
 			wantErr:  true,
 			wantCode: constant.ErrInvalidTransactionNonPositiveValue.Error(),
@@ -895,21 +994,21 @@ func TestCreateTransactionV2Input_Translate(t *testing.T) {
 	}
 }
 
-// TestCreateTransactionV2Input_TranslateSkip locks the /v2-only per-call control block:
+// TestCreateTransactionV2Request_TranslateSkip locks the /v2-only per-call control block:
 // an absent skip stays nil, a present one reaches Transaction.Skip flag-for-flag, and the
 // produced transaction holds its OWN pointer so a later mutation of either side cannot
 // reach the other.
-func TestCreateTransactionV2Input_TranslateSkip(t *testing.T) {
+func TestCreateTransactionV2Request_TranslateSkip(t *testing.T) {
 	t.Parallel()
 
-	base := func() mtransaction.CreateTransactionV2Input {
-		return mtransaction.CreateTransactionV2Input{
+	base := func() CreateTransactionV2Request {
+		return CreateTransactionV2Request{
 			Asset:  "BRL",
 			Amount: "100",
-			Debits: []mtransaction.V2LegInput{{
+			Debits: []TransactionV2LegRequest{{
 				Alias: "@payer", OrganizationID: testOrgID, LedgerID: testLedgerID, Amount: "100",
 			}},
-			Credits: []mtransaction.V2LegInput{{
+			Credits: []TransactionV2LegRequest{{
 				Alias: "@payee", OrganizationID: testOrgID, LedgerID: testLedgerID, Amount: "100",
 			}},
 		}

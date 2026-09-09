@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package http
+package in
 
 import (
 	"testing"
@@ -12,7 +12,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // Fixed scope for the v2 leg arrays. The scope is not what these cases exercise; it only has
@@ -82,8 +82,8 @@ type sendAssetDecoder func(t *testing.T, body string) (string, error)
 func decodeV1SendAsset(t *testing.T, body string) (string, error) {
 	t.Helper()
 
-	var in mtransaction.CreateTransactionInput
-	if _, err := DecodeAndValidate([]byte(body), &in); err != nil {
+	var in CreateTransactionRequest
+	if _, err := pkgHTTP.DecodeAndValidate([]byte(body), &in); err != nil {
 		return "", err
 	}
 
@@ -93,8 +93,8 @@ func decodeV1SendAsset(t *testing.T, body string) (string, error) {
 func decodeInflowSendAsset(t *testing.T, body string) (string, error) {
 	t.Helper()
 
-	var in mtransaction.CreateTransactionInflowInput
-	if _, err := DecodeAndValidate([]byte(body), &in); err != nil {
+	var in CreateTransactionInflowRequestBody
+	if _, err := pkgHTTP.DecodeAndValidate([]byte(body), &in); err != nil {
 		return "", err
 	}
 
@@ -104,8 +104,8 @@ func decodeInflowSendAsset(t *testing.T, body string) (string, error) {
 func decodeOutflowSendAsset(t *testing.T, body string) (string, error) {
 	t.Helper()
 
-	var in mtransaction.CreateTransactionOutflowInput
-	if _, err := DecodeAndValidate([]byte(body), &in); err != nil {
+	var in CreateTransactionOutflowRequestBody
+	if _, err := pkgHTTP.DecodeAndValidate([]byte(body), &in); err != nil {
 		return "", err
 	}
 
@@ -115,8 +115,8 @@ func decodeOutflowSendAsset(t *testing.T, body string) (string, error) {
 func decodeV2Asset(t *testing.T, body string) (string, error) {
 	t.Helper()
 
-	var in mtransaction.CreateTransactionV2Input
-	if _, err := DecodeAndValidate([]byte(body), &in); err != nil {
+	var in CreateTransactionV2Request
+	if _, err := pkgHTTP.DecodeAndValidate([]byte(body), &in); err != nil {
 		return "", err
 	}
 

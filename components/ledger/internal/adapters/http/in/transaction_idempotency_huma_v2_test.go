@@ -89,7 +89,7 @@ func captureSetNXKey(t *testing.T, ctrl *gomock.Controller, gotKey *string, getV
 func canonicalV1IdempotencyHash(t *testing.T, rawBody string) string {
 	t.Helper()
 
-	payload := new(mtransaction.CreateTransactionInput)
+	payload := new(CreateTransactionRequest)
 	_, err := pkgHTTP.DecodeAndValidate([]byte(rawBody), payload)
 	require.NoError(t, err, "v1 body must decode for the canonical-hash reconstruction")
 
@@ -136,7 +136,7 @@ func TestHuma_CreateTransactionDirectV2_IdempotencyKeyedByRawV2Body(t *testing.T
 	// And it must NOT be the canonical translated-transaction hash the v1 funnel uses.
 	// (The v2 flat body translates to a full canonical Transaction whose serialized form
 	// differs from the raw bytes, so the two hashes are distinct by construction.)
-	payload := new(mtransaction.CreateTransactionV2Input)
+	payload := new(CreateTransactionV2Request)
 	_, derr := pkgHTTP.DecodeAndValidate([]byte(v2DirectBody), payload)
 	require.NoError(t, derr)
 

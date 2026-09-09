@@ -14,8 +14,6 @@ import (
 	problem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/stretchr/testify/require"
-
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // TestContractDocumentShape reads the OpenAPI document the SINGLE unified harness
@@ -105,8 +103,8 @@ func assertV2CreateBodiesTyped(t *testing.T, doc *huma.OpenAPI) {
 	require.NotNil(t, doc.Components, "document must carry components")
 	require.NotNil(t, doc.Components.Schemas, "document must carry a schema registry")
 
-	wantBodyRef := doc.Components.Schemas.Schema(reflect.TypeFor[mtransaction.CreateTransactionV2Input](), true, "").Ref
-	wantLegRef := doc.Components.Schemas.Schema(reflect.TypeFor[mtransaction.V2LegInput](), true, "").Ref
+	wantBodyRef := doc.Components.Schemas.Schema(reflect.TypeFor[CreateTransactionV2Request](), true, "").Ref
+	wantLegRef := doc.Components.Schemas.Schema(reflect.TypeFor[TransactionV2LegRequest](), true, "").Ref
 	require.NotEmpty(t, wantBodyRef, "CreateTransactionV2Input must be a registered component")
 	require.NotEmpty(t, wantLegRef, "V2LegInput must be a registered component")
 
