@@ -296,9 +296,9 @@ func TestUpdateAccount_ExternalForbidden(t *testing.T) {
 // TestUpdateAccount_BlockedCachePropagation covers the in-place rewrite of the
 // Blocked flag on the account's cached balance blobs after the PostgreSQL
 // update: one ListByAccountID + one atomic multi-key rewrite when the PATCH
-// carries blocked, zero cache work when it does not, and best-effort posture
-// (a Redis failure never fails the request — PostgreSQL is the source of
-// truth and hydration/TTL heal the cache).
+// carries blocked, zero cache work when it does not, and fail-closed posture
+// (a listing or Redis failure fails the PATCH even though PostgreSQL already
+// committed — Blocked is a security control, and the retry is idempotent).
 func TestUpdateAccount_BlockedCachePropagation(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
@@ -388,7 +388,7 @@ func TestUpdateAccount_BlockedCachePropagation(t *testing.T) {
 		assert.NotNil(t, result)
 	})
 
-	t.Run("cache rewrite failure is best-effort and never fails the request", func(t *testing.T) {
+	t.Run("cache rewrite failure fails closed and returns the error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -409,11 +409,11 @@ func TestUpdateAccount_BlockedCachePropagation(t *testing.T) {
 
 		result, err := uc.UpdateAccount(context.Background(), organizationID, ledgerID, nil, accountID,
 			&mmodel.UpdateAccountInput{Blocked: boolPtr(false)}, mmodel.HolderOffV1)
-		assert.NoError(t, err, "PostgreSQL is the source of truth; the cache rewrite is best-effort")
-		assert.NotNil(t, result)
+		assert.Error(t, err, "PostgreSQL already committed, but the Lua guard would honor a stale cached flag; the request must fail so the caller retries")
+		assert.Nil(t, result)
 	})
 
-	t.Run("balance listing failure is best-effort and never fails the request", func(t *testing.T) {
+	t.Run("balance listing failure fails closed and returns the error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -429,8 +429,8 @@ func TestUpdateAccount_BlockedCachePropagation(t *testing.T) {
 
 		result, err := uc.UpdateAccount(context.Background(), organizationID, ledgerID, nil, accountID,
 			&mmodel.UpdateAccountInput{Blocked: boolPtr(true)}, mmodel.HolderOffV1)
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
+		assert.Error(t, err)
+		assert.Nil(t, result)
 	})
 
 	t.Run("account with no balances skips the rewrite call", func(t *testing.T) {

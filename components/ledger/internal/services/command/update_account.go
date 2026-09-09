@@ -93,14 +93,16 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
+	if uai.Blocked != nil {
+		if err := uc.propagateAccountBlockedToCache(ctx, span, logger, organizationID, ledgerID, id, *uai.Blocked); err != nil {
+			return nil, err
+		}
+	}
+
 	// AccountRepo.Update returns an input-derived record with bogus
 	// identity fields; mirror the SQL merge in-memory instead.
 	// Follow-up: fix the repo to RETURNING * so this dance is unneeded.
 	uc.emitAccountUpdatedEvent(ctx, span, logger, mergePatchAccount(accFound, account, accountUpdated.UpdatedAt))
-
-	if uai.Blocked != nil {
-		uc.propagateAccountBlockedToCache(ctx, span, logger, organizationID, ledgerID, id, *uai.Blocked)
-	}
 
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityAccount, id.String(), uai.Metadata)
 	if err != nil {
@@ -172,24 +174,28 @@ func mergePatchAccount(pre, in *mmodel.Account, updatedAt time.Time) *mmodel.Acc
 // write-behind sync (no DEL). Keys not in cache are skipped — the on-demand
 // hydration covers them with the new value on the next miss.
 //
-// Best-effort: a database or Redis failure never fails the request — the
-// persisted row is durable, a stale cached flag heals on the next cache miss
-// or TTL expiry, and failing here would report an update that DID happen as
-// failed. Those failures are still TECHNICAL (infrastructure, not caller
+// Fail-closed: Blocked is a security control, so a listing or Redis failure
+// returns an error and fails the PATCH even though PostgreSQL already
+// committed. The caller must retry; the retry is idempotent and heals the
+// cache. Reporting success instead would leave the transaction Lua guard
+// (balance_atomic_operation.lua) honoring a stale cached flag — that guard
+// gives the cached blob precedence over PostgreSQL, and renews the cache
+// entry's TTL on every operation, so on a hot account the stale flag never
+// self-heals. These failures are TECHNICAL (infrastructure, not caller
 // error), so they flip the span red and log at Error for operator attention.
 // Unblocking an account that was never blocked follows the same path and is
 // a natural no-op (RF-02).
-func (uc *UseCase) propagateAccountBlockedToCache(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID, blocked bool) {
+func (uc *UseCase) propagateAccountBlockedToCache(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID, blocked bool) error {
 	balances, err := uc.BalanceRepo.ListByAccountID(ctx, organizationID, ledgerID, accountID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to list balances for blocked cache propagation", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to list balances for blocked cache propagation", libLog.Err(err))
 
-		return
+		return err
 	}
 
 	if len(balances) == 0 {
-		return
+		return nil
 	}
 
 	// Dedupe: a legacy balance row with an empty key normalizes to the
@@ -216,7 +222,11 @@ func (uc *UseCase) propagateAccountBlockedToCache(ctx context.Context, span trac
 	if err := uc.TransactionRedisRepo.UpdateBalanceCacheBlocked(ctx, organizationID, ledgerID, cacheKeys, blocked); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update balance cache blocked flag", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to update balance cache blocked flag", libLog.Err(err))
+
+		return err
 	}
+
+	return nil
 }
 
 // emitAccountUpdatedEvent publishes the account.updated event for a
@@ -224,9 +234,10 @@ func (uc *UseCase) propagateAccountBlockedToCache(ctx context.Context, span trac
 // failures are span-recorded and logged at Warn, never returned.
 // The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
-// Anchor: invoked between the AccountRepo.Update success branch and the
-// metadata-write call in UpdateAccount, so a downstream Mongo failure
-// cannot mask the event and an update rollback cannot leak it.
+// Anchor: invoked after the fail-closed blocked-cache propagation gate and
+// before the metadata-write call in UpdateAccount, so a propagation failure
+// short-circuits before the event is announced, a downstream Mongo failure
+// cannot mask the event, and an update rollback cannot leak it.
 //
 // Wire-format mapping lives in pkg/streaming/events/account_updated.go;
 // changes to the payload contract belong there, not here. This function
