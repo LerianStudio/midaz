@@ -475,6 +475,27 @@ func (h *LimitHandler) getLimitUsage(ctx context.Context, idParam string) (*mode
 	return snapshot, nil
 }
 
+// limitPeriodRejectionSentinels are the bad-time-window and bad-custom-period
+// rejections the limit create and update commands raise as bare sentinels.
+//
+// They reach the classifier unwrapped from the model validators
+// (ValidateTimeWindow, ValidateCustomPeriod, Limit.Update, ParseTimeOfDay) and
+// wrapped from the commands' own RFC3339 parsing. None is a typed business error
+// at the point it is raised, so each needs translating here or it lands on the
+// internal-server default and a payload mistake is reported as a server fault.
+var limitPeriodRejectionSentinels = []error{
+	constant.ErrLimitTimeWindowMismatch,
+	constant.ErrLimitTimeWindowZeroWidth,
+	constant.ErrTimeOfDayInvalidFormat,
+	constant.ErrLimitCustomDatesNotAllowed,
+	constant.ErrLimitCustomPeriodTooLong,
+	constant.ErrLimitCustomPeriodExpired,
+	constant.ErrLimitInvalidCustomStartFormat,
+	constant.ErrLimitInvalidCustomEndFormat,
+	constant.ErrLimitCustomDatesRequired,
+	constant.ErrLimitCustomDatesOrder,
+}
+
 // classifyLimitServiceError maps a raw service error to its canonical Midaz
 // error, attributing the span, WITHOUT rendering. It is the single
 // classification the Fiber wrappers (render via http.WithError) and the Huma
@@ -488,6 +509,19 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 	// service's status/code survives instead of collapsing to a 500.
 	if pkg.IsBusinessError(err) {
 		return err
+	}
+
+	// The time-window / custom-period family, carried as a list rather than ten
+	// more arms below because they share one classification. Each is a registry
+	// validation error with its own code, title and message, so translating the
+	// sentinel is all that is needed. Two of them arrive wrapped (the commands
+	// attach the RFC3339 parse failure with %w), which is why this matches with
+	// errors.Is rather than a map lookup on the error itself.
+	for _, sentinel := range limitPeriodRejectionSentinels {
+		if errors.Is(err, sentinel) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit time window or custom period", err)
+			return pkg.ValidateBusinessError(sentinel, constant.EntityLimit)
+		}
 	}
 
 	switch {
