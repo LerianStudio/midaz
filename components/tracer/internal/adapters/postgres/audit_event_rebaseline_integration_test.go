@@ -167,11 +167,16 @@ func TestIntegration_AuditHashChain_StillCatchesTamperedHistoricalRow(t *testing
 }
 
 // TestIntegration_AuditHashChain_StillCatchesTamperedActorOnCurrentRow is the
-// security lock on the fallback. A row written under the current formula stores
-// the nine-field digest, which can never equal the five-field digest of the same
-// row — so accepting the legacy formula must not let an actor field be rewritten
-// undetected on a post-migration row. actor_id is covered by the current formula
-// only, so it is the field that would slip through a naive fallback.
+// first security lock on the fallback. A row written under the current formula
+// stores the nine-field digest of its own field values, so simply rewriting an
+// actor column leaves the stored hash matching neither formula. actor_id is
+// covered by the current formula only, so it is the field that would slip
+// through a naive fallback.
+//
+// Rewriting an actor column is not the whole threat: the legacy input is a
+// PREFIX of the current one, so a row can be reshaped so that its legacy digest
+// equals its original current digest. That is
+// TestIntegration_AuditHashChain_RefusesResourceIDAbsorptionForgery below.
 func TestIntegration_AuditHashChain_StillCatchesTamperedActorOnCurrentRow(t *testing.T) {
 	tx := beginRolledBackTx(t)
 	legacyChainFixture(t, tx, 3, 2)
@@ -187,4 +192,167 @@ func TestIntegration_AuditHashChain_StillCatchesTamperedActorOnCurrentRow(t *tes
 		"rewriting actor identity on a post-000017 row MUST still be detected — the legacy fallback must not launder it")
 	require.True(t, firstInvalidID.Valid, "first_invalid_id MUST name the tampered row")
 	require.Equal(t, target, firstInvalidID.Int64, "the tampered row MUST be the one flagged")
+}
+
+// forgeAbsorption rewrites one row so that its LEGACY five-field digest equals
+// the digest already stored for it under the CURRENT nine-field formula, and
+// then replaces the actor identity with attackerActorID.
+//
+// It works by absorbing the four actor fields into resource_id, the last field
+// the two formulas share and the only free-form one. Nothing recomputes a hash:
+// the stored hash and previous_hash come out byte-identical, which is what makes
+// this the dangerous shape — an off-site digest export or a write-once copy
+// still matches after the rewrite.
+//
+// Returns the id of the rewritten row.
+func forgeAbsorption(t *testing.T, tx *sql.Tx, id int64, attackerActorID string) {
+	t.Helper()
+
+	res, err := tx.ExecContext(context.Background(), `
+		UPDATE audit_events
+		SET resource_id = resource_id
+		      || '|' || actor_type::text
+		      || '|' || actor_id
+		      || '|' || COALESCE(actor_name, '')
+		      || '|' || COALESCE(actor_ip_address, ''),
+		    actor_id = $2,
+		    actor_name = '',
+		    actor_ip_address = ''
+		WHERE id = $1`, id, attackerActorID)
+	require.NoError(t, err, "absorb the actor fields into resource_id")
+
+	affected, err := res.RowsAffected()
+	require.NoError(t, err, "read affected rows")
+	require.Equal(t, int64(1), affected, "the forgery must rewrite exactly one row")
+}
+
+// storedDigests reads the two columns a tamper must leave untouched to stay
+// invisible to an off-site digest export.
+func storedDigests(t *testing.T, tx *sql.Tx, id int64) (hash string, previousHash sql.NullString) {
+	t.Helper()
+
+	require.NoError(t, tx.QueryRowContext(context.Background(),
+		"SELECT hash, previous_hash FROM audit_events WHERE id = $1", id,
+	).Scan(&hash, &previousHash), "read the stored digests")
+
+	return hash, previousHash
+}
+
+// TestIntegration_AuditHashChain_RefusesResourceIDAbsorptionForgery is the
+// security lock that matters most, because it is the one an unguarded two-formula
+// verifier fails.
+//
+// The legacy five-field input is a strict prefix of the current nine-field input
+// and resource_id is the last field they share, so appending the four actor
+// values to resource_id makes the row's legacy digest equal the digest already
+// stored for it. A verifier that computes the legacy digest unconditionally
+// accepts that row, and actor identity has been rewritten on an append-only
+// audit record with the stored hash unchanged — invisible to the verifier, to a
+// published digest and to a write-once copy at the same time.
+//
+// The rewritten row must be reported invalid, and it must be the row named.
+func TestIntegration_AuditHashChain_RefusesResourceIDAbsorptionForgery(t *testing.T) {
+	tx := beginRolledBackTx(t)
+	legacyChainFixture(t, tx, 3, 2)
+
+	// Establish the trail reads clean before the forgery, so a failure below
+	// cannot be a pre-existing broken fixture.
+	isValid, _, totalChecked := verifyFromGenesis(t, tx)
+	require.True(t, isValid, "the fixture trail must verify before the forgery")
+	require.Equal(t, int64(5), totalChecked, "the fixture trail must be walked in full before the forgery")
+
+	var target int64
+	require.NoError(t, tx.QueryRowContext(context.Background(),
+		"SELECT max(id) FROM audit_events",
+	).Scan(&target), "pick the newest current-formula row")
+
+	hashBefore, prevBefore := storedDigests(t, tx, target)
+
+	forgeAbsorption(t, tx, target, "forged-actor")
+
+	hashAfter, prevAfter := storedDigests(t, tx, target)
+	require.Equal(t, hashBefore, hashAfter,
+		"the forgery must leave the stored hash untouched, otherwise it is not the shape under test")
+	require.Equal(t, prevBefore, prevAfter,
+		"the forgery must leave previous_hash untouched, otherwise it is not the shape under test")
+
+	isValid, firstInvalidID, _ := verifyFromGenesis(t, tx)
+
+	require.False(t, isValid,
+		"absorbing the actor fields into resource_id MUST NOT verify: it rewrites actor identity on an append-only record while the stored hash stays byte-identical")
+	require.True(t, firstInvalidID.Valid, "first_invalid_id MUST name the forged row")
+	require.Equal(t, target, firstInvalidID.Int64, "the forged row MUST be the one flagged")
+}
+
+// TestIntegration_AuditHashChain_RefusesAbsorptionOnAHistoricalRow closes the
+// same forgery against a pre-000017 row, where the legacy formula is the one
+// that legitimately applies. Absorbing into resource_id changes a field the
+// legacy digest covers, so the row stops matching either formula.
+//
+// This is a NEGATIVE CONTROL and passes with the separator guard removed — it
+// pins nothing about the guard. It is kept because it does discriminate against
+// a different wrong fix: one that gave pre-000017 rows a blanket pass, or that
+// dropped resource_id from the legacy input.
+func TestIntegration_AuditHashChain_RefusesAbsorptionOnAHistoricalRow(t *testing.T) {
+	tx := beginRolledBackTx(t)
+	legacyChainFixture(t, tx, 3, 2)
+
+	var target int64
+	require.NoError(t, tx.QueryRowContext(context.Background(),
+		"SELECT min(id) FROM audit_events",
+	).Scan(&target), "pick the oldest historical row")
+
+	forgeAbsorption(t, tx, target, "forged-actor")
+
+	isValid, firstInvalidID, _ := verifyFromGenesis(t, tx)
+
+	require.False(t, isValid, "absorbing into resource_id on a historical row MUST be reported invalid")
+	require.True(t, firstInvalidID.Valid, "first_invalid_id MUST name the forged row")
+	require.Equal(t, target, firstInvalidID.Int64, "the forged historical row MUST be the one flagged")
+}
+
+// TestIntegration_AuditHashChain_LegacyFallbackIsRefusedForASeparatorBearingResourceID
+// pins the accepted cost of the separator guard, so the behaviour is a decision
+// on record rather than a surprise in the field.
+//
+// The guard withholds the legacy fallback from any row whose shared fields carry
+// the '|' separator, because such an input is ambiguous with a longer formula.
+// A pre-000017 row whose resource_id genuinely contains a separator therefore
+// reports invalid. resource_id holds entity identifiers — uuids and the like —
+// so this is not a shape the product writes; the guard fails closed rather than
+// widening what the fallback accepts.
+func TestIntegration_AuditHashChain_LegacyFallbackIsRefusedForASeparatorBearingResourceID(t *testing.T) {
+	tx := beginRolledBackTx(t)
+	legacyChainFixture(t, tx, 1, 0)
+
+	ctx := context.Background()
+
+	var target int64
+	require.NoError(t, tx.QueryRowContext(ctx,
+		"SELECT min(id) FROM audit_events",
+	).Scan(&target), "pick the historical row")
+
+	// Rewrite resource_id to carry a separator AND re-hash it under the legacy
+	// formula, so the row is genuinely consistent with the legacy formula and the
+	// only reason it can be refused is the separator guard.
+	_, err := tx.ExecContext(ctx, `
+		UPDATE audit_events SET resource_id = 'res|with|separators' WHERE id = $1`, target)
+	require.NoError(t, err, "give the historical row a separator-bearing resource_id")
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE audit_events SET hash = encode(sha256((
+		      COALESCE(previous_hash, 'GENESIS')
+		   || '|' || event_id::text
+		   || '|' || event_type
+		   || '|' || to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+		   || '|' || resource_id)::bytea),'hex')
+		WHERE id = $1`, target)
+	require.NoError(t, err, "re-hash the row under the legacy formula")
+
+	isValid, firstInvalidID, _ := verifyFromGenesis(t, tx)
+
+	require.False(t, isValid,
+		"the legacy fallback is deliberately withheld from a row whose shared fields carry the separator; this pins that accepted cost")
+	require.True(t, firstInvalidID.Valid, "first_invalid_id MUST name the row")
+	require.Equal(t, target, firstInvalidID.Int64, "the separator-bearing row MUST be the one flagged")
 }

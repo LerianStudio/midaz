@@ -40,14 +40,37 @@
 --   the trigger always chains to the predecessor's stored hash whatever
 --   formula produced it.
 --
--- Why this does not weaken tamper evidence:
---   * A post-000017 row can never match the legacy formula. Its stored hash is
---     the sha256 of the nine-field input; the five-field hash of the same row
---     is a different digest. So those rows keep full nine-field coverage,
---     actor fields included.
+-- Why accepting two formulas does not make a digest forgeable:
+--   The legacy input is a PREFIX of the current one, and the last shared field
+--   (resource_id) is free-form text. So an unguarded fallback is forgeable
+--   without any hash weakness at all: rewrite resource_id to
+--   '<resource_id>|<actor_type>|<actor_id>|<actor_name>|<actor_ip>', put
+--   anything in the actor columns, and the row's LEGACY digest equals its
+--   ORIGINAL current digest. The stored hash and previous_hash never change, so
+--   an off-site digest export still matches and actor identity has been
+--   rewritten with nothing to detect it.
+--
+--   The guard is the delimiter count, not the field contents. A genuine
+--   five-field input carries EXACTLY four '|' separators: prev_hash is either
+--   'GENESIS' or 64 hex characters, and the three other shared fields are a
+--   uuid, an enum label and a fixed-width timestamp render, none of which can
+--   hold a separator. Absorbing any current field into a shared one must carry
+--   its separator along, so the input's separator count rises above four and
+--   the legacy digest is never computed. Every direction of this check fails
+--   closed: a shared field that does contain a separator loses only the legacy
+--   fallback and is then judged by the current formula alone.
+--
+-- What each row keeps:
+--   * A post-000017 row keeps full nine-field coverage, actor fields included,
+--     and cannot be re-read as a legacy input.
 --   * A pre-000017 row regains exactly the coverage it always had — the first
 --     five fields. Its stored hash contains no information about the actor
 --     columns, so no verifier can give it actor coverage retroactively.
+--     ACCEPTED LIMIT, stated plainly: rewriting an actor column on a
+--     pre-000017 row is not detectable. Before this migration that row was
+--     reported invalid unconditionally, along with every other historical row,
+--     which is an alarm that fires on a clean trail rather than tamper
+--     evidence.
 --   * Detection strictly increases. Today the scan stops at the first
 --     historical row and checks nothing beyond it; after this change the scan
 --     runs the whole requested range and flags any row that matches neither
@@ -116,9 +139,20 @@ BEGIN
             -- Legacy formula (000001 / 000002 / 000004): the shared five alone.
             -- Computed only on a miss, so an unmigrated-data deployment pays one
             -- extra digest per historical row and a clean one pays none.
-            legacy_hash := encode(sha256(shared_input::bytea), 'hex');
+            --
+            -- Attempted ONLY when the assembled input carries exactly the four
+            -- separators a five-field input has. More than four means a shared
+            -- field swallowed a separator, which is the shape that lets a
+            -- nine-field row masquerade as a five-field one; fewer is not
+            -- reachable. Refusing the fallback there is fail-closed: the row is
+            -- still judged by the current nine-field formula.
+            IF length(shared_input) - length(replace(shared_input, '|', '')) = 4 THEN
+                legacy_hash := encode(sha256(shared_input::bytea), 'hex');
+            ELSE
+                legacy_hash := NULL;
+            END IF;
 
-            IF rec.hash != legacy_hash THEN
+            IF legacy_hash IS NULL OR rec.hash != legacy_hash THEN
                 chain_valid := FALSE;
                 invalid_id := rec.id;
                 err_detail := 'Hash mismatch: expected ' || expected_hash || ', got ' || rec.hash;
