@@ -479,14 +479,29 @@ func (h *LimitHandler) getLimitUsage(ctx context.Context, idParam string) (*mode
 // rejections the limit create and update commands raise as bare sentinels.
 //
 // They reach the classifier unwrapped from the model validators
-// (ValidateTimeWindow, ValidateCustomPeriod, Limit.Update, ParseTimeOfDay) and
-// wrapped from the commands' own RFC3339 parsing. None is a typed business error
-// at the point it is raised, so each needs translating here or it lands on the
-// internal-server default and a payload mistake is reported as a server fault.
+// (ValidateTimeWindow, ValidateCustomPeriod, Limit.Update) and wrapped from the
+// commands' own RFC3339 parsing. None is a typed business error at the point it
+// is raised, so each needs translating here or it lands on the internal-server
+// default and a payload mistake is reported as a server fault.
+//
+// MEMBERSHIP RULE: a sentinel belongs here only if a request payload can raise
+// it. Every entry below is raised from a field the caller sent, so telling the
+// caller to fix their request is correct.
+//
+// ErrTimeOfDayInvalidFormat (0440) is deliberately NOT a member, and it is the
+// one that looks like it should be. No payload can reach it: activeTimeStart and
+// activeTimeEnd are *model.TimeOfDay, so UnmarshalJSON rejects malformed clock
+// text and the whole body fails as 0094 before any validator runs. Its only live
+// producer is the stored-row conversion in the postgres adapter
+// (limit_postgresql_model.go), i.e. a corrupt active_time_start column — a
+// server fault. Classifying it as a client error answered a bodiless GET with
+// "Invalid time of day format, expected HH:MM.", telling an integrator to fix a
+// field their request never carried, and dropped a data-integrity fault out of
+// 5xx alerting. It stays on the internal-server default, which is where a
+// corrupt row belongs.
 var limitPeriodRejectionSentinels = []error{
 	constant.ErrLimitTimeWindowMismatch,
 	constant.ErrLimitTimeWindowZeroWidth,
-	constant.ErrTimeOfDayInvalidFormat,
 	constant.ErrLimitCustomDatesNotAllowed,
 	constant.ErrLimitCustomPeriodTooLong,
 	constant.ErrLimitCustomPeriodExpired,
