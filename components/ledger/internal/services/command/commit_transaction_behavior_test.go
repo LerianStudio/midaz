@@ -49,6 +49,11 @@ func (r *pendingReader) GetBalances(context.Context, uuid.UUID, uuid.UUID, []str
 	return nil, r.balancesErr
 }
 
+func (r *pendingReader) GetBalanceEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	balances, err := r.GetBalances(ctx, organizationID, ledgerID, aliases)
+	return balances, balances, err
+}
+
 func (r *pendingReader) ValidateAccountingRules(context.Context, uuid.UUID, uuid.UUID, []mmodel.BalanceOperation, *mtransaction.Responses, string) (*mmodel.TransactionRouteCache, error) {
 	return nil, nil
 }

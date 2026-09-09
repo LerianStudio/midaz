@@ -39,6 +39,11 @@ type revertReader struct {
 	routeErr      error
 }
 
+func (r *revertReader) GetBalanceEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	balances, err := r.GetBalances(ctx, organizationID, ledgerID, aliases)
+	return balances, balances, err
+}
+
 func (r *revertReader) GetParentByTransactionID(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
 	return r.parent, r.parentErr
 }

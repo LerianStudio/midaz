@@ -25,17 +25,17 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestLoadBalanceEnginePoolSeparatesExplicitBalancesFromInternalCandidates(t *testing.T) {
+func TestLoadBalanceEngineBalancesSeparatesExplicitBalancesFromExecutionBalances(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("d47fd4d0-1b64-4c4e-a4fd-8b96558d6a96")
 	ledgerID := uuid.MustParse("93210bdf-d5f3-4b66-8b36-2b44936605e8")
 	accountID := uuid.MustParse("3315045e-1ba4-42af-8b12-a27651c2f379")
-	primary := balanceEnginePoolBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
-	companion := balanceEnginePoolBalance(organizationID, ledgerID, accountID, "@alice", constant.OverdraftBalanceKey, mmodel.BalanceScopeInternal)
+	primary := balanceEngineBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
+	companion := balanceEngineBalance(organizationID, ledgerID, accountID, "@alice", constant.OverdraftBalanceKey, mmodel.BalanceScopeInternal)
 
 	var calls [][]string
-	explicit, all, err := loadBalanceEnginePool(t.Context(), organizationID, ledgerID,
+	explicitBalances, executionBalances, err := loadBalanceEngineBalances(t.Context(), organizationID, ledgerID,
 		[]string{"@alice#default", "@alice#default"},
 		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 			calls = append(calls, append([]string(nil), aliases...))
@@ -47,22 +47,22 @@ func TestLoadBalanceEnginePoolSeparatesExplicitBalancesFromInternalCandidates(t 
 
 	require.NoError(t, err)
 	assert.Equal(t, [][]string{{"@alice#default"}, {"@alice#overdraft"}}, calls)
-	assert.Equal(t, []*mmodel.Balance{primary}, explicit)
-	assert.Equal(t, []*mmodel.Balance{primary, companion}, all)
-	assert.Equal(t, mmodel.BalanceScopeInternal, all[1].Settings.BalanceScope)
+	assert.Equal(t, []*mmodel.Balance{primary}, explicitBalances)
+	assert.Equal(t, []*mmodel.Balance{primary, companion}, executionBalances)
+	assert.Equal(t, mmodel.BalanceScopeInternal, executionBalances[1].Settings.BalanceScope)
 }
 
-func TestLoadBalanceEnginePoolDoesNotRefetchAnExplicitInternalBalance(t *testing.T) {
+func TestLoadBalanceEngineBalancesDoesNotRefetchAnExplicitInternalBalance(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("547db4ae-f3fc-4db4-86a1-2bfc94dc32df")
 	ledgerID := uuid.MustParse("e39c8754-171d-48b9-9808-42b7dcc995ed")
 	accountID := uuid.MustParse("fc96409c-351a-4bc0-84f3-b7094ade51cd")
-	primary := balanceEnginePoolBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
-	companion := balanceEnginePoolBalance(organizationID, ledgerID, accountID, "@alice", constant.OverdraftBalanceKey, mmodel.BalanceScopeInternal)
+	primary := balanceEngineBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
+	companion := balanceEngineBalance(organizationID, ledgerID, accountID, "@alice", constant.OverdraftBalanceKey, mmodel.BalanceScopeInternal)
 	calls := 0
 
-	explicit, all, err := loadBalanceEnginePool(t.Context(), organizationID, ledgerID,
+	explicitBalances, executionBalances, err := loadBalanceEngineBalances(t.Context(), organizationID, ledgerID,
 		[]string{"@alice#overdraft", "@alice#default"},
 		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 			calls++
@@ -72,22 +72,22 @@ func TestLoadBalanceEnginePoolDoesNotRefetchAnExplicitInternalBalance(t *testing
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, calls)
-	assert.Equal(t, []*mmodel.Balance{primary, companion}, explicit)
-	assert.Equal(t, explicit, all)
+	assert.Equal(t, []*mmodel.Balance{primary, companion}, explicitBalances)
+	assert.Equal(t, explicitBalances, executionBalances)
 }
 
-func TestLoadBalanceEnginePoolRejectsAnInconsistentCompanion(t *testing.T) {
+func TestLoadBalanceEngineBalancesRejectsAnInconsistentCompanion(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("b8e120f1-47a3-482d-a555-a2b8121257a9")
 	ledgerID := uuid.MustParse("4d3cd4fa-5bf5-47c6-b9b8-d9315ad12b6c")
-	primary := balanceEnginePoolBalance(organizationID, ledgerID,
+	primary := balanceEngineBalance(organizationID, ledgerID,
 		uuid.MustParse("50919fd5-6ea5-4ec7-baa1-4bb009b1c1da"), "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
-	companion := balanceEnginePoolBalance(organizationID, ledgerID,
+	companion := balanceEngineBalance(organizationID, ledgerID,
 		uuid.MustParse("78566a27-b05a-421b-a5c5-8706095a9405"), "@alice", constant.OverdraftBalanceKey, mmodel.BalanceScopeInternal)
 	calls := 0
 
-	_, _, err := loadBalanceEnginePool(t.Context(), organizationID, ledgerID, []string{"@alice#default"},
+	_, _, err := loadBalanceEngineBalances(t.Context(), organizationID, ledgerID, []string{"@alice#default"},
 		func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 			calls++
 			if calls == 1 {
@@ -99,7 +99,7 @@ func TestLoadBalanceEnginePoolRejectsAnInconsistentCompanion(t *testing.T) {
 	assert.ErrorContains(t, err, "inconsistent account identity")
 }
 
-func balanceEnginePoolBalance(organizationID, ledgerID, accountID uuid.UUID, alias, key, scope string) *mmodel.Balance {
+func balanceEngineBalance(organizationID, ledgerID, accountID uuid.UUID, alias, key, scope string) *mmodel.Balance {
 	return &mmodel.Balance{
 		ID: uuid.New().String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
 		AccountID: accountID.String(), Alias: alias, Key: key, AssetCode: "USD",

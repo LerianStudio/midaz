@@ -126,6 +126,10 @@ type TransactionReader interface {
 	// GetBalances loads the balances backing the given aliases.
 	GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 
+	// GetBalanceEngineBalances loads the explicitly requested balances separately
+	// from the complete set of balances required for engine execution.
+	GetBalanceEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, explicitAliases []string) (explicitBalances, executionBalances []*mmodel.Balance, err error)
+
 	// ValidateAccountingRules enforces the ledger's accounting routes over the
 	// balance operations and returns the resolved route cache.
 	ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *mtransaction.Responses, action string) (*mmodel.TransactionRouteCache, error)
@@ -146,10 +150,4 @@ type TransactionReader interface {
 
 	// GetOperationRouteByID returns a single operation route.
 	GetOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error)
-}
-
-// BalanceEnginePoolReader extends transaction reads only for opt-in engine
-// execution, without widening every legacy TransactionReader implementation.
-type BalanceEnginePoolReader interface {
-	GetBalanceEnginePool(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) (explicit, all []*mmodel.Balance, err error)
 }

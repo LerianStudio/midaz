@@ -23,44 +23,44 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-type balanceEnginePoolLoader func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error)
+type balanceLoader func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error)
 
-// GetBalanceEnginePool returns the explicitly requested balances separately
-// from the complete set of balances the accounting engine may need.
-func (uc *UseCase) GetBalanceEnginePool(
+// GetBalanceEngineBalances returns the explicitly requested balances separately
+// from the complete set of balances required for engine execution.
+func (uc *UseCase) GetBalanceEngineBalances(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
 	explicitAliases []string,
-) ([]*mmodel.Balance, []*mmodel.Balance, error) {
-	return loadBalanceEnginePool(ctx, organizationID, ledgerID, explicitAliases, uc.GetBalances)
+) (explicitBalances, executionBalances []*mmodel.Balance, err error) {
+	return loadBalanceEngineBalances(ctx, organizationID, ledgerID, explicitAliases, uc.GetBalances)
 }
 
-func loadBalanceEnginePool(
+func loadBalanceEngineBalances(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
 	explicitAliases []string,
-	loader balanceEnginePoolLoader,
+	loader balanceLoader,
 ) ([]*mmodel.Balance, []*mmodel.Balance, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, nil, fmt.Errorf("load balance engine pool: %w", err)
+		return nil, nil, fmt.Errorf("load balance engine balances: %w", err)
 	}
 
 	if organizationID == uuid.Nil || ledgerID == uuid.Nil {
-		return nil, nil, fmt.Errorf("load balance engine pool: organization and ledger IDs must be nonzero")
+		return nil, nil, fmt.Errorf("load balance engine balances: organization and ledger IDs must be nonzero")
 	}
 
 	if loader == nil {
-		return nil, nil, fmt.Errorf("load balance engine pool: balance loader is required")
+		return nil, nil, fmt.Errorf("load balance engine balances: balance loader is required")
 	}
 
 	explicitAliases = sortedUniqueBalanceAliases(explicitAliases)
 
-	explicit, err := loader(ctx, organizationID, ledgerID, explicitAliases)
+	explicitBalances, err := loader(ctx, organizationID, ledgerID, explicitAliases)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load explicit balance pool: %w", err)
+		return nil, nil, fmt.Errorf("load explicit balances: %w", err)
 	}
 
-	explicitByRef, err := indexExplicitBalancePool(explicitAliases, explicit)
+	explicitByRef, err := indexExplicitBalances(explicitAliases, explicitBalances)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -73,12 +73,12 @@ func loadBalanceEnginePool(
 	companions := make([]*mmodel.Balance, 0, len(companionAliases))
 	if len(companionAliases) > 0 {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, fmt.Errorf("load balance engine pool: %w", err)
+			return nil, nil, fmt.Errorf("load balance engine balances: %w", err)
 		}
 
 		companions, err = loader(ctx, organizationID, ledgerID, companionAliases)
 		if err != nil {
-			return nil, nil, fmt.Errorf("load optional overdraft companion pool: %w", err)
+			return nil, nil, fmt.Errorf("load optional overdraft companion balances: %w", err)
 		}
 
 		if err := validateBalanceEngineCompanions(companions, companionAccounts); err != nil {
@@ -86,14 +86,14 @@ func loadBalanceEnginePool(
 		}
 	}
 
-	sortBalancesByReference(explicit)
-	all := append(append(make([]*mmodel.Balance, 0, len(explicit)+len(companions)), explicit...), companions...)
-	sortBalancesByReference(all)
+	sortBalancesByReference(explicitBalances)
+	executionBalances := append(append(make([]*mmodel.Balance, 0, len(explicitBalances)+len(companions)), explicitBalances...), companions...)
+	sortBalancesByReference(executionBalances)
 
-	return explicit, all, nil
+	return explicitBalances, executionBalances, nil
 }
 
-func indexExplicitBalancePool(aliases []string, balances []*mmodel.Balance) (map[string]*mmodel.Balance, error) {
+func indexExplicitBalances(aliases []string, balances []*mmodel.Balance) (map[string]*mmodel.Balance, error) {
 	requested := make(map[string]struct{}, len(aliases))
 	for _, alias := range aliases {
 		requested[alias] = struct{}{}
@@ -101,17 +101,17 @@ func indexExplicitBalancePool(aliases []string, balances []*mmodel.Balance) (map
 
 	indexed := make(map[string]*mmodel.Balance, len(balances))
 	for _, balance := range balances {
-		ref, err := balancePoolReference(balance)
+		ref, err := balanceReference(balance)
 		if err != nil {
 			return nil, err
 		}
 
 		if _, ok := requested[ref]; !ok {
-			return nil, fmt.Errorf("load balance engine pool: explicit loader returned unrequested balance %q", ref)
+			return nil, fmt.Errorf("load balance engine balances: explicit loader returned unrequested balance %q", ref)
 		}
 
 		if _, exists := indexed[ref]; exists {
-			return nil, fmt.Errorf("load balance engine pool: duplicate explicit balance %q", ref)
+			return nil, fmt.Errorf("load balance engine balances: duplicate explicit balance %q", ref)
 		}
 
 		indexed[ref] = balance
@@ -130,14 +130,14 @@ func balanceEngineCompanionAliases(explicit map[string]*mmodel.Balance) ([]strin
 		companionRef := mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), constant.OverdraftBalanceKey)
 		if companion, exists := explicit[companionRef]; exists {
 			if companion.AccountID != balance.AccountID {
-				return nil, nil, fmt.Errorf("load balance engine pool: explicit companion %q has inconsistent account identity", companionRef)
+				return nil, nil, fmt.Errorf("load balance engine balances: explicit companion %q has inconsistent account identity", companionRef)
 			}
 
 			continue
 		}
 
 		if accountID, exists := accounts[companionRef]; exists && accountID != balance.AccountID {
-			return nil, nil, fmt.Errorf("load balance engine pool: companion %q has ambiguous account identity", companionRef)
+			return nil, nil, fmt.Errorf("load balance engine balances: companion %q has ambiguous account identity", companionRef)
 		}
 
 		accounts[companionRef] = balance.AccountID
@@ -156,22 +156,22 @@ func balanceEngineCompanionAliases(explicit map[string]*mmodel.Balance) ([]strin
 func validateBalanceEngineCompanions(companions []*mmodel.Balance, accounts map[string]string) error {
 	seen := make(map[string]struct{}, len(companions))
 	for _, balance := range companions {
-		ref, err := balancePoolReference(balance)
+		ref, err := balanceReference(balance)
 		if err != nil {
 			return err
 		}
 
 		expectedAccountID, ok := accounts[ref]
 		if !ok {
-			return fmt.Errorf("load balance engine pool: companion loader returned unrequested balance %q", ref)
+			return fmt.Errorf("load balance engine balances: companion loader returned unrequested balance %q", ref)
 		}
 
 		if balance.AccountID != expectedAccountID {
-			return fmt.Errorf("load balance engine pool: companion %q has inconsistent account identity", ref)
+			return fmt.Errorf("load balance engine balances: companion %q has inconsistent account identity", ref)
 		}
 
 		if _, exists := seen[ref]; exists {
-			return fmt.Errorf("load balance engine pool: duplicate companion balance %q", ref)
+			return fmt.Errorf("load balance engine balances: duplicate companion balance %q", ref)
 		}
 
 		seen[ref] = struct{}{}
@@ -180,9 +180,9 @@ func validateBalanceEngineCompanions(companions []*mmodel.Balance, accounts map[
 	return nil
 }
 
-func balancePoolReference(balance *mmodel.Balance) (string, error) {
+func balanceReference(balance *mmodel.Balance) (string, error) {
 	if balance == nil {
-		return "", fmt.Errorf("load balance engine pool: nil balance")
+		return "", fmt.Errorf("load balance engine balances: nil balance")
 	}
 
 	key := strings.TrimSpace(balance.Key)
@@ -211,8 +211,8 @@ func sortedUniqueBalanceAliases(aliases []string) []string {
 
 func sortBalancesByReference(balances []*mmodel.Balance) {
 	sort.Slice(balances, func(i, j int) bool {
-		left, _ := balancePoolReference(balances[i])
-		right, _ := balancePoolReference(balances[j])
+		left, _ := balanceReference(balances[i])
+		right, _ := balanceReference(balances[j])
 
 		return left < right
 	})

@@ -32,7 +32,7 @@ func (reader enginePreparationReader) GetBalances(ctx context.Context, orgID, le
 	return reader.load(ctx, orgID, ledgerID, aliases)
 }
 
-func (reader enginePreparationReader) GetBalanceEnginePool(ctx context.Context, orgID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+func (reader enginePreparationReader) GetBalanceEngineBalances(ctx context.Context, orgID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
 	pool, err := LoadBalanceEngineSnapshotPool(ctx, orgID, ledgerID, aliases, reader.load)
 	return pool.ExplicitBalances, pool.Balances, err
 }

@@ -55,7 +55,7 @@ func (uc *UseCase) prepareBalanceEngineTransaction(ctx context.Context, input ba
 		}
 	}
 
-	pool, err := loadPreparedBalanceEnginePool(ctx, uc.TransactionReader, input.organizationID, input.ledgerID, aliases)
+	pool, err := loadPreparedBalanceEngineSnapshots(ctx, uc.TransactionReader, input.organizationID, input.ledgerID, aliases)
 	if err != nil {
 		return balanceEnginePreparedTransaction{}, err
 	}
@@ -104,18 +104,13 @@ func (uc *UseCase) prepareBalanceEngineTransaction(ctx context.Context, input ba
 	return balanceEnginePreparedTransaction{pool: pool, transaction: translated, projection: projection}, nil
 }
 
-func loadPreparedBalanceEnginePool(ctx context.Context, reader TransactionReader, organizationID, ledgerID uuid.UUID, aliases []string) (BalanceEngineSnapshotPool, error) {
-	poolReader, ok := reader.(BalanceEnginePoolReader)
-	if !ok {
-		return BalanceEngineSnapshotPool{}, invalidBalanceEngineTranslation("preparation requires a complete balance pool reader")
-	}
-
-	explicitBalances, engineBalances, err := poolReader.GetBalanceEnginePool(ctx, organizationID, ledgerID, aliases)
+func loadPreparedBalanceEngineSnapshots(ctx context.Context, reader TransactionReader, organizationID, ledgerID uuid.UUID, aliases []string) (BalanceEngineSnapshotPool, error) {
+	explicitBalances, executionBalances, err := reader.GetBalanceEngineBalances(ctx, organizationID, ledgerID, aliases)
 	if err != nil {
-		return BalanceEngineSnapshotPool{}, fmt.Errorf("load balance engine pool: %w", err)
+		return BalanceEngineSnapshotPool{}, fmt.Errorf("load balance engine balances: %w", err)
 	}
 
-	return BuildBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, explicitBalances, engineBalances)
+	return BuildBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, explicitBalances, executionBalances)
 }
 
 // orderedBalanceEngineValidationOperations preserves the existing route DTO's
