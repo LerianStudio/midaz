@@ -89,6 +89,14 @@ type reservationRetrier struct {
 	policy reservationRetryPolicy
 	slots  chan struct{}
 	wg     sync.WaitGroup
+
+	// inFlight names the transitions still being retried, so a shutdown can
+	// report the ones it is about to abandon. Without it a rolling deploy drops
+	// up to MaxInFlight confirms with no log line at all, which is the one hole
+	// the "never lose a spend silently" contract cannot afford.
+	inFlightMu sync.Mutex
+	inFlight   map[uint64]reservationTransition
+	nextSeq    uint64
 }
 
 // newReservationRetrier builds a retrier for the given policy.
@@ -98,8 +106,57 @@ func newReservationRetrier(policy reservationRetryPolicy) *reservationRetrier {
 	}
 
 	return &reservationRetrier{
-		policy: policy,
-		slots:  make(chan struct{}, policy.MaxInFlight),
+		policy:   policy,
+		slots:    make(chan struct{}, policy.MaxInFlight),
+		inFlight: make(map[uint64]reservationTransition),
+	}
+}
+
+// track registers a sequence as in flight and returns the function that
+// deregisters it.
+func (r *reservationRetrier) track(transition reservationTransition) func() {
+	r.inFlightMu.Lock()
+
+	r.nextSeq++
+	seq := r.nextSeq
+	r.inFlight[seq] = transition
+
+	r.inFlightMu.Unlock()
+
+	return func() {
+		r.inFlightMu.Lock()
+		delete(r.inFlight, seq)
+		r.inFlightMu.Unlock()
+	}
+}
+
+// reportOutstanding names every transition still being retried. It is called at
+// the end of the graceful-drain window, when anything still here is about to die
+// with the process: the retry is in-process, so a restart loses it. Losing it is
+// a known residual; losing it WITHOUT a log line is not, because the whole point
+// of this path is that a spend never goes missing quietly.
+func (r *reservationRetrier) reportOutstanding(ctx context.Context, logger libLog.Logger) {
+	r.inFlightMu.Lock()
+	outstanding := make([]reservationTransition, 0, len(r.inFlight))
+
+	for _, transition := range r.inFlight {
+		outstanding = append(outstanding, transition)
+	}
+
+	r.inFlightMu.Unlock()
+
+	if len(outstanding) == 0 {
+		return
+	}
+
+	logger.Log(ctx, libLog.LevelError,
+		"Shutting down with tracer reservation transitions still undelivered; they are abandoned here",
+		libLog.Int("undelivered", len(outstanding)))
+
+	for _, transition := range outstanding {
+		logger.Log(ctx, libLog.LevelError,
+			"Tracer reservation transition abandoned at shutdown; "+transition.lossConsequence(),
+			transition.logFields())
 	}
 }
 
@@ -148,10 +205,13 @@ func (r *reservationRetrier) schedule(ctx context.Context, reserver TracerReserv
 
 	r.wg.Add(1)
 
+	untrack := r.track(transition)
+
 	libRuntime.SafeGoWithContextAndComponent(detached, logger, reservationRetryComponent,
 		"reservation.retry_transition", libRuntime.KeepRunning, func(c context.Context) {
 			defer r.wg.Done()
 			defer func() { <-r.slots }()
+			defer untrack()
 
 			c, cancel := context.WithTimeout(c, r.policy.Budget)
 			defer cancel()
@@ -253,4 +313,11 @@ func (r *reservationRetrier) reportExhausted(ctx context.Context, span trace.Spa
 			libLog.Int("attempts", attempts),
 			libLog.String("elapsed", time.Since(started).String()),
 			libLog.Err(cause)))
+}
+
+// ReportOutstandingReservationRetries names every confirm or release the ledger
+// still owes the tracer, at the point the process is about to stop trying. The
+// composition root calls it at the end of the graceful-drain window.
+func ReportOutstandingReservationRetries(ctx context.Context, logger libLog.Logger) {
+	sharedReservationRetrier.reportOutstanding(ctx, logger)
 }

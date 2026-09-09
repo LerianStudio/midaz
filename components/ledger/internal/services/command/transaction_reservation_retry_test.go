@@ -573,6 +573,63 @@ func TestRetryKeepsTheTenantAfterTheRequestEnds(t *testing.T) {
 	}
 }
 
+// TestShutdownNamesTheTransitionsItAbandons closes the one hole the retry's own
+// design leaves. The sequences are in-process, so a rolling deploy kills whatever
+// is still trying. Losing them is a stated residual; losing them with no log line
+// is not, because the whole contract of this path is that a spend never goes
+// missing quietly, and a deploy is a routine event rather than an outage.
+func TestShutdownNamesTheTransitionsItAbandons(t *testing.T) {
+	policy := fastRetryPolicy()
+	policy.MaxAttempts = 500
+	policy.BaseDelay = 20 * time.Millisecond
+	policy.MaxDelay = 20 * time.Millisecond
+
+	retrier := newReservationRetrier(policy)
+
+	stillDown := &scriptedReserver{confirm: func(_ int) error {
+		return fmt.Errorf("still down: %w", tracer.ErrTracerUnavailable)
+	}}
+
+	stranded := retryTransition()
+	retrier.schedule(context.Background(), stillDown, &capturingLogger{}, stranded,
+		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
+
+	// Let the sequence get going, then take the shutdown snapshot.
+	require.Eventually(t, func() bool {
+		attempts, _ := stillDown.attempts()
+
+		return attempts > 0
+	}, 2*time.Second, 5*time.Millisecond, "the retry sequence must be running before shutdown is simulated")
+
+	logger := &capturingLogger{}
+	retrier.reportOutstanding(context.Background(), logger)
+
+	reported := rendered(logger.atLevelOrMoreSevere(libLog.LevelError))
+	require.NotEmpty(t, reported, "a shutdown that abandons a confirm must say so")
+
+	assert.Contains(t, reported, "abandoned at shutdown")
+	assert.Contains(t, reported, stranded.TransactionID.String())
+	assert.Contains(t, reported, stranded.ReservationID.String())
+	assert.Contains(t, reported, "1234.56")
+	assert.Contains(t, reported, "the spend will not be counted against the limit")
+}
+
+// TestShutdownIsSilentWhenNothingIsOwed keeps the report from becoming noise on
+// the overwhelmingly common shutdown, where the tracer was reachable throughout.
+func TestShutdownIsSilentWhenNothingIsOwed(t *testing.T) {
+	retrier := newReservationRetrier(fastRetryPolicy())
+
+	delivered := &scriptedReserver{confirm: failNTimes(1)}
+	retrier.schedule(context.Background(), delivered, &capturingLogger{}, retryTransition(),
+		fmt.Errorf("inline: %w", tracer.ErrTracerUnavailable))
+	retrier.wait()
+
+	logger := &capturingLogger{}
+	retrier.reportOutstanding(context.Background(), logger)
+
+	assert.Empty(t, logger.snapshot(), "a clean shutdown must log nothing about undelivered transitions")
+}
+
 // TestAnchorHandsAFailedTransitionToTheRetrier wires the two halves together:
 // the seams the transaction pipelines call must route a failure into the shared
 // retrier rather than swallowing it.
