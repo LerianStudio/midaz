@@ -18820,7 +18820,7 @@ components:
           type: string
         scope:
           examples:
-            - account:00000000-0000-0000-0000-000000000000
+            - (account:00000000-0000-0000-0000-000000000000)
           type: string
         skipReason:
           examples:

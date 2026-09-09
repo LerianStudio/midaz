@@ -228,9 +228,12 @@ func (r *ValidationRequest) normalizeAndValidateWith(now time.Time, validate fun
 type LimitUsageDetail struct {
 	LimitID     uuid.UUID       `json:"limitId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	LimitAmount decimal.Decimal `json:"limitAmount" swaggertype:"string" example:"1000.00"`
-	// Scope is a human-readable string representation of the limit's scope
-	// (e.g., "account:uuid" or "segment:uuid" or "global").
-	Scope string `json:"scope" example:"account:00000000-0000-0000-0000-000000000000"`
+	// Scope is a human-readable string representation of the limit's scope.
+	// A scoped limit renders each scope group in parentheses, its fields
+	// comma-separated ("(account:uuid)", "(segment:uuid,transactionType:CARD)"),
+	// and joins alternative groups with " OR ". Only an unscoped limit renders
+	// the bare word "global".
+	Scope string `json:"scope" example:"(account:00000000-0000-0000-0000-000000000000)"`
 	// Period indicates the type of limit (DAILY, WEEKLY, MONTHLY, CUSTOM, PER_TRANSACTION).
 	Period LimitType `json:"period" swaggertype:"string" enums:"DAILY,MONTHLY,PER_TRANSACTION,WEEKLY,CUSTOM" example:"DAILY"`
 	// CurrentUsage represents the PROJECTED usage after applying the transaction amount,
