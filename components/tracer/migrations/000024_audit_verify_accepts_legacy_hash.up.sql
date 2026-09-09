@@ -176,6 +176,25 @@ CREATE RULE prevent_audit_hash_legacy_boundary_update AS
 CREATE RULE prevent_audit_hash_legacy_boundary_delete AS
     ON DELETE TO audit_hash_legacy_boundary DO INSTEAD NOTHING;
 
+-- TRUNCATE bypasses RULEs, which is why migration 000004 pairs its rules with a
+-- prevent_truncate() trigger on every immutable table. Without the trigger here
+-- the floor is strictly easier to move than the trail it guards: TRUNCATE plus
+-- one INSERT raises it above every row, with no DDL and no rule dropped, and
+-- forges recorded_at along with it. DROP TABLE takes this trigger with it, so
+-- the down migration needs nothing.
+CREATE OR REPLACE TRIGGER prevent_audit_hash_legacy_boundary_truncate_trigger
+    BEFORE TRUNCATE ON audit_hash_legacy_boundary
+    FOR EACH STATEMENT
+    EXECUTE FUNCTION prevent_truncate();
+
+-- The verifier reads the floor on every call, so a caller that can already read
+-- audit_events must be able to read it too, or GET /v1/audit-events/{id}/verify
+-- raises "permission denied" instead of answering - and migration 000004's own
+-- production guidance provisions exactly such a role. The table holds one
+-- bigint and one timestamp; SELECT on it discloses nothing audit_events does
+-- not, and PUBLIC inside a tenant database is bounded by CONNECT.
+GRANT SELECT ON audit_hash_legacy_boundary TO PUBLIC;
+
 -- ============================================
 -- 2. Offer the legacy formula only below the boundary.
 -- ============================================
@@ -278,3 +297,25 @@ BEGIN
     RETURN QUERY SELECT chain_valid, invalid_id, checked_count, err_detail;
 END;
 $$ LANGUAGE plpgsql;
+
+-- The floor decides which rows may be read under the weaker formula, so the
+-- verifier must not resolve its name through the CALLER's search_path. A role
+-- with CREATE on the database - which is what GRANT ALL PRIVILEGES ON DATABASE
+-- carries - can otherwise create its own audit_hash_legacy_boundary in a schema
+-- it owns, put that schema first, and from then on read a floor of its choosing
+-- on every verification it runs.
+--
+-- The pin has to name the RESOLVED schema. `SET search_path FROM CURRENT`
+-- captures the literal text of the migration session's path, which is
+-- '"$user", public' on any deployment that migrates without setting one, and
+-- $user is re-resolved to the CALLING role at execution time - so a schema
+-- named after that role still shadows the floor. current_schema() is the schema
+-- the CREATE TABLE above just used, differs per tenant, and holds no element a
+-- caller can influence.
+DO $pin$
+BEGIN
+    EXECUTE format(
+        'ALTER FUNCTION verify_audit_hash_chain(BIGINT, BIGINT) SET search_path = %I',
+        current_schema());
+END
+$pin$;

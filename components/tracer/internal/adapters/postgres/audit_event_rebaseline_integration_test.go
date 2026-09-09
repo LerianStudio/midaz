@@ -521,8 +521,14 @@ func TestIntegration_AuditHashChain_RecordsTheReBaselineBoundaryAtUpgrade(t *tes
 
 // TestIntegration_AuditHashChain_BoundaryIsAppendOnly pins that the floor is no
 // easier to move than the trail it guards. Raising it would put rows written
-// after the re-baseline back within reach of the shorter formula, so UPDATE and
-// DELETE are refused the same way they are on audit_events.
+// after the re-baseline back within reach of the shorter formula, so UPDATE,
+// DELETE and TRUNCATE are all refused the same way they are on audit_events.
+//
+// TRUNCATE is the one that needs its own guard: it bypasses RULEs, which is why
+// migration 000004 pairs its append-only rules with a prevent_truncate()
+// trigger on every immutable table. Without that trigger on the floor,
+// "TRUNCATE then INSERT" raises it above every row and forges recorded_at with
+// no DDL and no rule dropped — strictly easier than moving the trail.
 func TestIntegration_AuditHashChain_BoundaryIsAppendOnly(t *testing.T) {
 	tx := beginRolledBackTx(t)
 
@@ -537,10 +543,139 @@ func TestIntegration_AuditHashChain_BoundaryIsAppendOnly(t *testing.T) {
 	require.NoError(t, err, "the DELETE is silently discarded by the rule, not an error")
 	require.Equal(t, before, readBoundary(t, tx), "removing the floor MUST have no effect")
 
+	_, err = tx.ExecContext(ctx, "TRUNCATE audit_hash_legacy_boundary")
+	require.Error(t, err,
+		"TRUNCATE bypasses the rules, so the floor MUST carry the same prevent_truncate() trigger audit_events carries")
+	require.Contains(t, err.Error(), "TRUNCATE not allowed",
+		"the refusal MUST come from prevent_truncate(), the same guard the trail uses")
+
+	// The failed TRUNCATE aborted the transaction, so the surviving-row check
+	// runs on a fresh one against the same schema.
+	fresh := beginRolledBackTx(t)
 	var rows int64
-	require.NoError(t, tx.QueryRowContext(ctx,
+	require.NoError(t, fresh.QueryRowContext(ctx,
 		"SELECT count(*) FROM audit_hash_legacy_boundary").Scan(&rows))
 	require.Equal(t, int64(1), rows, "the floor MUST remain a single row")
+}
+
+// TestIntegration_AuditHashChain_RefusesAShadowFloorFromTheCallersSearchPath is
+// the resolution half of the same property: the floor is worth nothing if the
+// caller decides WHICH floor the verifier reads.
+//
+// verify_audit_hash_chain names audit_hash_legacy_boundary unqualified, so
+// without a pinned search_path the table is resolved against the CALLER's path
+// at execution time. A role holding CREATE on the database — what GRANT ALL
+// PRIVILEGES ON DATABASE carries, and what tenant-manager provisions — can then
+// create its own floor in a schema it owns and have every verification it runs
+// read that one instead.
+//
+// Two shapes are pinned, because the obvious one-clause fix only stops the
+// first. `SET search_path FROM CURRENT` captures the literal text of the
+// migrating session's path, which is `"$user", public` wherever nothing sets
+// one; $user is re-resolved to the CALLING role at execution time, so a schema
+// named after that role keeps shadowing the floor. The migration pins the
+// RESOLVED schema instead, which stops both.
+func TestIntegration_AuditHashChain_RefusesAShadowFloorFromTheCallersSearchPath(t *testing.T) {
+	// plantShadowFloor builds a maximal floor in schemaSQL, an expression the
+	// caller supplies so the schema can be named after the connecting role.
+	plantShadowFloor := func(t *testing.T, tx *sql.Tx, schemaSQL string) {
+		t.Helper()
+
+		_, err := tx.ExecContext(context.Background(), `
+			DO $shadow$
+			DECLARE
+				s TEXT := `+schemaSQL+`;
+			BEGIN
+				EXECUTE format('CREATE SCHEMA %I', s);
+				EXECUTE format(
+					'CREATE TABLE %I.audit_hash_legacy_boundary (
+					     singleton BOOLEAN PRIMARY KEY DEFAULT TRUE,
+					     max_legacy_id BIGINT NOT NULL,
+					     recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW())', s);
+				EXECUTE format(
+					'INSERT INTO %I.audit_hash_legacy_boundary (singleton, max_legacy_id)
+					 VALUES (TRUE, 9223372036854775807)', s);
+			END
+			$shadow$`)
+		require.NoError(t, err, "plant the shadow floor")
+	}
+
+	// aSleeperAboveTheFloor leaves the trail in the state the real floor
+	// refuses: the newest row converted to its own five-field digest, sitting
+	// above the recorded boundary. A shadow floor at max bigint accepts it.
+	aSleeperAboveTheFloor := func(t *testing.T, tx *sql.Tx) int64 {
+		t.Helper()
+
+		legacyChainFixture(t, tx, 3, 2, "res")
+
+		var target int64
+		require.NoError(t, tx.QueryRowContext(context.Background(),
+			"SELECT max(id) FROM audit_events").Scan(&target), "pick the newest row")
+		require.Greater(t, target, readBoundary(t, tx), "the row under attack must sit above the floor")
+
+		convertToLegacyDigest(t, tx, target)
+
+		isValid, firstInvalidID, _ := verifyFromGenesis(t, tx)
+		require.False(t, isValid, "the fixture must start from a trail the REAL floor refuses")
+		require.Equal(t, target, firstInvalidID.Int64, "the converted row must be the one flagged")
+
+		return target
+	}
+
+	t.Run("an arbitrary schema put first in the caller's path", func(t *testing.T) {
+		tx := beginRolledBackTx(t)
+		target := aSleeperAboveTheFloor(t, tx)
+
+		plantShadowFloor(t, tx, "'shadow_floor'")
+		_, err := tx.ExecContext(context.Background(), "SET LOCAL search_path = shadow_floor, public")
+		require.NoError(t, err, "the caller may set its own search_path; that is the point")
+
+		isValid, firstInvalidID, _ := verifyFromGenesis(t, tx)
+		require.False(t, isValid,
+			"the verifier MUST read the floor recorded by the migration, not one the caller put earlier in its search_path")
+		require.Equal(t, target, firstInvalidID.Int64, "the converted row MUST still be flagged")
+	})
+
+	t.Run("a schema named after the calling role", func(t *testing.T) {
+		tx := beginRolledBackTx(t)
+		target := aSleeperAboveTheFloor(t, tx)
+
+		// No SET at all: the default '"$user", public' already puts a schema
+		// named after the connecting role ahead of public.
+		plantShadowFloor(t, tx, "current_user")
+
+		isValid, firstInvalidID, _ := verifyFromGenesis(t, tx)
+		require.False(t, isValid,
+			`the verifier MUST NOT resolve the floor through the "$user" element of a search_path, which names the CALLING role`)
+		require.Equal(t, target, firstInvalidID.Int64, "the converted row MUST still be flagged")
+	})
+}
+
+// TestIntegration_AuditHashChain_FloorIsReadableByEveryTrailReader pins that the
+// verifier's new dependency does not take the endpoint away from the role that
+// runs it.
+//
+// The verifier reads audit_hash_legacy_boundary on every call. Migration 000004
+// documents a production deployment that connects as a least-privilege
+// application role holding SELECT on audit_events and owning nothing, and on
+// such a deployment an ungranted floor turns GET /v1/audit-events/{id}/verify
+// into "permission denied for table audit_hash_legacy_boundary" — no answer at
+// all, where the previous verifier gave one.
+func TestIntegration_AuditHashChain_FloorIsReadableByEveryTrailReader(t *testing.T) {
+	tx := beginRolledBackTx(t)
+
+	var publicCanRead bool
+	require.NoError(t, tx.QueryRowContext(context.Background(), `
+		SELECT EXISTS (
+			SELECT 1
+			FROM pg_class c, aclexplode(c.relacl) a
+			WHERE c.relname = 'audit_hash_legacy_boundary'
+			  AND a.grantee = 0
+			  AND a.privilege_type = 'SELECT')`).Scan(&publicCanRead),
+		"read the floor's grants")
+
+	require.True(t, publicCanRead,
+		"every caller that can read audit_events MUST be able to read the floor, or the verify endpoint raises instead of answering")
 }
 
 // TestIntegration_AuditHashChain_VerifiesALegacyRowWhoseResourceIDHoldsASeparator
