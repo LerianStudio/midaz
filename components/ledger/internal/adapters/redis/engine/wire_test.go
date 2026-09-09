@@ -15,13 +15,19 @@ import (
 	"testing"
 	"time"
 
+	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	ledgerfee "github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
+	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -341,9 +347,9 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 // deliberately supplies only the minimum two engine postings/snapshots and one
 // projection context. It therefore establishes a lower bound, not the fully
 // translated worst case. Recovery contains the original transaction and frozen
-// projection metadata, while the prepared wire contains recovery again. Fees,
-// route expansion, and one projection context per leg can add bytes after this
-// point, so a mathematically safe v1
+// projection metadata, while the prepared wire contains recovery again. Route
+// expansion and one projection context per leg can add bytes after this point,
+// so a mathematically safe v1
 // MaxRecoveryBytes/MaxRequestBytes/MaxPreparedBytes or cardinality cap cannot be
 // chosen from this single request without changing the shipped v1 acceptance
 // surface. This test is the guard against doing so accidentally.
@@ -406,6 +412,174 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 	require.Greater(t, len(recovery), len(body), "recovery must retain transaction and frozen projection data")
 	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry recovery plus engine postings and snapshots")
 	require.Equal(t, 2, len(request.Transactions[0].Postings), "v1 retains both logical legs; no v1 leg cap is introduced")
+}
+
+// TestV2TransactionBodyDoesNotBoundFeeExpandedEngineBytes exercises the complete
+// v2 decode/translation, fee calculation, second validation, snapshot-pool,
+// engine translation, recovery, and wire preparation path. Both cases use the
+// same small accepted v2 body. Only the valid fee package cardinality changes;
+// its fees map has a minimum but no application-level maximum.
+//
+// This is not a claim that storage has infinite capacity. It proves the narrower
+// activation fact: transaction-body limits and application validators do not
+// supply the bound needed to configure engine byte and cardinality limits.
+func TestV2TransactionBodyDoesNotBoundFeeExpandedEngineBytes(t *testing.T) {
+	t.Parallel()
+
+	small := prepareTransactionBodyWithFees(t, 1)
+	large := prepareTransactionBodyWithFees(t, 8)
+
+	require.Equal(t, small.bodyBytes, large.bodyBytes)
+	require.Equal(t, 508, large.postings-small.postings)
+	require.Equal(t, 7, large.snapshots-small.snapshots)
+	require.Equal(t, 508, large.projections-small.projections)
+	require.Greater(t, large.recoveryBytes, small.recoveryBytes)
+	require.Greater(t, large.wireBytes, small.wireBytes)
+	t.Logf("same transaction body=%d bytes: fees=1/8 postings=%d/%d projections=%d/%d snapshots=%d/%d recovery=%d/%d wire=%d/%d",
+		small.bodyBytes, small.postings, large.postings, small.projections, large.projections,
+		small.snapshots, large.snapshots, small.recoveryBytes, large.recoveryBytes, small.wireBytes, large.wireBytes)
+}
+
+type preparedSize struct {
+	bodyBytes     int
+	recoveryBytes int
+	wireBytes     int
+	postings      int
+	snapshots     int
+	projections   int
+}
+
+func prepareTransactionBodyWithFees(t *testing.T, feeCount int) preparedSize {
+	t.Helper()
+
+	organizationID := uuid.MustParse("ef73c171-f889-4a9d-a5d3-421ee069d736")
+	ledgerID := uuid.MustParse("fbe630e6-fde0-4396-bb3b-b5e5da509ae0")
+	input := mtransaction.CreateTransactionV2Input{
+		Asset: "USD", Amount: "1",
+		Debits:  []mtransaction.V2LegInput{{Alias: "@source", OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), Amount: "1"}},
+		Credits: []mtransaction.V2LegInput{{Alias: "@destination", OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), Amount: "1"}},
+	}
+	body, err := json.Marshal(input)
+	require.NoError(t, err)
+
+	decoded := new(mtransaction.CreateTransactionV2Input)
+	_, err = pkgHTTP.DecodeAndValidate(body, decoded)
+	require.NoError(t, err)
+	transaction, scope, err := decoded.Translate(false)
+	require.NoError(t, err)
+	require.Equal(t, organizationID.String(), scope.OrganizationID)
+	require.Equal(t, ledgerID.String(), scope.LedgerID)
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(t.Context(), transaction, constant.CREATED)
+	require.NoError(t, err)
+
+	fees := make(map[string]feemodel.Fee, feeCount)
+	notDeductible := false
+	for i := range feeCount {
+		key := fmt.Sprintf("fee-%06d", i)
+		fees[key] = feemodel.Fee{
+			FeeLabel: key,
+			CalculationModel: &feemodel.CalculationModel{
+				ApplicationRule: feeconstant.AppRuleFlatFee,
+				Calculations:    []feemodel.Calculation{{Type: feeconstant.FeeTypeFlat, Value: "1"}},
+			},
+			ReferenceAmount:  feeconstant.ReferenceAmountOriginalAmount,
+			Priority:         i + 1,
+			IsDeductibleFrom: &notDeductible,
+			CreditAccount:    fmt.Sprintf("@fee-%06d", i),
+		}
+		candidate := fees[key]
+		require.NoError(t, candidate.ValidateNewFee(key, decimal.Zero))
+	}
+	enabled := true
+	packageInput := feemodel.CreatePackageInput{
+		FeeGroupLabel: "engine sizing", MinAmount: "0", MaxAmount: "1000000",
+		Fee: fees, Enable: &enabled,
+	}
+	packageBody, err := json.Marshal(packageInput)
+	require.NoError(t, err)
+	validatedPackage := new(feemodel.CreatePackageInput)
+	_, err = pkgHTTP.DecodeAndValidate(packageBody, validatedPackage)
+	require.NoError(t, err)
+	require.NoError(t, validatedPackage.ValidateFees())
+
+	logger, err := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "engine-wire-sizing"})
+	require.NoError(t, err)
+	calculation := &feemodel.FeeCalculate{Transaction: transaction}
+	feePackage := &pack.Package{Fees: fees, WaivedAccounts: &[]string{}}
+	require.NoError(t, ledgerfee.CalculateFee(logger, calculation, feePackage, validate, nil))
+	transaction = calculation.Transaction
+
+	mtransaction.ApplyDefaultBalanceKeys(transaction.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(transaction.Send.Distribute.To)
+	mtransaction.MutateConcatAliases(transaction.Send.Source.From)
+	mtransaction.MutateConcatAliases(transaction.Send.Distribute.To)
+	validate, err = mtransaction.ValidateSendSourceAndDistribute(t.Context(), transaction, constant.CREATED)
+	require.NoError(t, err)
+
+	transactionID := uuid.MustParse("53d2c279-4d51-4274-8a3d-ee1955ddcaa0")
+	executionID := uuid.MustParse("f00b8ce5-fad0-45da-b4a8-0bcaec270b08")
+	balances := make([]*mmodel.Balance, 0, len(validate.Aliases))
+	for _, ref := range validate.Aliases {
+		alias, key, found := strings.Cut(ref, mtransaction.AliasSeparatorString)
+		require.True(t, found)
+		available := int64(0)
+		if alias == "@source" {
+			available = int64(feeCount + 1)
+		}
+		balances = append(balances, sizingBalance(organizationID, ledgerID, alias, key, available))
+	}
+	pool, err := command.BuildBalanceEngineSnapshotPool(t.Context(), organizationID, ledgerID, validate.Aliases, balances, balances)
+	require.NoError(t, err)
+
+	translated, projection, err := command.TranslateBalanceEngineTransaction(command.BalanceEngineTranslationInput{
+		TransactionID: transactionID, Action: constant.ActionDirect, TransactionStatus: constant.CREATED,
+		TransactionInput: transaction, Validate: validate, Balances: pool.Balances,
+	})
+	require.NoError(t, err)
+	require.Len(t, translated.Postings, 1<<(feeCount+1))
+	require.Len(t, projection, 1<<(feeCount+1))
+
+	payload := command.BalanceEngineRecoveryPayload{
+		FormatVersion: command.BalanceEngineRecoveryVersion, TenantID: "fixture", HeaderID: "header", TransactionID: transactionID,
+		OrganizationID: organizationID, LedgerID: ledgerID, ExecutionID: executionID, IntentFingerprint: strings.Repeat("a", 64),
+		TransactionInput: transaction, Validate: validate, TTL: fixedSizingTime(), TransactionStatus: constant.CREATED,
+		Action: constant.ActionDirect, TransactionDate: fixedSizingTime(), TransactionCreatedAt: fixedSizingTime(),
+		TransactionUpdatedAt: fixedSizingTime(), OperationUpdatedAt: fixedSizingTime(), Projection: projection,
+	}
+	recovery, err := command.EncodeBalanceEngineRecoveryPayload(payload)
+	require.NoError(t, err)
+
+	request := engine.Request{
+		OrganizationID: organizationID, LedgerID: ledgerID, ExecutionID: executionID,
+		Transactions: []engine.Transaction{translated}, Balances: pool.Snapshots,
+	}
+	limits := Limits{
+		MaxTransactions: 1, MaxPostings: len(translated.Postings), MaxBalances: len(pool.Snapshots),
+		MaxRecoveryBytes: len(recovery) + 1, MaxRequestBytes: 16 * 1024 * 1024, MaxPreparedBytes: 16 * 1024 * 1024,
+	}
+	execution := command.EngineExecution{
+		Request: request, IntentFingerprint: "immutable-intent",
+		Guards:   []command.ExecutionGuard{{TransactionID: transactionID, ExpectedToken: "old", NextToken: "next"}},
+		Recovery: []command.RecoveryIntent{{TransactionID: transactionID, Payload: recovery}},
+	}
+	prepared, err := prepareExecution(t.Context(), execution, limits, sizingResolvedKeys(request.Balances))
+	require.NoError(t, err)
+
+	return preparedSize{
+		bodyBytes: len(body), recoveryBytes: len(recovery), wireBytes: len(prepared.Payload),
+		postings: len(translated.Postings), snapshots: len(pool.Snapshots), projections: len(projection),
+	}
+}
+
+func sizingBalance(organizationID, ledgerID uuid.UUID, alias, key string, available int64) *mmodel.Balance {
+	identity := uuid.NewSHA1(uuid.NameSpaceOID, []byte(alias+"#"+key))
+
+	return &mmodel.Balance{
+		ID: identity.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(), AccountID: identity.String(),
+		Alias: alias, Key: key, AssetCode: "USD", AccountType: "deposit",
+		Available: decimal.NewFromInt(available), Direction: constant.DirectionCredit,
+		AllowSending: true, AllowReceiving: true, CreatedAt: fixedSizingTime(), UpdatedAt: fixedSizingTime(),
+	}
 }
 
 func nearV1Body(t *testing.T, target int) ([]byte, mtransaction.CreateTransactionInput) {

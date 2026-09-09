@@ -775,9 +775,41 @@ payload freezes normalized input and is JSON-escaped inside the engine wire. A
 valid 4,193,188-byte v1 fixture with worst-case escaping expands to a
 10,490,524-byte recovery payload and a 12,251,470-byte engine wire even when the
 wire deliberately carries only two postings, two snapshots, and one projection
-context. This is a lower bound: full per-leg projection, fees, and route expansion
-can only add bytes. It proves that 8 MiB is unsafe, but it does not yet establish
-a production maximum or close the v1 boundary gate.
+context. This is a lower bound: full per-leg projection and route expansion can
+only add bytes. It proves that 8 MiB is unsafe, but it does not yet establish a
+production maximum or close the v1 boundary gate. v1 does not execute fees.
+
+A finite activation ceiling cannot currently be derived from application
+validators. Request metadata is bounded by the body and its per-entry validators;
+JSON escaping can expand each byte by at most six bytes at each serialization
+layer. Accounting rubric codes and descriptions are bounded to 50 and 250
+characters. Those dimensions can be included in a future derivation. The
+shared adapter configuration must also account for v2 fee expansion. The fee
+package `fees` map has a minimum but no maximum cardinality. Package updates add
+new dotted `fees.<key>` fields while retaining existing entries. Fee calculation
+runs before the second transaction validation. Non-deductible fees redistribute
+over the growing source map, so the current full path can expand postings faster
+than the number of configured fees; each resulting posting has a primary
+projection context, with additional contexts possible for validated hold/cancel
+and overdraft-companion paths. This expansion is independent of the transaction
+body’s cardinality. MongoDB's physical 16 MiB document limit makes a stored
+package finite, but it is not an application validator or an engine activation
+value; no full-path maximum has been derived from it and the other request,
+projection, and storage bounds.
+
+Account creation caps `type` at 256 characters, so an oversized persisted
+`balance.account_type` is not a current public-create shape. The column remains
+PostgreSQL `TEXT`, however; legacy, imported, or manually written rows are not
+length-revalidated when snapshot pools are built. Activation therefore also
+needs an inventory proving those rows satisfy the public invariant, or an
+enforced read/write invariant, rather than treating the schema as a size bound.
+
+Consequently no value for `MaxRecoveryBytes`, `MaxRequestBytes`,
+`MaxPreparedBytes`, `MaxPostings`, or `MaxBalances` is an acceptance-preserving
+activation value yet. Keep the execution port unset. Closing the gate requires
+an application-level maximum for fee-expanded cardinality, or a complete
+full-path derivation from every enforced request and storage bound; it must not
+be approximated with an observed fixture size.
 
 The deterministic representative wire measurements are 2 postings/2 pool
 snapshots: 2,134 bytes; 10 postings/20 pool snapshots: 12,974 bytes; and 50
