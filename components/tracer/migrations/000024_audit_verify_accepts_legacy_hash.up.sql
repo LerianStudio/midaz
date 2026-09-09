@@ -133,7 +133,35 @@
 --
 --   Only the verifier changes. calculate_audit_event_hash() still writes the
 --   nine-field formula, so every newly inserted row is covered in full.
+--
+-- Runtime, and the one way this migration can fail:
+--   This is the first tracer migration whose duration scales with the audit
+--   trail. The pass is CPU-bound on sha256 and essentially linear in row count:
+--   ~2.3 s per million rows, so ~22 s at 10M, ~114 s at 50M, ~4 min at 100M on
+--   a fast host, and a multiple of that on a small managed instance. Row width
+--   barely matters.
+--
+--   Nothing in the tenant-manager migration path sets a statement timeout, but
+--   an inherited one - an RDS/Aurora parameter group, a DBA default, a BYOC
+--   standard - would abort the pass mid-transaction. The data rolls back
+--   cleanly, but golang-migrate leaves schema_migrations at version 24 with
+--   dirty = true and refuses every later apply. SET LOCAL below removes the
+--   timeout for this migration's transaction only, so that cannot happen.
+--
+--   If an operator still meets a wedged tenant, from an earlier apply or a
+--   cancelled session:
+--     migrate -path <migrations> -database <url> force 23
+--     migrate -path <migrations> -database <url> up
+--   force 23 only clears the dirty flag; the boundary table and the new
+--   function were rolled back with the aborted transaction, so the re-run
+--   recomputes them from the same rows.
 -- ============================================
+
+-- The pass over audit_events below is proportional to the trail, so an
+-- inherited database- or role-level statement_timeout would abort it and leave
+-- the tenant's migration state dirty. LOCAL scopes this to the migration's own
+-- transaction and nothing else.
+SET LOCAL statement_timeout = 0;
 
 -- ============================================
 -- 1. Record the re-baseline boundary.
