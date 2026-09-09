@@ -259,3 +259,44 @@ func sortedKeysOf(t *testing.T, body []byte) []string {
 
 	return keys
 }
+
+// TestRenderLegacyV1_CarriesTheErrorReference pins the per-occurrence error
+// reference through the /v1 rewrite, in BOTH body classes.
+//
+// The reference is stamped on the problem document at the API's single error
+// construction point. This renderer re-marshals every /v1 error body into its
+// own structs, so a member missing from those structs is stamped and then
+// silently discarded — the customer the fix was for opens a ticket on a /v1 call
+// and still has nothing to quote. /v1 is the surface the published SDKs bind to.
+//
+// Revert either Instance field on legacyFlatBody or legacyStructBody and this
+// fails.
+func TestRenderLegacyV1_CarriesTheErrorReference(t *testing.T) {
+	const reference = "aabbccddeeff00112233445566778899"
+
+	t.Run("flat class carries it", func(t *testing.T) {
+		got, ok := renderLegacyV1([]byte(`{"status":404,"code":"0007","title":"Entity Not Found",`+
+			`"detail":"No entity was found for the given ID.","instance":"`+reference+`"}`), 404)
+		require.True(t, ok, "renderer must recognize this shape")
+
+		assert.JSONEq(t, `{"code":"0007","instance":"`+reference+`",`+
+			`"message":"No entity was found for the given ID.","title":"Entity Not Found"}`, string(got))
+	})
+
+	t.Run("struct class carries it", func(t *testing.T) {
+		got, ok := renderLegacyV1([]byte(`{"status":400,"code":"0065","title":"Invalid Path Parameter",`+
+			`"detail":"bad","instance":"`+reference+`"}`), 400)
+		require.True(t, ok, "renderer must recognize this shape")
+
+		assert.JSONEq(t, `{"code":"0065","instance":"`+reference+`",`+
+			`"message":"bad","title":"Invalid Path Parameter"}`, string(got))
+	})
+
+	t.Run("a request with no trace omits it rather than sending it blank", func(t *testing.T) {
+		got, ok := renderLegacyV1([]byte(`{"status":404,"code":"0007","title":"Entity Not Found","detail":"gone"}`), 404)
+		require.True(t, ok)
+
+		assert.Equal(t, []string{"code", "message", "title"}, keysOf(t, got),
+			"an absent reference must be omitted; a blank one is worse than none")
+	})
+}

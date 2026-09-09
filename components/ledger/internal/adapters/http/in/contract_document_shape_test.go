@@ -380,6 +380,20 @@ func assertErrorResponsesMatchServedEnvelope(t *testing.T, doc *huma.OpenAPI) {
 					"%s %s response %q must $ref the error body %s serves (%s), not %s",
 					key, op.OperationID, status, plane, wantRef, media.Schema.Ref)
 
+				// The per-occurrence error reference must be DECLARED wherever it is
+				// SERVED, on every operation, not on a sampled one. The API stamps it
+				// at its single error construction point, so both planes serve it —
+				// but /v1 re-marshals every error body through its own structs, so a
+				// member missing from those structs is stamped and then discarded.
+				// Declaring what the service rewrites away is worse than declaring
+				// nothing: the caller does not find out at integration time, the
+				// generated client does at runtime. LegacyError is
+				// additionalProperties:false, so the two must move together in both
+				// directions.
+				require.Containsf(t, propertiesOf(t, registry, media.Schema.Ref), "instance",
+					"%s %s response %q declares an error body with no per-occurrence reference; %s serves one",
+					key, op.OperationID, status, plane)
+
 				if universal {
 					universalChecked[plane]++
 				}
@@ -439,6 +453,29 @@ func isErrorStatusKey(key string) bool {
 func contentTypesOf(content map[string]*huma.MediaType) []string {
 	names := make([]string, 0, len(content))
 	for name := range content {
+		names = append(names, name)
+	}
+
+	sort.Strings(names)
+
+	return names
+}
+
+// propertiesOf resolves a component $ref against the document's own registry and
+// returns its declared property names. It resolves rather than taking the schema
+// inline so the assertion reads the component every operation shares, which is
+// what a generated client reads.
+func propertiesOf(t *testing.T, registry huma.Registry, ref string) []string {
+	t.Helper()
+
+	const prefix = "#/components/schemas/"
+	require.Truef(t, strings.HasPrefix(ref, prefix), "expected a component ref, got %q", ref)
+
+	schema := registry.Map()[strings.TrimPrefix(ref, prefix)]
+	require.NotNilf(t, schema, "ref %q does not resolve in the document registry", ref)
+
+	names := make([]string, 0, len(schema.Properties))
+	for name := range schema.Properties {
 		names = append(names, name)
 	}
 

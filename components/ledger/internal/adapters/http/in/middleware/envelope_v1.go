@@ -20,6 +20,7 @@ type problemBody struct {
 	Detail     string         `json:"detail"`
 	Status     int            `json:"status"`
 	EntityType string         `json:"entityType"`
+	Instance   string         `json:"instance"`
 	Errors     []problemError `json:"errors"`
 }
 
@@ -36,12 +37,21 @@ type problemError struct {
 // InternalServerError, FailedPrecondition and ServiceUnavailable.
 //
 // Field ORDER is load-bearing. fiber.Map is a map, and encoding/json sorts map
-// keys, so v3 emitted these three alphabetically. Nothing is omitempty: a map
-// literal always carries all three keys, even when a value is empty.
+// keys, so v3 emitted these three alphabetically. The original three are not
+// omitempty: a map literal always carried all three keys, even when a value is
+// empty.
+//
+// instance is the per-occurrence error reference and is the one member v3 did
+// not have. It is omitempty because a request with no trace has nothing to
+// reference, and it is declared on the published LegacyError schema in the same
+// change — that schema is additionalProperties:false, so emitting a member the
+// document does not declare would make a strict generated client reject every
+// error body /v1 sends.
 type legacyFlatBody struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Title   string `json:"title"`
+	Code     string `json:"code"`
+	Instance string `json:"instance,omitempty"`
+	Message  string `json:"message"`
+	Title    string `json:"title"`
 }
 
 // legacyStructBody is the v3 envelope for the classes WithError rendered by
@@ -60,6 +70,7 @@ type legacyStructBody struct {
 	Title      string         `json:"title,omitempty"`
 	Message    string         `json:"message,omitempty"`
 	Code       string         `json:"code,omitempty"`
+	Instance   string         `json:"instance,omitempty"`
 	Fields     map[string]any `json:"fields,omitempty"`
 }
 
@@ -89,14 +100,16 @@ func renderLegacyV1(body []byte, status int) ([]byte, bool) {
 			Title:      problem.Title,
 			Message:    problem.Detail,
 			Code:       problem.Code,
+			Instance:   problem.Instance,
 			Fields:     errorsToFields(problem.Errors),
 		})
 	}
 
 	return marshalOrPassThrough(legacyFlatBody{
-		Code:    problem.Code,
-		Message: problem.Detail,
-		Title:   problem.Title,
+		Code:     problem.Code,
+		Instance: problem.Instance,
+		Message:  problem.Detail,
+		Title:    problem.Title,
 	})
 }
 
