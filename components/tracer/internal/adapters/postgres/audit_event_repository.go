@@ -331,7 +331,15 @@ func (r *AuditEventRepository) List(ctx context.Context, filters *model.AuditEve
 	}, nil
 }
 
-// VerifyHashChain verifies the integrity of the hash chain.
+// VerifyHashChain verifies the integrity of the hash chain from the first
+// recorded event up to the given event.
+//
+// The start id is deliberately the literal 1: a caller-movable floor would let
+// any range of the trail be skipped, which is the opposite of what a
+// tamper-evidence check is for. verify_audit_hash_chain accepts a row under
+// either canonical hash formula this schema has written (migration 000024), so
+// a deployment upgraded past the 000017 actor re-baseline verifies its historical
+// rows instead of reporting the whole trail as tampered with.
 func (r *AuditEventRepository) VerifyHashChain(ctx context.Context, eventID uuid.UUID) (*model.HashChainVerificationResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
