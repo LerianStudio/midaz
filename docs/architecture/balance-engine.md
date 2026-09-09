@@ -771,15 +771,17 @@ cardinality limits selected for rollout must be high enough that the serialized
 byte limit, rather than a new leg cap, is the effective v1 constraint.
 
 Do not derive the activation byte limit by simply doubling 4 MiB. The recovery
-payload freezes normalized input and is JSON-escaped inside the engine wire, so
-a worst-case accepted v1 boundary fixture must measure that expansion before a
-production value is selected. The representative measurements below are useful
-for sizing and regression detection, but they do not authorize an 8 MiB limit
-or close the v1 boundary gate.
+payload freezes normalized input and is JSON-escaped inside the engine wire. A
+valid 4,193,188-byte v1 fixture with worst-case escaping expands to a
+10,490,524-byte recovery payload and a 12,251,470-byte engine wire even when the
+wire deliberately carries only two postings, two snapshots, and one projection
+context. This is a lower bound: full per-leg projection, fees, and route expansion
+can only add bytes. It proves that 8 MiB is unsafe, but it does not yet establish
+a production maximum or close the v1 boundary gate.
 
-The deterministic wire fixture measurements are 2 postings/2 pool snapshots:
-2,088 bytes; 10 postings/20 pool snapshots: 12,927 bytes; and 50
-postings/100 pool snapshots: 61,912 bytes. These are serialized JSON payload
+The deterministic representative wire measurements are 2 postings/2 pool
+snapshots: 2,134 bytes; 10 postings/20 pool snapshots: 12,974 bytes; and 50
+postings/100 pool snapshots: 61,960 bytes. These are serialized JSON payload
 sizes (not RESP framing). Full-pool loading is measured separately from the
 touched set; the adapter emits `balance_engine_pool_balance_count` and
 `balance_engine_touched_balance_count` histograms with no identifiers or monetary

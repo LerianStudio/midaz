@@ -7,11 +7,13 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"reflect"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -19,6 +21,9 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
@@ -322,6 +327,127 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 			t.Logf("postings=%d full_pool=%d touched=%d request_bytes=%d", test.postings, test.pool, test.postings, len(prepared.Payload))
 		})
 	}
+}
+
+// TestV1NearBodyLimitExpansionLowerBound is boundary evidence for the legacy
+// request contract. v1 has no leg cap; each leg may also carry flat metadata
+// (100-byte keys and 2,000-byte values, subject to the global JSON key guard).
+// The generated body is therefore a valid request just below Fiber's 4 MiB body
+// limit, with one maximum-size value chosen to exercise JSON quote, slash, and
+// newline escaping.
+//
+// The measurements intentionally do not activate limits. This fixture uses the
+// fully decoded and validated transaction plus its validation response, but
+// deliberately supplies only the minimum two engine postings/snapshots and one
+// projection context. It therefore establishes a lower bound, not the fully
+// translated worst case. Recovery contains the original transaction and frozen
+// projection metadata, while the prepared wire contains recovery again. Fees,
+// route expansion, and one projection context per leg can add bytes after this
+// point, so a mathematically safe v1
+// MaxRecoveryBytes/MaxRequestBytes/MaxPreparedBytes or cardinality cap cannot be
+// chosen from this single request without changing the shipped v1 acceptance
+// surface. This test is the guard against doing so accidentally.
+func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
+	const bodyLimit = 4 * 1024 * 1024
+
+	body, input := nearV1Body(t, bodyLimit-1024)
+	require.GreaterOrEqual(t, len(body), bodyLimit-16*1024)
+	require.Less(t, len(body), bodyLimit)
+
+	decoded := new(mtransaction.CreateTransactionInput)
+	_, err := pkgHTTP.DecodeAndValidate(body, decoded)
+	require.NoError(t, err)
+	transaction := *decoded.BuildTransaction()
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(context.Background(), transaction, constant.CREATED)
+	require.NoError(t, err)
+	require.Greater(t, len(transaction.Send.Source.From), 1000)
+	require.Equal(t, len(transaction.Send.Source.From), len(transaction.Send.Distribute.To))
+
+	orgID := uuid.MustParse("ef73c171-f889-4a9d-a5d3-421ee069d736")
+	ledgerID := uuid.MustParse("fbe630e6-fde0-4396-bb3b-b5e5da509ae0")
+	txID := uuid.MustParse("53d2c279-4d51-4274-8a3d-ee1955ddcaa0")
+	executionID := uuid.MustParse("f00b8ce5-fad0-45da-b4a8-0bcaec270b08")
+	sourceID := uuid.MustParse("d9e5a2be-9128-43ab-9d3c-0c14e3a8b889")
+	destinationID := uuid.MustParse("1f3da5d4-1571-4619-938f-1aef51560726")
+
+	sourceRef := "@source#default"
+	destinationRef := "@destination#default"
+	request := engine.Request{
+		OrganizationID: orgID, LedgerID: ledgerID, ExecutionID: executionID,
+		Transactions: []engine.Transaction{{ID: txID, Postings: []engine.Posting{
+			{Ref: "from:0:debit", BalanceRef: sourceRef, Type: engine.PostingDebit, Amount: decimal.NewFromInt(1), DrawPolicy: engine.DrawForbidden},
+			{Ref: "to:0:credit", BalanceRef: destinationRef, Type: engine.PostingCredit, Amount: decimal.NewFromInt(1), DrawPolicy: engine.DrawForbidden},
+		}}},
+		Balances: []engine.BalanceSnapshot{
+			{BalanceRef: sourceRef, ID: sourceID, AccountID: sourceID, AccountType: "deposit", AssetCode: "USD", Alias: "@source", Key: "default", Direction: "credit", BalanceScope: "transactional", Available: decimal.NewFromInt(2), AllowSending: true, AllowReceiving: true},
+			{BalanceRef: destinationRef, ID: destinationID, AccountID: destinationID, AccountType: "deposit", AssetCode: "USD", Alias: "@destination", Key: "default", Direction: "credit", BalanceScope: "transactional", Available: decimal.Zero, AllowSending: true, AllowReceiving: true},
+		},
+	}
+	projectionBalance := command.FrozenProjectionBalance{OrganizationID: orgID.String(), LedgerID: ledgerID.String(), ID: sourceID.String(), AccountID: sourceID.String(), Alias: "@source", Key: "default", AssetCode: "USD", AccountType: "deposit"}
+	payload := command.BalanceEngineRecoveryPayload{
+		FormatVersion: command.BalanceEngineRecoveryVersion, TenantID: "fixture", HeaderID: "header", TransactionID: txID,
+		OrganizationID: orgID, LedgerID: ledgerID, ExecutionID: executionID, IntentFingerprint: strings.Repeat("a", 64), TransactionInput: transaction, Validate: validate, TTL: fixedSizingTime(),
+		TransactionStatus: constant.CREATED, Action: constant.ActionCommit, TransactionDate: fixedSizingTime(), TransactionCreatedAt: fixedSizingTime(), TransactionUpdatedAt: fixedSizingTime(), OperationUpdatedAt: fixedSizingTime(),
+		Projection: []command.FrozenProjectionContext{{TransactionID: txID, PostingRef: "from:0:debit", BalanceRef: sourceRef, Role: "primary", Side: command.ProjectionSideFrom, RowType: "DEBIT", Direction: "credit", Description: "description", ChartOfAccounts: "1000", Metadata: input.Send.Source.From[0].Metadata, Balance: projectionBalance, RequestedAmount: decimal.NewFromInt(1), CompatibilityPath: command.ProjectionStandard}},
+	}
+	recovery, err := command.EncodeBalanceEngineRecoveryPayload(payload)
+	require.NoError(t, err)
+
+	limits := Limits{MaxTransactions: 1, MaxPostings: 2, MaxBalances: 2, MaxRecoveryBytes: len(recovery) + 1, MaxRequestBytes: bodyLimit * 4, MaxPreparedBytes: bodyLimit * 4}
+	inputExecution := command.EngineExecution{Request: request, IntentFingerprint: "immutable-intent", Guards: []command.ExecutionGuard{{TransactionID: txID, ExpectedToken: "old", NextToken: "next"}}, Recovery: []command.RecoveryIntent{{TransactionID: txID, Payload: recovery}}}
+	resolved := sizingResolvedKeys(request.Balances)
+	prepared, err := prepareExecution(context.Background(), inputExecution, limits, resolved)
+	require.NoError(t, err)
+
+	t.Logf("v1 lower-bound bytes: original=%d frozen_recovery=%d v1_legs=%d wire_postings=%d snapshots=%d final_wire=%d", len(body), len(recovery), len(transaction.Send.Source.From)+len(transaction.Send.Distribute.To), len(request.Transactions[0].Postings), len(request.Balances), len(prepared.Payload))
+	require.Equal(t, 4193188, len(body))
+	require.Equal(t, 10490524, len(recovery))
+	require.Equal(t, 12251470, len(prepared.Payload))
+	require.Greater(t, len(recovery), len(body), "recovery must retain transaction and frozen projection data")
+	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry recovery plus engine postings and snapshots")
+	require.Equal(t, 2, len(request.Transactions[0].Postings), "v1 retains both logical legs; no v1 leg cap is introduced")
+}
+
+func nearV1Body(t *testing.T, target int) ([]byte, mtransaction.CreateTransactionInput) {
+	t.Helper()
+	value := strings.Repeat("\\\"\n", 666) + "\\\""
+	makeInput := func(count int) mtransaction.CreateTransactionInput {
+		from := make([]mtransaction.FromTo, count)
+		to := make([]mtransaction.FromTo, count)
+		for i := 0; i < count; i++ {
+			amount := &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1)}
+			from[i] = mtransaction.FromTo{AccountAlias: "@source-" + fmt.Sprintf("%05d", i), Amount: amount}
+			to[i] = mtransaction.FromTo{AccountAlias: "@destination-" + fmt.Sprintf("%05d", i), Amount: &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(1)}}
+		}
+		from[0].Metadata = map[string]any{"escaped": value}
+		return mtransaction.CreateTransactionInput{Send: mtransaction.Send{Asset: "USD", Value: decimal.NewFromInt(int64(count)), Source: mtransaction.Source{From: from}, Distribute: mtransaction.Distribute{To: to}}}
+	}
+	low, high := 0, 100_000
+	for low+1 < high {
+		mid := (low + high) / 2
+		body, err := json.Marshal(makeInput(mid))
+		require.NoError(t, err)
+		if len(body) < target {
+			low = mid
+		} else {
+			high = mid
+		}
+	}
+	input := makeInput(low)
+	body, err := json.Marshal(input)
+	require.NoError(t, err)
+	return body, input
+}
+
+func fixedSizingTime() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
+
+func sizingResolvedKeys(balances []engine.BalanceSnapshot) resolvedExecutionKeys {
+	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: "tenant:fixture:schedule:{transactions}", Recovery: "tenant:fixture:recovery:{transactions}", Receipts: "tenant:fixture:receipts:{transactions}", Guards: "tenant:fixture:guards:{transactions}", Protection: "tenant:fixture:protection:{transactions}", Balances: make(map[string]resolvedBalanceKeys, len(balances))}
+	for _, balance := range balances {
+		key := "tenant:fixture:balance:{transactions}:" + balance.BalanceRef
+		resolved.Balances[balance.BalanceRef] = resolvedBalanceKeys{Balance: key, Deleted: key + ":deleted"}
+	}
+	return resolved
 }
 
 func measuredWireExecution(postingCount, poolCount int) (command.EngineExecution, Limits, resolvedExecutionKeys) {
