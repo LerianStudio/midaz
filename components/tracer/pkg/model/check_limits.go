@@ -210,8 +210,33 @@ func (d *LimitUsageDetail) RemainingAmount() decimal.Decimal {
 //   - DAILY: "2025-12-28"
 //   - MONTHLY: "2025-12"
 //   - WEEKLY: "2025-W03" (ISO week format: year-week number)
-//   - CUSTOM: "custom" (limit checker uses customStartDate/customEndDate to determine if in period)
+//   - CUSTOM: "custom" — CONSTANT, see below
 //   - PER_TRANSACTION: "" (empty, no period tracking)
+//
+// The key is the period component of the usage counter's identity
+// (usage_counters is UNIQUE on limit_id, scope_key, period_key), so it decides
+// which spend a limit is measured against.
+//
+// KNOWN DEFECT, CUSTOM ONLY. The custom key ignores the timestamp and ignores
+// the limit's own window, so one counter row serves every custom window a limit
+// has ever had. Moving a window with PATCH is a supported operation, and after
+// a move the limit is still measured against the closed window's spend: a
+// customer inside a fresh, valid window is refused, and their new cap never
+// opens. Membership is correct — the checker does compare the timestamp against
+// customStartDate/customEndDate — but the counter behind it is not scoped to
+// the window.
+//
+// Making the key window-aware is a MONEY-PATH MIGRATION, not a one-line change,
+// and it must not be done here alone. Every counter row in an existing
+// deployment carries the literal "custom", so a new key stops matching them and
+// the upsert starts a fresh row at zero — a live limit's committed spend
+// silently disappears and the customer overspends their cap. That is the
+// dangerous direction: the present defect refuses too much, which is visible;
+// the naive fix permits too much, which is not. A backfill cannot separate the
+// two either, because the stored row does not record which window its spend
+// belongs to. It needs a product decision on in-flight spend, a backfill, and
+// the reservation grain (usage_reservations is unique on the same key) changed
+// with it.
 //
 // Returns ErrCheckLimitsUnknownLimitType for unknown limit types to prevent
 // silent bugs where new limit types would be treated as PER_TRANSACTION.
@@ -228,8 +253,9 @@ func CalculatePeriodKey(limitType LimitType, timestamp time.Time) (string, error
 		year, week := utc.ISOWeek()
 		return fmt.Sprintf("%d-W%02d", year, week), nil
 	case LimitTypeCustom:
-		// Custom periods use "custom" as the period key
-		// The limit_checker will use customStartDate/customEndDate to determine if transaction is within period
+		// Constant on purpose today, and wrong on purpose: see the KNOWN DEFECT
+		// note above before changing it. TestCalculatePeriodKey_CustomIsConstant
+		// pins this so a change here is a deliberate act.
 		return "custom", nil
 	case LimitTypePerTransaction:
 		return "", nil

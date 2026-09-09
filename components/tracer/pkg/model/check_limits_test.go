@@ -840,3 +840,48 @@ func TestCheckLimitsOutput_EvaluatedAt_WithUsageDetails(t *testing.T) {
 		"EvaluatedAt should be preserved after method chaining")
 	assert.Len(t, output.LimitUsageDetails, 1)
 }
+
+// TestCalculatePeriodKey_CustomIsConstant pins the two period keys the original
+// table left uncovered, and records the custom one as the known defect it is.
+//
+// The custom key ignores both the timestamp and the limit's own window, so one
+// usage counter serves every custom window a limit has ever had. The customer
+// consequence is on the decision path: after a window is moved with PATCH, live
+// spend is measured against the closed window's counter, so a customer inside a
+// fresh valid window is refused and their new cap never opens.
+//
+// It is pinned rather than fixed because a window-aware key orphans every
+// existing counter row and restarts a live limit's spend at zero, which lets a
+// customer overspend — see the note on CalculatePeriodKey. Changing this
+// function must break this test, so the migration is not made by accident.
+func TestCalculatePeriodKey_CustomIsConstant(t *testing.T) {
+	t.Parallel()
+
+	january, err := model.CalculatePeriodKey(model.LimitTypeCustom, time.Date(2025, 1, 10, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+
+	march, err := model.CalculatePeriodKey(model.LimitTypeCustom, time.Date(2025, 3, 15, 12, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+
+	assert.Equal(t, "custom", january)
+	assert.Equal(t, march, january,
+		"KNOWN DEFECT: a custom limit resolves to one counter for every window it has ever had, so spend from a closed window is still charged against a new one")
+}
+
+// TestCalculatePeriodKey_WeeklyUsesTheISOWeek covers the other type the original
+// table missed. Unlike custom, weekly is correct: the key moves with the clock.
+func TestCalculatePeriodKey_WeeklyUsesTheISOWeek(t *testing.T) {
+	t.Parallel()
+
+	// 2025-12-28 is a Sunday, the last day of ISO week 52; 2025-12-29 opens ISO
+	// week 1 of 2026. A key that did not track the ISO year would call the second
+	// one 2025-W01.
+	sunday, err := model.CalculatePeriodKey(model.LimitTypeWeekly, time.Date(2025, 12, 28, 15, 30, 0, 0, time.UTC))
+	require.NoError(t, err)
+
+	monday, err := model.CalculatePeriodKey(model.LimitTypeWeekly, time.Date(2025, 12, 29, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+
+	assert.Equal(t, "2025-W52", sunday)
+	assert.Equal(t, "2026-W01", monday, "the ISO year must move with the ISO week, not with the calendar year")
+}
