@@ -256,11 +256,11 @@ func resolveAccountBlockExceptionEval(ctx context.Context, organizationID, ledge
 }
 
 // headerWidth is the number of ARGV slots the eval occupies ahead of the first
-// balance operation group: the two expected values, the bypass-list count, and
-// one slot per bypassed balance key.
+// balance operation group: the two expected values, the bypass-list count, the
+// idempotency marker key, and one slot per bypassed balance key.
 //
-// A nil receiver is the no-grant case and still occupies the three fixed slots,
-// so the script always reads its header from the same three positions and never
+// A nil receiver is the no-grant case and still occupies the four fixed slots,
+// so the script always reads its header from the same four positions and never
 // has to branch on whether a grant exists before it can compute its own stride.
 func (e *accountBlockExceptionEval) headerWidth() int {
 	if e == nil {
@@ -284,11 +284,16 @@ func (e *accountBlockExceptionEval) bypassedCount() int {
 // been allocated with at least headerWidth() leading slots — the plan builder
 // reserves exactly that many, so the header costs no allocation and no copy on
 // either path.
-func (e *accountBlockExceptionEval) writeHeader(args []any) {
+//
+// applyMarkerKey is the tenant-namespaced idempotency marker key of this
+// execution. It is written on both paths because the script's replay gate runs
+// ahead of every grant concern.
+func (e *accountBlockExceptionEval) writeHeader(args []any, applyMarkerKey string) {
 	if e == nil {
 		args[0] = ""
 		args[1] = ""
 		args[2] = "0"
+		args[3] = applyMarkerKey
 
 		return
 	}
@@ -296,6 +301,7 @@ func (e *accountBlockExceptionEval) writeHeader(args []any) {
 	args[0] = e.alias
 	args[1] = e.amount
 	args[2] = strconv.Itoa(len(e.balanceKeys))
+	args[3] = applyMarkerKey
 
 	for i, balanceKey := range e.balanceKeys {
 		args[luaArgsHeaderFixedSize+i] = balanceKey

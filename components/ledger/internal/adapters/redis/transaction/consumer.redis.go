@@ -545,8 +545,12 @@ func boolToInt(b bool) int {
 // Note: cjson in Redis/Valkey may encode empty arrays as {} (object) instead of [] (array).
 // The custom UnmarshalJSON handles this edge case by treating empty objects as empty slices.
 type balanceAtomicResponse struct {
-	Before balanceRedisList `json:"before"`
-	After  balanceRedisList `json:"after"`
+	// Replayed marks a response the script re-reported from its idempotency
+	// marker instead of computing: the same identity had already executed. It is
+	// absent from a first execution's payload, which decodes to false.
+	Replayed bool             `json:"replayed"`
+	Before   balanceRedisList `json:"before"`
+	After    balanceRedisList `json:"after"`
 }
 
 type balanceAtomicOperationPlan struct {
@@ -680,6 +684,13 @@ func (r *balanceAtomicResponse) UnmarshalJSON(data []byte) error {
 	}
 
 	var err error
+
+	if replayedData, ok := raw["replayed"]; ok {
+		if err = json.Unmarshal(replayedData, &r.Replayed); err != nil {
+			return fmt.Errorf("unmarshal replayed: %w", err)
+		}
+	}
+
 	if beforeData, ok := raw["before"]; ok {
 		if r.Before, err = unmarshalField(beforeData); err != nil {
 			return fmt.Errorf("unmarshal before: %w", err)
@@ -782,15 +793,28 @@ const luaArgsPerOperation = 25
 
 // luaArgsHeaderFixedSize is the number of ARGV entries that ALWAYS precede the
 // first balance operation group: the expected grant alias, the expected debited
-// amount, and the count of bypassed balance keys that follow.
+// amount, the count of bypassed balance keys that follow, and the idempotency
+// marker key of this execution.
 //
-// The first three slots are unconditional — empty strings and a "0" count when no
+// All four slots are unconditional — empty strings and a "0" count when no
 // account-block exception was presented — so the script reads its header from
 // fixed positions and derives its own stride from the count without ever
-// branching on whether a grant exists.
+// branching on whether a grant exists. The bypassed balance keys follow the
+// fourth slot.
 //
 // It must match `argvHeaderFixed` in balance_atomic_operation.lua.
-const luaArgsHeaderFixedSize = 3
+//
+// The match is per BINARY, not per cluster: the script is compiled into the
+// binary, so a pod only ever evaluates the script it shipped with and the two
+// sides of this contract cannot drift apart at runtime. That is what makes the
+// header width, and the marker format that rides in it, safe to change under a
+// mixed-version fleet — each script version hashes to its own EVALSHA, so pods
+// of different versions execute different scripts against the same Redis. A pod
+// reads only markers written by its own format, and a marker it does not
+// recognize is an unread key with a TTL. No cross-version bridge is required
+// here, unlike the delete marker, whose namespace is read by the command layer
+// of one pod and written by the Lua of another.
+const luaArgsHeaderFixedSize = 4
 
 // buildBalanceAtomicOperationPlan assembles the ARGV payload. headerWidth leading
 // slots are RESERVED (left as nil) for the caller to fill in place, so the header
@@ -1113,9 +1137,21 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
+	// The idempotency identity of this execution. transactionStatus is the SAME
+	// value the plan writes into every operation group's status slot, so the
+	// marker and the batch it guards can never describe different postings.
+	applyMarkerKey, err := tenantKeyFromContextOrError(ctx,
+		utils.TransactionApplyMarkerKey(organizationID, ledgerID, transactionID.String(), transactionStatus))
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace transaction apply marker key", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to namespace transaction apply marker key", libLog.Err(err))
+
+		return nil, err
+	}
+
 	// The exception key is appended as KEYS[4] ONLY when a grant was presented,
 	// which is how the script tells "validate and consume a grant" from "there is
-	// none" — the header's three fixed ARGV slots are always there, the key is not.
+	// none" — the header's four fixed ARGV slots are always there, the key is not.
 	if exceptionEval != nil {
 		prefixedKeys = append(prefixedKeys, exceptionEval.key)
 	}
@@ -1128,7 +1164,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	// The header occupies slots the plan builder already reserved, and nothing reads
 	// plan.args after this point, so writing in place is safe and keeps the no-grant
 	// path free of any extra allocation or copy.
-	exceptionEval.writeHeader(plan.args)
+	exceptionEval.writeHeader(plan.args, applyMarkerKey)
 
 	finalArgs := plan.args
 
