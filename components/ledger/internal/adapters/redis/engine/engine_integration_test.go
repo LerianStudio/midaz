@@ -501,7 +501,7 @@ func TestIntegrationEngineAtomicRefusals(t *testing.T) {
 	}
 }
 
-func TestIntegrationEngineRejectsInvalidRecoveryPayloadWithoutWrites(t *testing.T) {
+func TestIntegrationEngineRejectsInvalidCompletionPlanWithoutWrites(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
 	}
@@ -541,15 +541,33 @@ func TestIntegrationEngineRejectsInvalidRecoveryPayloadWithoutWrites(t *testing.
 			require.NoError(t, err)
 			invalid, err := json.Marshal(tt.payload)
 			require.NoError(t, err)
-			mutated := strings.Replace(raw, `"recoveryPayload":`+string(valid), `"recoveryPayload":`+string(invalid), 1)
+			mutated := strings.Replace(raw, `"completionPlan":`+string(valid), `"completionPlan":`+string(invalid), 1)
 			require.NotEqual(t, raw, mutated)
 
 			before := f.capture(t)
 			_, err = f.runRaw(t, mutated)
 			require.ErrorContains(t, err, "MIDAZ_ENGINE_TECH_V1 ")
-			require.Equal(t, before, f.capture(t), "invalid recovery must preserve every value and absolute expiration")
+			require.Equal(t, before, f.capture(t), "invalid completion plan must preserve every value and absolute expiration")
 		})
 	}
+}
+
+func TestIntegrationEngineRequiresAllSharedKeys(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	f := newIntegrationFixture(t, container.Client)
+	prepared := f.prepared(t)
+	before := f.capture(t)
+
+	_, err := f.client.Eval(
+		context.Background(), integrationEngineLua, prepared.Keys[:4], prepared.Payload,
+		strconv.Itoa(f.limits.MaxRequestBytes), strconv.Itoa(f.limits.MaxPreparedBytes),
+	).Result()
+	require.ErrorContains(t, err, `"code":"invalid_protocol"`)
+	require.Equal(t, before, f.capture(t), "an incomplete shared-key inventory must not mutate Redis")
 }
 
 func TestIntegrationEngineReplayAndInt64(t *testing.T) {

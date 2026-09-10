@@ -30,7 +30,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/skip"
 )
 
-type pendingBalanceEngineFrozen struct {
+type pendingBalanceEngineStableContext struct {
 	executionID        uuid.UUID
 	organizationID     uuid.UUID
 	ledgerID           uuid.UUID
@@ -52,7 +52,7 @@ type pendingBalanceEngineTransition struct {
 	ledgerSettings    mmodel.LedgerSettings
 	honoredTracerSkip bool
 	action            string
-	frozen            pendingBalanceEngineFrozen
+	stableContext     pendingBalanceEngineStableContext
 }
 
 func (uc *UseCase) transitionPendingWithBalanceEngine(
@@ -86,7 +86,7 @@ func (uc *UseCase) transitionPendingWithBalanceEngine(
 		return nil, err
 	}
 
-	prepared, err := buildPendingBalanceEngineExecution(transition.persisted, transition.input, transition.validate, engineState, transition.frozen, transition.action)
+	prepared, err := buildPendingBalanceEngineExecution(transition.persisted, transition.input, transition.validate, engineState, transition.stableContext, transition.action)
 	if err != nil {
 		unlock()
 		return nil, err
@@ -168,11 +168,11 @@ func (uc *UseCase) preparePendingBalanceEngineTransition(ctx context.Context, ru
 	}
 
 	_, _, headerID, _ := libObservability.NewTrackingFromContext(ctx)
-	prepared.frozen = pendingBalanceEngineFrozen{
+	prepared.stableContext = pendingBalanceEngineStableContext{
 		executionID: executionID, organizationID: run.organizationID, ledgerID: run.ledgerID,
 		tenantID: tmcore.GetTenantIDContext(ctx), headerID: headerID,
 		enqueuedAt: time.Now(), actionDate: time.Now(), transactionUpdated: time.Now(), operationUpdated: time.Now(),
-		parentID: prepared.frozen.parentID,
+		parentID: prepared.stableContext.parentID,
 		guard:    ExecutionGuard{TransactionID: transactionID, ExpectedToken: constant.PENDING, NextToken: run.status},
 	}
 
@@ -223,7 +223,7 @@ func (uc *UseCase) preparePendingBalanceEngineIntent(ctx context.Context, run *p
 	return pendingBalanceEngineTransition{
 		transactionID: transactionID, persisted: persisted, input: input, validate: validate,
 		ledgerSettings: ledgerSettings, honoredTracerSkip: honoredTracerSkip, action: action,
-		frozen: pendingBalanceEngineFrozen{parentID: parentID},
+		stableContext: pendingBalanceEngineStableContext{parentID: parentID},
 	}, nil
 }
 
@@ -316,37 +316,37 @@ func buildPendingBalanceEngineExecution(
 	input mtransaction.Transaction,
 	validate *mtransaction.Responses,
 	prepared balanceEnginePreparedTransaction,
-	frozen pendingBalanceEngineFrozen,
+	stableContext pendingBalanceEngineStableContext,
 	action string,
 ) (PreparedBalanceEngineExecution, error) {
 	payload := TransactionCompletionPlan{
 		FormatVersion:        TransactionCompletionFormatVersion,
-		TenantID:             frozen.tenantID,
-		HeaderID:             frozen.headerID,
+		TenantID:             stableContext.tenantID,
+		HeaderID:             stableContext.headerID,
 		TransactionID:        prepared.transaction.ID,
-		ParentTransactionID:  frozen.parentID,
+		ParentTransactionID:  stableContext.parentID,
 		FeesSkipped:          persisted.FeesSkipped,
 		TracerSkipped:        persisted.TracerSkipped,
-		OrganizationID:       frozen.organizationID,
-		LedgerID:             frozen.ledgerID,
-		ExecutionID:          frozen.executionID,
+		OrganizationID:       stableContext.organizationID,
+		LedgerID:             stableContext.ledgerID,
+		ExecutionID:          stableContext.executionID,
 		TransactionInput:     input,
-		TTL:                  frozen.enqueuedAt,
+		TTL:                  stableContext.enqueuedAt,
 		Validate:             validate,
-		TransactionStatus:    frozen.guard.NextToken,
+		TransactionStatus:    stableContext.guard.NextToken,
 		Action:               action,
-		TransactionDate:      frozen.actionDate,
+		TransactionDate:      stableContext.actionDate,
 		TransactionCreatedAt: persisted.CreatedAt,
-		TransactionUpdatedAt: frozen.transactionUpdated,
-		OperationUpdatedAt:   frozen.operationUpdated,
+		TransactionUpdatedAt: stableContext.transactionUpdated,
+		OperationUpdatedAt:   stableContext.operationUpdated,
 		OperationSpecs:       prepared.projection,
 	}
 
 	intent := BalanceEngineIntent{
-		TenantID:       frozen.tenantID,
+		TenantID:       stableContext.tenantID,
 		OrganizationID: payload.OrganizationID,
 		LedgerID:       payload.LedgerID,
-		ExecutionID:    frozen.executionID,
+		ExecutionID:    stableContext.executionID,
 		Transactions:   []BalanceEngineTransactionIntent{transactionCompletionIntent(prepared.transaction, payload)},
 	}
 
@@ -366,12 +366,12 @@ func buildPendingBalanceEngineExecution(
 		Execution: accounting.Execution{
 			OrganizationID: payload.OrganizationID,
 			LedgerID:       payload.LedgerID,
-			ExecutionID:    frozen.executionID,
+			ExecutionID:    stableContext.executionID,
 			Transactions:   []accounting.Transaction{prepared.transaction},
 			Balances:       prepared.pool.Snapshots,
 		},
 		IntentFingerprint: fingerprint,
-		Guards:            []ExecutionGuard{frozen.guard},
+		Guards:            []ExecutionGuard{stableContext.guard},
 		CompletionPlans:   []CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: raw}},
 	}
 

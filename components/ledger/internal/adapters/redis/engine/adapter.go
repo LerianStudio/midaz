@@ -43,9 +43,9 @@ type RedisClientProvider interface {
 	GetClient(context.Context) (redis.UniversalClient, error)
 }
 
-// Adapter executes the accounting protocol without enabling any application path.
-// It currently supports standalone or Sentinel Redis clients; cluster and ring
-// transports require a separately verified no-retransmission implementation.
+// Adapter executes the accounting protocol used by the engine-backed transaction
+// paths. It currently supports standalone or Sentinel Redis clients; cluster and
+// ring transports require a separately verified no-retransmission implementation.
 type Adapter struct {
 	provider RedisClientProvider
 	limits   Limits
@@ -218,7 +218,7 @@ func executeAccounting(ctx context.Context, client *redis.Client, keys []string,
 
 	logger, _, _, factory := libObservability.NewTrackingFromContext(ctx)
 	if factory != nil {
-		emitCounter(ctx, factory, logger, "balance_engine_cas_attempts_total", "Accounting preflight attempts, including receipt replay and normalization retries but excluding NOSCRIPT fallback.", nil, 1)
+		emitCounter(ctx, factory, logger, "balance_engine_cas_attempts_total", "Accounting script attempts, including receipt replay and post-normalization execution but excluding NOSCRIPT fallback.", nil, 1)
 	}
 
 	response, err := executeScriptNoRetry(ctx, client, "evalsha", accountingScript.Hash(), keys, args)

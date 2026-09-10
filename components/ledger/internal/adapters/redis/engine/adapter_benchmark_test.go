@@ -60,7 +60,7 @@ func BenchmarkAdapterExecute(b *testing.B) {
 					input := benchmarkExecution(b, postings, balanceCount, i)
 					require.Len(b, input.Execution.Balances, balanceCount)
 					// Each iteration has unique IDs and empty Valkey state, so this
-					// cannot hit an execution receipt or stale balance version.
+					// cannot hit an execution receipt or reuse live balance state.
 					require.NoError(b, inspector.FlushDB(ctx).Err())
 					b.StartTimer()
 					result, err := adapter.Execute(ctx, input)

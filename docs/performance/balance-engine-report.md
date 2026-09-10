@@ -1,7 +1,8 @@
 # Balance-engine performance report
 
 This report records a local integration benchmark of the internal adapter. It does not
-claim a public before/after comparison while the engine execution port is unset.
+claim a public HTTP before/after comparison; the measurements below isolate the adapter
+and recovery projector even though engine-backed transaction paths are active.
 
 ## Scope
 
@@ -39,15 +40,17 @@ characterization, not an SLO or a promotion decision.
 
 | Scenario | Pool shape | ns/op | B/op | allocs/op | prepared wire bytes |
 |---|---|---:|---:|---:|---:|
-| 2 postings | touched | 2,572,392 | 111,693 | 1,402 | 4,822 |
-| 2 postings | larger | 2,719,951 | 116,819 | 1,451 | 5,808 |
-| 10 postings | touched | 8,775,805 | 499,764 | 5,712 | 17,670 |
-| 10 postings | larger | 7,749,006 | 538,621 | 5,960 | 22,600 |
-| 50 postings | touched | 30,927,185 | 2,398,204 | 27,017 | 81,916 |
-| 50 postings | larger | 37,463,368 | 2,658,336 | 28,248 | 106,666 |
+| 2 postings | touched | 2,572,392 | 111,693 | 1,402 | 4,821 |
+| 2 postings | larger | 2,719,951 | 116,819 | 1,451 | 5,807 |
+| 10 postings | touched | 8,775,805 | 499,764 | 5,712 | 17,669 |
+| 10 postings | larger | 7,749,006 | 538,621 | 5,960 | 22,599 |
+| 50 postings | touched | 30,927,185 | 2,398,204 | 27,017 | 81,915 |
+| 50 postings | larger | 37,463,368 | 2,658,336 | 28,248 | 106,665 |
 
 The `prepared wire bytes` value is the production `prepareExecution` payload sent to
-the Lua script. It is distinct from the serialized `EngineExecution` input object. The
+the Lua script. Values reflect the one-byte internal field rename from
+`recoveryPayload` to `completionPlan`; timing and allocation columns remain the original
+run. The payload is distinct from the serialized `EngineExecution` input object. The
 10-posting timing inversion is within this short run's variance and is not evidence that
 the larger pool is faster.
 
@@ -57,7 +60,7 @@ in-process finalization cost described above, not consumer or persistence latenc
 
 ## Public k6 status
 
-Public k6 before/after execution is blocked: the engine is an internal adapter and its
-execution port is not enabled, so no public HTTP route reaches it. Do not add a public
-k6 result until a local opt-in exists and the opt-in is explicitly documented. Existing
-public k6 suites measure other API paths and are not a substitute for this engine report.
+No public k6 before/after result is recorded here. A public result needs a documented
+HTTP scenario and comparable baseline that exercises the active engine-backed paths;
+the adapter benchmark above is not a substitute. Existing public k6 suites measure
+other API paths and likewise cannot be presented as this comparison.

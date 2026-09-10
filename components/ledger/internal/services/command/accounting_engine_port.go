@@ -30,7 +30,7 @@ type ExecutionGuard struct {
 type EngineExecution struct {
 	Execution         accounting.Execution
 	IntentFingerprint string
-	// RetentionSeconds is the effective request idempotency/retry window. Zero
+	// RetentionSeconds is the effective request idempotency/replay window. Zero
 	// means the HTTP default; values above the HTTP maximum are rejected.
 	// The cleanup deadline starts only after durable terminal completion, never
 	// at EVAL. The recovery consumer removes protection only after that deadline.

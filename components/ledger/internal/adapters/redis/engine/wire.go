@@ -97,7 +97,7 @@ type wireTransaction struct {
 	ExpectedGuard       string                   `json:"expectedGuard"`
 	NextGuard           string                   `json:"nextGuard"`
 	RecoveryField       string                   `json:"recoveryField"`
-	CompletionPlan      string                   `json:"recoveryPayload"`
+	CompletionPlan      string                   `json:"completionPlan"`
 	BalanceRequirements []wireBalanceRequirement `json:"balanceRequirements"`
 	Postings            []wirePosting            `json:"postings"`
 }

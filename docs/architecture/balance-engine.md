@@ -9,7 +9,7 @@ Canonical overdraft-limit serialization and conditional warm-cache repair protec
 both the engine and the remaining compatibility paths.
 
 The posting Lua implementation and Redis adapter, dual-format cache codec, and
-typed version-2 recovery payload/projector are implemented and tested foundations.
+typed completion plan/version-2 recovery projector are implemented and tested foundations.
 The compatible recovery consumer is wired in bootstrap to the real SQL store and
 MongoDB metadata repository. The v1/v2 create, revert, and pending commit/cancel
 pipelines execute through the engine. Annotation requests retain their separate
@@ -56,8 +56,8 @@ the contract belong under `components/ledger`; root-level shared test utilities
 must remain independent of it. Existing `pkg` packages are not relocated.
 
 The engine receives neither transaction status nor route/DSL interpretation
-rules. Those determine postings and frozen projection context in Go. The adapter
-may preserve recovery payloads opaquely without interpreting them in accounting
+rules. Those determine postings and stable projection context in Go. The adapter
+may preserve completion plans opaquely without interpreting them in accounting
 arithmetic.
 
 ## Execution, movement, and execution identity
@@ -79,9 +79,9 @@ Three balance sets must remain distinct:
 - Explicit legs are the balances targeted by the transaction input. Existing
   targeting, cardinality, asset, and permission rules apply to this set.
 - The snapshot pool contains available scoped seeds, including internal overdraft
-  companions that might become necessary after a live-settings change or retry.
+  companions that might become necessary after the engine reads live settings.
 - The touched set contains effective postings and companions actually used.
-  Only touched balances receive CAS, monetary writes, and synchronization work.
+  Only touched balances receive monetary writes and synchronization work.
 
 An unused internal companion in the pool is not an explicit user target and must
 not cause rejection. A user explicitly targeting an internal balance remains
@@ -215,7 +215,7 @@ not-pending error even when its pending body has already been cleared.
 Cancellation reads source balances only and derives any historical repayment
 cap from persisted operations, never from current overdraft debt. Cloning the
 persisted input preserves JSON numeric metadata without a float conversion.
-Each action captures its own execution identity and timestamps outside retry.
+Each action captures its own stable execution identity and timestamps before execution.
 
 Revert creates a new child transaction with the original transaction as its
 parent. Its v2 path performs a new tracer reservation and does not inherit the
@@ -365,7 +365,7 @@ accepted. Similar text inside runtime or transport errors remains technical.
 ## Preflight, ordered execution, and commit
 
 The engine adapter sends one versioned envelope in `ARGV[1]` containing the
-accounting DTO, opaque recovery payloads, and indices into `KEYS`. Every physical
+accounting DTO, opaque completion plans, and indices into `KEYS`. Every physical
 balance, deletion marker, schedule, recover, receipt, and guard key must appear in
 `KEYS`; hash field names belong in ARGV. Preserve the existing `{transactions}`
 hash tag. Tenant namespacing comes only from authenticated context.
@@ -386,12 +386,12 @@ Before the first write, the engine must:
    recovery correlation, receipt/guard state, and expected Redis key types.
 2. Resolve touched balances and use live data when present; use cache-miss seeds
    only in working memory. Do not seed Redis early with `SET NX`.
-3. Check deletion markers and initial versions for every touched physical
-   balance, including companions discovered during calculation. An unused pool
-   balance with a marker or stale version must not block the request.
+3. Check deletion markers for every explicitly required or posted balance and
+   for companions discovered during calculation. An unused pool balance with a
+   marker must not block the request. Live cached money, settings, and version
+   supersede the request seed after identity validation.
 4. Execute transactions and postings in stable order against working state.
-   Later transactions observe earlier intermediate results. Compare each initial
-   physical version once, not after every increment made by this same execution.
+   Later transactions observe earlier intermediate results.
 5. Serialize all final blobs, per-transaction recovery envelopes, receipts,
    guards, and the response, and prepare all command arguments.
 
@@ -408,32 +408,30 @@ Such failures are technical and potentially indeterminate; retain evidence and
 do not replay accounting blindly. The existing script's per-balance writes and
 manual rollback must not be mistaken for the target prepared-commit guarantee.
 
-## CAS, transport, and error classification
+## Single execution, transport, and error classification
 
-The command layer retries only a confirmed pre-write `stale_version`, for at most
-three total attempts. Each retry reloads live snapshots and rebuilds postings,
-companion information, projection context, and all balance-dependent validations.
-Preserve execution identity, original intent, dates, row identities, resolved
-fees, tracer reservation, and HTTP idempotency work. Do not restart the whole
-transaction workflow. Context cancellation stops additional attempts.
+`ExecutePreparedBalanceEngine` validates the canonical completion plan and sends
+each prepared action to the accounting engine exactly once. The Lua execution
+reads and validates live cache state atomically, so the command layer does not
+perform stale-version retries or rebuild a second execution attempt. Any returned
+error may follow an applied mutation and is never sufficient reason to replay the
+accounting effect automatically. Nil/malformed success results and contradictory
+result-plus-error returns are classified as indeterminate and retain the prepared
+request and any available result for reconciliation.
 
-`ExecuteBalanceEngineWithRetry` implements this retry boundary for one prepared
-transaction and is used by the engine-backed create, revert, and pending transitions.
-It validates each
-attempt's canonical recovery payload and preserves copied execution/guard identity
-and posting refs, balances, types, amounts, and repayment caps. Snapshots, live
-settings, optional companion contexts, and draw policy can be rebuilt. A technical
-error wrapping stale-version is not retryable. Nil/malformed success results and
-contradictory result-plus-error returns are classified as indeterminate, retaining
-the latest attempt and available result for reconciliation.
+The adapter has one separate bounded normalization loop for noncanonical legacy
+overdraft-limit fields. A confirmed pre-write normalization response identifies
+the exact cache keys to repair conditionally; after repair, the same prepared
+action is executed again. This is not an accounting conflict retry and does not
+recompute postings, projection context, or execution identity.
 
-Create prepares the first snapshot-dependent attempt before reserving tracer
-capacity. The v2 path reserves once and reuses that handle across stale retries;
-v1 does not invoke fees or tracer. NOTED stays on its separate legacy path.
+Create prepares its accounting action before reserving tracer capacity. The v2
+path reserves once; v1 does not invoke fees or tracer. NOTED stays on its separate
+legacy path.
 Unknown or indeterminate execution failures, malformed results, and failures
 after confirmed accounting retain the idempotency claim and recovery evidence.
 Only confirmed precommit failures permit compensation. Normal completion uses
-the frozen recovery projector and durable finalizer, without invoking legacy
+the stable completion plan and durable finalizer, without invoking legacy
 queue seeds, recover rewrites, or BTO persistence. The normal response preserves
 CREATED while SQL stores APPROVED. The recovery consumer owns exact-byte recover
 acknowledgment; successful normal finalization does not delete receipts or guards.
@@ -468,7 +466,7 @@ recognized refusals and preserves technical causes separately.
 
 Technical replies use `MIDAZ_ENGINE_TECH_V1 ` and a validated technical code.
 A malformed response, corrupt stored receipt, or transport failure can describe
-an execution that already changed state and must not enter CAS retry. A deliberate
+an execution that already changed state and must not be retried. A deliberate
 post-first-SET command denial is covered by integration tests: the balance write
 survives while later schedule/recover/guard/receipt writes can be absent. The
 adapter reports an indeterminate outcome, preserves evidence, and sends no blind
@@ -480,12 +478,11 @@ automatically repair a partially executed commit.
 | insufficient_funds | 0018, not 0025 |
 | overdraft_limit_exceeded | 0167 |
 | overdraft_not_eligible | 0492 only for eligible-account route denial; 0018 for forbidden/ineligible paths, preserving validation precedence |
-| stale_version | Retry within the bound; then 0174 |
 | balance_deleted | 0019 |
 | balance_missing | 0139 for the corresponding retrieval failure |
 | overdraft_companion_missing | Technical invariant failure, generic 0046 |
 | onhold_underflow | Technical invariant failure, generic 0046; not external-hold code 0098 |
-| Conflicting transition guard | 0486 while concurrent; 0099 when terminal state is confirmed; not CAS retry |
+| Conflicting transition guard | 0486 while concurrent; 0099 when terminal state is confirmed; do not retry the accounting execution |
 | Unknown code/version, malformed JSON/indices, runtime, transport | Technical; potentially indeterminate if execution may have occurred |
 
 Classify before calling the public error factory, which matches exact sentinel
@@ -503,16 +500,17 @@ Code-like digits embedded in descriptive runtime errors remain technical.
 
 The command-owned `EngineExecution` combines the accounting request with an
 immutable intent fingerprint, one `ExecutionGuard` per transaction, and one
-opaque `RecoveryIntent` per transaction. A guard contains transaction ID,
+opaque completion plan per transaction. A guard contains transaction ID,
 expected token, and next token; empty expected token requires an absent guard.
 The accounting engine compares tokens without interpreting lifecycle status.
 
 The fingerprint includes scope, action, normalized intention, and stable leg
-references, but excludes snapshots and calculated splits that can change on CAS
-retry. It also includes frozen primary row attribution, metadata, parent identity,
-and skip-audit flags. Derived companion contexts are excluded, since their need
-can change after a fresh balance read. Validation recomputes the fingerprint from
-the ordered immutable payloads, rather than only comparing supplied hash strings.
+references, but excludes seed snapshots and calculated splits because live cache
+state is authoritative inside Lua. It also includes stable primary row
+attribution, metadata, parent identity, and skip-audit flags. Derived companion
+contexts are excluded, since their need can change after a fresh balance read.
+Validation recomputes the fingerprint from the ordered immutable payloads,
+rather than only comparing supplied hash strings.
 
 The same execution ID and fingerprint returns its recorded result without
 reapplying postings; reuse with different intent is rejected before writes.
@@ -532,10 +530,10 @@ may seed the PENDING token with a single tenant-scoped `HSETNX`, then execute wi
 PENDING as the expected token. The seed does not read or overwrite an existing
 token and never sets a TTL on the shared hash. Existing terminal tokens remain
 unchanged; the subsequent accounting guard comparison resolves the race. The
-command must not retry with an alternative expected token. This capability is
-not wired into transaction processing yet. Its mutating command disables client
-retries, and transport failures remain indeterminate even though repeating this
-conditional seed would be idempotent.
+command must not retry with an alternative expected token. Pending transitions
+use this capability for transactions that predate engine guards. Its mutating
+command disables client retries, and transport failures remain indeterminate
+even though repeating this conditional seed would be idempotent.
 
 ### Recovery envelope
 
@@ -581,7 +579,7 @@ identical field in the other hash remains independent.
 Receipt and guard retention is not balance-cache TTL. The 30-second deletion-marker
 TTL is a separate, unchanged delete-operation guard and is not the balance-cache
 TTL either. Receipts and guards survive pending finalization and, after confirmed
-persistence, must cover the full retry/idempotency window measured from durable
+persistence, must cover the full replay/idempotency window measured from durable
 terminal completion.
 
 Each new receipt freezes its effective retention window (default 300 seconds,
@@ -706,8 +704,8 @@ that every historical integrity behavior is desirable. Two intentional
 fail-closed changes are required: a necessary missing companion and OnHold
 underflow must reject before writes instead of continuing with incomplete or
 corrupt state. Cover these separately from valid-flow compatibility fixtures.
-Expanded CAS also changes concurrency detection while retaining final code 0174.
-Never regenerate expected rows merely to make a regression pass.
+Reading live balance state inside the atomic script removes the old snapshot-version
+conflict boundary. Never regenerate expected rows merely to make a regression pass.
 
 The engine is the default writer in this release. Rollout must retain compatible
 readers and both recovery consumers until legacy in-flight work has drained.
@@ -819,7 +817,7 @@ For rollout and subsequent engine changes, retain evidence for:
   paths, including draw, repayment, exact limits, and legacy overrides.
 - New-write → old-mutation → new-read interleaving, settings updates, stale
   lowerCamel fields, and dual readers over new-only blobs.
-- Multiple transactions sharing a balance, initial CAS once per physical key,
+- Multiple transactions sharing a balance, one live-state load per physical key,
   failure in the last posting/companion with no pre-commit writes, and accurate
   failure indices.
 - Lost response after server execution, confirmed NOSCRIPT fallback, expired
@@ -873,7 +871,7 @@ touched set; the adapter emits `balance_engine_pool_balance_count` and
 `balance_engine_touched_balance_count` histograms with no identifiers or monetary
 labels.
 
-Observe request counts, posting types, closed failure enums, CAS attempts,
+Observe request counts, posting types, closed failure enums, script attempts,
 indeterminate outcomes, recovery, latency, and payload/pool sizes. Labels must
 not contain money, aliases, metadata, or IDs. These signals guard the fixed
 boundaries and support future capacity decisions.
@@ -889,7 +887,7 @@ accounting result or error. No monetary state or identifiers are emitted.
 | `balance_engine_requests_total` | Every `Execute` invocation, including early rejection and receipt replay | `outcome`: `success`, `refused`, `technical_error`, `indeterminate` |
 | `balance_engine_postings_total` | Requested postings after complete request/recovery validation, including replay; not applied movements or generated companions | `type`: the six supported posting types |
 | `balance_engine_failures_total` | Failed invocations, using recognized protocol codes; unexpected classifications become `unknown` | `code`: closed vocabulary |
-| `balance_engine_cas_attempts_total` | Accounting preflight attempts, including receipt replay and normalization retry; NOSCRIPT fallback is not an additional attempt | None |
+| `balance_engine_cas_attempts_total` | Historical metric name for accounting script attempts, including receipt replay and post-normalization execution; NOSCRIPT fallback is not an additional attempt | None |
 | `balance_engine_indeterminate_total` | Invocations whose accounting outcome cannot be confirmed | None |
 | `balance_engine_duration_ms` | Complete adapter invocation duration, including validation and normalization | None |
 | `balance_engine_request_size_bytes` | Validated Lua JSON payload length; excludes Redis keys and RESP framing | None |

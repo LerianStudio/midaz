@@ -41,7 +41,7 @@ const (
 )
 
 // ErrInvalidTransactionCompletionRecord identifies an invalid internal completion record.
-// It is not a public balance refusal and must not enter a stale-version retry loop.
+// It is not a public balance refusal and must not trigger another accounting execution.
 var ErrInvalidTransactionCompletionRecord = errors.New("invalid transaction completion record")
 
 // OperationBalanceContext preserves persisted snapshot fields without the public

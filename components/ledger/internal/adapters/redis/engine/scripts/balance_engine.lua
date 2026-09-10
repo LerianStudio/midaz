@@ -517,7 +517,7 @@ local function nonnegative(value)
     return value
 end
 
-local legacyNames = {
+local cacheCompatibilityFieldNames = {
     id = "ID", accountId = "AccountID", accountType = "AccountType",
     assetCode = "AssetCode", alias = "Alias", key = "Key", direction = "Direction",
     balanceScope = "BalanceScope", available = "Available", onHold = "OnHold",
@@ -527,8 +527,8 @@ local legacyNames = {
 }
 
 local function cachedField(blob, field, fallback)
-    local legacy = blob[legacyNames[field]]
-    if legacy ~= nil then return legacy end
+    local compatible = blob[cacheCompatibilityFieldNames[field]]
+    if compatible ~= nil then return compatible end
     if blob[field] ~= nil then return blob[field] end
     return fallback
 end
@@ -626,12 +626,12 @@ end
 
 local function encodeBalance(item)
     local blob = item.blob and clone(item.blob) or object()
-    for field, legacy in pairs(legacyNames) do
+    for field, compatible in pairs(cacheCompatibilityFieldNames) do
         local value = item.current[field]
         blob[field] = value
-        if field == "version" then blob[legacy] = numberToken(value)
-        elseif type(value) == "boolean" then blob[legacy] = value and 1 or 0
-        else blob[legacy] = value end
+        if field == "version" then blob[compatible] = numberToken(value)
+        elseif type(value) == "boolean" then blob[compatible] = value and 1 or 0
+        else blob[compatible] = value end
     end
     blob.SchemaVersion = 2
     return encodeJSON(blob)
@@ -745,8 +745,8 @@ local function decodeRequest(raw)
         text(transaction.expectedGuard, true)
         text(transaction.nextGuard, false)
         if transaction.expectedGuard == transaction.nextGuard then technical("invalid_protocol", "execution guard must advance") end
-        text(transaction.recoveryPayload, false)
-        requireObject(decodeJSON(transaction.recoveryPayload))
+        text(transaction.completionPlan, false)
+        requireObject(decodeJSON(transaction.completionPlan))
         requireArray(transaction.balanceRequirements)
         requireArray(transaction.postings)
         if #transaction.postings == 0 then technical("invalid_protocol", "empty transaction postings") end
@@ -967,15 +967,17 @@ local postingAlgebra = {
     release = applyReleasePosting
 }
 
-local function execute(request, maximumPrepared)
+local function prepareExecutionProtection(request)
     expectRedisType(KEYS[3], "hash")
     local replay = storedReceipt(request)
     if replay then return replay end
+
     expectRedisType(KEYS[1], "zset")
     expectRedisType(KEYS[2], "hash")
     expectRedisType(KEYS[4], "hash")
     local protectionKey = KEYS[5]
     expectRedisType(protectionKey, "hash")
+
     local preparedProtection = {}
     for _, transaction in ipairs(request.transactions) do
         local current = redis.call("HGET", KEYS[4], transaction.guardField)
@@ -1003,7 +1005,12 @@ local function execute(request, maximumPrepared)
             value = encodeJSON(coordinator)
         }
     end
-    local pool, companions, items = {}, {}, {}
+
+    return nil, preparedProtection, protectionKey
+end
+
+local function loadBalancePool(request)
+    local pool, companions = {}, {}
     local normalization = array()
     for i, balance in ipairs(request.balances) do
         local keyIndex, markerIndex = 4 + 2 * i, 5 + 2 * i
@@ -1022,15 +1029,20 @@ local function execute(request, maximumPrepared)
         end
         local item = {
             current = current, blob = blob, keyIndex = keyIndex,
-            markerIndex = markerIndex, deleted = redis.call("EXISTS", KEYS[markerIndex]) == 1
+            deleted = redis.call("EXISTS", KEYS[markerIndex]) == 1
         }
-        pool[balance.balanceRef], items[#items + 1] = item, item
+        pool[balance.balanceRef] = item
         if current.key == "overdraft" then
             if companions[current.accountId] then technical("invalid_balance", "multiple overdraft companions for one account") end
             companions[current.accountId] = item
         end
     end
     if #normalization > 0 then error({ kind = "normalization", keys = normalization }, 0) end
+
+    return pool, companions
+end
+
+local function validateLiveBalanceAvailability(request, pool)
     for txIndex, transaction in ipairs(request.transactions) do
         for _, requirement in ipairs(transaction.balanceRequirements) do
             if pool[requirement.balanceRef].deleted then
@@ -1043,7 +1055,9 @@ local function execute(request, maximumPrepared)
             end
         end
     end
+end
 
+local function applyTransactionsInMemory(request, pool, companions)
     local movements, touched, touchedSet, transactionResults = array(), {}, {}, {}
     local function touch(item, txIndex, postingIndex)
         if item.deleted then refuse("balance_deleted", txIndex, postingIndex, item.current.balanceRef) end
@@ -1134,12 +1148,17 @@ local function execute(request, maximumPrepared)
         transactionResults[#transactionResults + 1] = { movements = txMovements, final = txFinal }
     end
 
+    return movements, touched, transactionResults
+end
+
+local function prepareExecutionWrites(request, maximumPrepared, preparedProtection, movements, touched, transactionResults)
     local final = array()
     for _, item in ipairs(touched) do final[#final + 1] = snapshotCopy(item.current, false) end
     local response = encodeJSON({ protocolVersion = 1, movements = movements, final = final })
     local preparedBytes = #response
     if preparedBytes > maximumPrepared then technical("prepared_bytes_exceeded", "response exceeds prepared byte budget") end
-    if #movements == 0 then return response end
+    if #movements == 0 then return response, nil end
+
     local function charge(value)
         if #value > maximumPrepared - preparedBytes then technical("prepared_bytes_exceeded", "execution exceeds prepared byte budget") end
         preparedBytes = preparedBytes + #value
@@ -1169,7 +1188,7 @@ local function execute(request, maximumPrepared)
                 formatVersion = 2, tenantId = request.tenantId, organizationId = request.organizationId,
                 ledgerId = request.ledgerId, executionId = request.executionId,
                 intentFingerprint = request.intentFingerprint, transactionId = transaction.id,
-                payload = transaction.recoveryPayload, result = { movements = recoveryMovements, final = recoveryFinal }
+                payload = transaction.completionPlan, result = { movements = recoveryMovements, final = recoveryFinal }
             }))
         }
     end
@@ -1193,6 +1212,11 @@ local function execute(request, maximumPrepared)
         charge(transaction.nextGuard)
         charge(transaction.recoveryField)
     end
+
+    return response, preparedBalances, preparedRecoverRecords, receipt
+end
+
+local function commitPreparedExecution(request, protectionKey, preparedBalances, preparedRecoverRecords, preparedProtection, receipt)
     local now = redis.call("TIME")
     local score = tonumber(now[1]) + tonumber(now[2]) / 1000000
 
@@ -1205,11 +1229,29 @@ local function execute(request, maximumPrepared)
     for _, transaction in ipairs(request.transactions) do redis.call("HSET", KEYS[4], transaction.guardField, transaction.nextGuard) end
     for _, coordinator in ipairs(preparedProtection) do redis.call("HSET", protectionKey, coordinator.field, coordinator.value) end
     redis.call("HSET", KEYS[3], request.receiptField, receipt)
+end
+
+local function execute(request, maximumPrepared)
+    local replay, preparedProtection, protectionKey = prepareExecutionProtection(request)
+    if replay then return replay end
+
+    local pool, companions = loadBalancePool(request)
+    validateLiveBalanceAvailability(request, pool)
+
+    local movements, touched, transactionResults = applyTransactionsInMemory(request, pool, companions)
+    local response, preparedBalances, preparedRecoverRecords, receipt = prepareExecutionWrites(
+        request, maximumPrepared, preparedProtection, movements, touched, transactionResults
+    )
+    if not preparedBalances then return response end
+
+    commitPreparedExecution(
+        request, protectionKey, preparedBalances, preparedRecoverRecords, preparedProtection, receipt
+    )
     return response
 end
 
 local function main()
-    if #ARGV ~= 3 or #KEYS < 4 then technical("invalid_protocol", "invalid script argument count") end
+    if #ARGV ~= 3 or #KEYS < 5 then technical("invalid_protocol", "invalid script argument count") end
     local maximumRequest, maximumPrepared = positiveBudget(ARGV[2]), positiveBudget(ARGV[3])
     if #ARGV[1] > maximumRequest then technical("request_bytes_exceeded", "request exceeds byte budget") end
     local request = decodeRequest(ARGV[1])

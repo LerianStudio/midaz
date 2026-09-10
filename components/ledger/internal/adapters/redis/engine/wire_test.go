@@ -45,6 +45,8 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	second, err := prepareExecution(context.Background(), input, limits, resolved)
 	require.NoError(t, err)
 	require.Equal(t, first, second)
+	require.Contains(t, string(first.Payload), `"completionPlan":`)
+	require.NotContains(t, string(first.Payload), `"recoveryPayload":`)
 	after, err := json.Marshal(input)
 	require.NoError(t, err)
 	require.Equal(t, original, after, "preparation must not mutate domain input")
@@ -347,9 +349,9 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 		wantBytes  int
 		maxTouched int
 	}{
-		{name: "two postings", postings: 2, pool: 2, wantBytes: 2159, maxTouched: 2},
-		{name: "ten postings", postings: 10, pool: 20, wantBytes: 12999, maxTouched: 10},
-		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 61985, maxTouched: 50},
+		{name: "two postings", postings: 2, pool: 2, wantBytes: 2158, maxTouched: 2},
+		{name: "ten postings", postings: 10, pool: 20, wantBytes: 12998, maxTouched: 10},
+		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 61984, maxTouched: 50},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -376,8 +378,9 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 // fully decoded and validated transaction plus its validation response, but
 // deliberately supplies only the minimum two engine postings/snapshots and one
 // projection context. It therefore establishes a lower bound, not the fully
-// translated worst case. Recovery contains the original transaction and frozen
-// projection metadata, while the prepared wire contains recovery again. Route
+// translated worst case. The completion plan contains the original transaction
+// and stable projection metadata, while the prepared wire contains that plan
+// again. Route
 // expansion and one projection context per leg can add bytes after this point,
 // so a mathematically safe v1
 // MaxCompletionPlanBytes/MaxRequestBytes/MaxPreparedBytes or cardinality cap cannot be
@@ -438,9 +441,9 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 	t.Logf("v1 lower-bound bytes: original=%d frozen_recovery=%d v1_legs=%d wire_postings=%d snapshots=%d final_wire=%d", len(body), len(recovery), len(transaction.Send.Source.From)+len(transaction.Send.Distribute.To), len(request.Transactions[0].Postings), len(request.Balances), len(prepared.Payload))
 	require.Equal(t, 4193188, len(body))
 	require.Equal(t, 10490524, len(recovery))
-	require.Equal(t, 12251495, len(prepared.Payload))
-	require.Greater(t, len(recovery), len(body), "recovery must retain transaction and frozen projection data")
-	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry recovery plus engine postings and snapshots")
+	require.Equal(t, 12251494, len(prepared.Payload))
+	require.Greater(t, len(recovery), len(body), "completion plan must retain transaction and stable projection data")
+	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry the completion plan plus engine postings and snapshots")
 	require.Equal(t, 2, len(request.Transactions[0].Postings), "v1 retains both logical legs; no v1 leg cap is introduced")
 }
 
