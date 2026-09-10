@@ -20,7 +20,7 @@
 > `ledger/` or `tracer/` prefix disambiguates. The ledger reservation seam itself lives in the
 > transaction create use cases (`components/ledger/internal/services/command/`:
 > `create_transaction_v2.go`, `revert_transaction.go`, `commit_transaction.go`,
-> `transaction_ports.go`, `transaction_reservation_anchor.go`); the tracer
+> `transaction_control_ports.go`, `transaction_reservation_anchor.go`); the tracer
 > client it depends on is injected at bootstrap through the narrow `command.TracerReserver` port, so
 > the use case never learns the transport. Line ranges are accurate at time of writing but rot; the
 > cited function/const symbols are the durable anchors.
@@ -157,7 +157,7 @@ transaction-create path is then byte-for-byte unchanged.
 
 A `nil` reserver is treated as "tracer disabled" at every call site via explicit nil guards, mirroring
 the streaming nil-emitter pattern: `reserveTransaction` returns *proceed* with an empty handle, and
-confirm/release are no-ops (`transaction_ports.go`,
+confirm/release are no-ops (`transaction_control_ports.go`,
 `transaction_reservation_anchor.go:98-101, 252-254, 266-268`). So the create path runs identically with
 or without a tracer wired.
 
