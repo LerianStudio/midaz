@@ -2487,3 +2487,259 @@ func TestIntegration_Chaos_BalanceAtomic_RecoveryAfterReconnectCanceled(t *testi
 
 	t.Log("PASS: CANCELED double-entry (RELEASE+CREDIT) recovers correctly after Redis outage, version chain preserved")
 }
+
+// =============================================================================
+// SCRIPT IDEMPOTENCY UNDER THE CLIENT'S OWN RETRY (APPLY MARKER)
+// =============================================================================
+// A read timeout does not mean the command did not run: the server may have
+// executed the script and lost the response on the way back. go-redis then
+// resends the EVALSHA on its own, up to MaxRetries times, entirely invisibly to
+// the calling Go code — ProcessBalanceAtomicOperation is ONE call. Before the
+// idempotency marker each resend re-read the live balance and re-applied the
+// delta, and the flush guard accepted the inflated value because the version had
+// legitimately advanced.
+//
+// These two tests drive that resend for real, through Toxiproxy, and assert the
+// invariant the marker exists for: one call, one application.
+
+// applyMarkerChaosReadTimeout is short enough that the injected latency always
+// beats it, so a resend is guaranteed rather than hoped for.
+const (
+	applyMarkerChaosReadTimeout = 300 * time.Millisecond
+	applyMarkerChaosMaxRetries  = 3
+)
+
+// newApplyMarkerRetryRepo builds a second repository over the SAME Toxiproxy
+// endpoint with the midaz retry knobs scaled down for the test: the production
+// client retries on a read timeout exactly like this, only on a 3 s clock.
+func newApplyMarkerRetryRepo(t *testing.T, infra *chaosNetworkTestInfra) *RedisConsumerRepository {
+	t.Helper()
+
+	containerInfo, ok := infra.chaosInfra.GetContainer("redis")
+	require.True(t, ok, "Redis container must be registered in chaos infrastructure")
+	require.NotEmpty(t, containerInfo.ProxyListen, "proxy listen address must be non-empty")
+
+	conn, err := libRedis.New(context.Background(), libRedis.Config{
+		Topology: libRedis.Topology{
+			Standalone: &libRedis.StandaloneTopology{Address: containerInfo.ProxyListen},
+		},
+		Options: libRedis.ConnectionOptions{
+			ReadTimeout: applyMarkerChaosReadTimeout,
+			MaxRetries:  applyMarkerChaosMaxRetries,
+		},
+	})
+	require.NoError(t, err, "failed to build the retry-scaled Redis connection")
+
+	t.Cleanup(func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			t.Logf("failed to close the retry-scaled Redis connection: %v", closeErr)
+		}
+	})
+
+	return &RedisConsumerRepository{conn: conn}
+}
+
+// warmApplyMarkerRetryPool runs one complete operation on a throwaway balance
+// BEFORE any latency is injected, and returns nothing but a warmed path.
+//
+// Two things have to be warm or the test measures the wrong failure. go-redis
+// opens connections lazily and greets each one with HELLO, so latency injected
+// first stalls the handshake and no command is ever put on the wire. And the
+// script is dispatched by EVALSHA, which on a fresh server answers NOSCRIPT and
+// only then falls back to EVAL — under latency that negotiation times out
+// before the script ever runs. The scenario under test is the opposite one: the
+// command DID reach the server and executed, and only the response was lost.
+func warmApplyMarkerRetryPool(t *testing.T, repo *RedisConsumerRepository, orgID, ledgerID uuid.UUID) {
+	t.Helper()
+
+	rds, err := repo.conn.GetClient(context.Background())
+	require.NoError(t, err, "failed to get the retry-scaled Redis client")
+	require.NoError(t, rds.Ping(context.Background()).Err(), "failed to warm the connection pool")
+
+	warmupOps := buildTestBalanceOps(orgID, ledgerID,
+		"@apply-warmup-"+uuid.New().String()[:8], decimal.NewFromInt(1000), decimal.Zero, 1, true)
+
+	_, err = repo.ProcessBalanceAtomicOperation(context.Background(), orgID, ledgerID,
+		uuid.New(), constant.PENDING, true, warmupOps, nil)
+	require.NoError(t, err, "failed to warm the server-side script cache")
+}
+
+// applyMarkerChaosState reads the balance the script wrote, straight from the
+// container client so no proxy toxic can colour the observation.
+func applyMarkerChaosState(t *testing.T, infra *chaosNetworkTestInfra, internalKey string) mmodel.BalanceRedis {
+	t.Helper()
+
+	raw, err := infra.redisContainer.Client.Get(context.Background(), internalKey).Result()
+	require.NoError(t, err, "the script must have written the balance at least once")
+
+	var stored mmodel.BalanceRedis
+	require.NoError(t, json.Unmarshal([]byte(raw), &stored))
+
+	return stored
+}
+
+// TestIntegration_Chaos_ApplyMarker_ClientRetryAppliesOnce is the automated form
+// of the empirical proof in the card: ONE ProcessBalanceAtomicOperation call,
+// several EVALSHA sends by the library, exactly ONE application on the server.
+//
+// The latency is removed part-way through so a later attempt can complete and
+// come back carrying the replay. The test deliberately asserts nothing about how
+// many attempts happened or which one won — that is timing — only that the
+// balance moved once.
+func TestIntegration_Chaos_ApplyMarker_ClientRetryAppliesOnce(t *testing.T) {
+	if os.Getenv("CHAOS") != "1" {
+		t.Skip("Set CHAOS=1 to run chaos tests")
+	}
+
+	if testing.Short() {
+		t.Skip("Skipping chaos test in short mode")
+	}
+
+	infra := setupRedisChaosNetworkInfra(t)
+	retryRepo := newApplyMarkerRetryRepo(t, infra)
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+	alias := "@apply-retry-" + uuid.New().String()[:8]
+	initialAvailable := decimal.NewFromInt(5000)
+	initialVersion := int64(1)
+
+	ops := buildTestBalanceOps(orgID, ledgerID, alias, initialAvailable, decimal.Zero, initialVersion, true)
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, mtransaction.AliasKey(alias, constant.DefaultBalanceKey))
+	markerKey := utils.TransactionApplyMarkerKey(orgID, ledgerID, txID.String(), constant.PENDING)
+
+	warmApplyMarkerRetryPool(t, retryRepo, orgID, ledgerID)
+
+	// --- Inject: the response is delayed far past the client's read timeout, so
+	// the first attempt is guaranteed to time out while the server runs the script.
+	t.Log("Inject: 1500 ms downstream latency against a 300 ms read timeout")
+	require.NoError(t, infra.proxy.AddLatency(1500*time.Millisecond, 0))
+
+	// Lift the latency mid-flight so one of the retries can complete. Joined
+	// before the test returns so nothing logs into a finished test.
+	restored := make(chan struct{})
+
+	go func() {
+		defer close(restored)
+
+		time.Sleep(500 * time.Millisecond)
+
+		if err := infra.proxy.RemoveAllToxics(); err != nil {
+			t.Errorf("failed to remove toxics mid-flight: %v", err)
+		}
+	}()
+
+	result, err := retryRepo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, txID, constant.PENDING, true, ops, nil,
+	)
+
+	<-restored
+
+	if err != nil {
+		t.Logf("the call surfaced an error (every attempt lost its response): %v", err)
+	} else {
+		require.NotNil(t, result)
+		require.Len(t, result.After, 1)
+		assert.Equal(t, initialVersion+1, result.After[0].Version,
+			"a returned result must describe the single application, replayed or original")
+	}
+
+	// The invariant: one call, one application. A second application would show up
+	// as version+2 and an OnHold of 200.
+	stored := applyMarkerChaosState(t, infra, internalKey)
+	assert.Equal(t, initialVersion+1, stored.Version,
+		"the script must have applied exactly once across every resend")
+	assert.True(t, stored.OnHold.Equal(decimal.NewFromInt(100)),
+		"OnHold must carry one hold, got %s", stored.OnHold.String())
+
+	exists, err := infra.redisContainer.Client.Exists(ctx, markerKey).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), exists, "the applied execution must have left its marker")
+
+	// With the network healthy again, the same identity resent by hand takes the
+	// replay path deterministically: still one application.
+	replayResult, err := retryRepo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, txID, constant.PENDING, true, ops, nil,
+	)
+	require.NoError(t, err, "a resend of an applied identity must succeed as a replay")
+	require.Len(t, replayResult.After, 1)
+	assert.Equal(t, initialVersion+1, replayResult.After[0].Version)
+
+	afterReplay := applyMarkerChaosState(t, infra, internalKey)
+	assert.Equal(t, stored.Version, afterReplay.Version, "the replay must not move the balance")
+
+	t.Log("PASS: one call under a real client retry applies once and replays the rest")
+}
+
+// TestIntegration_Chaos_ApplyMarker_AllAttemptsTimeOutApplyOnce covers the other
+// half: EVERY attempt loses its response, so the caller gets a technical error
+// while the script has in fact applied. The balance must still have moved only
+// once, and the marker must be there — that marker is what the post-timeout
+// reconciliation reads to turn this error into the success it already is.
+func TestIntegration_Chaos_ApplyMarker_AllAttemptsTimeOutApplyOnce(t *testing.T) {
+	if os.Getenv("CHAOS") != "1" {
+		t.Skip("Set CHAOS=1 to run chaos tests")
+	}
+
+	if testing.Short() {
+		t.Skip("Skipping chaos test in short mode")
+	}
+
+	infra := setupRedisChaosNetworkInfra(t)
+	retryRepo := newApplyMarkerRetryRepo(t, infra)
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+	alias := "@apply-lost-" + uuid.New().String()[:8]
+	initialAvailable := decimal.NewFromInt(4000)
+	initialVersion := int64(1)
+
+	ops := buildTestBalanceOps(orgID, ledgerID, alias, initialAvailable, decimal.Zero, initialVersion, true)
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, mtransaction.AliasKey(alias, constant.DefaultBalanceKey))
+	markerKey := utils.TransactionApplyMarkerKey(orgID, ledgerID, txID.String(), constant.PENDING)
+
+	warmApplyMarkerRetryPool(t, retryRepo, orgID, ledgerID)
+
+	t.Log("Inject: 3000 ms downstream latency, never lifted -- every response is lost")
+	require.NoError(t, infra.proxy.AddLatency(3000*time.Millisecond, 0))
+
+	_, err := retryRepo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, txID, constant.PENDING, true, ops, nil,
+	)
+	require.Error(t, err, "with every response lost the caller must see a technical error")
+	t.Logf("caller received the expected bounded error: %v", err)
+
+	stored := applyMarkerChaosState(t, infra, internalKey)
+	assert.Equal(t, initialVersion+1, stored.Version,
+		"the resends must not have stacked applications behind the lost responses")
+	assert.True(t, stored.OnHold.Equal(decimal.NewFromInt(100)),
+		"OnHold must carry one hold, got %s", stored.OnHold.String())
+
+	markerValue, err := infra.redisContainer.Client.Get(ctx, markerKey).Result()
+	require.NoError(t, err, "the applied execution must have left its marker for reconciliation")
+
+	var storedResponse balanceAtomicResponse
+	require.NoError(t, json.Unmarshal([]byte(markerValue), &storedResponse))
+	require.Len(t, storedResponse.After, 1)
+	assert.Equal(t, initialVersion+1, storedResponse.After[0].Version,
+		"the marker must hold the response the caller never received")
+
+	// --- Restore + recovery: the same identity now answers from the marker.
+	require.NoError(t, infra.proxy.RemoveAllToxics())
+
+	replayResult, err := retryRepo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, txID, constant.PENDING, true, ops, nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, replayResult.After, 1)
+	assert.Equal(t, initialVersion+1, replayResult.After[0].Version)
+
+	afterReplay := applyMarkerChaosState(t, infra, internalKey)
+	assert.Equal(t, stored.Version, afterReplay.Version, "the replay must not move the balance")
+
+	t.Log("PASS: every response lost, still exactly one application, marker available for reconciliation")
+}
