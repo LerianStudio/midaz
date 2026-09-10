@@ -674,6 +674,16 @@ local function validPosting(posting)
     end
 end
 
+local function validBalanceRequirement(requirement)
+    requireObject(requirement)
+    logicalRef(requirement.balanceRef)
+    text(requirement.assetCode, false)
+    if requirement.permission ~= "send" and requirement.permission ~= "receive" then
+        technical("invalid_protocol", "unknown balance permission")
+    end
+    bool(requirement.forbidExternal)
+end
+
 local function decodeRequest(raw)
     local request = decodeJSON(raw)
     requireObject(request)
@@ -737,8 +747,13 @@ local function decodeRequest(raw)
         if transaction.expectedGuard == transaction.nextGuard then technical("invalid_protocol", "execution guard must advance") end
         text(transaction.recoveryPayload, false)
         requireObject(decodeJSON(transaction.recoveryPayload))
+        requireArray(transaction.balanceRequirements)
         requireArray(transaction.postings)
         if #transaction.postings == 0 then technical("invalid_protocol", "empty transaction postings") end
+        for _, requirement in ipairs(transaction.balanceRequirements) do
+            validBalanceRequirement(requirement)
+            if not refs[requirement.balanceRef] then technical("invalid_protocol", "invalid balance requirement reference") end
+        end
         local postingRefs = {}
         for _, posting in ipairs(transaction.postings) do
             validPosting(posting)
@@ -1006,7 +1021,7 @@ local function execute(request, maximumPrepared)
             current.balanceRef = balance.balanceRef
         end
         local item = {
-            current = current, seed = balance.snapshot, blob = blob, keyIndex = keyIndex,
+            current = current, blob = blob, keyIndex = keyIndex,
             markerIndex = markerIndex, deleted = redis.call("EXISTS", KEYS[markerIndex]) == 1
         }
         pool[balance.balanceRef], items[#items + 1] = item, item
@@ -1017,6 +1032,11 @@ local function execute(request, maximumPrepared)
     end
     if #normalization > 0 then error({ kind = "normalization", keys = normalization }, 0) end
     for txIndex, transaction in ipairs(request.transactions) do
+        for _, requirement in ipairs(transaction.balanceRequirements) do
+            if pool[requirement.balanceRef].deleted then
+                refuse("balance_deleted", txIndex - 1, -1, requirement.balanceRef)
+            end
+        end
         for postingIndex, posting in ipairs(transaction.postings) do
             if pool[posting.balanceRef].deleted then
                 refuse("balance_deleted", txIndex - 1, postingIndex - 1, posting.balanceRef)
@@ -1027,12 +1047,6 @@ local function execute(request, maximumPrepared)
     local movements, touched, touchedSet, transactionResults = array(), {}, {}, {}
     local function touch(item, txIndex, postingIndex)
         if item.deleted then refuse("balance_deleted", txIndex, postingIndex, item.current.balanceRef) end
-        if not item.checked then
-            if item.current.version ~= item.seed.version then
-                refuse("stale_version", txIndex, postingIndex, item.current.balanceRef)
-            end
-            item.checked = true
-        end
     end
 
     for txIndex, transaction in ipairs(request.transactions) do
@@ -1052,6 +1066,21 @@ local function execute(request, maximumPrepared)
             item.current = nextState
             if not touchedSet[item] then touchedSet[item], touched[#touched + 1] = true, item end
             if not txTouchedSet[item] then txTouchedSet[item], txTouched[#txTouched + 1] = true, item end
+        end
+        for _, requirement in ipairs(transaction.balanceRequirements) do
+            local current = pool[requirement.balanceRef].current
+            if current.assetCode ~= requirement.assetCode then
+                refuse("asset_mismatch", txIndex - 1, -1, requirement.balanceRef)
+            end
+            if requirement.permission == "send" and not current.allowSending then
+                refuse("sending_not_allowed", txIndex - 1, -1, requirement.balanceRef)
+            end
+            if requirement.permission == "receive" and not current.allowReceiving then
+                refuse("receiving_not_allowed", txIndex - 1, -1, requirement.balanceRef)
+            end
+            if requirement.forbidExternal and current.accountType == "external" then
+                refuse("external_hold_not_allowed", txIndex - 1, -1, requirement.balanceRef)
+            end
         end
         for postingIndex, posting in ipairs(transaction.postings) do
             local item = pool[posting.balanceRef]

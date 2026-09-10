@@ -169,6 +169,15 @@ func TestPrepareExecutionRejectsInvalidInputs(t *testing.T) {
 		{"unknown balance", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
 			x.Request.Transactions[0].Postings[0].BalanceRef = "@missing#default"
 		}},
+		{"unknown requirement balance", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
+			x.Request.Transactions[0].BalanceRequirements = []engine.BalanceRequirement{{BalanceRef: "@missing#default", AssetCode: "USD", Permission: engine.BalancePermissionSend}}
+		}},
+		{"empty requirement asset", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
+			x.Request.Transactions[0].BalanceRequirements = []engine.BalanceRequirement{{BalanceRef: "@source#default", Permission: engine.BalancePermissionSend}}
+		}},
+		{"unknown requirement permission", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
+			x.Request.Transactions[0].BalanceRequirements = []engine.BalanceRequirement{{BalanceRef: "@source#default", AssetCode: "USD", Permission: "unknown"}}
+		}},
 		{"empty postings", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
 			x.Request.Transactions[0].Postings = nil
 		}},
@@ -239,6 +248,24 @@ func TestPrepareExecutionRejectsInvalidInputs(t *testing.T) {
 	}
 }
 
+func TestPrepareExecutionCarriesBalanceRequirements(t *testing.T) {
+	t.Parallel()
+
+	input, limits, resolved := validWireExecution()
+	input.Request.Transactions[0].BalanceRequirements = []engine.BalanceRequirement{{
+		BalanceRef: "@source#default", AssetCode: "USD", Permission: engine.BalancePermissionSend, ForbidExternal: true,
+	}}
+
+	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+
+	var wire wireRequest
+	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
+	require.Equal(t, []wireBalanceRequirement{{
+		BalanceRef: "@source#default", AssetCode: "USD", Permission: engine.BalancePermissionSend, ForbidExternal: true,
+	}}, wire.Transactions[0].BalanceRequirements)
+}
+
 func TestPrepareExecutionCanceledContext(t *testing.T) {
 	t.Parallel()
 
@@ -299,6 +326,7 @@ func TestWireArraysAreNotNull(t *testing.T) {
 	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
 	require.False(t, reflect.ValueOf(wire.Transactions).IsNil())
 	require.False(t, reflect.ValueOf(wire.Balances).IsNil())
+	require.False(t, reflect.ValueOf(wire.Transactions[0].BalanceRequirements).IsNil())
 	require.False(t, reflect.ValueOf(wire.Transactions[0].Postings).IsNil())
 }
 
@@ -318,9 +346,9 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 		wantBytes  int
 		maxTouched int
 	}{
-		{name: "two postings", postings: 2, pool: 2, wantBytes: 2134, maxTouched: 2},
-		{name: "ten postings", postings: 10, pool: 20, wantBytes: 12974, maxTouched: 10},
-		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 61960, maxTouched: 50},
+		{name: "two postings", postings: 2, pool: 2, wantBytes: 2159, maxTouched: 2},
+		{name: "ten postings", postings: 10, pool: 20, wantBytes: 12999, maxTouched: 10},
+		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 61985, maxTouched: 50},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -409,7 +437,7 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 	t.Logf("v1 lower-bound bytes: original=%d frozen_recovery=%d v1_legs=%d wire_postings=%d snapshots=%d final_wire=%d", len(body), len(recovery), len(transaction.Send.Source.From)+len(transaction.Send.Distribute.To), len(request.Transactions[0].Postings), len(request.Balances), len(prepared.Payload))
 	require.Equal(t, 4193188, len(body))
 	require.Equal(t, 10490524, len(recovery))
-	require.Equal(t, 12251470, len(prepared.Payload))
+	require.Equal(t, 12251495, len(prepared.Payload))
 	require.Greater(t, len(recovery), len(body), "recovery must retain transaction and frozen projection data")
 	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry recovery plus engine postings and snapshots")
 	require.Equal(t, 2, len(request.Transactions[0].Postings), "v1 retains both logical legs; no v1 leg cap is introduced")

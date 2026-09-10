@@ -94,7 +94,10 @@ func TestBalanceEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *tes
 	assert.Equal(t, engine.DrawAllowed, translated.Postings[0].DrawPolicy)
 	assert.Equal(t, engine.DrawAllowed, translated.Postings[1].DrawPolicy)
 	payload.OperationSpecs = projection
-	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(BalanceEngineIntent{
+		TenantID: payload.TenantID, OrganizationID: payload.OrganizationID, LedgerID: payload.LedgerID, ExecutionID: payload.ExecutionID,
+		Transactions: []BalanceEngineTransactionIntent{transactionCompletionIntent(translated, payload)},
+	})
 	require.NoError(t, err)
 	frozenPayload, err := EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)

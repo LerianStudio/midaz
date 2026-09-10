@@ -55,7 +55,7 @@ func enginePreparationFixture(t *testing.T) (balanceEnginePreparationInput, []*m
 		balance.AllowSending, balance.AllowReceiving = true, true
 	}
 	input := balanceEnginePreparationInput{
-		organizationID: payload.OrganizationID, ledgerID: payload.LedgerID, validateBalanceRules: true,
+		organizationID: payload.OrganizationID, ledgerID: payload.LedgerID,
 		translation: BalanceEngineTranslationInput{
 			TransactionID: payload.TransactionID, Action: constant.ActionDirect, TransactionStatus: constant.CREATED,
 			TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
@@ -119,7 +119,7 @@ func TestPrepareBalanceEngineTransactionSeparatesLegsFromPool(t *testing.T) {
 }
 
 func TestPrepareBalanceEngineTransactionRejectsBeforeExecution(t *testing.T) {
-	for _, scenario := range []string{"canceled", "canceled after routes", "missing reader", "internal target", "missing target", "route failure", "restricted account"} {
+	for _, scenario := range []string{"canceled", "canceled after routes", "missing reader", "internal target", "missing target", "route failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			input, balances := enginePreparationFixture(t)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -156,8 +156,6 @@ func TestPrepareBalanceEngineTransactionRejectsBeforeExecution(t *testing.T) {
 				input.translation.TransactionInput.Send.Source.From[0].AccountAlias = "0#@missing#default"
 				input.translation.Validate.From["0#@missing#default"] = input.translation.Validate.From["0#@source#default"]
 				delete(input.translation.Validate.From, "0#@source#default")
-			case "restricted account":
-				balances[0].AllowSending = false
 			}
 			_, err := uc.prepareBalanceEngineTransaction(ctx, input)
 			require.Error(t, err)
@@ -173,13 +171,38 @@ func TestPrepareBalanceEngineTransactionRejectsBeforeExecution(t *testing.T) {
 			case "route failure":
 				assert.ErrorIs(t, err, failure)
 				assert.Equal(t, 1, routes)
-			case "restricted account":
-				assert.Equal(t, pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateFromAccounts"), err)
 			case "missing target":
 				assert.Equal(t, pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts"), err)
 			}
 		})
 	}
+}
+
+func TestPrepareBalanceEngineTransactionDefersEligibilityToAtomicExecution(t *testing.T) {
+	input, balances := enginePreparationFixture(t)
+	balances[0].AllowSending = false
+	balances[1].AllowReceiving = false
+
+	reads := 0
+	uc := &UseCase{TransactionReader: enginePreparationReader{
+		load: func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
+			reads++
+			if reads == 1 {
+				return balances[:2], nil
+			}
+			return balances[2:], nil
+		},
+		routes: func(context.Context, uuid.UUID, uuid.UUID, []mmodel.BalanceOperation, *mtransaction.Responses, string) (*mmodel.TransactionRouteCache, error) {
+			return nil, nil
+		},
+	}}
+
+	prepared, err := uc.prepareBalanceEngineTransaction(context.Background(), input)
+	require.NoError(t, err)
+	require.Len(t, prepared.transaction.BalanceRequirements, 3)
+	assert.Equal(t, engine.BalancePermissionSend, prepared.transaction.BalanceRequirements[0].Permission)
+	assert.Equal(t, engine.BalancePermissionSend, prepared.transaction.BalanceRequirements[1].Permission)
+	assert.Equal(t, engine.BalancePermissionReceive, prepared.transaction.BalanceRequirements[2].Permission)
 }
 
 func TestOrderedBalanceEngineValidationOperationsPreservesStaticHoldEntries(t *testing.T) {
@@ -210,7 +233,6 @@ func TestOrderedBalanceEngineValidationOperationsPreservesStaticHoldEntries(t *t
 
 func TestPrepareBalanceEngineCancellationDoesNotRequireDestinationBalance(t *testing.T) {
 	input, balances := enginePreparationFixture(t)
-	input.validateBalanceRules = false
 	input.translation.Action = constant.ActionCancel
 	input.translation.TransactionStatus = constant.CANCELED
 	for alias, amount := range input.translation.Validate.From {

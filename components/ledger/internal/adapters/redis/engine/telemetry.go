@@ -148,8 +148,10 @@ func executionOutcome(err error) (string, string) {
 		switch refusal.Code {
 		case engine.FailureInsufficientFunds, engine.FailureOverdraftLimitExceeded,
 			engine.FailureOverdraftNotEligible, engine.FailureOverdraftCompanionMissing,
-			engine.FailureStaleVersion, engine.FailureBalanceDeleted,
-			engine.FailureOnHoldUnderflow, engine.FailureBalanceMissing:
+			engine.FailureBalanceDeleted, engine.FailureOnHoldUnderflow,
+			engine.FailureBalanceMissing, engine.FailureAssetMismatch,
+			engine.FailureSendingNotAllowed, engine.FailureReceivingNotAllowed,
+			engine.FailureExternalHoldNotAllowed:
 			return "refused", refusal.Code
 		}
 	}

@@ -135,12 +135,15 @@ func TestFailureContract(t *testing.T) {
 		FailureOverdraftLimitExceeded:    "overdraft_limit_exceeded",
 		FailureOverdraftNotEligible:      "overdraft_not_eligible",
 		FailureOverdraftCompanionMissing: "overdraft_companion_missing",
-		FailureStaleVersion:              "stale_version",
 		FailureBalanceDeleted:            "balance_deleted",
 		FailureOnHoldUnderflow:           "onhold_underflow",
 		FailureBalanceMissing:            "balance_missing",
+		FailureAssetMismatch:             "asset_mismatch",
+		FailureSendingNotAllowed:         "sending_not_allowed",
+		FailureReceivingNotAllowed:       "receiving_not_allowed",
+		FailureExternalHoldNotAllowed:    "external_hold_not_allowed",
 	}
-	if len(codes) != 8 {
+	if len(codes) != 11 {
 		t.Fatal("failure codes must remain distinct")
 	}
 	for code, want := range codes {

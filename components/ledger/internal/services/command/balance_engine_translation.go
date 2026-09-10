@@ -57,7 +57,11 @@ func TranslateBalanceEngineTransaction(input BalanceEngineTranslationInput) (eng
 		return engine.Transaction{}, nil, err
 	}
 
-	transaction := engine.Transaction{ID: input.TransactionID, Postings: make([]engine.Posting, 0)}
+	transaction := engine.Transaction{
+		ID:                  input.TransactionID,
+		BalanceRequirements: balanceEngineRequirements(input),
+		Postings:            make([]engine.Posting, 0),
+	}
 	projection := make([]OperationRecordSpec, 0)
 
 	for index, leg := range input.TransactionInput.Send.Source.From {
@@ -83,6 +87,35 @@ func TranslateBalanceEngineTransaction(input BalanceEngineTranslationInput) (eng
 	}
 
 	return transaction, projection, nil
+}
+
+func balanceEngineRequirements(input BalanceEngineTranslationInput) []engine.BalanceRequirement {
+	if input.Action == constant.ActionCommit || input.Action == constant.ActionCancel {
+		return []engine.BalanceRequirement{}
+	}
+
+	requirements := make([]engine.BalanceRequirement, 0,
+		len(input.TransactionInput.Send.Source.From)+len(input.TransactionInput.Send.Distribute.To))
+	assetCode := input.TransactionInput.Send.Asset
+
+	for _, leg := range input.TransactionInput.Send.Source.From {
+		requirements = append(requirements, engine.BalanceRequirement{
+			BalanceRef:     mtransaction.SplitAliasWithKey(leg.AccountAlias),
+			AssetCode:      assetCode,
+			Permission:     engine.BalancePermissionSend,
+			ForbidExternal: input.Action == constant.ActionHold,
+		})
+	}
+
+	for _, leg := range input.TransactionInput.Send.Distribute.To {
+		requirements = append(requirements, engine.BalanceRequirement{
+			BalanceRef: mtransaction.SplitAliasWithKey(leg.AccountAlias),
+			AssetCode:  assetCode,
+			Permission: engine.BalancePermissionReceive,
+		})
+	}
+
+	return requirements
 }
 
 func appendLegTranslation(transaction *engine.Transaction, projection *[]OperationRecordSpec, input BalanceEngineTranslationInput, balances map[string]*mmodel.Balance, leg mtransaction.FromTo, amount mtransaction.Amount, side string, index int) error {

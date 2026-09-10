@@ -10,8 +10,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/google/uuid"
-
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 )
 
@@ -44,7 +42,6 @@ func TestMapBalanceEngineError(t *testing.T) {
 		{name: "overdraft limit", code: "overdraft_limit_exceeded", wantCode: "0167"},
 		{name: "route denied", code: "overdraft_not_eligible", drawPolicy: engine.DrawRouteDenied, wantCode: "0492"},
 		{name: "draw forbidden", code: "overdraft_not_eligible", drawPolicy: engine.DrawForbidden, wantCode: "0018"},
-		{name: "stale version", code: "stale_version", wantCode: "0174"},
 		{name: "balance deleted", code: "balance_deleted", wantCode: "0019"},
 		{name: "balance missing", code: "balance_missing", wantCode: "0139"},
 	}
@@ -116,9 +113,8 @@ func TestMapBalanceEngineError_NilAndUnmappedInputs(t *testing.T) {
 		{name: "posting index", err: &engine.Failure{Code: "insufficient_funds", PostingIndex: 1, BalanceRef: "balance-1"}, req: validEngineRequest()},
 		{name: "empty reference", err: &engine.Failure{Code: "insufficient_funds"}, req: validEngineRequest()},
 		{name: "mismatched reference", err: &engine.Failure{Code: "insufficient_funds", BalanceRef: "balance-2"}, req: validEngineRequest()},
-		{name: "different account companion", err: &engine.Failure{Code: "stale_version", BalanceRef: "overdraft-1"}, req: companionEngineRequest(uuid.New(), uuid.New(), "overdraft")},
-		{name: "non-overdraft companion", err: &engine.Failure{Code: "stale_version", BalanceRef: "overdraft-1"}, req: sameAccountCompanionEngineRequest("available")},
-		{name: "zero account companion", err: &engine.Failure{Code: "stale_version", BalanceRef: "overdraft-1"}, req: companionEngineRequest(uuid.Nil, uuid.Nil, "overdraft")},
+		{name: "unknown requirement", err: &engine.Failure{Code: engine.FailureAssetMismatch, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "balance-2"}, req: validRequirementEngineRequest(engine.BalancePermissionSend, true)},
+		{name: "wrong requirement permission", err: &engine.Failure{Code: engine.FailureReceivingNotAllowed, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "balance-1"}, req: validRequirementEngineRequest(engine.BalancePermissionSend, true)},
 		{name: "unexpected allowed policy", err: &engine.Failure{Code: "overdraft_not_eligible", BalanceRef: "balance-1"}, req: validEngineRequest()},
 		{name: "companion missing", err: &engine.Failure{Code: "overdraft_companion_missing", BalanceRef: "balance-1"}, req: validEngineRequest()},
 		{name: "onhold underflow", err: &engine.Failure{Code: "onhold_underflow", BalanceRef: "balance-1"}, req: validEngineRequest()},
@@ -139,15 +135,27 @@ func TestMapBalanceEngineError_NilAndUnmappedInputs(t *testing.T) {
 	}
 }
 
-func TestMapBalanceEngineError_OverdraftCompanionReference(t *testing.T) {
+func TestMapBalanceEngineError_BalanceRequirements(t *testing.T) {
 	t.Parallel()
 
-	accountID := uuid.New()
-	request := companionEngineRequest(accountID, accountID, "overdraft")
-	failure := &engine.Failure{Code: "stale_version", BalanceRef: "overdraft-1"}
-
-	if got := errorCode(MapBalanceEngineError(request, failure)); got != "0174" {
-		t.Fatalf("companion stale-version code = %q, want 0174", got)
+	for _, test := range []struct {
+		name, code, want string
+		permission       engine.BalancePermission
+		forbidExternal   bool
+	}{
+		{name: "asset", code: engine.FailureAssetMismatch, want: "0034", permission: engine.BalancePermissionSend},
+		{name: "sending", code: engine.FailureSendingNotAllowed, want: "0024", permission: engine.BalancePermissionSend},
+		{name: "receiving", code: engine.FailureReceivingNotAllowed, want: "0024", permission: engine.BalancePermissionReceive},
+		{name: "external hold", code: engine.FailureExternalHoldNotAllowed, want: "0098", permission: engine.BalancePermissionSend, forbidExternal: true},
+		{name: "deleted", code: engine.FailureBalanceDeleted, want: "0019", permission: engine.BalancePermissionSend},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := validRequirementEngineRequest(test.permission, test.forbidExternal)
+			failure := &engine.Failure{Code: test.code, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "balance-1"}
+			if got := errorCode(MapBalanceEngineError(request, failure)); got != test.want {
+				t.Fatalf("requirement failure code = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 
@@ -158,18 +166,13 @@ func validEngineRequest() engine.Request {
 	}}}}}
 }
 
-func companionEngineRequest(originAccountID, companionAccountID uuid.UUID, companionKey string) engine.Request {
-	request := validEngineRequest()
-	request.Balances = []engine.BalanceSnapshot{
-		{BalanceRef: "balance-1", AccountID: originAccountID},
-		{BalanceRef: "overdraft-1", AccountID: companionAccountID, Key: companionKey},
+func validRequirementEngineRequest(permission engine.BalancePermission, forbidExternal bool) engine.Request {
+	return engine.Request{
+		Transactions: []engine.Transaction{{BalanceRequirements: []engine.BalanceRequirement{{
+			BalanceRef: "balance-1", AssetCode: "USD", Permission: permission, ForbidExternal: forbidExternal,
+		}}}},
+		Balances: []engine.BalanceSnapshot{{BalanceRef: "balance-1", Alias: "@source"}},
 	}
-	return request
-}
-
-func sameAccountCompanionEngineRequest(companionKey string) engine.Request {
-	accountID := uuid.New()
-	return companionEngineRequest(accountID, accountID, companionKey)
 }
 
 func errorCode(err error) string {

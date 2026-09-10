@@ -71,13 +71,21 @@ type wireRequest struct {
 }
 
 type wireTransaction struct {
-	ID             string        `json:"id"`
-	GuardField     string        `json:"guardField"`
-	ExpectedGuard  string        `json:"expectedGuard"`
-	NextGuard      string        `json:"nextGuard"`
-	RecoveryField  string        `json:"recoveryField"`
-	CompletionPlan string        `json:"recoveryPayload"`
-	Postings       []wirePosting `json:"postings"`
+	ID                  string                   `json:"id"`
+	GuardField          string                   `json:"guardField"`
+	ExpectedGuard       string                   `json:"expectedGuard"`
+	NextGuard           string                   `json:"nextGuard"`
+	RecoveryField       string                   `json:"recoveryField"`
+	CompletionPlan      string                   `json:"recoveryPayload"`
+	BalanceRequirements []wireBalanceRequirement `json:"balanceRequirements"`
+	Postings            []wirePosting            `json:"postings"`
+}
+
+type wireBalanceRequirement struct {
+	BalanceRef     string                   `json:"balanceRef"`
+	AssetCode      string                   `json:"assetCode"`
+	Permission     engine.BalancePermission `json:"permission"`
+	ForbidExternal bool                     `json:"forbidExternal"`
 }
 
 type wirePosting struct {
@@ -325,7 +333,17 @@ func prepareTransactions(ctx context.Context, request engine.Request, limits Lim
 		prepared := wireTransaction{
 			ID: transaction.ID.String(), GuardField: transaction.ID.String(), ExpectedGuard: guard.ExpectedToken, NextGuard: guard.NextToken,
 			RecoveryField: transaction.ID.String() + ":" + request.ExecutionID.String(), CompletionPlan: string(completionPlan),
-			Postings: make([]wirePosting, 0, len(transaction.Postings)),
+			BalanceRequirements: make([]wireBalanceRequirement, 0, len(transaction.BalanceRequirements)),
+			Postings:            make([]wirePosting, 0, len(transaction.Postings)),
+		}
+
+		for _, requirement := range transaction.BalanceRequirements {
+			if _, exists := balances[requirement.BalanceRef]; !exists || strings.TrimSpace(requirement.AssetCode) == "" ||
+				(requirement.Permission != engine.BalancePermissionSend && requirement.Permission != engine.BalancePermissionReceive) {
+				return nil, fmt.Errorf("invalid accounting balance requirement")
+			}
+
+			prepared.BalanceRequirements = append(prepared.BalanceRequirements, wireBalanceRequirement(requirement))
 		}
 
 		postings, err := preparePostings(transaction.Postings, balances, limits.MaxRequestBytes)

@@ -232,44 +232,23 @@ func TestPendingTransitionUsesOptInBalanceEngineAfterSQLConfirmation(t *testing.
 	}
 }
 
-func TestPendingTransitionV2RetriesSnapshotsButRunsPhaseTwoOnce(t *testing.T) {
+func TestPendingTransitionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, constant.APPROVED)
 	reader.settings.Tracer.Mode = mmodel.TracerModeEnforce
 	reserver := &stubReserver{}
 	uc.TracerReserver = reserver
-	staleCalls := 0
-	executor.before = func(execution EngineExecution) error {
-		if staleCalls != 0 {
-			return nil
-		}
-		staleCalls++
-		reader.balances[0].Version++
-		return &engine.Failure{
-			Code: engine.FailureStaleVersion, TransactionIndex: 0, PostingIndex: 0,
-			BalanceRef: execution.Request.Transactions[0].Postings[0].BalanceRef,
-		}
-	}
 
-	got, err := uc.CommitTransactionV2(tmcore.ContextWithTenantID(context.Background(), "tenant-retry"), in)
+	got, err := uc.CommitTransactionV2(tmcore.ContextWithTenantID(context.Background(), "tenant-single-execution"), in)
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	require.Len(t, executor.requests, 2)
+	require.Len(t, executor.requests, 1)
 	assert.Equal(t, int64(1), executor.requests[0].Request.Balances[0].Version)
-	assert.Equal(t, int64(2), executor.requests[1].Request.Balances[0].Version)
-	assert.Equal(t, executor.requests[0].Request.ExecutionID, executor.requests[1].Request.ExecutionID)
-	assert.Equal(t, executor.requests[0].Request.Transactions, executor.requests[1].Request.Transactions)
-	first := mustCreateEngineRecovery(t, executor.requests[0])
-	second := mustCreateEngineRecovery(t, executor.requests[1])
-	assert.Equal(t, first.TTL, second.TTL)
-	assert.Equal(t, first.TransactionDate, second.TransactionDate)
-	assert.Equal(t, first.TransactionUpdatedAt, second.TransactionUpdatedAt)
-	assert.Equal(t, first.OperationUpdatedAt, second.OperationUpdatedAt)
-	assert.Equal(t, fixedPendingCreatedAt, second.TransactionCreatedAt)
+	payload := mustCreateEngineRecovery(t, executor.requests[0])
+	assert.Equal(t, fixedPendingCreatedAt, payload.TransactionCreatedAt)
 	assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.confirmedTxns)
 	assert.Empty(t, reserver.releasedTxns)
 	assert.Len(t, finalizer.envelopes, 1)
-	assert.Equal(t, 1, staleCalls)
 }
 
 func TestPendingCancelUsesPersistedOverdraftCapAndOnlyLoadsSources(t *testing.T) {

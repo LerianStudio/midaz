@@ -69,45 +69,46 @@ func (uc *UseCase) transitionPendingWithBalanceEngine(
 		return nil, err
 	}
 
-	state := &pendingBalanceEngineExecutionState{delegate: uc.BalanceEngine, allConfirmedPrecommit: true}
+	engineState, err := uc.prepareBalanceEngineTransaction(ctx, balanceEnginePreparationInput{
+		organizationID: run.organizationID,
+		ledgerID:       run.ledgerID,
+		translation: BalanceEngineTranslationInput{
+			TransactionID:          transition.transactionID,
+			Action:                 transition.action,
+			TransactionStatus:      run.status,
+			RouteValidationEnabled: transition.ledgerSettings.Accounting.ValidateRoutes,
+			TransactionInput:       transition.input,
+			Validate:               transition.validate,
+		},
+	})
+	if err != nil {
+		unlock()
+		return nil, err
+	}
 
-	retryResult, executeErr := ExecuteBalanceEngineWithRetry(ctx, state, func(buildCtx context.Context) (BalanceEngineAttempt, error) {
-		state.lastStep = pendingBalanceEngineStepBuild
+	prepared, err := buildPendingBalanceEngineExecution(transition.persisted, transition.input, transition.validate, engineState, transition.frozen, transition.action)
+	if err != nil {
+		unlock()
+		return nil, err
+	}
 
-		attemptPrepared, prepareErr := uc.prepareBalanceEngineTransaction(buildCtx, balanceEnginePreparationInput{
-			organizationID: run.organizationID,
-			ledgerID:       run.ledgerID,
-			translation: BalanceEngineTranslationInput{
-				TransactionID:          transition.transactionID,
-				Action:                 transition.action,
-				TransactionStatus:      run.status,
-				RouteValidationEnabled: transition.ledgerSettings.Accounting.ValidateRoutes,
-				TransactionInput:       transition.input,
-				Validate:               transition.validate,
-			},
-			validateBalanceRules: false,
-		})
-		if prepareErr != nil {
-			return BalanceEngineAttempt{}, prepareErr
+	outcome, executeErr := ExecutePreparedBalanceEngine(ctx, uc.BalanceEngine, prepared)
+	if executeErr != nil {
+		if !outcome.Executed {
+			unlock()
+			return nil, executeErr
 		}
 
-		return buildPendingBalanceEngineAttempt(transition.persisted, transition.input, transition.validate, attemptPrepared, transition.frozen, transition.action)
-	})
-	if executeErr != nil {
 		if isConfirmedBalanceEngineGuardConflict(executeErr) {
 			unlock()
 			return nil, uc.resolvePendingGuardConflict(ctx, run.organizationID, run.ledgerID, transition.transactionID)
 		}
 
-		if state.executionCount == 0 || state.allConfirmedPrecommit {
+		if confirmedPrecommitBalanceEngineFailure(prepared.Execution.Request, executeErr) {
 			unlock()
 		}
 
-		if state.lastStep == pendingBalanceEngineStepExecute {
-			return nil, MapBalanceEngineError(retryResult.Attempt.Execution.Request, executeErr)
-		}
-
-		return nil, executeErr
+		return nil, MapBalanceEngineError(prepared.Execution.Request, executeErr)
 	}
 
 	if tracerEligible {
@@ -119,7 +120,7 @@ func (uc *UseCase) transitionPendingWithBalanceEngine(
 		}
 	}
 
-	return uc.finalizePendingBalanceEngineResult(ctx, run.status, retryResult)
+	return uc.finalizePendingBalanceEngineResult(ctx, run.status, outcome)
 }
 
 func (uc *UseCase) preparePendingBalanceEngineTransition(ctx context.Context, run *pendingTransitionRun) (pendingBalanceEngineTransition, error) {
@@ -310,14 +311,14 @@ func pendingBalanceEngineParentID(transactionID uuid.UUID, value *string) (*uuid
 	return &parentID, nil
 }
 
-func buildPendingBalanceEngineAttempt(
+func buildPendingBalanceEngineExecution(
 	persisted *transaction.Transaction,
 	input mtransaction.Transaction,
 	validate *mtransaction.Responses,
 	prepared balanceEnginePreparedTransaction,
 	frozen pendingBalanceEngineFrozen,
 	action string,
-) (BalanceEngineAttempt, error) {
+) (PreparedBalanceEngineExecution, error) {
 	payload := TransactionCompletionPlan{
 		FormatVersion:        TransactionCompletionFormatVersion,
 		TenantID:             frozen.tenantID,
@@ -351,14 +352,14 @@ func buildPendingBalanceEngineAttempt(
 
 	fingerprint, err := ComputeBalanceEngineIntentFingerprint(intent)
 	if err != nil {
-		return BalanceEngineAttempt{}, err
+		return PreparedBalanceEngineExecution{}, err
 	}
 
 	payload.IntentFingerprint = fingerprint
 
 	raw, err := EncodeTransactionCompletionPlan(payload)
 	if err != nil {
-		return BalanceEngineAttempt{}, err
+		return PreparedBalanceEngineExecution{}, err
 	}
 
 	execution := EngineExecution{
@@ -374,11 +375,11 @@ func buildPendingBalanceEngineAttempt(
 		CompletionPlans:   []CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: raw}},
 	}
 
-	return BalanceEngineAttempt{Execution: execution, Payload: payload}, nil
+	return PreparedBalanceEngineExecution{Execution: execution, CompletionPlan: payload}, nil
 }
 
-func (uc *UseCase) finalizePendingBalanceEngineResult(ctx context.Context, expectedStatus string, retryResult BalanceEngineRetryResult) (*transaction.Transaction, error) {
-	envelope, err := createBalanceEngineEnvelope(retryResult)
+func (uc *UseCase) finalizePendingBalanceEngineResult(ctx context.Context, expectedStatus string, outcome BalanceEngineExecutionOutcome) (*transaction.Transaction, error) {
+	envelope, err := createBalanceEngineEnvelope(outcome)
 	if err != nil {
 		return nil, err
 	}
@@ -434,29 +435,3 @@ func (uc *UseCase) resolvePendingGuardConflict(ctx context.Context, organization
 
 	return fmt.Errorf("pending transaction guard conflicts with status %q: %w", persisted.Status.Code, ErrInvalidTransactionCompletionRecord)
 }
-
-const (
-	pendingBalanceEngineStepBuild   = "build"
-	pendingBalanceEngineStepExecute = "execute"
-)
-
-type pendingBalanceEngineExecutionState struct {
-	delegate              BalanceEngine
-	executionCount        int
-	allConfirmedPrecommit bool
-	lastStep              string
-}
-
-func (state *pendingBalanceEngineExecutionState) Execute(ctx context.Context, input EngineExecution) (*engine.Result, error) {
-	state.lastStep = pendingBalanceEngineStepExecute
-	state.executionCount++
-
-	result, err := state.delegate.Execute(ctx, input)
-	if err == nil || result != nil || !confirmedPrecommitBalanceEngineFailure(input.Request, err) {
-		state.allConfirmedPrecommit = false
-	}
-
-	return result, err
-}
-
-var _ BalanceEngine = (*pendingBalanceEngineExecutionState)(nil)

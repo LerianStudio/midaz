@@ -52,7 +52,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		require.Equal(t, committed, captureAdapterState(t, inspector, keys), "a different intent under the same execution id must not mutate state")
 	})
 
-	t.Run("initial physical balance conflict is atomic", func(t *testing.T) {
+	t.Run("live physical balance overrides the cache-aside seed", func(t *testing.T) {
 		input, limits := multiTransactionAcceptanceExecution(t)
 		keys, err := resolveAdapterKeys(ctx, input.Request)
 		require.NoError(t, err)
@@ -62,16 +62,16 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		encoded, err := balancecache.Encode(live, balancecache.FormatDual)
 		require.NoError(t, err)
 		require.NoError(t, inspector.Set(ctx, keys.Balances[live.BalanceRef].Balance, encoded, 0).Err())
-		before := captureAdapterState(t, inspector, keys)
-
 		adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
 		require.NoError(t, err)
 		result, err := adapter.Execute(ctx, input)
-		require.Nil(t, result)
-		var failure *core.Failure
-		require.ErrorAs(t, err, &failure)
-		require.Equal(t, &core.Failure{Code: core.FailureStaleVersion, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default"}, failure)
-		require.Equal(t, before, captureAdapterState(t, inspector, keys), "initial CAS conflict must preserve balances and execution metadata")
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, int64(8), result.Movements[0].Before.Version)
+		require.Equal(t, "41", result.Movements[0].Before.Available.String())
+		final := liveStateCompositionSnapshot(t, result.Final, "@source#default")
+		require.Equal(t, int64(12), final.Version)
+		require.Equal(t, "11", final.OverdraftUsed.String())
 	})
 }
 

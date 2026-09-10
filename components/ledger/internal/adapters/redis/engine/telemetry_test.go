@@ -31,7 +31,7 @@ func TestExecutionOutcome_ClosedLabels(t *testing.T) {
 		{"success", "success", "", nil},
 		{"refusal", "refused", core.FailureInsufficientFunds, &core.Failure{Code: core.FailureInsufficientFunds}},
 		{"integrity refusal", "refused", core.FailureOnHoldUnderflow, &core.Failure{Code: core.FailureOnHoldUnderflow}},
-		{"wrapped CAS", "refused", core.FailureStaleVersion, fmt.Errorf("wrapper: %w", &core.Failure{Code: core.FailureStaleVersion})},
+		{"live sending restriction", "refused", core.FailureSendingNotAllowed, fmt.Errorf("wrapper: %w", &core.Failure{Code: core.FailureSendingNotAllowed})},
 		{"technical", "technical_error", "connection_unavailable", technical("connection_unavailable", false, errors.New("sensitive detail"))},
 		{"uncertain", "indeterminate", "transport", fmt.Errorf("wrapper: %w", technical("transport", true, errors.New("sensitive detail")))},
 		{"foreign error", "technical_error", "unknown", errors.New("sensitive detail")},

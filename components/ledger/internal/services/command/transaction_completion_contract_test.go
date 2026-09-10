@@ -338,6 +338,13 @@ func TestBalanceEngineCompletionPlanRecordFingerprint(t *testing.T) {
 	withCompanion, err := ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	assert.Equal(t, before, withCompanion, "engine-derived companion need must not change immutable intent")
+	withRequirementIntent := recoveryContractIntent(payload)
+	withRequirementIntent.Transactions[0].BalanceRequirements = []engine.BalanceRequirement{{
+		BalanceRef: "@source#default", AssetCode: "USD", Permission: engine.BalancePermissionSend,
+	}}
+	withRequirement, err := ComputeBalanceEngineIntentFingerprint(withRequirementIntent)
+	require.NoError(t, err)
+	assert.NotEqual(t, before, withRequirement, "live balance requirements are immutable execution intent")
 	for _, scenario := range []struct {
 		name   string
 		mutate func(*TransactionCompletionPlan)

@@ -67,7 +67,7 @@ func TestBalanceEnginePortPreservesExecutionAndOutcomes(t *testing.T) {
 	}
 	result := &engine.Result{}
 	failure := &engine.Failure{
-		Code:             engine.FailureStaleVersion,
+		Code:             engine.FailureInsufficientFunds,
 		TransactionIndex: 0,
 		PostingIndex:     1,
 		BalanceRef:       "source",

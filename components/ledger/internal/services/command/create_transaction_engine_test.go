@@ -238,7 +238,7 @@ func TestCreateTransactionV1UsesOptInBalanceEngineWithoutLegacyMutationPorts(t *
 	}
 }
 
-func TestCreateTransactionV2ReservesOnceAndRefreshesOnlySnapshotsOnStale(t *testing.T) {
+func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	ctrl := gomock.NewController(t)
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
@@ -258,18 +258,7 @@ func TestCreateTransactionV2ReservesOnceAndRefreshesOnlySnapshotsOnStale(t *test
 	settings := mmodel.LedgerSettings{}
 	settings.Tracer.Mode = mmodel.TracerModeEnforce
 	reader := &createEngineReader{settings: settings, balances: []*mmodel.Balance{source, target}}
-	staleCalls := 0
-	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1, 2}, before: func(execution EngineExecution) error {
-		if staleCalls > 0 {
-			return nil
-		}
-		staleCalls++
-		source.Version = 2
-		return &engine.Failure{
-			Code: engine.FailureStaleVersion, TransactionIndex: 0, PostingIndex: 0,
-			BalanceRef: execution.Request.Transactions[0].Postings[0].BalanceRef,
-		}
-	}}
+	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
 	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	feeApplier := &fakeFeeApplier{}
 	reservationID := uuid.MustParse("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")
@@ -295,19 +284,11 @@ func TestCreateTransactionV2ReservesOnceAndRefreshesOnlySnapshotsOnStale(t *test
 	assert.Equal(t, 1, reserver.reserveCalls)
 	assert.Equal(t, []uuid.UUID{reservationID}, reserver.confirmedIDs)
 	assert.Empty(t, reserver.releasedIDs)
-	require.Len(t, executor.requests, 2)
+	require.Len(t, executor.requests, 1)
 	assert.Equal(t, int64(1), executor.requests[0].Request.Balances[0].Version)
-	assert.Equal(t, int64(2), executor.requests[1].Request.Balances[0].Version)
-	assert.Equal(t, executor.requests[0].Request.ExecutionID, executor.requests[1].Request.ExecutionID)
-	assert.Equal(t, executor.requests[0].Request.Transactions, executor.requests[1].Request.Transactions)
-	firstPayload := mustCreateEngineRecovery(t, executor.requests[0])
-	secondPayload := mustCreateEngineRecovery(t, executor.requests[1])
-	assert.Equal(t, firstPayload.TTL, secondPayload.TTL)
-	assert.Equal(t, firstPayload.TransactionUpdatedAt, secondPayload.TransactionUpdatedAt)
-	assert.Equal(t, firstPayload.OperationUpdatedAt, secondPayload.OperationUpdatedAt)
-	assert.Equal(t, transactionDate, secondPayload.TransactionDate)
-	assert.Equal(t, transactionDate, secondPayload.TransactionCreatedAt)
-	assert.Equal(t, 1, staleCalls)
+	payload := mustCreateEngineRecovery(t, executor.requests[0])
+	assert.Equal(t, transactionDate, payload.TransactionDate)
+	assert.Equal(t, transactionDate, payload.TransactionCreatedAt)
 
 	select {
 	case <-idempotencySet:
@@ -451,15 +432,23 @@ func TestCreateTransactionBalanceEngineFailureCleanupBoundary(t *testing.T) {
 }
 
 func TestConfirmedPrecommitBalanceEngineFailureIsConservative(t *testing.T) {
-	payload, result := recoveryContractFixture(t)
-	attempt := retryContractAttempt(t, payload, result)
-	stale := retryContractStaleVersion()
-	technical := testBalanceEngineTechnicalError{code: "execute_indeterminate", indeterminate: true, cause: stale}
-	assert.False(t, confirmedPrecommitBalanceEngineFailure(attempt.Execution.Request, technical))
-	assert.False(t, confirmedPrecommitBalanceEngineFailure(attempt.Execution.Request, &engine.Failure{
-		Code: "unknown", TransactionIndex: 0, PostingIndex: 0, BalanceRef: stale.BalanceRef,
+	request := engine.Request{
+		Transactions: []engine.Transaction{{
+			BalanceRequirements: []engine.BalanceRequirement{{BalanceRef: "@source#default", AssetCode: "USD", Permission: engine.BalancePermissionSend}},
+			Postings:            []engine.Posting{{Ref: "source", BalanceRef: "@source#default"}},
+		}},
+		Balances: []engine.BalanceSnapshot{{BalanceRef: "@source#default"}},
+	}
+	financial := &engine.Failure{Code: engine.FailureInsufficientFunds, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default"}
+	technical := testBalanceEngineTechnicalError{code: "execute_indeterminate", indeterminate: true, cause: financial}
+	assert.False(t, confirmedPrecommitBalanceEngineFailure(request, technical))
+	assert.False(t, confirmedPrecommitBalanceEngineFailure(request, &engine.Failure{
+		Code: "unknown", TransactionIndex: 0, PostingIndex: 0, BalanceRef: financial.BalanceRef,
 	}))
-	assert.True(t, confirmedPrecommitBalanceEngineFailure(attempt.Execution.Request, stale))
+	assert.True(t, confirmedPrecommitBalanceEngineFailure(request, financial))
+	assert.True(t, confirmedPrecommitBalanceEngineFailure(request, &engine.Failure{
+		Code: engine.FailureSendingNotAllowed, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "@source#default",
+	}))
 }
 
 func createEngineTransaction(transactionDate time.Time) mtransaction.Transaction {

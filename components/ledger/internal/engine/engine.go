@@ -31,7 +31,8 @@ const (
 	PostingUnreserve PostingType = "unreserve"
 	// PostingHold combines debit arithmetic and reserve in one movement and one
 	// version increment. It never draws debt; external accounts retain their
-	// arithmetic floor exemption, with targeting restrictions enforced by callers.
+	// arithmetic floor exemption, with targeting restrictions enforced by the
+	// transaction's balance requirements.
 	PostingHold PostingType = "hold"
 	// PostingRelease decreases on-hold funds and restores available funds using
 	// the account direction. It does not perform general credit repayment: only
@@ -65,15 +66,35 @@ type Posting struct {
 	OverdraftAmount decimal.Decimal `json:"overdraftAmount"`
 }
 
-// Transaction groups postings in their execution order.
-type Transaction struct {
-	ID       uuid.UUID `json:"id"`
-	Postings []Posting `json:"postings"`
+// BalancePermission identifies the transaction-side permission that must be
+// checked against the live cached balance before any posting is applied.
+type BalancePermission string
+
+const (
+	BalancePermissionSend    BalancePermission = "send"
+	BalancePermissionReceive BalancePermission = "receive"
+)
+
+// BalanceRequirement carries transaction intent that cannot be inferred from
+// posting arithmetic. Implementations evaluate it against live balance state in
+// the same atomic execution that applies the transaction.
+type BalanceRequirement struct {
+	BalanceRef     string            `json:"balanceRef"`
+	AssetCode      string            `json:"assetCode"`
+	Permission     BalancePermission `json:"permission"`
+	ForbidExternal bool              `json:"forbidExternal"`
 }
 
-// BalanceSnapshot supplies a cache-miss seed and an initial version for CAS.
-// Live settings take precedence over the seed. A snapshot in the pool need not
-// be touched; overdraft companions are required only when actually needed.
+// Transaction groups postings in their execution order.
+type Transaction struct {
+	ID                  uuid.UUID            `json:"id"`
+	BalanceRequirements []BalanceRequirement `json:"balanceRequirements"`
+	Postings            []Posting            `json:"postings"`
+}
+
+// BalanceSnapshot supplies a cache-miss seed. When the physical cache key
+// exists, implementations use its live state and settings. A snapshot in the
+// pool need not be touched; overdraft companions are required only when needed.
 type BalanceSnapshot struct {
 	BalanceRef            string          `json:"balanceRef"`
 	ID                    uuid.UUID       `json:"id"`
@@ -97,11 +118,11 @@ type BalanceSnapshot struct {
 }
 
 // Request is one ordered execution within an authenticated tenant and ledger.
-// All UUIDs must be nonzero. ExecutionID remains stable across retries of one
-// action, but differs between creation, commitment and cancellation.
+// All UUIDs must be nonzero. ExecutionID identifies one execution of an action
+// and differs between creation, commitment and cancellation.
 // Balances is the available snapshot pool, not the set of explicit input legs.
 // Implementations validate references and numeric invariants before any writes,
-// and compare initial versions once per physical balance actually touched.
+// and evaluate balance requirements against live cached values before writes.
 // Storage adapters own the wire DTO, including canonical decimal strings,
 // lossless versions and empty-array encoding; these types are not a Lua wire format.
 type Request struct {
@@ -159,10 +180,13 @@ const (
 	FailureOverdraftLimitExceeded    = "overdraft_limit_exceeded"
 	FailureOverdraftNotEligible      = "overdraft_not_eligible"
 	FailureOverdraftCompanionMissing = "overdraft_companion_missing"
-	FailureStaleVersion              = "stale_version"
 	FailureBalanceDeleted            = "balance_deleted"
 	FailureOnHoldUnderflow           = "onhold_underflow"
 	FailureBalanceMissing            = "balance_missing"
+	FailureAssetMismatch             = "asset_mismatch"
+	FailureSendingNotAllowed         = "sending_not_allowed"
+	FailureReceivingNotAllowed       = "receiving_not_allowed"
+	FailureExternalHoldNotAllowed    = "external_hold_not_allowed"
 )
 
 // Failure is a recognized refusal produced before any accounting write.

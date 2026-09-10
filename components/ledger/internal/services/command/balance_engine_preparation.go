@@ -19,10 +19,9 @@ import (
 )
 
 type balanceEnginePreparationInput struct {
-	organizationID       uuid.UUID
-	ledgerID             uuid.UUID
-	translation          BalanceEngineTranslationInput
-	validateBalanceRules bool
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
+	translation    BalanceEngineTranslationInput
 }
 
 type balanceEnginePreparedTransaction struct {
@@ -31,9 +30,9 @@ type balanceEnginePreparedTransaction struct {
 	projection  []OperationRecordSpec
 }
 
-// prepareBalanceEngineTransaction performs only snapshot-dependent reads and
-// validation. Route validation receives ordered explicit legs, never speculative
-// overdraft movements. The complete pool is retained for authoritative execution.
+// prepareBalanceEngineTransaction performs cache-aside seed loading and route
+// validation. Balance state and account eligibility are evaluated later against
+// live cached values by the atomic engine execution.
 func (uc *UseCase) prepareBalanceEngineTransaction(ctx context.Context, input balanceEnginePreparationInput) (balanceEnginePreparedTransaction, error) {
 	if err := ctx.Err(); err != nil {
 		return balanceEnginePreparedTransaction{}, err
@@ -80,17 +79,6 @@ func (uc *UseCase) prepareBalanceEngineTransaction(ctx context.Context, input ba
 
 	if err := ctx.Err(); err != nil {
 		return balanceEnginePreparedTransaction{}, err
-	}
-
-	if input.validateBalanceRules {
-		balances, err := deduplicateBalances(operations)
-		if err != nil {
-			return balanceEnginePreparedTransaction{}, err
-		}
-
-		if err := mtransaction.ValidateBalancesRules(ctx, input.translation.TransactionInput, *input.translation.Validate, balances, nil); err != nil {
-			return balanceEnginePreparedTransaction{}, err
-		}
 	}
 
 	input.translation.Balances = pool.Balances

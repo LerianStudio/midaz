@@ -60,6 +60,7 @@ func TestTranslateBalanceEngineTransactionPreservesOrderedLegIdentity(t *testing
 	transaction, projection, err := TranslateBalanceEngineTransaction(input)
 	require.NoError(t, err)
 	require.Len(t, transaction.Postings, 3)
+	require.Len(t, transaction.BalanceRequirements, 3)
 	require.Len(t, projection, 3)
 
 	assert.Equal(t, transactionID, transaction.ID)
@@ -77,6 +78,11 @@ func TestTranslateBalanceEngineTransactionPreservesOrderedLegIdentity(t *testing
 		transaction.Postings[0].Type,
 		transaction.Postings[1].Type,
 		transaction.Postings[2].Type,
+	})
+	assert.Equal(t, []engine.BalancePermission{engine.BalancePermissionSend, engine.BalancePermissionSend, engine.BalancePermissionReceive}, []engine.BalancePermission{
+		transaction.BalanceRequirements[0].Permission,
+		transaction.BalanceRequirements[1].Permission,
+		transaction.BalanceRequirements[2].Permission,
 	})
 	assert.Equal(t, []string{"from:0", "from:1", "to:0"}, []string{
 		projection[0].OriginRef,
@@ -177,6 +183,15 @@ func TestTranslateBalanceEngineTransactionLifecyclePaths(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, transaction.Postings, len(tt.postingTypes))
 			require.Len(t, projection, len(tt.postingTypes))
+			if tt.action == constant.ActionCommit || tt.action == constant.ActionCancel {
+				assert.Empty(t, transaction.BalanceRequirements)
+			} else {
+				require.Len(t, transaction.BalanceRequirements, 2)
+				assert.Equal(t, engine.BalancePermissionSend, transaction.BalanceRequirements[0].Permission)
+				assert.Equal(t, engine.BalancePermissionReceive, transaction.BalanceRequirements[1].Permission)
+				assert.Equal(t, tt.action == constant.ActionHold, transaction.BalanceRequirements[0].ForbidExternal)
+				assert.False(t, transaction.BalanceRequirements[1].ForbidExternal)
+			}
 
 			for index := range tt.postingTypes {
 				assert.Equal(t, tt.postingTypes[index], transaction.Postings[index].Type)

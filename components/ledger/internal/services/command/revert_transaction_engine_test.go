@@ -55,7 +55,6 @@ func (reader *revertEngineReader) GetBalanceEngineBalances(ctx context.Context, 
 
 type revertLiteralEngine struct {
 	t        *testing.T
-	reader   *revertEngineReader
 	requests []EngineExecution
 }
 
@@ -71,18 +70,12 @@ func (executor *revertLiteralEngine) Execute(_ context.Context, execution Engine
 	require.True(executor.t, transactionIntent.Postings[0].Amount.Equal(decimal.NewFromInt(10)))
 	require.True(executor.t, transactionIntent.Postings[1].Amount.Equal(decimal.NewFromInt(10)))
 
-	if len(executor.requests) == 1 {
-		executor.reader.balances[0].Version = 8
-		return nil, &engine.Failure{
-			Code: engine.FailureStaleVersion, TransactionIndex: 0, PostingIndex: 0,
-			BalanceRef: "@payee#default",
-		}
-	}
-
 	source := createEngineSnapshot(executor.t, execution.Request.Balances, "@payee#default")
 	target := createEngineSnapshot(executor.t, execution.Request.Balances, "@payer#default")
-	require.Equal(executor.t, int64(8), source.Version)
+	require.Equal(executor.t, int64(7), source.Version)
 	require.Equal(executor.t, int64(3), target.Version)
+	// The atomic engine may start from a newer live cache value than the
+	// cache-aside seed carried by Go.
 	sourceBefore := engine.BalanceState{Available: decimal.NewFromInt(50), Version: 8}
 	sourceAfter := engine.BalanceState{Available: decimal.NewFromInt(40), Version: 9}
 	targetBefore := engine.BalanceState{Available: decimal.NewFromInt(20), Version: 3}
@@ -133,7 +126,7 @@ func TestRevertTransactionV2UsesOptInBalanceEngineWithStableChildIdentity(t *tes
 			revertEngineBalance(organizationID, ledgerID, "55555555-5555-4555-8555-555555555555", "@payer", 20, 3),
 		},
 	}
-	executor := &revertLiteralEngine{t: t, reader: reader}
+	executor := &revertLiteralEngine{t: t}
 	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	reservationID := uuid.MustParse("66666666-6666-4666-8666-666666666666")
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
@@ -157,16 +150,11 @@ func TestRevertTransactionV2UsesOptInBalanceEngineWithStableChildIdentity(t *tes
 	require.Len(t, got.Operations, 2)
 	assert.Equal(t, []string{"10", "10"}, []string{got.Operations[0].Amount.Value.String(), got.Operations[1].Amount.Value.String()})
 
-	require.Len(t, executor.requests, 2)
+	require.Len(t, executor.requests, 1)
 	firstExecution := executor.requests[0]
-	secondExecution := executor.requests[1]
-	assert.Equal(t, firstExecution.Request.ExecutionID, secondExecution.Request.ExecutionID)
-	assert.Equal(t, firstExecution.IntentFingerprint, secondExecution.IntentFingerprint)
-	assert.Equal(t, firstExecution.Guards, secondExecution.Guards)
-	assert.Equal(t, firstExecution.Request.Transactions[0].ID, secondExecution.Request.Transactions[0].ID)
 	assert.NotEqual(t, originID, firstExecution.Request.Transactions[0].ID)
 	assert.Equal(t, got.ID, firstExecution.Request.Transactions[0].ID.String())
-	assert.GreaterOrEqual(t, reader.reads, 4)
+	assert.GreaterOrEqual(t, reader.reads, 2)
 
 	require.Len(t, finalizer.envelopes, 1)
 	payload := mustCreateEnginePayload(t, finalizer.envelopes[0])

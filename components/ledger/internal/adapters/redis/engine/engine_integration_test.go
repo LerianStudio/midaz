@@ -366,12 +366,93 @@ func TestIntegrationEngineCompositionAndLiveSettings(t *testing.T) {
 	}
 }
 
+func TestIntegrationEngineValidatesBalanceRequirementsAgainstLiveState(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	tests := []struct {
+		name       string
+		permission engine.BalancePermission
+		forbid     bool
+		prepare    func(*engine.BalanceSnapshot)
+		live       func(*engine.BalanceSnapshot)
+		failure    string
+	}{
+		{
+			name: "live sending permission", permission: engine.BalancePermissionSend, failure: engine.FailureSendingNotAllowed,
+			live: func(balance *engine.BalanceSnapshot) { balance.AllowSending = false },
+		},
+		{
+			name: "live receiving permission", permission: engine.BalancePermissionReceive, failure: engine.FailureReceivingNotAllowed,
+			live: func(balance *engine.BalanceSnapshot) { balance.AllowReceiving = false },
+		},
+		{
+			name: "transaction asset", permission: engine.BalancePermissionSend, failure: engine.FailureAssetMismatch,
+			prepare: func(balance *engine.BalanceSnapshot) { balance.AssetCode = "EUR" },
+		},
+		{
+			name: "external pending source", permission: engine.BalancePermissionSend, forbid: true, failure: engine.FailureExternalHoldNotAllowed,
+			prepare: func(balance *engine.BalanceSnapshot) { balance.AccountType = "external" },
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newIntegrationFixture(t, container.Client)
+			seed := &fixture.input.Request.Balances[0]
+			if test.prepare != nil {
+				test.prepare(seed)
+			}
+			fixture.input.Request.Transactions[0].BalanceRequirements = []engine.BalanceRequirement{{
+				BalanceRef: seed.BalanceRef, AssetCode: "USD", Permission: test.permission, ForbidExternal: test.forbid,
+			}}
+
+			live := *seed
+			if test.live != nil {
+				test.live(&live)
+			}
+			fixture.seed(t, 0, live)
+			before := fixture.capture(t)
+
+			_, err := fixture.run(t)
+			require.ErrorContains(t, err, `"code":"`+test.failure+`"`)
+			require.Equal(t, before, fixture.capture(t), "eligibility refusal must not mutate any key")
+		})
+	}
+}
+
+func TestIntegrationEngineUsesLivePermissionInsteadOfSeedPermission(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	fixture := newIntegrationFixture(t, container.Client)
+	seed := &fixture.input.Request.Balances[0]
+	seed.AllowSending = false
+	fixture.input.Request.Transactions[0].BalanceRequirements = []engine.BalanceRequirement{{
+		BalanceRef: seed.BalanceRef, AssetCode: seed.AssetCode, Permission: engine.BalancePermissionSend,
+	}}
+	live := *seed
+	live.AllowSending = true
+	live.Version = 9
+	fixture.seed(t, 0, live)
+
+	raw, err := fixture.run(t)
+	require.NoError(t, err)
+	result := decodeIntegrationResult(t, raw)
+	require.Equal(t, "9", result.Movements[0].Before.Version)
+	require.Equal(t, "10", result.Movements[0].After.Version)
+}
+
 func TestIntegrationEngineAtomicRefusals(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
 	}
 	container := redistestutil.SetupReusableContainer(t)
-	for _, kind := range []string{"late posting", "schedule type", "backup type", "guard type", "receipt type", "protection type", "guard conflict", "orphan recovery", "prepared budget", "stale balance", "stale companion", "version overflow", "deleted balance"} {
+	for _, kind := range []string{"late posting", "schedule type", "backup type", "guard type", "receipt type", "protection type", "guard conflict", "orphan recovery", "prepared budget", "version overflow", "deleted balance"} {
 		t.Run(kind, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
 			f.seed(t, 0, f.input.Request.Balances[0])
@@ -404,18 +485,6 @@ func TestIntegrationEngineAtomicRefusals(t *testing.T) {
 				want = `"code":"execution_outcome_unknown"`
 			case "prepared budget":
 				f.limits.MaxPreparedBytes = 1
-			case "stale balance":
-				live := f.input.Request.Balances[0]
-				live.Version = 1
-				f.seed(t, 0, live)
-				want = `"code":"stale_version"`
-			case "stale companion":
-				f.input.Request.Transactions[0].Postings[0].Amount = decimal.NewFromInt(130)
-				f.addCompanion("0")
-				live := f.input.Request.Balances[1]
-				live.Version = 1
-				f.seed(t, 1, live)
-				want = `"code":"stale_version"`
 			case "version overflow":
 				f.input.Request.Balances[0].Version = math.MaxInt64
 				f.seed(t, 0, f.input.Request.Balances[0])

@@ -45,6 +45,45 @@ func MapBalanceEngineError(request engine.Request, err error) error {
 		return fmt.Errorf("balance engine failure: %w", err)
 	}
 
+	if failure.PostingIndex == -1 {
+		requirement, balance, ok := engineFailureRequirement(request, failure)
+		if !ok {
+			return fmt.Errorf("malformed balance engine requirement failure: %w", err)
+		}
+
+		switch failure.Code {
+		case engine.FailureAssetMismatch:
+			entity := "validateFromAccounts"
+			if requirement.Permission == engine.BalancePermissionReceive {
+				entity = "validateToAccounts"
+			}
+
+			return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, entity)
+		case engine.FailureSendingNotAllowed:
+			if requirement.Permission != engine.BalancePermissionSend {
+				return fmt.Errorf("malformed balance engine sending requirement failure: %w", err)
+			}
+
+			return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
+		case engine.FailureReceivingNotAllowed:
+			if requirement.Permission != engine.BalancePermissionReceive {
+				return fmt.Errorf("malformed balance engine receiving requirement failure: %w", err)
+			}
+
+			return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
+		case engine.FailureExternalHoldNotAllowed:
+			if !requirement.ForbidExternal {
+				return fmt.Errorf("malformed balance engine external hold requirement failure: %w", err)
+			}
+
+			return pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, balanceValidationEntity, balance.Alias)
+		case engine.FailureBalanceDeleted:
+			return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
+		default:
+			return fmt.Errorf("unexpected balance engine requirement failure: %w", err)
+		}
+	}
+
 	posting, ok := engineFailurePosting(request, failure)
 	if !ok {
 		return fmt.Errorf("malformed balance engine failure: %w", err)
@@ -66,8 +105,6 @@ func MapBalanceEngineError(request engine.Request, err error) error {
 		}
 	case "overdraft_companion_missing":
 		return fmt.Errorf("overdraft companion missing: %w", err)
-	case "stale_version":
-		return pkg.ValidateBusinessError(constant.ErrStaleBalanceVersion, balanceValidationEntity)
 	case "balance_deleted":
 		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
 	case "balance_missing":
@@ -77,6 +114,33 @@ func MapBalanceEngineError(request engine.Request, err error) error {
 	default:
 		return fmt.Errorf("unknown balance engine failure: %w", err)
 	}
+}
+
+func engineFailureRequirement(request engine.Request, failure *engine.Failure) (engine.BalanceRequirement, engine.BalanceSnapshot, bool) {
+	if failure == nil || failure.TransactionIndex < 0 || failure.TransactionIndex >= len(request.Transactions) || failure.BalanceRef == "" {
+		return engine.BalanceRequirement{}, engine.BalanceSnapshot{}, false
+	}
+
+	var requirement *engine.BalanceRequirement
+	for i := range request.Transactions[failure.TransactionIndex].BalanceRequirements {
+		candidate := &request.Transactions[failure.TransactionIndex].BalanceRequirements[i]
+		if candidate.BalanceRef == failure.BalanceRef {
+			requirement = candidate
+			break
+		}
+	}
+
+	if requirement == nil {
+		return engine.BalanceRequirement{}, engine.BalanceSnapshot{}, false
+	}
+
+	for _, balance := range request.Balances {
+		if balance.BalanceRef == failure.BalanceRef {
+			return *requirement, balance, true
+		}
+	}
+
+	return engine.BalanceRequirement{}, engine.BalanceSnapshot{}, false
 }
 
 func engineFailurePosting(request engine.Request, failure *engine.Failure) (engine.Posting, bool) {

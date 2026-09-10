@@ -381,7 +381,10 @@ func classifyAccountingError(err error, request engine.Request, keys []string) e
 
 func validateFailure(failure engine.Failure, request engine.Request) error {
 	switch failure.Code {
-	case engine.FailureInsufficientFunds, engine.FailureOverdraftLimitExceeded, engine.FailureOverdraftNotEligible, engine.FailureOverdraftCompanionMissing, engine.FailureStaleVersion, engine.FailureBalanceDeleted, engine.FailureOnHoldUnderflow, engine.FailureBalanceMissing:
+	case engine.FailureInsufficientFunds, engine.FailureOverdraftLimitExceeded, engine.FailureOverdraftNotEligible,
+		engine.FailureOverdraftCompanionMissing, engine.FailureBalanceDeleted, engine.FailureOnHoldUnderflow,
+		engine.FailureBalanceMissing, engine.FailureAssetMismatch, engine.FailureSendingNotAllowed,
+		engine.FailureReceivingNotAllowed, engine.FailureExternalHoldNotAllowed:
 	default:
 		return errors.New("unknown accounting refusal code")
 	}
@@ -391,6 +394,20 @@ func validateFailure(failure engine.Failure, request engine.Request) error {
 	}
 
 	postings := request.Transactions[failure.TransactionIndex].Postings
+	if failure.PostingIndex == -1 {
+		switch failure.Code {
+		case engine.FailureAssetMismatch, engine.FailureSendingNotAllowed, engine.FailureReceivingNotAllowed,
+			engine.FailureExternalHoldNotAllowed, engine.FailureBalanceDeleted:
+			for _, requirement := range request.Transactions[failure.TransactionIndex].BalanceRequirements {
+				if requirement.BalanceRef == failure.BalanceRef {
+					return nil
+				}
+			}
+		}
+
+		return errors.New("invalid accounting refusal requirement")
+	}
+
 	if failure.PostingIndex < 0 || failure.PostingIndex >= len(postings) || failure.BalanceRef == "" {
 		return errors.New("invalid accounting refusal posting")
 	}

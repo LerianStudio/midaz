@@ -120,8 +120,9 @@ func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
 		TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
-		PostingRefs:    make([]string, 0, len(input.Request.Transactions[0].Postings)),
-		OperationSpecs: make([]command.OperationRecordIntent, 0, len(payload.OperationSpecs)),
+		PostingRefs:         make([]string, 0, len(input.Request.Transactions[0].Postings)),
+		BalanceRequirements: append([]core.BalanceRequirement(nil), input.Request.Transactions[0].BalanceRequirements...),
+		OperationSpecs:      make([]command.OperationRecordIntent, 0, len(payload.OperationSpecs)),
 	}
 	for _, posting := range input.Request.Transactions[0].Postings {
 		transaction.PostingRefs = append(transaction.PostingRefs, posting.Ref)

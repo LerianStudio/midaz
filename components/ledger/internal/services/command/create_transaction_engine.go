@@ -86,13 +86,13 @@ func (uc *UseCase) executeCreateBalanceEngine(
 		guard:    ExecutionGuard{TransactionID: run.transactionID, ExpectedToken: "", NextToken: nextToken},
 	}
 
-	firstPrepared, err := uc.prepareCreateBalanceEngineAttempt(ctx, run)
+	engineState, err := uc.prepareCreateBalanceEngineExecution(ctx, run)
 	if err != nil {
 		uc.rollbackCreateClaim(ctx, run)
 		return nil, err
 	}
 
-	firstAttempt, err := uc.buildCreateBalanceEngineAttempt(run, frozen, firstPrepared)
+	prepared, err := uc.buildCreateBalanceEngineExecution(run, frozen, engineState)
 	if err != nil {
 		uc.rollbackCreateClaim(ctx, run)
 		return nil, err
@@ -102,7 +102,7 @@ func (uc *UseCase) executeCreateBalanceEngine(
 	if tracerEligible {
 		reservation = uc.reserveTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.transactionID,
 			run.input.Send.Value, run.input.Send.Asset,
-			firstSourceAccountID(run.validate.Sources, firstPrepared.pool.ExplicitBalances),
+			firstSourceAccountID(run.validate.Sources, engineState.pool.ExplicitBalances),
 			run.transactionDate, reservationTTLForStatus(run.status), run.honoredTracerSkip)
 		if reservation.Kind == reservationReject {
 			uc.rollbackCreateClaim(ctx, run)
@@ -110,49 +110,31 @@ func (uc *UseCase) executeCreateBalanceEngine(
 		}
 	}
 
-	first := true
-	state := &createBalanceEngineExecutionState{delegate: uc.BalanceEngine, allConfirmedPrecommit: true}
-
-	retryResult, executeErr := ExecuteBalanceEngineWithRetry(ctx, state, func(buildCtx context.Context) (BalanceEngineAttempt, error) {
-		state.lastStep = createBalanceEngineStepBuild
-
-		if first {
-			first = false
-			return firstAttempt, nil
-		}
-
-		prepared, prepareErr := uc.prepareCreateBalanceEngineAttempt(buildCtx, run)
-		if prepareErr != nil {
-			return BalanceEngineAttempt{}, prepareErr
-		}
-
-		return uc.buildCreateBalanceEngineAttempt(run, frozen, prepared)
-	})
+	outcome, executeErr := ExecutePreparedBalanceEngine(ctx, uc.BalanceEngine, prepared)
 	if executeErr != nil {
-		if state.executionCount == 0 || state.allConfirmedPrecommit {
+		if !outcome.Executed || confirmedPrecommitBalanceEngineFailure(prepared.Execution.Request, executeErr) {
 			uc.rollbackCreateClaim(ctx, run)
 
 			if tracerEligible {
 				uc.releaseReservations(ctx, span, logger, reservation.Handle)
 			}
 		}
-
-		if state.lastStep == createBalanceEngineStepExecute {
-			return nil, MapBalanceEngineError(retryResult.Attempt.Execution.Request, executeErr)
+		if !outcome.Executed {
+			return nil, executeErr
 		}
 
-		return nil, executeErr
+		return nil, MapBalanceEngineError(prepared.Execution.Request, executeErr)
 	}
 
 	if run.status != constant.PENDING && tracerEligible {
 		uc.confirmReservations(ctx, span, logger, reservation.Handle)
 	}
 
-	return uc.finalizeCreateBalanceEngineResult(ctx, run, retryResult)
+	return uc.finalizeCreateBalanceEngineResult(ctx, run, outcome)
 }
 
-func (uc *UseCase) finalizeCreateBalanceEngineResult(ctx context.Context, run *createTransactionRun, retryResult BalanceEngineRetryResult) (*transaction.Transaction, error) {
-	envelope, err := createBalanceEngineEnvelope(retryResult)
+func (uc *UseCase) finalizeCreateBalanceEngineResult(ctx context.Context, run *createTransactionRun, outcome BalanceEngineExecutionOutcome) (*transaction.Transaction, error) {
+	envelope, err := createBalanceEngineEnvelope(outcome)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +170,7 @@ func (uc *UseCase) finalizeCreateBalanceEngineResult(ctx context.Context, run *c
 	return tran, nil
 }
 
-func (uc *UseCase) prepareCreateBalanceEngineAttempt(ctx context.Context, run *createTransactionRun) (balanceEnginePreparedTransaction, error) {
+func (uc *UseCase) prepareCreateBalanceEngineExecution(ctx context.Context, run *createTransactionRun) (balanceEnginePreparedTransaction, error) {
 	return uc.prepareBalanceEngineTransaction(ctx, balanceEnginePreparationInput{
 		organizationID: run.organizationID,
 		ledgerID:       run.ledgerID,
@@ -197,11 +179,10 @@ func (uc *UseCase) prepareCreateBalanceEngineAttempt(ctx context.Context, run *c
 			RouteValidationEnabled: run.ledgerSettings.Accounting.ValidateRoutes,
 			TransactionInput:       run.input, Validate: run.validate,
 		},
-		validateBalanceRules: true,
 	})
 }
 
-func (uc *UseCase) buildCreateBalanceEngineAttempt(run *createTransactionRun, frozen createBalanceExecutionContext, prepared balanceEnginePreparedTransaction) (BalanceEngineAttempt, error) {
+func (uc *UseCase) buildCreateBalanceEngineExecution(run *createTransactionRun, frozen createBalanceExecutionContext, prepared balanceEnginePreparedTransaction) (PreparedBalanceEngineExecution, error) {
 	payload := TransactionCompletionPlan{
 		FormatVersion: TransactionCompletionFormatVersion,
 		TenantID:      frozen.tenantID, HeaderID: frozen.headerID,
@@ -222,14 +203,14 @@ func (uc *UseCase) buildCreateBalanceEngineAttempt(run *createTransactionRun, fr
 
 	fingerprint, err := ComputeBalanceEngineIntentFingerprint(intent)
 	if err != nil {
-		return BalanceEngineAttempt{}, err
+		return PreparedBalanceEngineExecution{}, err
 	}
 
 	payload.IntentFingerprint = fingerprint
 
 	raw, err := EncodeTransactionCompletionPlan(payload)
 	if err != nil {
-		return BalanceEngineAttempt{}, err
+		return PreparedBalanceEngineExecution{}, err
 	}
 
 	execution := EngineExecution{
@@ -243,7 +224,7 @@ func (uc *UseCase) buildCreateBalanceEngineAttempt(run *createTransactionRun, fr
 		CompletionPlans:   []CompletionPlanRecord{{TransactionID: run.transactionID, Payload: raw}},
 	}
 
-	return BalanceEngineAttempt{Execution: execution, Payload: payload}, nil
+	return PreparedBalanceEngineExecution{Execution: execution, CompletionPlan: payload}, nil
 }
 
 // idempotencyRetentionSeconds accepts the repository's historical seconds-count
@@ -256,20 +237,20 @@ func idempotencyRetentionSeconds(ttl time.Duration) int64 {
 	return int64(ttl)
 }
 
-func createBalanceEngineEnvelope(result BalanceEngineRetryResult) (*TransactionCompletionRecord, error) {
-	if result.Result == nil || len(result.Attempt.Execution.CompletionPlans) != 1 {
+func createBalanceEngineEnvelope(outcome BalanceEngineExecutionOutcome) (*TransactionCompletionRecord, error) {
+	if outcome.Result == nil || len(outcome.Prepared.Execution.CompletionPlans) != 1 {
 		return nil, invalidBalanceEngineResult(errors.New("successful create has no correlated recovery result"))
 	}
 
-	payload := result.Attempt.Payload
+	payload := outcome.Prepared.CompletionPlan
 
 	return &TransactionCompletionRecord{
 		FormatVersion: TransactionCompletionFormatVersion,
 		TenantID:      payload.TenantID, OrganizationID: payload.OrganizationID, LedgerID: payload.LedgerID,
 		ExecutionID: payload.ExecutionID, IntentFingerprint: payload.IntentFingerprint,
 		TransactionID: payload.TransactionID,
-		Payload:       string(result.Attempt.Execution.CompletionPlans[0].Payload),
-		Result:        *result.Result,
+		Payload:       string(outcome.Prepared.Execution.CompletionPlans[0].Payload),
+		Result:        *outcome.Result,
 	}, nil
 }
 
@@ -293,30 +274,6 @@ func isNilTransactionCompleter(completer TransactionCompleter) bool {
 	return value.Kind() == reflect.Pointer && value.IsNil()
 }
 
-const (
-	createBalanceEngineStepBuild   = "build"
-	createBalanceEngineStepExecute = "execute"
-)
-
-type createBalanceEngineExecutionState struct {
-	delegate              BalanceEngine
-	executionCount        int
-	allConfirmedPrecommit bool
-	lastStep              string
-}
-
-func (state *createBalanceEngineExecutionState) Execute(ctx context.Context, input EngineExecution) (*engine.Result, error) {
-	state.lastStep = createBalanceEngineStepExecute
-	state.executionCount++
-
-	result, err := state.delegate.Execute(ctx, input)
-	if err == nil || result != nil || !confirmedPrecommitBalanceEngineFailure(input.Request, err) {
-		state.allConfirmedPrecommit = false
-	}
-
-	return result, err
-}
-
 func confirmedPrecommitBalanceEngineFailure(request engine.Request, err error) bool {
 	var technical balanceEngineTechnicalError
 	if errors.As(err, &technical) {
@@ -330,12 +287,21 @@ func confirmedPrecommitBalanceEngineFailure(request engine.Request, err error) b
 			engine.FailureOverdraftLimitExceeded,
 			engine.FailureOverdraftNotEligible,
 			engine.FailureOverdraftCompanionMissing,
-			engine.FailureStaleVersion,
 			engine.FailureBalanceDeleted,
 			engine.FailureOnHoldUnderflow,
-			engine.FailureBalanceMissing:
+			engine.FailureBalanceMissing,
+			engine.FailureAssetMismatch,
+			engine.FailureSendingNotAllowed,
+			engine.FailureReceivingNotAllowed,
+			engine.FailureExternalHoldNotAllowed:
 		default:
 			return false
+		}
+
+		if failure.PostingIndex == -1 {
+			_, _, valid := engineFailureRequirement(request, failure)
+
+			return valid
 		}
 
 		_, valid := engineFailurePosting(request, failure)
@@ -345,5 +311,3 @@ func confirmedPrecommitBalanceEngineFailure(request engine.Request, err error) b
 
 	return false
 }
-
-var _ BalanceEngine = (*createBalanceEngineExecutionState)(nil)

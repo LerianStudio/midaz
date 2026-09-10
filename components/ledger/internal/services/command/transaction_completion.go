@@ -119,19 +119,20 @@ type TransactionCompletionRecord struct {
 // BalanceEngineTransactionIntent contains only immutable intent, not calculated
 // postings, validation output, balance seeds, guards, or overdraft splits.
 type BalanceEngineTransactionIntent struct {
-	TransactionID        uuid.UUID                `json:"transactionId"`
-	ParentTransactionID  *uuid.UUID               `json:"parentTransactionId"`
-	FeesSkipped          bool                     `json:"feesSkipped"`
-	TracerSkipped        bool                     `json:"tracerSkipped"`
-	Action               string                   `json:"action"`
-	TransactionStatus    string                   `json:"transactionStatus"`
-	TransactionDate      time.Time                `json:"transactionDate"`
-	TransactionCreatedAt time.Time                `json:"transactionCreatedAt"`
-	TransactionUpdatedAt time.Time                `json:"transactionUpdatedAt"`
-	OperationUpdatedAt   time.Time                `json:"operationUpdatedAt"`
-	Input                mtransaction.Transaction `json:"input"`
-	PostingRefs          []string                 `json:"postingRefs"`
-	OperationSpecs       []OperationRecordIntent  `json:"projection"`
+	TransactionID        uuid.UUID                   `json:"transactionId"`
+	ParentTransactionID  *uuid.UUID                  `json:"parentTransactionId"`
+	FeesSkipped          bool                        `json:"feesSkipped"`
+	TracerSkipped        bool                        `json:"tracerSkipped"`
+	Action               string                      `json:"action"`
+	TransactionStatus    string                      `json:"transactionStatus"`
+	TransactionDate      time.Time                   `json:"transactionDate"`
+	TransactionCreatedAt time.Time                   `json:"transactionCreatedAt"`
+	TransactionUpdatedAt time.Time                   `json:"transactionUpdatedAt"`
+	OperationUpdatedAt   time.Time                   `json:"operationUpdatedAt"`
+	Input                mtransaction.Transaction    `json:"input"`
+	PostingRefs          []string                    `json:"postingRefs"`
+	BalanceRequirements  []engine.BalanceRequirement `json:"balanceRequirements"`
+	OperationSpecs       []OperationRecordIntent     `json:"projection"`
 }
 
 // OperationRecordIntent fingerprints immutable row decisions without carrying
@@ -208,6 +209,13 @@ func ComputeBalanceEngineIntentFingerprint(intent BalanceEngineIntent) (string, 
 			}
 
 			refs[ref] = true
+		}
+
+		for _, requirement := range transaction.BalanceRequirements {
+			if requirement.BalanceRef == "" || requirement.AssetCode == "" ||
+				(requirement.Permission != engine.BalancePermissionSend && requirement.Permission != engine.BalancePermissionReceive) {
+				return "", invalidTransactionCompletionRecord("invalid intent balance requirement")
+			}
 		}
 
 		primaryProjection := make([]OperationRecordIntent, 0, len(transaction.OperationSpecs))
@@ -345,6 +353,10 @@ func ValidateTransactionCompletion(input EngineExecution) error {
 			return err
 		}
 
+		if err := validateCompletionBalanceRequirements(request.Balances, transaction.BalanceRequirements); err != nil {
+			return err
+		}
+
 		intents[transaction.ID] = transactionCompletionIntent(transaction, *payload)
 	}
 
@@ -353,6 +365,22 @@ func ValidateTransactionCompletion(input EngineExecution) error {
 	}
 
 	return validateCompletionExecutionFingerprint(request, tenant, intents, input.IntentFingerprint)
+}
+
+func validateCompletionBalanceRequirements(snapshots []engine.BalanceSnapshot, requirements []engine.BalanceRequirement) error {
+	known := make(map[string]struct{}, len(snapshots))
+	for _, snapshot := range snapshots {
+		known[snapshot.BalanceRef] = struct{}{}
+	}
+
+	for _, requirement := range requirements {
+		if _, exists := known[requirement.BalanceRef]; !exists || requirement.AssetCode == "" ||
+			(requirement.Permission != engine.BalancePermissionSend && requirement.Permission != engine.BalancePermissionReceive) {
+			return invalidTransactionCompletionRecord("invalid execution balance requirement")
+		}
+	}
+
+	return nil
 }
 
 func validateCompletionGuards(guards []ExecutionGuard, transactions map[uuid.UUID]engine.Transaction) error {
@@ -416,7 +444,9 @@ func transactionCompletionIntent(transaction engine.Transaction, payload Transac
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
 		TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
-		PostingRefs: make([]string, 0, len(transaction.Postings)), OperationSpecs: make([]OperationRecordIntent, 0, len(payload.OperationSpecs)),
+		PostingRefs:         make([]string, 0, len(transaction.Postings)),
+		BalanceRequirements: append([]engine.BalanceRequirement(nil), transaction.BalanceRequirements...),
+		OperationSpecs:      make([]OperationRecordIntent, 0, len(payload.OperationSpecs)),
 	}
 	for _, posting := range transaction.Postings {
 		intent.PostingRefs = append(intent.PostingRefs, posting.Ref)
