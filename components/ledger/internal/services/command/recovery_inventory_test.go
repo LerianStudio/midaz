@@ -86,6 +86,7 @@ func TestBuildRecoveryInventoryPageClassifiesFormatsAndActions(t *testing.T) {
 		{Kind: RecoveryArtifactReceipt, Key: "receipt-secret-id", Raw: unprotectedReceipt},
 		{Kind: RecoveryArtifactReceipt, Key: "protected-receipt-secret-id", Raw: protectedReceipt},
 		{Kind: RecoveryArtifactBackupQueue, Key: "backup-revert", Raw: recoveryInventoryEnvelope(t, constant.ActionRevert)},
+		{Kind: RecoveryArtifactEngineRecover, Key: "engine-direct", Raw: recoveryInventoryEnvelope(t, constant.ActionDirect)},
 		{Kind: RecoveryArtifactCleanupSchedule, Key: "cleanup-member", Raw: cleanup},
 		{Kind: RecoveryArtifactProtectionCoordinator, Key: "coordinator-secret-id", Raw: coordinator},
 		{Kind: RecoveryArtifactGuard, Key: "guard-secret-id", Raw: []byte("APPROVED")},
@@ -107,6 +108,7 @@ func TestBuildRecoveryInventoryPageClassifiesFormatsAndActions(t *testing.T) {
 		{Kind: RecoveryArtifactBackupQueue, Format: RecoveryFormatEngineEnvelopeV2, Action: RecoveryActionCommit, Count: 1},
 		{Kind: RecoveryArtifactBackupQueue, Format: RecoveryFormatEngineEnvelopeV2, Action: RecoveryActionRevert, Count: 1},
 		{Kind: RecoveryArtifactCleanupSchedule, Format: RecoveryFormatCleanupMemberV1, Action: RecoveryActionUnknown, Count: 1},
+		{Kind: RecoveryArtifactEngineRecover, Format: RecoveryFormatEngineEnvelopeV2, Action: RecoveryActionCreate, Count: 1},
 		{Kind: RecoveryArtifactGuard, Format: RecoveryFormatGuardToken, Action: RecoveryActionUnknown, Count: 1},
 		{Kind: RecoveryArtifactPendingTransaction, Format: RecoveryFormatLegacy, Action: RecoveryActionCreate, Count: 1},
 		{Kind: RecoveryArtifactProtectionCoordinator, Format: RecoveryFormatCoordinatorV1, Action: RecoveryActionUnknown, Count: 1},
@@ -161,6 +163,7 @@ func TestRecoveryInventoryRejectsAmbiguousAndUnsupportedArtifacts(t *testing.T) 
 		{Kind: RecoveryArtifactBackupQueue, Key: "case", Raw: []byte(`{"FormatVersion":2}`)},
 		{Kind: RecoveryArtifactCleanupSchedule, Key: "cleanup", Raw: []byte("not:a:uuid")},
 		{Kind: RecoveryArtifactKind("unknown"), Key: "kind", Raw: []byte("value")},
+		{Kind: RecoveryArtifactEngineRecover, Key: "legacy-in-engine", Raw: recoveryInventoryLegacy(t, constant.ActionDirect)},
 	}
 
 	page, err := BuildRecoveryInventoryPage("tenant-a", "", false, tests)

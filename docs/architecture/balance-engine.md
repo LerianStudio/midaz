@@ -215,7 +215,7 @@ Each action captures its own execution identity and timestamps outside retry.
 Revert creates a new child transaction with the original transaction as its
 parent. Its v2 path performs a new tracer reservation and does not inherit the
 original transaction's tracer skip. Neither revert nor pending transitions
-rewrite the atomic recovery backup through the legacy write-behind path.
+rewrite the engine recover record through the legacy write-behind path.
 
 ## Precision and cache representation
 
@@ -360,7 +360,7 @@ accepted. Similar text inside runtime or transport errors remains technical.
 
 The inactive posting adapter sends one versioned envelope in `ARGV[1]` containing the
 accounting DTO, opaque recovery payloads, and indices into `KEYS`. Every physical
-balance, deletion marker, schedule, backup, receipt, and guard key must appear in
+balance, deletion marker, schedule, recover, receipt, and guard key must appear in
 `KEYS`; hash field names belong in ARGV. Preserve the existing `{transactions}`
 hash tag. Tenant namespacing comes only from authenticated context.
 
@@ -391,7 +391,7 @@ Before the first write, the engine must:
 Only then may the script publish prepared writes. Update each changed balance's
 schedule score with overwrite semantics, retaining the worker's fractional-second
 precision. Do not use `ZADD NX`. Refusals before commit leave key values, TTLs,
-absence, schedule, backups, and guards unchanged, except separately executed
+absence, schedule, recover records, and guards unchanged, except separately executed
 conditional normalization.
 
 Lua execution is isolated, not rollback-capable. An arbitrary error after the
@@ -427,8 +427,8 @@ Unknown or indeterminate execution failures, malformed results, and failures
 after confirmed accounting retain the idempotency claim and recovery evidence.
 Only confirmed precommit failures permit compensation. Normal completion uses
 the frozen recovery projector and durable finalizer, without invoking legacy
-queue seeds, backup rewrites, or BTO persistence. The normal response preserves
-CREATED while SQL stores APPROVED. The recovery consumer owns exact-byte backup
+queue seeds, recover rewrites, or BTO persistence. The normal response preserves
+CREATED while SQL stores APPROVED. The recovery consumer owns exact-byte recover
 acknowledgment; successful normal finalization does not delete receipts or guards.
 
 Accounting `EVALSHA`/`EVAL` and repair calls use a command wrapper with
@@ -464,7 +464,7 @@ Technical replies use `MIDAZ_ENGINE_TECH_V1 ` and a validated technical code.
 A malformed response, corrupt stored receipt, or transport failure can describe
 an execution that already changed state and must not enter CAS retry. A deliberate
 post-first-SET command denial is covered by integration tests: the balance write
-survives while later schedule/backup/guard/receipt writes can be absent. The
+survives while later schedule/recover/guard/receipt writes can be absent. The
 adapter reports an indeterminate outcome, preserves evidence, and sends no blind
 retry. Receipts prevent duplicate completed executions; they do not roll back or
 automatically repair a partially executed commit.
@@ -563,10 +563,14 @@ or change already-materialized legacy IDs. Projection validates real debt deltas
 required companions, immutable balance identity, and per-transaction final state;
 historical synthetic row states remain separate from truthful movements.
 
-The script commits recovery data and receipts/guards in the same execution as
-balance changes; a later Go backup update must not be required for recoverability.
-Backup hash fields identify both transaction and execution. Cleanup checks both
-identities so delayed cleanup cannot erase a later transition's backup.
+The script commits version-two recovery data to the tenant-scoped
+`engine:{transactions}:recover:v2` hash in the same execution as balance changes
+and receipts/guards; a later Go update must not be required for recoverability.
+The legacy `backup_queue:{transactions}` hash remains the only target of legacy
+writers and may contain historical version-two envelopes. There is no dual write,
+copy, or fallback between the hashes. Fields identify both transaction and
+execution. The consumer preserves the owning origin through exact ACK so an
+identical field in the other hash remains independent.
 
 Receipt and guard retention is not balance-cache TTL. The 30-second deletion-marker
 TTL is a separate, unchanged delete-operation guard and is not the balance-cache
@@ -590,9 +594,9 @@ transaction coordinator and adds the execution to a tenant-global, same-slot due
 index. Valkey 8.1 does not provide independent expiry for hash fields, while
 receipts and guards share hashes across executions, so the recovery consumer owns
 bounded cleanup instead of expiring a whole hash. Each consumer cycle sweeps due
-members even when the recovery hash is empty. Cleanup revalidates the exact due
+members even when either recovery hash is empty. Cleanup revalidates the exact due
 score, receipt scope and membership, terminal acknowledgement proof, absence of
-every recovery member, and every coordinator deadline in one atomic script. It
+every recovery member from both hashes, and every coordinator deadline in one atomic script. It
 removes only that receipt and its coordinator links. A transaction guard is
 removed only when no other execution remains linked to that transaction, so an
 earlier deadline cannot erase a newer transition's protection. Missing receipts
@@ -608,7 +612,7 @@ does not activate it or relax the separate activation gates.
 
 - Confirmed pre-write refusal: cleanup may remove only that execution's
   uncommitted recovery preparation.
-- Indeterminate outcome: preserve receipts/backups, query recorded execution,
+- Indeterminate outcome: preserve receipts/recover records, query recorded execution,
   and reconcile before any accounting replay.
 - Confirmed balance application followed by projection/database/publication
   failure: finalize the same recorded result without reapplying postings.
@@ -624,12 +628,17 @@ change event dispatch or wire the posting engine into normal execution.
 
 ### Compatible recovery consumer
 
-The bootstrap-wired consumer selects the existing legacy path only when
+The bootstrap-wired consumer reads the legacy and engine recovery hashes
+independently; failure to read one origin does not prevent processing the other.
+Within the legacy hash it selects the existing legacy path only when
 `formatVersion` is absent from a complete JSON object. Explicit unsupported,
 duplicate, or ambiguously cased versions never fall back to legacy decoding.
 Malformed legacy records enter quarantine only when their canonical physical
 field matches the authenticated tenant scope. Untrusted fields remain untouched.
 Invalid version-2 records are retained rather than passed to legacy processing.
+The engine recovery hash accepts only a strictly validated version-two envelope;
+unversioned, malformed, and unsupported records remain there and never enter the
+legacy decoder or legacy quarantine.
 
 Version 2 validates envelope scope and the exact raw
 `transactionUUID:executionUUID` field before finalization. It uses frozen context
@@ -645,7 +654,7 @@ atomically in the existing PostgreSQL tables, then creates or verifies metadata
 in MongoDB. Existing metadata is never overwritten to force replay equivalence.
 A late pending-hold record after terminal completion is accepted only when every
 historical row already exists exactly; it cannot insert old rows or regress the
-terminal transaction. Persistence conflicts retain the backup.
+terminal transaction. Persistence conflicts retain the recovery record.
 
 `NewBalanceEngineFinalizerWithEvents` optionally dispatches the existing
 transaction, overdraft, and balance-change emitters after SQL and frozen metadata
@@ -663,7 +672,9 @@ guarantee, and a successful finalizer return does not prove event delivery.
 
 Only after SQL and metadata verification succeeds does the consumer request an
 atomic comparison of the exact original envelope bytes and deletion of its raw
-backup field. A matching attempt counter is cleared in that same operation. For
+field from the origin that was read. A matching attempt counter is cleared in
+that same operation only for the legacy hash; engine recovery does not create or
+clear legacy attempt fields. For
 new receipts, the same atomic ACK also updates the member/completion proof and
 the eventual cleanup deadline described above. Missing records are already
 acknowledged; replacements and failed or unknown acknowledgments are not reported
@@ -798,7 +809,7 @@ Before activation, require evidence for:
   locks, commit/cancel races, fingerprint conflict, and delayed cleanup.
 - Crash immediately after EVAL and failures during projection or persistence,
   producing identical normal/recovered rows and IDs without double application.
-- WRONGTYPE schedule/backup/guard keys caught before writes; deliberate
+- WRONGTYPE schedule/recover/guard keys caught before writes; deliberate
   post-first-write failure classified as indeterminate rather than rolled back.
 - Decimal magnitude/scale and version boundary round trips, empty collections,
   malformed wire, tenant separation, and unused versus touched pool entries.
@@ -897,8 +908,9 @@ instrumentation before activation.
 
 The version-two consumer uses its injected `MetricsFactory` to emit
 `balance_engine_recovery_total` and `balance_engine_recovery_duration_ms` once
-per finalization attempt, including rejection before persistence. Both use the
-closed `outcome` label: `completed`, `context_canceled`, `not_configured`,
+per finalization attempt, including rejection before persistence. Both use a
+closed `source` label (`legacy_backup` or `engine_recover`) and the closed
+`outcome` label: `completed`, `context_canceled`, `not_configured`,
 `finalization_failed`, `ack_failed`, `record_changed`, or `invalid_ack`.
 Duration buckets are 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000,
 and 30000 ms. Metric-emission failures are Debug-only and cannot change the

@@ -10,6 +10,8 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 )
 
 const (
@@ -24,6 +26,7 @@ const (
 	recoveryMetricName         = "balance_engine_recovery_total"
 	recoveryMetricDurationName = "balance_engine_recovery_duration_ms"
 	recoveryMetricOutcomeLabel = "outcome"
+	recoveryMetricSourceLabel  = "source"
 	recoveryMetricCounterUnit  = "1"
 	recoveryMetricDurationUnit = "ms"
 	recoveryMetricCounterDesc  = "Number of bounded balance-engine recovery outcomes."
@@ -32,13 +35,13 @@ const (
 
 var recoveryMetricDurationBuckets = []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000}
 
-func (r *RedisQueueConsumer) emitRecoveryMetrics(ctx context.Context, outcome string, duration time.Duration) {
+func (r *RedisQueueConsumer) emitRecoveryMetrics(ctx context.Context, source txRedis.RecoveryQueueSource, outcome string, duration time.Duration) {
 	if r.metricsFactory == nil {
 		return
 	}
 
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
-	labels := map[string]string{recoveryMetricOutcomeLabel: outcome}
+	labels := map[string]string{recoveryMetricOutcomeLabel: outcome, recoveryMetricSourceLabel: string(source)}
 
 	if err := r.metricsFactory.AddCounter(ctx, recoveryMetricName, recoveryMetricCounterDesc, recoveryMetricCounterUnit, labels, 1); err != nil {
 		logger.Log(ctx, libLog.LevelDebug, "Unable to record balance-engine recovery outcome metric", libLog.Err(err))

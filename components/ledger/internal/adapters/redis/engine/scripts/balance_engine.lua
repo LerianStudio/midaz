@@ -1149,7 +1149,7 @@ local function execute(request, maximumPrepared)
         charge(coordinator.field)
         charge(coordinator.value)
     end
-    local preparedBalances, preparedBackups = {}, {}
+    local preparedBalances, preparedRecoverRecords = {}, {}
     for _, item in ipairs(touched) do
         preparedBalances[#preparedBalances + 1] = { key = KEYS[item.keyIndex], value = charge(encodeBalance(item)) }
     end
@@ -1163,7 +1163,7 @@ local function execute(request, maximumPrepared)
             recoveryMovements[#recoveryMovements + 1] = saved
         end
         for _, snapshot in ipairs(txResult.final) do recoveryFinal[#recoveryFinal + 1] = snapshotCopy(snapshot, true) end
-        preparedBackups[#preparedBackups + 1] = {
+        preparedRecoverRecords[#preparedRecoverRecords + 1] = {
             field = transaction.recoveryField,
             value = charge(encodeJSON({
                 formatVersion = 2, tenantId = request.tenantId, organizationId = request.organizationId,
@@ -1201,7 +1201,7 @@ local function execute(request, maximumPrepared)
     commitStarted = true
     for _, balance in ipairs(preparedBalances) do redis.call("SET", balance.key, balance.value, "EX", balance_cache_ttl_seconds) end
     for _, balance in ipairs(preparedBalances) do redis.call("ZADD", KEYS[1], score, balance.key) end
-    for _, backup in ipairs(preparedBackups) do redis.call("HSET", KEYS[2], backup.field, backup.value) end
+    for _, recoverRecord in ipairs(preparedRecoverRecords) do redis.call("HSET", KEYS[2], recoverRecord.field, recoverRecord.value) end
     for _, transaction in ipairs(request.transactions) do redis.call("HSET", KEYS[4], transaction.guardField, transaction.nextGuard) end
     for _, coordinator in ipairs(preparedProtection) do redis.call("HSET", protectionKey, coordinator.field, coordinator.value) end
     redis.call("HSET", KEYS[3], request.receiptField, receipt)

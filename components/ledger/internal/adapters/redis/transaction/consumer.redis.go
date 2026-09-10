@@ -1623,12 +1623,24 @@ func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key
 
 // ReadAllMessagesFromQueue read all messages from redis queue
 func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error) {
+	return rr.ReadAllRecoveryMessages(ctx, RecoveryQueueSourceLegacyBackup)
+}
+
+// ReadAllRecoveryMessages reads one recovery hash selected by a closed source.
+// Callers must retain the source alongside every record; fields are unique only
+// within one hash and must never be merged across origins.
+func (rr *RedisConsumerRepository) ReadAllRecoveryMessages(ctx context.Context, source RecoveryQueueSource) (map[string]string, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.read_all_messages_from_queue")
+	ctx, span := tracer.Start(ctx, "redis.read_all_recovery_messages")
 	defer span.End()
 
-	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
+	queueKey, err := recoveryQueueKey(source)
+	if err != nil {
+		return nil, err
+	}
+
+	prefixedQueue, err := tenantKeyFromContextOrError(ctx, queueKey)
 	if err != nil {
 		return nil, err
 	}
@@ -1642,7 +1654,7 @@ func (rr *RedisConsumerRepository) ReadAllMessagesFromQueue(ctx context.Context)
 
 	data, err := rds.HGetAll(ctx, prefixedQueue).Result()
 	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Failed to read all messages from queue", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to read recovery messages", libLog.String("source", string(source)), libLog.Err(err))
 
 		return nil, err
 	}
@@ -1691,6 +1703,12 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 // absent or replaced records leave counters, receipts, and guards untouched.
 // Results are RecoveryAckMissing, RecoveryAckDeleted, or RecoveryAckReplaced.
 func (rr *RedisConsumerRepository) CompareAndDeleteRecovery(ctx context.Context, field, expectedPayload string) (int64, error) {
+	return rr.CompareAndDeleteRecoveryFrom(ctx, RecoveryQueueSourceLegacyBackup, field, expectedPayload)
+}
+
+// CompareAndDeleteRecoveryFrom acknowledges only the exact envelope in the
+// selected origin. A matching field in the other recovery hash is untouched.
+func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryFrom(ctx context.Context, source RecoveryQueueSource, field, expectedPayload string) (int64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -1712,7 +1730,16 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecovery(ctx context.Context,
 		}
 	}
 
-	keys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, TransactionBackupAttemptsQueue})
+	queueKey, err := recoveryQueueKey(source)
+	if err != nil {
+		return 0, err
+	}
+	attemptsKey := TransactionBackupAttemptsQueue
+	if !source.clearsLegacyAttempts() {
+		attemptsKey = queueKey
+	}
+
+	keys, err := tenantKeysFromContext(ctx, []string{queueKey, attemptsKey})
 	if err != nil {
 		return 0, fmt.Errorf("resolve recovery acknowledgement keys: %w", err)
 	}
@@ -1727,7 +1754,12 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecovery(ctx context.Context,
 		return 0, fmt.Errorf("get recovery acknowledgement client: %w", err)
 	}
 
-	result, err := compareDeleteRecoveryScript.Run(ctx, client, keys, field, expectedPayload, counterField).Int64()
+	clearAttempts := "0"
+	if source.clearsLegacyAttempts() {
+		clearAttempts = "1"
+	}
+
+	result, err := compareDeleteRecoveryScript.Run(ctx, client, keys, field, expectedPayload, counterField, clearAttempts).Int64()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to acknowledge recovery", err)
 		return 0, fmt.Errorf("compare and delete recovery: %w", err)
@@ -1753,6 +1785,23 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtection(
 	terminal bool,
 	completedAt time.Time,
 ) (int64, error) {
+	return rr.CompareAndDeleteRecoveryWithProtectionFrom(
+		ctx, RecoveryQueueSourceLegacyBackup, organizationID, ledgerID,
+		field, expectedPayload, terminal, completedAt,
+	)
+}
+
+// CompareAndDeleteRecoveryWithProtectionFrom acknowledges a durably finalized
+// record only in its owning origin while preserving the shared receipt, guard,
+// protection coordinator, and cleanup protocol.
+func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtectionFrom(
+	ctx context.Context,
+	source RecoveryQueueSource,
+	organizationID, ledgerID uuid.UUID,
+	field, expectedPayload string,
+	terminal bool,
+	completedAt time.Time,
+) (int64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -1765,10 +1814,18 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtection(
 	}
 
 	scope := organizationID.String() + ":" + ledgerID.String()
+	queueKey, err := recoveryQueueKey(source)
+	if err != nil {
+		return 0, err
+	}
+	attemptsKey := TransactionBackupAttemptsQueue
+	if !source.clearsLegacyAttempts() {
+		attemptsKey = queueKey
+	}
 
 	keys, err := tenantKeysFromContext(ctx, []string{
-		TransactionBackupQueue,
-		TransactionBackupAttemptsQueue,
+		queueKey,
+		attemptsKey,
 		"engine:" + cachepolicy.HashTag + ":receipts:" + scope,
 		"engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		"engine:" + cachepolicy.HashTag + ":protection:" + scope,
@@ -1792,9 +1849,13 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtection(
 	if terminal {
 		terminalFlag = "1"
 	}
+	clearAttempts := "0"
+	if source.clearsLegacyAttempts() {
+		clearAttempts = "1"
+	}
 
 	result, err := acknowledgeEngineRecoveryScript.Run(ctx, client, keys,
-		field, expectedPayload, counterField, transactionRaw, executionRaw, terminalFlag, completedAt.UnixMilli()).Int64()
+		field, expectedPayload, counterField, transactionRaw, executionRaw, terminalFlag, completedAt.UnixMilli(), clearAttempts).Int64()
 	if err != nil {
 		return 0, fmt.Errorf("acknowledge protected recovery: %w", err)
 	}

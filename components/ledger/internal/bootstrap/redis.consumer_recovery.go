@@ -28,12 +28,20 @@ type transactionCompleter interface {
 	Complete(context.Context, *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error)
 }
 
-type recoveryRecordAcknowledger interface {
+type legacyRecoveryRecordAcknowledger interface {
 	CompareAndDeleteRecovery(context.Context, string, string) (int64, error)
 }
 
-type recoveryProtectionAcknowledger interface {
+type recoveryRecordAcknowledger interface {
+	CompareAndDeleteRecoveryFrom(context.Context, txRedis.RecoveryQueueSource, string, string) (int64, error)
+}
+
+type legacyRecoveryProtectionAcknowledger interface {
 	CompareAndDeleteRecoveryWithProtection(context.Context, uuid.UUID, uuid.UUID, string, string, bool, time.Time) (int64, error)
+}
+
+type recoveryProtectionAcknowledger interface {
+	CompareAndDeleteRecoveryWithProtectionFrom(context.Context, txRedis.RecoveryQueueSource, uuid.UUID, uuid.UUID, string, string, bool, time.Time) (int64, error)
 }
 
 type recoveryCleanupOwner interface {
@@ -185,19 +193,19 @@ func backupRecordEligible(ttl, now time.Time) bool {
 	return ttl.Unix() <= now.Add(-MessageTimeOfLife*time.Minute).Unix()
 }
 
-func (r *RedisQueueConsumer) processRecoveryRecord(ctx context.Context, field, raw string, envelope *command.TransactionCompletionRecord) {
-	if err := r.finalizeRecoveryRecord(ctx, field, raw, envelope); err != nil {
-		r.Logger.Log(ctx, libLog.LevelError, "Version-two backup retained after recovery failure", libLog.String("redis_key", field), libLog.Err(err))
+func (r *RedisQueueConsumer) processRecoveryRecord(ctx context.Context, source txRedis.RecoveryQueueSource, field, raw string, envelope *command.TransactionCompletionRecord) {
+	if err := r.finalizeRecoveryRecord(ctx, source, field, raw, envelope); err != nil {
+		r.Logger.Log(ctx, libLog.LevelError, "Version-two record retained after recovery failure", libLog.String("source", string(source)), libLog.String("redis_key", field), libLog.Err(err))
 	}
 }
 
-func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, raw string, envelope *command.TransactionCompletionRecord) error {
+func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, source txRedis.RecoveryQueueSource, field, raw string, envelope *command.TransactionCompletionRecord) error {
 	startedAt := time.Now()
 	outcome := recoveryMetricOutcomeCompleted
 
 	metricsCtx := ctx
 	defer func() {
-		r.emitRecoveryMetrics(metricsCtx, outcome, time.Since(startedAt))
+		r.emitRecoveryMetrics(metricsCtx, source, outcome, time.Since(startedAt))
 	}()
 
 	if err := ctx.Err(); err != nil {
@@ -210,8 +218,9 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, 
 		return errors.New("durable transaction completer is not configured")
 	}
 
-	acknowledger, ok := r.queue.(recoveryRecordAcknowledger)
-	if !ok {
+	acknowledger, hasOriginAwareAck := r.queue.(recoveryRecordAcknowledger)
+	legacyAcknowledger, hasLegacyAck := r.queue.(legacyRecoveryRecordAcknowledger)
+	if !hasOriginAwareAck && (source != txRedis.RecoveryQueueSourceLegacyBackup || !hasLegacyAck) {
 		outcome = recoveryMetricOutcomeNotConfigured
 		return errors.New("conditional balance recovery acknowledgment is not configured")
 	}
@@ -251,11 +260,30 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, 
 
 		completedAt := r.recoveryClock()
 
-		status, err = protected.CompareAndDeleteRecoveryWithProtection(
-			ctx, envelope.OrganizationID, envelope.LedgerID, field, raw, terminal, completedAt,
+		status, err = protected.CompareAndDeleteRecoveryWithProtectionFrom(
+			ctx, source, envelope.OrganizationID, envelope.LedgerID, field, raw, terminal, completedAt,
 		)
+	} else if source == txRedis.RecoveryQueueSourceLegacyBackup {
+		if protected, ok := r.queue.(legacyRecoveryProtectionAcknowledger); ok {
+			terminal, validStatus := durableRecoveryTerminal(completion.Outcome.TransactionStatus)
+			if !validStatus {
+				outcome = recoveryMetricOutcomeFinalizationFailed
+				return fmt.Errorf("complete recovered transaction: durable SQL reported unsupported status %q", completion.Outcome.TransactionStatus)
+			}
+			if r.recoveryClock == nil {
+				outcome = recoveryMetricOutcomeNotConfigured
+				return errors.New("durable balance recovery completion clock is not configured")
+			}
+			status, err = protected.CompareAndDeleteRecoveryWithProtection(
+				ctx, envelope.OrganizationID, envelope.LedgerID, field, raw, terminal, r.recoveryClock(),
+			)
+		} else if hasOriginAwareAck {
+			status, err = acknowledger.CompareAndDeleteRecoveryFrom(ctx, source, field, raw)
+		} else {
+			status, err = legacyAcknowledger.CompareAndDeleteRecovery(ctx, field, raw)
+		}
 	} else {
-		status, err = acknowledger.CompareAndDeleteRecovery(ctx, field, raw)
+		status, err = acknowledger.CompareAndDeleteRecoveryFrom(ctx, source, field, raw)
 	}
 
 	if err != nil {

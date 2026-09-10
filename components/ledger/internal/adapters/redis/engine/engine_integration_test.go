@@ -452,7 +452,7 @@ func TestIntegrationEngineAtomicRefusals(t *testing.T) {
 		t.Skip("requires Valkey")
 	}
 	container := redistestutil.SetupReusableContainer(t)
-	for _, kind := range []string{"late posting", "schedule type", "backup type", "guard type", "receipt type", "protection type", "guard conflict", "orphan recovery", "prepared budget", "version overflow", "deleted balance"} {
+	for _, kind := range []string{"late posting", "schedule type", "recover type", "guard type", "receipt type", "protection type", "guard conflict", "orphan recovery", "prepared budget", "version overflow", "deleted balance"} {
 		t.Run(kind, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
 			f.seed(t, 0, f.input.Execution.Balances[0])
@@ -469,7 +469,7 @@ func TestIntegrationEngineAtomicRefusals(t *testing.T) {
 				want = `"code":"insufficient_funds"`
 			case "schedule type":
 				require.NoError(t, container.Client.Set(context.Background(), f.resolved.Schedule, "wrong", time.Hour).Err())
-			case "backup type":
+			case "recover type":
 				require.NoError(t, container.Client.Set(context.Background(), f.resolved.Recovery, "wrong", time.Hour).Err())
 			case "guard type":
 				require.NoError(t, container.Client.Set(context.Background(), f.resolved.Guards, "wrong", time.Hour).Err())
@@ -569,15 +569,15 @@ func TestIntegrationEngineReplayAndInt64(t *testing.T) {
 	require.Contains(t, cache, `"Version":9007199254740994`)
 	require.Contains(t, cache, `"version":"9007199254740994"`)
 	field := f.input.Execution.Transactions[0].ID.String() + ":" + f.input.Execution.ExecutionID.String()
-	backup, err := container.Client.HGet(context.Background(), f.resolved.Recovery, field).Result()
+	recoverRecord, err := container.Client.HGet(context.Background(), f.resolved.Recovery, field).Result()
 	require.NoError(t, err)
-	require.Contains(t, backup, `"version":9007199254740993`)
-	require.Contains(t, backup, `"version":9007199254740994`)
+	require.Contains(t, recoverRecord, `"version":9007199254740993`)
+	require.Contains(t, recoverRecord, `"version":9007199254740994`)
 	var saved struct {
 		Payload string
 		Result  accounting.ExecutionResult
 	}
-	require.NoError(t, json.Unmarshal([]byte(backup), &saved))
+	require.NoError(t, json.Unmarshal([]byte(recoverRecord), &saved))
 	require.Equal(t, int64(9007199254740994), saved.Result.Final[0].Version)
 	require.Equal(t, string(f.input.CompletionPlans[0].Payload), saved.Payload)
 	before := f.capture(t)
@@ -603,6 +603,26 @@ func TestIntegrationEngineReplayAndInt64(t *testing.T) {
 	result = decodeIntegrationResult(t, raw)
 	require.Equal(t, integrationState{"69", "0", "0", "9007199254740995"}, result.Movements[0].Before)
 	require.Equal(t, integrationState{"39", "0", "0", "9007199254740996"}, finalState(result.Final[0]))
+}
+
+func TestIntegrationEngineWritesOnlyEngineRecoverHash(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	f := newIntegrationFixture(t, container.Client)
+	legacyQueue := strings.Replace(f.resolved.Recovery, cachepolicy.EngineRecoverQueue, "backup_queue:"+cachepolicy.HashTag, 1)
+	require.NotEqual(t, f.resolved.Recovery, legacyQueue)
+	t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), legacyQueue).Err()) })
+	require.NoError(t, container.Client.HSet(context.Background(), legacyQueue, "legacy-field", "legacy-payload").Err())
+
+	_, err := f.run(t)
+	require.NoError(t, err)
+	field := f.input.Execution.Transactions[0].ID.String() + ":" + f.input.Execution.ExecutionID.String()
+	require.True(t, container.Client.HExists(context.Background(), f.resolved.Recovery, field).Val())
+	require.False(t, container.Client.HExists(context.Background(), legacyQueue, field).Val())
+	require.Equal(t, map[string]string{"legacy-field": "legacy-payload"}, container.Client.HGetAll(context.Background(), legacyQueue).Val())
 }
 
 func TestIntegrationEngineDrawPolicyPrecedence(t *testing.T) {
@@ -832,13 +852,13 @@ func TestIntegrationEngineMultipleTransactions(t *testing.T) {
 	require.Equal(t, integrationState{"70", "0", "0", "3"}, finalState(result.Final[0]))
 	for i, wantAvailable := range []string{"90", "80", "70"} {
 		field := f.input.Execution.Transactions[i].ID.String() + ":" + f.input.Execution.ExecutionID.String()
-		backup, err := container.Client.HGet(context.Background(), f.resolved.Recovery, field).Bytes()
+		recoverRecord, err := container.Client.HGet(context.Background(), f.resolved.Recovery, field).Bytes()
 		require.NoError(t, err)
 		var envelope struct {
 			TransactionID string                     `json:"transactionId"`
 			Result        accounting.ExecutionResult `json:"result"`
 		}
-		require.NoError(t, json.Unmarshal(backup, &envelope))
+		require.NoError(t, json.Unmarshal(recoverRecord, &envelope))
 		require.Equal(t, f.input.Execution.Transactions[i].ID.String(), envelope.TransactionID)
 		require.Len(t, envelope.Result.Final, 1)
 		require.Len(t, envelope.Result.Movements, 1)

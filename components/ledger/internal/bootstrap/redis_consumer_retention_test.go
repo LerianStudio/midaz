@@ -68,7 +68,7 @@ func TestRecoveryCompletionUsesInjectedClockAfterDurableOutcome(t *testing.T) {
 		LedgerID:       uuid.MustParse("22222222-2222-4222-8222-222222222222"),
 	}
 
-	err := consumer.finalizeRecoveryRecord(t.Context(), "field", "raw", envelope)
+	err := consumer.finalizeRecoveryRecord(t.Context(), transaction.RecoveryQueueSourceLegacyBackup, "field", "raw", envelope)
 	require.NoError(t, err)
 	require.Equal(t, fixed, queue.completedAt)
 }

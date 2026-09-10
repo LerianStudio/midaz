@@ -218,6 +218,30 @@ type recoveryQueueStub struct {
 	messages       map[string]string
 }
 
+type originRecoveryQueueStub struct {
+	recoveryQueueStub
+	messagesBySource map[txRedis.RecoveryQueueSource]map[string]string
+	readErrBySource  map[txRedis.RecoveryQueueSource]error
+	reads            []txRedis.RecoveryQueueSource
+	ackSources       []txRedis.RecoveryQueueSource
+}
+
+func (q *originRecoveryQueueStub) ReadAllRecoveryMessages(_ context.Context, source txRedis.RecoveryQueueSource) (map[string]string, error) {
+	q.reads = append(q.reads, source)
+	if err := q.readErrBySource[source]; err != nil {
+		return nil, err
+	}
+	return q.messagesBySource[source], nil
+}
+
+func (q *originRecoveryQueueStub) CompareAndDeleteRecoveryFrom(_ context.Context, source txRedis.RecoveryQueueSource, field, payload string) (int64, error) {
+	q.calls++
+	q.field, q.payload = field, payload
+	q.ackSources = append(q.ackSources, source)
+	*q.order = append(*q.order, "conditional-ack")
+	return q.status, q.err
+}
+
 func (q *recoveryQueueStub) ReadAllMessagesFromQueue(context.Context) (map[string]string, error) {
 	return q.messages, nil
 }
@@ -253,6 +277,78 @@ func TestReadMessagesAndProcess_UnknownVersionDoesNotFinalizeOrAcknowledge(t *te
 	}
 }
 
+func TestReadMessagesAndProcess_OriginsRemainIndependent(t *testing.T) {
+	field, raw, _ := consumerRecoveryFixture(t)
+	order := []string{}
+	finalizer := &recoveryCompleterStub{order: &order}
+	queue := &originRecoveryQueueStub{
+		recoveryQueueStub: recoveryQueueStub{status: txRedis.RecoveryAckDeleted, order: &order},
+		messagesBySource: map[txRedis.RecoveryQueueSource]map[string]string{
+			txRedis.RecoveryQueueSourceLegacyBackup:  {field: raw},
+			txRedis.RecoveryQueueSourceEngineRecover: {field: raw},
+		},
+		readErrBySource: map[txRedis.RecoveryQueueSource]error{},
+	}
+	consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithTransactionCompleter(finalizer)
+	consumer.readMessagesAndProcess(t.Context())
+
+	require.Equal(t, 2, finalizer.calls)
+	require.Equal(t, []txRedis.RecoveryQueueSource{
+		txRedis.RecoveryQueueSourceLegacyBackup,
+		txRedis.RecoveryQueueSourceEngineRecover,
+	}, queue.reads)
+	require.ElementsMatch(t, []txRedis.RecoveryQueueSource{
+		txRedis.RecoveryQueueSourceLegacyBackup,
+		txRedis.RecoveryQueueSourceEngineRecover,
+	}, queue.ackSources)
+}
+
+func TestReadMessagesAndProcess_OneOriginFailureDoesNotBlockOther(t *testing.T) {
+	field, raw, _ := consumerRecoveryFixture(t)
+	for _, failedSource := range []txRedis.RecoveryQueueSource{
+		txRedis.RecoveryQueueSourceLegacyBackup,
+		txRedis.RecoveryQueueSourceEngineRecover,
+	} {
+		t.Run(string(failedSource), func(t *testing.T) {
+			order := []string{}
+			finalizer := &recoveryCompleterStub{order: &order}
+			queue := &originRecoveryQueueStub{
+				recoveryQueueStub: recoveryQueueStub{status: txRedis.RecoveryAckDeleted, order: &order},
+				messagesBySource: map[txRedis.RecoveryQueueSource]map[string]string{
+					txRedis.RecoveryQueueSourceLegacyBackup:  {field: raw},
+					txRedis.RecoveryQueueSourceEngineRecover: {field: raw},
+				},
+				readErrBySource: map[txRedis.RecoveryQueueSource]error{failedSource: errors.New("read failed")},
+			}
+			consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithTransactionCompleter(finalizer)
+			consumer.readMessagesAndProcess(t.Context())
+			require.Equal(t, 1, finalizer.calls)
+			require.Len(t, queue.ackSources, 1)
+			require.NotEqual(t, failedSource, queue.ackSources[0])
+		})
+	}
+}
+
+func TestReadMessagesAndProcess_EngineRecoverNeverFallsBackToLegacyOrQuarantine(t *testing.T) {
+	order := []string{}
+	finalizer := &recoveryCompleterStub{order: &order}
+	queue := &originRecoveryQueueStub{
+		recoveryQueueStub: recoveryQueueStub{status: txRedis.RecoveryAckDeleted, order: &order},
+		messagesBySource: map[txRedis.RecoveryQueueSource]map[string]string{
+			txRedis.RecoveryQueueSourceEngineRecover: {
+				"unversioned": `{}`,
+				"unknown":     `{"formatVersion":3}`,
+				"malformed":   `{`,
+			},
+		},
+		readErrBySource: map[txRedis.RecoveryQueueSource]error{},
+	}
+	consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}, quarantineRepo: &recoveryQuarantineStub{}}).WithTransactionCompleter(finalizer)
+	consumer.readMessagesAndProcess(t.Context())
+	require.Zero(t, finalizer.calls)
+	require.Zero(t, queue.calls)
+}
+
 func (q *recoveryQueueStub) CompareAndDeleteRecovery(_ context.Context, field, payload string) (int64, error) {
 	q.calls++
 	q.field, q.payload = field, payload
@@ -279,7 +375,7 @@ func TestFinalizeRecoveryRecord_RequiresDurableCompletionAndExactAck(t *testing.
 			finalizer := &recoveryCompleterStub{err: test.finalizeErr, order: &order}
 			queue := &recoveryQueueStub{status: test.status, err: test.ackErr, order: &order}
 			consumer := (&RedisQueueConsumer{queue: queue}).WithTransactionCompleter(finalizer)
-			err := consumer.finalizeRecoveryRecord(context.Background(), "transaction:execution", "exact original JSON bytes", &command.TransactionCompletionRecord{})
+			err := consumer.finalizeRecoveryRecord(context.Background(), txRedis.RecoveryQueueSourceLegacyBackup, "transaction:execution", "exact original JSON bytes", &command.TransactionCompletionRecord{})
 			if test.wantErr {
 				require.Error(t, err)
 			} else {
@@ -306,17 +402,17 @@ func TestFinalizeRecoveryRecord_MissingCapabilityAndCancellationRetain(t *testin
 	order := []string{}
 	finalizer := &recoveryCompleterStub{order: &order}
 	consumer := (&RedisQueueConsumer{}).WithTransactionCompleter(finalizer)
-	require.Error(t, consumer.finalizeRecoveryRecord(context.Background(), "field", "raw", nil))
+	require.Error(t, consumer.finalizeRecoveryRecord(context.Background(), txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", nil))
 	require.Zero(t, finalizer.calls)
 	queue := &recoveryQueueStub{order: &order}
 	consumer.queue = queue
 	consumer.transactionCompleter = nil
-	require.Error(t, consumer.finalizeRecoveryRecord(context.Background(), "field", "raw", nil))
+	require.Error(t, consumer.finalizeRecoveryRecord(context.Background(), txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", nil))
 	require.Zero(t, queue.calls)
 	consumer.transactionCompleter = finalizer
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	require.ErrorIs(t, consumer.finalizeRecoveryRecord(ctx, "field", "raw", nil), context.Canceled)
+	require.ErrorIs(t, consumer.finalizeRecoveryRecord(ctx, txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", nil), context.Canceled)
 	require.Zero(t, finalizer.calls)
 	require.Zero(t, queue.calls)
 }

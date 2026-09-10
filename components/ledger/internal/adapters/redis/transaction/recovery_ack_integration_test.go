@@ -18,6 +18,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
@@ -206,4 +207,75 @@ func TestIntegrationRecoveryAcknowledgement(t *testing.T) {
 		require.NotEqual(t, RecoveryAckDeleted, result)
 		require.Equal(t, before, recoveryAckState(t, container.Client, f.queue, f.attempts))
 	})
+}
+
+func TestIntegrationRecoveryAcknowledgementKeepsOriginsIndependent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	f := newRecoveryAckFixture(t, container.Client)
+	engineQueue, err := tenantKeyFromContextOrError(f.ctx, cachepolicy.EngineRecoverQueue)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), engineQueue).Err()) })
+
+	const legacyPayload = `{"formatVersion":2,"payload":"legacy"}`
+	const enginePayload = `{"formatVersion":2,"payload":"engine"}`
+	require.NoError(t, container.Client.HSet(f.ctx, f.queue, f.field, legacyPayload).Err())
+	require.NoError(t, container.Client.HSet(f.ctx, engineQueue, f.field, enginePayload).Err())
+	_, err = f.repo.IncrementBackupAttempt(f.ctx, f.field)
+	require.NoError(t, err)
+
+	status, err := f.repo.CompareAndDeleteRecoveryFrom(
+		f.ctx, RecoveryQueueSourceEngineRecover, f.field, enginePayload,
+	)
+	require.NoError(t, err)
+	require.Equal(t, RecoveryAckDeleted, status)
+	require.Equal(t, legacyPayload, container.Client.HGet(f.ctx, f.queue, f.field).Val())
+	require.False(t, container.Client.HExists(f.ctx, engineQueue, f.field).Val())
+	require.True(t, container.Client.HExists(f.ctx, f.attempts, f.counter).Val(), "engine ACK must not clear legacy attempts")
+
+	require.NoError(t, container.Client.HSet(f.ctx, engineQueue, f.field, "replacement").Err())
+	status, err = f.repo.CompareAndDeleteRecoveryFrom(
+		f.ctx, RecoveryQueueSourceEngineRecover, f.field, enginePayload,
+	)
+	require.NoError(t, err)
+	require.Equal(t, RecoveryAckReplaced, status)
+	require.Equal(t, "replacement", container.Client.HGet(f.ctx, engineQueue, f.field).Val())
+
+	require.NoError(t, container.Client.Del(f.ctx, f.attempts).Err())
+	require.NoError(t, container.Client.Set(f.ctx, f.attempts, "legacy-attempts-wrong-type", 0).Err())
+	status, err = f.repo.CompareAndDeleteRecoveryFrom(
+		f.ctx, RecoveryQueueSourceEngineRecover, f.field, "replacement",
+	)
+	require.NoError(t, err)
+	require.Equal(t, RecoveryAckDeleted, status)
+	require.Equal(t, "legacy-attempts-wrong-type", container.Client.Get(f.ctx, f.attempts).Val())
+}
+
+func TestIntegrationReadEngineRecoverMessagesIsTenantScoped(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	repo, err := NewConsumerRedis(&recoveryAckClient{client: container.Client})
+	require.NoError(t, err)
+	ctxA := tmcore.ContextWithTenantID(t.Context(), "recover-tenant-a-"+uuid.NewString())
+	ctxB := tmcore.ContextWithTenantID(t.Context(), "recover-tenant-b-"+uuid.NewString())
+	keyA, err := tenantKeyFromContextOrError(ctxA, cachepolicy.EngineRecoverQueue)
+	require.NoError(t, err)
+	keyB, err := tenantKeyFromContextOrError(ctxB, cachepolicy.EngineRecoverQueue)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), keyA, keyB).Err()) })
+	require.NoError(t, container.Client.HSet(ctxA, keyA, "field-a", "payload-a").Err())
+	require.NoError(t, container.Client.HSet(ctxB, keyB, "field-b", "payload-b").Err())
+
+	messagesA, err := repo.ReadAllRecoveryMessages(ctxA, RecoveryQueueSourceEngineRecover)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"field-a": "payload-a"}, messagesA)
+	messagesB, err := repo.ReadAllRecoveryMessages(ctxB, RecoveryQueueSourceEngineRecover)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"field-b": "payload-b"}, messagesB)
 }

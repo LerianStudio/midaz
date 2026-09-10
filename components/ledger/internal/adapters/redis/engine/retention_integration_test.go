@@ -51,8 +51,8 @@ func TestIntegrationDelayedFinalizationKeepsReplayProtectionThroughFullWindow(t 
 	completedAt := time.Date(2040, time.February, 10, 12, 30, 0, 123_000_000, time.UTC)
 	recoveryRepo, err := txredis.NewConsumerRedis(provider)
 	require.NoError(t, err)
-	status, err := recoveryRepo.CompareAndDeleteRecoveryWithProtection(
-		ctx, input.Execution.OrganizationID, input.Execution.LedgerID,
+	status, err := recoveryRepo.CompareAndDeleteRecoveryWithProtectionFrom(
+		ctx, txredis.RecoveryQueueSourceEngineRecover, input.Execution.OrganizationID, input.Execution.LedgerID,
 		recoveryField, recoveryRaw, true, completedAt,
 	)
 	require.NoError(t, err)

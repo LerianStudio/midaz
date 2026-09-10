@@ -68,6 +68,8 @@ func TestIntegrationRecoveryRetentionWaitsForEveryMember(t *testing.T) {
 	scope := organizationID.String() + ":" + ledgerID.String()
 	queue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
 	require.NoError(t, err)
+	engineQueue, err := tenantKeyFromContextOrError(ctx, cachepolicy.EngineRecoverQueue)
+	require.NoError(t, err)
 	attempts, err := tenantKeyFromContextOrError(ctx, TransactionBackupAttemptsQueue)
 	require.NoError(t, err)
 	receipts, err := tenantKeyFromContextOrError(ctx, "engine:"+cachepolicy.HashTag+":receipts:"+scope)
@@ -79,7 +81,7 @@ func TestIntegrationRecoveryRetentionWaitsForEveryMember(t *testing.T) {
 	cleanup, err := tenantKeyFromContextOrError(ctx, EngineRecoveryCleanupSchedule)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, container.Client.Del(context.Background(), queue, attempts, receipts, guards, protection, cleanup).Err())
+		require.NoError(t, container.Client.Del(context.Background(), queue, engineQueue, attempts, receipts, guards, protection, cleanup).Err())
 	})
 
 	receipt := retentionReceipt{
@@ -136,6 +138,13 @@ func TestIntegrationRecoveryRetentionWaitsForEveryMember(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, result.Scanned)
 	require.True(t, container.Client.HExists(ctx, receipts, executionID.String()).Val())
+
+	require.NoError(t, container.Client.HSet(ctx, engineQueue, fields[0], "independent-engine-recover").Err())
+	result, err = repo.CleanupEngineRecovery(ctx, completedAt.Add(7*24*time.Hour), 10)
+	require.ErrorContains(t, err, "recovery member still exists")
+	require.True(t, container.Client.HExists(ctx, receipts, executionID.String()).Val())
+	require.True(t, container.Client.HExists(ctx, guards, transactionIDs[0].String()).Val())
+	require.NoError(t, container.Client.HDel(ctx, engineQueue, fields[0]).Err())
 
 	result, err = repo.CleanupEngineRecovery(ctx, completedAt.Add(7*24*time.Hour), 10)
 	require.NoError(t, err)

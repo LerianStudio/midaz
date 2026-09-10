@@ -286,7 +286,7 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 
 	resolved := resolvedExecutionKeys{
 		TenantID: tmcore.GetTenantIDContext(ctx), Schedule: utils.BalanceSyncScheduleKey,
-		Recovery:   "backup_queue:" + cachepolicy.HashTag,
+		Recovery:   cachepolicy.EngineRecoverQueue,
 		Receipts:   "engine:" + cachepolicy.HashTag + ":receipts:" + scope,
 		Guards:     "engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		Protection: "engine:" + cachepolicy.HashTag + ":protection:" + scope,

@@ -2,10 +2,11 @@
 -- Use of this source code is governed by the Elastic License 2.0
 -- that can be found in the LICENSE file.
 
--- KEYS: due schedule, backup hash, receipt hash, guard hash, protection hash.
+-- KEYS: due schedule, legacy backup hash, engine recover hash, receipt hash,
+--       guard hash, protection hash.
 -- ARGV: schedule member, exact score, current unix millis, tenant ID,
 --       organization UUID, ledger UUID, execution UUID.
-if #KEYS ~= 5 or #ARGV ~= 7 then
+if #KEYS ~= 6 or #ARGV ~= 7 then
     return redis.error_reply("ERR invalid engine recovery cleanup arguments")
 end
 
@@ -37,7 +38,7 @@ end
 local currentScore = redis.call("ZSCORE", KEYS[1], member)
 if not currentScore or tonumber(currentScore) ~= expectedScore or expectedScore > nowMS then return 0 end
 
-local rawReceipt = redis.call("HGET", KEYS[3], executionID)
+local rawReceipt = redis.call("HGET", KEYS[4], executionID)
 if not rawReceipt then
     redis.call("ZREM", KEYS[1], member)
     return 2
@@ -79,13 +80,14 @@ for index, transactionID in ipairs(protection.transactions) do
         terminalAt < 1 or terminalAt % 1 ~= 0 then
         return redis.error_reply("ERR incomplete cleanup receipt proof")
     end
-    if redis.call("HEXISTS", KEYS[2], recoveryField) == 1 then
+    if redis.call("HEXISTS", KEYS[2], recoveryField) == 1 or
+        redis.call("HEXISTS", KEYS[3], recoveryField) == 1 then
         return redis.error_reply("ERR cleanup recovery member still exists")
     end
     if terminalAt > latestTerminalAt then latestTerminalAt = terminalAt end
     seen[transactionID] = true
 
-    local rawCoordinator = redis.call("HGET", KEYS[5], transactionID)
+    local rawCoordinator = redis.call("HGET", KEYS[6], transactionID)
     if not rawCoordinator then return redis.error_reply("ERR cleanup coordinator missing") end
     local decoded, coordinator = pcall(cjson.decode, rawCoordinator)
     if not decoded or type(coordinator) ~= "table" or coordinator.formatVersion ~= 1 or
@@ -132,13 +134,13 @@ end
 
 -- Every receipt, recovery, and coordinator check plus every replacement JSON
 -- encoding succeeded before the first artifact mutation.
-redis.call("HDEL", KEYS[3], executionID)
+redis.call("HDEL", KEYS[4], executionID)
 for _, coordinator in ipairs(coordinators) do
     if coordinator.value then
-        redis.call("HSET", KEYS[5], coordinator.field, coordinator.value)
+        redis.call("HSET", KEYS[6], coordinator.field, coordinator.value)
     else
+        redis.call("HDEL", KEYS[6], coordinator.field)
         redis.call("HDEL", KEYS[5], coordinator.field)
-        redis.call("HDEL", KEYS[4], coordinator.field)
     end
 end
 redis.call("ZREM", KEYS[1], member)

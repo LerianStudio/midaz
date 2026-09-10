@@ -125,7 +125,7 @@ func TestIntegration_AdapterExecute_TouchedDeletionMarkerAbortsMixedBatchWithout
 	require.Equal(t, 0, failure.TransactionIndex)
 	require.Equal(t, 1, failure.PostingIndex)
 	require.Equal(t, "@source#overdraft", failure.BalanceRef)
-	require.Equal(t, before, captureAdapterState(t, inspector, keys), "touched deletion refusal must preserve balances, markers, schedule, backup, receipts, guards, and absolute expirations")
+	require.Equal(t, before, captureAdapterState(t, inspector, keys), "touched deletion refusal must preserve balances, markers, schedule, recover records, receipts, guards, and absolute expirations")
 }
 
 func TestIntegration_AdapterExecute_RejectsEmptyTransactionsBeforeProvider(t *testing.T) {

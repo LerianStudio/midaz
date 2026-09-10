@@ -360,6 +360,17 @@ func podIdentifier() string {
 	return hostname
 }
 
+type recoveryQueueReader interface {
+	ReadAllRecoveryMessages(context.Context, txRedis.RecoveryQueueSource) (map[string]string, error)
+}
+
+type recoveryOriginStats struct {
+	read         bool
+	messageCount int
+	tooYoung     int
+	oldestTTL    time.Time
+}
+
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -368,36 +379,61 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 
 	r.Logger.Log(ctx, libLog.LevelDebug, "Init cron to read messages from redis...")
 
-	messages, err := r.queue.ReadAllMessagesFromQueue(ctx)
-	if err != nil {
-		r.Logger.Log(ctx, libLog.LevelError, "Failed to read messages from redis", libLog.Err(err))
-		return
+	var aggregate recoveryOriginStats
+	successfulOriginReads := 0
+	for _, source := range []txRedis.RecoveryQueueSource{
+		txRedis.RecoveryQueueSourceLegacyBackup,
+		txRedis.RecoveryQueueSourceEngineRecover,
+	} {
+		stats := r.readAndProcessRecoveryOrigin(ctx, span, source)
+		if !stats.read {
+			continue
+		}
+
+		successfulOriginReads++
+		aggregate.messageCount += stats.messageCount
+		aggregate.tooYoung += stats.tooYoung
+		if aggregate.oldestTTL.IsZero() || (!stats.oldestTTL.IsZero() && stats.oldestTTL.Before(aggregate.oldestTTL)) {
+			aggregate.oldestTTL = stats.oldestTTL
+		}
 	}
 
-	r.Logger.Log(ctx, libLog.LevelDebug, "Read messages from queue", libLog.Int("message_count", len(messages)))
-
-	// Emit the queue-depth gauge once per cycle (best-effort, nil-factory safe).
-	// Computed from the records already in hand so no extra Redis round-trip is
-	// needed. Depth is reported even on an empty cycle.
-	r.emitDepthGauge(ctx, int64(len(messages)))
+	// The existing depth and age gauges continue to represent all Redis-backed
+	// transaction recovery records. If either read fails, the healthy origin is
+	// still processed but no misleading partial aggregate is emitted.
+	if successfulOriginReads == 2 {
+		r.emitDepthGauge(ctx, int64(aggregate.messageCount))
+		r.emitOldestAgeGauge(ctx, aggregate.oldestTTL)
+	}
 	r.cleanupEngineRecovery(ctx)
+	r.Logger.Log(ctx, libLog.LevelDebug, "Messages under time-of-life threshold", libLog.Int("threshold_minutes", MessageTimeOfLife), libLog.Int("message_count", aggregate.tooYoung))
+	r.Logger.Log(ctx, libLog.LevelDebug, "Finished processing eligible messages", libLog.Int("eligible_count", aggregate.messageCount-aggregate.tooYoung))
+}
 
+func (r *RedisQueueConsumer) readAndProcessRecoveryOrigin(
+	ctx context.Context,
+	span trace.Span,
+	source txRedis.RecoveryQueueSource,
+) recoveryOriginStats {
+	messages, err := r.readRecoveryOrigin(ctx, source)
+	if err != nil {
+		r.Logger.Log(ctx, libLog.LevelError, "Failed to read recovery messages from Redis", libLog.String("source", string(source)), libLog.Err(err))
+		return recoveryOriginStats{}
+	}
+
+	stats := recoveryOriginStats{read: true, messageCount: len(messages)}
+	r.Logger.Log(ctx, libLog.LevelDebug, "Read recovery messages", libLog.String("source", string(source)), libLog.Int("message_count", len(messages)))
 	if len(messages) == 0 {
-		return
+		return stats
 	}
 
 	sem := make(chan struct{}, MaxWorkers)
-
 	var wg sync.WaitGroup
-
-	totalMessagesLessThanOneHour := 0
 
 	// oldestTTL tracks the earliest record TTL across successfully-parsed
 	// records, computed in the SAME pass that dispatches processing so each
 	// record is unmarshalled exactly once per cycle. Records that fail to parse
 	// are routed to quarantine and excluded from the age computation.
-	var oldestTTL time.Time
-
 Outer:
 	for key, message := range messages {
 		if ctx.Err() != nil {
@@ -407,7 +443,11 @@ Outer:
 
 		version, err := backupRecordVersion(message)
 		if err != nil {
-			r.handleInvalidBackupRecord(ctx, span, key, message, err)
+			if source == txRedis.RecoveryQueueSourceLegacyBackup {
+				r.handleInvalidBackupRecord(ctx, span, key, message, err)
+			} else {
+				r.Logger.Log(ctx, libLog.LevelWarn, "Invalid engine recover record retained", libLog.String("redis_key", key), libLog.Err(err))
+			}
 			continue
 		}
 
@@ -419,9 +459,12 @@ Outer:
 		if version == command.TransactionCompletionFormatVersion {
 			recovery, ttl, err = decodeRecoveryRecord(ctx, key, message)
 			if err != nil {
-				r.Logger.Log(ctx, libLog.LevelWarn, "Invalid version-two backup; record retained", libLog.String("redis_key", key), libLog.Err(err))
+				r.Logger.Log(ctx, libLog.LevelWarn, "Invalid version-two recovery record retained", libLog.String("source", string(source)), libLog.String("redis_key", key), libLog.Err(err))
 				continue
 			}
+		} else if source == txRedis.RecoveryQueueSourceEngineRecover {
+			r.Logger.Log(ctx, libLog.LevelWarn, "Unversioned engine recover record retained", libLog.String("redis_key", key))
+			continue
 		} else if err := json.Unmarshal([]byte(message), &transaction); err != nil {
 			// Unmarshal failure: the payload did not parse, so the org/ledger/tx
 			// IDs must come from the field key. The raw string is the financial
@@ -445,12 +488,12 @@ Outer:
 			ttl = transaction.TTL
 		}
 
-		if oldestTTL.IsZero() || ttl.Before(oldestTTL) {
-			oldestTTL = ttl
+		if stats.oldestTTL.IsZero() || ttl.Before(stats.oldestTTL) {
+			stats.oldestTTL = ttl
 		}
 
 		if !backupRecordEligible(ttl, time.Now()) {
-			totalMessagesLessThanOneHour++
+			stats.tooYoung++
 			continue
 		}
 
@@ -472,7 +515,7 @@ Outer:
 				}()
 
 				if recovery != nil {
-					r.processRecoveryRecord(ctx, key, message, recovery)
+					r.processRecoveryRecord(ctx, source, key, message, recovery)
 				} else {
 					r.processMessage(ctx, key, message, transaction)
 				}
@@ -480,14 +523,19 @@ Outer:
 	}
 
 	wg.Wait()
+	return stats
+}
 
-	// Emit the oldest-age gauge from the TTL tracked during the dispatch pass.
-	// Deterministic: derived from the pre-fan-out parse, not from the concurrent
-	// workers (which would be racy).
-	r.emitOldestAgeGauge(ctx, oldestTTL)
+func (r *RedisQueueConsumer) readRecoveryOrigin(ctx context.Context, source txRedis.RecoveryQueueSource) (map[string]string, error) {
+	if reader, ok := r.queue.(recoveryQueueReader); ok {
+		return reader.ReadAllRecoveryMessages(ctx, source)
+	}
 
-	r.Logger.Log(ctx, libLog.LevelDebug, "Messages under time-of-life threshold", libLog.Int("threshold_minutes", MessageTimeOfLife), libLog.Int("message_count", totalMessagesLessThanOneHour))
-	r.Logger.Log(ctx, libLog.LevelDebug, "Finished processing eligible messages", libLog.Int("eligible_count", len(messages)-totalMessagesLessThanOneHour))
+	if source == txRedis.RecoveryQueueSourceLegacyBackup {
+		return r.queue.ReadAllMessagesFromQueue(ctx)
+	}
+
+	return nil, fmt.Errorf("recovery queue source %q requires an origin-aware reader", source)
 }
 
 // processMessage handles a single Redis backup queue message: rebuilds balances
@@ -900,9 +948,9 @@ func parsePoisonKeyIDs(key string) (organizationID, ledgerID, transactionID uuid
 	return found[0], found[1], found[2], true
 }
 
-// emitDepthGauge sets the backup-queue depth gauge from the record count read
-// this cycle. Best-effort: a nil factory or a metric emit error never affects
-// processing (emit errors logged at Debug per T11).
+// emitDepthGauge sets the combined legacy-backup and engine-recover depth gauge
+// only after both origins were read this cycle. Best-effort: a nil factory or a
+// metric emit error never affects processing.
 func (r *RedisQueueConsumer) emitDepthGauge(ctx context.Context, depth int64) {
 	if r.metricsFactory == nil {
 		return

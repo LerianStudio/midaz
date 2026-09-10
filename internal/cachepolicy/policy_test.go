@@ -22,6 +22,10 @@ func TestPolicyConstants(t *testing.T) {
 		t.Fatalf("HashTag = %q, want %q", cachepolicy.HashTag, "{transactions}")
 	}
 
+	if cachepolicy.EngineRecoverQueue != "engine:{transactions}:recover:v2" {
+		t.Fatalf("EngineRecoverQueue = %q, want %q", cachepolicy.EngineRecoverQueue, "engine:{transactions}:recover:v2")
+	}
+
 	if cachepolicy.DeletionMarkerSuffix != ":deleted" {
 		t.Fatalf("DeletionMarkerSuffix = %q, want %q", cachepolicy.DeletionMarkerSuffix, ":deleted")
 	}

@@ -31,6 +31,7 @@ const (
 	// RecoveryArtifactPendingTransaction identifies a pending legacy backup payload.
 	RecoveryArtifactPendingTransaction    RecoveryArtifactKind = "pending_transaction"
 	RecoveryArtifactBackupQueue           RecoveryArtifactKind = "backup_queue"
+	RecoveryArtifactEngineRecover         RecoveryArtifactKind = "engine_recover"
 	RecoveryArtifactReceipt               RecoveryArtifactKind = "receipt"
 	RecoveryArtifactGuard                 RecoveryArtifactKind = "guard"
 	RecoveryArtifactProtectionCoordinator RecoveryArtifactKind = "protection_coordinator"
@@ -180,7 +181,9 @@ func BuildRecoveryInventoryPage(tenantID, nextCursor string, complete bool, entr
 func classifyRecoveryArtifact(tenantID string, entry RecoveryInventoryEntry) (recoveryArtifactClassification, error) {
 	switch entry.Kind {
 	case RecoveryArtifactPendingTransaction, RecoveryArtifactBackupQueue, RecoveryArtifactQuarantine:
-		return classifyRecoveryRecord(tenantID, entry.Raw)
+		return classifyRecoveryRecord(tenantID, entry.Raw, true)
+	case RecoveryArtifactEngineRecover:
+		return classifyRecoveryRecord(tenantID, entry.Raw, false)
 	case RecoveryArtifactReceipt:
 		return classifyRecoveryReceipt(tenantID, entry.Raw)
 	case RecoveryArtifactGuard:
@@ -198,7 +201,7 @@ func classifyRecoveryArtifact(tenantID string, entry RecoveryInventoryEntry) (re
 	}
 }
 
-func classifyRecoveryRecord(tenantID string, raw []byte) (recoveryArtifactClassification, error) {
+func classifyRecoveryRecord(tenantID string, raw []byte, allowLegacy bool) (recoveryArtifactClassification, error) {
 	fields, err := recoveryInventoryObject(raw)
 	if err != nil {
 		return recoveryArtifactClassification{}, err
@@ -231,6 +234,10 @@ func classifyRecoveryRecord(tenantID string, raw []byte) (recoveryArtifactClassi
 		}
 
 		return recoveryArtifactClassification{format: RecoveryFormatEngineEnvelopeV2, action: recoveryInventoryAction(payload.Action)}, nil
+	}
+
+	if !allowLegacy {
+		return recoveryArtifactClassification{}, errors.New("engine recover record requires format version 2")
 	}
 
 	var legacy mmodel.TransactionRedisQueue

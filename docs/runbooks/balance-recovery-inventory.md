@@ -8,8 +8,8 @@ rewrite, replay, migrate, or activate anything.
 
 | Family | Storage contract | Persisted format |
 | --- | --- | --- |
-| Legacy pending and backup records | tenant-scoped `backup_queue:{transactions}` hash | unversioned `TransactionRedisQueue` |
-| Engine recovery records | same backup hash | envelope and nested payload `formatVersion=2` |
+| Legacy pending and backup records | tenant-scoped `backup_queue:{transactions}` hash | unversioned `TransactionRedisQueue`; historical version-2 engine envelopes remain readable |
+| Engine recovery records | tenant-scoped `engine:{transactions}:recover:v2` hash | envelope and nested payload `formatVersion=2` only |
 | Execution receipts | `engine:{transactions}:receipts:{organization}:{ledger}` hash | receipt v1, classified separately with or without protection v1 |
 | Transaction guards | `engine:{transactions}:guards:{organization}:{ledger}` hash | opaque lifecycle token |
 | Protection coordinators | `engine:{transactions}:protection:{organization}:{ledger}` hash | coordinator v1 |
@@ -34,6 +34,9 @@ report page.
   treats `COUNT` as a hint, so split an oversized returned batch locally without
   dropping entries and enforce both record-count and byte budgets. Continue from
   the returned cursor; do not use `HGETALL` for inventory.
+- Retain independent cursors for `backup_queue:{transactions}` and
+  `engine:{transactions}:recover:v2`. Do not merge records by field: the same
+  `transactionUUID:executionUUID` field can exist independently in both hashes.
 - Read the exact tenant cleanup sorted-set key with `ZSCAN` under the same bound.
 - Enumerate receipt, guard, and protection hashes only from a bounded,
   authoritative organization/ledger scope list. Use their exact scoped keys;
@@ -60,3 +63,7 @@ quiescence procedure.
 Balance-cache TTL does not expire recovery envelopes, receipts, guards,
 coordinators, cleanup members, or quarantine rows. Never use balance TTL or an
 incomplete-scan absence to declare these families drained.
+
+During rollback, an older binary cannot see `engine:{transactions}:recover:v2`.
+Keep a compatible recovery consumer running until that hash is drained, or roll
+forward to a compatible version. Do not copy records into the legacy hash.

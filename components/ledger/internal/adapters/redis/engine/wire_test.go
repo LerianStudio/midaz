@@ -27,6 +27,7 @@ import (
 	ledgerfee "github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -311,7 +312,7 @@ func validWireExecution() (command.EngineExecution, Limits, resolvedExecutionKey
 	prefix := "tenant:fixture:"
 	scope := organizationID.String() + ":" + ledgerID.String()
 	balanceKey := prefix + "balance:{transactions}:" + scope + ":@source#default"
-	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + "backup_queue:{transactions}", Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Protection: prefix + "engine:{transactions}:protection:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": {Balance: balanceKey, Deleted: balanceKey + ":deleted"}}}
+	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + cachepolicy.EngineRecoverQueue, Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Protection: prefix + "engine:{transactions}:protection:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": {Balance: balanceKey, Deleted: balanceKey + ":deleted"}}}
 	return input, Limits{MaxTransactions: 10, MaxPostings: 100, MaxBalances: 100, MaxCompletionPlanBytes: 4096, MaxRequestBytes: 16384, MaxPreparedBytes: 1048576}, resolved
 }
 

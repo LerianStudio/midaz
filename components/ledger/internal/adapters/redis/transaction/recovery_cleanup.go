@@ -131,6 +131,7 @@ func (rr *RedisConsumerRepository) cleanupEngineRecoveryEntry(
 	keys, err := tenantKeysFromContext(ctx, []string{
 		EngineRecoveryCleanupSchedule,
 		TransactionBackupQueue,
+		cachepolicy.EngineRecoverQueue,
 		"engine:" + cachepolicy.HashTag + ":receipts:" + scope,
 		"engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		"engine:" + cachepolicy.HashTag + ":protection:" + scope,

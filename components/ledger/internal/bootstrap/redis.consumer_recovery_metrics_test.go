@@ -15,6 +15,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
@@ -73,7 +74,7 @@ func TestFinalizeRecoveryRecord_EmitsBoundedOutcomeMetrics(t *testing.T) {
 			if test.ctx != nil {
 				ctx = test.ctx()
 			}
-			gotErr := consumer.finalizeRecoveryRecord(ctx, "field", "raw", &command.TransactionCompletionRecord{})
+			gotErr := consumer.finalizeRecoveryRecord(ctx, txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", &command.TransactionCompletionRecord{})
 			if test.wantErr {
 				require.Error(t, gotErr)
 			} else {
@@ -108,15 +109,18 @@ func TestFinalizeRecoveryRecord_EmitsBoundedOutcomeMetrics(t *testing.T) {
 			require.NotNil(t, counter)
 			require.Len(t, counter.DataPoints, 1)
 			require.Equal(t, int64(1), counter.DataPoints[0].Value)
-			require.Equal(t, 1, counter.DataPoints[0].Attributes.Len())
+			require.Equal(t, 2, counter.DataPoints[0].Attributes.Len())
 			value, ok := counter.DataPoints[0].Attributes.Value(attribute.Key(recoveryMetricOutcomeLabel))
 			require.True(t, ok)
 			require.Equal(t, test.want, value.AsString())
+			source, ok := counter.DataPoints[0].Attributes.Value(attribute.Key(recoveryMetricSourceLabel))
+			require.True(t, ok)
+			require.Equal(t, string(txRedis.RecoveryQueueSourceLegacyBackup), source.AsString())
 			histogram := findRecoveryHistogram(data)
 			require.NotNil(t, histogram)
 			require.Len(t, histogram.DataPoints, 1)
 			require.Equal(t, uint64(1), histogram.DataPoints[0].Count)
-			require.Equal(t, 1, histogram.DataPoints[0].Attributes.Len())
+			require.Equal(t, 2, histogram.DataPoints[0].Attributes.Len())
 			histogramOutcome, ok := histogram.DataPoints[0].Attributes.Value(attribute.Key(recoveryMetricOutcomeLabel))
 			require.True(t, ok)
 			require.Equal(t, test.want, histogramOutcome.AsString())
@@ -130,7 +134,7 @@ func TestFinalizeRecoveryRecord_MetricsAreNilFactorySafe(t *testing.T) {
 	finalizer := &recoveryCompleterStub{order: &order}
 	queue := &recoveryQueueStub{status: 1, order: &order}
 	consumer := (&RedisQueueConsumer{queue: queue}).WithTransactionCompleter(finalizer)
-	require.NoError(t, consumer.finalizeRecoveryRecord(context.Background(), "field", "raw", &command.TransactionCompletionRecord{}))
+	require.NoError(t, consumer.finalizeRecoveryRecord(context.Background(), txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", &command.TransactionCompletionRecord{}))
 	require.Equal(t, []string{"durable-finalization", "conditional-ack"}, order)
 	require.Equal(t, 1, finalizer.calls)
 	require.Equal(t, 1, queue.calls)

@@ -2,12 +2,17 @@
 -- Use of this source code is governed by the Elastic License 2.0
 -- that can be found in the LICENSE file.
 
--- KEYS: backup hash, attempt hash, receipt hash, guard hash, protection hash,
---       cleanup schedule.
+-- KEYS: selected recovery hash, optional legacy attempt hash, receipt hash,
+--       guard hash, protection hash, cleanup schedule.
 -- ARGV: recovery field, exact envelope, attempt field, transaction UUID,
---       execution UUID, terminal flag (0|1), durable completion unix millis.
-if #KEYS ~= 6 or #ARGV ~= 7 then
+--       execution UUID, terminal flag (0|1), durable completion unix millis,
+--       clear legacy attempt flag (0|1).
+if #KEYS ~= 6 or #ARGV ~= 8 then
     return redis.error_reply("ERR invalid protected recovery acknowledgement arguments")
+end
+
+if ARGV[8] ~= "0" and ARGV[8] ~= "1" then
+    return redis.error_reply("ERR invalid protected recovery acknowledgement source")
 end
 
 local function redisType(key)
@@ -18,9 +23,11 @@ end
 
 for index = 1, 5 do
     local key = KEYS[index]
-    local kind = redisType(key)
-    if kind ~= "none" and kind ~= "hash" then
-        return redis.error_reply("WRONGTYPE protected recovery acknowledgement requires hashes")
+    if index ~= 2 or ARGV[8] == "1" then
+        local kind = redisType(key)
+        if kind ~= "none" and kind ~= "hash" then
+            return redis.error_reply("WRONGTYPE protected recovery acknowledgement requires hashes")
+        end
     end
 end
 
@@ -70,7 +77,7 @@ end
 local currentRaw = redis.call("HGET", KEYS[3], executionID)
 if not currentRaw then
     redis.call("HDEL", KEYS[1], field)
-    redis.call("HDEL", KEYS[2], ARGV[3])
+    if ARGV[8] == "1" then redis.call("HDEL", KEYS[2], ARGV[3]) end
     return 1
 end
 
@@ -81,7 +88,7 @@ if receipt.protection == nil then
     -- recovery is durably acknowledged, but their receipt and guard stay
     -- persistent indefinitely.
     redis.call("HDEL", KEYS[1], field)
-    redis.call("HDEL", KEYS[2], ARGV[3])
+    if ARGV[8] == "1" then redis.call("HDEL", KEYS[2], ARGV[3]) end
     return 1
 end
 
@@ -154,7 +161,7 @@ end
 -- Every validation and read happens before the acknowledgement deletion. Only
 -- deterministic hash writes remain afterward.
 redis.call("HDEL", KEYS[1], field)
-redis.call("HDEL", KEYS[2], ARGV[3])
+if ARGV[8] == "1" then redis.call("HDEL", KEYS[2], ARGV[3]) end
 for linkedExecution, linked in pairs(receipts) do
     redis.call("HSET", KEYS[3], linkedExecution, cjson.encode(linked))
 end
