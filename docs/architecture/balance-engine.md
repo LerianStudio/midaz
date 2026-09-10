@@ -39,7 +39,7 @@ transaction flows. Explicit integrity corrections are described separately.
 | Authentication, tenant context, organization and ledger scoping | Go request/use-case layer |
 | Input targeting, cardinality, asset and sending/receiving validation | Go use cases over explicit transaction legs |
 | Fees, tracer, HTTP idempotency, transaction lifecycle and events | Go use cases |
-| Ordered posting composition and route draw policy | Go command layer |
+| Declarative posting-plan composition and route draw policy | Go command layer |
 | Live balance arithmetic, overdraft split/repayment, movement versions | Accounting engine |
 | Physical keys, cache codec, script transport, execution receipts and guards | Redis engine adapter |
 | Accounting rows, metadata, route attribution and historical row compatibility | Go projection shared by normal finalization and recovery |
@@ -150,6 +150,22 @@ This difference must remain visible in separate arithmetic functions.
 
 ## Go path composition and row projection
 
+The command layer builds a declarative posting plan before invoking the engine.
+The plan selects only the ordered posting types, operation-row projection, draw
+policy eligibility, and any overdraft cap recovered from historical operations.
+Its inputs are intentionally limited to lifecycle action and status, leg side,
+the per-leg route-validation decision, and the historical cap. It cannot inspect
+the balance pool or derive monetary results.
+
+There is one Lua accounting engine for every executable path. API version,
+lifecycle, and route-validation differences are expressed by the ordered
+postings in the plan instead of separate scripts. The engine reads the live
+Redis state, using the database snapshot only to seed a cache miss, and is the
+only owner of available/on-hold arithmetic, actual overdraft draw or repayment,
+before/after states, and version increments. Therefore the plan can describe
+that a posting may affect overdraft, but it cannot predict whether it will or by
+how much.
+
 In this table, ON/OFF means route validation enabled/disabled.
 
 | Path | Source postings | Destination postings | Row compatibility |
@@ -192,13 +208,13 @@ The engine transaction paths compose two preparation functions:
   not validation-map or pool order. Origin references identify the original leg;
   posting references add its accounting mutation. The ledger-level route decision
   controls direct/revert draw policy independently of the per-leg flag used for
-  hold/commit/cancel composition. The legacy CREATED path does not populate that
+  hold/commit/cancel composition. The CREATED path does not populate that
   per-leg flag, so it cannot substitute for the ledger-level decision.
 
-Translation freezes candidate companion contexts without creating companion
-postings or calculating their amounts. Only returned movements materialize those
-rows. Frozen attribution and real before/after states are accepted by the same
-version-2 recovery validator and projector. Annotation input is explicitly
+Translation preserves stable candidate companion contexts without creating
+companion postings or calculating their amounts. Only returned movements
+materialize those rows. Stable attribution and real before/after states are
+accepted by the same version-2 recovery validator and projector. Annotation input is explicitly
 non-executable at this seam; the caller must retain its separate annotation path.
 Preparation presents ordered explicit-leg DTOs to existing route validation and
 preserves the static double-entry hold shape. Account validation receives one

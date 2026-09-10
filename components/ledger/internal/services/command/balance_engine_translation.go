@@ -127,12 +127,18 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 		return invalidBalanceEngineTranslation("overdraft amount must not be negative")
 	}
 
-	specs, err := translationPostingSpecs(input, amount, side)
+	plan, err := buildPostingPlan(
+		input.Action,
+		input.TransactionStatus,
+		side,
+		amount.RouteValidationEnabled,
+		amount.OverdraftAmount,
+	)
 	if err != nil {
 		return err
 	}
 
-	if len(specs) == 0 {
+	if len(plan.items) == 0 {
 		return nil
 	}
 
@@ -146,11 +152,11 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 	routeID := translationRouteID(input.Validate, leg, side)
 	originRef := fmt.Sprintf("%s:%d", side, index)
 
-	for _, spec := range specs {
-		postingRef := fmt.Sprintf("%s:%s", originRef, spec.postingType)
+	for _, item := range plan.items {
+		postingRef := fmt.Sprintf("%s:%s", originRef, item.postingType)
 
 		drawPolicy := accounting.DrawForbidden
-		if spec.postingType == accounting.PostingDebit && spec.allowDraw {
+		if item.postingType == accounting.PostingDebit && item.allowsOverdraftDraw {
 			drawPolicy = accounting.DrawAllowed
 			if input.RouteValidationEnabled && !translationOverdraftRubricConfigured(input.RouteCache, routeID, constant.DirectionDebit) {
 				drawPolicy = accounting.DrawRouteDenied
@@ -158,160 +164,29 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 		}
 
 		transaction.Postings = append(transaction.Postings, accounting.Posting{
-			Ref: postingRef, BalanceRef: balanceRef, Type: spec.postingType, Amount: amount.Value,
-			DrawPolicy: drawPolicy, OverdraftAmount: spec.overdraftAmount,
+			Ref: postingRef, BalanceRef: balanceRef, Type: item.postingType, Amount: amount.Value,
+			DrawPolicy: drawPolicy, OverdraftAmount: item.historicalOverdraftCap,
 		})
 
-		primary := newOperationRecordSpec(input, leg, balance, postingRef, originRef, side, spec.rowType, spec.direction, routeID, amount.Value, spec.compatibilityPath)
+		primary := newOperationRecordSpec(input, leg, balance, postingRef, originRef, side, item.operationRowType, item.operationDirection, routeID, amount.Value, item.operationProjectionMode)
 		*projection = append(*projection, primary)
 
-		if !spec.mayMoveOverdraft {
+		if !item.mayAffectOverdraft {
 			continue
 		}
 
 		companionRef := mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), constant.OverdraftBalanceKey)
 		if companion, ok := balances[companionRef]; ok {
-			companionContext := newOperationRecordSpec(input, leg, companion, postingRef, originRef, side, constant.OVERDRAFT, spec.direction, routeID, amount.Value, OperationRecordStandard)
+			companionContext := newOperationRecordSpec(input, leg, companion, postingRef, originRef, side, constant.OVERDRAFT, item.operationDirection, routeID, amount.Value, OperationRecordStandard)
 			companionContext.Role = accounting.RoleOverdraftCompanion
 			companionContext.ChartOfAccounts = ""
 			companionContext.Metadata = map[string]any{}
-			companionContext.RouteCode, companionContext.RouteDescription = translationRubric(input.RouteCache, routeID, constant.ActionOverdraft, spec.direction)
+			companionContext.RouteCode, companionContext.RouteDescription = translationRubric(input.RouteCache, routeID, constant.ActionOverdraft, item.operationDirection)
 			*projection = append(*projection, companionContext)
 		}
 	}
 
 	return nil
-}
-
-type translationPostingSpec struct {
-	postingType       accounting.PostingType
-	rowType           string
-	direction         string
-	compatibilityPath string
-	overdraftAmount   decimal.Decimal
-	allowDraw         bool
-	mayMoveOverdraft  bool
-}
-
-func translationPostingSpecs(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
-	switch input.Action {
-	case constant.ActionDirect:
-		return composeDirectPostings(input, amount, side)
-	case constant.ActionRevert:
-		return composeRevertPostings(input, amount, side)
-	case constant.ActionHold:
-		return composePendingCreatePostings(input, amount, side)
-	case constant.ActionCommit:
-		return composeCommitPostings(input, amount, side)
-	case constant.ActionCancel:
-		return composeCancelPostings(input, amount, side)
-	default:
-		return nil, invalidBalanceEngineTranslation("unsupported transaction action")
-	}
-}
-
-func composeDirectPostings(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
-	if input.TransactionStatus != constant.CREATED {
-		return nil, invalidBalanceEngineTranslation("direct or revert action requires created status")
-	}
-
-	return composeConclusivePostings(amount, side), nil
-}
-
-func composeRevertPostings(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
-	if input.TransactionStatus != constant.CREATED {
-		return nil, invalidBalanceEngineTranslation("direct or revert action requires created status")
-	}
-
-	return composeConclusivePostings(amount, side), nil
-}
-
-func composeConclusivePostings(amount mtransaction.Amount, side string) []translationPostingSpec {
-	credit := translationPostingSpec{
-		postingType: accounting.PostingCredit, rowType: constant.CREDIT, direction: constant.DirectionCredit,
-		compatibilityPath: OperationRecordStandard, overdraftAmount: amount.OverdraftAmount, mayMoveOverdraft: true,
-	}
-	debit := translationPostingSpec{
-		postingType: accounting.PostingDebit, rowType: constant.DEBIT, direction: constant.DirectionDebit,
-		compatibilityPath: OperationRecordStandard, allowDraw: true, mayMoveOverdraft: true,
-	}
-
-	if side == OperationSpecSideFrom {
-		return []translationPostingSpec{debit}
-	}
-
-	return []translationPostingSpec{credit}
-}
-
-func composePendingCreatePostings(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
-	if input.TransactionStatus != constant.PENDING {
-		return nil, invalidBalanceEngineTranslation("hold action requires pending status")
-	}
-
-	if side == OperationSpecSideTo {
-		return nil, nil
-	}
-
-	if !amount.RouteValidationEnabled {
-		return []translationPostingSpec{{
-			postingType: accounting.PostingHold, rowType: constant.ONHOLD, direction: constant.DirectionDebit,
-			compatibilityPath: OperationRecordStandard,
-		}}, nil
-	}
-
-	return []translationPostingSpec{
-		{postingType: accounting.PostingDebit, rowType: constant.DEBIT, direction: constant.DirectionDebit, compatibilityPath: OperationRecordValidatedHoldDebit},
-		{postingType: accounting.PostingReserve, rowType: constant.ONHOLD, direction: constant.DirectionCredit, compatibilityPath: OperationRecordValidatedHoldReserve},
-	}, nil
-}
-
-func composeCommitPostings(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
-	if input.TransactionStatus != constant.APPROVED {
-		return nil, invalidBalanceEngineTranslation("commit action requires approved status")
-	}
-
-	if side == OperationSpecSideTo {
-		return []translationPostingSpec{{
-			postingType: accounting.PostingCredit, rowType: constant.CREDIT, direction: constant.DirectionCredit,
-			compatibilityPath: OperationRecordStandard, overdraftAmount: amount.OverdraftAmount, mayMoveOverdraft: true,
-		}}, nil
-	}
-
-	rowType := constant.DEBIT
-	if amount.RouteValidationEnabled {
-		rowType = constant.ONHOLD
-	}
-
-	return []translationPostingSpec{{
-		postingType: accounting.PostingUnreserve, rowType: rowType, direction: constant.DirectionDebit,
-		compatibilityPath: OperationRecordStandard,
-	}}, nil
-}
-
-func composeCancelPostings(input BalanceEngineTranslationInput, amount mtransaction.Amount, side string) ([]translationPostingSpec, error) {
-	if input.TransactionStatus != constant.CANCELED {
-		return nil, invalidBalanceEngineTranslation("cancel action requires canceled status")
-	}
-
-	if side == OperationSpecSideTo {
-		return nil, nil
-	}
-
-	if !amount.RouteValidationEnabled {
-		return []translationPostingSpec{{
-			postingType: accounting.PostingRelease, rowType: constant.RELEASE, direction: constant.DirectionCredit,
-			compatibilityPath: OperationRecordStandard, overdraftAmount: amount.OverdraftAmount,
-			mayMoveOverdraft: amount.OverdraftAmount.IsPositive(),
-		}}, nil
-	}
-
-	return []translationPostingSpec{
-		{postingType: accounting.PostingUnreserve, rowType: constant.RELEASE, direction: constant.DirectionDebit, compatibilityPath: OperationRecordValidatedCancelRelease},
-		{
-			postingType: accounting.PostingCredit, rowType: constant.CREDIT, direction: constant.DirectionCredit,
-			compatibilityPath: OperationRecordValidatedCancelCredit, overdraftAmount: amount.OverdraftAmount, mayMoveOverdraft: true,
-		},
-	}, nil
 }
 
 func newOperationRecordSpec(input BalanceEngineTranslationInput, leg mtransaction.FromTo, balance *mmodel.Balance, postingRef, originRef, side, rowType, direction, routeID string, requestedAmount decimal.Decimal, compatibilityPath string) OperationRecordSpec {
@@ -320,23 +195,23 @@ func newOperationRecordSpec(input BalanceEngineTranslationInput, leg mtransactio
 		description = input.TransactionInput.Description
 	}
 
-	var frozenRouteID *string
+	var stableRouteID *string
 
 	if routeID != "" {
 		value := routeID
-		frozenRouteID = &value
+		stableRouteID = &value
 	}
 
 	routeCode, routeDescription := translationRubric(input.RouteCache, routeID, input.Action, direction)
 
-	frozenBalance := cloneTranslationBalance(balance)
+	stableBalance := cloneTranslationBalance(balance)
 
 	return OperationRecordSpec{
 		TransactionID: input.TransactionID, PostingRef: postingRef, OriginRef: originRef,
-		BalanceRef: mtransaction.AliasKey(frozenBalance.Alias, frozenBalance.Key),
+		BalanceRef: mtransaction.AliasKey(stableBalance.Alias, stableBalance.Key),
 		Role:       accounting.RolePrimary, Side: side, RowType: rowType, Direction: direction,
-		Description: description, RouteID: frozenRouteID, RouteCode: routeCode, RouteDescription: routeDescription,
-		ChartOfAccounts: leg.ChartOfAccounts, Metadata: maps.Clone(leg.Metadata), Balance: frozenBalance,
+		Description: description, RouteID: stableRouteID, RouteCode: routeCode, RouteDescription: routeDescription,
+		ChartOfAccounts: leg.ChartOfAccounts, Metadata: maps.Clone(leg.Metadata), Balance: stableBalance,
 		RequestedAmount: requestedAmount, CompatibilityPath: compatibilityPath,
 	}
 }
