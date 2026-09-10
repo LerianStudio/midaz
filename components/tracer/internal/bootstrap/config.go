@@ -2075,7 +2075,14 @@ func InitServers(ctx context.Context) (*Service, error) {
 	svc.ServiceDescriptor = sd.descriptor
 	svc.ServiceDiscoveryMetrics = sd.recorder
 
-	svc.DeclarationStops = wireDeclarationPublisher(cfg, sd.authHost, logger)
+	// Fail-closed on a bad RI declaration configuration: with the flag on, an
+	// empty IDP_* or a rejected embedded manifest is an operator/build defect,
+	// not a transient IdP problem, and must not reach a ready pod. Runtime
+	// publish failures stay fail-open inside the publisher.
+	svc.DeclarationStops, err = wireDeclarationPublisher(cfg, sd.authHost, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wire the RI declaration publisher: %w", err)
+	}
 
 	// The launcher Runnable now owns the manager's graceful close; disarm the
 	// boot-failure closer so it does not double-close on the success path.

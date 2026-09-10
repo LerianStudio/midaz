@@ -1188,6 +1188,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("server_address", cfg.ServerAddress),
 	)
 
+	// Fail-closed on a bad RI declaration configuration: with the flag on, an
+	// empty IDP_* or a rejected embedded manifest is an operator/build defect,
+	// not a transient IdP problem, and must not reach a ready pod. Runtime
+	// publish failures stay fail-open inside the publisher.
+	declarationStops, err := buildDeclarationPublishers(cfg, auth, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wire RI declaration publishers: %w", err)
+	}
+
 	sdBootCloser.Disarm()
 
 	return &Service{
@@ -1204,7 +1213,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory:           rmq.metricsFactory,
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
-		DeclarationStops:         buildDeclarationPublishers(cfg, auth, logger),
+		DeclarationStops:         declarationStops,
 		TracerClose:              tracerClose,
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,
