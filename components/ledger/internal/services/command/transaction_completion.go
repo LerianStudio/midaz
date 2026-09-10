@@ -19,7 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -105,34 +105,34 @@ type TransactionCompletionPlan struct {
 // TransactionCompletionRecord stores one transaction's actual executed result.
 // Payload is opaque to storage/accounting adapters; command and recovery decode it.
 type TransactionCompletionRecord struct {
-	FormatVersion     int           `json:"formatVersion"`
-	TenantID          string        `json:"tenantId"`
-	OrganizationID    uuid.UUID     `json:"organizationId"`
-	LedgerID          uuid.UUID     `json:"ledgerId"`
-	ExecutionID       uuid.UUID     `json:"executionId"`
-	IntentFingerprint string        `json:"intentFingerprint"`
-	TransactionID     uuid.UUID     `json:"transactionId"`
-	Payload           string        `json:"payload"`
-	Result            engine.Result `json:"result"`
+	FormatVersion     int                        `json:"formatVersion"`
+	TenantID          string                     `json:"tenantId"`
+	OrganizationID    uuid.UUID                  `json:"organizationId"`
+	LedgerID          uuid.UUID                  `json:"ledgerId"`
+	ExecutionID       uuid.UUID                  `json:"executionId"`
+	IntentFingerprint string                     `json:"intentFingerprint"`
+	TransactionID     uuid.UUID                  `json:"transactionId"`
+	Payload           string                     `json:"payload"`
+	Result            accounting.ExecutionResult `json:"result"`
 }
 
 // BalanceEngineTransactionIntent contains only immutable intent, not calculated
 // postings, validation output, balance seeds, guards, or overdraft splits.
 type BalanceEngineTransactionIntent struct {
-	TransactionID        uuid.UUID                   `json:"transactionId"`
-	ParentTransactionID  *uuid.UUID                  `json:"parentTransactionId"`
-	FeesSkipped          bool                        `json:"feesSkipped"`
-	TracerSkipped        bool                        `json:"tracerSkipped"`
-	Action               string                      `json:"action"`
-	TransactionStatus    string                      `json:"transactionStatus"`
-	TransactionDate      time.Time                   `json:"transactionDate"`
-	TransactionCreatedAt time.Time                   `json:"transactionCreatedAt"`
-	TransactionUpdatedAt time.Time                   `json:"transactionUpdatedAt"`
-	OperationUpdatedAt   time.Time                   `json:"operationUpdatedAt"`
-	Input                mtransaction.Transaction    `json:"input"`
-	PostingRefs          []string                    `json:"postingRefs"`
-	BalanceRequirements  []engine.BalanceRequirement `json:"balanceRequirements"`
-	OperationSpecs       []OperationRecordIntent     `json:"projection"`
+	TransactionID        uuid.UUID                       `json:"transactionId"`
+	ParentTransactionID  *uuid.UUID                      `json:"parentTransactionId"`
+	FeesSkipped          bool                            `json:"feesSkipped"`
+	TracerSkipped        bool                            `json:"tracerSkipped"`
+	Action               string                          `json:"action"`
+	TransactionStatus    string                          `json:"transactionStatus"`
+	TransactionDate      time.Time                       `json:"transactionDate"`
+	TransactionCreatedAt time.Time                       `json:"transactionCreatedAt"`
+	TransactionUpdatedAt time.Time                       `json:"transactionUpdatedAt"`
+	OperationUpdatedAt   time.Time                       `json:"operationUpdatedAt"`
+	Input                mtransaction.Transaction        `json:"input"`
+	PostingRefs          []string                        `json:"postingRefs"`
+	BalanceRequirements  []accounting.BalanceRequirement `json:"balanceRequirements"`
+	OperationSpecs       []OperationRecordIntent         `json:"projection"`
 }
 
 // OperationRecordIntent fingerprints immutable row decisions without carrying
@@ -213,7 +213,7 @@ func ComputeBalanceEngineIntentFingerprint(intent BalanceEngineIntent) (string, 
 
 		for _, requirement := range transaction.BalanceRequirements {
 			if requirement.BalanceRef == "" || requirement.AssetCode == "" ||
-				(requirement.Permission != engine.BalancePermissionSend && requirement.Permission != engine.BalancePermissionReceive) {
+				(requirement.Permission != accounting.BalancePermissionSend && requirement.Permission != accounting.BalancePermissionReceive) {
 				return "", invalidTransactionCompletionRecord("invalid intent balance requirement")
 			}
 		}
@@ -224,7 +224,7 @@ func ComputeBalanceEngineIntentFingerprint(intent BalanceEngineIntent) (string, 
 				return "", invalidTransactionCompletionRecord("invalid intent spec role")
 			}
 
-			if spec.Role == engine.RolePrimary {
+			if spec.Role == accounting.RolePrimary {
 				primaryProjection = append(primaryProjection, spec)
 			}
 		}
@@ -237,7 +237,7 @@ func ComputeBalanceEngineIntentFingerprint(intent BalanceEngineIntent) (string, 
 		return "", fmt.Errorf("encode balance engine intention: %w", err)
 	}
 
-	hash := sha256.Sum256(append([]byte("midaz.balance-engine.intent.v1\x00"), encoded...))
+	hash := sha256.Sum256(append([]byte("midaz.balance-accounting.intent.v1\x00"), encoded...))
 
 	return hex.EncodeToString(hash[:]), nil
 }
@@ -296,12 +296,12 @@ func DecodeTransactionCompletionPlan(data []byte) (*TransactionCompletionPlan, e
 // ValidateTransactionCompletion checks request, recovery, and guard correlation.
 // The adapter must separately compare the payload tenant with authenticated context.
 func ValidateTransactionCompletion(input EngineExecution) error {
-	request := input.Request
+	request := input.Execution
 	if err := validateCompletionExecutionIdentity(input); err != nil {
 		return err
 	}
 
-	transactions := make(map[uuid.UUID]engine.Transaction, len(request.Transactions))
+	transactions := make(map[uuid.UUID]accounting.Transaction, len(request.Transactions))
 	for _, transaction := range request.Transactions {
 		if transaction.ID == uuid.Nil {
 			return invalidTransactionCompletionRecord("missing transaction identity")
@@ -367,7 +367,7 @@ func ValidateTransactionCompletion(input EngineExecution) error {
 	return validateCompletionExecutionFingerprint(request, tenant, intents, input.IntentFingerprint)
 }
 
-func validateCompletionBalanceRequirements(snapshots []engine.BalanceSnapshot, requirements []engine.BalanceRequirement) error {
+func validateCompletionBalanceRequirements(snapshots []accounting.BalanceSnapshot, requirements []accounting.BalanceRequirement) error {
 	known := make(map[string]struct{}, len(snapshots))
 	for _, snapshot := range snapshots {
 		known[snapshot.BalanceRef] = struct{}{}
@@ -375,7 +375,7 @@ func validateCompletionBalanceRequirements(snapshots []engine.BalanceSnapshot, r
 
 	for _, requirement := range requirements {
 		if _, exists := known[requirement.BalanceRef]; !exists || requirement.AssetCode == "" ||
-			(requirement.Permission != engine.BalancePermissionSend && requirement.Permission != engine.BalancePermissionReceive) {
+			(requirement.Permission != accounting.BalancePermissionSend && requirement.Permission != accounting.BalancePermissionReceive) {
 			return invalidTransactionCompletionRecord("invalid execution balance requirement")
 		}
 	}
@@ -383,7 +383,7 @@ func validateCompletionBalanceRequirements(snapshots []engine.BalanceSnapshot, r
 	return nil
 }
 
-func validateCompletionGuards(guards []ExecutionGuard, transactions map[uuid.UUID]engine.Transaction) error {
+func validateCompletionGuards(guards []ExecutionGuard, transactions map[uuid.UUID]accounting.Transaction) error {
 	seen := make(map[uuid.UUID]bool, len(guards))
 	for _, guard := range guards {
 		if _, exists := transactions[guard.TransactionID]; !exists || seen[guard.TransactionID] || guard.NextToken == "" || guard.ExpectedToken == guard.NextToken {
@@ -396,7 +396,7 @@ func validateCompletionGuards(guards []ExecutionGuard, transactions map[uuid.UUI
 	return nil
 }
 
-func validateCompletionExecutionFingerprint(request engine.Request, tenant string, intents map[uuid.UUID]BalanceEngineTransactionIntent, expected string) error {
+func validateCompletionExecutionFingerprint(request accounting.Execution, tenant string, intents map[uuid.UUID]BalanceEngineTransactionIntent, expected string) error {
 	intent := BalanceEngineIntent{
 		TenantID: tenant, OrganizationID: request.OrganizationID, LedgerID: request.LedgerID, ExecutionID: request.ExecutionID,
 		Transactions: make([]BalanceEngineTransactionIntent, 0, len(request.Transactions)),
@@ -417,8 +417,8 @@ func validateCompletionExecutionFingerprint(request engine.Request, tenant strin
 	return nil
 }
 
-func validateCompletionSnapshotIdentities(snapshots []engine.BalanceSnapshot, projections []OperationRecordSpec) error {
-	byRef := make(map[string]engine.BalanceSnapshot, len(snapshots))
+func validateCompletionSnapshotIdentities(snapshots []accounting.BalanceSnapshot, projections []OperationRecordSpec) error {
+	byRef := make(map[string]accounting.BalanceSnapshot, len(snapshots))
 	for _, snapshot := range snapshots {
 		byRef[snapshot.BalanceRef] = snapshot
 	}
@@ -438,14 +438,14 @@ func validateCompletionSnapshotIdentities(snapshots []engine.BalanceSnapshot, pr
 	return nil
 }
 
-func transactionCompletionIntent(transaction engine.Transaction, payload TransactionCompletionPlan) BalanceEngineTransactionIntent {
+func transactionCompletionIntent(transaction accounting.Transaction, payload TransactionCompletionPlan) BalanceEngineTransactionIntent {
 	intent := BalanceEngineTransactionIntent{
 		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID,
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
 		TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
 		PostingRefs:         make([]string, 0, len(transaction.Postings)),
-		BalanceRequirements: append([]engine.BalanceRequirement(nil), transaction.BalanceRequirements...),
+		BalanceRequirements: append([]accounting.BalanceRequirement(nil), transaction.BalanceRequirements...),
 		OperationSpecs:      make([]OperationRecordIntent, 0, len(payload.OperationSpecs)),
 	}
 	for _, posting := range transaction.Postings {
@@ -460,7 +460,7 @@ func transactionCompletionIntent(transaction engine.Transaction, payload Transac
 }
 
 func validateCompletionExecutionIdentity(input EngineExecution) error {
-	request := input.Request
+	request := input.Execution
 	if request.OrganizationID == uuid.Nil || request.LedgerID == uuid.Nil || request.ExecutionID == uuid.Nil || !validIntentFingerprint(input.IntentFingerprint) || len(request.Transactions) == 0 {
 		return invalidTransactionCompletionRecord("invalid execution identity")
 	}
@@ -473,7 +473,7 @@ func validateCompletionExecutionIdentity(input EngineExecution) error {
 }
 
 func validateCompletionExecutionScope(input EngineExecution, transactionID uuid.UUID, payload *TransactionCompletionPlan) error {
-	request := input.Request
+	request := input.Execution
 	if payload.TransactionID != transactionID || payload.ExecutionID != request.ExecutionID || payload.OrganizationID != request.OrganizationID || payload.LedgerID != request.LedgerID || payload.IntentFingerprint != input.IntentFingerprint {
 		return invalidTransactionCompletionRecord("recovery scope does not match execution")
 	}
@@ -481,8 +481,8 @@ func validateCompletionExecutionScope(input EngineExecution, transactionID uuid.
 	return nil
 }
 
-func validateCompletionPostings(transaction engine.Transaction, projections []OperationRecordSpec) error {
-	postings := make(map[string]engine.Posting, len(transaction.Postings))
+func validateCompletionPostings(transaction accounting.Transaction, projections []OperationRecordSpec) error {
+	postings := make(map[string]accounting.Posting, len(transaction.Postings))
 	for _, posting := range transaction.Postings {
 		if posting.Ref == "" {
 			return invalidTransactionCompletionRecord("missing posting reference")
@@ -502,7 +502,7 @@ func validateCompletionPostings(transaction engine.Transaction, projections []Op
 			return invalidTransactionCompletionRecord("spec references an unrelated posting")
 		}
 
-		if spec.Role == engine.RolePrimary {
+		if spec.Role == accounting.RolePrimary {
 			if spec.BalanceRef != posting.BalanceRef {
 				return invalidTransactionCompletionRecord("spec balance does not match posting")
 			}
@@ -639,7 +639,7 @@ func validateOperationBalanceContext(payload TransactionCompletionPlan, spec Ope
 		}
 	}
 
-	if spec.Role == engine.RoleOverdraftCompanion && (spec.Balance.Key != "overdraft" || len(spec.Metadata) != 0 || spec.ChartOfAccounts != "") {
+	if spec.Role == accounting.RoleOverdraftCompanion && (spec.Balance.Key != "overdraft" || len(spec.Metadata) != 0 || spec.ChartOfAccounts != "") {
 		return invalidTransactionCompletionRecord("invalid companion spec context")
 	}
 
@@ -666,7 +666,7 @@ func validateTransactionCompletionRecord(envelope TransactionCompletionRecord) e
 }
 
 func validOperationRecordRole(role string) bool {
-	return role == engine.RolePrimary || role == engine.RoleOverdraftCompanion
+	return role == accounting.RolePrimary || role == accounting.RoleOverdraftCompanion
 }
 
 func validCompletionParent(transactionID uuid.UUID, parentID *uuid.UUID) bool {

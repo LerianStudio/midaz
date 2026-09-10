@@ -24,7 +24,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -115,7 +115,7 @@ func technical(code string, uncertain bool, err error) error {
 
 // Execute uses the provider's standalone client and disables retransmission on
 // each mutating command. Only confirmed NOSCRIPT permits fallback.
-func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (result *engine.Result, err error) {
+func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (result *accounting.ExecutionResult, err error) {
 	logger, _, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	started := time.Now()
@@ -125,7 +125,7 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (r
 		return nil, technical("context_canceled", false, err)
 	}
 
-	resolved, err := resolveAdapterKeys(ctx, input.Request)
+	resolved, err := resolveAdapterKeys(ctx, input.Execution)
 	if err != nil {
 		return nil, technical("invalid_scope", false, err)
 	}
@@ -143,7 +143,7 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (r
 		return nil, technical("invalid_recovery", false, err)
 	}
 
-	recordPreparedExecution(ctx, factory, logger, input.Request, len(prepared.Payload))
+	recordPreparedExecution(ctx, factory, logger, input.Execution, len(prepared.Payload))
 
 	shared, err := a.provider.GetClient(ctx)
 	if err != nil {
@@ -159,10 +159,10 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (r
 		return nil, technical("context_canceled", false, err)
 	}
 
-	return a.executePrepared(ctx, source, input.Request, prepared.Keys, prepared.Payload)
+	return a.executePrepared(ctx, source, input.Execution, prepared.Keys, prepared.Payload)
 }
 
-func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, request engine.Request, keys []string, payload any) (*engine.Result, error) {
+func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, request accounting.Execution, keys []string, payload any) (*accounting.ExecutionResult, error) {
 	args := []any{payload, a.limits.MaxRequestBytes, a.limits.MaxPreparedBytes}
 
 	for attempt := 0; attempt < 3; attempt++ {
@@ -281,7 +281,7 @@ func isNoScript(err error) bool {
 	return errors.As(err, &reply) && strings.HasPrefix(reply.Error(), "NOSCRIPT ")
 }
 
-func resolveAdapterKeys(ctx context.Context, request engine.Request) (resolvedExecutionKeys, error) {
+func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (resolvedExecutionKeys, error) {
 	scope := request.OrganizationID.String() + ":" + request.LedgerID.String()
 
 	resolved := resolvedExecutionKeys{
@@ -315,7 +315,7 @@ func resolveAdapterKeys(ctx context.Context, request engine.Request) (resolvedEx
 	return resolved, nil
 }
 
-func classifyAccountingError(err error, request engine.Request, keys []string) error {
+func classifyAccountingError(err error, request accounting.Execution, keys []string) error {
 	var server redis.Error
 	if !errors.As(err, &server) {
 		return technical("transport", true, err)
@@ -323,7 +323,7 @@ func classifyAccountingError(err error, request engine.Request, keys []string) e
 
 	reply := strings.TrimPrefix(server.Error(), "ERR ")
 	if payload, ok := strings.CutPrefix(reply, "MIDAZ_ENGINE_V1 "); ok {
-		var failure engine.Failure
+		var failure accounting.Failure
 		if decodeStrict([]byte(payload), &failure) != nil || validateFailure(failure, request) != nil {
 			return technical("invalid_failure", true, err)
 		}
@@ -379,12 +379,12 @@ func classifyAccountingError(err error, request engine.Request, keys []string) e
 	return technical("script_runtime", true, err)
 }
 
-func validateFailure(failure engine.Failure, request engine.Request) error {
+func validateFailure(failure accounting.Failure, request accounting.Execution) error {
 	switch failure.Code {
-	case engine.FailureInsufficientFunds, engine.FailureOverdraftLimitExceeded, engine.FailureOverdraftNotEligible,
-		engine.FailureOverdraftCompanionMissing, engine.FailureBalanceDeleted, engine.FailureOnHoldUnderflow,
-		engine.FailureBalanceMissing, engine.FailureAssetMismatch, engine.FailureSendingNotAllowed,
-		engine.FailureReceivingNotAllowed, engine.FailureExternalHoldNotAllowed:
+	case accounting.FailureInsufficientFunds, accounting.FailureOverdraftLimitExceeded, accounting.FailureOverdraftNotEligible,
+		accounting.FailureOverdraftCompanionMissing, accounting.FailureBalanceDeleted, accounting.FailureOnHoldUnderflow,
+		accounting.FailureBalanceMissing, accounting.FailureAssetMismatch, accounting.FailureSendingNotAllowed,
+		accounting.FailureReceivingNotAllowed, accounting.FailureExternalHoldNotAllowed:
 	default:
 		return errors.New("unknown accounting refusal code")
 	}
@@ -396,8 +396,8 @@ func validateFailure(failure engine.Failure, request engine.Request) error {
 	postings := request.Transactions[failure.TransactionIndex].Postings
 	if failure.PostingIndex == -1 {
 		switch failure.Code {
-		case engine.FailureAssetMismatch, engine.FailureSendingNotAllowed, engine.FailureReceivingNotAllowed,
-			engine.FailureExternalHoldNotAllowed, engine.FailureBalanceDeleted:
+		case accounting.FailureAssetMismatch, accounting.FailureSendingNotAllowed, accounting.FailureReceivingNotAllowed,
+			accounting.FailureExternalHoldNotAllowed, accounting.FailureBalanceDeleted:
 			for _, requirement := range request.Transactions[failure.TransactionIndex].BalanceRequirements {
 				if requirement.BalanceRef == failure.BalanceRef {
 					return nil
@@ -417,7 +417,7 @@ func validateFailure(failure engine.Failure, request engine.Request) error {
 		return nil
 	}
 
-	var origin *engine.BalanceSnapshot
+	var origin *accounting.BalanceSnapshot
 
 	for i := range request.Balances {
 		if request.Balances[i].BalanceRef == posting.BalanceRef {
@@ -449,16 +449,16 @@ type resultState struct {
 }
 
 type resultMovement struct {
-	Ref            string             `json:"ref"`
-	TransactionID  string             `json:"transactionId"`
-	PostingRef     string             `json:"postingRef"`
-	Role           string             `json:"role"`
-	BalanceRef     string             `json:"balanceRef"`
-	Type           engine.PostingType `json:"type"`
-	Amount         string             `json:"amount"`
-	OverdraftDelta string             `json:"overdraftDelta"`
-	Before         json.RawMessage    `json:"before"`
-	After          json.RawMessage    `json:"after"`
+	Ref            string                 `json:"ref"`
+	TransactionID  string                 `json:"transactionId"`
+	PostingRef     string                 `json:"postingRef"`
+	Role           string                 `json:"role"`
+	BalanceRef     string                 `json:"balanceRef"`
+	Type           accounting.PostingType `json:"type"`
+	Amount         string                 `json:"amount"`
+	OverdraftDelta string                 `json:"overdraftDelta"`
+	Before         json.RawMessage        `json:"before"`
+	After          json.RawMessage        `json:"after"`
 }
 
 type resultBalance struct {
@@ -468,7 +468,7 @@ type resultBalance struct {
 
 // DecodeResult validates the protocol and origin correlation without coercing
 // monetary JSON numbers, object-shaped arrays or rounded versions.
-func DecodeResult(raw []byte, request engine.Request) (*engine.Result, error) {
+func DecodeResult(raw []byte, request accounting.Execution) (*accounting.ExecutionResult, error) {
 	var response resultEnvelope
 	if err := decodeStrict(raw, &response); err != nil {
 		return nil, err
@@ -478,8 +478,8 @@ func DecodeResult(raw []byte, request engine.Request) (*engine.Result, error) {
 		return nil, errors.New("invalid accounting result envelope")
 	}
 
-	result := &engine.Result{Movements: make([]engine.Movement, 0, len(response.Movements)), Final: make([]engine.BalanceSnapshot, 0, len(response.Final))}
-	last := make(map[string]engine.BalanceState)
+	result := &accounting.ExecutionResult{Movements: make([]accounting.Movement, 0, len(response.Movements)), Final: make([]accounting.BalanceSnapshot, 0, len(response.Final))}
+	last := make(map[string]accounting.BalanceState)
 	firstTouch := make([]string, 0, len(response.Final))
 	previousOrdinal := -1
 
@@ -525,7 +525,7 @@ func DecodeResult(raw []byte, request engine.Request) (*engine.Result, error) {
 			return nil, err
 		}
 
-		if balance.BalanceRef != firstTouch[i] || !sameState(last[balance.BalanceRef], engine.BalanceState{Available: balance.Available, OnHold: balance.OnHold, OverdraftUsed: balance.OverdraftUsed, Version: balance.Version}) {
+		if balance.BalanceRef != firstTouch[i] || !sameState(last[balance.BalanceRef], accounting.BalanceState{Available: balance.Available, OnHold: balance.OnHold, OverdraftUsed: balance.OverdraftUsed, Version: balance.Version}) {
 			return nil, errors.New("accounting final state does not match last movement")
 		}
 
@@ -535,8 +535,8 @@ func DecodeResult(raw []byte, request engine.Request) (*engine.Result, error) {
 	return result, nil
 }
 
-func validateCompanionSequence(movement engine.Movement, previous []engine.Movement) error {
-	if movement.Role != engine.RoleOverdraftCompanion {
+func validateCompanionSequence(movement accounting.Movement, previous []accounting.Movement) error {
+	if movement.Role != accounting.RoleOverdraftCompanion {
 		if len(previous) > 0 && requiresCompanion(previous[len(previous)-1]) {
 			return errors.New("primary debt change has no companion")
 		}
@@ -549,71 +549,71 @@ func validateCompanionSequence(movement engine.Movement, previous []engine.Movem
 	}
 
 	primary := previous[len(previous)-1]
-	if primary.Role != engine.RolePrimary || primary.TransactionID != movement.TransactionID || primary.PostingRef != movement.PostingRef || primary.OverdraftDelta.IsZero() || !movement.Amount.Equal(primary.OverdraftDelta.Abs()) {
+	if primary.Role != accounting.RolePrimary || primary.TransactionID != movement.TransactionID || primary.PostingRef != movement.PostingRef || primary.OverdraftDelta.IsZero() || !movement.Amount.Equal(primary.OverdraftDelta.Abs()) {
 		return errors.New("companion movement does not match primary debt change")
 	}
 
-	if (primary.OverdraftDelta.IsPositive() && movement.Type != engine.PostingDebit) || (primary.OverdraftDelta.IsNegative() && movement.Type != engine.PostingCredit) {
+	if (primary.OverdraftDelta.IsPositive() && movement.Type != accounting.PostingDebit) || (primary.OverdraftDelta.IsNegative() && movement.Type != accounting.PostingCredit) {
 		return errors.New("companion movement has incorrect repayment direction")
 	}
 
 	return nil
 }
 
-func requiresCompanion(movement engine.Movement) bool {
-	return movement.Role == engine.RolePrimary && !movement.OverdraftDelta.IsZero()
+func requiresCompanion(movement accounting.Movement) bool {
+	return movement.Role == accounting.RolePrimary && !movement.OverdraftDelta.IsZero()
 }
 
-func decodeMovement(raw []byte, request engine.Request) (engine.Movement, int, error) {
+func decodeMovement(raw []byte, request accounting.Execution) (accounting.Movement, int, error) {
 	var wire resultMovement
 	if err := decodeStrict(raw, &wire); err != nil {
-		return engine.Movement{}, 0, err
+		return accounting.Movement{}, 0, err
 	}
 
 	transactionID, err := uuid.Parse(wire.TransactionID)
 	if err != nil {
-		return engine.Movement{}, 0, errors.New("invalid movement transaction ID")
+		return accounting.Movement{}, 0, errors.New("invalid movement transaction ID")
 	}
 
 	posting, balance, ordinal, err := correlateMovement(wire, transactionID, request)
 	if err != nil {
-		return engine.Movement{}, 0, err
+		return accounting.Movement{}, 0, err
 	}
 
 	expectedRef := transactionID.String() + ":" + strconv.Itoa(len(posting.Ref)) + ":" + posting.Ref + ":" + wire.Role + ":0"
 	if wire.Ref != expectedRef || !validPostingType(wire.Type) {
-		return engine.Movement{}, 0, errors.New("invalid movement identity or type")
+		return accounting.Movement{}, 0, errors.New("invalid movement identity or type")
 	}
 
 	before, err := decodeState(wire.Before)
 	if err != nil {
-		return engine.Movement{}, 0, err
+		return accounting.Movement{}, 0, err
 	}
 
 	after, err := decodeState(wire.After)
 	if err != nil {
-		return engine.Movement{}, 0, err
+		return accounting.Movement{}, 0, err
 	}
 
 	amount, err := strictDecimal(wire.Amount)
 	if err != nil {
-		return engine.Movement{}, 0, errors.New("invalid movement amount")
+		return accounting.Movement{}, 0, errors.New("invalid movement amount")
 	}
 
 	delta, err := strictDecimal(wire.OverdraftDelta)
 	if err != nil {
-		return engine.Movement{}, 0, errors.New("invalid movement overdraft delta")
+		return accounting.Movement{}, 0, errors.New("invalid movement overdraft delta")
 	}
 
-	movement := engine.Movement{Ref: wire.Ref, TransactionID: transactionID, PostingRef: wire.PostingRef, Role: wire.Role, BalanceRef: wire.BalanceRef, Type: wire.Type, Amount: amount, OverdraftDelta: delta, Before: before, After: after}
+	movement := accounting.Movement{Ref: wire.Ref, TransactionID: transactionID, PostingRef: wire.PostingRef, Role: wire.Role, BalanceRef: wire.BalanceRef, Type: wire.Type, Amount: amount, OverdraftDelta: delta, Before: before, After: after}
 	if err := validateMovementTransition(movement, posting, balance); err != nil {
-		return engine.Movement{}, 0, err
+		return accounting.Movement{}, 0, err
 	}
 
 	return movement, ordinal, nil
 }
 
-func validateMovementTransition(movement engine.Movement, posting engine.Posting, balance engine.BalanceSnapshot) error {
+func validateMovementTransition(movement accounting.Movement, posting accounting.Posting, balance accounting.BalanceSnapshot) error {
 	before, after := movement.Before, movement.After
 	if movement.Amount.IsNegative() || movement.Amount.GreaterThan(posting.Amount) {
 		return errors.New("invalid movement amount")
@@ -627,40 +627,40 @@ func validateMovementTransition(movement engine.Movement, posting engine.Posting
 		return errors.New("invalid movement available balance")
 	}
 
-	if movement.Role == engine.RolePrimary && (!movement.OverdraftDelta.Equal(after.OverdraftUsed.Sub(before.OverdraftUsed)) || movement.Type != posting.Type) {
+	if movement.Role == accounting.RolePrimary && (!movement.OverdraftDelta.Equal(after.OverdraftUsed.Sub(before.OverdraftUsed)) || movement.Type != posting.Type) {
 		return errors.New("invalid primary movement correlation")
 	}
 
-	if movement.Role == engine.RoleOverdraftCompanion && (!movement.OverdraftDelta.IsZero() || (movement.Type != engine.PostingDebit && movement.Type != engine.PostingCredit)) {
+	if movement.Role == accounting.RoleOverdraftCompanion && (!movement.OverdraftDelta.IsZero() || (movement.Type != accounting.PostingDebit && movement.Type != accounting.PostingCredit)) {
 		return errors.New("invalid companion movement correlation")
 	}
 
 	return nil
 }
 
-func correlateMovement(wire resultMovement, transactionID uuid.UUID, request engine.Request) (engine.Posting, engine.BalanceSnapshot, int, error) {
+func correlateMovement(wire resultMovement, transactionID uuid.UUID, request accounting.Execution) (accounting.Posting, accounting.BalanceSnapshot, int, error) {
 	posting, ordinal, found := findPosting(request, transactionID, wire.PostingRef)
 	if !found {
-		return engine.Posting{}, engine.BalanceSnapshot{}, 0, errors.New("unknown movement origin")
+		return accounting.Posting{}, accounting.BalanceSnapshot{}, 0, errors.New("unknown movement origin")
 	}
 
 	source, sourceExists := findBalance(request, posting.BalanceRef)
 
 	target, targetExists := findBalance(request, wire.BalanceRef)
 	if sourceExists && targetExists {
-		if wire.Role == engine.RolePrimary && source.BalanceRef == target.BalanceRef {
+		if wire.Role == accounting.RolePrimary && source.BalanceRef == target.BalanceRef {
 			return posting, target, ordinal, nil
 		}
 
-		if wire.Role == engine.RoleOverdraftCompanion && target.Key == "overdraft" && target.AccountID == source.AccountID && target.BalanceRef != source.BalanceRef {
+		if wire.Role == accounting.RoleOverdraftCompanion && target.Key == "overdraft" && target.AccountID == source.AccountID && target.BalanceRef != source.BalanceRef {
 			return posting, target, ordinal + 1, nil
 		}
 	}
 
-	return engine.Posting{}, engine.BalanceSnapshot{}, 0, errors.New("uncorrelated movement balance or role")
+	return accounting.Posting{}, accounting.BalanceSnapshot{}, 0, errors.New("uncorrelated movement balance or role")
 }
 
-func findPosting(request engine.Request, transactionID uuid.UUID, postingRef string) (engine.Posting, int, bool) {
+func findPosting(request accounting.Execution, transactionID uuid.UUID, postingRef string) (accounting.Posting, int, bool) {
 	ordinal := 0
 
 	for _, transaction := range request.Transactions {
@@ -673,26 +673,26 @@ func findPosting(request engine.Request, transactionID uuid.UUID, postingRef str
 		}
 	}
 
-	return engine.Posting{}, 0, false
+	return accounting.Posting{}, 0, false
 }
 
-func findBalance(request engine.Request, ref string) (engine.BalanceSnapshot, bool) {
+func findBalance(request accounting.Execution, ref string) (accounting.BalanceSnapshot, bool) {
 	for _, balance := range request.Balances {
 		if balance.BalanceRef == ref {
 			return balance, true
 		}
 	}
 
-	return engine.BalanceSnapshot{}, false
+	return accounting.BalanceSnapshot{}, false
 }
 
-func decodeFinalBalance(raw []byte, request engine.Request) (engine.BalanceSnapshot, error) {
+func decodeFinalBalance(raw []byte, request accounting.Execution) (accounting.BalanceSnapshot, error) {
 	var wire resultBalance
 	if err := decodeStrict(raw, &wire); err != nil {
-		return engine.BalanceSnapshot{}, err
+		return accounting.BalanceSnapshot{}, err
 	}
 
-	var balance *engine.BalanceSnapshot
+	var balance *accounting.BalanceSnapshot
 
 	for i := range request.Balances {
 		if request.Balances[i].BalanceRef == wire.BalanceRef {
@@ -704,28 +704,28 @@ func decodeFinalBalance(raw []byte, request engine.Request) (engine.BalanceSnaps
 	}
 
 	if balance == nil || wire.ID != balance.ID.String() || wire.AccountID != balance.AccountID.String() || wire.Alias != balance.Alias || wire.Key != balance.Key || wire.AssetCode != balance.AssetCode || wire.AccountType != balance.AccountType {
-		return engine.BalanceSnapshot{}, errors.New("invalid final balance identity")
+		return accounting.BalanceSnapshot{}, errors.New("invalid final balance identity")
 	}
 
 	var err error
 	if balance.Available, err = strictDecimal(wire.Available); err != nil {
-		return engine.BalanceSnapshot{}, err
+		return accounting.BalanceSnapshot{}, err
 	}
 
 	if balance.OnHold, err = strictDecimal(wire.OnHold); err != nil {
-		return engine.BalanceSnapshot{}, err
+		return accounting.BalanceSnapshot{}, err
 	}
 
 	if balance.OverdraftUsed, err = strictDecimal(wire.OverdraftUsed); err != nil {
-		return engine.BalanceSnapshot{}, err
+		return accounting.BalanceSnapshot{}, err
 	}
 
 	if balance.OverdraftLimit, err = strictDecimal(wire.OverdraftLimit); err != nil {
-		return engine.BalanceSnapshot{}, err
+		return accounting.BalanceSnapshot{}, err
 	}
 
 	if balance.Version, err = strictVersion(wire.Version); err != nil {
-		return engine.BalanceSnapshot{}, err
+		return accounting.BalanceSnapshot{}, err
 	}
 
 	balance.Direction, balance.BalanceScope = wire.Direction, wire.BalanceScope
@@ -733,16 +733,16 @@ func decodeFinalBalance(raw []byte, request engine.Request) (engine.BalanceSnaps
 
 	balance.AllowOverdraft, balance.OverdraftLimitEnabled = wire.AllowOverdraft, wire.OverdraftLimitEnabled
 	if _, err := prepareSnapshot(*balance, len(raw)); err != nil {
-		return engine.BalanceSnapshot{}, err
+		return accounting.BalanceSnapshot{}, err
 	}
 
 	return *balance, nil
 }
 
-func decodeState(raw []byte) (engine.BalanceState, error) {
+func decodeState(raw []byte) (accounting.BalanceState, error) {
 	var wire resultState
 	if err := decodeStrict(raw, &wire); err != nil {
-		return engine.BalanceState{}, err
+		return accounting.BalanceState{}, err
 	}
 
 	available, availableErr := strictDecimal(wire.Available)
@@ -751,10 +751,10 @@ func decodeState(raw []byte) (engine.BalanceState, error) {
 
 	version, versionErr := strictVersion(wire.Version)
 	if availableErr != nil || onHoldErr != nil || usedErr != nil || versionErr != nil || onHold.IsNegative() || used.IsNegative() {
-		return engine.BalanceState{}, errors.New("invalid accounting state")
+		return accounting.BalanceState{}, errors.New("invalid accounting state")
 	}
 
-	return engine.BalanceState{Available: available, OnHold: onHold, OverdraftUsed: used, Version: version}, nil
+	return accounting.BalanceState{Available: available, OnHold: onHold, OverdraftUsed: used, Version: version}, nil
 }
 
 func strictDecimal(value string) (decimal.Decimal, error) {
@@ -779,11 +779,11 @@ func strictVersion(value string) (int64, error) {
 	return version, nil
 }
 
-func sameMoney(left, right engine.BalanceState) bool {
+func sameMoney(left, right accounting.BalanceState) bool {
 	return left.Available.Equal(right.Available) && left.OnHold.Equal(right.OnHold) && left.OverdraftUsed.Equal(right.OverdraftUsed)
 }
 
-func sameState(left, right engine.BalanceState) bool {
+func sameState(left, right accounting.BalanceState) bool {
 	return left.Version == right.Version && sameMoney(left, right)
 }
 

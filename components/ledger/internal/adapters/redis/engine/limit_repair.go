@@ -13,7 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
 //go:embed scripts/normalize_balance_limits.lua
@@ -28,7 +28,7 @@ const (
 	repairCASWrongType int64 = -2
 )
 
-func repairBalanceLimits(ctx context.Context, client *redis.Client, keys []string, request engine.Request) error {
+func repairBalanceLimits(ctx context.Context, client *redis.Client, keys []string, request accounting.Execution) error {
 	if err := ctx.Err(); err != nil {
 		return technical("context_canceled", false, err)
 	}

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -169,7 +169,7 @@ func TestLoadBalanceEngineSnapshotPoolMapsTheCompleteSnapshot(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, pool.Snapshots, 1)
-	assert.Equal(t, engine.BalanceSnapshot{
+	assert.Equal(t, accounting.BalanceSnapshot{
 		BalanceRef:            "@alice#available",
 		ID:                    balanceID,
 		AccountID:             accountID,
@@ -481,7 +481,7 @@ func snapshotPoolBalance(organizationID, ledgerID, accountID uuid.UUID, alias, k
 	}
 }
 
-func snapshotPoolRefs(snapshots []engine.BalanceSnapshot) []string {
+func snapshotPoolRefs(snapshots []accounting.BalanceSnapshot) []string {
 	refs := make([]string, len(snapshots))
 	for i := range snapshots {
 		refs[i] = snapshots[i].BalanceRef

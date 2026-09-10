@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
-func validateSnapshot(snapshot *engine.BalanceSnapshot, allowMissingAlias bool) error {
+func validateSnapshot(snapshot *accounting.BalanceSnapshot, allowMissingAlias bool) error {
 	if snapshot.ID == uuid.Nil || snapshot.AccountID == uuid.Nil || snapshot.AccountType == "" || snapshot.AssetCode == "" {
 		return errors.New("incomplete balance cache identity")
 	}
@@ -37,7 +37,7 @@ func validateSnapshot(snapshot *engine.BalanceSnapshot, allowMissingAlias bool) 
 	return normalizeLogicalIdentity(snapshot, allowMissingAlias)
 }
 
-func normalizeLogicalIdentity(snapshot *engine.BalanceSnapshot, allowMissingAlias bool) error {
+func normalizeLogicalIdentity(snapshot *accounting.BalanceSnapshot, allowMissingAlias bool) error {
 	if snapshot.Key == "" {
 		snapshot.Key = "default"
 	}

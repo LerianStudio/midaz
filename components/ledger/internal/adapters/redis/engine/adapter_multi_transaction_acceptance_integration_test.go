@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
-	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
@@ -34,7 +34,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		require.NoError(t, err)
 		requireJSONEqual(t, multiTransactionAcceptanceResult(), result)
 
-		keys, err := resolveAdapterKeys(ctx, input.Request)
+		keys, err := resolveAdapterKeys(ctx, input.Execution)
 		require.NoError(t, err)
 		t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
 		assertMultiTransactionAcceptanceState(t, inspector, keys, input)
@@ -54,9 +54,9 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 
 	t.Run("live physical balance overrides the cache-aside seed", func(t *testing.T) {
 		input, limits := multiTransactionAcceptanceExecution(t)
-		keys, err := resolveAdapterKeys(ctx, input.Request)
+		keys, err := resolveAdapterKeys(ctx, input.Execution)
 		require.NoError(t, err)
-		live := input.Request.Balances[0]
+		live := input.Execution.Balances[0]
 		live.Available = decimal.NewFromInt(41)
 		live.Version = 8
 		encoded, err := balancecache.Encode(live, balancecache.FormatDual)
@@ -78,7 +78,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution, Limits) {
 	t.Helper()
 	input, limits := richAdapterExecution(t)
-	request := &input.Request
+	request := &input.Execution
 	request.ExecutionID = uuid.MustParse("33333333-3333-4333-8333-333333333333")
 
 	primary := &request.Balances[0]
@@ -210,8 +210,8 @@ func refingerprintMultiTransactionAcceptance(t *testing.T, input command.EngineE
 		require.NoError(t, err)
 		payload.OperationSpecs[0].Description = description
 		payloads[index] = *payload
-		postingRefs := make([]string, len(input.Request.Transactions[index].Postings))
-		for postingIndex, posting := range input.Request.Transactions[index].Postings {
+		postingRefs := make([]string, len(input.Execution.Transactions[index].Postings))
+		for postingIndex, posting := range input.Execution.Transactions[index].Postings {
 			postingRefs[postingIndex] = posting.Ref
 		}
 		projectionIntents := make([]command.OperationRecordIntent, len(payload.OperationSpecs))
@@ -226,8 +226,8 @@ func refingerprintMultiTransactionAcceptance(t *testing.T, input command.EngineE
 		}
 	}
 	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{
-		TenantID: payloads[0].TenantID, OrganizationID: input.Request.OrganizationID, LedgerID: input.Request.LedgerID,
-		ExecutionID: input.Request.ExecutionID, Transactions: intents,
+		TenantID: payloads[0].TenantID, OrganizationID: input.Execution.OrganizationID, LedgerID: input.Execution.LedgerID,
+		ExecutionID: input.Execution.ExecutionID, Transactions: intents,
 	})
 	require.NoError(t, err)
 	input.IntentFingerprint = fingerprint
@@ -241,7 +241,7 @@ func refingerprintMultiTransactionAcceptance(t *testing.T, input command.EngineE
 	return input
 }
 
-func multiTransactionAcceptanceResult() *core.Result {
+func multiTransactionAcceptanceResult() *core.ExecutionResult {
 	primary := multiTransactionAcceptancePrimary()
 	companion := multiTransactionAcceptanceCompanion()
 	t1 := uuid.MustParse("11111111-1111-4111-8111-111111111111")
@@ -261,7 +261,7 @@ func multiTransactionAcceptanceResult() *core.Result {
 	}
 	primary.Available, primary.OverdraftUsed, primary.Version = decimal.Zero, decimal.NewFromInt(12), 11
 	companion.Available, companion.Version = decimal.NewFromInt(12), 6
-	return &core.Result{Movements: movements, Final: []core.BalanceSnapshot{primary, companion}}
+	return &core.ExecutionResult{Movements: movements, Final: []core.BalanceSnapshot{primary, companion}}
 }
 
 func multiTransactionAcceptancePrimary() core.BalanceSnapshot {
@@ -306,7 +306,7 @@ func assertMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client
 	require.Equal(t, []string{keys.Balances["@source#default"].Balance, keys.Balances["@source#overdraft"].Balance}, members)
 	require.Equal(t, int64(3), inspector.HLen(ctx, keys.Guards).Val())
 	for index, token := range []string{"accepted-t1", "accepted-t2", "accepted-t3"} {
-		actual, getErr := inspector.HGet(ctx, keys.Guards, input.Request.Transactions[index].ID.String()).Result()
+		actual, getErr := inspector.HGet(ctx, keys.Guards, input.Execution.Transactions[index].ID.String()).Result()
 		require.NoError(t, getErr)
 		require.Equal(t, token, actual)
 	}
@@ -319,13 +319,13 @@ func assertMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client
 	intermediateCompanion[0].Available, intermediateCompanion[0].Version = decimal.NewFromInt(10), 4
 	intermediatePrimary[1].OverdraftUsed, intermediatePrimary[1].Version = decimal.NewFromInt(4), 10
 	intermediateCompanion[1].Available, intermediateCompanion[1].Version = decimal.NewFromInt(4), 5
-	for index, transaction := range input.Request.Transactions {
-		field := transaction.ID.String() + ":" + input.Request.ExecutionID.String()
+	for index, transaction := range input.Execution.Transactions {
+		field := transaction.ID.String() + ":" + input.Execution.ExecutionID.String()
 		raw, getErr := inspector.HGet(ctx, keys.Recovery, field).Bytes()
 		require.NoError(t, getErr)
 		envelope, decodeErr := command.DecodeTransactionCompletionRecord(raw)
 		require.NoError(t, decodeErr)
-		require.Equal(t, input.Request.ExecutionID, envelope.ExecutionID)
+		require.Equal(t, input.Execution.ExecutionID, envelope.ExecutionID)
 		require.Equal(t, transaction.ID, envelope.TransactionID)
 		require.Equal(t, input.IntentFingerprint, envelope.IntentFingerprint)
 		require.Equal(t, string(input.CompletionPlans[index].Payload), envelope.Payload)
@@ -335,7 +335,7 @@ func assertMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client
 	}
 
 	require.Equal(t, int64(1), inspector.HLen(ctx, keys.Receipts).Val())
-	receipt, err := inspector.HGet(ctx, keys.Receipts, input.Request.ExecutionID.String()).Bytes()
+	receipt, err := inspector.HGet(ctx, keys.Receipts, input.Execution.ExecutionID.String()).Bytes()
 	require.NoError(t, err)
 	var saved struct {
 		FormatVersion     int    `json:"formatVersion"`
@@ -345,9 +345,9 @@ func assertMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client
 	}
 	require.NoError(t, json.Unmarshal(receipt, &saved))
 	require.Equal(t, 1, saved.FormatVersion)
-	require.Equal(t, input.Request.ExecutionID.String(), saved.ExecutionID)
+	require.Equal(t, input.Execution.ExecutionID.String(), saved.ExecutionID)
 	require.Equal(t, input.IntentFingerprint, saved.IntentFingerprint)
-	replayed, err := DecodeResult([]byte(saved.Response), input.Request)
+	replayed, err := DecodeResult([]byte(saved.Response), input.Execution)
 	require.NoError(t, err)
 	requireJSONEqual(t, expected, replayed)
 }

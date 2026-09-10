@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 )
@@ -82,19 +82,19 @@ type wireTransaction struct {
 }
 
 type wireBalanceRequirement struct {
-	BalanceRef     string                   `json:"balanceRef"`
-	AssetCode      string                   `json:"assetCode"`
-	Permission     engine.BalancePermission `json:"permission"`
-	ForbidExternal bool                     `json:"forbidExternal"`
+	BalanceRef     string                       `json:"balanceRef"`
+	AssetCode      string                       `json:"assetCode"`
+	Permission     accounting.BalancePermission `json:"permission"`
+	ForbidExternal bool                         `json:"forbidExternal"`
 }
 
 type wirePosting struct {
-	Ref             string             `json:"ref"`
-	BalanceRef      string             `json:"balanceRef"`
-	Type            engine.PostingType `json:"type"`
-	Amount          string             `json:"amount"`
-	DrawPolicy      engine.DrawPolicy  `json:"drawPolicy"`
-	OverdraftAmount string             `json:"overdraftAmount"`
+	Ref             string                 `json:"ref"`
+	BalanceRef      string                 `json:"balanceRef"`
+	Type            accounting.PostingType `json:"type"`
+	Amount          string                 `json:"amount"`
+	DrawPolicy      accounting.DrawPolicy  `json:"drawPolicy"`
+	OverdraftAmount string                 `json:"overdraftAmount"`
 }
 
 type wireBalance struct {
@@ -138,22 +138,22 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 		return nil, err
 	}
 
-	keys, err := prepareKeys(input.Request.Balances, resolved, limits.MaxRequestBytes)
+	keys, err := prepareKeys(input.Execution.Balances, resolved, limits.MaxRequestBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	wireBalances, balances, err := prepareBalances(ctx, input.Request, limits)
+	wireBalances, balances, err := prepareBalances(ctx, input.Execution, limits)
 	if err != nil {
 		return nil, err
 	}
 
-	transactions, err := prepareTransactions(ctx, input.Request, limits, guards, recovery, balances)
+	transactions, err := prepareTransactions(ctx, input.Execution, limits, guards, recovery, balances)
 	if err != nil {
 		return nil, err
 	}
 
-	request := input.Request
+	request := input.Execution
 
 	retentionSeconds, err := effectiveRetentionSeconds(input.RetentionSeconds)
 	if err != nil {
@@ -205,7 +205,7 @@ func validateExecutionEnvelope(input command.EngineExecution, limits Limits) err
 		return fmt.Errorf("accounting execution limits must be positive")
 	}
 
-	request := input.Request
+	request := input.Execution
 	if request.OrganizationID == uuid.Nil || request.LedgerID == uuid.Nil || request.ExecutionID == uuid.Nil {
 		return fmt.Errorf("accounting execution requires nonzero scope and execution UUIDs")
 	}
@@ -263,11 +263,11 @@ func prepareSidecars(input command.EngineExecution, limits Limits) (map[uuid.UUI
 	return guards, completionPlans, nil
 }
 
-func prepareBalances(ctx context.Context, request engine.Request, limits Limits) ([]wireBalance, map[string]engine.BalanceSnapshot, error) {
+func prepareBalances(ctx context.Context, request accounting.Execution, limits Limits) ([]wireBalance, map[string]accounting.BalanceSnapshot, error) {
 	prepared := make([]wireBalance, 0, len(request.Balances))
-	balances := make(map[string]engine.BalanceSnapshot, len(request.Balances))
+	balances := make(map[string]accounting.BalanceSnapshot, len(request.Balances))
 	identities := make(map[uuid.UUID]bool, len(request.Balances))
-	accounts := make(map[uuid.UUID]engine.BalanceSnapshot, len(request.Balances))
+	accounts := make(map[uuid.UUID]accounting.BalanceSnapshot, len(request.Balances))
 
 	aliases := make(map[string]uuid.UUID, len(request.Balances))
 	for i, balance := range request.Balances {
@@ -303,11 +303,11 @@ func prepareBalances(ctx context.Context, request engine.Request, limits Limits)
 	return prepared, balances, nil
 }
 
-func validSnapshotIdentity(balance engine.BalanceSnapshot) bool {
+func validSnapshotIdentity(balance accounting.BalanceSnapshot) bool {
 	return balance.ID != uuid.Nil && balance.AccountID != uuid.Nil && balance.Alias != "" && balance.Key != "" && balance.AssetCode != "" && balance.AccountType != "" && balance.BalanceRef == balance.Alias+"#"+balance.Key && validLogicalReference(balance.BalanceRef)
 }
 
-func prepareTransactions(ctx context.Context, request engine.Request, limits Limits, guards map[uuid.UUID]command.ExecutionGuard, completionPlans map[uuid.UUID]json.RawMessage, balances map[string]engine.BalanceSnapshot) ([]wireTransaction, error) {
+func prepareTransactions(ctx context.Context, request accounting.Execution, limits Limits, guards map[uuid.UUID]command.ExecutionGuard, completionPlans map[uuid.UUID]json.RawMessage, balances map[string]accounting.BalanceSnapshot) ([]wireTransaction, error) {
 	preparedTransactions := make([]wireTransaction, 0, len(request.Transactions))
 	transactionIDs := make(map[uuid.UUID]bool, len(request.Transactions))
 	postingCount := 0
@@ -339,7 +339,7 @@ func prepareTransactions(ctx context.Context, request engine.Request, limits Lim
 
 		for _, requirement := range transaction.BalanceRequirements {
 			if _, exists := balances[requirement.BalanceRef]; !exists || strings.TrimSpace(requirement.AssetCode) == "" ||
-				(requirement.Permission != engine.BalancePermissionSend && requirement.Permission != engine.BalancePermissionReceive) {
+				(requirement.Permission != accounting.BalancePermissionSend && requirement.Permission != accounting.BalancePermissionReceive) {
 				return nil, fmt.Errorf("invalid accounting balance requirement")
 			}
 
@@ -358,7 +358,7 @@ func prepareTransactions(ctx context.Context, request engine.Request, limits Lim
 	return preparedTransactions, nil
 }
 
-func preparePostings(postings []engine.Posting, balances map[string]engine.BalanceSnapshot, maxBytes int) ([]wirePosting, error) {
+func preparePostings(postings []accounting.Posting, balances map[string]accounting.BalanceSnapshot, maxBytes int) ([]wirePosting, error) {
 	prepared := make([]wirePosting, 0, len(postings))
 
 	refs := make(map[string]bool, len(postings))
@@ -392,7 +392,7 @@ func preparePostings(postings []engine.Posting, balances map[string]engine.Balan
 	return prepared, nil
 }
 
-func prepareKeys(balances []engine.BalanceSnapshot, resolved resolvedExecutionKeys, maxBytes int) ([]string, error) {
+func prepareKeys(balances []accounting.BalanceSnapshot, resolved resolvedExecutionKeys, maxBytes int) ([]string, error) {
 	if len(resolved.Balances) != len(balances) {
 		return nil, fmt.Errorf("resolved accounting key inventory does not match snapshots")
 	}
@@ -425,7 +425,7 @@ func prepareKeys(balances []engine.BalanceSnapshot, resolved resolvedExecutionKe
 	return keys, nil
 }
 
-func prepareSnapshot(balance engine.BalanceSnapshot, maxBytes int) (wireBalanceSnapshot, error) {
+func prepareSnapshot(balance accounting.BalanceSnapshot, maxBytes int) (wireBalanceSnapshot, error) {
 	if (balance.Direction != "" && balance.Direction != "credit" && balance.Direction != "debit") || (balance.BalanceScope != "transactional" && balance.BalanceScope != "internal") || balance.Version < 0 || balance.OnHold.Sign() < 0 || balance.OverdraftUsed.Sign() < 0 || balance.OverdraftLimit.Sign() < 0 || (balance.Available.Sign() < 0 && balance.AccountType != "external") {
 		return wireBalanceSnapshot{}, fmt.Errorf("invalid accounting balance state")
 	}
@@ -480,15 +480,15 @@ func validLogicalReference(ref string) bool {
 	return strings.Count(ref, "#") == 1 && !strings.ContainsAny(ref, "{}") && !strings.HasPrefix(ref, "balance:") && !strings.HasPrefix(ref, "tenant:") && strings.IndexFunc(ref, unicode.IsControl) == -1
 }
 
-func validPostingType(posting engine.PostingType) bool {
+func validPostingType(posting accounting.PostingType) bool {
 	switch posting {
-	case engine.PostingDebit, engine.PostingCredit, engine.PostingReserve, engine.PostingUnreserve, engine.PostingHold, engine.PostingRelease:
+	case accounting.PostingDebit, accounting.PostingCredit, accounting.PostingReserve, accounting.PostingUnreserve, accounting.PostingHold, accounting.PostingRelease:
 		return true
 	default:
 		return false
 	}
 }
 
-func validDrawPolicy(policy engine.DrawPolicy) bool {
-	return policy == engine.DrawForbidden || policy == engine.DrawAllowed || policy == engine.DrawRouteDenied
+func validDrawPolicy(policy accounting.DrawPolicy) bool {
+	return policy == accounting.DrawForbidden || policy == accounting.DrawAllowed || policy == accounting.DrawRouteDenied
 }

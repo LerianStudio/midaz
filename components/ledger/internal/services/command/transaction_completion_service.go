@@ -23,7 +23,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -182,7 +182,7 @@ func validTransactionPersistenceOutcome(outcome TransactionPersistenceOutcome) b
 // from frozen transaction context plus an authoritative engine result to the
 // deterministic SQL transaction and operation rows used by normal completion
 // and recovery.
-func BuildTransactionWriteSet(payload TransactionCompletionPlan, result engine.Result) (TransactionWriteSet, error) {
+func BuildTransactionWriteSet(payload TransactionCompletionPlan, result accounting.ExecutionResult) (TransactionWriteSet, error) {
 	rows, err := BuildOperationRecordsFromMovements(payload, result)
 	if err != nil {
 		return TransactionWriteSet{}, err

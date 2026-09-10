@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
 // NoncanonicalLimitError requires an explicit conditional repair of a live limit.
@@ -183,7 +183,7 @@ func (r *fieldReader) version() int64 {
 // An old cold seed may omit Alias. It decodes with empty Alias and BalanceRef;
 // callers must match ID, AccountID, Key and asset against trusted request scope
 // before completing that logical identity. New-only blobs require an alias.
-func Decode(raw []byte) (engine.BalanceSnapshot, error) {
+func Decode(raw []byte) (accounting.BalanceSnapshot, error) {
 	return decode(raw, false)
 }
 
@@ -191,7 +191,7 @@ func Decode(raw []byte) (engine.BalanceSnapshot, error) {
 // representations and a valid but noncanonical OverdraftLimit are normalized
 // in the returned snapshot; raw is never modified. Mutating cache paths must
 // use strict Decode plus conditional repair rather than this projection.
-func DecodeForRead(raw []byte) (engine.BalanceSnapshot, error) {
+func DecodeForRead(raw []byte) (accounting.BalanceSnapshot, error) {
 	return decode(raw, true)
 }
 
@@ -206,24 +206,24 @@ func detectLegacyReadShape(fields map[string]json.RawMessage, enabled bool) (boo
 	return legacy, nil
 }
 
-func decode(raw []byte, allowNoncanonicalLimit bool) (engine.BalanceSnapshot, error) {
+func decode(raw []byte, allowNoncanonicalLimit bool) (accounting.BalanceSnapshot, error) {
 	fields, err := decodeObject(raw)
 	if err != nil {
-		return engine.BalanceSnapshot{}, err
+		return accounting.BalanceSnapshot{}, err
 	}
 
 	if schema, exists := fields["SchemaVersion"]; exists && string(schema) != "2" {
-		return engine.BalanceSnapshot{}, errors.New("unsupported balance cache schema version")
+		return accounting.BalanceSnapshot{}, errors.New("unsupported balance cache schema version")
 	}
 
 	legacyReadShape, err := detectLegacyReadShape(fields, allowNoncanonicalLimit)
 	if err != nil {
-		return engine.BalanceSnapshot{}, err
+		return accounting.BalanceSnapshot{}, err
 	}
 
 	if _, legacy := fields["ID"]; !legacy && !legacyReadShape {
 		if _, versioned := fields["SchemaVersion"]; !versioned {
-			return engine.BalanceSnapshot{}, errors.New("new balance cache fields require schema version")
+			return accounting.BalanceSnapshot{}, errors.New("new balance cache fields require schema version")
 		}
 	}
 
@@ -235,10 +235,10 @@ func decode(raw []byte, allowNoncanonicalLimit bool) (engine.BalanceSnapshot, er
 
 	accountID, accountErr := uuid.Parse(r.text("AccountID", "", false))
 	if idErr != nil || accountErr != nil || id == uuid.Nil || accountID == uuid.Nil {
-		return engine.BalanceSnapshot{}, errors.New("invalid cached balance identity")
+		return accounting.BalanceSnapshot{}, errors.New("invalid cached balance identity")
 	}
 
-	snapshot := engine.BalanceSnapshot{
+	snapshot := accounting.BalanceSnapshot{
 		ID: id, AccountID: accountID,
 		AccountType: r.text("AccountType", "", false), AssetCode: r.text("AssetCode", "", false),
 		Alias: r.text("Alias", "", missingLegacyAlias), Key: r.text("Key", "default", true),
@@ -250,11 +250,11 @@ func decode(raw []byte, allowNoncanonicalLimit bool) (engine.BalanceSnapshot, er
 		AllowOverdraft: r.flag("AllowOverdraft", true), OverdraftLimitEnabled: r.flag("OverdraftLimitEnabled", true),
 	}
 	if r.err != nil {
-		return engine.BalanceSnapshot{}, r.err
+		return accounting.BalanceSnapshot{}, r.err
 	}
 
 	if err := validateSnapshot(&snapshot, missingLegacyAlias); err != nil {
-		return engine.BalanceSnapshot{}, err
+		return accounting.BalanceSnapshot{}, err
 	}
 
 	return snapshot, nil
@@ -262,7 +262,7 @@ func decode(raw []byte, allowNoncanonicalLimit bool) (engine.BalanceSnapshot, er
 
 // Encode writes both representations from one snapshot, or only new fields.
 // New versions are strings so script JSON decoders cannot round int64 values.
-func Encode(snapshot engine.BalanceSnapshot, format Format) ([]byte, error) {
+func Encode(snapshot accounting.BalanceSnapshot, format Format) ([]byte, error) {
 	if format != FormatDual && format != FormatNewOnly {
 		return nil, errors.New("unsupported balance cache format")
 	}

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
 func TestExecutePreparedBalanceEngineExecutesExactlyOnce(t *testing.T) {
@@ -34,8 +34,8 @@ func TestExecutePreparedBalanceEngineDoesNotRetryRefusals(t *testing.T) {
 
 	plan, result := recoveryContractFixture(t)
 	prepared := preparedExecutionFixture(t, plan, result)
-	refusal := &engine.Failure{
-		Code: engine.FailureInsufficientFunds, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default",
+	refusal := &accounting.Failure{
+		Code: accounting.FailureInsufficientFunds, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default",
 	}
 	executor := &scriptedBalanceEngine{responses: []balanceEngineResponse{{err: refusal}, {result: &result}}}
 
@@ -76,7 +76,7 @@ func TestExecutePreparedBalanceEngineRejectsMismatchedPlanBeforeExecution(t *tes
 	assert.Empty(t, executor.requests)
 }
 
-func preparedExecutionFixture(t *testing.T, plan TransactionCompletionPlan, result engine.Result) PreparedBalanceEngineExecution {
+func preparedExecutionFixture(t *testing.T, plan TransactionCompletionPlan, result accounting.ExecutionResult) PreparedBalanceEngineExecution {
 	t.Helper()
 
 	raw, err := EncodeTransactionCompletionPlan(plan)
@@ -85,15 +85,15 @@ func preparedExecutionFixture(t *testing.T, plan TransactionCompletionPlan, resu
 	return PreparedBalanceEngineExecution{
 		CompletionPlan: plan,
 		Execution: EngineExecution{
-			Request: engine.Request{
+			Execution: accounting.Execution{
 				OrganizationID: plan.OrganizationID,
 				LedgerID:       plan.LedgerID,
 				ExecutionID:    plan.ExecutionID,
-				Balances:       append([]engine.BalanceSnapshot(nil), result.Final...),
-				Transactions: []engine.Transaction{{
+				Balances:       append([]accounting.BalanceSnapshot(nil), result.Final...),
+				Transactions: []accounting.Transaction{{
 					ID: plan.TransactionID,
-					Postings: []engine.Posting{{
-						Ref: "source:0", BalanceRef: "@source#default", Type: engine.PostingDebit,
+					Postings: []accounting.Posting{{
+						Ref: "source:0", BalanceRef: "@source#default", Type: accounting.PostingDebit,
 						Amount: plan.OperationSpecs[0].RequestedAmount,
 					}},
 				}},

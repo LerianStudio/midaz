@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
-	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
@@ -57,7 +57,7 @@ func TestIntegration_AdapterExecute_IsolatesSameAliasAcrossAuthenticatedScopes(t
 			require.Len(t, result.Final, 1)
 			require.True(t, result.Final[0].Available.Equal(decimal.NewFromInt(tt.available)))
 
-			keys, err := resolveAdapterKeys(ctx, input.Request)
+			keys, err := resolveAdapterKeys(ctx, input.Execution)
 			require.NoError(t, err)
 			committed = append(committed, committedScope{ctx: ctx, input: input, keys: keys, available: tt.available})
 		})
@@ -65,7 +65,7 @@ func TestIntegration_AdapterExecute_IsolatesSameAliasAcrossAuthenticatedScopes(t
 
 	seenBalances := make(map[string]bool, len(committed))
 	for _, scope := range committed {
-		balanceKey := scope.keys.Balances[scope.input.Request.Balances[0].BalanceRef].Balance
+		balanceKey := scope.keys.Balances[scope.input.Execution.Balances[0].BalanceRef].Balance
 		require.False(t, seenBalances[balanceKey], "tenant, organization, and ledger must contribute to the physical balance identity")
 		seenBalances[balanceKey] = true
 		raw, err := inspector.Get(scope.ctx, balanceKey).Bytes()
@@ -76,7 +76,7 @@ func TestIntegration_AdapterExecute_IsolatesSameAliasAcrossAuthenticatedScopes(t
 		require.True(t, cached.Available.Equal(decimal.NewFromInt(scope.available)))
 		require.Equal(t, int64(1), inspector.HLen(scope.ctx, scope.keys.Receipts).Val())
 		require.Equal(t, int64(1), inspector.HLen(scope.ctx, scope.keys.Guards).Val())
-		require.Equal(t, int64(0), inspector.Exists(scope.ctx, scope.keys.Balances[scope.input.Request.Balances[0].BalanceRef].Deleted).Val())
+		require.Equal(t, int64(0), inspector.Exists(scope.ctx, scope.keys.Balances[scope.input.Execution.Balances[0].BalanceRef].Deleted).Val())
 	}
 
 	require.Equal(t, int64(3), inspector.ZCard(committed[0].ctx, committed[0].keys.Schedule).Val())
@@ -89,10 +89,10 @@ func TestIntegration_AdapterExecute_TouchedDeletionMarkerAbortsMixedBatchWithout
 	ctx := context.Background()
 	inspector, _, _ := newAdapterValkey(t)
 	input, limits := multiTransactionAcceptanceExecution(t)
-	keys, err := resolveAdapterKeys(ctx, input.Request)
+	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
 
-	for _, balance := range input.Request.Balances {
+	for _, balance := range input.Execution.Balances {
 		encoded, encodeErr := balancecache.Encode(balance, balancecache.FormatDual)
 		require.NoError(t, encodeErr)
 		require.NoError(t, inspector.Set(ctx, keys.Balances[balance.BalanceRef].Balance, encoded, time.Hour).Err())
@@ -130,7 +130,7 @@ func TestIntegration_AdapterExecute_TouchedDeletionMarkerAbortsMixedBatchWithout
 
 func TestIntegration_AdapterExecute_RejectsEmptyTransactionsBeforeProvider(t *testing.T) {
 	input, limits := richAdapterExecution(t)
-	input.Request.Transactions = nil
+	input.Execution.Transactions = nil
 	input.Guards = nil
 	input.CompletionPlans = nil
 	provider := &integrationClientProvider{}
@@ -146,22 +146,22 @@ func TestIntegration_AdapterExecute_RejectsEmptyTransactionsBeforeProvider(t *te
 func scopedAdapterExecution(t *testing.T, tenantID, organizationID, ledgerID string, amount int64) (command.EngineExecution, Limits) {
 	t.Helper()
 	input, limits := richAdapterExecution(t)
-	input.Request.OrganizationID = uuid.MustParse(organizationID)
-	input.Request.LedgerID = uuid.MustParse(ledgerID)
-	input.Request.ExecutionID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(tenantID+":"+organizationID+":"+ledgerID+":execution"))
-	input.Request.Transactions[0].ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(tenantID+":"+organizationID+":"+ledgerID+":transaction"))
-	input.Request.Transactions[0].Postings[0].Amount = decimal.NewFromInt(amount)
-	input.Guards[0].TransactionID = input.Request.Transactions[0].ID
-	input.CompletionPlans[0].TransactionID = input.Request.Transactions[0].ID
+	input.Execution.OrganizationID = uuid.MustParse(organizationID)
+	input.Execution.LedgerID = uuid.MustParse(ledgerID)
+	input.Execution.ExecutionID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(tenantID+":"+organizationID+":"+ledgerID+":execution"))
+	input.Execution.Transactions[0].ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(tenantID+":"+organizationID+":"+ledgerID+":transaction"))
+	input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(amount)
+	input.Guards[0].TransactionID = input.Execution.Transactions[0].ID
+	input.CompletionPlans[0].TransactionID = input.Execution.Transactions[0].ID
 
 	payload, err := command.DecodeTransactionCompletionPlan(input.CompletionPlans[0].Payload)
 	require.NoError(t, err)
 	payload.TenantID = tenantID
-	payload.OrganizationID = input.Request.OrganizationID
-	payload.LedgerID = input.Request.LedgerID
-	payload.ExecutionID = input.Request.ExecutionID
-	payload.TransactionID = input.Request.Transactions[0].ID
-	payload.OperationSpecs[0].TransactionID = input.Request.Transactions[0].ID
+	payload.OrganizationID = input.Execution.OrganizationID
+	payload.LedgerID = input.Execution.LedgerID
+	payload.ExecutionID = input.Execution.ExecutionID
+	payload.TransactionID = input.Execution.Transactions[0].ID
+	payload.OperationSpecs[0].TransactionID = input.Execution.Transactions[0].ID
 	payload.OperationSpecs[0].RequestedAmount = decimal.NewFromInt(amount)
 	payload.OperationSpecs[0].Balance.OrganizationID = organizationID
 	payload.OperationSpecs[0].Balance.LedgerID = ledgerID

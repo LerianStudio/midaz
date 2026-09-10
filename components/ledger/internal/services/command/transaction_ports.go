@@ -13,7 +13,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -34,7 +34,7 @@ type ExecutionGuard struct {
 
 // EngineExecution combines balance changes with their completion plans and replay context.
 type EngineExecution struct {
-	Request           engine.Request
+	Execution         accounting.Execution
 	IntentFingerprint string
 	// RetentionSeconds is the effective request idempotency/retry window. Zero
 	// means the HTTP default; values above the HTTP maximum are rejected.
@@ -47,7 +47,7 @@ type EngineExecution struct {
 
 // BalanceEngine applies balance changes and records their recovery data atomically.
 type BalanceEngine interface {
-	Execute(ctx context.Context, input EngineExecution) (*engine.Result, error)
+	Execute(ctx context.Context, input EngineExecution) (*accounting.ExecutionResult, error)
 }
 
 // TransactionCompleter durably projects an applied accounting result

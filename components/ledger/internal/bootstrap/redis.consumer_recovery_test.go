@@ -21,7 +21,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -41,7 +41,7 @@ func consumerRecoveryFixture(t *testing.T) (string, string, *command.Transaction
 	balance.Alias, balance.Key, balance.AssetCode, balance.AccountType = "@source", "default", "BRL", "deposit"
 	balance.Available, balance.Version = decimal.NewFromInt(100), 7
 	projection := command.OperationRecordSpec{
-		TransactionID: transaction, PostingRef: "posting", BalanceRef: "@source#default", Role: engine.RolePrimary,
+		TransactionID: transaction, PostingRef: "posting", BalanceRef: "@source#default", Role: accounting.RolePrimary,
 		Side: command.OperationSpecSideFrom, RowType: "DEBIT", Direction: "debit", Balance: balance,
 		RequestedAmount: decimal.NewFromInt(30), CompatibilityPath: command.OperationRecordStandard,
 	}
@@ -64,17 +64,17 @@ func consumerRecoveryFixture(t *testing.T) (string, string, *command.Transaction
 	payload.IntentFingerprint = fingerprint
 	rawPayload, err := command.EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
-	before := engine.BalanceState{Available: decimal.NewFromInt(100), Version: 7}
-	after := engine.BalanceState{Available: decimal.NewFromInt(70), Version: 8}
+	before := accounting.BalanceState{Available: decimal.NewFromInt(100), Version: 7}
+	after := accounting.BalanceState{Available: decimal.NewFromInt(70), Version: 8}
 	envelope := &command.TransactionCompletionRecord{
 		FormatVersion: 2, OrganizationID: organization, LedgerID: ledger, TransactionID: transaction, ExecutionID: execution,
 		IntentFingerprint: fingerprint, Payload: string(rawPayload),
-		Result: engine.Result{
-			Movements: []engine.Movement{{
-				Ref: transaction.String() + ":7:posting:primary:0", TransactionID: transaction, PostingRef: "posting", Role: engine.RolePrimary,
-				BalanceRef: "@source#default", Type: engine.PostingDebit, Amount: decimal.NewFromInt(30), Before: before, After: after,
+		Result: accounting.ExecutionResult{
+			Movements: []accounting.Movement{{
+				Ref: transaction.String() + ":7:posting:primary:0", TransactionID: transaction, PostingRef: "posting", Role: accounting.RolePrimary,
+				BalanceRef: "@source#default", Type: accounting.PostingDebit, Amount: decimal.NewFromInt(30), Before: before, After: after,
 			}},
-			Final: []engine.BalanceSnapshot{{
+			Final: []accounting.BalanceSnapshot{{
 				ID: balanceID, AccountID: account, BalanceRef: "@source#default", Alias: "@source", Key: "default", AssetCode: "BRL",
 				AccountType: "deposit", Direction: "credit", BalanceScope: "transactional", Available: after.Available, Version: 8,
 			}},

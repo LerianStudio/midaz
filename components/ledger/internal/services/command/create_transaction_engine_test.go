@@ -20,7 +20,7 @@ import (
 
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -92,17 +92,17 @@ type applyingCreateEngine struct {
 	before                 func(EngineExecution) error
 }
 
-func (executor *applyingCreateEngine) Execute(_ context.Context, execution EngineExecution) (*engine.Result, error) {
+func (executor *applyingCreateEngine) Execute(_ context.Context, execution EngineExecution) (*accounting.ExecutionResult, error) {
 	executor.requests = append(executor.requests, execution)
 	require.NotNil(executor.t, executor.t)
-	require.Len(executor.t, execution.Request.Transactions, 1)
+	require.Len(executor.t, execution.Execution.Transactions, 1)
 	call := len(executor.requests) - 1
 	require.Less(executor.t, call, len(executor.expectedSourceVersions))
 	expectedSourceVersion := executor.expectedSourceVersions[call]
-	transaction := execution.Request.Transactions[0]
+	transaction := execution.Execution.Transactions[0]
 	require.NotEmpty(executor.t, transaction.Postings)
 	require.True(executor.t, transaction.Postings[0].Amount.Equal(decimal.NewFromInt(10)))
-	source := createEngineSnapshot(executor.t, execution.Request.Balances, transaction.Postings[0].BalanceRef)
+	source := createEngineSnapshot(executor.t, execution.Execution.Balances, transaction.Postings[0].BalanceRef)
 	require.True(executor.t, source.Available.Equal(decimal.NewFromInt(100)))
 	require.True(executor.t, source.OnHold.IsZero())
 	require.Equal(executor.t, expectedSourceVersion, source.Version)
@@ -117,36 +117,36 @@ func (executor *applyingCreateEngine) Execute(_ context.Context, execution Engin
 	if expectedSourceVersion == 2 {
 		afterSourceVersion = 3
 	}
-	sourceBefore := engine.BalanceState{Available: decimal.NewFromInt(100), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: expectedSourceVersion}
-	sourceAfter := engine.BalanceState{Available: decimal.NewFromInt(90), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: afterSourceVersion}
+	sourceBefore := accounting.BalanceState{Available: decimal.NewFromInt(100), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: expectedSourceVersion}
+	sourceAfter := accounting.BalanceState{Available: decimal.NewFromInt(90), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: afterSourceVersion}
 	if len(transaction.Postings) == 1 {
-		require.Equal(executor.t, engine.PostingHold, transaction.Postings[0].Type)
+		require.Equal(executor.t, accounting.PostingHold, transaction.Postings[0].Type)
 		sourceAfter.OnHold = decimal.NewFromInt(10)
 		movement := createEngineMovement(transaction.ID, transaction.Postings[0], "movement-hold", sourceBefore, sourceAfter)
 		source.Available, source.OnHold, source.Version = decimal.NewFromInt(90), decimal.NewFromInt(10), afterSourceVersion
-		return &engine.Result{Movements: []engine.Movement{movement}, Final: []engine.BalanceSnapshot{source}}, nil
+		return &accounting.ExecutionResult{Movements: []accounting.Movement{movement}, Final: []accounting.BalanceSnapshot{source}}, nil
 	}
 
 	require.Len(executor.t, transaction.Postings, 2)
-	require.Equal(executor.t, engine.PostingDebit, transaction.Postings[0].Type)
-	require.Equal(executor.t, engine.PostingCredit, transaction.Postings[1].Type)
+	require.Equal(executor.t, accounting.PostingDebit, transaction.Postings[0].Type)
+	require.Equal(executor.t, accounting.PostingCredit, transaction.Postings[1].Type)
 	require.True(executor.t, transaction.Postings[1].Amount.Equal(decimal.NewFromInt(10)))
-	target := createEngineSnapshot(executor.t, execution.Request.Balances, transaction.Postings[1].BalanceRef)
+	target := createEngineSnapshot(executor.t, execution.Execution.Balances, transaction.Postings[1].BalanceRef)
 	require.True(executor.t, target.Available.Equal(decimal.NewFromInt(100)))
 	require.True(executor.t, target.OnHold.IsZero())
 	require.Equal(executor.t, int64(1), target.Version)
-	targetBefore := engine.BalanceState{Available: decimal.NewFromInt(100), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: 1}
-	targetAfter := engine.BalanceState{Available: decimal.NewFromInt(110), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: 2}
-	movements := []engine.Movement{
+	targetBefore := accounting.BalanceState{Available: decimal.NewFromInt(100), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: 1}
+	targetAfter := accounting.BalanceState{Available: decimal.NewFromInt(110), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, Version: 2}
+	movements := []accounting.Movement{
 		createEngineMovement(transaction.ID, transaction.Postings[0], "movement-source", sourceBefore, sourceAfter),
 		createEngineMovement(transaction.ID, transaction.Postings[1], "movement-target", targetBefore, targetAfter),
 	}
 	source.Available, source.OnHold, source.Version = decimal.NewFromInt(90), decimal.Zero, afterSourceVersion
 	target.Available, target.OnHold, target.Version = decimal.NewFromInt(110), decimal.Zero, 2
-	return &engine.Result{Movements: movements, Final: []engine.BalanceSnapshot{source, target}}, nil
+	return &accounting.ExecutionResult{Movements: movements, Final: []accounting.BalanceSnapshot{source, target}}, nil
 }
 
-func createEngineSnapshot(t *testing.T, snapshots []engine.BalanceSnapshot, balanceRef string) engine.BalanceSnapshot {
+func createEngineSnapshot(t *testing.T, snapshots []accounting.BalanceSnapshot, balanceRef string) accounting.BalanceSnapshot {
 	t.Helper()
 	for _, snapshot := range snapshots {
 		if snapshot.BalanceRef == balanceRef {
@@ -154,13 +154,13 @@ func createEngineSnapshot(t *testing.T, snapshots []engine.BalanceSnapshot, bala
 		}
 	}
 	t.Fatalf("missing test snapshot %q", balanceRef)
-	return engine.BalanceSnapshot{}
+	return accounting.BalanceSnapshot{}
 }
 
-func createEngineMovement(transactionID uuid.UUID, posting engine.Posting, ref string, before, after engine.BalanceState) engine.Movement {
-	return engine.Movement{
+func createEngineMovement(transactionID uuid.UUID, posting accounting.Posting, ref string, before, after accounting.BalanceState) accounting.Movement {
+	return accounting.Movement{
 		Ref: ref, TransactionID: transactionID, PostingRef: posting.Ref,
-		Role: engine.RolePrimary, BalanceRef: posting.BalanceRef, Type: posting.Type,
+		Role: accounting.RolePrimary, BalanceRef: posting.BalanceRef, Type: posting.Type,
 		Amount: decimal.NewFromInt(10), Before: before, After: after,
 	}
 }
@@ -170,7 +170,7 @@ type createEngineErrorExecutor struct {
 	requests []EngineExecution
 }
 
-func (executor *createEngineErrorExecutor) Execute(_ context.Context, execution EngineExecution) (*engine.Result, error) {
+func (executor *createEngineErrorExecutor) Execute(_ context.Context, execution EngineExecution) (*accounting.ExecutionResult, error) {
 	executor.requests = append(executor.requests, execution)
 	return nil, executor.err
 }
@@ -222,7 +222,7 @@ func TestCreateTransactionV1UsesOptInBalanceEngineWithoutLegacyMutationPorts(t *
 	assert.Equal(t, "tenant-a", finalizer.envelopes[0].TenantID)
 	payload := mustCreateEnginePayload(t, finalizer.envelopes[0])
 	assert.Equal(t, "request-a", payload.HeaderID)
-	assert.Equal(t, executor.requests[0].Request.ExecutionID, finalizer.envelopes[0].ExecutionID)
+	assert.Equal(t, executor.requests[0].Execution.ExecutionID, finalizer.envelopes[0].ExecutionID)
 	assert.GreaterOrEqual(t, reader.reads, 2)
 	projected, err := BuildOperationRecordsFromMovements(*payload, finalizer.envelopes[0].Result)
 	require.NoError(t, err)
@@ -285,7 +285,7 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	assert.Equal(t, []uuid.UUID{reservationID}, reserver.confirmedIDs)
 	assert.Empty(t, reserver.releasedIDs)
 	require.Len(t, executor.requests, 1)
-	assert.Equal(t, int64(1), executor.requests[0].Request.Balances[0].Version)
+	assert.Equal(t, int64(1), executor.requests[0].Execution.Balances[0].Version)
 	payload := mustCreateEngineRecovery(t, executor.requests[0])
 	assert.Equal(t, transactionDate, payload.TransactionDate)
 	assert.Equal(t, transactionDate, payload.TransactionCreatedAt)
@@ -347,7 +347,7 @@ func TestCreateTransactionBalanceEnginePendingRetainsBodyAndDefersTracerConfirm(
 	assert.Empty(t, reserver.releasedIDs)
 	require.Len(t, executor.requests, 1)
 	assert.Equal(t, ExecutionGuard{
-		TransactionID: executor.requests[0].Request.Transactions[0].ID,
+		TransactionID: executor.requests[0].Execution.Transactions[0].ID,
 		ExpectedToken: "", NextToken: constant.PENDING,
 	}, executor.requests[0].Guards[0])
 
@@ -373,9 +373,9 @@ func TestCreateTransactionBalanceEngineFailureCleanupBoundary(t *testing.T) {
 			name: "confirmed financial refusal releases claim",
 			executor: func() BalanceEngine {
 				return &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}, before: func(execution EngineExecution) error {
-					return &engine.Failure{
-						Code: engine.FailureInsufficientFunds, TransactionIndex: 0, PostingIndex: 0,
-						BalanceRef: execution.Request.Transactions[0].Postings[0].BalanceRef,
+					return &accounting.Failure{
+						Code: accounting.FailureInsufficientFunds, TransactionIndex: 0, PostingIndex: 0,
+						BalanceRef: execution.Execution.Transactions[0].Postings[0].BalanceRef,
 					}
 				}}
 			},
@@ -432,22 +432,22 @@ func TestCreateTransactionBalanceEngineFailureCleanupBoundary(t *testing.T) {
 }
 
 func TestConfirmedPrecommitBalanceEngineFailureIsConservative(t *testing.T) {
-	request := engine.Request{
-		Transactions: []engine.Transaction{{
-			BalanceRequirements: []engine.BalanceRequirement{{BalanceRef: "@source#default", AssetCode: "USD", Permission: engine.BalancePermissionSend}},
-			Postings:            []engine.Posting{{Ref: "source", BalanceRef: "@source#default"}},
+	request := accounting.Execution{
+		Transactions: []accounting.Transaction{{
+			BalanceRequirements: []accounting.BalanceRequirement{{BalanceRef: "@source#default", AssetCode: "USD", Permission: accounting.BalancePermissionSend}},
+			Postings:            []accounting.Posting{{Ref: "source", BalanceRef: "@source#default"}},
 		}},
-		Balances: []engine.BalanceSnapshot{{BalanceRef: "@source#default"}},
+		Balances: []accounting.BalanceSnapshot{{BalanceRef: "@source#default"}},
 	}
-	financial := &engine.Failure{Code: engine.FailureInsufficientFunds, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default"}
+	financial := &accounting.Failure{Code: accounting.FailureInsufficientFunds, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default"}
 	technical := testBalanceEngineTechnicalError{code: "execute_indeterminate", indeterminate: true, cause: financial}
 	assert.False(t, confirmedPrecommitBalanceEngineFailure(request, technical))
-	assert.False(t, confirmedPrecommitBalanceEngineFailure(request, &engine.Failure{
+	assert.False(t, confirmedPrecommitBalanceEngineFailure(request, &accounting.Failure{
 		Code: "unknown", TransactionIndex: 0, PostingIndex: 0, BalanceRef: financial.BalanceRef,
 	}))
 	assert.True(t, confirmedPrecommitBalanceEngineFailure(request, financial))
-	assert.True(t, confirmedPrecommitBalanceEngineFailure(request, &engine.Failure{
-		Code: engine.FailureSendingNotAllowed, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "@source#default",
+	assert.True(t, confirmedPrecommitBalanceEngineFailure(request, &accounting.Failure{
+		Code: accounting.FailureSendingNotAllowed, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "@source#default",
 	}))
 }
 

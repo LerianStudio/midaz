@@ -21,7 +21,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	txredis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -65,7 +65,7 @@ type recordingCreateAdapter struct {
 	inputs   []command.EngineExecution
 }
 
-func (a *recordingCreateAdapter) Execute(ctx context.Context, input command.EngineExecution) (*core.Result, error) {
+func (a *recordingCreateAdapter) Execute(ctx context.Context, input command.EngineExecution) (*core.ExecutionResult, error) {
 	a.inputs = append(a.inputs, input)
 	return a.delegate.Execute(ctx, input)
 }
@@ -149,13 +149,13 @@ func TestIntegration_CreateTransactionV1_ComposesRealAdapterRecoveryAndFinalizat
 	require.Len(t, executor.inputs, 1)
 
 	execution := executor.inputs[0]
-	require.Equal(t, got.ID, execution.Request.Transactions[0].ID.String())
-	require.Len(t, execution.Request.Transactions[0].Postings, 2)
-	require.True(t, execution.Request.Transactions[0].Postings[0].Amount.Equal(amount))
-	require.True(t, execution.Request.Transactions[0].Postings[1].Amount.Equal(amount))
+	require.Equal(t, got.ID, execution.Execution.Transactions[0].ID.String())
+	require.Len(t, execution.Execution.Transactions[0].Postings, 2)
+	require.True(t, execution.Execution.Transactions[0].Postings[0].Amount.Equal(amount))
+	require.True(t, execution.Execution.Transactions[0].Postings[1].Amount.Equal(amount))
 	require.NotNil(t, finalizer.envelope)
 	require.Equal(t, command.TransactionCompletionFormatVersion, finalizer.envelope.FormatVersion)
-	require.Equal(t, execution.Request.ExecutionID, finalizer.envelope.ExecutionID)
+	require.Equal(t, execution.Execution.ExecutionID, finalizer.envelope.ExecutionID)
 	require.Equal(t, execution.IntentFingerprint, finalizer.envelope.IntentFingerprint)
 
 	payload, err := command.DecodeTransactionCompletionPlan([]byte(finalizer.envelope.Payload))
@@ -166,7 +166,7 @@ func TestIntegration_CreateTransactionV1_ComposesRealAdapterRecoveryAndFinalizat
 	require.NoError(t, err)
 	requireJSONEqual(t, projected, got.Operations)
 
-	keys, err := resolveAdapterKeys(ctx, execution.Request)
+	keys, err := resolveAdapterKeys(ctx, execution.Execution)
 	require.NoError(t, err)
 	t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, client, keys) })
 	assertAdapterCreateBalances(t, ctx, client, keys)
@@ -175,12 +175,12 @@ func TestIntegration_CreateTransactionV1_ComposesRealAdapterRecoveryAndFinalizat
 	require.Equal(t, int64(1), client.HLen(ctx, keys.Recovery).Val())
 	require.Equal(t, int64(1), client.HLen(ctx, keys.Receipts).Val())
 
-	recoveryRaw, err := client.HGet(ctx, keys.Recovery, got.ID+":"+execution.Request.ExecutionID.String()).Bytes()
+	recoveryRaw, err := client.HGet(ctx, keys.Recovery, got.ID+":"+execution.Execution.ExecutionID.String()).Bytes()
 	require.NoError(t, err)
 	recovery, err := command.DecodeTransactionCompletionRecord(recoveryRaw)
 	require.NoError(t, err)
 	require.Equal(t, command.TransactionCompletionFormatVersion, recovery.FormatVersion)
-	require.Equal(t, execution.Request.ExecutionID, recovery.ExecutionID)
+	require.Equal(t, execution.Execution.ExecutionID, recovery.ExecutionID)
 	require.Equal(t, execution.IntentFingerprint, recovery.IntentFingerprint)
 	recoveredPayload, err := command.DecodeTransactionCompletionPlan([]byte(recovery.Payload))
 	require.NoError(t, err)
@@ -188,15 +188,15 @@ func TestIntegration_CreateTransactionV1_ComposesRealAdapterRecoveryAndFinalizat
 	require.NoError(t, err)
 	requireJSONEqual(t, got.Operations, recovered)
 
-	receiptRaw, err := client.HGet(ctx, keys.Receipts, execution.Request.ExecutionID.String()).Bytes()
+	receiptRaw, err := client.HGet(ctx, keys.Receipts, execution.Execution.ExecutionID.String()).Bytes()
 	require.NoError(t, err)
 	var receipt map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(receiptRaw, &receipt))
 	require.JSONEq(t, "1", string(receipt["formatVersion"]))
-	require.Equal(t, "\""+execution.Request.ExecutionID.String()+"\"", string(receipt["executionId"]))
+	require.Equal(t, "\""+execution.Execution.ExecutionID.String()+"\"", string(receipt["executionId"]))
 	var response string
 	require.NoError(t, json.Unmarshal(receipt["response"], &response))
-	replayedResult, err := DecodeResult([]byte(response), execution.Request)
+	replayedResult, err := DecodeResult([]byte(response), execution.Execution)
 	require.NoError(t, err)
 	requireJSONEqual(t, finalizer.envelope.Result, replayedResult)
 

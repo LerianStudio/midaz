@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -91,8 +91,8 @@ func TestBalanceEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *tes
 	assert.Equal(t, []string{"from:0:debit", "from:1:debit", "to:0:credit"}, []string{
 		translated.Postings[0].Ref, translated.Postings[1].Ref, translated.Postings[2].Ref,
 	})
-	assert.Equal(t, engine.DrawAllowed, translated.Postings[0].DrawPolicy)
-	assert.Equal(t, engine.DrawAllowed, translated.Postings[1].DrawPolicy)
+	assert.Equal(t, accounting.DrawAllowed, translated.Postings[0].DrawPolicy)
+	assert.Equal(t, accounting.DrawAllowed, translated.Postings[1].DrawPolicy)
 	payload.OperationSpecs = projection
 	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(BalanceEngineIntent{
 		TenantID: payload.TenantID, OrganizationID: payload.OrganizationID, LedgerID: payload.LedgerID, ExecutionID: payload.ExecutionID,
@@ -102,9 +102,9 @@ func TestBalanceEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *tes
 	frozenPayload, err := EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 	require.NoError(t, ValidateTransactionCompletion(EngineExecution{
-		Request: engine.Request{
+		Execution: accounting.Execution{
 			OrganizationID: payload.OrganizationID, LedgerID: payload.LedgerID, ExecutionID: payload.ExecutionID,
-			Transactions: []engine.Transaction{translated}, Balances: pool.Snapshots,
+			Transactions: []accounting.Transaction{translated}, Balances: pool.Snapshots,
 		},
 		IntentFingerprint: payload.IntentFingerprint,
 		Guards:            []ExecutionGuard{{TransactionID: payload.TransactionID, NextToken: "approved"}},
@@ -113,28 +113,28 @@ func TestBalanceEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *tes
 
 	// This recorded outcome includes debt created under live settings, although
 	// the earlier seed had no overdraft configuration. No split is calculated here.
-	result := engine.Result{Movements: []engine.Movement{
+	result := accounting.ExecutionResult{Movements: []accounting.Movement{
 		{
-			Ref: "first", TransactionID: payload.TransactionID, PostingRef: "from:0:debit", Role: engine.RolePrimary,
-			BalanceRef: "@source#default", Type: engine.PostingDebit, Amount: decimal.NewFromInt(30),
-			Before: engine.BalanceState{Available: decimal.NewFromInt(50), Version: 7},
-			After:  engine.BalanceState{Available: decimal.NewFromInt(20), Version: 8},
+			Ref: "first", TransactionID: payload.TransactionID, PostingRef: "from:0:debit", Role: accounting.RolePrimary,
+			BalanceRef: "@source#default", Type: accounting.PostingDebit, Amount: decimal.NewFromInt(30),
+			Before: accounting.BalanceState{Available: decimal.NewFromInt(50), Version: 7},
+			After:  accounting.BalanceState{Available: decimal.NewFromInt(20), Version: 8},
 		},
 		{
-			Ref: "second", TransactionID: payload.TransactionID, PostingRef: "from:1:debit", Role: engine.RolePrimary,
-			BalanceRef: "@source#default", Type: engine.PostingDebit, Amount: decimal.NewFromInt(20), OverdraftDelta: decimal.NewFromInt(10),
-			Before: engine.BalanceState{Available: decimal.NewFromInt(20), Version: 8},
-			After:  engine.BalanceState{OverdraftUsed: decimal.NewFromInt(10), Version: 9},
+			Ref: "second", TransactionID: payload.TransactionID, PostingRef: "from:1:debit", Role: accounting.RolePrimary,
+			BalanceRef: "@source#default", Type: accounting.PostingDebit, Amount: decimal.NewFromInt(20), OverdraftDelta: decimal.NewFromInt(10),
+			Before: accounting.BalanceState{Available: decimal.NewFromInt(20), Version: 8},
+			After:  accounting.BalanceState{OverdraftUsed: decimal.NewFromInt(10), Version: 9},
 		},
 		{
-			Ref: "companion", TransactionID: payload.TransactionID, PostingRef: "from:1:debit", Role: engine.RoleOverdraftCompanion,
-			BalanceRef: "@source#overdraft", Type: engine.PostingDebit, Amount: decimal.NewFromInt(10),
-			Before: engine.BalanceState{Version: 11}, After: engine.BalanceState{Available: decimal.NewFromInt(10), Version: 12},
+			Ref: "companion", TransactionID: payload.TransactionID, PostingRef: "from:1:debit", Role: accounting.RoleOverdraftCompanion,
+			BalanceRef: "@source#overdraft", Type: accounting.PostingDebit, Amount: decimal.NewFromInt(10),
+			Before: accounting.BalanceState{Version: 11}, After: accounting.BalanceState{Available: decimal.NewFromInt(10), Version: 12},
 		},
 		{
-			Ref: "target", TransactionID: payload.TransactionID, PostingRef: "to:0:credit", Role: engine.RolePrimary,
-			BalanceRef: "@target#default", Type: engine.PostingCredit, Amount: decimal.NewFromInt(60),
-			Before: engine.BalanceState{Version: 4}, After: engine.BalanceState{Available: decimal.NewFromInt(60), Version: 5},
+			Ref: "target", TransactionID: payload.TransactionID, PostingRef: "to:0:credit", Role: accounting.RolePrimary,
+			BalanceRef: "@target#default", Type: accounting.PostingCredit, Amount: decimal.NewFromInt(60),
+			Before: accounting.BalanceState{Version: 4}, After: accounting.BalanceState{Available: decimal.NewFromInt(60), Version: 5},
 		},
 	}}
 	result.Final = recoveryContractFinal(payload, result.Movements)

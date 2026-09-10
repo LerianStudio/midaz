@@ -22,7 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -91,7 +91,7 @@ func (executor *transitionEngineExecutor) EnsureTransactionGuard(_ context.Conte
 	return nil
 }
 
-func (executor *transitionEngineExecutor) Execute(_ context.Context, execution EngineExecution) (*engine.Result, error) {
+func (executor *transitionEngineExecutor) Execute(_ context.Context, execution EngineExecution) (*accounting.ExecutionResult, error) {
 	executor.requests = append(executor.requests, execution)
 	if executor.before != nil {
 		if err := executor.before(execution); err != nil {
@@ -99,15 +99,15 @@ func (executor *transitionEngineExecutor) Execute(_ context.Context, execution E
 		}
 	}
 
-	require.Len(executor.t, execution.Request.Transactions, 1)
-	transactionIntent := execution.Request.Transactions[0]
-	source := literalTransitionSnapshot(executor.t, execution.Request.Balances, "@source#default")
+	require.Len(executor.t, execution.Execution.Transactions, 1)
+	transactionIntent := execution.Execution.Transactions[0]
+	source := literalTransitionSnapshot(executor.t, execution.Execution.Balances, "@source#default")
 
 	require.NotEmpty(executor.t, transactionIntent.Postings)
 	switch transactionIntent.Postings[0].Type {
-	case engine.PostingUnreserve:
+	case accounting.PostingUnreserve:
 		require.Len(executor.t, transactionIntent.Postings, 2)
-		target := literalTransitionSnapshot(executor.t, execution.Request.Balances, "@target#default")
+		target := literalTransitionSnapshot(executor.t, execution.Execution.Balances, "@target#default")
 		unreserve, credit := transactionIntent.Postings[0], transactionIntent.Postings[1]
 		require.Equal(executor.t, "from:0:unreserve", unreserve.Ref)
 		require.Equal(executor.t, "@source#default", unreserve.BalanceRef)
@@ -122,35 +122,35 @@ func (executor *transitionEngineExecutor) Execute(_ context.Context, execution E
 		} else {
 			require.Equal(executor.t, int64(1), source.Version)
 		}
-		return &engine.Result{
-			Movements: []engine.Movement{{
+		return &accounting.ExecutionResult{
+			Movements: []accounting.Movement{{
 				Ref: "commit-source", TransactionID: transactionIntent.ID, PostingRef: unreserve.Ref,
-				Role: engine.RolePrimary, BalanceRef: unreserve.BalanceRef, Type: engine.PostingUnreserve,
-				Amount: decimal.NewFromInt(10), Before: engine.BalanceState{Available: decimal.NewFromInt(10), OnHold: decimal.NewFromInt(10), Version: source.Version},
-				After: engine.BalanceState{Available: decimal.NewFromInt(10), Version: sourceAfterVersion},
+				Role: accounting.RolePrimary, BalanceRef: unreserve.BalanceRef, Type: accounting.PostingUnreserve,
+				Amount: decimal.NewFromInt(10), Before: accounting.BalanceState{Available: decimal.NewFromInt(10), OnHold: decimal.NewFromInt(10), Version: source.Version},
+				After: accounting.BalanceState{Available: decimal.NewFromInt(10), Version: sourceAfterVersion},
 			}, {
 				Ref: "commit-target", TransactionID: transactionIntent.ID, PostingRef: credit.Ref,
-				Role: engine.RolePrimary, BalanceRef: credit.BalanceRef, Type: engine.PostingCredit,
-				Amount: decimal.NewFromInt(10), Before: engine.BalanceState{Available: decimal.Zero, OnHold: decimal.NewFromInt(10), Version: target.Version},
-				After: engine.BalanceState{Available: decimal.NewFromInt(10), OnHold: decimal.NewFromInt(10), Version: targetAfterVersion},
+				Role: accounting.RolePrimary, BalanceRef: credit.BalanceRef, Type: accounting.PostingCredit,
+				Amount: decimal.NewFromInt(10), Before: accounting.BalanceState{Available: decimal.Zero, OnHold: decimal.NewFromInt(10), Version: target.Version},
+				After: accounting.BalanceState{Available: decimal.NewFromInt(10), OnHold: decimal.NewFromInt(10), Version: targetAfterVersion},
 			}},
-			Final: []engine.BalanceSnapshot{literalFinalSnapshot(source, decimal.NewFromInt(10), decimal.Zero, sourceAfterVersion), literalFinalSnapshot(target, decimal.NewFromInt(10), decimal.NewFromInt(10), targetAfterVersion)},
+			Final: []accounting.BalanceSnapshot{literalFinalSnapshot(source, decimal.NewFromInt(10), decimal.Zero, sourceAfterVersion), literalFinalSnapshot(target, decimal.NewFromInt(10), decimal.NewFromInt(10), targetAfterVersion)},
 		}, nil
-	case engine.PostingRelease:
+	case accounting.PostingRelease:
 		require.Len(executor.t, transactionIntent.Postings, 1)
 		posting := transactionIntent.Postings[0]
 		require.Equal(executor.t, "from:0:release", posting.Ref)
 		require.Equal(executor.t, "@source#default", posting.BalanceRef)
 		require.Equal(executor.t, decimal.NewFromInt(10), posting.Amount)
 		require.Equal(executor.t, int64(1), source.Version)
-		return &engine.Result{
-			Movements: []engine.Movement{{
+		return &accounting.ExecutionResult{
+			Movements: []accounting.Movement{{
 				Ref: "cancel-source", TransactionID: transactionIntent.ID, PostingRef: posting.Ref,
-				Role: engine.RolePrimary, BalanceRef: posting.BalanceRef, Type: engine.PostingRelease,
-				Amount: decimal.NewFromInt(10), Before: engine.BalanceState{Available: decimal.NewFromInt(10), OnHold: decimal.NewFromInt(10), Version: source.Version},
-				After: engine.BalanceState{Available: decimal.NewFromInt(20), Version: 2},
+				Role: accounting.RolePrimary, BalanceRef: posting.BalanceRef, Type: accounting.PostingRelease,
+				Amount: decimal.NewFromInt(10), Before: accounting.BalanceState{Available: decimal.NewFromInt(10), OnHold: decimal.NewFromInt(10), Version: source.Version},
+				After: accounting.BalanceState{Available: decimal.NewFromInt(20), Version: 2},
 			}},
-			Final: []engine.BalanceSnapshot{literalFinalSnapshot(source, decimal.NewFromInt(20), decimal.Zero, 2)},
+			Final: []accounting.BalanceSnapshot{literalFinalSnapshot(source, decimal.NewFromInt(20), decimal.Zero, 2)},
 		}, nil
 	default:
 		require.FailNow(executor.t, "unexpected pending transition posting", "%s", transactionIntent.Postings[0].Type)
@@ -158,7 +158,7 @@ func (executor *transitionEngineExecutor) Execute(_ context.Context, execution E
 	}
 }
 
-func literalTransitionSnapshot(t *testing.T, snapshots []engine.BalanceSnapshot, balanceRef string) engine.BalanceSnapshot {
+func literalTransitionSnapshot(t *testing.T, snapshots []accounting.BalanceSnapshot, balanceRef string) accounting.BalanceSnapshot {
 	t.Helper()
 	for _, snapshot := range snapshots {
 		if snapshot.BalanceRef == balanceRef {
@@ -166,10 +166,10 @@ func literalTransitionSnapshot(t *testing.T, snapshots []engine.BalanceSnapshot,
 		}
 	}
 	require.FailNow(t, "missing pending transition balance snapshot", "%s", balanceRef)
-	return engine.BalanceSnapshot{}
+	return accounting.BalanceSnapshot{}
 }
 
-func literalFinalSnapshot(snapshot engine.BalanceSnapshot, available, onHold decimal.Decimal, version int64) engine.BalanceSnapshot {
+func literalFinalSnapshot(snapshot accounting.BalanceSnapshot, available, onHold decimal.Decimal, version int64) accounting.BalanceSnapshot {
 	snapshot.Available, snapshot.OnHold, snapshot.Version = available, onHold, version
 	return snapshot
 }
@@ -243,7 +243,7 @@ func TestPendingTransitionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	require.Len(t, executor.requests, 1)
-	assert.Equal(t, int64(1), executor.requests[0].Request.Balances[0].Version)
+	assert.Equal(t, int64(1), executor.requests[0].Execution.Balances[0].Version)
 	payload := mustCreateEngineRecovery(t, executor.requests[0])
 	assert.Equal(t, fixedPendingCreatedAt, payload.TransactionCreatedAt)
 	assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.confirmedTxns)
@@ -269,10 +269,10 @@ func TestPendingCancelUsesPersistedOverdraftCapAndOnlyLoadsSources(t *testing.T)
 	_, err := uc.CancelTransactionV1(tmcore.ContextWithTenantID(context.Background(), "tenant-cancel-cap"), in)
 	require.Error(t, err)
 	require.Len(t, executor.requests, 1)
-	require.Len(t, executor.requests[0].Request.Transactions, 1)
-	require.Len(t, executor.requests[0].Request.Transactions[0].Postings, 1)
-	assert.Equal(t, historicalUsage, executor.requests[0].Request.Transactions[0].Postings[0].OverdraftAmount)
-	assert.Equal(t, decimal.NewFromInt(9), executor.requests[0].Request.Balances[0].OverdraftUsed)
+	require.Len(t, executor.requests[0].Execution.Transactions, 1)
+	require.Len(t, executor.requests[0].Execution.Transactions[0].Postings, 1)
+	assert.Equal(t, historicalUsage, executor.requests[0].Execution.Transactions[0].Postings[0].OverdraftAmount)
+	assert.Equal(t, decimal.NewFromInt(9), executor.requests[0].Execution.Balances[0].OverdraftUsed)
 	for _, aliases := range reader.balanceAliases {
 		assert.NotContains(t, aliases, "@target#default")
 	}
@@ -290,8 +290,8 @@ func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
 	}{
 		{
 			name: "confirmed refusal unlocks",
-			executorErr: &engine.Failure{
-				Code: engine.FailureOnHoldUnderflow, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default",
+			executorErr: &accounting.Failure{
+				Code: accounting.FailureOnHoldUnderflow, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default",
 			},
 			wantUnlock: true,
 		},

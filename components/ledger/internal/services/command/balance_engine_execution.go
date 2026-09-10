@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
 // ErrInvalidBalanceEngineResult identifies a nil or malformed result returned
@@ -28,7 +28,7 @@ type PreparedBalanceEngineExecution struct {
 // returned by its single atomic execution.
 type BalanceEngineExecutionOutcome struct {
 	Prepared PreparedBalanceEngineExecution
-	Result   *engine.Result
+	Result   *accounting.ExecutionResult
 	Executed bool
 }
 
@@ -79,11 +79,11 @@ func validatePreparedBalanceEngineExecution(prepared PreparedBalanceEngineExecut
 		return err
 	}
 
-	if len(prepared.Execution.Request.Transactions) != 1 || len(prepared.Execution.CompletionPlans) != 1 {
+	if len(prepared.Execution.Execution.Transactions) != 1 || len(prepared.Execution.CompletionPlans) != 1 {
 		return invalidTransactionCompletionRecord("balance engine execution requires one transaction and completion plan")
 	}
 
-	transactionID := prepared.Execution.Request.Transactions[0].ID
+	transactionID := prepared.Execution.Execution.Transactions[0].ID
 	if prepared.CompletionPlan.TransactionID != transactionID || prepared.Execution.CompletionPlans[0].TransactionID != transactionID {
 		return invalidTransactionCompletionRecord("completion plan does not match its transaction")
 	}

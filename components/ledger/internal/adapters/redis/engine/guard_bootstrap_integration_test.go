@@ -21,7 +21,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -170,7 +170,7 @@ func TestIntegrationEnsureTransactionGuardFencesCommitAndCancel(t *testing.T) {
 
 	type outcome struct {
 		next   string
-		result *core.Result
+		result *core.ExecutionResult
 		err    error
 	}
 	start := make(chan struct{})
@@ -212,7 +212,7 @@ func TestIntegrationEnsureTransactionGuardFencesCommitAndCancel(t *testing.T) {
 	guard, err := client.HGet(ctx, key, transactionID.String()).Result()
 	require.NoError(t, err)
 	require.Equal(t, winnerNext, guard)
-	assertGuardWinnerBalance(t, ctx, client, commit.Request, winnerNext)
+	assertGuardWinnerBalance(t, ctx, client, commit.Execution, winnerNext)
 }
 
 func guardBootstrapLimits() Limits {
@@ -300,7 +300,7 @@ func guardTransitionExecution(
 		OperationSpecs: projection,
 	}
 	execution := command.EngineExecution{
-		Request: core.Request{
+		Execution: core.Execution{
 			OrganizationID: organizationID, LedgerID: ledgerID, ExecutionID: executionID,
 			Transactions: []core.Transaction{translated}, Balances: snapshots,
 		},
@@ -312,7 +312,7 @@ func guardTransitionExecution(
 	return execution
 }
 
-func assertGuardWinnerBalance(t *testing.T, ctx context.Context, client *redis.Client, request core.Request, winnerNext string) {
+func assertGuardWinnerBalance(t *testing.T, ctx context.Context, client *redis.Client, request core.Execution, winnerNext string) {
 	t.Helper()
 	keys, err := resolveAdapterKeys(ctx, request)
 	require.NoError(t, err)

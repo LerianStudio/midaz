@@ -106,7 +106,7 @@ func TestIntegration_AdapterExecute_SurvivesSentinelMasterSwitch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), acknowledged, "WAIT only accelerates replica acknowledgement; direct state equality below is the replication proof")
 
-	keys, err := resolveAdapterKeys(ctx, input.Request)
+	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
 	assertSentinelAccountingArtifacts(t, ctx, shared, input, keys)
 	committed := captureSentinelAdapterState(t, ctx, fixture.primary, keys)
@@ -345,9 +345,9 @@ func captureSentinelAdapterState(t *testing.T, ctx context.Context, client *redi
 
 func assertSentinelAccountingArtifacts(t *testing.T, ctx context.Context, client *redis.Client, input command.EngineExecution, keys resolvedExecutionKeys) {
 	t.Helper()
-	transactionID := input.Request.Transactions[0].ID.String()
-	executionID := input.Request.ExecutionID.String()
-	exists, err := client.Exists(ctx, keys.Balances[input.Request.Balances[0].BalanceRef].Balance).Result()
+	transactionID := input.Execution.Transactions[0].ID.String()
+	executionID := input.Execution.ExecutionID.String()
+	exists, err := client.Exists(ctx, keys.Balances[input.Execution.Balances[0].BalanceRef].Balance).Result()
 	require.NoError(t, err)
 	require.Equal(t, int64(1), exists)
 	receiptExists, err := client.HExists(ctx, keys.Receipts, executionID).Result()
@@ -359,6 +359,6 @@ func assertSentinelAccountingArtifacts(t *testing.T, ctx context.Context, client
 	guard, err := client.HGet(ctx, keys.Guards, transactionID).Result()
 	require.NoError(t, err)
 	require.Equal(t, "executed-once", guard)
-	_, err = client.ZScore(ctx, keys.Schedule, keys.Balances[input.Request.Balances[0].BalanceRef].Balance).Result()
+	_, err = client.ZScore(ctx, keys.Schedule, keys.Balances[input.Execution.Balances[0].BalanceRef].Balance).Result()
 	require.NoError(t, err)
 }

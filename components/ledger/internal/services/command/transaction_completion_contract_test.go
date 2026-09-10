@@ -16,13 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-func recoveryContractFixture(t testing.TB) (TransactionCompletionPlan, engine.Result) {
+func recoveryContractFixture(t testing.TB) (TransactionCompletionPlan, accounting.ExecutionResult) {
 	t.Helper()
 	date := time.Date(2026, time.September, 4, 12, 0, 0, 0, time.UTC)
 	payload := TransactionCompletionPlan{
@@ -34,12 +34,12 @@ func recoveryContractFixture(t testing.TB) (TransactionCompletionPlan, engine.Re
 		TransactionInput: mtransaction.Transaction{Description: "original intent", Send: mtransaction.Send{Asset: "USD", Value: decimal.NewFromInt(30)}},
 		Validate:         &mtransaction.Responses{From: map[string]mtransaction.Amount{"@source": {Value: decimal.NewFromInt(30)}}},
 	}
-	before := engine.BalanceState{Available: decimal.NewFromInt(100)}
-	after := engine.BalanceState{Available: decimal.NewFromInt(70), Version: 1}
+	before := accounting.BalanceState{Available: decimal.NewFromInt(100)}
+	after := accounting.BalanceState{Available: decimal.NewFromInt(70), Version: 1}
 	balance := rowContractBalance(rowContractLeg{Alias: "@source", Key: "default"}, rowContractState{"100", "0", "0", 0})
 	routeID := "55555555-5555-4555-8555-555555555555"
 	payload.OperationSpecs = []OperationRecordSpec{{
-		TransactionID: payload.TransactionID, PostingRef: "source:0", BalanceRef: "@source#default", Role: engine.RolePrimary,
+		TransactionID: payload.TransactionID, PostingRef: "source:0", BalanceRef: "@source#default", Role: accounting.RolePrimary,
 		Side: OperationSpecSideFrom, RowType: constant.DEBIT, Direction: constant.DirectionDebit,
 		RouteID: &routeID, RouteCode: "DEBIT-USD", RouteDescription: "Customer debit", Description: "frozen description",
 		ChartOfAccounts: "customer", Metadata: map[string]any{"purpose": "transfer"}, Balance: OperationBalanceContext(*balance),
@@ -48,9 +48,9 @@ func recoveryContractFixture(t testing.TB) (TransactionCompletionPlan, engine.Re
 	var err error
 	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
-	result := engine.Result{Movements: []engine.Movement{{
-		Ref: "movement:0", TransactionID: payload.TransactionID, PostingRef: "source:0", Role: engine.RolePrimary,
-		BalanceRef: "@source#default", Type: engine.PostingDebit, Amount: decimal.NewFromInt(30), Before: before, After: after,
+	result := accounting.ExecutionResult{Movements: []accounting.Movement{{
+		Ref: "movement:0", TransactionID: payload.TransactionID, PostingRef: "source:0", Role: accounting.RolePrimary,
+		BalanceRef: "@source#default", Type: accounting.PostingDebit, Amount: decimal.NewFromInt(30), Before: before, After: after,
 	}}}
 	result.Final = recoveryContractFinal(payload, result.Movements)
 	return payload, result
@@ -61,7 +61,7 @@ func recoveryContractIntent(payload TransactionCompletionPlan) BalanceEngineInte
 	refs := make([]string, 0, len(payload.OperationSpecs))
 	for _, context := range payload.OperationSpecs {
 		projection = append(projection, context.Intent())
-		if context.Role == engine.RolePrimary {
+		if context.Role == accounting.RolePrimary {
 			refs = append(refs, context.PostingRef)
 		}
 	}
@@ -76,8 +76,8 @@ func recoveryContractIntent(payload TransactionCompletionPlan) BalanceEngineInte
 	}
 }
 
-func recoveryContractFinal(payload TransactionCompletionPlan, movements []engine.Movement) []engine.BalanceSnapshot {
-	final := make([]engine.BalanceSnapshot, 0)
+func recoveryContractFinal(payload TransactionCompletionPlan, movements []accounting.Movement) []accounting.BalanceSnapshot {
+	final := make([]accounting.BalanceSnapshot, 0)
 	indices := make(map[string]int)
 	for _, movement := range movements {
 		index, exists := indices[movement.BalanceRef]
@@ -91,7 +91,7 @@ func recoveryContractFinal(payload TransactionCompletionPlan, movements []engine
 					break
 				}
 			}
-			final = append(final, engine.BalanceSnapshot{
+			final = append(final, accounting.BalanceSnapshot{
 				BalanceRef: movement.BalanceRef, ID: uuid.MustParse(balance.ID), AccountID: uuid.MustParse(balance.AccountID),
 				Alias: balance.Alias, Key: balance.Key, AssetCode: balance.AssetCode, AccountType: balance.AccountType, Direction: balance.Direction,
 			})
@@ -101,7 +101,7 @@ func recoveryContractFinal(payload TransactionCompletionPlan, movements []engine
 	return final
 }
 
-func recoveryContractEnvelope(t testing.TB, payload TransactionCompletionPlan, result engine.Result) TransactionCompletionRecord {
+func recoveryContractEnvelope(t testing.TB, payload TransactionCompletionPlan, result accounting.ExecutionResult) TransactionCompletionRecord {
 	t.Helper()
 	raw, err := EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
@@ -112,28 +112,28 @@ func recoveryContractEnvelope(t testing.TB, payload TransactionCompletionPlan, r
 	}
 }
 
-func recoveryContractAddRepaymentCompanion(payload *TransactionCompletionPlan, result *engine.Result, primaryIndex int) {
+func recoveryContractAddRepaymentCompanion(payload *TransactionCompletionPlan, result *accounting.ExecutionResult, primaryIndex int) {
 	primary := result.Movements[primaryIndex]
 	var companion OperationRecordSpec
 	for _, context := range payload.OperationSpecs {
-		if context.PostingRef == primary.PostingRef && context.Role == engine.RolePrimary {
+		if context.PostingRef == primary.PostingRef && context.Role == accounting.RolePrimary {
 			companion = context
 			break
 		}
 	}
-	companion.Role, companion.RowType, companion.BalanceRef = engine.RoleOverdraftCompanion, constant.OVERDRAFT, "@source#overdraft"
+	companion.Role, companion.RowType, companion.BalanceRef = accounting.RoleOverdraftCompanion, constant.OVERDRAFT, "@source#overdraft"
 	companion.CompatibilityPath = OperationRecordStandard
 	companion.Metadata, companion.ChartOfAccounts = nil, ""
 	companion.Balance.ID = "99999999-9999-4999-8999-999999999999"
 	companion.Balance.Key, companion.Balance.Direction = "overdraft", constant.DirectionDebit
 	companion.Balance.Available, companion.Balance.OnHold, companion.Balance.OverdraftUsed = primary.OverdraftDelta.Abs(), decimal.Zero, decimal.Zero
 	payload.OperationSpecs = append(payload.OperationSpecs, companion)
-	movement := engine.Movement{
+	movement := accounting.Movement{
 		Ref: "companion:" + primary.PostingRef, TransactionID: payload.TransactionID, PostingRef: primary.PostingRef,
-		Role: engine.RoleOverdraftCompanion, BalanceRef: companion.BalanceRef, Type: engine.PostingCredit, Amount: primary.OverdraftDelta.Abs(),
-		Before: engine.BalanceState{Available: primary.OverdraftDelta.Abs()}, After: engine.BalanceState{Version: 1},
+		Role: accounting.RoleOverdraftCompanion, BalanceRef: companion.BalanceRef, Type: accounting.PostingCredit, Amount: primary.OverdraftDelta.Abs(),
+		Before: accounting.BalanceState{Available: primary.OverdraftDelta.Abs()}, After: accounting.BalanceState{Version: 1},
 	}
-	result.Movements = append(result.Movements, engine.Movement{})
+	result.Movements = append(result.Movements, accounting.Movement{})
 	copy(result.Movements[primaryIndex+2:], result.Movements[primaryIndex+1:])
 	result.Movements[primaryIndex+1] = movement
 }
@@ -275,11 +275,11 @@ func TestTransactionCompletionCorrelation(t *testing.T) {
 		mutate func(*EngineExecution)
 	}{
 		{"missing guard", func(e *EngineExecution) { e.Guards = nil }},
-		{"wrong guard", func(e *EngineExecution) { e.Guards[0].TransactionID = e.Request.ExecutionID }},
+		{"wrong guard", func(e *EngineExecution) { e.Guards[0].TransactionID = e.Execution.ExecutionID }},
 		{"no guard progress", func(e *EngineExecution) { e.Guards[0].ExpectedToken = e.Guards[0].NextToken }},
-		{"wrong recovery transaction", func(e *EngineExecution) { e.CompletionPlans[0].TransactionID = e.Request.ExecutionID }},
-		{"different execution", func(e *EngineExecution) { e.Request.ExecutionID = e.Request.OrganizationID }},
-		{"different ledger", func(e *EngineExecution) { e.Request.LedgerID = e.Request.OrganizationID }},
+		{"wrong recovery transaction", func(e *EngineExecution) { e.CompletionPlans[0].TransactionID = e.Execution.ExecutionID }},
+		{"different execution", func(e *EngineExecution) { e.Execution.ExecutionID = e.Execution.OrganizationID }},
+		{"different ledger", func(e *EngineExecution) { e.Execution.LedgerID = e.Execution.OrganizationID }},
 		{"different intent", func(e *EngineExecution) { e.IntentFingerprint = strings.Repeat("a", 64) }},
 		{"changed frozen intent with original fingerprint", func(e *EngineExecution) {
 			payload, err := DecodeTransactionCompletionPlan(e.CompletionPlans[0].Payload)
@@ -295,10 +295,10 @@ func TestTransactionCompletionCorrelation(t *testing.T) {
 			e.CompletionPlans[0].Payload, err = EncodeTransactionCompletionPlan(*payload)
 			require.NoError(t, err)
 		}},
-		{"different posting", func(e *EngineExecution) { e.Request.Transactions[0].Postings[0].Ref = "other" }},
-		{"different balance", func(e *EngineExecution) { e.Request.Transactions[0].Postings[0].BalanceRef = "other" }},
+		{"different posting", func(e *EngineExecution) { e.Execution.Transactions[0].Postings[0].Ref = "other" }},
+		{"different balance", func(e *EngineExecution) { e.Execution.Transactions[0].Postings[0].BalanceRef = "other" }},
 		{"duplicate posting", func(e *EngineExecution) {
-			e.Request.Transactions[0].Postings = append(e.Request.Transactions[0].Postings, e.Request.Transactions[0].Postings[0])
+			e.Execution.Transactions[0].Postings = append(e.Execution.Transactions[0].Postings, e.Execution.Transactions[0].Postings[0])
 		}},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
@@ -306,10 +306,10 @@ func TestTransactionCompletionCorrelation(t *testing.T) {
 			raw, err := EncodeTransactionCompletionPlan(payload)
 			require.NoError(t, err)
 			execution := EngineExecution{
-				Request: engine.Request{
+				Execution: accounting.Execution{
 					OrganizationID: payload.OrganizationID, LedgerID: payload.LedgerID, ExecutionID: payload.ExecutionID,
 					Balances:     result.Final,
-					Transactions: []engine.Transaction{{ID: payload.TransactionID, Postings: []engine.Posting{{Ref: "source:0", BalanceRef: "@source#default"}}}},
+					Transactions: []accounting.Transaction{{ID: payload.TransactionID, Postings: []accounting.Posting{{Ref: "source:0", BalanceRef: "@source#default"}}}},
 				},
 				IntentFingerprint: payload.IntentFingerprint, CompletionPlans: []CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: raw}},
 				Guards: []ExecutionGuard{{TransactionID: payload.TransactionID, NextToken: "opaque-next"}},
@@ -332,15 +332,15 @@ func TestBalanceEngineCompletionPlanRecordFingerprint(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, before, after)
 	companion := payload.OperationSpecs[0]
-	companion.Role, companion.BalanceRef = engine.RoleOverdraftCompanion, "@source#overdraft"
+	companion.Role, companion.BalanceRef = accounting.RoleOverdraftCompanion, "@source#overdraft"
 	companion.Metadata, companion.ChartOfAccounts = nil, ""
 	payload.OperationSpecs = append(payload.OperationSpecs, companion)
 	withCompanion, err := ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	assert.Equal(t, before, withCompanion, "engine-derived companion need must not change immutable intent")
 	withRequirementIntent := recoveryContractIntent(payload)
-	withRequirementIntent.Transactions[0].BalanceRequirements = []engine.BalanceRequirement{{
-		BalanceRef: "@source#default", AssetCode: "USD", Permission: engine.BalancePermissionSend,
+	withRequirementIntent.Transactions[0].BalanceRequirements = []accounting.BalanceRequirement{{
+		BalanceRef: "@source#default", AssetCode: "USD", Permission: accounting.BalancePermissionSend,
 	}}
 	withRequirement, err := ComputeBalanceEngineIntentFingerprint(withRequirementIntent)
 	require.NoError(t, err)
@@ -434,19 +434,19 @@ func TestTransactionCompletionRejectsInvalidParent(t *testing.T) {
 
 func TestTransactionCompletionDeterministicOperationIDs(t *testing.T) {
 	payload, _ := recoveryContractFixture(t)
-	id, err := DeterministicOperationID(payload.ExecutionID, payload.TransactionID, "a:0\x00primary", engine.RolePrimary, 0)
+	id, err := DeterministicOperationID(payload.ExecutionID, payload.TransactionID, "a:0\x00primary", accounting.RolePrimary, 0)
 	require.NoError(t, err)
-	replay, err := DeterministicOperationID(payload.ExecutionID, payload.TransactionID, "a:0\x00primary", engine.RolePrimary, 0)
+	replay, err := DeterministicOperationID(payload.ExecutionID, payload.TransactionID, "a:0\x00primary", accounting.RolePrimary, 0)
 	require.NoError(t, err)
 	assert.Equal(t, id, replay)
 	assert.Equal(t, uuid.Version(5), id.Version())
-	other, err := DeterministicOperationID(payload.OrganizationID, payload.TransactionID, "a:0\x00primary", engine.RolePrimary, 0)
+	other, err := DeterministicOperationID(payload.OrganizationID, payload.TransactionID, "a:0\x00primary", accounting.RolePrimary, 0)
 	require.NoError(t, err)
 	assert.NotEqual(t, id, other)
-	ordinal, err := DeterministicOperationID(payload.ExecutionID, payload.TransactionID, "a:0\x00primary", engine.RolePrimary, 1)
+	ordinal, err := DeterministicOperationID(payload.ExecutionID, payload.TransactionID, "a:0\x00primary", accounting.RolePrimary, 1)
 	require.NoError(t, err)
 	assert.NotEqual(t, id, ordinal)
-	_, err = DeterministicOperationID(uuid.Nil, payload.TransactionID, "a", engine.RolePrimary, 0)
+	_, err = DeterministicOperationID(uuid.Nil, payload.TransactionID, "a", accounting.RolePrimary, 0)
 	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 }
 
@@ -462,14 +462,14 @@ func TestTransactionCompletionCancelProjection(t *testing.T) {
 	credit := context
 	credit.PostingRef, credit.RowType, credit.Direction, credit.CompatibilityPath = "source-leg:0:credit", constant.CREDIT, constant.DirectionCredit, OperationRecordValidatedCancelCredit
 	payload.OperationSpecs = []OperationRecordSpec{context, credit}
-	result := engine.Result{Movements: []engine.Movement{
+	result := accounting.ExecutionResult{Movements: []accounting.Movement{
 		{
-			Ref: "release", TransactionID: payload.TransactionID, PostingRef: context.PostingRef, BalanceRef: context.BalanceRef, Role: engine.RolePrimary,
-			Type: engine.PostingUnreserve, Amount: decimal.NewFromInt(50), Before: engine.BalanceState{OnHold: decimal.NewFromInt(50), OverdraftUsed: decimal.NewFromInt(50), Version: 2}, After: engine.BalanceState{OverdraftUsed: decimal.NewFromInt(50), Version: 3},
+			Ref: "release", TransactionID: payload.TransactionID, PostingRef: context.PostingRef, BalanceRef: context.BalanceRef, Role: accounting.RolePrimary,
+			Type: accounting.PostingUnreserve, Amount: decimal.NewFromInt(50), Before: accounting.BalanceState{OnHold: decimal.NewFromInt(50), OverdraftUsed: decimal.NewFromInt(50), Version: 2}, After: accounting.BalanceState{OverdraftUsed: decimal.NewFromInt(50), Version: 3},
 		},
 		{
-			Ref: "credit", TransactionID: payload.TransactionID, PostingRef: credit.PostingRef, BalanceRef: credit.BalanceRef, Role: engine.RolePrimary,
-			Type: engine.PostingCredit, Amount: decimal.Zero, OverdraftDelta: decimal.NewFromInt(-50), Before: engine.BalanceState{OverdraftUsed: decimal.NewFromInt(50), Version: 3}, After: engine.BalanceState{Version: 4},
+			Ref: "credit", TransactionID: payload.TransactionID, PostingRef: credit.PostingRef, BalanceRef: credit.BalanceRef, Role: accounting.RolePrimary,
+			Type: accounting.PostingCredit, Amount: decimal.Zero, OverdraftDelta: decimal.NewFromInt(-50), Before: accounting.BalanceState{OverdraftUsed: decimal.NewFromInt(50), Version: 3}, After: accounting.BalanceState{Version: 4},
 		},
 	}}
 	recoveryContractAddRepaymentCompanion(&payload, &result, 1)
@@ -507,18 +507,18 @@ func TestTransactionCompletionCompanionProjection(t *testing.T) {
 	primary.RequestedAmount = decimal.NewFromInt(50)
 	primary.Balance.Available, primary.Balance.OverdraftUsed = decimal.Zero, decimal.NewFromInt(50)
 	companion := primary
-	companion.Role, companion.RowType, companion.BalanceRef = engine.RoleOverdraftCompanion, constant.OVERDRAFT, "@source#overdraft"
+	companion.Role, companion.RowType, companion.BalanceRef = accounting.RoleOverdraftCompanion, constant.OVERDRAFT, "@source#overdraft"
 	companion.Metadata, companion.ChartOfAccounts = nil, ""
 	companion.Balance.Key, companion.Balance.Direction = "overdraft", constant.DirectionDebit
 	companion.Balance.Available, companion.Balance.OverdraftUsed = decimal.NewFromInt(50), decimal.Zero
 	payload.OperationSpecs = []OperationRecordSpec{primary, companion}
-	result.Movements[0].Type, result.Movements[0].Amount = engine.PostingCredit, decimal.Zero
-	result.Movements[0].Before = engine.BalanceState{OverdraftUsed: decimal.NewFromInt(50)}
-	result.Movements[0].After = engine.BalanceState{Version: 1}
+	result.Movements[0].Type, result.Movements[0].Amount = accounting.PostingCredit, decimal.Zero
+	result.Movements[0].Before = accounting.BalanceState{OverdraftUsed: decimal.NewFromInt(50)}
+	result.Movements[0].After = accounting.BalanceState{Version: 1}
 	result.Movements[0].OverdraftDelta = decimal.NewFromInt(-50)
-	result.Movements = append(result.Movements, engine.Movement{
-		Ref: "companion", TransactionID: payload.TransactionID, PostingRef: primary.PostingRef, Role: engine.RoleOverdraftCompanion,
-		BalanceRef: companion.BalanceRef, Type: engine.PostingCredit, Amount: decimal.NewFromInt(50), Before: engine.BalanceState{Available: decimal.NewFromInt(50)}, After: engine.BalanceState{Version: 1},
+	result.Movements = append(result.Movements, accounting.Movement{
+		Ref: "companion", TransactionID: payload.TransactionID, PostingRef: primary.PostingRef, Role: accounting.RoleOverdraftCompanion,
+		BalanceRef: companion.BalanceRef, Type: accounting.PostingCredit, Amount: decimal.NewFromInt(50), Before: accounting.BalanceState{Available: decimal.NewFromInt(50)}, After: accounting.BalanceState{Version: 1},
 	})
 	result.Final = recoveryContractFinal(payload, result.Movements)
 	rows, err := BuildOperationRecordsFromMovements(payload, result)
@@ -537,17 +537,17 @@ func TestTransactionCompletionCompanionProjection(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord, "a debt change requires its recorded companion")
 	for _, scenario := range []struct {
 		name   string
-		mutate func(*engine.Result)
+		mutate func(*accounting.ExecutionResult)
 	}{
-		{"wrong companion direction", func(r *engine.Result) { r.Movements[1].Type = engine.PostingDebit }},
-		{"unexpected companion", func(r *engine.Result) {
+		{"wrong companion direction", func(r *accounting.ExecutionResult) { r.Movements[1].Type = accounting.PostingDebit }},
+		{"unexpected companion", func(r *accounting.ExecutionResult) {
 			r.Movements[0].Before.OverdraftUsed = decimal.Zero
 			r.Movements[0].OverdraftDelta = decimal.Zero
 		}},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			invalid := result
-			invalid.Movements = append([]engine.Movement(nil), result.Movements...)
+			invalid.Movements = append([]accounting.Movement(nil), result.Movements...)
 			scenario.mutate(&invalid)
 			_, err := BuildOperationRecordsFromMovements(payload, invalid)
 			require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
@@ -573,20 +573,20 @@ func TestTransactionCompletionCompanionProjection(t *testing.T) {
 func TestTransactionCompletionRejectsUnrelatedResult(t *testing.T) {
 	for _, scenario := range []struct {
 		name   string
-		mutate func(*engine.Result)
+		mutate func(*accounting.ExecutionResult)
 	}{
-		{"foreign transaction", func(r *engine.Result) { r.Movements[0].TransactionID = uuid.Nil }},
-		{"unknown posting", func(r *engine.Result) { r.Movements[0].PostingRef = "unknown" }},
-		{"unknown role", func(r *engine.Result) { r.Movements[0].Role = "unknown" }},
-		{"unknown posting type", func(r *engine.Result) { r.Movements[0].Type = "unknown" }},
-		{"unknown balance", func(r *engine.Result) { r.Movements[0].BalanceRef = "unknown" }},
-		{"missing movement", func(r *engine.Result) { r.Movements = []engine.Movement{} }},
-		{"duplicate movement", func(r *engine.Result) { r.Movements = append(r.Movements, r.Movements[0]) }},
-		{"different final state", func(r *engine.Result) { r.Final[0].Available = decimal.NewFromInt(999) }},
-		{"different final identity", func(r *engine.Result) { r.Final[0].ID = uuid.Nil }},
-		{"different final account type", func(r *engine.Result) { r.Final[0].AccountType = "external" }},
-		{"inconsistent debt delta", func(r *engine.Result) { r.Movements[0].OverdraftDelta = decimal.NewFromInt(30) }},
-		{"missing final state", func(r *engine.Result) { r.Final = []engine.BalanceSnapshot{} }},
+		{"foreign transaction", func(r *accounting.ExecutionResult) { r.Movements[0].TransactionID = uuid.Nil }},
+		{"unknown posting", func(r *accounting.ExecutionResult) { r.Movements[0].PostingRef = "unknown" }},
+		{"unknown role", func(r *accounting.ExecutionResult) { r.Movements[0].Role = "unknown" }},
+		{"unknown posting type", func(r *accounting.ExecutionResult) { r.Movements[0].Type = "unknown" }},
+		{"unknown balance", func(r *accounting.ExecutionResult) { r.Movements[0].BalanceRef = "unknown" }},
+		{"missing movement", func(r *accounting.ExecutionResult) { r.Movements = []accounting.Movement{} }},
+		{"duplicate movement", func(r *accounting.ExecutionResult) { r.Movements = append(r.Movements, r.Movements[0]) }},
+		{"different final state", func(r *accounting.ExecutionResult) { r.Final[0].Available = decimal.NewFromInt(999) }},
+		{"different final identity", func(r *accounting.ExecutionResult) { r.Final[0].ID = uuid.Nil }},
+		{"different final account type", func(r *accounting.ExecutionResult) { r.Final[0].AccountType = "external" }},
+		{"inconsistent debt delta", func(r *accounting.ExecutionResult) { r.Movements[0].OverdraftDelta = decimal.NewFromInt(30) }},
+		{"missing final state", func(r *accounting.ExecutionResult) { r.Final = []accounting.BalanceSnapshot{} }},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			payload, result := recoveryContractFixture(t)
@@ -607,20 +607,20 @@ func TestTransactionCompletionMultipleTransactionsKeepIntermediateState(t *testi
 	secondResult.Movements[0].TransactionID = second.TransactionID
 	secondResult.Movements[0].Amount = decimal.NewFromInt(20)
 	secondResult.Movements[0].Before = firstResult.Movements[0].After
-	secondResult.Movements[0].After = engine.BalanceState{Available: decimal.NewFromInt(50), Version: 2}
+	secondResult.Movements[0].After = accounting.BalanceState{Available: decimal.NewFromInt(50), Version: 2}
 	secondResult.Final = recoveryContractFinal(second, secondResult.Movements)
 	intent := recoveryContractIntent(first)
 	intent.Transactions = append(intent.Transactions, recoveryContractIntent(second).Transactions...)
 	fingerprint, err := ComputeBalanceEngineIntentFingerprint(intent)
 	require.NoError(t, err)
 	first.IntentFingerprint, second.IntentFingerprint = fingerprint, fingerprint
-	input := EngineExecution{IntentFingerprint: fingerprint, Request: engine.Request{OrganizationID: first.OrganizationID, LedgerID: first.LedgerID, ExecutionID: first.ExecutionID}}
+	input := EngineExecution{IntentFingerprint: fingerprint, Execution: accounting.Execution{OrganizationID: first.OrganizationID, LedgerID: first.LedgerID, ExecutionID: first.ExecutionID}}
 	for _, payload := range []TransactionCompletionPlan{first, second} {
 		raw, err := EncodeTransactionCompletionPlan(payload)
 		require.NoError(t, err)
 		input.CompletionPlans = append(input.CompletionPlans, CompletionPlanRecord{TransactionID: payload.TransactionID, Payload: raw})
 		input.Guards = append(input.Guards, ExecutionGuard{TransactionID: payload.TransactionID, NextToken: payload.TransactionID.String()})
-		input.Request.Transactions = append(input.Request.Transactions, engine.Transaction{ID: payload.TransactionID, Postings: []engine.Posting{{Ref: "source:0", BalanceRef: "@source#default"}}})
+		input.Execution.Transactions = append(input.Execution.Transactions, accounting.Transaction{ID: payload.TransactionID, Postings: []accounting.Posting{{Ref: "source:0", BalanceRef: "@source#default"}}})
 	}
 	require.NoError(t, ValidateTransactionCompletion(input))
 	firstRows, err := BuildOperationRecordsFromMovements(first, firstResult)
@@ -664,8 +664,8 @@ func TestTransactionCompletionRepeatedAliasUsesOriginNotAlias(t *testing.T) {
 	base.RequestedAmount = decimal.NewFromInt(50)
 	base.Balance.Available, base.Balance.OnHold, base.Balance.OverdraftUsed, base.Balance.Version = decimal.Zero, decimal.NewFromInt(100), decimal.NewFromInt(50), 2
 	payload.OperationSpecs = nil
-	result := engine.Result{Movements: []engine.Movement{}}
-	states := []engine.BalanceState{
+	result := accounting.ExecutionResult{Movements: []accounting.Movement{}}
+	states := []accounting.BalanceState{
 		{OnHold: decimal.NewFromInt(100), OverdraftUsed: decimal.NewFromInt(50), Version: 2},
 		{OnHold: decimal.NewFromInt(50), OverdraftUsed: decimal.NewFromInt(50), Version: 3},
 		{OnHold: decimal.NewFromInt(50), Version: 4},
@@ -681,18 +681,18 @@ func TestTransactionCompletionRepeatedAliasUsesOriginNotAlias(t *testing.T) {
 			route := "77777777-7777-4777-8777-777777777777"
 			context.RouteID = &route
 		}
-		kind, amount := engine.PostingUnreserve, decimal.NewFromInt(50)
+		kind, amount := accounting.PostingUnreserve, decimal.NewFromInt(50)
 		context.RowType, context.Direction, context.CompatibilityPath = constant.RELEASE, constant.DirectionDebit, OperationRecordValidatedCancelRelease
 		if index%2 == 1 {
-			kind = engine.PostingCredit
+			kind = accounting.PostingCredit
 			context.RowType, context.Direction, context.CompatibilityPath = constant.CREDIT, constant.DirectionCredit, OperationRecordValidatedCancelCredit
 		}
 		if index == 1 {
 			amount = decimal.Zero
 		}
 		payload.OperationSpecs = append(payload.OperationSpecs, context)
-		result.Movements = append(result.Movements, engine.Movement{
-			Ref: ref, TransactionID: payload.TransactionID, PostingRef: ref, Role: engine.RolePrimary,
+		result.Movements = append(result.Movements, accounting.Movement{
+			Ref: ref, TransactionID: payload.TransactionID, PostingRef: ref, Role: accounting.RolePrimary,
 			BalanceRef: base.BalanceRef, Type: kind, Amount: amount, Before: states[index], After: states[index+1],
 			OverdraftDelta: states[index+1].OverdraftUsed.Sub(states[index].OverdraftUsed),
 		})
@@ -728,23 +728,23 @@ func TestTransactionCompletionPostingPaths(t *testing.T) {
 	for _, scenario := range []struct {
 		name, action, status, amount string
 		states                       []rowContractState
-		types                        []engine.PostingType
+		types                        []accounting.PostingType
 		rows, directions, paths      []string
 	}{
-		{"direct credit", "direct", constant.APPROVED, "30", []rowContractState{state("100", "0", 0), state("130", "0", 1)}, []engine.PostingType{engine.PostingCredit}, []string{constant.CREDIT}, []string{constant.DirectionCredit}, []string{OperationRecordStandard}},
-		{"pending off", "hold", constant.PENDING, "60", []rowContractState{state("100", "0", 0), state("40", "60", 1)}, []engine.PostingType{engine.PostingHold}, []string{constant.ONHOLD}, []string{constant.DirectionDebit}, []string{OperationRecordStandard}},
-		{"pending on", "hold", constant.PENDING, "60", []rowContractState{state("100", "0", 0), state("40", "0", 1), state("40", "60", 2)}, []engine.PostingType{engine.PostingDebit, engine.PostingReserve}, []string{constant.DEBIT, constant.ONHOLD}, []string{constant.DirectionDebit, constant.DirectionCredit}, []string{OperationRecordValidatedHoldDebit, OperationRecordValidatedHoldReserve}},
-		{"commit off", "commit", constant.APPROVED, "60", []rowContractState{state("40", "60", 1), state("40", "0", 2)}, []engine.PostingType{engine.PostingUnreserve}, []string{constant.DEBIT}, []string{constant.DirectionDebit}, []string{OperationRecordStandard}},
-		{"commit on", "commit", constant.APPROVED, "60", []rowContractState{state("40", "60", 2), state("40", "0", 3)}, []engine.PostingType{engine.PostingUnreserve}, []string{constant.ONHOLD}, []string{constant.DirectionDebit}, []string{OperationRecordStandard}},
-		{"cancel off", "cancel", constant.CANCELED, "60", []rowContractState{state("40", "60", 1), state("100", "0", 2)}, []engine.PostingType{engine.PostingRelease}, []string{constant.RELEASE}, []string{constant.DirectionCredit}, []string{OperationRecordStandard}},
-		{"cancel on", "cancel", constant.CANCELED, "60", []rowContractState{state("40", "60", 2), state("40", "0", 3), state("100", "0", 4)}, []engine.PostingType{engine.PostingUnreserve, engine.PostingCredit}, []string{constant.RELEASE, constant.CREDIT}, []string{constant.DirectionDebit, constant.DirectionCredit}, []string{OperationRecordValidatedCancelRelease, OperationRecordValidatedCancelCredit}},
+		{"direct credit", "direct", constant.APPROVED, "30", []rowContractState{state("100", "0", 0), state("130", "0", 1)}, []accounting.PostingType{accounting.PostingCredit}, []string{constant.CREDIT}, []string{constant.DirectionCredit}, []string{OperationRecordStandard}},
+		{"pending off", "hold", constant.PENDING, "60", []rowContractState{state("100", "0", 0), state("40", "60", 1)}, []accounting.PostingType{accounting.PostingHold}, []string{constant.ONHOLD}, []string{constant.DirectionDebit}, []string{OperationRecordStandard}},
+		{"pending on", "hold", constant.PENDING, "60", []rowContractState{state("100", "0", 0), state("40", "0", 1), state("40", "60", 2)}, []accounting.PostingType{accounting.PostingDebit, accounting.PostingReserve}, []string{constant.DEBIT, constant.ONHOLD}, []string{constant.DirectionDebit, constant.DirectionCredit}, []string{OperationRecordValidatedHoldDebit, OperationRecordValidatedHoldReserve}},
+		{"commit off", "commit", constant.APPROVED, "60", []rowContractState{state("40", "60", 1), state("40", "0", 2)}, []accounting.PostingType{accounting.PostingUnreserve}, []string{constant.DEBIT}, []string{constant.DirectionDebit}, []string{OperationRecordStandard}},
+		{"commit on", "commit", constant.APPROVED, "60", []rowContractState{state("40", "60", 2), state("40", "0", 3)}, []accounting.PostingType{accounting.PostingUnreserve}, []string{constant.ONHOLD}, []string{constant.DirectionDebit}, []string{OperationRecordStandard}},
+		{"cancel off", "cancel", constant.CANCELED, "60", []rowContractState{state("40", "60", 1), state("100", "0", 2)}, []accounting.PostingType{accounting.PostingRelease}, []string{constant.RELEASE}, []string{constant.DirectionCredit}, []string{OperationRecordStandard}},
+		{"cancel on", "cancel", constant.CANCELED, "60", []rowContractState{state("40", "60", 2), state("40", "0", 3), state("100", "0", 4)}, []accounting.PostingType{accounting.PostingUnreserve, accounting.PostingCredit}, []string{constant.RELEASE, constant.CREDIT}, []string{constant.DirectionDebit, constant.DirectionCredit}, []string{OperationRecordValidatedCancelRelease, OperationRecordValidatedCancelCredit}},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			payload, _ := recoveryContractFixture(t)
 			payload.Action, payload.TransactionStatus = scenario.action, scenario.status
 			base := payload.OperationSpecs[0]
 			payload.OperationSpecs = nil
-			result := engine.Result{Movements: []engine.Movement{}}
+			result := accounting.ExecutionResult{Movements: []accounting.Movement{}}
 			for index, postingType := range scenario.types {
 				context := base
 				context.PostingRef = fmt.Sprintf("source:%d", index)
@@ -755,11 +755,11 @@ func TestTransactionCompletionPostingPaths(t *testing.T) {
 				}
 				payload.OperationSpecs = append(payload.OperationSpecs, context)
 				before, after := scenario.states[index], scenario.states[index+1]
-				result.Movements = append(result.Movements, engine.Movement{
+				result.Movements = append(result.Movements, accounting.Movement{
 					Ref: context.PostingRef, PostingRef: context.PostingRef, TransactionID: payload.TransactionID,
-					Role: engine.RolePrimary, BalanceRef: context.BalanceRef, Type: postingType, Amount: context.RequestedAmount,
-					Before: engine.BalanceState{Available: decimal.RequireFromString(before.Available), OnHold: decimal.RequireFromString(before.OnHold), Version: before.Version},
-					After:  engine.BalanceState{Available: decimal.RequireFromString(after.Available), OnHold: decimal.RequireFromString(after.OnHold), Version: after.Version},
+					Role: accounting.RolePrimary, BalanceRef: context.BalanceRef, Type: postingType, Amount: context.RequestedAmount,
+					Before: accounting.BalanceState{Available: decimal.RequireFromString(before.Available), OnHold: decimal.RequireFromString(before.OnHold), Version: before.Version},
+					After:  accounting.BalanceState{Available: decimal.RequireFromString(after.Available), OnHold: decimal.RequireFromString(after.OnHold), Version: after.Version},
 				})
 			}
 			result.Final = recoveryContractFinal(payload, result.Movements)
@@ -782,8 +782,8 @@ func TestTransactionCompletionLosslessPrecision(t *testing.T) {
 	payload.OperationSpecs[0].RequestedAmount = amount
 	payload.OperationSpecs[0].Metadata["counter"] = json.Number("9007199254740993")
 	result.Movements[0].Amount = amount
-	result.Movements[0].Before = engine.BalanceState{Available: decimal.RequireFromString("1.00000000000000000001"), Version: version}
-	result.Movements[0].After = engine.BalanceState{Available: decimal.NewFromInt(1), Version: version + 1}
+	result.Movements[0].Before = accounting.BalanceState{Available: decimal.RequireFromString("1.00000000000000000001"), Version: version}
+	result.Movements[0].After = accounting.BalanceState{Available: decimal.NewFromInt(1), Version: version + 1}
 	result.Final = recoveryContractFinal(payload, result.Movements)
 	raw, err := EncodeTransactionCompletionRecord(recoveryContractEnvelope(t, payload, result))
 	require.NoError(t, err)

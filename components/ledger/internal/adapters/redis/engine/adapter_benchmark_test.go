@@ -17,7 +17,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
@@ -41,14 +41,14 @@ func BenchmarkAdapterExecute(b *testing.B) {
 				require.NoError(b, err)
 
 				warmup := benchmarkExecution(b, postings, balanceCount, -1)
-				require.Len(b, warmup.Request.Balances, balanceCount)
+				require.Len(b, warmup.Execution.Balances, balanceCount)
 				warmResult, err := adapter.Execute(ctx, warmup)
 				require.NoError(b, err)
 				assertBenchmarkResult(b, warmResult, postings)
 				require.NoError(b, inspector.FlushDB(ctx).Err())
 
 				measurementInput := benchmarkExecution(b, postings, balanceCount, 0)
-				resolved, err := resolveAdapterKeys(ctx, measurementInput.Request)
+				resolved, err := resolveAdapterKeys(ctx, measurementInput.Execution)
 				require.NoError(b, err)
 				prepared, err := prepareExecution(ctx, measurementInput, limits, resolved)
 				require.NoError(b, err)
@@ -58,7 +58,7 @@ func BenchmarkAdapterExecute(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
 					input := benchmarkExecution(b, postings, balanceCount, i)
-					require.Len(b, input.Request.Balances, balanceCount)
+					require.Len(b, input.Execution.Balances, balanceCount)
 					// Each iteration has unique IDs and empty Valkey state, so this
 					// cannot hit an execution receipt or stale balance version.
 					require.NoError(b, inspector.FlushDB(ctx).Err())
@@ -78,7 +78,7 @@ func benchmarkExecution(tb testing.TB, postingCount, balanceCount, iteration int
 	tb.Helper()
 	require.GreaterOrEqual(tb, balanceCount, postingCount)
 	ns := uuid.NameSpaceOID
-	request := core.Request{
+	request := core.Execution{
 		ExecutionID:    uuid.NewSHA1(ns, []byte(fmt.Sprintf("benchmark:execution:%d:%d", postingCount, iteration))),
 		OrganizationID: uuid.NewSHA1(ns, []byte("benchmark:organization")),
 		LedgerID:       uuid.NewSHA1(ns, []byte("benchmark:ledger")),
@@ -107,7 +107,7 @@ func benchmarkExecution(tb testing.TB, postingCount, balanceCount, iteration int
 		projection[i].Balance.Available, projection[i].Balance.Version = balance.Available, balance.Version
 	}
 	payload := command.TransactionCompletionPlan{FormatVersion: 2, TransactionID: request.Transactions[0].ID, OrganizationID: request.OrganizationID, LedgerID: request.LedgerID, ExecutionID: request.ExecutionID, TTL: benchmarkDate().Add(24 * 60 * 60 * 1e9), TransactionDate: benchmarkDate(), TransactionCreatedAt: benchmarkDate(), TransactionUpdatedAt: benchmarkDate(), OperationUpdatedAt: benchmarkDate(), Action: "CREATE", TransactionStatus: "APPROVED", OperationSpecs: projection}
-	input := command.EngineExecution{Request: request, Guards: []command.ExecutionGuard{{TransactionID: request.Transactions[0].ID, NextToken: "executed-once"}}}
+	input := command.EngineExecution{Execution: request, Guards: []command.ExecutionGuard{{TransactionID: request.Transactions[0].ID, NextToken: "executed-once"}}}
 	input.CompletionPlans = []command.CompletionPlanRecord{{TransactionID: request.Transactions[0].ID, Payload: encodeAdapterRecovery(tb, &input, payload)}}
 	date := benchmarkDate()
 	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{OrganizationID: request.OrganizationID, LedgerID: request.LedgerID, ExecutionID: request.ExecutionID, Transactions: []command.BalanceEngineTransactionIntent{{TransactionID: request.Transactions[0].ID, PostingRefs: postingRefs(request.Transactions[0].Postings), Action: "CREATE", TransactionStatus: "APPROVED", TransactionDate: date, TransactionCreatedAt: date, TransactionUpdatedAt: date, OperationUpdatedAt: date, OperationSpecs: frozenProjectionIntents(projection)}}})
@@ -116,7 +116,7 @@ func benchmarkExecution(tb testing.TB, postingCount, balanceCount, iteration int
 	return input
 }
 
-func assertBenchmarkResult(tb testing.TB, result *core.Result, postingCount int) {
+func assertBenchmarkResult(tb testing.TB, result *core.ExecutionResult, postingCount int) {
 	tb.Helper()
 	require.Len(tb, result.Movements, postingCount)
 	require.Len(tb, result.Final, postingCount)
@@ -128,9 +128,9 @@ func assertBenchmarkResult(tb testing.TB, result *core.Result, postingCount int)
 
 func assertUntouchedBenchmarkBalances(tb testing.TB, ctx context.Context, inspector *redis.Client, input command.EngineExecution, postingCount int) {
 	tb.Helper()
-	keys, err := resolveAdapterKeys(ctx, input.Request)
+	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(tb, err)
-	for _, balance := range input.Request.Balances[postingCount:] {
+	for _, balance := range input.Execution.Balances[postingCount:] {
 		resolved := keys.Balances[balance.BalanceRef]
 		exists, err := inspector.Exists(ctx, resolved.Balance, resolved.Deleted).Result()
 		require.NoError(tb, err)

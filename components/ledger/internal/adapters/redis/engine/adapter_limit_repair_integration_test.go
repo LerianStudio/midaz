@@ -27,9 +27,9 @@ func TestIntegration_AdapterExecute_RepairsNoncanonicalHotCacheLimit(t *testing.
 	ctx := context.Background()
 	inspector, _, _ := newAdapterValkey(t)
 	input, limits := richAdapterExecution(t)
-	input.Request.Balances[0].Available = decimal.NewFromInt(100)
+	input.Execution.Balances[0].Available = decimal.NewFromInt(100)
 
-	hot := input.Request.Balances[0]
+	hot := input.Execution.Balances[0]
 	hot.Available = decimal.NewFromInt(120)
 	hot.OverdraftLimitEnabled = true
 	hot.OverdraftLimit = decimal.NewFromInt(1000)
@@ -41,9 +41,9 @@ func TestIntegration_AdapterExecute_RepairsNoncanonicalHotCacheLimit(t *testing.
 	encoded, err = json.Marshal(fields)
 	require.NoError(t, err)
 
-	keys, err := resolveAdapterKeys(ctx, input.Request)
+	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
-	cacheKey := keys.Balances[input.Request.Balances[0].BalanceRef].Balance
+	cacheKey := keys.Balances[input.Execution.Balances[0].BalanceRef].Balance
 	require.NoError(t, inspector.Set(ctx, cacheKey, encoded, time.Hour).Err())
 	before := captureAdapterState(t, inspector, keys)
 
@@ -93,8 +93,8 @@ func TestIntegration_AdapterExecute_LimitRepairPromotesLegacyCache(t *testing.T)
 	for _, name := range []string{"existing alias", "scoped alias fallback", "qualified legacy key"} {
 		t.Run(name, func(t *testing.T) {
 			input, limits := richAdapterExecution(t)
-			input.Request.Balances[0].Version = 9007199254740993
-			hot := input.Request.Balances[0]
+			input.Execution.Balances[0].Version = 9007199254740993
+			hot := input.Execution.Balances[0]
 			hot.Available = decimal.NewFromInt(20)
 			hot.OverdraftLimitEnabled = true
 			hot.OverdraftLimit = decimal.NewFromInt(1000)
@@ -117,7 +117,7 @@ func TestIntegration_AdapterExecute_LimitRepairPromotesLegacyCache(t *testing.T)
 			fields["extension"] = json.RawMessage(`{"exact":9007199254740995}`)
 			encoded, err = json.Marshal(fields)
 			require.NoError(t, err)
-			keys, err := resolveAdapterKeys(ctx, input.Request)
+			keys, err := resolveAdapterKeys(ctx, input.Execution)
 			require.NoError(t, err)
 			cacheKey := keys.Balances[hot.BalanceRef].Balance
 			require.NoError(t, inspector.Set(ctx, cacheKey, encoded, time.Hour).Err())
@@ -258,7 +258,7 @@ func TestIntegration_AdapterExecute_RepairThenRefusalPreservesHotBalance(t *test
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			input, limits := richAdapterExecution(t)
-			hot := input.Request.Balances[0]
+			hot := input.Execution.Balances[0]
 			hot.Available = decimal.NewFromInt(20)
 			hot.OverdraftLimitEnabled = true
 			hot.OverdraftLimit = decimal.NewFromInt(1000)
@@ -304,7 +304,7 @@ func TestIntegration_AdapterExecute_RepairThenRefusalPreservesHotBalance(t *test
 				want = replaceLimitTestBytes(t, want, lowerField, canonicalLowerField)
 			}
 
-			keys, err := resolveAdapterKeys(ctx, input.Request)
+			keys, err := resolveAdapterKeys(ctx, input.Execution)
 			require.NoError(t, err)
 			cacheKey := keys.Balances[hot.BalanceRef].Balance
 			require.NoError(t, inspector.Set(ctx, cacheKey, encoded, time.Hour).Err())
@@ -350,14 +350,14 @@ func TestIntegration_AdapterExecute_InvalidNoncanonicalLimitDoesNotMutate(t *tes
 	for _, invalid := range []string{`"not-a-decimal"`, `"-1.0"`} {
 		t.Run(invalid, func(t *testing.T) {
 			input, limits := richAdapterExecution(t)
-			hot := input.Request.Balances[0]
+			hot := input.Execution.Balances[0]
 			hot.OverdraftLimitEnabled = true
 			hot.OverdraftLimit = decimal.NewFromInt(1000)
 			encoded, err := balancecache.Encode(hot, balancecache.FormatDual)
 			require.NoError(t, err)
 			encoded = replaceLimitTestBytes(t, encoded, []byte(`"OverdraftLimit":"1000"`), []byte(`"OverdraftLimit":`+invalid))
 
-			keys, err := resolveAdapterKeys(ctx, input.Request)
+			keys, err := resolveAdapterKeys(ctx, input.Execution)
 			require.NoError(t, err)
 			cacheKey := keys.Balances[hot.BalanceRef].Balance
 			require.NoError(t, inspector.Set(ctx, cacheKey, encoded, time.Hour).Err())

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
 // NormalizeLimitDual conditionally converts a cached balance to the complete
@@ -196,7 +196,7 @@ func encodeLimitRepairValidationView(fields map[string]json.RawMessage, domainKe
 
 func completeLimitRepairAlias(
 	fields map[string]json.RawMessage,
-	snapshot *engine.BalanceSnapshot,
+	snapshot *accounting.BalanceSnapshot,
 	trustedAlias string,
 	qualifiedKey *qualifiedLimitRepairKey,
 ) error {
@@ -222,7 +222,7 @@ func completeLimitRepairAlias(
 }
 
 func limitRepairDualField(
-	snapshot engine.BalanceSnapshot,
+	snapshot accounting.BalanceSnapshot,
 	name string,
 	source json.RawMessage,
 	exists bool,
@@ -282,7 +282,7 @@ func quotedDualField(name, value string) (json.RawMessage, json.RawMessage, erro
 	return encoded, encoded, nil
 }
 
-func snapshotDualField(snapshot engine.BalanceSnapshot, name string) (json.RawMessage, json.RawMessage, error) {
+func snapshotDualField(snapshot accounting.BalanceSnapshot, name string) (json.RawMessage, json.RawMessage, error) {
 	switch name {
 	case "ID":
 		return quotedDualField(name, snapshot.ID.String())

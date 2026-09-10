@@ -171,7 +171,7 @@ func TestIntegration_AdapterExecute_MissingBalanceAfterNormalizationIsNotRecreat
 
 func seedProtocolNoncanonicalLimit(t *testing.T, ctx context.Context, inspector *redis.Client, input command.EngineExecution) (resolvedExecutionKeys, string, []byte) {
 	t.Helper()
-	hot := input.Request.Balances[0]
+	hot := input.Execution.Balances[0]
 	hot.Available = decimal.NewFromInt(120)
 	hot.OverdraftLimitEnabled = true
 	hot.OverdraftLimit = decimal.NewFromInt(1000)
@@ -179,7 +179,7 @@ func seedProtocolNoncanonicalLimit(t *testing.T, ctx context.Context, inspector 
 	require.NoError(t, err)
 	require.Equal(t, 1, bytes.Count(raw, []byte(`"OverdraftLimit":"1000"`)))
 	raw = bytes.Replace(raw, []byte(`"OverdraftLimit":"1000"`), []byte(`"OverdraftLimit":"1E+3"`), 1)
-	keys, err := resolveAdapterKeys(ctx, input.Request)
+	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
 	cacheKey := keys.Balances[hot.BalanceRef].Balance
 	require.NoError(t, inspector.Set(ctx, cacheKey, raw, time.Hour).Err())

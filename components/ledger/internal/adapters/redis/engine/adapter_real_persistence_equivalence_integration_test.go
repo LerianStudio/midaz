@@ -157,7 +157,7 @@ func resetRealPersistenceToPending(t *testing.T, ctx context.Context, fixture re
 
 func realPersistenceRecoveryEnvelope(t *testing.T, ctx context.Context, client *redis.Client, keys resolvedExecutionKeys, execution command.EngineExecution) ([]byte, *command.TransactionCompletionRecord) {
 	t.Helper()
-	field := execution.Request.Transactions[0].ID.String() + ":" + execution.Request.ExecutionID.String()
+	field := execution.Execution.Transactions[0].ID.String() + ":" + execution.Execution.ExecutionID.String()
 	raw, err := client.HGet(ctx, keys.Recovery, field).Bytes()
 	require.NoError(t, err)
 	envelope, err := command.DecodeTransactionCompletionRecord(raw)
@@ -226,7 +226,7 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		}
 
 		execution := executor.inputs[0]
-		keys, err := resolveAdapterKeys(ctx, execution.Request)
+		keys, err := resolveAdapterKeys(ctx, execution.Execution)
 		require.NoError(t, err)
 		normalSQL := captureRealPersistenceSQL(t, fixture.db, created.ID)
 		require.Len(t, normalSQL.operations, 2)
@@ -256,7 +256,7 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		require.Equal(t, normalState, captureAdapterState(t, client, keys))
 		require.Equal(t, evalSHA, hook.evalSHA.Load())
 		require.Equal(t, eval, hook.eval.Load())
-		retained, err := client.HGet(ctx, keys.Recovery, created.ID+":"+execution.Request.ExecutionID.String()).Bytes()
+		retained, err := client.HGet(ctx, keys.Recovery, created.ID+":"+execution.Execution.ExecutionID.String()).Bytes()
 		require.NoError(t, err)
 		require.Equal(t, recoveryRaw, retained, "the finalizer must not take recovery ACK ownership")
 	})
@@ -330,7 +330,7 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		require.Len(t, executor.executions, 2)
 
 		terminalExecution := executor.executions[1]
-		keys, err := resolveAdapterKeys(ctx, terminalExecution.Request)
+		keys, err := resolveAdapterKeys(ctx, terminalExecution.Execution)
 		require.NoError(t, err)
 		normalSQL := captureRealPersistenceSQL(t, fixture.db, committed.ID)
 		require.Len(t, normalSQL.operations, 3)
@@ -364,7 +364,7 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		require.Equal(t, normalState, captureAdapterState(t, client, keys))
 		require.Equal(t, evalSHA, hook.evalSHA.Load())
 		require.Equal(t, eval, hook.eval.Load())
-		retained, err := client.HGet(ctx, keys.Recovery, committed.ID+":"+terminalExecution.Request.ExecutionID.String()).Bytes()
+		retained, err := client.HGet(ctx, keys.Recovery, committed.ID+":"+terminalExecution.Execution.ExecutionID.String()).Bytes()
 		require.NoError(t, err)
 		require.Equal(t, recoveryRaw, retained, "the finalizer must not take recovery ACK ownership")
 	})

@@ -11,18 +11,18 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
 // BalanceEngineSnapshotPool keeps explicit transaction targets separate from
-// the complete balance inventory available to the accounting engine.
+// the complete balance inventory available to the accounting accounting.
 type BalanceEngineSnapshotPool struct {
 	ExplicitBalances []*mmodel.Balance
 	Balances         []*mmodel.Balance
-	Snapshots        []engine.BalanceSnapshot
+	Snapshots        []accounting.BalanceSnapshot
 }
 
 // BalanceEngineSnapshotLoader is the scoped balance read used by tests and
@@ -146,7 +146,7 @@ func BuildBalanceEngineSnapshotPool(
 
 type balanceSnapshotEntry struct {
 	balance  *mmodel.Balance
-	snapshot engine.BalanceSnapshot
+	snapshot accounting.BalanceSnapshot
 }
 
 func validateSnapshotPoolCoverage(explicit, all []balanceSnapshotEntry) error {
@@ -186,7 +186,7 @@ func validateSnapshotPoolCoverage(explicit, all []balanceSnapshotEntry) error {
 	return nil
 }
 
-func equalBalanceEngineSnapshot(left, right engine.BalanceSnapshot) bool {
+func equalBalanceEngineSnapshot(left, right accounting.BalanceSnapshot) bool {
 	return left.BalanceRef == right.BalanceRef &&
 		left.ID == right.ID &&
 		left.AccountID == right.AccountID &&
@@ -259,28 +259,28 @@ func balanceSnapshotEntries(organizationID, ledgerID uuid.UUID, balances []*mmod
 	return entries, nil
 }
 
-func balanceToEngineSnapshot(organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) (engine.BalanceSnapshot, error) {
+func balanceToEngineSnapshot(organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) (accounting.BalanceSnapshot, error) {
 	if balance == nil {
-		return engine.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: nil balance")
+		return accounting.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: nil balance")
 	}
 
 	if balance.OrganizationID != organizationID.String() || balance.LedgerID != ledgerID.String() {
-		return engine.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: balance %q is outside the requested scope", balance.ID)
+		return accounting.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: balance %q is outside the requested scope", balance.ID)
 	}
 
 	balanceID, err := uuid.Parse(balance.ID)
 	if err != nil || balanceID == uuid.Nil {
-		return engine.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: invalid balance ID %q", balance.ID)
+		return accounting.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: invalid balance ID %q", balance.ID)
 	}
 
 	accountID, err := uuid.Parse(balance.AccountID)
 	if err != nil || accountID == uuid.Nil {
-		return engine.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: invalid account ID %q", balance.AccountID)
+		return accounting.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: invalid account ID %q", balance.AccountID)
 	}
 
 	transactionBalance, err := balance.ToTransactionBalance()
 	if err != nil {
-		return engine.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: convert balance %q: %w", balance.ID, err)
+		return accounting.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: convert balance %q: %w", balance.ID, err)
 	}
 
 	key := transactionBalance.Key
@@ -296,10 +296,10 @@ func balanceToEngineSnapshot(organizationID, ledgerID uuid.UUID, balance *mmodel
 	}
 
 	if balanceScope != mmodel.BalanceScopeTransactional && balanceScope != mmodel.BalanceScopeInternal {
-		return engine.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: balance %q has invalid scope %q", balance.ID, balanceScope)
+		return accounting.BalanceSnapshot{}, fmt.Errorf("load balance engine snapshot pool: balance %q has invalid scope %q", balance.ID, balanceScope)
 	}
 
-	return engine.BalanceSnapshot{
+	return accounting.BalanceSnapshot{
 		BalanceRef:            mtransaction.AliasKey(alias, key),
 		ID:                    balanceID,
 		AccountID:             accountID,
@@ -358,8 +358,8 @@ func balancesFromSnapshotEntries(entries []balanceSnapshotEntry) []*mmodel.Balan
 	return balances
 }
 
-func snapshotsFromEntries(entries []balanceSnapshotEntry) []engine.BalanceSnapshot {
-	snapshots := make([]engine.BalanceSnapshot, len(entries))
+func snapshotsFromEntries(entries []balanceSnapshotEntry) []accounting.BalanceSnapshot {
+	snapshots := make([]accounting.BalanceSnapshot, len(entries))
 	for i := range entries {
 		snapshots[i] = entries[i].snapshot
 	}

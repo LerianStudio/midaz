@@ -16,11 +16,11 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
-func codecSnapshot() engine.BalanceSnapshot {
-	return engine.BalanceSnapshot{
+func codecSnapshot() accounting.BalanceSnapshot {
+	return accounting.BalanceSnapshot{
 		BalanceRef: "@source#default", Alias: "@source", Key: "default",
 		ID:          uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 		AccountID:   uuid.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -149,7 +149,7 @@ func TestCodecNoncanonicalLimitRequiresExplicitRepair(t *testing.T) {
 			require.ErrorAs(t, err, &noncanonical)
 			require.Equal(t, value, noncanonical.Raw)
 			require.Equal(t, decimal.RequireFromString(value).String(), noncanonical.Canonical)
-			require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+			require.Equal(t, accounting.BalanceSnapshot{}, snapshot)
 		})
 	}
 }
@@ -181,17 +181,17 @@ func TestCodecDecodeForReadRejectsMalformedAuthoritativeLimit(t *testing.T) {
 	raw := []byte(`{"SchemaVersion":2,"ID":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","AccountType":"deposit","AssetCode":"USD","Alias":"@source","Key":"default","Available":"10","OnHold":"0","Version":7,"AllowSending":1,"AllowReceiving":1,"AllowOverdraft":1,"OverdraftLimitEnabled":1,"OverdraftLimit":"bad","overdraftLimit":"1000"}`)
 	snapshot, err := DecodeForRead(raw)
 	require.Error(t, err)
-	require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+	require.Equal(t, accounting.BalanceSnapshot{}, snapshot)
 }
 
 func TestCodecDecodeForReadRejectsNegativeAndInvalidLimits(t *testing.T) {
 	for _, value := range []string{"-1", "NaN", "bad"} {
 		t.Run(value, func(t *testing.T) {
 			raw := []byte(fmt.Sprintf(`{"SchemaVersion":2,"ID":"00000000-0000-0000-0000-000000000001","AccountID":"00000000-0000-0000-0000-000000000002","AccountType":"deposit","AssetCode":"USD","Alias":"@source","Key":"default","Available":"10","OnHold":"0","Version":7,"AllowSending":1,"AllowReceiving":1,"AllowOverdraft":1,"OverdraftLimitEnabled":1,"OverdraftLimit":%q}`, value))
-			for _, decode := range []func([]byte) (engine.BalanceSnapshot, error){Decode, DecodeForRead} {
+			for _, decode := range []func([]byte) (accounting.BalanceSnapshot, error){Decode, DecodeForRead} {
 				snapshot, err := decode(raw)
 				require.Error(t, err)
-				require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+				require.Equal(t, accounting.BalanceSnapshot{}, snapshot)
 			}
 		})
 	}
@@ -463,7 +463,7 @@ func TestCodecDecodeForReadKeepsNewOnlyMoneyStrict(t *testing.T) {
 			fields[tc.field] = json.RawMessage(tc.raw)
 			snapshot, err := DecodeForRead(marshalCodecFields(t, fields))
 			require.Error(t, err)
-			require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+			require.Equal(t, accounting.BalanceSnapshot{}, snapshot)
 		})
 	}
 }
@@ -485,7 +485,7 @@ func TestCodecDecodeForReadRejectsInvalidLegacyMoneyWithoutFallback(t *testing.T
 
 					snapshot, err := DecodeForRead(marshalCodecFields(t, fields))
 					require.Error(t, err)
-					require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+					require.Equal(t, accounting.BalanceSnapshot{}, snapshot)
 				})
 			}
 		}
@@ -506,7 +506,7 @@ func TestCodecDecodeForReadRejectsInvalidLegacyMoneyWithoutFallback(t *testing.T
 
 			snapshot, err := DecodeForRead(marshalCodecFields(t, fields))
 			require.Error(t, err)
-			require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+			require.Equal(t, accounting.BalanceSnapshot{}, snapshot)
 		})
 	}
 }
@@ -528,7 +528,7 @@ func TestCodecStrictDecodeRejectsLegacyReadMoneyRepresentations(t *testing.T) {
 			fields[tc.field] = json.RawMessage(tc.raw)
 			snapshot, err := Decode(marshalCodecFields(t, fields))
 			require.Error(t, err)
-			require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+			require.Equal(t, accounting.BalanceSnapshot{}, snapshot)
 		})
 	}
 }
@@ -548,7 +548,7 @@ func TestCodecDecodeForReadHistoricalShapeRejectsWrongTypesAndBadAuthority(t *te
 	} {
 		snapshot, err := DecodeForRead([]byte(raw))
 		require.Error(t, err)
-		require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+		require.Equal(t, accounting.BalanceSnapshot{}, snapshot)
 	}
 }
 
@@ -565,7 +565,7 @@ func TestCodecDecodeForReadHistoricalShapeRejectsEmptyUppercaseAuthority(t *test
 			raw := []byte(fmt.Sprintf(`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","alias":"@source","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"overdraftUsed":"0","overdraftLimit":"0"%s}`, tc.field))
 			snapshot, err := DecodeForRead(raw)
 			require.Error(t, err)
-			require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+			require.Equal(t, accounting.BalanceSnapshot{}, snapshot)
 		})
 	}
 }
@@ -601,7 +601,7 @@ func TestCodecRejectsMalformedAuthoritativeFields(t *testing.T) {
 			fields[tc.field] = json.RawMessage(tc.value)
 			snapshot, err := Decode(marshalCodecFields(t, fields))
 			require.Error(t, err)
-			require.Equal(t, engine.BalanceSnapshot{}, snapshot)
+			require.Equal(t, accounting.BalanceSnapshot{}, snapshot)
 		})
 	}
 }

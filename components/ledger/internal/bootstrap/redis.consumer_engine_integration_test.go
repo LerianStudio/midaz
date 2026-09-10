@@ -30,7 +30,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	redisengine "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/engine"
 	txredis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -78,17 +78,17 @@ func recoveryEngineExecution(t *testing.T) command.EngineExecution {
 	t.Helper()
 	id := func(suffix string) uuid.UUID { return recoveryEngineID(t.Name() + ":" + suffix) }
 	date := time.Date(2024, time.January, 2, 12, 0, 0, 0, time.UTC)
-	balance := engine.BalanceSnapshot{
+	balance := accounting.BalanceSnapshot{
 		BalanceRef: "@source#default", ID: id("balance"), AccountID: id("account"), Alias: "@source", Key: constant.DefaultBalanceKey,
 		AssetCode: "USD", AccountType: "deposit", Direction: constant.DirectionCredit, BalanceScope: "transactional",
 		Available: decimal.NewFromInt(100), Version: 7, AllowSending: true, AllowReceiving: true,
 	}
-	request := engine.Request{
-		OrganizationID: id("organization"), LedgerID: id("ledger"), ExecutionID: id("execution"), Balances: []engine.BalanceSnapshot{balance},
-		Transactions: []engine.Transaction{{ID: id("transaction"), Postings: []engine.Posting{{Ref: "source:0", BalanceRef: balance.BalanceRef, Type: engine.PostingDebit, Amount: decimal.NewFromInt(30), DrawPolicy: engine.DrawForbidden}}}},
+	request := accounting.Execution{
+		OrganizationID: id("organization"), LedgerID: id("ledger"), ExecutionID: id("execution"), Balances: []accounting.BalanceSnapshot{balance},
+		Transactions: []accounting.Transaction{{ID: id("transaction"), Postings: []accounting.Posting{{Ref: "source:0", BalanceRef: balance.BalanceRef, Type: accounting.PostingDebit, Amount: decimal.NewFromInt(30), DrawPolicy: accounting.DrawForbidden}}}},
 	}
 	projection := command.OperationRecordSpec{
-		TransactionID: id("transaction"), PostingRef: "source:0", BalanceRef: balance.BalanceRef, Role: engine.RolePrimary, Side: command.OperationSpecSideFrom,
+		TransactionID: id("transaction"), PostingRef: "source:0", BalanceRef: balance.BalanceRef, Role: accounting.RolePrimary, Side: command.OperationSpecSideFrom,
 		RowType: constant.DEBIT, Direction: constant.DirectionDebit, Description: "frozen operation", RouteCode: "FROZEN", ChartOfAccounts: "frozen chart",
 		Metadata: map[string]any{"purpose": "frozen operation metadata"}, RequestedAmount: decimal.NewFromInt(30), CompatibilityPath: command.OperationRecordStandard,
 		Balance: command.OperationBalanceContext(mmodel.Balance{
@@ -121,7 +121,7 @@ func recoveryEngineExecution(t *testing.T) command.EngineExecution {
 	raw, err := command.EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 	input := command.EngineExecution{
-		Request: request, IntentFingerprint: fingerprint,
+		Execution: request, IntentFingerprint: fingerprint,
 		Guards:          []command.ExecutionGuard{{TransactionID: payload.TransactionID, NextToken: "frozen-execution-completed"}},
 		CompletionPlans: []command.CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: raw}},
 	}
@@ -276,7 +276,7 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 			require.NotNil(t, result)
 			messages, err := queue.ReadAllMessagesFromQueue(ctx)
 			require.NoError(t, err)
-			field := input.Request.Transactions[0].ID.String() + ":" + input.Request.ExecutionID.String()
+			field := input.Execution.Transactions[0].ID.String() + ":" + input.Execution.ExecutionID.String()
 			raw, exists := messages[field]
 			require.True(t, exists, "the accounting execution must durably write recovery before its caller finalizes")
 			envelope, err := command.DecodeTransactionCompletionRecord([]byte(raw))
@@ -286,7 +286,7 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 			rows, err := command.BuildOperationRecordsFromMovements(*payload, *result)
 			require.NoError(t, err)
 			require.Len(t, rows, 1)
-			backupKey, balanceKey := recoveryEngineKeys(t, client, field, raw, input.Request.Balances[0].ID)
+			backupKey, balanceKey := recoveryEngineKeys(t, client, field, raw, input.Execution.Balances[0].ID)
 			changed := result.Final[0]
 			changed.Available, changed.OnHold, changed.Version = decimal.NewFromInt(999), decimal.NewFromInt(12), 99
 			changed.AllowSending, changed.AllowReceiving, changed.Direction = false, false, constant.DirectionDebit

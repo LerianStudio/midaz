@@ -21,7 +21,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -104,11 +104,11 @@ func (uc *UseCase) transitionPendingWithBalanceEngine(
 			return nil, uc.resolvePendingGuardConflict(ctx, run.organizationID, run.ledgerID, transition.transactionID)
 		}
 
-		if confirmedPrecommitBalanceEngineFailure(prepared.Execution.Request, executeErr) {
+		if confirmedPrecommitBalanceEngineFailure(prepared.Execution.Execution, executeErr) {
 			unlock()
 		}
 
-		return nil, MapBalanceEngineError(prepared.Execution.Request, executeErr)
+		return nil, MapBalanceEngineError(prepared.Execution.Execution, executeErr)
 	}
 
 	if tracerEligible {
@@ -363,11 +363,11 @@ func buildPendingBalanceEngineExecution(
 	}
 
 	execution := EngineExecution{
-		Request: engine.Request{
+		Execution: accounting.Execution{
 			OrganizationID: payload.OrganizationID,
 			LedgerID:       payload.LedgerID,
 			ExecutionID:    frozen.executionID,
-			Transactions:   []engine.Transaction{prepared.transaction},
+			Transactions:   []accounting.Transaction{prepared.transaction},
 			Balances:       prepared.pool.Snapshots,
 		},
 		IntentFingerprint: fingerprint,

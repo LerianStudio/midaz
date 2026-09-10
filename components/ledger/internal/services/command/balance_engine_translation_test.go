@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -74,12 +74,12 @@ func TestTranslateBalanceEngineTransactionPreservesOrderedLegIdentity(t *testing
 		transaction.Postings[1].Amount,
 		transaction.Postings[2].Amount,
 	})
-	assert.Equal(t, []engine.PostingType{engine.PostingDebit, engine.PostingDebit, engine.PostingCredit}, []engine.PostingType{
+	assert.Equal(t, []accounting.PostingType{accounting.PostingDebit, accounting.PostingDebit, accounting.PostingCredit}, []accounting.PostingType{
 		transaction.Postings[0].Type,
 		transaction.Postings[1].Type,
 		transaction.Postings[2].Type,
 	})
-	assert.Equal(t, []engine.BalancePermission{engine.BalancePermissionSend, engine.BalancePermissionSend, engine.BalancePermissionReceive}, []engine.BalancePermission{
+	assert.Equal(t, []accounting.BalancePermission{accounting.BalancePermissionSend, accounting.BalancePermissionSend, accounting.BalancePermissionReceive}, []accounting.BalancePermission{
 		transaction.BalanceRequirements[0].Permission,
 		transaction.BalanceRequirements[1].Permission,
 		transaction.BalanceRequirements[2].Permission,
@@ -102,57 +102,57 @@ func TestTranslateBalanceEngineTransactionLifecyclePaths(t *testing.T) {
 		name, action, status string
 		routed               bool
 		overdraftAmount      decimal.Decimal
-		postingTypes         []engine.PostingType
+		postingTypes         []accounting.PostingType
 		rowTypes             []string
 		directions           []string
 		paths                []string
-		drawPolicies         []engine.DrawPolicy
+		drawPolicies         []accounting.DrawPolicy
 	}{
 		{
 			name: "direct", action: constant.ActionDirect, status: constant.CREATED,
-			postingTypes: []engine.PostingType{engine.PostingDebit, engine.PostingCredit},
+			postingTypes: []accounting.PostingType{accounting.PostingDebit, accounting.PostingCredit},
 			rowTypes:     []string{constant.DEBIT, constant.CREDIT}, directions: []string{constant.DirectionDebit, constant.DirectionCredit},
-			paths: []string{OperationRecordStandard, OperationRecordStandard}, drawPolicies: []engine.DrawPolicy{engine.DrawAllowed, engine.DrawForbidden},
+			paths: []string{OperationRecordStandard, OperationRecordStandard}, drawPolicies: []accounting.DrawPolicy{accounting.DrawAllowed, accounting.DrawForbidden},
 		},
 		{
 			name: "revert", action: constant.ActionRevert, status: constant.CREATED, overdraftAmount: decimal.NewFromInt(7),
-			postingTypes: []engine.PostingType{engine.PostingDebit, engine.PostingCredit},
+			postingTypes: []accounting.PostingType{accounting.PostingDebit, accounting.PostingCredit},
 			rowTypes:     []string{constant.DEBIT, constant.CREDIT}, directions: []string{constant.DirectionDebit, constant.DirectionCredit},
-			paths: []string{OperationRecordStandard, OperationRecordStandard}, drawPolicies: []engine.DrawPolicy{engine.DrawAllowed, engine.DrawForbidden},
+			paths: []string{OperationRecordStandard, OperationRecordStandard}, drawPolicies: []accounting.DrawPolicy{accounting.DrawAllowed, accounting.DrawForbidden},
 		},
 		{
 			name: "pending legacy", action: constant.ActionHold, status: constant.PENDING,
-			postingTypes: []engine.PostingType{engine.PostingHold}, rowTypes: []string{constant.ONHOLD}, directions: []string{constant.DirectionDebit},
-			paths: []string{OperationRecordStandard}, drawPolicies: []engine.DrawPolicy{engine.DrawForbidden},
+			postingTypes: []accounting.PostingType{accounting.PostingHold}, rowTypes: []string{constant.ONHOLD}, directions: []string{constant.DirectionDebit},
+			paths: []string{OperationRecordStandard}, drawPolicies: []accounting.DrawPolicy{accounting.DrawForbidden},
 		},
 		{
 			name: "pending routed", action: constant.ActionHold, status: constant.PENDING, routed: true,
-			postingTypes: []engine.PostingType{engine.PostingDebit, engine.PostingReserve}, rowTypes: []string{constant.DEBIT, constant.ONHOLD},
+			postingTypes: []accounting.PostingType{accounting.PostingDebit, accounting.PostingReserve}, rowTypes: []string{constant.DEBIT, constant.ONHOLD},
 			directions: []string{constant.DirectionDebit, constant.DirectionCredit}, paths: []string{OperationRecordValidatedHoldDebit, OperationRecordValidatedHoldReserve},
-			drawPolicies: []engine.DrawPolicy{engine.DrawForbidden, engine.DrawForbidden},
+			drawPolicies: []accounting.DrawPolicy{accounting.DrawForbidden, accounting.DrawForbidden},
 		},
 		{
 			name: "commit legacy", action: constant.ActionCommit, status: constant.APPROVED,
-			postingTypes: []engine.PostingType{engine.PostingUnreserve, engine.PostingCredit}, rowTypes: []string{constant.DEBIT, constant.CREDIT},
+			postingTypes: []accounting.PostingType{accounting.PostingUnreserve, accounting.PostingCredit}, rowTypes: []string{constant.DEBIT, constant.CREDIT},
 			directions: []string{constant.DirectionDebit, constant.DirectionCredit}, paths: []string{OperationRecordStandard, OperationRecordStandard},
-			drawPolicies: []engine.DrawPolicy{engine.DrawForbidden, engine.DrawForbidden},
+			drawPolicies: []accounting.DrawPolicy{accounting.DrawForbidden, accounting.DrawForbidden},
 		},
 		{
 			name: "commit routed", action: constant.ActionCommit, status: constant.APPROVED, routed: true,
-			postingTypes: []engine.PostingType{engine.PostingUnreserve, engine.PostingCredit}, rowTypes: []string{constant.ONHOLD, constant.CREDIT},
+			postingTypes: []accounting.PostingType{accounting.PostingUnreserve, accounting.PostingCredit}, rowTypes: []string{constant.ONHOLD, constant.CREDIT},
 			directions: []string{constant.DirectionDebit, constant.DirectionCredit}, paths: []string{OperationRecordStandard, OperationRecordStandard},
-			drawPolicies: []engine.DrawPolicy{engine.DrawForbidden, engine.DrawForbidden},
+			drawPolicies: []accounting.DrawPolicy{accounting.DrawForbidden, accounting.DrawForbidden},
 		},
 		{
 			name: "cancel legacy", action: constant.ActionCancel, status: constant.CANCELED, overdraftAmount: decimal.NewFromInt(7),
-			postingTypes: []engine.PostingType{engine.PostingRelease}, rowTypes: []string{constant.RELEASE}, directions: []string{constant.DirectionCredit},
-			paths: []string{OperationRecordStandard}, drawPolicies: []engine.DrawPolicy{engine.DrawForbidden},
+			postingTypes: []accounting.PostingType{accounting.PostingRelease}, rowTypes: []string{constant.RELEASE}, directions: []string{constant.DirectionCredit},
+			paths: []string{OperationRecordStandard}, drawPolicies: []accounting.DrawPolicy{accounting.DrawForbidden},
 		},
 		{
 			name: "cancel routed", action: constant.ActionCancel, status: constant.CANCELED, routed: true, overdraftAmount: decimal.NewFromInt(7),
-			postingTypes: []engine.PostingType{engine.PostingUnreserve, engine.PostingCredit}, rowTypes: []string{constant.RELEASE, constant.CREDIT},
+			postingTypes: []accounting.PostingType{accounting.PostingUnreserve, accounting.PostingCredit}, rowTypes: []string{constant.RELEASE, constant.CREDIT},
 			directions: []string{constant.DirectionDebit, constant.DirectionCredit}, paths: []string{OperationRecordValidatedCancelRelease, OperationRecordValidatedCancelCredit},
-			drawPolicies: []engine.DrawPolicy{engine.DrawForbidden, engine.DrawForbidden},
+			drawPolicies: []accounting.DrawPolicy{accounting.DrawForbidden, accounting.DrawForbidden},
 		},
 	}
 
@@ -187,8 +187,8 @@ func TestTranslateBalanceEngineTransactionLifecyclePaths(t *testing.T) {
 				assert.Empty(t, transaction.BalanceRequirements)
 			} else {
 				require.Len(t, transaction.BalanceRequirements, 2)
-				assert.Equal(t, engine.BalancePermissionSend, transaction.BalanceRequirements[0].Permission)
-				assert.Equal(t, engine.BalancePermissionReceive, transaction.BalanceRequirements[1].Permission)
+				assert.Equal(t, accounting.BalancePermissionSend, transaction.BalanceRequirements[0].Permission)
+				assert.Equal(t, accounting.BalancePermissionReceive, transaction.BalanceRequirements[1].Permission)
 				assert.Equal(t, tt.action == constant.ActionHold, transaction.BalanceRequirements[0].ForbidExternal)
 				assert.False(t, transaction.BalanceRequirements[1].ForbidExternal)
 			}
@@ -199,7 +199,7 @@ func TestTranslateBalanceEngineTransactionLifecyclePaths(t *testing.T) {
 				assert.Equal(t, tt.rowTypes[index], projection[index].RowType)
 				assert.Equal(t, tt.directions[index], projection[index].Direction)
 				assert.Equal(t, tt.paths[index], projection[index].CompatibilityPath)
-				if tt.postingTypes[index] == engine.PostingCredit || tt.postingTypes[index] == engine.PostingRelease {
+				if tt.postingTypes[index] == accounting.PostingCredit || tt.postingTypes[index] == accounting.PostingRelease {
 					assert.True(t, tt.overdraftAmount.Equal(transaction.Postings[index].OverdraftAmount))
 				} else {
 					assert.True(t, transaction.Postings[index].OverdraftAmount.IsZero())
@@ -252,7 +252,7 @@ func TestLifecyclePostingCompositorsPreserveGoldenSpecs(t *testing.T) {
 
 	credit := func(overdraftAmount decimal.Decimal) translationPostingSpec {
 		return translationPostingSpec{
-			postingType:       engine.PostingCredit,
+			postingType:       accounting.PostingCredit,
 			rowType:           constant.CREDIT,
 			direction:         constant.DirectionCredit,
 			compatibilityPath: OperationRecordStandard,
@@ -261,7 +261,7 @@ func TestLifecyclePostingCompositorsPreserveGoldenSpecs(t *testing.T) {
 		}
 	}
 	debit := translationPostingSpec{
-		postingType:       engine.PostingDebit,
+		postingType:       accounting.PostingDebit,
 		rowType:           constant.DEBIT,
 		direction:         constant.DirectionDebit,
 		compatibilityPath: OperationRecordStandard,
@@ -284,27 +284,27 @@ func TestLifecyclePostingCompositorsPreserveGoldenSpecs(t *testing.T) {
 		{name: "revert source", action: constant.ActionRevert, status: constant.CREATED, side: OperationSpecSideFrom, compositor: composeRevertPostings, want: []translationPostingSpec{debit}},
 		{name: "revert destination", action: constant.ActionRevert, status: constant.CREATED, side: OperationSpecSideTo, compositor: composeRevertPostings, want: []translationPostingSpec{credit(overdraftAmount)}},
 		{name: "pending legacy source", action: constant.ActionHold, status: constant.PENDING, side: OperationSpecSideFrom, compositor: composePendingCreatePostings, want: []translationPostingSpec{{
-			postingType: engine.PostingHold, rowType: constant.ONHOLD, direction: constant.DirectionDebit, compatibilityPath: OperationRecordStandard,
+			postingType: accounting.PostingHold, rowType: constant.ONHOLD, direction: constant.DirectionDebit, compatibilityPath: OperationRecordStandard,
 		}}},
 		{name: "pending routed source", action: constant.ActionHold, status: constant.PENDING, routed: true, side: OperationSpecSideFrom, compositor: composePendingCreatePostings, want: []translationPostingSpec{
-			{postingType: engine.PostingDebit, rowType: constant.DEBIT, direction: constant.DirectionDebit, compatibilityPath: OperationRecordValidatedHoldDebit},
-			{postingType: engine.PostingReserve, rowType: constant.ONHOLD, direction: constant.DirectionCredit, compatibilityPath: OperationRecordValidatedHoldReserve},
+			{postingType: accounting.PostingDebit, rowType: constant.DEBIT, direction: constant.DirectionDebit, compatibilityPath: OperationRecordValidatedHoldDebit},
+			{postingType: accounting.PostingReserve, rowType: constant.ONHOLD, direction: constant.DirectionCredit, compatibilityPath: OperationRecordValidatedHoldReserve},
 		}},
 		{name: "pending destination", action: constant.ActionHold, status: constant.PENDING, routed: true, side: OperationSpecSideTo, compositor: composePendingCreatePostings, want: nil},
 		{name: "commit legacy source", action: constant.ActionCommit, status: constant.APPROVED, side: OperationSpecSideFrom, compositor: composeCommitPostings, want: []translationPostingSpec{{
-			postingType: engine.PostingUnreserve, rowType: constant.DEBIT, direction: constant.DirectionDebit, compatibilityPath: OperationRecordStandard,
+			postingType: accounting.PostingUnreserve, rowType: constant.DEBIT, direction: constant.DirectionDebit, compatibilityPath: OperationRecordStandard,
 		}}},
 		{name: "commit routed source", action: constant.ActionCommit, status: constant.APPROVED, routed: true, side: OperationSpecSideFrom, compositor: composeCommitPostings, want: []translationPostingSpec{{
-			postingType: engine.PostingUnreserve, rowType: constant.ONHOLD, direction: constant.DirectionDebit, compatibilityPath: OperationRecordStandard,
+			postingType: accounting.PostingUnreserve, rowType: constant.ONHOLD, direction: constant.DirectionDebit, compatibilityPath: OperationRecordStandard,
 		}}},
 		{name: "commit destination", action: constant.ActionCommit, status: constant.APPROVED, side: OperationSpecSideTo, compositor: composeCommitPostings, want: []translationPostingSpec{credit(overdraftAmount)}},
 		{name: "cancel legacy source", action: constant.ActionCancel, status: constant.CANCELED, side: OperationSpecSideFrom, compositor: composeCancelPostings, want: []translationPostingSpec{{
-			postingType: engine.PostingRelease, rowType: constant.RELEASE, direction: constant.DirectionCredit, compatibilityPath: OperationRecordStandard,
+			postingType: accounting.PostingRelease, rowType: constant.RELEASE, direction: constant.DirectionCredit, compatibilityPath: OperationRecordStandard,
 			overdraftAmount: overdraftAmount, mayMoveOverdraft: true,
 		}}},
 		{name: "cancel routed source", action: constant.ActionCancel, status: constant.CANCELED, routed: true, side: OperationSpecSideFrom, compositor: composeCancelPostings, want: []translationPostingSpec{
-			{postingType: engine.PostingUnreserve, rowType: constant.RELEASE, direction: constant.DirectionDebit, compatibilityPath: OperationRecordValidatedCancelRelease},
-			{postingType: engine.PostingCredit, rowType: constant.CREDIT, direction: constant.DirectionCredit, compatibilityPath: OperationRecordValidatedCancelCredit, overdraftAmount: overdraftAmount, mayMoveOverdraft: true},
+			{postingType: accounting.PostingUnreserve, rowType: constant.RELEASE, direction: constant.DirectionDebit, compatibilityPath: OperationRecordValidatedCancelRelease},
+			{postingType: accounting.PostingCredit, rowType: constant.CREDIT, direction: constant.DirectionCredit, compatibilityPath: OperationRecordValidatedCancelCredit, overdraftAmount: overdraftAmount, mayMoveOverdraft: true},
 		}},
 		{name: "cancel destination", action: constant.ActionCancel, status: constant.CANCELED, routed: true, side: OperationSpecSideTo, compositor: composeCancelPostings, want: nil},
 	}
@@ -368,11 +368,11 @@ func TestTranslateBalanceEngineTransactionFreezesRoutedCompanionContext(t *testi
 	require.NoError(t, err)
 	require.Len(t, transaction.Postings, 1)
 	require.Len(t, projection, 2)
-	assert.Equal(t, engine.DrawAllowed, transaction.Postings[0].DrawPolicy, "ledger route mode, not the per-leg split flag, governs draw authorization")
+	assert.Equal(t, accounting.DrawAllowed, transaction.Postings[0].DrawPolicy, "ledger route mode, not the per-leg split flag, governs draw authorization")
 	assert.Equal(t, "default", projection[0].Balance.Key)
 	assert.Empty(t, primary.Key, "freezing a default key must not mutate the pool row")
 	assert.Equal(t, "DIRECT-D", projection[0].RouteCode)
-	assert.Equal(t, engine.RoleOverdraftCompanion, projection[1].Role)
+	assert.Equal(t, accounting.RoleOverdraftCompanion, projection[1].Role)
 	assert.Nil(t, projection[1].Balance.Settings)
 	assert.Equal(t, routeID, *projection[1].RouteID)
 	assert.Equal(t, "OD-D", projection[1].RouteCode)
@@ -391,7 +391,7 @@ func TestTranslateBalanceEngineTransactionFreezesRoutedCompanionContext(t *testi
 	input.RouteCache = nil
 	denied, _, err := TranslateBalanceEngineTransaction(input)
 	require.NoError(t, err)
-	assert.Equal(t, engine.DrawRouteDenied, denied.Postings[0].DrawPolicy)
+	assert.Equal(t, accounting.DrawRouteDenied, denied.Postings[0].DrawPolicy)
 }
 
 func TestTranslateBalanceEngineTransactionRejectsNonExecutableAndInvalidAmounts(t *testing.T) {

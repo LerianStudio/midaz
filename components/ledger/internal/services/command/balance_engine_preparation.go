@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -26,7 +26,7 @@ type balanceEnginePreparationInput struct {
 
 type balanceEnginePreparedTransaction struct {
 	pool        BalanceEngineSnapshotPool
-	transaction engine.Transaction
+	transaction accounting.Transaction
 	projection  []OperationRecordSpec
 }
 

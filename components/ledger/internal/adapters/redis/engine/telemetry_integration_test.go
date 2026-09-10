@@ -117,7 +117,7 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 			require.Empty(t, labels)
 		}
 	}
-	resolved, err := resolveAdapterKeys(ctx, input.Request)
+	resolved, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
 	prepared, err := prepareExecution(ctx, input, limits, resolved)
 	require.NoError(t, err)
@@ -130,13 +130,13 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 	require.Zero(t, size.DataPoints[0].Attributes.Len())
 
 	touched := make(map[string]struct{})
-	for _, transaction := range input.Request.Transactions {
+	for _, transaction := range input.Execution.Transactions {
 		for _, posting := range transaction.Postings {
 			touched[posting.BalanceRef] = struct{}{}
 		}
 	}
 	for name, want := range map[string]int64{
-		"balance_engine_pool_balance_count":    int64(len(input.Request.Balances)),
+		"balance_engine_pool_balance_count":    int64(len(input.Execution.Balances)),
 		"balance_engine_touched_balance_count": int64(len(touched)),
 	} {
 		require.Contains(t, observed, name)

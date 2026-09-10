@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
-	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -61,7 +61,7 @@ func TestIntegration_ExecutePreparedBalanceEngine_UsesLiveValkeyState(t *testing
 	for scenarioIndex, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newLiveStateCompositionFixture(t, scenarioIndex, test.seedAvailable)
-			keys, err := resolveAdapterKeys(ctx, core.Request{
+			keys, err := resolveAdapterKeys(ctx, core.Execution{
 				OrganizationID: fixture.organizationID,
 				LedgerID:       fixture.ledgerID,
 				Balances:       []core.BalanceSnapshot{fixture.primary, fixture.companion},
@@ -110,7 +110,7 @@ func TestIntegration_AdapterExecute_UsesLiveOverdraftSettingsWithoutVersionBump(
 	fixture.primary.AllowOverdraft = false
 	fixture.primary.OverdraftLimitEnabled = false
 	fixture.primary.OverdraftLimit = decimal.Zero
-	keys, err := resolveAdapterKeys(ctx, core.Request{
+	keys, err := resolveAdapterKeys(ctx, core.Execution{
 		OrganizationID: fixture.organizationID,
 		LedgerID:       fixture.ledgerID,
 		Balances:       []core.BalanceSnapshot{fixture.primary, fixture.companion},
@@ -122,7 +122,7 @@ func TestIntegration_AdapterExecute_UsesLiveOverdraftSettingsWithoutVersionBump(
 
 	prepared, err := buildLiveStateCompositionExecution(ctx, t, client, keys, fixture)
 	require.NoError(t, err)
-	preparedPrimary := liveStateCompositionSnapshot(t, prepared.Execution.Request.Balances, "@source#default")
+	preparedPrimary := liveStateCompositionSnapshot(t, prepared.Execution.Execution.Balances, "@source#default")
 	require.False(t, preparedPrimary.AllowOverdraft)
 	require.False(t, preparedPrimary.OverdraftLimitEnabled)
 	require.Equal(t, int64(7), preparedPrimary.Version)
@@ -271,7 +271,7 @@ func buildLiveStateCompositionExecution(
 		OperationSpecs: projection,
 	}
 	execution := command.EngineExecution{
-		Request: core.Request{
+		Execution: core.Execution{
 			OrganizationID: fixture.organizationID, LedgerID: fixture.ledgerID, ExecutionID: fixture.executionID,
 			Transactions: []core.Transaction{translated}, Balances: pool.Snapshots,
 		},
@@ -321,7 +321,7 @@ func liveStateCompositionMovementRoles(movements []core.Movement) []string {
 
 func assertLiveStateCompositionFinal(
 	t *testing.T,
-	result *core.Result,
+	result *core.ExecutionResult,
 	wantPrimaryAvailable, wantPrimaryOverdraftUsed string,
 	wantPrimaryVersion int64,
 	wantCompanionAvailable string,
@@ -389,7 +389,7 @@ func assertLiveStateCompositionStoredOutcome(
 ) {
 	t.Helper()
 	transactionID := got.Prepared.CompletionPlan.TransactionID
-	executionID := got.Prepared.Execution.Request.ExecutionID
+	executionID := got.Prepared.Execution.Execution.ExecutionID
 	require.Equal(t, int64(1), client.HLen(ctx, keys.Guards).Val())
 	require.Equal(t, constant.APPROVED, client.HGet(ctx, keys.Guards, transactionID.String()).Val())
 	require.Equal(t, int64(1), client.HLen(ctx, keys.Recovery).Val())
@@ -426,7 +426,7 @@ func assertLiveStateCompositionStoredOutcome(
 	require.Equal(t, 1, receipt.FormatVersion)
 	require.Equal(t, executionID.String(), receipt.ExecutionID)
 	require.Equal(t, got.Prepared.Execution.IntentFingerprint, receipt.IntentFingerprint)
-	replayed, err := DecodeResult([]byte(receipt.Response), got.Prepared.Execution.Request)
+	replayed, err := DecodeResult([]byte(receipt.Response), got.Prepared.Execution.Execution)
 	require.NoError(t, err)
 	requireJSONEqual(t, got.Result, replayed)
 }

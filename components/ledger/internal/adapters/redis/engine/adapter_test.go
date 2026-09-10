@@ -17,7 +17,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
@@ -62,9 +62,9 @@ func TestTechnicalError_NeutralClassificationPreservesCause(t *testing.T) {
 	require.False(t, nilError.OutcomeIndeterminate())
 }
 
-func adapterResultFixture(t *testing.T) (core.Request, resultEnvelope) {
+func adapterResultFixture(t *testing.T) (core.Execution, resultEnvelope) {
 	t.Helper()
-	var request core.Request
+	var request core.Execution
 	require.NoError(t, json.Unmarshal([]byte(`{"transactions":[{"id":"11111111-1111-4111-8111-111111111111","postings":[{"ref":"postação","balanceRef":"@source#default","type":"DEBIT","amount":"30"}]}]}`), &request))
 	require.Len(t, request.Transactions, 1)
 	require.Len(t, request.Transactions[0].Postings, 1)

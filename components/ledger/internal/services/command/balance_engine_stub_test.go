@@ -14,11 +14,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
 type balanceEngineResponse struct {
-	result *engine.Result
+	result *accounting.ExecutionResult
 	err    error
 }
 
@@ -30,7 +30,7 @@ type scriptedBalanceEngine struct {
 
 var _ BalanceEngine = (*scriptedBalanceEngine)(nil)
 
-func (s *scriptedBalanceEngine) Execute(ctx context.Context, input EngineExecution) (*engine.Result, error) {
+func (s *scriptedBalanceEngine) Execute(ctx context.Context, input EngineExecution) (*accounting.ExecutionResult, error) {
 	s.requests = append(s.requests, input)
 	s.contexts = append(s.contexts, ctx)
 
@@ -49,7 +49,7 @@ func TestBalanceEnginePortPreservesExecutionAndOutcomes(t *testing.T) {
 
 	transactionID := uuid.MustParse("ff06f52d-d6e3-425f-83ab-58b7ae73145a")
 	execution := EngineExecution{
-		Request: engine.Request{
+		Execution: accounting.Execution{
 			OrganizationID: uuid.MustParse("81d280ef-824f-48be-b804-a7a9472d3303"),
 			LedgerID:       uuid.MustParse("090217e0-7be5-4a0e-b3f7-44d700cf7b86"),
 			ExecutionID:    uuid.MustParse("656e9cf1-17c9-4257-83f6-687d0f18dd31"),
@@ -65,9 +65,9 @@ func TestBalanceEnginePortPreservesExecutionAndOutcomes(t *testing.T) {
 			Payload:       json.RawMessage(`{"status":"COMMITTED"}`),
 		}},
 	}
-	result := &engine.Result{}
-	failure := &engine.Failure{
-		Code:             engine.FailureInsufficientFunds,
+	result := &accounting.ExecutionResult{}
+	failure := &accounting.Failure{
+		Code:             accounting.FailureInsufficientFunds,
 		TransactionIndex: 0,
 		PostingIndex:     1,
 		BalanceRef:       "source",
@@ -89,7 +89,7 @@ func TestBalanceEnginePortPreservesExecutionAndOutcomes(t *testing.T) {
 	}
 
 	got, err = useCase.BalanceEngine.Execute(ctx, execution)
-	var gotFailure *engine.Failure
+	var gotFailure *accounting.Failure
 	if got != nil || !errors.As(err, &gotFailure) || gotFailure != failure || !errors.Is(err, failure) {
 		t.Fatalf("business failure = (%v, %v), want original typed failure", got, err)
 	}

@@ -3,7 +3,7 @@
 ## Status and scope
 
 The ledger defines a storage-independent accounting contract in
-`components/ledger/internal/engine`. The existing Redis transaction adapter remains
+`components/ledger/internal/domain/accounting`. The existing Redis transaction adapter remains
 the active execution path. Canonical overdraft-limit serialization and conditional
 warm-cache repair protect that path independently of the new contract.
 
@@ -43,11 +43,11 @@ transaction flows. Explicit integrity corrections are described separately.
 | Physical keys, cache codec, script transport, execution receipts and guards | Redis engine adapter |
 | Accounting rows, metadata, route attribution and historical row compatibility | Go projection shared by normal finalization and recovery |
 
-The neutral `engine` package must not import commands, adapters, or bootstrap.
+The domain `accounting` package must not import commands, adapters, or bootstrap.
 The command layer owns the `BalanceEngine` port; bootstrap selects its
 implementation. The Redis implementation belongs under
-`components/ledger/internal/adapters/redis/engine`. Imports that need both packages
-use `engine` for the contract and `redisengine` for the adapter. Tests importing
+`components/ledger/internal/adapters/redis/engine`. Imports use `accounting` for
+the domain contract and `redisengine` when the adapter needs an explicit alias. Tests importing
 the contract belong under `components/ledger`; root-level shared test utilities
 must remain independent of it. Existing `pkg` packages are not relocated.
 
@@ -56,9 +56,9 @@ rules. Those determine postings and frozen projection context in Go. The adapter
 may preserve recovery payloads opaquely without interpreting them in accounting
 arithmetic.
 
-## Request, movement, and execution identity
+## Execution, movement, and execution identity
 
-`engine.Request` contains nonzero UUIDs for `OrganizationID`, `LedgerID`, and
+`accounting.Execution` contains nonzero UUIDs for `OrganizationID`, `LedgerID`, and
 `ExecutionID`, ordered transactions, and a pool of `BalanceSnapshot` values.
 Transactions contain a nonzero UUID and ordered postings. Each posting has a
 transaction-unique `Ref`, a logical `BalanceRef` (`alias#key`), a supported type,
@@ -93,7 +93,7 @@ must not determine ordering.
 A movement exists when Available, OnHold, or OverdraftUsed changes. Each applied
 primary or companion movement increments its balance version once. `Amount=0`
 does not suppress a debt-only movement. Unchanged state produces no movement,
-version increment, or schedule update. `Result.Final` contains one final snapshot
+version increment, or schedule update. `ExecutionResult.Final` contains one final snapshot
 per touched physical balance in deterministic order, excluding unused seeds.
 
 Execution identity is distinct from transaction identity: pending creation,
@@ -457,7 +457,7 @@ Structured refusals use exact `MIDAZ_ENGINE_V1 ` framing followed by
 validated JSON. Accept at most one known Redis `ERR ` framing prefix before the
 protocol prefix. Validate the code enum, transaction/posting index bounds, and
 reference correlation; indices are zero-based, with -1 only when not applicable.
-Do not classify errors by substring. The adapter returns `*engine.Failure` for
+Do not classify errors by substring. The adapter returns `*accounting.Failure` for
 recognized refusals and preserves technical causes separately.
 
 Technical replies use `MIDAZ_ENGINE_TECH_V1 ` and a validated technical code.

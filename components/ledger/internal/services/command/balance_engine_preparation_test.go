@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -113,7 +113,7 @@ func TestPrepareBalanceEngineTransactionSeparatesLegsFromPool(t *testing.T) {
 	assert.Len(t, prepared.pool.ExplicitBalances, 2)
 	assert.Len(t, prepared.pool.Snapshots, 3)
 	require.Len(t, prepared.transaction.Postings, 3)
-	assert.Equal(t, engine.DrawAllowed, prepared.transaction.Postings[0].DrawPolicy)
+	assert.Equal(t, accounting.DrawAllowed, prepared.transaction.Postings[0].DrawPolicy)
 	assert.Len(t, prepared.projection, 5)
 	assert.Nil(t, input.translation.Balances)
 }
@@ -200,9 +200,9 @@ func TestPrepareBalanceEngineTransactionDefersEligibilityToAtomicExecution(t *te
 	prepared, err := uc.prepareBalanceEngineTransaction(context.Background(), input)
 	require.NoError(t, err)
 	require.Len(t, prepared.transaction.BalanceRequirements, 3)
-	assert.Equal(t, engine.BalancePermissionSend, prepared.transaction.BalanceRequirements[0].Permission)
-	assert.Equal(t, engine.BalancePermissionSend, prepared.transaction.BalanceRequirements[1].Permission)
-	assert.Equal(t, engine.BalancePermissionReceive, prepared.transaction.BalanceRequirements[2].Permission)
+	assert.Equal(t, accounting.BalancePermissionSend, prepared.transaction.BalanceRequirements[0].Permission)
+	assert.Equal(t, accounting.BalancePermissionSend, prepared.transaction.BalanceRequirements[1].Permission)
+	assert.Equal(t, accounting.BalancePermissionReceive, prepared.transaction.BalanceRequirements[2].Permission)
 }
 
 func TestOrderedBalanceEngineValidationOperationsPreservesStaticHoldEntries(t *testing.T) {
@@ -267,7 +267,7 @@ func TestPrepareBalanceEngineCancellationDoesNotRequireDestinationBalance(t *tes
 	assert.Len(t, prepared.pool.Snapshots, 2)
 	require.Len(t, prepared.transaction.Postings, 2)
 	for _, posting := range prepared.transaction.Postings {
-		assert.Equal(t, engine.PostingRelease, posting.Type)
+		assert.Equal(t, accounting.PostingRelease, posting.Type)
 		assert.Equal(t, "@source#default", posting.BalanceRef)
 	}
 	assert.Len(t, input.translation.TransactionInput.Send.Distribute.To, 1)

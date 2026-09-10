@@ -25,7 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	txredis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -109,7 +109,7 @@ type racingPendingLifecycleAdapter struct {
 	release    chan struct{}
 }
 
-func (a *racingPendingLifecycleAdapter) Execute(ctx context.Context, execution command.EngineExecution) (*core.Result, error) {
+func (a *racingPendingLifecycleAdapter) Execute(ctx context.Context, execution command.EngineExecution) (*core.ExecutionResult, error) {
 	a.mu.Lock()
 	a.executions = append(a.executions, execution)
 	armed := a.armed
@@ -140,7 +140,7 @@ func (a *racingPendingLifecycleAdapter) captured() ([]command.EngineExecution, [
 	return append([]command.EngineExecution(nil), a.executions...), append([]command.ExecutionGuard(nil), a.bootstraps...)
 }
 
-func (a *pendingLifecycleAdapter) Execute(ctx context.Context, execution command.EngineExecution) (*core.Result, error) {
+func (a *pendingLifecycleAdapter) Execute(ctx context.Context, execution command.EngineExecution) (*core.ExecutionResult, error) {
 	a.executions = append(a.executions, execution)
 	return a.delegate.Execute(ctx, execution)
 }
@@ -376,21 +376,21 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			require.Equal(t, command.ExecutionGuard{TransactionID: uuid.MustParse(pending.ID), NextToken: constant.PENDING}, executor.bootstraps[0])
 
 			createExecution, transitionExecution := executor.executions[0], executor.executions[1]
-			require.NotEqual(t, createExecution.Request.ExecutionID, transitionExecution.Request.ExecutionID)
-			require.Equal(t, pending.ID, createExecution.Request.Transactions[0].ID.String())
-			require.Equal(t, pending.ID, transitionExecution.Request.Transactions[0].ID.String())
+			require.NotEqual(t, createExecution.Execution.ExecutionID, transitionExecution.Execution.ExecutionID)
+			require.Equal(t, pending.ID, createExecution.Execution.Transactions[0].ID.String())
+			require.Equal(t, pending.ID, transitionExecution.Execution.Transactions[0].ID.String())
 			require.Equal(t, command.ExecutionGuard{TransactionID: uuid.MustParse(pending.ID), NextToken: constant.PENDING}, createExecution.Guards[0])
 			require.Equal(t, command.ExecutionGuard{TransactionID: uuid.MustParse(pending.ID), ExpectedToken: constant.PENDING, NextToken: test.terminalStatus}, transitionExecution.Guards[0])
 			require.Len(t, finalizer.envelopes, 2)
 			transactions := []*postgresTransaction.Transaction{pending, transitioned}
 			for index, execution := range executor.executions {
 				envelope := finalizer.envelopes[index]
-				require.Equal(t, execution.Request.ExecutionID, envelope.ExecutionID)
+				require.Equal(t, execution.Execution.ExecutionID, envelope.ExecutionID)
 				require.Equal(t, execution.IntentFingerprint, envelope.IntentFingerprint)
 				assertPendingLifecycleProjection(t, envelope, transactions[index])
 			}
 
-			keys, err := resolveAdapterKeys(ctx, transitionExecution.Request)
+			keys, err := resolveAdapterKeys(ctx, transitionExecution.Execution)
 			require.NoError(t, err)
 			t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, client, keys) })
 			require.Equal(t, test.terminalStatus, client.HGet(ctx, keys.Guards, pending.ID).Val())
@@ -548,31 +548,31 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	}
 	var winningExecution, losingExecution command.EngineExecution
 	for _, execution := range executions[1:] {
-		require.Equal(t, pending.ID, execution.Request.Transactions[0].ID.String())
+		require.Equal(t, pending.ID, execution.Execution.Transactions[0].ID.String())
 		if execution.Guards[0].NextToken == winner.requestedStatus {
 			winningExecution = execution
 		} else {
 			losingExecution = execution
 		}
 	}
-	require.NotEqual(t, uuid.Nil, winningExecution.Request.ExecutionID)
-	require.NotEqual(t, uuid.Nil, losingExecution.Request.ExecutionID)
-	require.NotEqual(t, winningExecution.Request.ExecutionID, losingExecution.Request.ExecutionID)
+	require.NotEqual(t, uuid.Nil, winningExecution.Execution.ExecutionID)
+	require.NotEqual(t, uuid.Nil, losingExecution.Execution.ExecutionID)
+	require.NotEqual(t, winningExecution.Execution.ExecutionID, losingExecution.Execution.ExecutionID)
 	require.Len(t, finalizer.envelopes, 2)
 	winnerEnvelope := finalizer.envelopes[1]
-	require.Equal(t, winningExecution.Request.ExecutionID, winnerEnvelope.ExecutionID)
+	require.Equal(t, winningExecution.Execution.ExecutionID, winnerEnvelope.ExecutionID)
 	require.Equal(t, winningExecution.IntentFingerprint, winnerEnvelope.IntentFingerprint)
 	assertPendingLifecycleProjection(t, winnerEnvelope, winner.transaction)
 
-	keys, err := resolveAdapterKeys(ctx, winningExecution.Request)
+	keys, err := resolveAdapterKeys(ctx, winningExecution.Execution)
 	require.NoError(t, err)
 	t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, client, keys) })
 	require.Equal(t, winner.requestedStatus, client.HGet(ctx, keys.Guards, pending.ID).Val())
 	require.Equal(t, int64(1), client.HLen(ctx, keys.Guards).Val())
 	require.Equal(t, int64(2), client.HLen(ctx, keys.Recovery).Val())
 	require.Equal(t, int64(2), client.HLen(ctx, keys.Receipts).Val())
-	require.False(t, client.HExists(ctx, keys.Recovery, pending.ID+":"+losingExecution.Request.ExecutionID.String()).Val())
-	require.False(t, client.HExists(ctx, keys.Receipts, losingExecution.Request.ExecutionID.String()).Val())
+	require.False(t, client.HExists(ctx, keys.Recovery, pending.ID+":"+losingExecution.Execution.ExecutionID.String()).Val())
+	require.False(t, client.HExists(ctx, keys.Receipts, losingExecution.Execution.ExecutionID.String()).Val())
 	assertPendingLifecycleRecovery(t, ctx, client, keys, winningExecution, winner.transaction)
 
 	if winner.requestedStatus == constant.APPROVED {
@@ -685,7 +685,7 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	require.Len(t, executor.executions, 2)
 	require.Len(t, finalizer.envelopes, 2)
 	winningExecution := executor.executions[1]
-	keys, err := resolveAdapterKeys(ctx, winningExecution.Request)
+	keys, err := resolveAdapterKeys(ctx, winningExecution.Execution)
 	require.NoError(t, err)
 	t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, client, keys) })
 	require.Equal(t, constant.APPROVED, client.HGet(ctx, keys.Guards, pending.ID).Val())
@@ -714,8 +714,8 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	require.Equal(t, int64(2), client.HLen(ctx, keys.Recovery).Val())
 	require.Equal(t, int64(2), client.HLen(ctx, keys.Receipts).Val())
 	for _, rejected := range executor.executions[2:] {
-		require.False(t, client.HExists(ctx, keys.Recovery, pending.ID+":"+rejected.Request.ExecutionID.String()).Val())
-		require.False(t, client.HExists(ctx, keys.Receipts, rejected.Request.ExecutionID.String()).Val())
+		require.False(t, client.HExists(ctx, keys.Recovery, pending.ID+":"+rejected.Execution.ExecutionID.String()).Val())
+		require.False(t, client.HExists(ctx, keys.Receipts, rejected.Execution.ExecutionID.String()).Val())
 	}
 	winningPayload, err := command.DecodeTransactionCompletionPlan([]byte(finalizer.envelopes[1].Payload))
 	require.NoError(t, err)
@@ -744,8 +744,8 @@ type pendingLifecycleBalanceExpectation struct {
 }
 
 func pendingLifecyclePostingTypes(execution command.EngineExecution) []core.PostingType {
-	types := make([]core.PostingType, 0, len(execution.Request.Transactions[0].Postings))
-	for _, posting := range execution.Request.Transactions[0].Postings {
+	types := make([]core.PostingType, 0, len(execution.Execution.Transactions[0].Postings))
+	for _, posting := range execution.Execution.Transactions[0].Postings {
 		types = append(types, posting.Type)
 	}
 	return types
@@ -762,11 +762,11 @@ func assertPendingLifecycleProjection(t *testing.T, envelope *command.Transactio
 
 func assertPendingLifecycleRecovery(t *testing.T, ctx context.Context, client *redis.Client, keys resolvedExecutionKeys, execution command.EngineExecution, transaction *postgresTransaction.Transaction) {
 	t.Helper()
-	recoveryRaw, err := client.HGet(ctx, keys.Recovery, transaction.ID+":"+execution.Request.ExecutionID.String()).Bytes()
+	recoveryRaw, err := client.HGet(ctx, keys.Recovery, transaction.ID+":"+execution.Execution.ExecutionID.String()).Bytes()
 	require.NoError(t, err)
 	recovery, err := command.DecodeTransactionCompletionRecord(recoveryRaw)
 	require.NoError(t, err)
-	require.Equal(t, execution.Request.ExecutionID, recovery.ExecutionID)
+	require.Equal(t, execution.Execution.ExecutionID, recovery.ExecutionID)
 	require.Equal(t, execution.IntentFingerprint, recovery.IntentFingerprint)
 	assertPendingLifecycleProjection(t, recovery, transaction)
 }

@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -112,7 +112,7 @@ func (uc *UseCase) executeCreateBalanceEngine(
 
 	outcome, executeErr := ExecutePreparedBalanceEngine(ctx, uc.BalanceEngine, prepared)
 	if executeErr != nil {
-		if !outcome.Executed || confirmedPrecommitBalanceEngineFailure(prepared.Execution.Request, executeErr) {
+		if !outcome.Executed || confirmedPrecommitBalanceEngineFailure(prepared.Execution.Execution, executeErr) {
 			uc.rollbackCreateClaim(ctx, run)
 
 			if tracerEligible {
@@ -123,7 +123,7 @@ func (uc *UseCase) executeCreateBalanceEngine(
 			return nil, executeErr
 		}
 
-		return nil, MapBalanceEngineError(prepared.Execution.Request, executeErr)
+		return nil, MapBalanceEngineError(prepared.Execution.Execution, executeErr)
 	}
 
 	if run.status != constant.PENDING && tracerEligible {
@@ -214,9 +214,9 @@ func (uc *UseCase) buildCreateBalanceEngineExecution(run *createTransactionRun, 
 	}
 
 	execution := EngineExecution{
-		Request: engine.Request{
+		Execution: accounting.Execution{
 			OrganizationID: run.organizationID, LedgerID: run.ledgerID, ExecutionID: frozen.executionID,
-			Transactions: []engine.Transaction{prepared.transaction}, Balances: prepared.pool.Snapshots,
+			Transactions: []accounting.Transaction{prepared.transaction}, Balances: prepared.pool.Snapshots,
 		},
 		IntentFingerprint: fingerprint,
 		RetentionSeconds:  idempotencyRetentionSeconds(run.idempotencyTTL),
@@ -274,26 +274,26 @@ func isNilTransactionCompleter(completer TransactionCompleter) bool {
 	return value.Kind() == reflect.Pointer && value.IsNil()
 }
 
-func confirmedPrecommitBalanceEngineFailure(request engine.Request, err error) bool {
+func confirmedPrecommitBalanceEngineFailure(request accounting.Execution, err error) bool {
 	var technical balanceEngineTechnicalError
 	if errors.As(err, &technical) {
 		return !technical.OutcomeIndeterminate() && technical.EngineFailureCode() != "execution_guard_conflict"
 	}
 
-	var failure *engine.Failure
+	var failure *accounting.Failure
 	if errors.As(err, &failure) && failure != nil {
 		switch failure.Code {
-		case engine.FailureInsufficientFunds,
-			engine.FailureOverdraftLimitExceeded,
-			engine.FailureOverdraftNotEligible,
-			engine.FailureOverdraftCompanionMissing,
-			engine.FailureBalanceDeleted,
-			engine.FailureOnHoldUnderflow,
-			engine.FailureBalanceMissing,
-			engine.FailureAssetMismatch,
-			engine.FailureSendingNotAllowed,
-			engine.FailureReceivingNotAllowed,
-			engine.FailureExternalHoldNotAllowed:
+		case accounting.FailureInsufficientFunds,
+			accounting.FailureOverdraftLimitExceeded,
+			accounting.FailureOverdraftNotEligible,
+			accounting.FailureOverdraftCompanionMissing,
+			accounting.FailureBalanceDeleted,
+			accounting.FailureOnHoldUnderflow,
+			accounting.FailureBalanceMissing,
+			accounting.FailureAssetMismatch,
+			accounting.FailureSendingNotAllowed,
+			accounting.FailureReceivingNotAllowed,
+			accounting.FailureExternalHoldNotAllowed:
 		default:
 			return false
 		}

@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
-	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
@@ -26,16 +26,16 @@ func TestIntegration_AdapterExecute_LimitRepairBatchPrevalidatesAllBalances(t *t
 	ctx := context.Background()
 	inspector, address, password := newAdapterValkey(t)
 	input, limits := adapterLimitRepairBatchExecution(t)
-	keys, err := resolveAdapterKeys(ctx, input.Request)
+	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
 
 	expiresAt := time.Date(2100, time.January, 2, 3, 4, 5, 0, time.UTC).UnixMilli()
-	first := input.Request.Balances[0]
+	first := input.Execution.Balances[0]
 	first.Available = decimal.NewFromInt(20)
 	firstRaw := adapterNoncanonicalLimit(t, first, "1000.00")
-	secondRaw := adapterNoncanonicalLimit(t, input.Request.Balances[1], "2000.00")
+	secondRaw := adapterNoncanonicalLimit(t, input.Execution.Balances[1], "2000.00")
 	firstKey := keys.Balances[first.BalanceRef].Balance
-	secondKey := keys.Balances[input.Request.Balances[1].BalanceRef].Balance
+	secondKey := keys.Balances[input.Execution.Balances[1].BalanceRef].Balance
 	setAdapterBalanceAt(t, inspector, firstKey, firstRaw, expiresAt)
 	setAdapterBalanceAt(t, inspector, secondKey, secondRaw, expiresAt)
 
@@ -72,18 +72,18 @@ func TestIntegration_AdapterExecute_LimitRepairBatchPreservesFinancialStateOnRef
 	ctx := context.Background()
 	inspector, _, _ := newAdapterValkey(t)
 	input, limits := adapterLimitRepairBatchExecution(t)
-	keys, err := resolveAdapterKeys(ctx, input.Request)
+	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
 	adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
 	require.NoError(t, err)
 
 	expiresAt := time.Date(2100, time.February, 3, 4, 5, 6, 0, time.UTC).UnixMilli()
-	first := input.Request.Balances[0]
+	first := input.Execution.Balances[0]
 	first.Available = decimal.NewFromInt(20)
 	firstRaw := adapterNoncanonicalLimit(t, first, "1000.00")
-	secondRaw := adapterNoncanonicalLimit(t, input.Request.Balances[1], "2000.00")
+	secondRaw := adapterNoncanonicalLimit(t, input.Execution.Balances[1], "2000.00")
 	firstKey := keys.Balances[first.BalanceRef].Balance
-	secondKey := keys.Balances[input.Request.Balances[1].BalanceRef].Balance
+	secondKey := keys.Balances[input.Execution.Balances[1].BalanceRef].Balance
 	setAdapterBalanceAt(t, inspector, firstKey, firstRaw, expiresAt)
 	setAdapterBalanceAt(t, inspector, secondKey, secondRaw, expiresAt)
 
@@ -105,12 +105,12 @@ func TestIntegration_AdapterExecute_LimitRepairPreservesPersistentKey(t *testing
 	ctx := context.Background()
 	inspector, _, _ := newAdapterValkey(t)
 	input, limits := richAdapterExecution(t)
-	keys, err := resolveAdapterKeys(ctx, input.Request)
+	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
 	adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
 	require.NoError(t, err)
 
-	live := input.Request.Balances[0]
+	live := input.Execution.Balances[0]
 	live.Available = decimal.NewFromInt(20)
 	raw := adapterNoncanonicalLimit(t, live, "1000.00")
 	key := keys.Balances[live.BalanceRef].Balance
@@ -128,11 +128,11 @@ func TestIntegration_AdapterExecute_LimitRepairPreservesPersistentKey(t *testing
 func adapterLimitRepairBatchExecution(t *testing.T) (command.EngineExecution, Limits) {
 	t.Helper()
 	input, limits := richAdapterExecution(t)
-	second := input.Request.Balances[0]
+	second := input.Execution.Balances[0]
 	second.ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":second-balance"))
 	second.AccountID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":second-account"))
 	second.Alias, second.BalanceRef = "@batch", "@batch#default"
-	input.Request.Balances = append(input.Request.Balances, second)
+	input.Execution.Balances = append(input.Execution.Balances, second)
 	return input, limits
 }
 

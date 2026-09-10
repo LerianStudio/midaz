@@ -34,7 +34,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
@@ -85,7 +85,7 @@ func richAdapterExecution(t *testing.T) (command.EngineExecution, Limits) {
 	request.LedgerID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":ledger"))
 	request.Transactions[0].ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":transaction"))
 	request.Transactions[0].Postings[0].DrawPolicy = core.DrawForbidden
-	input := command.EngineExecution{Request: request}
+	input := command.EngineExecution{Execution: request}
 	transaction := request.Transactions[0]
 	balance := request.Balances[0]
 	projectionBalance := command.OperationBalanceContext{}
@@ -114,25 +114,25 @@ func richAdapterExecution(t *testing.T) (command.EngineExecution, Limits) {
 
 func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload command.TransactionCompletionPlan) json.RawMessage {
 	t.Helper()
-	require.Len(t, input.Request.Transactions, 1)
+	require.Len(t, input.Execution.Transactions, 1)
 	transaction := command.BalanceEngineTransactionIntent{
 		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID,
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
 		TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
-		PostingRefs:         make([]string, 0, len(input.Request.Transactions[0].Postings)),
-		BalanceRequirements: append([]core.BalanceRequirement(nil), input.Request.Transactions[0].BalanceRequirements...),
+		PostingRefs:         make([]string, 0, len(input.Execution.Transactions[0].Postings)),
+		BalanceRequirements: append([]core.BalanceRequirement(nil), input.Execution.Transactions[0].BalanceRequirements...),
 		OperationSpecs:      make([]command.OperationRecordIntent, 0, len(payload.OperationSpecs)),
 	}
-	for _, posting := range input.Request.Transactions[0].Postings {
+	for _, posting := range input.Execution.Transactions[0].Postings {
 		transaction.PostingRefs = append(transaction.PostingRefs, posting.Ref)
 	}
 	for _, projection := range payload.OperationSpecs {
 		transaction.OperationSpecs = append(transaction.OperationSpecs, projection.Intent())
 	}
 	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{
-		TenantID: payload.TenantID, OrganizationID: input.Request.OrganizationID, LedgerID: input.Request.LedgerID,
-		ExecutionID: input.Request.ExecutionID, Transactions: []command.BalanceEngineTransactionIntent{transaction},
+		TenantID: payload.TenantID, OrganizationID: input.Execution.OrganizationID, LedgerID: input.Execution.LedgerID,
+		ExecutionID: input.Execution.ExecutionID, Transactions: []command.BalanceEngineTransactionIntent{transaction},
 	})
 	require.NoError(t, err)
 	input.IntentFingerprint, payload.IntentFingerprint = fingerprint, fingerprint
@@ -201,7 +201,7 @@ func TestIntegration_AdapterExecute_TransportAndReceipt(t *testing.T) {
 			}
 			require.Equal(t, 1, proxy.count("EVALSHA"), "failed calls must not be retransmitted")
 			require.Equal(t, 1, proxy.count("EVAL"), "only NOSCRIPT permits EVAL fallback")
-			keys, err := resolveAdapterKeys(ctx, input.Request)
+			keys, err := resolveAdapterKeys(ctx, input.Execution)
 			require.NoError(t, err)
 			before := captureAdapterState(t, inspector, keys)
 			for range 2 {
@@ -265,7 +265,7 @@ func TestIntegration_AdapterExecute_WritesDualBalanceCacheContract(t *testing.T)
 
 		t.Run(name, func(t *testing.T) {
 			input, limits := richAdapterExecution(t)
-			balance := &input.Request.Balances[0]
+			balance := &input.Execution.Balances[0]
 			balance.Available = decimal.NewFromInt(100)
 			balance.OnHold = decimal.Zero
 			balance.OverdraftUsed = decimal.Zero
@@ -283,7 +283,7 @@ func TestIntegration_AdapterExecute_WritesDualBalanceCacheContract(t *testing.T)
 			input.CompletionPlans[0].Payload = encodeAdapterRecovery(t, &input, *payload)
 			require.NoError(t, command.ValidateTransactionCompletion(input))
 
-			keys, err := resolveAdapterKeys(ctx, input.Request)
+			keys, err := resolveAdapterKeys(ctx, input.Execution)
 			require.NoError(t, err)
 			cacheKey := keys.Balances[balance.BalanceRef].Balance
 			if preexisting {
@@ -317,7 +317,7 @@ func TestIntegration_AdapterExecute_WritesDualBalanceCacheContract(t *testing.T)
 
 			raw, err := inspector.Get(ctx, cacheKey).Bytes()
 			require.NoError(t, err)
-			assertAdapterDualBalanceCache(t, raw, input.Request.Balances[0], preexisting)
+			assertAdapterDualBalanceCache(t, raw, input.Execution.Balances[0], preexisting)
 		})
 	}
 }
@@ -388,7 +388,7 @@ func TestIntegration_AdapterExecute_PostWriteFailureIsIndeterminate(t *testing.T
 	input, limits := richAdapterExecution(t)
 	adapter, err := NewAdapter(&integrationClientProvider{client: shared}, limits)
 	require.NoError(t, err)
-	keys, err := resolveAdapterKeys(ctx, input.Request)
+	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
 	before := captureAdapterState(t, inspector, keys)
 	result, err := adapter.Execute(ctx, input)
@@ -399,7 +399,7 @@ func TestIntegration_AdapterExecute_PostWriteFailureIsIndeterminate(t *testing.T
 	require.Equal(t, 1, proxy.count("EVALSHA"))
 	require.Equal(t, 1, proxy.count("EVAL"), "post-write errors must never trigger financial replay")
 	require.NotEqual(t, before, captureAdapterState(t, inspector, keys), "Valkey does not roll back the preceding SET")
-	cacheKey := keys.Balances[input.Request.Balances[0].BalanceRef].Balance
+	cacheKey := keys.Balances[input.Execution.Balances[0].BalanceRef].Balance
 	raw, err := inspector.Get(ctx, cacheKey).Bytes()
 	require.NoError(t, err)
 	var balance map[string]json.RawMessage
@@ -425,14 +425,14 @@ func TestIntegration_AdapterExecute_CorruptReceiptIsIndeterminate(t *testing.T) 
 			require.NoError(t, err)
 			_, err = adapter.Execute(ctx, input)
 			require.NoError(t, err)
-			keys, err := resolveAdapterKeys(ctx, input.Request)
+			keys, err := resolveAdapterKeys(ctx, input.Execution)
 			require.NoError(t, err)
 			if corrupted == "empty saved response" {
-				receipt, err := inspector.HGet(ctx, keys.Receipts, input.Request.ExecutionID.String()).Bytes()
+				receipt, err := inspector.HGet(ctx, keys.Receipts, input.Execution.ExecutionID.String()).Bytes()
 				require.NoError(t, err)
 				corrupted = string(mutateAdapterObject(t, receipt, "response", `{"protocolVersion":1,"movements":[],"final":[]}`))
 			}
-			require.NoError(t, inspector.HSet(ctx, keys.Receipts, input.Request.ExecutionID.String(), corrupted).Err())
+			require.NoError(t, inspector.HSet(ctx, keys.Receipts, input.Execution.ExecutionID.String(), corrupted).Err())
 			before := captureAdapterState(t, inspector, keys)
 			_, err = adapter.Execute(ctx, input)
 			assertAdapterTechnical(t, err, "invalid_receipt", true)

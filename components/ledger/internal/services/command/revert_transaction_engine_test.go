@@ -22,7 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -58,45 +58,45 @@ type revertLiteralEngine struct {
 	requests []EngineExecution
 }
 
-func (executor *revertLiteralEngine) Execute(_ context.Context, execution EngineExecution) (*engine.Result, error) {
+func (executor *revertLiteralEngine) Execute(_ context.Context, execution EngineExecution) (*accounting.ExecutionResult, error) {
 	executor.requests = append(executor.requests, execution)
-	require.Len(executor.t, execution.Request.Transactions, 1)
-	transactionIntent := execution.Request.Transactions[0]
+	require.Len(executor.t, execution.Execution.Transactions, 1)
+	transactionIntent := execution.Execution.Transactions[0]
 	require.Len(executor.t, transactionIntent.Postings, 2)
-	require.Equal(executor.t, engine.PostingDebit, transactionIntent.Postings[0].Type)
-	require.Equal(executor.t, engine.PostingCredit, transactionIntent.Postings[1].Type)
+	require.Equal(executor.t, accounting.PostingDebit, transactionIntent.Postings[0].Type)
+	require.Equal(executor.t, accounting.PostingCredit, transactionIntent.Postings[1].Type)
 	require.Equal(executor.t, "@payee#default", transactionIntent.Postings[0].BalanceRef)
 	require.Equal(executor.t, "@payer#default", transactionIntent.Postings[1].BalanceRef)
 	require.True(executor.t, transactionIntent.Postings[0].Amount.Equal(decimal.NewFromInt(10)))
 	require.True(executor.t, transactionIntent.Postings[1].Amount.Equal(decimal.NewFromInt(10)))
 
-	source := createEngineSnapshot(executor.t, execution.Request.Balances, "@payee#default")
-	target := createEngineSnapshot(executor.t, execution.Request.Balances, "@payer#default")
+	source := createEngineSnapshot(executor.t, execution.Execution.Balances, "@payee#default")
+	target := createEngineSnapshot(executor.t, execution.Execution.Balances, "@payer#default")
 	require.Equal(executor.t, int64(7), source.Version)
 	require.Equal(executor.t, int64(3), target.Version)
 	// The atomic engine may start from a newer live cache value than the
 	// cache-aside seed carried by Go.
-	sourceBefore := engine.BalanceState{Available: decimal.NewFromInt(50), Version: 8}
-	sourceAfter := engine.BalanceState{Available: decimal.NewFromInt(40), Version: 9}
-	targetBefore := engine.BalanceState{Available: decimal.NewFromInt(20), Version: 3}
-	targetAfter := engine.BalanceState{Available: decimal.NewFromInt(30), Version: 4}
+	sourceBefore := accounting.BalanceState{Available: decimal.NewFromInt(50), Version: 8}
+	sourceAfter := accounting.BalanceState{Available: decimal.NewFromInt(40), Version: 9}
+	targetBefore := accounting.BalanceState{Available: decimal.NewFromInt(20), Version: 3}
+	targetAfter := accounting.BalanceState{Available: decimal.NewFromInt(30), Version: 4}
 	source.Available, source.Version = decimal.NewFromInt(40), 9
 	target.Available, target.Version = decimal.NewFromInt(30), 4
 
-	return &engine.Result{
-		Movements: []engine.Movement{
+	return &accounting.ExecutionResult{
+		Movements: []accounting.Movement{
 			{
 				Ref: "revert-source", TransactionID: transactionIntent.ID, PostingRef: transactionIntent.Postings[0].Ref,
-				Role: engine.RolePrimary, BalanceRef: source.BalanceRef, Type: engine.PostingDebit,
+				Role: accounting.RolePrimary, BalanceRef: source.BalanceRef, Type: accounting.PostingDebit,
 				Amount: decimal.NewFromInt(10), Before: sourceBefore, After: sourceAfter,
 			},
 			{
 				Ref: "revert-target", TransactionID: transactionIntent.ID, PostingRef: transactionIntent.Postings[1].Ref,
-				Role: engine.RolePrimary, BalanceRef: target.BalanceRef, Type: engine.PostingCredit,
+				Role: accounting.RolePrimary, BalanceRef: target.BalanceRef, Type: accounting.PostingCredit,
 				Amount: decimal.NewFromInt(10), Before: targetBefore, After: targetAfter,
 			},
 		},
-		Final: []engine.BalanceSnapshot{source, target},
+		Final: []accounting.BalanceSnapshot{source, target},
 	}, nil
 }
 
@@ -152,8 +152,8 @@ func TestRevertTransactionV2UsesOptInBalanceEngineWithStableChildIdentity(t *tes
 
 	require.Len(t, executor.requests, 1)
 	firstExecution := executor.requests[0]
-	assert.NotEqual(t, originID, firstExecution.Request.Transactions[0].ID)
-	assert.Equal(t, got.ID, firstExecution.Request.Transactions[0].ID.String())
+	assert.NotEqual(t, originID, firstExecution.Execution.Transactions[0].ID)
+	assert.Equal(t, got.ID, firstExecution.Execution.Transactions[0].ID.String())
 	assert.GreaterOrEqual(t, reader.reads, 2)
 
 	require.Len(t, finalizer.envelopes, 1)

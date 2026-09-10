@@ -27,7 +27,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -54,14 +54,14 @@ func finalizerIntegrationEnvelope(t *testing.T, name, tenant string, companion, 
 	accountID := finalizerIntegrationID("account")
 	balanceID := finalizerIntegrationID("balance")
 	amount := decimal.NewFromInt(30)
-	before := engine.BalanceState{Available: decimal.NewFromInt(100), Version: 7}
-	after := engine.BalanceState{Available: decimal.NewFromInt(70), Version: 8}
-	postingType, rowType, side, direction := engine.PostingDebit, constant.DEBIT, command.OperationSpecSideFrom, constant.DirectionDebit
+	before := accounting.BalanceState{Available: decimal.NewFromInt(100), Version: 7}
+	after := accounting.BalanceState{Available: decimal.NewFromInt(70), Version: 8}
+	postingType, rowType, side, direction := accounting.PostingDebit, constant.DEBIT, command.OperationSpecSideFrom, constant.DirectionDebit
 	if companion {
 		amount = decimal.NewFromInt(50)
-		before = engine.BalanceState{OverdraftUsed: amount, Version: 7}
-		after = engine.BalanceState{Version: 8}
-		postingType, rowType, side, direction = engine.PostingCredit, constant.CREDIT, command.OperationSpecSideTo, constant.DirectionCredit
+		before = accounting.BalanceState{OverdraftUsed: amount, Version: 7}
+		after = accounting.BalanceState{Version: 8}
+		postingType, rowType, side, direction = accounting.PostingCredit, constant.CREDIT, command.OperationSpecSideTo, constant.DirectionCredit
 	}
 
 	balance := command.OperationBalanceContext(mmodel.Balance{
@@ -70,7 +70,7 @@ func finalizerIntegrationEnvelope(t *testing.T, name, tenant string, companion, 
 		Available: before.Available, OnHold: before.OnHold, OverdraftUsed: before.OverdraftUsed, Version: before.Version,
 	})
 	projection := command.OperationRecordSpec{
-		TransactionID: transactionID, PostingRef: "leg:0", BalanceRef: "@source#default", Role: engine.RolePrimary,
+		TransactionID: transactionID, PostingRef: "leg:0", BalanceRef: "@source#default", Role: accounting.RolePrimary,
 		Side: side, RowType: rowType, Direction: direction, Balance: balance, RequestedAmount: amount,
 		CompatibilityPath: command.OperationRecordStandard, Metadata: map[string]any{"purpose": "primary"},
 	}
@@ -94,10 +94,10 @@ func finalizerIntegrationEnvelope(t *testing.T, name, tenant string, companion, 
 		movementAmount = decimal.Zero
 	}
 
-	result := engine.Result{Movements: []engine.Movement{{
-		Ref: "primary:0", TransactionID: transactionID, PostingRef: projection.PostingRef, BalanceRef: projection.BalanceRef, Role: engine.RolePrimary,
+	result := accounting.ExecutionResult{Movements: []accounting.Movement{{
+		Ref: "primary:0", TransactionID: transactionID, PostingRef: projection.PostingRef, BalanceRef: projection.BalanceRef, Role: accounting.RolePrimary,
 		Type: postingType, Amount: movementAmount, Before: before, After: after, OverdraftDelta: after.OverdraftUsed.Sub(before.OverdraftUsed),
-	}}, Final: []engine.BalanceSnapshot{{
+	}}, Final: []accounting.BalanceSnapshot{{
 		BalanceRef: projection.BalanceRef, ID: balanceID, AccountID: accountID, Alias: "@source", Key: constant.DefaultBalanceKey,
 		AssetCode: "USD", AccountType: "deposit", Direction: constant.DirectionCredit,
 		Available: after.Available, OnHold: after.OnHold, OverdraftUsed: after.OverdraftUsed, Version: after.Version,
@@ -105,7 +105,7 @@ func finalizerIntegrationEnvelope(t *testing.T, name, tenant string, companion, 
 	if companion {
 		companionBalanceID := finalizerIntegrationID("overdraft balance")
 		companionProjection := projection
-		companionProjection.Role, companionProjection.RowType = engine.RoleOverdraftCompanion, constant.OVERDRAFT
+		companionProjection.Role, companionProjection.RowType = accounting.RoleOverdraftCompanion, constant.OVERDRAFT
 		companionProjection.BalanceRef = "@source#overdraft"
 		companionProjection.Metadata = nil
 		if emptyCompanionMetadata {
@@ -116,11 +116,11 @@ func finalizerIntegrationEnvelope(t *testing.T, name, tenant string, companion, 
 		companionProjection.Balance.Direction = constant.DirectionDebit
 		companionProjection.Balance.Available, companionProjection.Balance.OverdraftUsed, companionProjection.Balance.Version = amount, decimal.Zero, 9
 		payload.OperationSpecs = append(payload.OperationSpecs, companionProjection)
-		result.Movements = append(result.Movements, engine.Movement{
-			Ref: "companion:0", TransactionID: transactionID, PostingRef: projection.PostingRef, BalanceRef: companionProjection.BalanceRef, Role: engine.RoleOverdraftCompanion,
-			Type: engine.PostingCredit, Amount: amount, Before: engine.BalanceState{Available: amount, Version: 9}, After: engine.BalanceState{Version: 10},
+		result.Movements = append(result.Movements, accounting.Movement{
+			Ref: "companion:0", TransactionID: transactionID, PostingRef: projection.PostingRef, BalanceRef: companionProjection.BalanceRef, Role: accounting.RoleOverdraftCompanion,
+			Type: accounting.PostingCredit, Amount: amount, Before: accounting.BalanceState{Available: amount, Version: 9}, After: accounting.BalanceState{Version: 10},
 		})
-		result.Final = append(result.Final, engine.BalanceSnapshot{
+		result.Final = append(result.Final, accounting.BalanceSnapshot{
 			BalanceRef: companionProjection.BalanceRef, ID: companionBalanceID, AccountID: accountID, Alias: "@source", Key: constant.OverdraftBalanceKey,
 			AssetCode: "USD", AccountType: "deposit", Direction: constant.DirectionDebit, Version: 10,
 		})
@@ -129,13 +129,13 @@ func finalizerIntegrationEnvelope(t *testing.T, name, tenant string, companion, 
 	return encodeFinalizerIntegrationEnvelope(t, payload, result)
 }
 
-func encodeFinalizerIntegrationEnvelope(t *testing.T, payload command.TransactionCompletionPlan, result engine.Result) *command.TransactionCompletionRecord {
+func encodeFinalizerIntegrationEnvelope(t *testing.T, payload command.TransactionCompletionPlan, result accounting.ExecutionResult) *command.TransactionCompletionRecord {
 	t.Helper()
 	intents := make([]command.OperationRecordIntent, 0, len(payload.OperationSpecs))
 	refs := make([]string, 0, len(payload.OperationSpecs))
 	for _, row := range payload.OperationSpecs {
 		intents = append(intents, row.Intent())
-		if row.Role == engine.RolePrimary {
+		if row.Role == accounting.RolePrimary {
 			refs = append(refs, row.PostingRef)
 		}
 	}
@@ -237,7 +237,7 @@ func testFinalizerLifecycleTimestamps(t *testing.T, db *sql.DB, store command.Tr
 	holdPayload.TransactionInput.Pending = true
 	holdPayload.OperationSpecs[0].RowType = constant.ONHOLD
 	holdResult := base.Result
-	holdResult.Movements[0].Type = engine.PostingHold
+	holdResult.Movements[0].Type = accounting.PostingHold
 	holdResult.Movements[0].After.OnHold = holdPayload.TransactionInput.Send.Value
 	holdResult.Final[0].OnHold = holdPayload.TransactionInput.Send.Value
 	holdEnvelope := encodeFinalizerIntegrationEnvelope(t, *holdPayload, holdResult)
@@ -260,20 +260,20 @@ func testFinalizerLifecycleTimestamps(t *testing.T, db *sql.DB, store command.Tr
 	terminalPayload.OperationSpecs[0].Balance.Available = holdResult.Movements[0].After.Available
 	terminalPayload.OperationSpecs[0].Balance.OnHold = holdResult.Movements[0].After.OnHold
 	terminalPayload.OperationSpecs[0].Balance.Version = holdResult.Movements[0].After.Version
-	terminalType := engine.PostingUnreserve
-	terminalAfter := engine.BalanceState{Available: decimal.NewFromInt(70), Version: 9}
+	terminalType := accounting.PostingUnreserve
+	terminalAfter := accounting.BalanceState{Available: decimal.NewFromInt(70), Version: 9}
 	if action == constant.ActionCancel {
 		terminalPayload.TransactionStatus = constant.CANCELED
 		terminalPayload.OperationSpecs[0].RowType, terminalPayload.OperationSpecs[0].Direction = constant.RELEASE, constant.DirectionCredit
-		terminalType, terminalAfter.Available = engine.PostingRelease, decimal.NewFromInt(100)
+		terminalType, terminalAfter.Available = accounting.PostingRelease, decimal.NewFromInt(100)
 	}
 
 	terminalFinal := holdResult.Final[0]
 	terminalFinal.Available, terminalFinal.OnHold, terminalFinal.Version = terminalAfter.Available, terminalAfter.OnHold, terminalAfter.Version
-	terminalResult := engine.Result{Movements: []engine.Movement{{
-		Ref: "terminal:primary:0", TransactionID: holdEnvelope.TransactionID, PostingRef: "terminal:0", BalanceRef: "@source#default", Role: engine.RolePrimary,
+	terminalResult := accounting.ExecutionResult{Movements: []accounting.Movement{{
+		Ref: "terminal:primary:0", TransactionID: holdEnvelope.TransactionID, PostingRef: "terminal:0", BalanceRef: "@source#default", Role: accounting.RolePrimary,
 		Type: terminalType, Amount: terminalPayload.TransactionInput.Send.Value, Before: holdResult.Movements[0].After, After: terminalAfter,
-	}}, Final: []engine.BalanceSnapshot{terminalFinal}}
+	}}, Final: []accounting.BalanceSnapshot{terminalFinal}}
 	terminalEnvelope := encodeFinalizerIntegrationEnvelope(t, *terminalPayload, terminalResult)
 	failure := errors.New("operation metadata awaits recovery")
 	flakyMetadata := &failOperationMetadataOnce{MetadataMongoDBRepository: metadata, failure: failure}

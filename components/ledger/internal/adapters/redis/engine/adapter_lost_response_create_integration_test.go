@@ -119,12 +119,12 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 	require.Equal(t, 1, proxy.count("EVAL"))
 
 	execution := executor.inputs[0]
-	require.Equal(t, tracerControl.reserveRequests[0].TransactionID, execution.Request.Transactions[0].ID)
-	keys, err := resolveAdapterKeys(ctx, execution.Request)
+	require.Equal(t, tracerControl.reserveRequests[0].TransactionID, execution.Execution.Transactions[0].ID)
+	keys, err := resolveAdapterKeys(ctx, execution.Execution)
 	require.NoError(t, err)
 	t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
 	require.Equal(t, int64(1), inspector.HLen(ctx, keys.Guards).Val())
-	require.Equal(t, execution.Guards[0].NextToken, inspector.HGet(ctx, keys.Guards, execution.Request.Transactions[0].ID.String()).Val())
+	require.Equal(t, execution.Guards[0].NextToken, inspector.HGet(ctx, keys.Guards, execution.Execution.Transactions[0].ID.String()).Val())
 	require.Equal(t, int64(1), inspector.HLen(ctx, keys.Recovery).Val())
 	require.Equal(t, int64(1), inspector.HLen(ctx, keys.Receipts).Val())
 	assertPendingLifecycleBalances(t, ctx, inspector, keys, []pendingLifecycleBalanceExpectation{
@@ -132,11 +132,11 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 		{ref: "@target#default", available: "50", onHold: "0", version: 4},
 	})
 
-	recoveryRaw, err := inspector.HGet(ctx, keys.Recovery, execution.Request.Transactions[0].ID.String()+":"+execution.Request.ExecutionID.String()).Bytes()
+	recoveryRaw, err := inspector.HGet(ctx, keys.Recovery, execution.Execution.Transactions[0].ID.String()+":"+execution.Execution.ExecutionID.String()).Bytes()
 	require.NoError(t, err)
 	recovery, err := command.DecodeTransactionCompletionRecord(recoveryRaw)
 	require.NoError(t, err)
-	require.Equal(t, execution.Request.ExecutionID, recovery.ExecutionID)
+	require.Equal(t, execution.Execution.ExecutionID, recovery.ExecutionID)
 	require.Equal(t, execution.IntentFingerprint, recovery.IntentFingerprint)
 	payload, err := command.DecodeTransactionCompletionPlan([]byte(recovery.Payload))
 	require.NoError(t, err)

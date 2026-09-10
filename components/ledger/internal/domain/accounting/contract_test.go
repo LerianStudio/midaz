@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package engine
+package accounting
 
 import (
 	"encoding/json"
@@ -20,7 +20,7 @@ func TestRequestContractRoundTrip(t *testing.T) {
 
 	transactionID := uuid.MustParse("1a2cf884-cf82-4520-9833-07d85c73bc14")
 	snapshot := contractSnapshot()
-	request := Request{
+	request := Execution{
 		OrganizationID: uuid.MustParse("139c4166-2139-4f17-b282-fba78e8c4c2a"),
 		LedgerID:       uuid.MustParse("c029e784-535d-4554-aae3-65b6e713687f"),
 		ExecutionID:    uuid.MustParse("95b4a433-59b3-4ac8-ad6f-e4be032ebca6"),
@@ -71,7 +71,7 @@ func TestResultContractPreservesZeroAmountDebtMovement(t *testing.T) {
 	snapshot.OnHold = after.OnHold
 	snapshot.OverdraftUsed = after.OverdraftUsed
 	snapshot.Version = after.Version
-	result := Result{
+	result := ExecutionResult{
 		Movements: []Movement{{
 			Ref:            "source-credit-primary-0",
 			TransactionID:  uuid.MustParse("1a2cf884-cf82-4520-9833-07d85c73bc14"),

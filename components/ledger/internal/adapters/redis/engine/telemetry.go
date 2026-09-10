@@ -12,7 +12,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
 var executionDuration = metrics.Metric{
@@ -39,12 +39,12 @@ var executionTouchedSize = metrics.Metric{
 	Buckets:     []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512},
 }
 
-func recordPreparedExecution(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, request engine.Request, payloadBytes int) {
+func recordPreparedExecution(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, request accounting.Execution, payloadBytes int) {
 	if factory == nil {
 		return
 	}
 
-	counts := make(map[engine.PostingType]int64, 6)
+	counts := make(map[accounting.PostingType]int64, 6)
 
 	for _, transaction := range request.Transactions {
 		for _, posting := range transaction.Postings {
@@ -53,7 +53,7 @@ func recordPreparedExecution(ctx context.Context, factory *metrics.MetricsFactor
 	}
 
 	// Iterate only the supported vocabulary even if validation changes later.
-	for _, kind := range []engine.PostingType{engine.PostingDebit, engine.PostingCredit, engine.PostingReserve, engine.PostingUnreserve, engine.PostingHold, engine.PostingRelease} {
+	for _, kind := range []accounting.PostingType{accounting.PostingDebit, accounting.PostingCredit, accounting.PostingReserve, accounting.PostingUnreserve, accounting.PostingHold, accounting.PostingRelease} {
 		if count := counts[kind]; count > 0 {
 			emitCounter(ctx, factory, logger, "balance_engine_postings_total", "Requested postings in validated invocations, including replay; not applied movements.", map[string]string{"type": string(kind)}, count)
 		}
@@ -143,15 +143,15 @@ func executionOutcome(err error) (string, string) {
 		return outcome, metricFailureCode(failure.Code)
 	}
 
-	var refusal *engine.Failure
+	var refusal *accounting.Failure
 	if errors.As(err, &refusal) && refusal != nil {
 		switch refusal.Code {
-		case engine.FailureInsufficientFunds, engine.FailureOverdraftLimitExceeded,
-			engine.FailureOverdraftNotEligible, engine.FailureOverdraftCompanionMissing,
-			engine.FailureBalanceDeleted, engine.FailureOnHoldUnderflow,
-			engine.FailureBalanceMissing, engine.FailureAssetMismatch,
-			engine.FailureSendingNotAllowed, engine.FailureReceivingNotAllowed,
-			engine.FailureExternalHoldNotAllowed:
+		case accounting.FailureInsufficientFunds, accounting.FailureOverdraftLimitExceeded,
+			accounting.FailureOverdraftNotEligible, accounting.FailureOverdraftCompanionMissing,
+			accounting.FailureBalanceDeleted, accounting.FailureOnHoldUnderflow,
+			accounting.FailureBalanceMissing, accounting.FailureAssetMismatch,
+			accounting.FailureSendingNotAllowed, accounting.FailureReceivingNotAllowed,
+			accounting.FailureExternalHoldNotAllowed:
 			return "refused", refusal.Code
 		}
 	}

@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -26,7 +26,7 @@ type balanceEngineTechnicalError interface {
 // MapBalanceEngineError translates deterministic balance-engine failures to the
 // legacy public contract. Technical and malformed engine errors retain their
 // cause for classification at the caller's error boundary.
-func MapBalanceEngineError(request engine.Request, err error) error {
+func MapBalanceEngineError(request accounting.Execution, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -40,7 +40,7 @@ func MapBalanceEngineError(request engine.Request, err error) error {
 		return fmt.Errorf("balance engine technical failure: %w", err)
 	}
 
-	var failure *engine.Failure
+	var failure *accounting.Failure
 	if !errors.As(err, &failure) {
 		return fmt.Errorf("balance engine failure: %w", err)
 	}
@@ -52,32 +52,32 @@ func MapBalanceEngineError(request engine.Request, err error) error {
 		}
 
 		switch failure.Code {
-		case engine.FailureAssetMismatch:
+		case accounting.FailureAssetMismatch:
 			entity := "validateFromAccounts"
-			if requirement.Permission == engine.BalancePermissionReceive {
+			if requirement.Permission == accounting.BalancePermissionReceive {
 				entity = "validateToAccounts"
 			}
 
 			return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, entity)
-		case engine.FailureSendingNotAllowed:
-			if requirement.Permission != engine.BalancePermissionSend {
+		case accounting.FailureSendingNotAllowed:
+			if requirement.Permission != accounting.BalancePermissionSend {
 				return fmt.Errorf("malformed balance engine sending requirement failure: %w", err)
 			}
 
 			return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
-		case engine.FailureReceivingNotAllowed:
-			if requirement.Permission != engine.BalancePermissionReceive {
+		case accounting.FailureReceivingNotAllowed:
+			if requirement.Permission != accounting.BalancePermissionReceive {
 				return fmt.Errorf("malformed balance engine receiving requirement failure: %w", err)
 			}
 
 			return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
-		case engine.FailureExternalHoldNotAllowed:
+		case accounting.FailureExternalHoldNotAllowed:
 			if !requirement.ForbidExternal {
 				return fmt.Errorf("malformed balance engine external hold requirement failure: %w", err)
 			}
 
 			return pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, balanceValidationEntity, balance.Alias)
-		case engine.FailureBalanceDeleted:
+		case accounting.FailureBalanceDeleted:
 			return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
 		default:
 			return fmt.Errorf("unexpected balance engine requirement failure: %w", err)
@@ -96,9 +96,9 @@ func MapBalanceEngineError(request engine.Request, err error) error {
 		return pkg.ValidateBusinessError(constant.ErrOverdraftLimitExceeded, balanceValidationEntity)
 	case "overdraft_not_eligible":
 		switch posting.DrawPolicy {
-		case engine.DrawRouteDenied:
+		case accounting.DrawRouteDenied:
 			return pkg.ValidateBusinessError(constant.ErrOverdraftRouteNotConfigured, balanceValidationEntity)
-		case engine.DrawForbidden:
+		case accounting.DrawForbidden:
 			return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, balanceValidationEntity)
 		default:
 			return fmt.Errorf("unexpected draw policy for balance engine failure: %w", err)
@@ -116,12 +116,12 @@ func MapBalanceEngineError(request engine.Request, err error) error {
 	}
 }
 
-func engineFailureRequirement(request engine.Request, failure *engine.Failure) (engine.BalanceRequirement, engine.BalanceSnapshot, bool) {
+func engineFailureRequirement(request accounting.Execution, failure *accounting.Failure) (accounting.BalanceRequirement, accounting.BalanceSnapshot, bool) {
 	if failure == nil || failure.TransactionIndex < 0 || failure.TransactionIndex >= len(request.Transactions) || failure.BalanceRef == "" {
-		return engine.BalanceRequirement{}, engine.BalanceSnapshot{}, false
+		return accounting.BalanceRequirement{}, accounting.BalanceSnapshot{}, false
 	}
 
-	var requirement *engine.BalanceRequirement
+	var requirement *accounting.BalanceRequirement
 	for i := range request.Transactions[failure.TransactionIndex].BalanceRequirements {
 		candidate := &request.Transactions[failure.TransactionIndex].BalanceRequirements[i]
 		if candidate.BalanceRef == failure.BalanceRef {
@@ -131,7 +131,7 @@ func engineFailureRequirement(request engine.Request, failure *engine.Failure) (
 	}
 
 	if requirement == nil {
-		return engine.BalanceRequirement{}, engine.BalanceSnapshot{}, false
+		return accounting.BalanceRequirement{}, accounting.BalanceSnapshot{}, false
 	}
 
 	for _, balance := range request.Balances {
@@ -140,33 +140,33 @@ func engineFailureRequirement(request engine.Request, failure *engine.Failure) (
 		}
 	}
 
-	return engine.BalanceRequirement{}, engine.BalanceSnapshot{}, false
+	return accounting.BalanceRequirement{}, accounting.BalanceSnapshot{}, false
 }
 
-func engineFailurePosting(request engine.Request, failure *engine.Failure) (engine.Posting, bool) {
+func engineFailurePosting(request accounting.Execution, failure *accounting.Failure) (accounting.Posting, bool) {
 	if failure == nil || failure.TransactionIndex < 0 || failure.TransactionIndex >= len(request.Transactions) {
-		return engine.Posting{}, false
+		return accounting.Posting{}, false
 	}
 
 	transaction := request.Transactions[failure.TransactionIndex]
 	if failure.PostingIndex < 0 || failure.PostingIndex >= len(transaction.Postings) {
-		return engine.Posting{}, false
+		return accounting.Posting{}, false
 	}
 
 	posting := transaction.Postings[failure.PostingIndex]
 	if failure.BalanceRef == "" {
-		return engine.Posting{}, false
+		return accounting.Posting{}, false
 	}
 
 	if failure.BalanceRef != posting.BalanceRef && !isOverdraftCompanion(request, posting.BalanceRef, failure.BalanceRef) {
-		return engine.Posting{}, false
+		return accounting.Posting{}, false
 	}
 
 	return posting, true
 }
 
-func isOverdraftCompanion(request engine.Request, postingRef, failureRef string) bool {
-	var origin *engine.BalanceSnapshot
+func isOverdraftCompanion(request accounting.Execution, postingRef, failureRef string) bool {
+	var origin *accounting.BalanceSnapshot
 
 	for i := range request.Balances {
 		if request.Balances[i].BalanceRef == postingRef {

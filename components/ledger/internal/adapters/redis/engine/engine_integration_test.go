@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
@@ -75,10 +75,10 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 	t.Helper()
 
 	input, limits, resolved := validWireExecution()
-	input.Request.Balances[0].Available = decimal.NewFromInt(100)
-	input.Request.Balances[0].Version = 0
-	input.Request.Balances[0].AllowOverdraft = true
-	input.Request.Transactions[0].Postings[0].Amount = decimal.NewFromInt(30)
+	input.Execution.Balances[0].Available = decimal.NewFromInt(100)
+	input.Execution.Balances[0].Version = 0
+	input.Execution.Balances[0].AllowOverdraft = true
+	input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(30)
 	input.CompletionPlans[0].Payload = json.RawMessage(`{"opaque":true,"version":9007199254740993}`)
 	prefix := "test:" + strings.ReplaceAll(t.Name(), "/", ":") + ":"
 	replace := func(key string) string { return strings.Replace(key, "tenant:fixture:", prefix, 1) }
@@ -99,13 +99,13 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 }
 
 func (f *integrationFixture) addCompanion(available string) {
-	balance := f.input.Request.Balances[0]
+	balance := f.input.Execution.Balances[0]
 	balance.ID = uuid.MustParse("abaedbdc-371a-46f9-945a-a95617d8b032")
 	balance.BalanceRef, balance.Key = "@source#overdraft", "overdraft"
 	balance.Direction, balance.BalanceScope = "debit", "internal"
 	balance.Available, balance.OnHold, balance.OverdraftUsed = decimal.RequireFromString(available), decimal.Zero, decimal.Zero
 	balance.AllowOverdraft = false
-	f.input.Request.Balances = append(f.input.Request.Balances, balance)
+	f.input.Execution.Balances = append(f.input.Execution.Balances, balance)
 	key := strings.Replace(f.resolved.Balances["@source#default"].Balance, "#default", "#overdraft", 1)
 	f.resolved.Balances[balance.BalanceRef] = resolvedBalanceKeys{Balance: key, Deleted: key + ":deleted"}
 }
@@ -129,11 +129,11 @@ func (f *integrationFixture) run(t *testing.T) (string, error) {
 	return f.runRaw(t, string(f.prepared(t).Payload))
 }
 
-func (f *integrationFixture) seed(t *testing.T, index int, snapshot engine.BalanceSnapshot) {
+func (f *integrationFixture) seed(t *testing.T, index int, snapshot accounting.BalanceSnapshot) {
 	t.Helper()
 	encoded, err := balancecache.Encode(snapshot, balancecache.FormatDual)
 	require.NoError(t, err)
-	key := f.resolved.Balances[f.input.Request.Balances[index].BalanceRef].Balance
+	key := f.resolved.Balances[f.input.Execution.Balances[index].BalanceRef].Balance
 	require.NoError(t, f.client.Set(context.Background(), key, encoded, time.Hour).Err())
 }
 
@@ -181,39 +181,39 @@ func TestIntegrationEnginePostingAlgebra(t *testing.T) {
 	s := func(a, h, u, v string) integrationState { return integrationState{a, h, u, v} }
 	tests := []struct {
 		name, direction, accountType, available, onHold, debt, amount, override, companion string
-		posting                                                                            engine.PostingType
+		posting                                                                            accounting.PostingType
 		want                                                                               integrationState
 		wantCompanion, wantAmount, wantDelta, failure                                      string
 	}{
-		{name: "debit credit direction", posting: engine.PostingDebit, available: "100", amount: "30", want: s("70", "0", "0", "1"), wantAmount: "30"},
-		{name: "credit credit direction", posting: engine.PostingCredit, available: "100", amount: "30", want: s("130", "0", "0", "1"), wantAmount: "30"},
-		{name: "debit debit direction", direction: "debit", posting: engine.PostingDebit, available: "100", amount: "30", want: s("130", "0", "0", "1"), wantAmount: "30"},
-		{name: "credit debit direction", direction: "debit", posting: engine.PostingCredit, available: "100", amount: "30", want: s("70", "0", "0", "1"), wantAmount: "30"},
-		{name: "debit empty direction", direction: "empty", posting: engine.PostingDebit, available: "100", amount: "30", want: s("70", "0", "0", "1"), wantAmount: "30"},
-		{name: "credit empty direction", direction: "empty", posting: engine.PostingCredit, available: "100", amount: "30", want: s("130", "0", "0", "1"), wantAmount: "30"},
-		{name: "external negative", accountType: "external", posting: engine.PostingDebit, available: "0", amount: "30", want: s("-30", "0", "0", "1"), wantAmount: "30"},
-		{name: "external hold negative", accountType: "external", posting: engine.PostingHold, available: "0", amount: "30", want: s("-30", "30", "0", "1"), wantAmount: "30"},
-		{name: "reserve does not debit again", posting: engine.PostingReserve, available: "40", amount: "60", want: s("40", "60", "0", "1"), wantAmount: "60"},
-		{name: "unreserve", posting: engine.PostingUnreserve, available: "40", onHold: "60", amount: "60", want: s("40", "0", "0", "1"), wantAmount: "60"},
-		{name: "hold", posting: engine.PostingHold, available: "100", amount: "60", want: s("40", "60", "0", "1"), wantAmount: "60"},
-		{name: "hold debit direction", direction: "debit", posting: engine.PostingHold, available: "100", amount: "60", want: s("160", "60", "0", "1"), wantAmount: "60"},
-		{name: "release preserves debt without cap", posting: engine.PostingRelease, available: "0", onHold: "50", debt: "50", amount: "50", want: s("50", "0", "50", "1"), wantAmount: "50"},
-		{name: "release legacy cap", posting: engine.PostingRelease, available: "0", onHold: "50", debt: "50", amount: "50", override: "20", companion: "50", want: s("30", "0", "30", "1"), wantCompanion: "30", wantAmount: "30", wantDelta: "-20"},
-		{name: "release debit direction", direction: "debit", posting: engine.PostingRelease, available: "100", onHold: "50", amount: "50", want: s("50", "0", "0", "1"), wantAmount: "50"},
-		{name: "draw zero primary amount", posting: engine.PostingDebit, available: "0", amount: "50", companion: "0", want: s("0", "0", "50", "1"), wantCompanion: "50", wantAmount: "0", wantDelta: "50"},
-		{name: "partial repay", posting: engine.PostingCredit, available: "0", debt: "50", amount: "20", companion: "50", want: s("0", "0", "30", "1"), wantCompanion: "30", wantAmount: "0", wantDelta: "-20"},
-		{name: "full repay zero primary amount", posting: engine.PostingCredit, available: "0", debt: "50", amount: "50", companion: "50", want: s("0", "0", "0", "1"), wantCompanion: "0", wantAmount: "0", wantDelta: "-50"},
-		{name: "repay remainder", posting: engine.PostingCredit, available: "0", debt: "50", amount: "70", companion: "50", want: s("20", "0", "0", "1"), wantCompanion: "0", wantAmount: "20", wantDelta: "-50"},
-		{name: "credit legacy cap", posting: engine.PostingCredit, available: "0", debt: "50", amount: "30", override: "10", companion: "50", want: s("20", "0", "40", "1"), wantCompanion: "40", wantAmount: "20", wantDelta: "-10"},
-		{name: "hold refuses debt", posting: engine.PostingHold, available: "100", amount: "101", failure: "insufficient_funds"},
-		{name: "missing companion", posting: engine.PostingDebit, available: "0", amount: "50", failure: "overdraft_companion_missing"},
-		{name: "onhold underflow", posting: engine.PostingUnreserve, available: "40", onHold: "49", amount: "50", failure: "onhold_underflow"},
-		{name: "debit direction floor", direction: "debit", posting: engine.PostingCredit, available: "40", amount: "50", failure: "insufficient_funds"},
+		{name: "debit credit direction", posting: accounting.PostingDebit, available: "100", amount: "30", want: s("70", "0", "0", "1"), wantAmount: "30"},
+		{name: "credit credit direction", posting: accounting.PostingCredit, available: "100", amount: "30", want: s("130", "0", "0", "1"), wantAmount: "30"},
+		{name: "debit debit direction", direction: "debit", posting: accounting.PostingDebit, available: "100", amount: "30", want: s("130", "0", "0", "1"), wantAmount: "30"},
+		{name: "credit debit direction", direction: "debit", posting: accounting.PostingCredit, available: "100", amount: "30", want: s("70", "0", "0", "1"), wantAmount: "30"},
+		{name: "debit empty direction", direction: "empty", posting: accounting.PostingDebit, available: "100", amount: "30", want: s("70", "0", "0", "1"), wantAmount: "30"},
+		{name: "credit empty direction", direction: "empty", posting: accounting.PostingCredit, available: "100", amount: "30", want: s("130", "0", "0", "1"), wantAmount: "30"},
+		{name: "external negative", accountType: "external", posting: accounting.PostingDebit, available: "0", amount: "30", want: s("-30", "0", "0", "1"), wantAmount: "30"},
+		{name: "external hold negative", accountType: "external", posting: accounting.PostingHold, available: "0", amount: "30", want: s("-30", "30", "0", "1"), wantAmount: "30"},
+		{name: "reserve does not debit again", posting: accounting.PostingReserve, available: "40", amount: "60", want: s("40", "60", "0", "1"), wantAmount: "60"},
+		{name: "unreserve", posting: accounting.PostingUnreserve, available: "40", onHold: "60", amount: "60", want: s("40", "0", "0", "1"), wantAmount: "60"},
+		{name: "hold", posting: accounting.PostingHold, available: "100", amount: "60", want: s("40", "60", "0", "1"), wantAmount: "60"},
+		{name: "hold debit direction", direction: "debit", posting: accounting.PostingHold, available: "100", amount: "60", want: s("160", "60", "0", "1"), wantAmount: "60"},
+		{name: "release preserves debt without cap", posting: accounting.PostingRelease, available: "0", onHold: "50", debt: "50", amount: "50", want: s("50", "0", "50", "1"), wantAmount: "50"},
+		{name: "release legacy cap", posting: accounting.PostingRelease, available: "0", onHold: "50", debt: "50", amount: "50", override: "20", companion: "50", want: s("30", "0", "30", "1"), wantCompanion: "30", wantAmount: "30", wantDelta: "-20"},
+		{name: "release debit direction", direction: "debit", posting: accounting.PostingRelease, available: "100", onHold: "50", amount: "50", want: s("50", "0", "0", "1"), wantAmount: "50"},
+		{name: "draw zero primary amount", posting: accounting.PostingDebit, available: "0", amount: "50", companion: "0", want: s("0", "0", "50", "1"), wantCompanion: "50", wantAmount: "0", wantDelta: "50"},
+		{name: "partial repay", posting: accounting.PostingCredit, available: "0", debt: "50", amount: "20", companion: "50", want: s("0", "0", "30", "1"), wantCompanion: "30", wantAmount: "0", wantDelta: "-20"},
+		{name: "full repay zero primary amount", posting: accounting.PostingCredit, available: "0", debt: "50", amount: "50", companion: "50", want: s("0", "0", "0", "1"), wantCompanion: "0", wantAmount: "0", wantDelta: "-50"},
+		{name: "repay remainder", posting: accounting.PostingCredit, available: "0", debt: "50", amount: "70", companion: "50", want: s("20", "0", "0", "1"), wantCompanion: "0", wantAmount: "20", wantDelta: "-50"},
+		{name: "credit legacy cap", posting: accounting.PostingCredit, available: "0", debt: "50", amount: "30", override: "10", companion: "50", want: s("20", "0", "40", "1"), wantCompanion: "40", wantAmount: "20", wantDelta: "-10"},
+		{name: "hold refuses debt", posting: accounting.PostingHold, available: "100", amount: "101", failure: "insufficient_funds"},
+		{name: "missing companion", posting: accounting.PostingDebit, available: "0", amount: "50", failure: "overdraft_companion_missing"},
+		{name: "onhold underflow", posting: accounting.PostingUnreserve, available: "40", onHold: "49", amount: "50", failure: "onhold_underflow"},
+		{name: "debit direction floor", direction: "debit", posting: accounting.PostingCredit, available: "40", amount: "50", failure: "insufficient_funds"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
-			balance := &f.input.Request.Balances[0]
+			balance := &f.input.Execution.Balances[0]
 			balance.Available = decimal.RequireFromString(tt.available)
 			if tt.onHold != "" {
 				balance.OnHold = decimal.RequireFromString(tt.onHold)
@@ -230,7 +230,7 @@ func TestIntegrationEnginePostingAlgebra(t *testing.T) {
 			if tt.accountType != "" {
 				balance.AccountType = tt.accountType
 			}
-			posting := &f.input.Request.Transactions[0].Postings[0]
+			posting := &f.input.Execution.Transactions[0].Postings[0]
 			posting.Type, posting.Amount = tt.posting, decimal.RequireFromString(tt.amount)
 			if tt.override != "" {
 				posting.OverdraftAmount = decimal.RequireFromString(tt.override)
@@ -247,7 +247,7 @@ func TestIntegrationEnginePostingAlgebra(t *testing.T) {
 			}
 			require.NoError(t, err)
 			result := decodeIntegrationResult(t, raw)
-			decodedResult, err := DecodeResult([]byte(raw), f.input.Request)
+			decodedResult, err := DecodeResult([]byte(raw), f.input.Execution)
 			require.NoError(t, err)
 			require.Len(t, decodedResult.Movements, len(result.Movements))
 			require.Len(t, decodedResult.Final, len(result.Final))
@@ -301,11 +301,11 @@ func TestIntegrationEngineCompositionAndLiveSettings(t *testing.T) {
 	for _, amount := range []string{"60", "100", "101"} {
 		t.Run("validated hold "+amount, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
-			debit := f.input.Request.Transactions[0].Postings[0]
-			debit.Amount, debit.DrawPolicy = decimal.RequireFromString(amount), engine.DrawForbidden
+			debit := f.input.Execution.Transactions[0].Postings[0]
+			debit.Amount, debit.DrawPolicy = decimal.RequireFromString(amount), accounting.DrawForbidden
 			reserve := debit
-			reserve.Ref, reserve.Type = "reserve", engine.PostingReserve
-			f.input.Request.Transactions[0].Postings = []engine.Posting{debit, reserve}
+			reserve.Ref, reserve.Type = "reserve", accounting.PostingReserve
+			f.input.Execution.Transactions[0].Postings = []accounting.Posting{debit, reserve}
 			before := f.capture(t)
 			raw, err := f.run(t)
 			if amount == "101" {
@@ -326,15 +326,15 @@ func TestIntegrationEngineCompositionAndLiveSettings(t *testing.T) {
 	}
 	t.Run("cancel restores held debt", func(t *testing.T) {
 		f := newIntegrationFixture(t, container.Client)
-		f.input.Request.Balances[0].Available = decimal.Zero
-		f.input.Request.Balances[0].OnHold = decimal.NewFromInt(50)
-		f.input.Request.Balances[0].OverdraftUsed = decimal.NewFromInt(50)
+		f.input.Execution.Balances[0].Available = decimal.Zero
+		f.input.Execution.Balances[0].OnHold = decimal.NewFromInt(50)
+		f.input.Execution.Balances[0].OverdraftUsed = decimal.NewFromInt(50)
 		f.addCompanion("50")
-		unreserve := f.input.Request.Transactions[0].Postings[0]
-		unreserve.Type, unreserve.Amount = engine.PostingUnreserve, decimal.NewFromInt(50)
+		unreserve := f.input.Execution.Transactions[0].Postings[0]
+		unreserve.Type, unreserve.Amount = accounting.PostingUnreserve, decimal.NewFromInt(50)
 		credit := unreserve
-		credit.Ref, credit.Type = "credit", engine.PostingCredit
-		f.input.Request.Transactions[0].Postings = []engine.Posting{unreserve, credit}
+		credit.Ref, credit.Type = "credit", accounting.PostingCredit
+		f.input.Execution.Transactions[0].Postings = []accounting.Posting{unreserve, credit}
 		raw, err := f.run(t)
 		require.NoError(t, err)
 		result := decodeIntegrationResult(t, raw)
@@ -345,11 +345,11 @@ func TestIntegrationEngineCompositionAndLiveSettings(t *testing.T) {
 	for _, amount := range []int64{50, 51} {
 		t.Run("live limit "+strconv.FormatInt(amount, 10), func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
-			f.input.Request.Balances[0].Available = decimal.Zero
-			f.input.Request.Balances[0].AllowOverdraft = false
-			f.input.Request.Transactions[0].Postings[0].Amount = decimal.NewFromInt(amount)
+			f.input.Execution.Balances[0].Available = decimal.Zero
+			f.input.Execution.Balances[0].AllowOverdraft = false
+			f.input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(amount)
 			f.addCompanion("0")
-			live := f.input.Request.Balances[0]
+			live := f.input.Execution.Balances[0]
 			live.AllowOverdraft, live.OverdraftLimitEnabled = true, true
 			live.OverdraftLimit = decimal.NewFromInt(50)
 			f.seed(t, 0, live)
@@ -374,38 +374,38 @@ func TestIntegrationEngineValidatesBalanceRequirementsAgainstLiveState(t *testin
 	container := redistestutil.SetupReusableContainer(t)
 	tests := []struct {
 		name       string
-		permission engine.BalancePermission
+		permission accounting.BalancePermission
 		forbid     bool
-		prepare    func(*engine.BalanceSnapshot)
-		live       func(*engine.BalanceSnapshot)
+		prepare    func(*accounting.BalanceSnapshot)
+		live       func(*accounting.BalanceSnapshot)
 		failure    string
 	}{
 		{
-			name: "live sending permission", permission: engine.BalancePermissionSend, failure: engine.FailureSendingNotAllowed,
-			live: func(balance *engine.BalanceSnapshot) { balance.AllowSending = false },
+			name: "live sending permission", permission: accounting.BalancePermissionSend, failure: accounting.FailureSendingNotAllowed,
+			live: func(balance *accounting.BalanceSnapshot) { balance.AllowSending = false },
 		},
 		{
-			name: "live receiving permission", permission: engine.BalancePermissionReceive, failure: engine.FailureReceivingNotAllowed,
-			live: func(balance *engine.BalanceSnapshot) { balance.AllowReceiving = false },
+			name: "live receiving permission", permission: accounting.BalancePermissionReceive, failure: accounting.FailureReceivingNotAllowed,
+			live: func(balance *accounting.BalanceSnapshot) { balance.AllowReceiving = false },
 		},
 		{
-			name: "transaction asset", permission: engine.BalancePermissionSend, failure: engine.FailureAssetMismatch,
-			prepare: func(balance *engine.BalanceSnapshot) { balance.AssetCode = "EUR" },
+			name: "transaction asset", permission: accounting.BalancePermissionSend, failure: accounting.FailureAssetMismatch,
+			prepare: func(balance *accounting.BalanceSnapshot) { balance.AssetCode = "EUR" },
 		},
 		{
-			name: "external pending source", permission: engine.BalancePermissionSend, forbid: true, failure: engine.FailureExternalHoldNotAllowed,
-			prepare: func(balance *engine.BalanceSnapshot) { balance.AccountType = "external" },
+			name: "external pending source", permission: accounting.BalancePermissionSend, forbid: true, failure: accounting.FailureExternalHoldNotAllowed,
+			prepare: func(balance *accounting.BalanceSnapshot) { balance.AccountType = "external" },
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newIntegrationFixture(t, container.Client)
-			seed := &fixture.input.Request.Balances[0]
+			seed := &fixture.input.Execution.Balances[0]
 			if test.prepare != nil {
 				test.prepare(seed)
 			}
-			fixture.input.Request.Transactions[0].BalanceRequirements = []engine.BalanceRequirement{{
+			fixture.input.Execution.Transactions[0].BalanceRequirements = []accounting.BalanceRequirement{{
 				BalanceRef: seed.BalanceRef, AssetCode: "USD", Permission: test.permission, ForbidExternal: test.forbid,
 			}}
 
@@ -430,10 +430,10 @@ func TestIntegrationEngineUsesLivePermissionInsteadOfSeedPermission(t *testing.T
 
 	container := redistestutil.SetupReusableContainer(t)
 	fixture := newIntegrationFixture(t, container.Client)
-	seed := &fixture.input.Request.Balances[0]
+	seed := &fixture.input.Execution.Balances[0]
 	seed.AllowSending = false
-	fixture.input.Request.Transactions[0].BalanceRequirements = []engine.BalanceRequirement{{
-		BalanceRef: seed.BalanceRef, AssetCode: seed.AssetCode, Permission: engine.BalancePermissionSend,
+	fixture.input.Execution.Transactions[0].BalanceRequirements = []accounting.BalanceRequirement{{
+		BalanceRef: seed.BalanceRef, AssetCode: seed.AssetCode, Permission: accounting.BalancePermissionSend,
 	}}
 	live := *seed
 	live.AllowSending = true
@@ -455,13 +455,13 @@ func TestIntegrationEngineAtomicRefusals(t *testing.T) {
 	for _, kind := range []string{"late posting", "schedule type", "backup type", "guard type", "receipt type", "protection type", "guard conflict", "orphan recovery", "prepared budget", "version overflow", "deleted balance"} {
 		t.Run(kind, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
-			f.seed(t, 0, f.input.Request.Balances[0])
+			f.seed(t, 0, f.input.Execution.Balances[0])
 			want := "MIDAZ_ENGINE_TECH_V1 "
 			switch kind {
 			case "late posting":
-				late := f.input.Request.Transactions[0].Postings[0]
-				late.Ref, late.Type, late.Amount = "late", engine.PostingHold, decimal.NewFromInt(100)
-				f.input.Request.Transactions[0].Postings = append(f.input.Request.Transactions[0].Postings, late)
+				late := f.input.Execution.Transactions[0].Postings[0]
+				late.Ref, late.Type, late.Amount = "late", accounting.PostingHold, decimal.NewFromInt(100)
+				f.input.Execution.Transactions[0].Postings = append(f.input.Execution.Transactions[0].Postings, late)
 				require.NoError(t, container.Client.ZAdd(context.Background(), f.resolved.Schedule, redis.Z{Score: 17, Member: "unrelated-balance"}).Err())
 				for _, hash := range []string{f.resolved.Recovery, f.resolved.Receipts, f.resolved.Guards} {
 					require.NoError(t, container.Client.HSet(context.Background(), hash, "unrelated", "preserve").Err())
@@ -480,14 +480,14 @@ func TestIntegrationEngineAtomicRefusals(t *testing.T) {
 			case "guard conflict":
 				require.NoError(t, container.Client.HSet(context.Background(), f.resolved.Guards, f.input.Guards[0].TransactionID.String(), "other").Err())
 			case "orphan recovery":
-				field := f.input.Request.Transactions[0].ID.String() + ":" + f.input.Request.ExecutionID.String()
+				field := f.input.Execution.Transactions[0].ID.String() + ":" + f.input.Execution.ExecutionID.String()
 				require.NoError(t, container.Client.HSet(context.Background(), f.resolved.Recovery, field, "{}").Err())
 				want = `"code":"execution_outcome_unknown"`
 			case "prepared budget":
 				f.limits.MaxPreparedBytes = 1
 			case "version overflow":
-				f.input.Request.Balances[0].Version = math.MaxInt64
-				f.seed(t, 0, f.input.Request.Balances[0])
+				f.input.Execution.Balances[0].Version = math.MaxInt64
+				f.seed(t, 0, f.input.Execution.Balances[0])
 				want = `"code":"version_overflow"`
 			case "deleted balance":
 				require.NoError(t, container.Client.Set(context.Background(), f.resolved.Balances["@source#default"].Deleted, "1", time.Hour).Err())
@@ -516,8 +516,8 @@ func TestIntegrationEngineRejectsInvalidRecoveryPayloadWithoutWrites(t *testing.
 		t.Run(tt.name, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
 			f.addCompanion("0")
-			for i := range f.input.Request.Balances {
-				f.seed(t, i, f.input.Request.Balances[i])
+			for i := range f.input.Execution.Balances {
+				f.seed(t, i, f.input.Execution.Balances[i])
 			}
 			ctx := context.Background()
 			require.NoError(t, container.Client.ZAdd(
@@ -558,8 +558,8 @@ func TestIntegrationEngineReplayAndInt64(t *testing.T) {
 	}
 	container := redistestutil.SetupReusableContainer(t)
 	f := newIntegrationFixture(t, container.Client)
-	f.input.Request.Balances[0].Version = 9007199254740993
-	f.seed(t, 0, f.input.Request.Balances[0])
+	f.input.Execution.Balances[0].Version = 9007199254740993
+	f.seed(t, 0, f.input.Execution.Balances[0])
 	raw, err := f.run(t)
 	require.NoError(t, err)
 	result := decodeIntegrationResult(t, raw)
@@ -568,14 +568,14 @@ func TestIntegrationEngineReplayAndInt64(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, cache, `"Version":9007199254740994`)
 	require.Contains(t, cache, `"version":"9007199254740994"`)
-	field := f.input.Request.Transactions[0].ID.String() + ":" + f.input.Request.ExecutionID.String()
+	field := f.input.Execution.Transactions[0].ID.String() + ":" + f.input.Execution.ExecutionID.String()
 	backup, err := container.Client.HGet(context.Background(), f.resolved.Recovery, field).Result()
 	require.NoError(t, err)
 	require.Contains(t, backup, `"version":9007199254740993`)
 	require.Contains(t, backup, `"version":9007199254740994`)
 	var saved struct {
 		Payload string
-		Result  engine.Result
+		Result  accounting.ExecutionResult
 	}
 	require.NoError(t, json.Unmarshal([]byte(backup), &saved))
 	require.Equal(t, int64(9007199254740994), saved.Result.Final[0].Version)
@@ -595,8 +595,8 @@ func TestIntegrationEngineReplayAndInt64(t *testing.T) {
 	cache = strings.Replace(cache, `"Available":"70"`, `"Available":"69"`, 1)
 	cache = strings.Replace(cache, `"Version":9007199254740994`, `"Version":9007199254740995`, 1)
 	require.NoError(t, container.Client.Set(context.Background(), f.resolved.Balances["@source#default"].Balance, cache, time.Hour).Err())
-	f.input.Request.ExecutionID = uuid.MustParse("04079f3b-b8e1-43fa-b947-7fbc13a87b76")
-	f.input.Request.Balances[0].Version = 9007199254740995
+	f.input.Execution.ExecutionID = uuid.MustParse("04079f3b-b8e1-43fa-b947-7fbc13a87b76")
+	f.input.Execution.Balances[0].Version = 9007199254740995
 	f.input.Guards[0].ExpectedToken, f.input.Guards[0].NextToken = f.input.Guards[0].NextToken, "next-transition"
 	raw, err = f.run(t)
 	require.NoError(t, err)
@@ -613,18 +613,18 @@ func TestIntegrationEngineDrawPolicyPrecedence(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		allowed bool
-		policy  engine.DrawPolicy
+		policy  accounting.DrawPolicy
 		failure string
 	}{
-		{"route denied eligible account", true, engine.DrawRouteDenied, "overdraft_not_eligible"},
-		{"route denied ineligible account", false, engine.DrawRouteDenied, "insufficient_funds"},
-		{"forbidden eligible account", true, engine.DrawForbidden, "insufficient_funds"},
+		{"route denied eligible account", true, accounting.DrawRouteDenied, "overdraft_not_eligible"},
+		{"route denied ineligible account", false, accounting.DrawRouteDenied, "insufficient_funds"},
+		{"forbidden eligible account", true, accounting.DrawForbidden, "insufficient_funds"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
-			f.input.Request.Balances[0].Available = decimal.Zero
-			f.input.Request.Balances[0].AllowOverdraft = tt.allowed
-			f.input.Request.Transactions[0].Postings[0].DrawPolicy = tt.policy
+			f.input.Execution.Balances[0].Available = decimal.Zero
+			f.input.Execution.Balances[0].AllowOverdraft = tt.allowed
+			f.input.Execution.Transactions[0].Postings[0].DrawPolicy = tt.policy
 			before := f.capture(t)
 			_, err := f.run(t)
 			require.ErrorContains(t, err, `"code":"`+tt.failure+`"`)
@@ -639,7 +639,7 @@ func TestIntegrationEnginePreservesCacheExtensions(t *testing.T) {
 	}
 	container := redistestutil.SetupReusableContainer(t)
 	f := newIntegrationFixture(t, container.Client)
-	f.seed(t, 0, f.input.Request.Balances[0])
+	f.seed(t, 0, f.input.Execution.Balances[0])
 	key := f.resolved.Balances["@source#default"].Balance
 	cached, err := container.Client.Get(context.Background(), key).Result()
 	require.NoError(t, err)
@@ -666,17 +666,17 @@ func TestIntegrationEngineCachedMoneyMatchesCodec(t *testing.T) {
 				name := strconv.Itoa(int(format)) + "/" + field + "/" + value
 				t.Run(name, func(t *testing.T) {
 					f := newIntegrationFixture(t, container.Client)
-					late := f.input.Request.Balances[0]
+					late := f.input.Execution.Balances[0]
 					late.ID = uuid.MustParse("646b4233-cf0e-4a6f-a9ed-e74863240866")
 					late.AccountID = uuid.MustParse("e6e902c8-c7f3-471d-9853-68cf75e99a91")
 					late.Alias, late.BalanceRef = "@late", "@late#default"
-					f.input.Request.Balances = append(f.input.Request.Balances, late)
+					f.input.Execution.Balances = append(f.input.Execution.Balances, late)
 					key := strings.Replace(f.resolved.Balances["@source#default"].Balance, "@source#default", late.BalanceRef, 1)
 					f.resolved.Balances[late.BalanceRef] = resolvedBalanceKeys{Balance: key, Deleted: key + ":deleted"}
-					primary := &f.input.Request.Transactions[0].Postings[0]
-					primary.Type, primary.Amount = engine.PostingCredit, decimal.NewFromInt(1)
-					f.input.Request.Transactions[0].Postings = append(f.input.Request.Transactions[0].Postings,
-						engine.Posting{Ref: "late", BalanceRef: late.BalanceRef, Type: engine.PostingReserve, Amount: decimal.NewFromInt(1), DrawPolicy: engine.DrawForbidden})
+					primary := &f.input.Execution.Transactions[0].Postings[0]
+					primary.Type, primary.Amount = accounting.PostingCredit, decimal.NewFromInt(1)
+					f.input.Execution.Transactions[0].Postings = append(f.input.Execution.Transactions[0].Postings,
+						accounting.Posting{Ref: "late", BalanceRef: late.BalanceRef, Type: accounting.PostingReserve, Amount: decimal.NewFromInt(1), DrawPolicy: accounting.DrawForbidden})
 					encoded, err := balancecache.Encode(late, format)
 					require.NoError(t, err)
 					var fields map[string]json.RawMessage
@@ -709,7 +709,7 @@ func TestIntegrationEngineCachedMoneyLegacyAuthority(t *testing.T) {
 	}
 	container := redistestutil.SetupReusableContainer(t)
 	f := newIntegrationFixture(t, container.Client)
-	encoded, err := balancecache.Encode(f.input.Request.Balances[0], balancecache.FormatDual)
+	encoded, err := balancecache.Encode(f.input.Execution.Balances[0], balancecache.FormatDual)
 	require.NoError(t, err)
 	var fields map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(encoded, &fields))
@@ -737,7 +737,7 @@ func TestIntegrationEngineNoncanonicalLimitStillRequiresRepair(t *testing.T) {
 		for _, limit := range []string{"1E+3", "1000.00", "-0"} {
 			t.Run(strconv.Itoa(int(format))+"/"+limit, func(t *testing.T) {
 				f := newIntegrationFixture(t, container.Client)
-				encoded, err := balancecache.Encode(f.input.Request.Balances[0], format)
+				encoded, err := balancecache.Encode(f.input.Execution.Balances[0], format)
 				require.NoError(t, err)
 				var fields map[string]json.RawMessage
 				require.NoError(t, json.Unmarshal(encoded, &fields))
@@ -791,7 +791,7 @@ func TestIntegrationEngineRejectsUncorrelatedReceipt(t *testing.T) {
 			}
 			encoded, err := json.Marshal(response)
 			require.NoError(t, err)
-			field := f.input.Request.ExecutionID.String()
+			field := f.input.Execution.ExecutionID.String()
 			receipt, err := container.Client.HGet(context.Background(), f.resolved.Receipts, field).Bytes()
 			require.NoError(t, err)
 			var envelope map[string]json.RawMessage
@@ -816,11 +816,11 @@ func TestIntegrationEngineMultipleTransactions(t *testing.T) {
 	}
 	container := redistestutil.SetupReusableContainer(t)
 	f := newIntegrationFixture(t, container.Client)
-	f.input.Request.Transactions[0].Postings[0].Amount = decimal.NewFromInt(10)
+	f.input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(10)
 	for _, id := range []string{"1935edb9-c953-4f87-bea4-c98f57dff8b4", "770c910c-6539-471d-9e3c-e8f6346b3d76"} {
-		transaction := f.input.Request.Transactions[0]
+		transaction := f.input.Execution.Transactions[0]
 		transaction.ID = uuid.MustParse(id)
-		f.input.Request.Transactions = append(f.input.Request.Transactions, transaction)
+		f.input.Execution.Transactions = append(f.input.Execution.Transactions, transaction)
 		f.input.Guards = append(f.input.Guards, command.ExecutionGuard{TransactionID: transaction.ID, NextToken: "committed"})
 		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"opaque":true}`)})
 	}
@@ -831,15 +831,15 @@ func TestIntegrationEngineMultipleTransactions(t *testing.T) {
 	require.Len(t, result.Final, 1)
 	require.Equal(t, integrationState{"70", "0", "0", "3"}, finalState(result.Final[0]))
 	for i, wantAvailable := range []string{"90", "80", "70"} {
-		field := f.input.Request.Transactions[i].ID.String() + ":" + f.input.Request.ExecutionID.String()
+		field := f.input.Execution.Transactions[i].ID.String() + ":" + f.input.Execution.ExecutionID.String()
 		backup, err := container.Client.HGet(context.Background(), f.resolved.Recovery, field).Bytes()
 		require.NoError(t, err)
 		var envelope struct {
-			TransactionID string        `json:"transactionId"`
-			Result        engine.Result `json:"result"`
+			TransactionID string                     `json:"transactionId"`
+			Result        accounting.ExecutionResult `json:"result"`
 		}
 		require.NoError(t, json.Unmarshal(backup, &envelope))
-		require.Equal(t, f.input.Request.Transactions[i].ID.String(), envelope.TransactionID)
+		require.Equal(t, f.input.Execution.Transactions[i].ID.String(), envelope.TransactionID)
 		require.Len(t, envelope.Result.Final, 1)
 		require.Len(t, envelope.Result.Movements, 1)
 		require.Equal(t, wantAvailable, envelope.Result.Final[0].Available.String())
@@ -854,33 +854,33 @@ func TestIntegrationEngineThirdTransactionRefusalPreservesAllState(t *testing.T)
 	container := redistestutil.SetupReusableContainer(t)
 	f := newIntegrationFixture(t, container.Client)
 	f.addCompanion("0")
-	f.input.Request.Transactions[0].Postings[0].Amount = decimal.NewFromInt(30)
-	originalPostingRef := f.input.Request.Transactions[0].Postings[0].Ref
-	originalDrawPolicy := f.input.Request.Transactions[0].Postings[0].DrawPolicy
+	f.input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(30)
+	originalPostingRef := f.input.Execution.Transactions[0].Postings[0].Ref
+	originalDrawPolicy := f.input.Execution.Transactions[0].Postings[0].DrawPolicy
 	for i, id := range []string{"1935edb9-c953-4f87-bea4-c98f57dff8b4", "770c910c-6539-471d-9e3c-e8f6346b3d76"} {
-		transaction := f.input.Request.Transactions[0]
-		transaction.Postings = append([]engine.Posting(nil), transaction.Postings...)
+		transaction := f.input.Execution.Transactions[0]
+		transaction.Postings = append([]accounting.Posting(nil), transaction.Postings...)
 		transaction.ID = uuid.MustParse(id)
 		transaction.Postings[0].Ref = "posting-" + strconv.Itoa(i+2)
 		if i == 1 {
 			transaction.Postings[0].Amount = decimal.NewFromInt(50)
-			transaction.Postings[0].DrawPolicy = engine.DrawForbidden
+			transaction.Postings[0].DrawPolicy = accounting.DrawForbidden
 		}
-		f.input.Request.Transactions = append(f.input.Request.Transactions, transaction)
+		f.input.Execution.Transactions = append(f.input.Execution.Transactions, transaction)
 		f.input.Guards = append(f.input.Guards, command.ExecutionGuard{TransactionID: transaction.ID, NextToken: "committed"})
 		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"opaque":true}`)})
 	}
-	require.Equal(t, originalPostingRef, f.input.Request.Transactions[0].Postings[0].Ref)
-	require.Equal(t, "posting-2", f.input.Request.Transactions[1].Postings[0].Ref)
-	require.Equal(t, "posting-3", f.input.Request.Transactions[2].Postings[0].Ref)
-	require.True(t, f.input.Request.Transactions[0].Postings[0].Amount.Equal(decimal.NewFromInt(30)))
-	require.True(t, f.input.Request.Transactions[1].Postings[0].Amount.Equal(decimal.NewFromInt(30)))
-	require.True(t, f.input.Request.Transactions[2].Postings[0].Amount.Equal(decimal.NewFromInt(50)))
-	require.Equal(t, originalDrawPolicy, f.input.Request.Transactions[0].Postings[0].DrawPolicy)
-	require.Equal(t, originalDrawPolicy, f.input.Request.Transactions[1].Postings[0].DrawPolicy)
-	require.Equal(t, engine.DrawForbidden, f.input.Request.Transactions[2].Postings[0].DrawPolicy)
-	for i := range f.input.Request.Balances {
-		f.seed(t, i, f.input.Request.Balances[i])
+	require.Equal(t, originalPostingRef, f.input.Execution.Transactions[0].Postings[0].Ref)
+	require.Equal(t, "posting-2", f.input.Execution.Transactions[1].Postings[0].Ref)
+	require.Equal(t, "posting-3", f.input.Execution.Transactions[2].Postings[0].Ref)
+	require.True(t, f.input.Execution.Transactions[0].Postings[0].Amount.Equal(decimal.NewFromInt(30)))
+	require.True(t, f.input.Execution.Transactions[1].Postings[0].Amount.Equal(decimal.NewFromInt(30)))
+	require.True(t, f.input.Execution.Transactions[2].Postings[0].Amount.Equal(decimal.NewFromInt(50)))
+	require.Equal(t, originalDrawPolicy, f.input.Execution.Transactions[0].Postings[0].DrawPolicy)
+	require.Equal(t, originalDrawPolicy, f.input.Execution.Transactions[1].Postings[0].DrawPolicy)
+	require.Equal(t, accounting.DrawForbidden, f.input.Execution.Transactions[2].Postings[0].DrawPolicy)
+	for i := range f.input.Execution.Balances {
+		f.seed(t, i, f.input.Execution.Balances[i])
 	}
 	ctx := context.Background()
 	require.NoError(t, container.Client.ZAdd(
@@ -913,8 +913,8 @@ func TestIntegrationEngineScheduleOverwritesOnlyChangedBalances(t *testing.T) {
 	container := redistestutil.SetupReusableContainer(t)
 	f := newIntegrationFixture(t, container.Client)
 	f.addCompanion("0")
-	for i := range f.input.Request.Balances {
-		f.seed(t, i, f.input.Request.Balances[i])
+	for i := range f.input.Execution.Balances {
+		f.seed(t, i, f.input.Execution.Balances[i])
 	}
 	changed := f.resolved.Balances["@source#default"].Balance
 	untouched := f.resolved.Balances["@source#overdraft"].Balance
@@ -942,7 +942,7 @@ func TestIntegrationEngineUnusedPoolDoesNotParticipate(t *testing.T) {
 	container := redistestutil.SetupReusableContainer(t)
 	f := newIntegrationFixture(t, container.Client)
 	f.addCompanion("0")
-	live := f.input.Request.Balances[1]
+	live := f.input.Execution.Balances[1]
 	live.Version = 8
 	f.seed(t, 1, live)
 	pair := f.resolved.Balances["@source#overdraft"]

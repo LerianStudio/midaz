@@ -28,7 +28,7 @@ func TestIntegrationDelayedFinalizationKeepsReplayProtectionThroughFullWindow(t 
 	ctx := context.Background()
 	first, err := adapter.Execute(ctx, input)
 	require.NoError(t, err)
-	resolved, err := resolveAdapterKeys(ctx, input.Request)
+	resolved, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection, txredis.EngineRecoveryCleanupSchedule}
@@ -38,8 +38,8 @@ func TestIntegrationDelayedFinalizationKeepsReplayProtectionThroughFullWindow(t 
 		require.NoError(t, client.Del(context.Background(), keys...).Err())
 	})
 
-	transactionID := input.Request.Transactions[0].ID
-	executionID := input.Request.ExecutionID
+	transactionID := input.Execution.Transactions[0].ID
+	executionID := input.Execution.ExecutionID
 	recoveryField := transactionID.String() + ":" + executionID.String()
 	recoveryRaw, err := client.HGet(ctx, resolved.Recovery, recoveryField).Result()
 	require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestIntegrationDelayedFinalizationKeepsReplayProtectionThroughFullWindow(t 
 	recoveryRepo, err := txredis.NewConsumerRedis(provider)
 	require.NoError(t, err)
 	status, err := recoveryRepo.CompareAndDeleteRecoveryWithProtection(
-		ctx, input.Request.OrganizationID, input.Request.LedgerID,
+		ctx, input.Execution.OrganizationID, input.Execution.LedgerID,
 		recoveryField, recoveryRaw, true, completedAt,
 	)
 	require.NoError(t, err)
