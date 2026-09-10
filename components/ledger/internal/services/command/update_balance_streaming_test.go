@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -83,6 +84,10 @@ func newUpdateBalanceStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller,
 		AnyTimes()
 	mockRedis.EXPECT().
 		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil).
+		AnyTimes()
+	mockRedis.EXPECT().
+		UpdateBalanceCacheAllowFlags(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).
 		AnyTimes()
 
@@ -192,6 +197,7 @@ func TestUpdateBalance_EmitsTwoEventsOnOverdraftTransition(t *testing.T) {
 	mockRedis := txRedis.NewMockRedisRepository(ctrl)
 	mockRedis.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
 	mockRedis.EXPECT().UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedis.EXPECT().UpdateBalanceCacheAllowFlags(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	uc := &UseCase{
 		BalanceRepo:          mockBalanceRepo,
@@ -230,6 +236,99 @@ func TestUpdateBalance_EmitsTwoEventsOnOverdraftTransition(t *testing.T) {
 	assert.Equal(t, "balance.config_changed", emitted[1].DefinitionKey)
 	assert.Equal(t, id, emitted[1].Subject, "second event must be for the PARENT balance")
 	assert.Equal(t, "settings_updated", payload1["changeType"])
+}
+
+// TestUpdateBalance_AllowFlagsPropagationFailureDoesNotEmit verifies the
+// fail-closed ordering: when the allow-flags cache propagation fails, the
+// balance.config_changed event must NOT be emitted for that attempt — a PATCH
+// that did not take effect everywhere announces nothing.
+func TestUpdateBalance_AllowFlagsPropagationFailureDoesNotEmit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+	fixture := defaultUpdateBalanceStreamingFixture()
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(fixture.current, nil).
+		Times(1)
+	mockBalanceRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(fixture.updated, nil).
+		Times(1)
+
+	mockRedis := txRedis.NewMockRedisRepository(ctrl)
+	mockRedis.EXPECT().
+		UpdateBalanceCacheAllowFlags(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(errors.New("redis unavailable")).
+		Times(1)
+
+	uc := &UseCase{
+		BalanceRepo:          mockBalanceRepo,
+		TransactionRedisRepo: mockRedis,
+		Streaming:            mockEmitter,
+	}
+
+	allowSending := false
+	update := mmodel.UpdateBalance{AllowSending: &allowSending}
+
+	out, err := uc.Update(context.Background(), uuid.New(), uuid.New(), uuid.MustParse(fixture.updated.ID), update)
+	require.Error(t, err)
+	assert.Nil(t, out)
+	assert.Empty(t, mockEmitter.Events(),
+		"propagation failure must short-circuit before balance.config_changed is emitted")
+}
+
+// TestUpdateBalance_AllowFlagsPropagationRunsBeforeEmission pins the ordering
+// on the happy path: the cache already carries the new flags by the time the
+// event announcing them goes out.
+func TestUpdateBalance_AllowFlagsPropagationRunsBeforeEmission(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+	fixture := defaultUpdateBalanceStreamingFixture()
+
+	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockBalanceRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(fixture.current, nil).
+		Times(1)
+	mockBalanceRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(fixture.updated, nil).
+		Times(1)
+
+	var eventsAtPropagation int
+
+	mockRedis := txRedis.NewMockRedisRepository(ctrl)
+	mockRedis.EXPECT().
+		UpdateBalanceCacheAllowFlags(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, uuid.UUID, uuid.UUID, string, *bool, *bool) error {
+			eventsAtPropagation = len(mockEmitter.Events())
+
+			return nil
+		}).
+		Times(1)
+	mockRedis.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
+
+	uc := &UseCase{
+		BalanceRepo:          mockBalanceRepo,
+		TransactionRedisRepo: mockRedis,
+		Streaming:            mockEmitter,
+	}
+
+	allowSending := false
+	update := mmodel.UpdateBalance{AllowSending: &allowSending}
+
+	out, err := uc.Update(context.Background(), uuid.New(), uuid.New(), uuid.MustParse(fixture.updated.ID), update)
+	require.NoError(t, err)
+	require.NotNil(t, out)
+
+	assert.Zero(t, eventsAtPropagation, "no event may be emitted before the cache propagation runs")
+	require.Len(t, mockEmitter.Events(), 1, "the successful PATCH still emits its config_changed event")
 }
 
 // TestUpdateBalance_NoopEmitterDoesNotPanic exercises the
