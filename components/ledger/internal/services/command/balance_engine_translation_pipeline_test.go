@@ -93,19 +93,19 @@ func TestBalanceEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *tes
 	})
 	assert.Equal(t, engine.DrawAllowed, translated.Postings[0].DrawPolicy)
 	assert.Equal(t, engine.DrawAllowed, translated.Postings[1].DrawPolicy)
-	payload.Projection = projection
+	payload.OperationSpecs = projection
 	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
-	frozenPayload, err := EncodeBalanceEngineRecoveryPayload(payload)
+	frozenPayload, err := EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
-	require.NoError(t, ValidateBalanceEngineRecovery(EngineExecution{
+	require.NoError(t, ValidateTransactionCompletion(EngineExecution{
 		Request: engine.Request{
 			OrganizationID: payload.OrganizationID, LedgerID: payload.LedgerID, ExecutionID: payload.ExecutionID,
 			Transactions: []engine.Transaction{translated}, Balances: pool.Snapshots,
 		},
 		IntentFingerprint: payload.IntentFingerprint,
 		Guards:            []ExecutionGuard{{TransactionID: payload.TransactionID, NextToken: "approved"}},
-		Recovery:          []RecoveryIntent{{TransactionID: payload.TransactionID, Payload: frozenPayload}},
+		CompletionPlans:   []CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: frozenPayload}},
 	}))
 
 	// This recorded outcome includes debt created under live settings, although
@@ -135,7 +135,7 @@ func TestBalanceEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *tes
 		},
 	}}
 	result.Final = recoveryContractFinal(payload, result.Movements)
-	rows, err := ProjectBalanceEngineOperations(payload, result)
+	rows, err := BuildOperationRecordsFromMovements(payload, result)
 	require.NoError(t, err)
 	require.Len(t, rows, 4)
 	for i, amount := range []string{"30", "20", "10", "60"} {
@@ -156,13 +156,13 @@ func TestBalanceEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *tes
 	}
 
 	envelope := recoveryContractEnvelope(t, payload, result)
-	raw, err := EncodeBalanceEngineRecoveryEnvelope(envelope)
+	raw, err := EncodeTransactionCompletionRecord(envelope)
 	require.NoError(t, err)
-	decoded, err := DecodeBalanceEngineRecoveryEnvelope(raw)
+	decoded, err := DecodeTransactionCompletionRecord(raw)
 	require.NoError(t, err)
-	frozen, err := DecodeBalanceEngineRecoveryPayload([]byte(decoded.Payload))
+	frozen, err := DecodeTransactionCompletionPlan([]byte(decoded.Payload))
 	require.NoError(t, err)
-	recovered, err := ProjectBalanceEngineOperations(*frozen, decoded.Result)
+	recovered, err := BuildOperationRecordsFromMovements(*frozen, decoded.Result)
 	require.NoError(t, err)
 	normalJSON, err := json.Marshal(rows)
 	require.NoError(t, err)

@@ -24,8 +24,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-type balanceRecoveryFinalizer interface {
-	Finalize(context.Context, *command.BalanceEngineRecoveryEnvelope) error
+type transactionCompleter interface {
+	Complete(context.Context, *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error)
 }
 
 type recoveryRecordAcknowledger interface {
@@ -42,10 +42,10 @@ type recoveryCleanupOwner interface {
 
 const recoveryCleanupBatchSize = 100
 
-// WithBalanceEngineFinalizer supplies durable SQL and metadata completion for
-// version-two records. A missing finalizer leaves those records in the queue.
-func (r *RedisQueueConsumer) WithBalanceEngineFinalizer(finalizer balanceRecoveryFinalizer) *RedisQueueConsumer {
-	r.recoveryFinalizer = finalizer
+// WithTransactionCompleter supplies durable SQL and metadata completion for
+// version-two records. A missing completer leaves those records in the queue.
+func (r *RedisQueueConsumer) WithTransactionCompleter(completer transactionCompleter) *RedisQueueConsumer {
+	r.transactionCompleter = completer
 	return r
 }
 
@@ -129,7 +129,7 @@ func backupRecordVersion(raw string) (int, error) {
 	}
 
 	if found {
-		return command.BalanceEngineRecoveryVersion, nil
+		return command.TransactionCompletionFormatVersion, nil
 	}
 
 	return 0, nil
@@ -159,8 +159,8 @@ func (r *RedisQueueConsumer) handleInvalidBackupRecord(ctx context.Context, span
 	}
 }
 
-func decodeRecoveryRecord(ctx context.Context, field, raw string) (*command.BalanceEngineRecoveryEnvelope, time.Time, error) {
-	envelope, err := command.DecodeBalanceEngineRecoveryEnvelope([]byte(raw))
+func decodeRecoveryRecord(ctx context.Context, field, raw string) (*command.TransactionCompletionRecord, time.Time, error) {
+	envelope, err := command.DecodeTransactionCompletionRecord([]byte(raw))
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -173,7 +173,7 @@ func decodeRecoveryRecord(ctx context.Context, field, raw string) (*command.Bala
 		return nil, time.Time{}, errors.New("backup field differs from frozen execution identity")
 	}
 
-	payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -185,13 +185,13 @@ func backupRecordEligible(ttl, now time.Time) bool {
 	return ttl.Unix() <= now.Add(-MessageTimeOfLife*time.Minute).Unix()
 }
 
-func (r *RedisQueueConsumer) processRecoveryRecord(ctx context.Context, field, raw string, envelope *command.BalanceEngineRecoveryEnvelope) {
+func (r *RedisQueueConsumer) processRecoveryRecord(ctx context.Context, field, raw string, envelope *command.TransactionCompletionRecord) {
 	if err := r.finalizeRecoveryRecord(ctx, field, raw, envelope); err != nil {
 		r.Logger.Log(ctx, libLog.LevelError, "Version-two backup retained after recovery failure", libLog.String("redis_key", field), libLog.Err(err))
 	}
 }
 
-func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, raw string, envelope *command.BalanceEngineRecoveryEnvelope) error {
+func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, raw string, envelope *command.TransactionCompletionRecord) error {
 	startedAt := time.Now()
 	outcome := recoveryMetricOutcomeCompleted
 
@@ -205,9 +205,9 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, 
 		return err
 	}
 
-	if r.recoveryFinalizer == nil {
+	if r.transactionCompleter == nil {
 		outcome = recoveryMetricOutcomeNotConfigured
-		return errors.New("durable balance recovery finalizer is not configured")
+		return errors.New("durable transaction completer is not configured")
 	}
 
 	acknowledger, ok := r.queue.(recoveryRecordAcknowledger)
@@ -219,19 +219,7 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, 
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	var finalization command.BalanceEngineFinalizationResult
-
-	var err error
-
-	finalizedWithOutcome := false
-
-	if finalizer, ok := r.recoveryFinalizer.(balanceRecoveryFinalizerWithOutcome); ok {
-		finalization, err = finalizer.FinalizeWithOutcome(ctx, envelope)
-		finalizedWithOutcome = err == nil
-	} else {
-		err = r.recoveryFinalizer.Finalize(ctx, envelope)
-	}
-
+	completion, err := r.transactionCompleter.Complete(ctx, envelope)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			outcome = recoveryMetricOutcomeContextCanceled
@@ -239,7 +227,7 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, 
 			outcome = recoveryMetricOutcomeFinalizationFailed
 		}
 
-		return fmt.Errorf("finalize balance recovery: %w", err)
+		return fmt.Errorf("complete recovered transaction: %w", err)
 	}
 
 	if err := ctx.Err(); err != nil {
@@ -249,11 +237,11 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, field, 
 
 	var status int64
 
-	if protected, ok := r.queue.(recoveryProtectionAcknowledger); ok && finalizedWithOutcome {
-		terminal, validStatus := durableRecoveryTerminal(finalization.Outcome.TransactionStatus)
+	if protected, ok := r.queue.(recoveryProtectionAcknowledger); ok {
+		terminal, validStatus := durableRecoveryTerminal(completion.Outcome.TransactionStatus)
 		if !validStatus {
 			outcome = recoveryMetricOutcomeFinalizationFailed
-			return fmt.Errorf("finalize balance recovery: durable SQL reported unsupported status %q", finalization.Outcome.TransactionStatus)
+			return fmt.Errorf("complete recovered transaction: durable SQL reported unsupported status %q", completion.Outcome.TransactionStatus)
 		}
 
 		if r.recoveryClock == nil {

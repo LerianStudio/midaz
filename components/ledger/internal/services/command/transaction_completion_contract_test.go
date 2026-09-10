@@ -22,11 +22,11 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-func recoveryContractFixture(t testing.TB) (BalanceEngineRecoveryPayload, engine.Result) {
+func recoveryContractFixture(t testing.TB) (TransactionCompletionPlan, engine.Result) {
 	t.Helper()
 	date := time.Date(2026, time.September, 4, 12, 0, 0, 0, time.UTC)
-	payload := BalanceEngineRecoveryPayload{
-		FormatVersion: BalanceEngineRecoveryVersion, HeaderID: "correlation-header", TenantID: "tenant-a",
+	payload := TransactionCompletionPlan{
+		FormatVersion: TransactionCompletionFormatVersion, HeaderID: "correlation-header", TenantID: "tenant-a",
 		OrganizationID: uuid.MustParse("33333333-3333-4333-8333-333333333333"), LedgerID: uuid.MustParse("44444444-4444-4444-8444-444444444444"),
 		TransactionID: uuid.MustParse("66666666-6666-4666-8666-666666666666"), ExecutionID: uuid.MustParse("88888888-8888-4888-8888-888888888888"),
 		TransactionDate: date, TTL: date.Add(time.Hour), TransactionStatus: constant.APPROVED, Action: "direct",
@@ -38,12 +38,12 @@ func recoveryContractFixture(t testing.TB) (BalanceEngineRecoveryPayload, engine
 	after := engine.BalanceState{Available: decimal.NewFromInt(70), Version: 1}
 	balance := rowContractBalance(rowContractLeg{Alias: "@source", Key: "default"}, rowContractState{"100", "0", "0", 0})
 	routeID := "55555555-5555-4555-8555-555555555555"
-	payload.Projection = []FrozenProjectionContext{{
+	payload.OperationSpecs = []OperationRecordSpec{{
 		TransactionID: payload.TransactionID, PostingRef: "source:0", BalanceRef: "@source#default", Role: engine.RolePrimary,
-		Side: ProjectionSideFrom, RowType: constant.DEBIT, Direction: constant.DirectionDebit,
+		Side: OperationSpecSideFrom, RowType: constant.DEBIT, Direction: constant.DirectionDebit,
 		RouteID: &routeID, RouteCode: "DEBIT-USD", RouteDescription: "Customer debit", Description: "frozen description",
-		ChartOfAccounts: "customer", Metadata: map[string]any{"purpose": "transfer"}, Balance: FrozenProjectionBalance(*balance),
-		RequestedAmount: decimal.NewFromInt(30), CompatibilityPath: ProjectionStandard,
+		ChartOfAccounts: "customer", Metadata: map[string]any{"purpose": "transfer"}, Balance: OperationBalanceContext(*balance),
+		RequestedAmount: decimal.NewFromInt(30), CompatibilityPath: OperationRecordStandard,
 	}}
 	var err error
 	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
@@ -56,10 +56,10 @@ func recoveryContractFixture(t testing.TB) (BalanceEngineRecoveryPayload, engine
 	return payload, result
 }
 
-func recoveryContractIntent(payload BalanceEngineRecoveryPayload) BalanceEngineIntent {
-	projection := make([]FrozenProjectionIntent, 0, len(payload.Projection))
-	refs := make([]string, 0, len(payload.Projection))
-	for _, context := range payload.Projection {
+func recoveryContractIntent(payload TransactionCompletionPlan) BalanceEngineIntent {
+	projection := make([]OperationRecordIntent, 0, len(payload.OperationSpecs))
+	refs := make([]string, 0, len(payload.OperationSpecs))
+	for _, context := range payload.OperationSpecs {
 		projection = append(projection, context.Intent())
 		if context.Role == engine.RolePrimary {
 			refs = append(refs, context.PostingRef)
@@ -70,13 +70,13 @@ func recoveryContractIntent(payload BalanceEngineRecoveryPayload) BalanceEngineI
 		Transactions: []BalanceEngineTransactionIntent{{
 			TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
 			ParentTransactionID: payload.ParentTransactionID, FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped,
-			TransactionDate: payload.TransactionDate, Input: payload.TransactionInput, PostingRefs: refs, Projection: projection,
+			TransactionDate: payload.TransactionDate, Input: payload.TransactionInput, PostingRefs: refs, OperationSpecs: projection,
 			TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
 		}},
 	}
 }
 
-func recoveryContractFinal(payload BalanceEngineRecoveryPayload, movements []engine.Movement) []engine.BalanceSnapshot {
+func recoveryContractFinal(payload TransactionCompletionPlan, movements []engine.Movement) []engine.BalanceSnapshot {
 	final := make([]engine.BalanceSnapshot, 0)
 	indices := make(map[string]int)
 	for _, movement := range movements {
@@ -85,7 +85,7 @@ func recoveryContractFinal(payload BalanceEngineRecoveryPayload, movements []eng
 			index = len(final)
 			indices[movement.BalanceRef] = index
 			var balance mmodel.Balance
-			for _, context := range payload.Projection {
+			for _, context := range payload.OperationSpecs {
 				if context.BalanceRef == movement.BalanceRef {
 					balance = mmodel.Balance(context.Balance)
 					break
@@ -101,33 +101,33 @@ func recoveryContractFinal(payload BalanceEngineRecoveryPayload, movements []eng
 	return final
 }
 
-func recoveryContractEnvelope(t testing.TB, payload BalanceEngineRecoveryPayload, result engine.Result) BalanceEngineRecoveryEnvelope {
+func recoveryContractEnvelope(t testing.TB, payload TransactionCompletionPlan, result engine.Result) TransactionCompletionRecord {
 	t.Helper()
-	raw, err := EncodeBalanceEngineRecoveryPayload(payload)
+	raw, err := EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
-	return BalanceEngineRecoveryEnvelope{
-		FormatVersion: BalanceEngineRecoveryVersion, TenantID: payload.TenantID, OrganizationID: payload.OrganizationID,
+	return TransactionCompletionRecord{
+		FormatVersion: TransactionCompletionFormatVersion, TenantID: payload.TenantID, OrganizationID: payload.OrganizationID,
 		LedgerID: payload.LedgerID, TransactionID: payload.TransactionID, ExecutionID: payload.ExecutionID, IntentFingerprint: payload.IntentFingerprint,
 		Payload: string(raw), Result: result,
 	}
 }
 
-func recoveryContractAddRepaymentCompanion(payload *BalanceEngineRecoveryPayload, result *engine.Result, primaryIndex int) {
+func recoveryContractAddRepaymentCompanion(payload *TransactionCompletionPlan, result *engine.Result, primaryIndex int) {
 	primary := result.Movements[primaryIndex]
-	var companion FrozenProjectionContext
-	for _, context := range payload.Projection {
+	var companion OperationRecordSpec
+	for _, context := range payload.OperationSpecs {
 		if context.PostingRef == primary.PostingRef && context.Role == engine.RolePrimary {
 			companion = context
 			break
 		}
 	}
 	companion.Role, companion.RowType, companion.BalanceRef = engine.RoleOverdraftCompanion, constant.OVERDRAFT, "@source#overdraft"
-	companion.CompatibilityPath = ProjectionStandard
+	companion.CompatibilityPath = OperationRecordStandard
 	companion.Metadata, companion.ChartOfAccounts = nil, ""
 	companion.Balance.ID = "99999999-9999-4999-8999-999999999999"
 	companion.Balance.Key, companion.Balance.Direction = "overdraft", constant.DirectionDebit
 	companion.Balance.Available, companion.Balance.OnHold, companion.Balance.OverdraftUsed = primary.OverdraftDelta.Abs(), decimal.Zero, decimal.Zero
-	payload.Projection = append(payload.Projection, companion)
+	payload.OperationSpecs = append(payload.OperationSpecs, companion)
 	movement := engine.Movement{
 		Ref: "companion:" + primary.PostingRef, TransactionID: payload.TransactionID, PostingRef: primary.PostingRef,
 		Role: engine.RoleOverdraftCompanion, BalanceRef: companion.BalanceRef, Type: engine.PostingCredit, Amount: primary.OverdraftDelta.Abs(),
@@ -138,21 +138,21 @@ func recoveryContractAddRepaymentCompanion(payload *BalanceEngineRecoveryPayload
 	result.Movements[primaryIndex+1] = movement
 }
 
-func TestBalanceEngineRecoveryRoundTripAndProjection(t *testing.T) {
+func TestTransactionCompletionRoundTripAndProjection(t *testing.T) {
 	payload, result := recoveryContractFixture(t)
 	envelope := recoveryContractEnvelope(t, payload, result)
-	encoded, err := EncodeBalanceEngineRecoveryEnvelope(envelope)
+	encoded, err := EncodeTransactionCompletionRecord(envelope)
 	require.NoError(t, err)
-	decoded, err := DecodeBalanceEngineRecoveryEnvelope(encoded)
+	decoded, err := DecodeTransactionCompletionRecord(encoded)
 	require.NoError(t, err)
 	require.Equal(t, envelope.Payload, decoded.Payload)
-	decodedPayload, err := DecodeBalanceEngineRecoveryPayload([]byte(decoded.Payload))
+	decodedPayload, err := DecodeTransactionCompletionPlan([]byte(decoded.Payload))
 	require.NoError(t, err)
 	before, err := json.Marshal(result)
 	require.NoError(t, err)
-	normal, err := ProjectBalanceEngineOperations(payload, result)
+	normal, err := BuildOperationRecordsFromMovements(payload, result)
 	require.NoError(t, err)
-	replay, err := ProjectBalanceEngineOperations(*decodedPayload, decoded.Result)
+	replay, err := BuildOperationRecordsFromMovements(*decodedPayload, decoded.Result)
 	require.NoError(t, err)
 	normalJSON, err := json.Marshal(normal)
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestBalanceEngineRecoveryRoundTripAndProjection(t *testing.T) {
 	assert.Equal(t, "DEBIT-USD", *normal[0].RouteCode)
 	assert.Equal(t, payload.OperationUpdatedAt, normal[0].UpdatedAt)
 	assert.Equal(t, rowContractGolden{
-		constant.DEBIT, "@source", "default", "30", constant.DirectionDebit, *payload.Projection[0].RouteID,
+		constant.DEBIT, "@source", "default", "30", constant.DirectionDebit, *payload.OperationSpecs[0].RouteID,
 		rowContractState{"100", "0", "0", 0},
 		rowContractState{"70", "0", "0", 1},
 		"0", "0", true,
@@ -173,11 +173,11 @@ func TestBalanceEngineRecoveryRoundTripAndProjection(t *testing.T) {
 	assert.Equal(t, before, after, "projection must not rewrite real movements")
 	normal[0].Metadata["purpose"] = "changed"
 	*normal[0].RouteID = "changed"
-	assert.Equal(t, "transfer", payload.Projection[0].Metadata["purpose"])
-	assert.NotEqual(t, "changed", *payload.Projection[0].RouteID)
+	assert.Equal(t, "transfer", payload.OperationSpecs[0].Metadata["purpose"])
+	assert.NotEqual(t, "changed", *payload.OperationSpecs[0].RouteID)
 }
 
-func TestBalanceEngineRecoveryFrozenLifecycleTimestamps(t *testing.T) {
+func TestTransactionCompletionFrozenLifecycleTimestamps(t *testing.T) {
 	payload, result := recoveryContractFixture(t)
 	payload.TransactionCreatedAt = payload.TransactionDate.Add(-48 * time.Hour)
 	payload.TransactionUpdatedAt = payload.TransactionDate.Add(time.Second)
@@ -185,28 +185,28 @@ func TestBalanceEngineRecoveryFrozenLifecycleTimestamps(t *testing.T) {
 	var err error
 	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
-	normal, err := ProjectBalanceEngineOperations(payload, result)
+	normal, err := BuildOperationRecordsFromMovements(payload, result)
 	require.NoError(t, err)
 	require.Len(t, normal, 1)
 	assert.Equal(t, payload.TransactionDate, normal[0].CreatedAt)
 	assert.Equal(t, payload.OperationUpdatedAt, normal[0].UpdatedAt)
-	raw, err := EncodeBalanceEngineRecoveryPayload(payload)
+	raw, err := EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
-	replayed, err := DecodeBalanceEngineRecoveryPayload(raw)
+	replayed, err := DecodeTransactionCompletionPlan(raw)
 	require.NoError(t, err)
 	assert.Equal(t, payload.TransactionCreatedAt, replayed.TransactionCreatedAt)
 	assert.Equal(t, payload.TransactionUpdatedAt, replayed.TransactionUpdatedAt)
 	assert.Equal(t, payload.OperationUpdatedAt, replayed.OperationUpdatedAt)
 	// Delivery time is not an input to projection, including delayed recovery.
 	replayed.TTL = replayed.TTL.Add(7 * 24 * time.Hour)
-	replay, err := ProjectBalanceEngineOperations(*replayed, result)
+	replay, err := BuildOperationRecordsFromMovements(*replayed, result)
 	require.NoError(t, err)
 	assert.Equal(t, normal, replay)
 }
 
-func TestBalanceEngineRecoveryRequiresFrozenTimestamps(t *testing.T) {
+func TestTransactionCompletionRequiresFrozenTimestamps(t *testing.T) {
 	payload, _ := recoveryContractFixture(t)
-	encoded, err := EncodeBalanceEngineRecoveryPayload(payload)
+	encoded, err := EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 	for _, name := range []string{"transactionCreatedAt", "transactionUpdatedAt", "operationUpdatedAt"} {
 		for _, value := range []string{"", "null", `"0001-01-01T00:00:00Z"`} {
@@ -220,8 +220,8 @@ func TestBalanceEngineRecoveryRequiresFrozenTimestamps(t *testing.T) {
 				}
 				raw, err := json.Marshal(fields)
 				require.NoError(t, err)
-				_, err = DecodeBalanceEngineRecoveryPayload(raw)
-				require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+				_, err = DecodeTransactionCompletionPlan(raw)
+				require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 			})
 		}
 	}
@@ -233,11 +233,11 @@ func TestBalanceEngineRecoveryRequiresFrozenTimestamps(t *testing.T) {
 		intent := recoveryContractIntent(payload)
 		clear(&intent.Transactions[0])
 		_, err := ComputeBalanceEngineIntentFingerprint(intent)
-		require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+		require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 	}
 }
 
-func TestBalanceEngineRecoveryDoesNotOrderFrozenTimestamps(t *testing.T) {
+func TestTransactionCompletionDoesNotOrderFrozenTimestamps(t *testing.T) {
 	payload, _ := recoveryContractFixture(t)
 	payload.TransactionCreatedAt = payload.TransactionDate.Add(time.Hour)
 	payload.TransactionUpdatedAt = payload.TransactionDate.Add(-time.Hour)
@@ -245,13 +245,13 @@ func TestBalanceEngineRecoveryDoesNotOrderFrozenTimestamps(t *testing.T) {
 	var err error
 	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
-	_, err = EncodeBalanceEngineRecoveryPayload(payload)
+	_, err = EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 }
 
-func TestBalanceEngineRecoveryStrictPayload(t *testing.T) {
+func TestTransactionCompletionStrictPayload(t *testing.T) {
 	payload, _ := recoveryContractFixture(t)
-	raw, err := EncodeBalanceEngineRecoveryPayload(payload)
+	raw, err := EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 	for name, input := range map[string]string{
 		"unsupported version": strings.Replace(string(raw), `"formatVersion":2`, `"formatVersion":3`, 1),
@@ -263,13 +263,13 @@ func TestBalanceEngineRecoveryStrictPayload(t *testing.T) {
 		"projection object": strings.Replace(string(raw), `"projection":[`, `"projection":{`, 1),
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := DecodeBalanceEngineRecoveryPayload([]byte(input))
-			require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+			_, err := DecodeTransactionCompletionPlan([]byte(input))
+			require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 		})
 	}
 }
 
-func TestBalanceEngineRecoveryCorrelation(t *testing.T) {
+func TestTransactionCompletionCorrelation(t *testing.T) {
 	for _, scenario := range []struct {
 		name   string
 		mutate func(*EngineExecution)
@@ -277,22 +277,22 @@ func TestBalanceEngineRecoveryCorrelation(t *testing.T) {
 		{"missing guard", func(e *EngineExecution) { e.Guards = nil }},
 		{"wrong guard", func(e *EngineExecution) { e.Guards[0].TransactionID = e.Request.ExecutionID }},
 		{"no guard progress", func(e *EngineExecution) { e.Guards[0].ExpectedToken = e.Guards[0].NextToken }},
-		{"wrong recovery transaction", func(e *EngineExecution) { e.Recovery[0].TransactionID = e.Request.ExecutionID }},
+		{"wrong recovery transaction", func(e *EngineExecution) { e.CompletionPlans[0].TransactionID = e.Request.ExecutionID }},
 		{"different execution", func(e *EngineExecution) { e.Request.ExecutionID = e.Request.OrganizationID }},
 		{"different ledger", func(e *EngineExecution) { e.Request.LedgerID = e.Request.OrganizationID }},
 		{"different intent", func(e *EngineExecution) { e.IntentFingerprint = strings.Repeat("a", 64) }},
 		{"changed frozen intent with original fingerprint", func(e *EngineExecution) {
-			payload, err := DecodeBalanceEngineRecoveryPayload(e.Recovery[0].Payload)
+			payload, err := DecodeTransactionCompletionPlan(e.CompletionPlans[0].Payload)
 			require.NoError(t, err)
 			payload.Action = "cancel"
-			e.Recovery[0].Payload, err = EncodeBalanceEngineRecoveryPayload(*payload)
+			e.CompletionPlans[0].Payload, err = EncodeTransactionCompletionPlan(*payload)
 			require.NoError(t, err)
 		}},
 		{"foreign projection account", func(e *EngineExecution) {
-			payload, err := DecodeBalanceEngineRecoveryPayload(e.Recovery[0].Payload)
+			payload, err := DecodeTransactionCompletionPlan(e.CompletionPlans[0].Payload)
 			require.NoError(t, err)
-			payload.Projection[0].Balance.AccountID = "99999999-9999-4999-8999-999999999999"
-			e.Recovery[0].Payload, err = EncodeBalanceEngineRecoveryPayload(*payload)
+			payload.OperationSpecs[0].Balance.AccountID = "99999999-9999-4999-8999-999999999999"
+			e.CompletionPlans[0].Payload, err = EncodeTransactionCompletionPlan(*payload)
 			require.NoError(t, err)
 		}},
 		{"different posting", func(e *EngineExecution) { e.Request.Transactions[0].Postings[0].Ref = "other" }},
@@ -303,7 +303,7 @@ func TestBalanceEngineRecoveryCorrelation(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			payload, result := recoveryContractFixture(t)
-			raw, err := EncodeBalanceEngineRecoveryPayload(payload)
+			raw, err := EncodeTransactionCompletionPlan(payload)
 			require.NoError(t, err)
 			execution := EngineExecution{
 				Request: engine.Request{
@@ -311,52 +311,52 @@ func TestBalanceEngineRecoveryCorrelation(t *testing.T) {
 					Balances:     result.Final,
 					Transactions: []engine.Transaction{{ID: payload.TransactionID, Postings: []engine.Posting{{Ref: "source:0", BalanceRef: "@source#default"}}}},
 				},
-				IntentFingerprint: payload.IntentFingerprint, Recovery: []RecoveryIntent{{TransactionID: payload.TransactionID, Payload: raw}},
+				IntentFingerprint: payload.IntentFingerprint, CompletionPlans: []CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: raw}},
 				Guards: []ExecutionGuard{{TransactionID: payload.TransactionID, NextToken: "opaque-next"}},
 			}
-			require.NoError(t, ValidateBalanceEngineRecovery(execution))
+			require.NoError(t, ValidateTransactionCompletion(execution))
 			scenario.mutate(&execution)
-			require.ErrorIs(t, ValidateBalanceEngineRecovery(execution), ErrInvalidBalanceEngineRecovery)
+			require.ErrorIs(t, ValidateTransactionCompletion(execution), ErrInvalidTransactionCompletionRecord)
 		})
 	}
 }
 
-func TestBalanceEngineRecoveryIntentFingerprint(t *testing.T) {
+func TestBalanceEngineCompletionPlanRecordFingerprint(t *testing.T) {
 	payload, _ := recoveryContractFixture(t)
 	before, err := ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
-	payload.Projection[0].Balance.Available = decimal.NewFromInt(999)
-	payload.Projection[0].Balance.Version = 999
+	payload.OperationSpecs[0].Balance.Available = decimal.NewFromInt(999)
+	payload.OperationSpecs[0].Balance.Version = 999
 	payload.Validate.From["@source"] = mtransaction.Amount{Value: decimal.NewFromInt(1), OverdraftAmount: decimal.NewFromInt(29)}
 	after, err := ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	assert.Equal(t, before, after)
-	companion := payload.Projection[0]
+	companion := payload.OperationSpecs[0]
 	companion.Role, companion.BalanceRef = engine.RoleOverdraftCompanion, "@source#overdraft"
 	companion.Metadata, companion.ChartOfAccounts = nil, ""
-	payload.Projection = append(payload.Projection, companion)
+	payload.OperationSpecs = append(payload.OperationSpecs, companion)
 	withCompanion, err := ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	assert.Equal(t, before, withCompanion, "engine-derived companion need must not change immutable intent")
 	for _, scenario := range []struct {
 		name   string
-		mutate func(*BalanceEngineRecoveryPayload)
+		mutate func(*TransactionCompletionPlan)
 	}{
-		{"amount", func(p *BalanceEngineRecoveryPayload) { p.TransactionInput.Send.Value = decimal.NewFromInt(31) }},
-		{"route", func(p *BalanceEngineRecoveryPayload) { p.Projection[0].RouteCode = "OTHER" }},
-		{"metadata", func(p *BalanceEngineRecoveryPayload) { p.Projection[0].Metadata["purpose"] = "other" }},
-		{"action", func(p *BalanceEngineRecoveryPayload) { p.Action = "cancel" }},
-		{"date", func(p *BalanceEngineRecoveryPayload) { p.TransactionDate = p.TransactionDate.Add(time.Second) }},
-		{"transaction created", func(p *BalanceEngineRecoveryPayload) {
+		{"amount", func(p *TransactionCompletionPlan) { p.TransactionInput.Send.Value = decimal.NewFromInt(31) }},
+		{"route", func(p *TransactionCompletionPlan) { p.OperationSpecs[0].RouteCode = "OTHER" }},
+		{"metadata", func(p *TransactionCompletionPlan) { p.OperationSpecs[0].Metadata["purpose"] = "other" }},
+		{"action", func(p *TransactionCompletionPlan) { p.Action = "cancel" }},
+		{"date", func(p *TransactionCompletionPlan) { p.TransactionDate = p.TransactionDate.Add(time.Second) }},
+		{"transaction created", func(p *TransactionCompletionPlan) {
 			p.TransactionCreatedAt = p.TransactionCreatedAt.Add(time.Second)
 		}},
-		{"transaction updated", func(p *BalanceEngineRecoveryPayload) {
+		{"transaction updated", func(p *TransactionCompletionPlan) {
 			p.TransactionUpdatedAt = p.TransactionUpdatedAt.Add(time.Second)
 		}},
-		{"operation updated", func(p *BalanceEngineRecoveryPayload) { p.OperationUpdatedAt = p.OperationUpdatedAt.Add(time.Second) }},
-		{"parent transaction", func(p *BalanceEngineRecoveryPayload) { parent := p.OrganizationID; p.ParentTransactionID = &parent }},
-		{"fees skipped", func(p *BalanceEngineRecoveryPayload) { p.FeesSkipped = true }},
-		{"tracer skipped", func(p *BalanceEngineRecoveryPayload) { p.TracerSkipped = true }},
+		{"operation updated", func(p *TransactionCompletionPlan) { p.OperationUpdatedAt = p.OperationUpdatedAt.Add(time.Second) }},
+		{"parent transaction", func(p *TransactionCompletionPlan) { parent := p.OrganizationID; p.ParentTransactionID = &parent }},
+		{"fees skipped", func(p *TransactionCompletionPlan) { p.FeesSkipped = true }},
+		{"tracer skipped", func(p *TransactionCompletionPlan) { p.TracerSkipped = true }},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			payload, _ := recoveryContractFixture(t)
@@ -368,7 +368,7 @@ func TestBalanceEngineRecoveryIntentFingerprint(t *testing.T) {
 	}
 }
 
-func TestBalanceEngineRecoveryFrozenAuditRoundTrip(t *testing.T) {
+func TestTransactionCompletionFrozenAuditRoundTrip(t *testing.T) {
 	for _, parentPresent := range []bool{false, true} {
 		for _, feesSkipped := range []bool{false, true} {
 			for _, tracerSkipped := range []bool{false, true} {
@@ -383,11 +383,11 @@ func TestBalanceEngineRecoveryFrozenAuditRoundTrip(t *testing.T) {
 					payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
 					require.NoError(t, err)
 					envelope := recoveryContractEnvelope(t, payload, result)
-					raw, err := EncodeBalanceEngineRecoveryEnvelope(envelope)
+					raw, err := EncodeTransactionCompletionRecord(envelope)
 					require.NoError(t, err)
-					decoded, err := DecodeBalanceEngineRecoveryEnvelope(raw)
+					decoded, err := DecodeTransactionCompletionRecord(raw)
 					require.NoError(t, err)
-					frozen, err := DecodeBalanceEngineRecoveryPayload([]byte(decoded.Payload))
+					frozen, err := DecodeTransactionCompletionPlan([]byte(decoded.Payload))
 					require.NoError(t, err)
 					assert.Equal(t, payload.ParentTransactionID, frozen.ParentTransactionID)
 					assert.Equal(t, feesSkipped, frozen.FeesSkipped)
@@ -404,7 +404,7 @@ func TestBalanceEngineRecoveryFrozenAuditRoundTrip(t *testing.T) {
 	}
 }
 
-func TestBalanceEngineRecoveryRejectsInvalidParent(t *testing.T) {
+func TestTransactionCompletionRejectsInvalidParent(t *testing.T) {
 	for _, name := range []string{"zero", "self"} {
 		t.Run(name, func(t *testing.T) {
 			payload, _ := recoveryContractFixture(t)
@@ -413,19 +413,19 @@ func TestBalanceEngineRecoveryRejectsInvalidParent(t *testing.T) {
 				parent = payload.TransactionID
 			}
 			payload.ParentTransactionID = &parent
-			_, err := EncodeBalanceEngineRecoveryPayload(payload)
-			require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+			_, err := EncodeTransactionCompletionPlan(payload)
+			require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 			_, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
-			require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+			require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 			raw, err := json.Marshal(payload)
 			require.NoError(t, err)
-			_, err = DecodeBalanceEngineRecoveryPayload(raw)
-			require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+			_, err = DecodeTransactionCompletionPlan(raw)
+			require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 		})
 	}
 }
 
-func TestBalanceEngineRecoveryDeterministicOperationIDs(t *testing.T) {
+func TestTransactionCompletionDeterministicOperationIDs(t *testing.T) {
 	payload, _ := recoveryContractFixture(t)
 	id, err := DeterministicOperationID(payload.ExecutionID, payload.TransactionID, "a:0\x00primary", engine.RolePrimary, 0)
 	require.NoError(t, err)
@@ -440,21 +440,21 @@ func TestBalanceEngineRecoveryDeterministicOperationIDs(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, id, ordinal)
 	_, err = DeterministicOperationID(uuid.Nil, payload.TransactionID, "a", engine.RolePrimary, 0)
-	require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 }
 
-func TestBalanceEngineRecoveryCancelProjection(t *testing.T) {
+func TestTransactionCompletionCancelProjection(t *testing.T) {
 	payload, _ := recoveryContractFixture(t)
 	payload.Action, payload.TransactionStatus = "cancel", constant.CANCELED
-	context := payload.Projection[0]
+	context := payload.OperationSpecs[0]
 	context.OriginRef, context.PostingRef = "source-leg:0", "source-leg:0:release"
-	context.RowType, context.CompatibilityPath = constant.RELEASE, ProjectionValidatedCancelRelease
+	context.RowType, context.CompatibilityPath = constant.RELEASE, OperationRecordValidatedCancelRelease
 	context.RequestedAmount = decimal.NewFromInt(50)
 	context.Balance.Available, context.Balance.OnHold, context.Balance.OverdraftUsed = decimal.Zero, decimal.NewFromInt(50), decimal.NewFromInt(50)
 	context.Balance.Version = 2
 	credit := context
-	credit.PostingRef, credit.RowType, credit.Direction, credit.CompatibilityPath = "source-leg:0:credit", constant.CREDIT, constant.DirectionCredit, ProjectionValidatedCancelCredit
-	payload.Projection = []FrozenProjectionContext{context, credit}
+	credit.PostingRef, credit.RowType, credit.Direction, credit.CompatibilityPath = "source-leg:0:credit", constant.CREDIT, constant.DirectionCredit, OperationRecordValidatedCancelCredit
+	payload.OperationSpecs = []OperationRecordSpec{context, credit}
 	result := engine.Result{Movements: []engine.Movement{
 		{
 			Ref: "release", TransactionID: payload.TransactionID, PostingRef: context.PostingRef, BalanceRef: context.BalanceRef, Role: engine.RolePrimary,
@@ -467,7 +467,7 @@ func TestBalanceEngineRecoveryCancelProjection(t *testing.T) {
 	}}
 	recoveryContractAddRepaymentCompanion(&payload, &result, 1)
 	result.Final = recoveryContractFinal(payload, result.Movements)
-	rows, err := ProjectBalanceEngineOperations(payload, result)
+	rows, err := BuildOperationRecordsFromMovements(payload, result)
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
 	want := []rowContractGolden{
@@ -478,13 +478,13 @@ func TestBalanceEngineRecoveryCancelProjection(t *testing.T) {
 		assert.Equal(t, want[i], rowContractObserved(t, row))
 	}
 	assert.True(t, result.Final[0].Available.IsZero(), "real state must not be replaced by the synthetic credit row")
-	encoded, err := EncodeBalanceEngineRecoveryEnvelope(recoveryContractEnvelope(t, payload, result))
+	encoded, err := EncodeTransactionCompletionRecord(recoveryContractEnvelope(t, payload, result))
 	require.NoError(t, err)
-	decoded, err := DecodeBalanceEngineRecoveryEnvelope(encoded)
+	decoded, err := DecodeTransactionCompletionRecord(encoded)
 	require.NoError(t, err)
-	thawed, err := DecodeBalanceEngineRecoveryPayload([]byte(decoded.Payload))
+	thawed, err := DecodeTransactionCompletionPlan([]byte(decoded.Payload))
 	require.NoError(t, err)
-	replayed, err := ProjectBalanceEngineOperations(*thawed, decoded.Result)
+	replayed, err := BuildOperationRecordsFromMovements(*thawed, decoded.Result)
 	require.NoError(t, err)
 	normalJSON, err := json.Marshal(rows)
 	require.NoError(t, err)
@@ -493,10 +493,10 @@ func TestBalanceEngineRecoveryCancelProjection(t *testing.T) {
 	assert.Equal(t, string(normalJSON), string(replayedJSON))
 }
 
-func TestBalanceEngineRecoveryCompanionProjection(t *testing.T) {
+func TestTransactionCompletionCompanionProjection(t *testing.T) {
 	payload, result := recoveryContractFixture(t)
-	primary := payload.Projection[0]
-	primary.RowType, primary.Direction, primary.Side = constant.CREDIT, constant.DirectionCredit, ProjectionSideTo
+	primary := payload.OperationSpecs[0]
+	primary.RowType, primary.Direction, primary.Side = constant.CREDIT, constant.DirectionCredit, OperationSpecSideTo
 	primary.RequestedAmount = decimal.NewFromInt(50)
 	primary.Balance.Available, primary.Balance.OverdraftUsed = decimal.Zero, decimal.NewFromInt(50)
 	companion := primary
@@ -504,7 +504,7 @@ func TestBalanceEngineRecoveryCompanionProjection(t *testing.T) {
 	companion.Metadata, companion.ChartOfAccounts = nil, ""
 	companion.Balance.Key, companion.Balance.Direction = "overdraft", constant.DirectionDebit
 	companion.Balance.Available, companion.Balance.OverdraftUsed = decimal.NewFromInt(50), decimal.Zero
-	payload.Projection = []FrozenProjectionContext{primary, companion}
+	payload.OperationSpecs = []OperationRecordSpec{primary, companion}
 	result.Movements[0].Type, result.Movements[0].Amount = engine.PostingCredit, decimal.Zero
 	result.Movements[0].Before = engine.BalanceState{OverdraftUsed: decimal.NewFromInt(50)}
 	result.Movements[0].After = engine.BalanceState{Version: 1}
@@ -514,7 +514,7 @@ func TestBalanceEngineRecoveryCompanionProjection(t *testing.T) {
 		BalanceRef: companion.BalanceRef, Type: engine.PostingCredit, Amount: decimal.NewFromInt(50), Before: engine.BalanceState{Available: decimal.NewFromInt(50)}, After: engine.BalanceState{Version: 1},
 	})
 	result.Final = recoveryContractFinal(payload, result.Movements)
-	rows, err := ProjectBalanceEngineOperations(payload, result)
+	rows, err := BuildOperationRecordsFromMovements(payload, result)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	assert.True(t, rows[0].Amount.Value.IsZero())
@@ -526,8 +526,8 @@ func TestBalanceEngineRecoveryCompanionProjection(t *testing.T) {
 	missing := result
 	missing.Movements = result.Movements[:1]
 	missing.Final = result.Final[:1]
-	_, err = ProjectBalanceEngineOperations(payload, missing)
-	require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery, "a debt change requires its recorded companion")
+	_, err = BuildOperationRecordsFromMovements(payload, missing)
+	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord, "a debt change requires its recorded companion")
 	for _, scenario := range []struct {
 		name   string
 		mutate func(*engine.Result)
@@ -542,28 +542,28 @@ func TestBalanceEngineRecoveryCompanionProjection(t *testing.T) {
 			invalid := result
 			invalid.Movements = append([]engine.Movement(nil), result.Movements...)
 			scenario.mutate(&invalid)
-			_, err := ProjectBalanceEngineOperations(payload, invalid)
-			require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+			_, err := BuildOperationRecordsFromMovements(payload, invalid)
+			require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 		})
 	}
 	for _, scenario := range []struct {
 		name   string
-		mutate func(*FrozenProjectionContext)
+		mutate func(*OperationRecordSpec)
 	}{
-		{"different account", func(c *FrozenProjectionContext) { c.Balance.AccountID = "99999999-9999-4999-8999-999999999999" }},
-		{"different route", func(c *FrozenProjectionContext) { c.RouteID = nil }},
+		{"different account", func(c *OperationRecordSpec) { c.Balance.AccountID = "99999999-9999-4999-8999-999999999999" }},
+		{"different route", func(c *OperationRecordSpec) { c.RouteID = nil }},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			invalid := payload
-			invalid.Projection = append([]FrozenProjectionContext(nil), payload.Projection...)
-			scenario.mutate(&invalid.Projection[1])
-			_, err := ProjectBalanceEngineOperations(invalid, result)
-			require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+			invalid.OperationSpecs = append([]OperationRecordSpec(nil), payload.OperationSpecs...)
+			scenario.mutate(&invalid.OperationSpecs[1])
+			_, err := BuildOperationRecordsFromMovements(invalid, result)
+			require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 		})
 	}
 }
 
-func TestBalanceEngineRecoveryRejectsUnrelatedResult(t *testing.T) {
+func TestTransactionCompletionRejectsUnrelatedResult(t *testing.T) {
 	for _, scenario := range []struct {
 		name   string
 		mutate func(*engine.Result)
@@ -584,18 +584,18 @@ func TestBalanceEngineRecoveryRejectsUnrelatedResult(t *testing.T) {
 		t.Run(scenario.name, func(t *testing.T) {
 			payload, result := recoveryContractFixture(t)
 			scenario.mutate(&result)
-			_, err := ProjectBalanceEngineOperations(payload, result)
-			require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+			_, err := BuildOperationRecordsFromMovements(payload, result)
+			require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 		})
 	}
 }
 
-func TestBalanceEngineRecoveryMultipleTransactionsKeepIntermediateState(t *testing.T) {
+func TestTransactionCompletionMultipleTransactionsKeepIntermediateState(t *testing.T) {
 	first, firstResult := recoveryContractFixture(t)
 	second, secondResult := recoveryContractFixture(t)
 	second.TransactionID = uuid.MustParse("99999999-9999-4999-8999-999999999999")
-	second.Projection[0].TransactionID = second.TransactionID
-	second.Projection[0].RequestedAmount = decimal.NewFromInt(20)
+	second.OperationSpecs[0].TransactionID = second.TransactionID
+	second.OperationSpecs[0].RequestedAmount = decimal.NewFromInt(20)
 	second.TransactionInput.Send.Value = decimal.NewFromInt(20)
 	secondResult.Movements[0].TransactionID = second.TransactionID
 	secondResult.Movements[0].Amount = decimal.NewFromInt(20)
@@ -608,55 +608,55 @@ func TestBalanceEngineRecoveryMultipleTransactionsKeepIntermediateState(t *testi
 	require.NoError(t, err)
 	first.IntentFingerprint, second.IntentFingerprint = fingerprint, fingerprint
 	input := EngineExecution{IntentFingerprint: fingerprint, Request: engine.Request{OrganizationID: first.OrganizationID, LedgerID: first.LedgerID, ExecutionID: first.ExecutionID}}
-	for _, payload := range []BalanceEngineRecoveryPayload{first, second} {
-		raw, err := EncodeBalanceEngineRecoveryPayload(payload)
+	for _, payload := range []TransactionCompletionPlan{first, second} {
+		raw, err := EncodeTransactionCompletionPlan(payload)
 		require.NoError(t, err)
-		input.Recovery = append(input.Recovery, RecoveryIntent{TransactionID: payload.TransactionID, Payload: raw})
+		input.CompletionPlans = append(input.CompletionPlans, CompletionPlanRecord{TransactionID: payload.TransactionID, Payload: raw})
 		input.Guards = append(input.Guards, ExecutionGuard{TransactionID: payload.TransactionID, NextToken: payload.TransactionID.String()})
 		input.Request.Transactions = append(input.Request.Transactions, engine.Transaction{ID: payload.TransactionID, Postings: []engine.Posting{{Ref: "source:0", BalanceRef: "@source#default"}}})
 	}
-	require.NoError(t, ValidateBalanceEngineRecovery(input))
-	firstRows, err := ProjectBalanceEngineOperations(first, firstResult)
+	require.NoError(t, ValidateTransactionCompletion(input))
+	firstRows, err := BuildOperationRecordsFromMovements(first, firstResult)
 	require.NoError(t, err)
-	secondRows, err := ProjectBalanceEngineOperations(second, secondResult)
+	secondRows, err := BuildOperationRecordsFromMovements(second, secondResult)
 	require.NoError(t, err)
 	assert.Equal(t, "70", firstRows[0].BalanceAfter.Available.String())
 	assert.Equal(t, "70", secondRows[0].Balance.Available.String())
 	assert.Equal(t, "50", secondRows[0].BalanceAfter.Available.String())
 	assert.NotEqual(t, firstRows[0].ID, secondRows[0].ID)
-	_, err = EncodeBalanceEngineRecoveryEnvelope(recoveryContractEnvelope(t, first, secondResult))
-	require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+	_, err = EncodeTransactionCompletionRecord(recoveryContractEnvelope(t, first, secondResult))
+	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 	second.TenantID = ""
-	raw, err := EncodeBalanceEngineRecoveryPayload(second)
+	raw, err := EncodeTransactionCompletionPlan(second)
 	require.NoError(t, err)
-	input.Recovery[1].Payload = raw
-	require.ErrorIs(t, ValidateBalanceEngineRecovery(input), ErrInvalidBalanceEngineRecovery)
+	input.CompletionPlans[1].Payload = raw
+	require.ErrorIs(t, ValidateTransactionCompletion(input), ErrInvalidTransactionCompletionRecord)
 	first.TenantID = ""
-	raw, err = EncodeBalanceEngineRecoveryPayload(first)
+	raw, err = EncodeTransactionCompletionPlan(first)
 	require.NoError(t, err)
-	input.Recovery[0].Payload = raw
+	input.CompletionPlans[0].Payload = raw
 	intent = recoveryContractIntent(first)
 	intent.Transactions = append(intent.Transactions, recoveryContractIntent(second).Transactions...)
 	fingerprint, err = ComputeBalanceEngineIntentFingerprint(intent)
 	require.NoError(t, err)
 	input.IntentFingerprint = fingerprint
-	for index := range input.Recovery {
-		payload, err := DecodeBalanceEngineRecoveryPayload(input.Recovery[index].Payload)
+	for index := range input.CompletionPlans {
+		payload, err := DecodeTransactionCompletionPlan(input.CompletionPlans[index].Payload)
 		require.NoError(t, err)
 		payload.IntentFingerprint = fingerprint
-		input.Recovery[index].Payload, err = EncodeBalanceEngineRecoveryPayload(*payload)
+		input.CompletionPlans[index].Payload, err = EncodeTransactionCompletionPlan(*payload)
 		require.NoError(t, err)
 	}
-	require.NoError(t, ValidateBalanceEngineRecovery(input), "an empty authenticated single-tenant scope is supported")
+	require.NoError(t, ValidateTransactionCompletion(input), "an empty authenticated single-tenant scope is supported")
 }
 
-func TestBalanceEngineRecoveryRepeatedAliasUsesOriginNotAlias(t *testing.T) {
+func TestTransactionCompletionRepeatedAliasUsesOriginNotAlias(t *testing.T) {
 	payload, _ := recoveryContractFixture(t)
 	payload.Action, payload.TransactionStatus = "cancel", constant.CANCELED
-	base := payload.Projection[0]
+	base := payload.OperationSpecs[0]
 	base.RequestedAmount = decimal.NewFromInt(50)
 	base.Balance.Available, base.Balance.OnHold, base.Balance.OverdraftUsed, base.Balance.Version = decimal.Zero, decimal.NewFromInt(100), decimal.NewFromInt(50), 2
-	payload.Projection = nil
+	payload.OperationSpecs = nil
 	result := engine.Result{Movements: []engine.Movement{}}
 	states := []engine.BalanceState{
 		{OnHold: decimal.NewFromInt(100), OverdraftUsed: decimal.NewFromInt(50), Version: 2},
@@ -675,15 +675,15 @@ func TestBalanceEngineRecoveryRepeatedAliasUsesOriginNotAlias(t *testing.T) {
 			context.RouteID = &route
 		}
 		kind, amount := engine.PostingUnreserve, decimal.NewFromInt(50)
-		context.RowType, context.Direction, context.CompatibilityPath = constant.RELEASE, constant.DirectionDebit, ProjectionValidatedCancelRelease
+		context.RowType, context.Direction, context.CompatibilityPath = constant.RELEASE, constant.DirectionDebit, OperationRecordValidatedCancelRelease
 		if index%2 == 1 {
 			kind = engine.PostingCredit
-			context.RowType, context.Direction, context.CompatibilityPath = constant.CREDIT, constant.DirectionCredit, ProjectionValidatedCancelCredit
+			context.RowType, context.Direction, context.CompatibilityPath = constant.CREDIT, constant.DirectionCredit, OperationRecordValidatedCancelCredit
 		}
 		if index == 1 {
 			amount = decimal.Zero
 		}
-		payload.Projection = append(payload.Projection, context)
+		payload.OperationSpecs = append(payload.OperationSpecs, context)
 		result.Movements = append(result.Movements, engine.Movement{
 			Ref: ref, TransactionID: payload.TransactionID, PostingRef: ref, Role: engine.RolePrimary,
 			BalanceRef: base.BalanceRef, Type: kind, Amount: amount, Before: states[index], After: states[index+1],
@@ -692,7 +692,7 @@ func TestBalanceEngineRecoveryRepeatedAliasUsesOriginNotAlias(t *testing.T) {
 	}
 	recoveryContractAddRepaymentCompanion(&payload, &result, 1)
 	result.Final = recoveryContractFinal(payload, result.Movements)
-	rows, err := ProjectBalanceEngineOperations(payload, result)
+	rows, err := BuildOperationRecordsFromMovements(payload, result)
 	require.NoError(t, err)
 	require.Len(t, rows, 5)
 	for index, row := range rows[:4] {
@@ -711,7 +711,7 @@ func TestBalanceEngineRecoveryRepeatedAliasUsesOriginNotAlias(t *testing.T) {
 	assert.Equal(t, "50", rows[3].BalanceAfter.Available.String())
 }
 
-func TestBalanceEngineRecoveryPostingPaths(t *testing.T) {
+func TestTransactionCompletionPostingPaths(t *testing.T) {
 	goldens := make(map[string][]rowContractGolden)
 	for _, fixture := range loadRowContractCases(t) {
 		goldens[fixture.Name] = fixture.Want
@@ -724,29 +724,29 @@ func TestBalanceEngineRecoveryPostingPaths(t *testing.T) {
 		types                        []engine.PostingType
 		rows, directions, paths      []string
 	}{
-		{"direct credit", "direct", constant.APPROVED, "30", []rowContractState{state("100", "0", 0), state("130", "0", 1)}, []engine.PostingType{engine.PostingCredit}, []string{constant.CREDIT}, []string{constant.DirectionCredit}, []string{ProjectionStandard}},
-		{"pending off", "hold", constant.PENDING, "60", []rowContractState{state("100", "0", 0), state("40", "60", 1)}, []engine.PostingType{engine.PostingHold}, []string{constant.ONHOLD}, []string{constant.DirectionDebit}, []string{ProjectionStandard}},
-		{"pending on", "hold", constant.PENDING, "60", []rowContractState{state("100", "0", 0), state("40", "0", 1), state("40", "60", 2)}, []engine.PostingType{engine.PostingDebit, engine.PostingReserve}, []string{constant.DEBIT, constant.ONHOLD}, []string{constant.DirectionDebit, constant.DirectionCredit}, []string{ProjectionValidatedHoldDebit, ProjectionValidatedHoldReserve}},
-		{"commit off", "commit", constant.APPROVED, "60", []rowContractState{state("40", "60", 1), state("40", "0", 2)}, []engine.PostingType{engine.PostingUnreserve}, []string{constant.DEBIT}, []string{constant.DirectionDebit}, []string{ProjectionStandard}},
-		{"commit on", "commit", constant.APPROVED, "60", []rowContractState{state("40", "60", 2), state("40", "0", 3)}, []engine.PostingType{engine.PostingUnreserve}, []string{constant.ONHOLD}, []string{constant.DirectionDebit}, []string{ProjectionStandard}},
-		{"cancel off", "cancel", constant.CANCELED, "60", []rowContractState{state("40", "60", 1), state("100", "0", 2)}, []engine.PostingType{engine.PostingRelease}, []string{constant.RELEASE}, []string{constant.DirectionCredit}, []string{ProjectionStandard}},
-		{"cancel on", "cancel", constant.CANCELED, "60", []rowContractState{state("40", "60", 2), state("40", "0", 3), state("100", "0", 4)}, []engine.PostingType{engine.PostingUnreserve, engine.PostingCredit}, []string{constant.RELEASE, constant.CREDIT}, []string{constant.DirectionDebit, constant.DirectionCredit}, []string{ProjectionValidatedCancelRelease, ProjectionValidatedCancelCredit}},
+		{"direct credit", "direct", constant.APPROVED, "30", []rowContractState{state("100", "0", 0), state("130", "0", 1)}, []engine.PostingType{engine.PostingCredit}, []string{constant.CREDIT}, []string{constant.DirectionCredit}, []string{OperationRecordStandard}},
+		{"pending off", "hold", constant.PENDING, "60", []rowContractState{state("100", "0", 0), state("40", "60", 1)}, []engine.PostingType{engine.PostingHold}, []string{constant.ONHOLD}, []string{constant.DirectionDebit}, []string{OperationRecordStandard}},
+		{"pending on", "hold", constant.PENDING, "60", []rowContractState{state("100", "0", 0), state("40", "0", 1), state("40", "60", 2)}, []engine.PostingType{engine.PostingDebit, engine.PostingReserve}, []string{constant.DEBIT, constant.ONHOLD}, []string{constant.DirectionDebit, constant.DirectionCredit}, []string{OperationRecordValidatedHoldDebit, OperationRecordValidatedHoldReserve}},
+		{"commit off", "commit", constant.APPROVED, "60", []rowContractState{state("40", "60", 1), state("40", "0", 2)}, []engine.PostingType{engine.PostingUnreserve}, []string{constant.DEBIT}, []string{constant.DirectionDebit}, []string{OperationRecordStandard}},
+		{"commit on", "commit", constant.APPROVED, "60", []rowContractState{state("40", "60", 2), state("40", "0", 3)}, []engine.PostingType{engine.PostingUnreserve}, []string{constant.ONHOLD}, []string{constant.DirectionDebit}, []string{OperationRecordStandard}},
+		{"cancel off", "cancel", constant.CANCELED, "60", []rowContractState{state("40", "60", 1), state("100", "0", 2)}, []engine.PostingType{engine.PostingRelease}, []string{constant.RELEASE}, []string{constant.DirectionCredit}, []string{OperationRecordStandard}},
+		{"cancel on", "cancel", constant.CANCELED, "60", []rowContractState{state("40", "60", 2), state("40", "0", 3), state("100", "0", 4)}, []engine.PostingType{engine.PostingUnreserve, engine.PostingCredit}, []string{constant.RELEASE, constant.CREDIT}, []string{constant.DirectionDebit, constant.DirectionCredit}, []string{OperationRecordValidatedCancelRelease, OperationRecordValidatedCancelCredit}},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			payload, _ := recoveryContractFixture(t)
 			payload.Action, payload.TransactionStatus = scenario.action, scenario.status
-			base := payload.Projection[0]
-			payload.Projection = nil
+			base := payload.OperationSpecs[0]
+			payload.OperationSpecs = nil
 			result := engine.Result{Movements: []engine.Movement{}}
 			for index, postingType := range scenario.types {
 				context := base
 				context.PostingRef = fmt.Sprintf("source:%d", index)
 				context.RowType, context.Direction, context.CompatibilityPath = scenario.rows[index], scenario.directions[index], scenario.paths[index]
 				context.RequestedAmount = decimal.RequireFromString(scenario.amount)
-				if context.CompatibilityPath != ProjectionStandard {
+				if context.CompatibilityPath != OperationRecordStandard {
 					context.OriginRef = "source-leg"
 				}
-				payload.Projection = append(payload.Projection, context)
+				payload.OperationSpecs = append(payload.OperationSpecs, context)
 				before, after := scenario.states[index], scenario.states[index+1]
 				result.Movements = append(result.Movements, engine.Movement{
 					Ref: context.PostingRef, PostingRef: context.PostingRef, TransactionID: payload.TransactionID,
@@ -756,7 +756,7 @@ func TestBalanceEngineRecoveryPostingPaths(t *testing.T) {
 				})
 			}
 			result.Final = recoveryContractFinal(payload, result.Movements)
-			rows, err := ProjectBalanceEngineOperations(payload, result)
+			rows, err := BuildOperationRecordsFromMovements(payload, result)
 			require.NoError(t, err)
 			want, exists := goldens[scenario.name]
 			require.True(t, exists, "posting path must retain a legacy row fixture")
@@ -768,27 +768,27 @@ func TestBalanceEngineRecoveryPostingPaths(t *testing.T) {
 	}
 }
 
-func TestBalanceEngineRecoveryLosslessPrecision(t *testing.T) {
+func TestTransactionCompletionLosslessPrecision(t *testing.T) {
 	payload, result := recoveryContractFixture(t)
 	const version int64 = 9007199254740993
 	amount := decimal.RequireFromString("0.00000000000000000001")
-	payload.Projection[0].RequestedAmount = amount
-	payload.Projection[0].Metadata["counter"] = json.Number("9007199254740993")
+	payload.OperationSpecs[0].RequestedAmount = amount
+	payload.OperationSpecs[0].Metadata["counter"] = json.Number("9007199254740993")
 	result.Movements[0].Amount = amount
 	result.Movements[0].Before = engine.BalanceState{Available: decimal.RequireFromString("1.00000000000000000001"), Version: version}
 	result.Movements[0].After = engine.BalanceState{Available: decimal.NewFromInt(1), Version: version + 1}
 	result.Final = recoveryContractFinal(payload, result.Movements)
-	raw, err := EncodeBalanceEngineRecoveryEnvelope(recoveryContractEnvelope(t, payload, result))
+	raw, err := EncodeTransactionCompletionRecord(recoveryContractEnvelope(t, payload, result))
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), `"version":9007199254740993`)
-	decoded, err := DecodeBalanceEngineRecoveryEnvelope(raw)
+	decoded, err := DecodeTransactionCompletionRecord(raw)
 	require.NoError(t, err)
 	assert.Equal(t, version, decoded.Result.Movements[0].Before.Version)
 	assert.Equal(t, "0.00000000000000000001", decoded.Result.Movements[0].Amount.String())
-	thawed, err := DecodeBalanceEngineRecoveryPayload([]byte(decoded.Payload))
+	thawed, err := DecodeTransactionCompletionPlan([]byte(decoded.Payload))
 	require.NoError(t, err)
-	assert.Equal(t, json.Number("9007199254740993"), thawed.Projection[0].Metadata["counter"])
-	rows, err := ProjectBalanceEngineOperations(*thawed, decoded.Result)
+	assert.Equal(t, json.Number("9007199254740993"), thawed.OperationSpecs[0].Metadata["counter"])
+	rows, err := BuildOperationRecordsFromMovements(*thawed, decoded.Result)
 	require.NoError(t, err)
 	assert.Equal(t, version+1, *rows[0].BalanceAfter.Version)
 	assert.Equal(t, "0.00000000000000000001", rows[0].Amount.Value.String())

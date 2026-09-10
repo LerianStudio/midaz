@@ -21,17 +21,17 @@ func configureBalanceEngine(useCase *command.UseCase, provider redisengine.Redis
 		return nil
 	}
 
-	if useCase.BalanceEngineFinalizer == nil {
-		return errors.New("balance engine activation requires a durable finalizer")
+	if useCase.TransactionCompleter == nil {
+		return errors.New("balance engine activation requires a transaction completer")
 	}
 
 	adapter, err := redisengine.NewAdapter(provider, redisengine.Limits{
-		MaxTransactions:  cfg.BalanceEngineMaxTransactions,
-		MaxPostings:      cfg.BalanceEngineMaxPostings,
-		MaxBalances:      cfg.BalanceEngineMaxBalances,
-		MaxRecoveryBytes: cfg.BalanceEngineMaxRecoveryBytes,
-		MaxRequestBytes:  cfg.BalanceEngineMaxRequestBytes,
-		MaxPreparedBytes: cfg.BalanceEngineMaxPreparedBytes,
+		MaxTransactions:        cfg.BalanceEngineMaxTransactions,
+		MaxPostings:            cfg.BalanceEngineMaxPostings,
+		MaxBalances:            cfg.BalanceEngineMaxBalances,
+		MaxCompletionPlanBytes: cfg.TransactionCompletionMaxPlanBytes,
+		MaxRequestBytes:        cfg.BalanceEngineMaxRequestBytes,
+		MaxPreparedBytes:       cfg.BalanceEngineMaxPreparedBytes,
 	})
 	if err != nil {
 		return fmt.Errorf("initialize balance engine adapter: %w", err)

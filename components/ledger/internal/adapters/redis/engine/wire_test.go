@@ -73,14 +73,14 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	require.Equal(t, "12345678901234567890.1234567890123456789", wire.Balances[0].Snapshot.Available)
 	require.Equal(t, "0.0000000000000000001", wire.Transactions[0].Postings[0].Amount)
 	require.Equal(t, "0", wire.Transactions[0].Postings[0].OverdraftAmount)
-	require.Equal(t, string(input.Recovery[0].Payload), wire.Transactions[0].RecoveryPayload)
+	require.Equal(t, string(input.CompletionPlans[0].Payload), wire.Transactions[0].CompletionPlan)
 	require.Equal(t, input.Request.Transactions[0].ID.String()+":"+input.Request.ExecutionID.String(), wire.Transactions[0].RecoveryField)
 	require.Equal(t, input.Request.Transactions[0].ID.String(), wire.Transactions[0].GuardField)
 	require.Equal(t, input.Request.ExecutionID.String(), wire.ReceiptField)
 	for _, key := range first.Keys {
 		require.NotContains(t, string(first.Payload), key, "physical keys belong exclusively in KEYS")
 	}
-	input.Recovery[0].Payload[0] = '['
+	input.CompletionPlans[0].Payload[0] = '['
 	input.Request.Transactions[0].Postings[0].Ref = "changed"
 	require.Equal(t, first.Payload, second.Payload, "prepared bytes must not alias input storage")
 }
@@ -94,7 +94,7 @@ func TestPrepareExecutionPreservesTransactionAndSnapshotOrder(t *testing.T) {
 	second.ID = secondID
 	input.Request.Transactions = append(input.Request.Transactions, second)
 	input.Guards = append([]command.ExecutionGuard{{TransactionID: secondID, NextToken: "next-two"}}, input.Guards...)
-	input.Recovery = append([]command.CompletionPlanRecord{{TransactionID: secondID, Payload: json.RawMessage(`{"value":"two"}`)}}, input.Recovery...)
+	input.CompletionPlans = append([]command.CompletionPlanRecord{{TransactionID: secondID, Payload: json.RawMessage(`{"value":"two"}`)}}, input.CompletionPlans...)
 	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
 	require.NoError(t, err)
 	var wire wireRequest
@@ -102,7 +102,7 @@ func TestPrepareExecutionPreservesTransactionAndSnapshotOrder(t *testing.T) {
 	require.Equal(t, input.Request.Transactions[0].ID.String(), wire.Transactions[0].ID)
 	require.Equal(t, secondID.String(), wire.Transactions[1].ID)
 	require.Equal(t, "next-two", wire.Transactions[1].NextGuard)
-	require.Equal(t, `{"value":"two"}`, wire.Transactions[1].RecoveryPayload)
+	require.Equal(t, `{"value":"two"}`, wire.Transactions[1].CompletionPlan)
 	require.Len(t, wire.Balances, 1)
 }
 
@@ -129,18 +129,18 @@ func TestPrepareExecutionRejectsInvalidInputs(t *testing.T) {
 			x.Guards[0].ExpectedToken = x.Guards[0].NextToken
 		}},
 		{"empty next guard", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) { x.Guards[0].NextToken = "" }},
-		{"missing recovery", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) { x.Recovery = nil }},
+		{"missing recovery", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) { x.CompletionPlans = nil }},
 		{"unrelated recovery", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
-			x.Recovery[0].TransactionID = x.Request.ExecutionID
+			x.CompletionPlans[0].TransactionID = x.Request.ExecutionID
 		}},
 		{"invalid recovery JSON", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
-			x.Recovery[0].Payload = json.RawMessage(`{"broken":}`)
+			x.CompletionPlans[0].Payload = json.RawMessage(`{"broken":}`)
 		}},
 		{"recovery array", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
-			x.Recovery[0].Payload = json.RawMessage(`[]`)
+			x.CompletionPlans[0].Payload = json.RawMessage(`[]`)
 		}},
 		{"recovery null", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
-			x.Recovery[0].Payload = json.RawMessage(`null`)
+			x.CompletionPlans[0].Payload = json.RawMessage(`null`)
 		}},
 		{"zero amount", func(x *command.EngineExecution, _ *Limits, _ *resolvedExecutionKeys) {
 			x.Request.Transactions[0].Postings[0].Amount = decimal.Zero
@@ -279,7 +279,7 @@ func validWireExecution() (command.EngineExecution, Limits, resolvedExecutionKey
 		},
 		IntentFingerprint: "immutable-intent",
 		Guards:            []command.ExecutionGuard{{TransactionID: transactionID, NextToken: "pending-token"}},
-		Recovery:          []command.CompletionPlanRecord{{TransactionID: transactionID, Payload: json.RawMessage("{\n  \"version\": 9223372036854775807, \"amount\": \"123456789.123456789\"\n}")}},
+		CompletionPlans:   []command.CompletionPlanRecord{{TransactionID: transactionID, Payload: json.RawMessage("{\n  \"version\": 9223372036854775807, \"amount\": \"123456789.123456789\"\n}")}},
 	}
 	prefix := "tenant:fixture:"
 	scope := organizationID.String() + ":" + ledgerID.String()
@@ -395,13 +395,13 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 		FormatVersion: command.TransactionCompletionFormatVersion, TenantID: "fixture", HeaderID: "header", TransactionID: txID,
 		OrganizationID: orgID, LedgerID: ledgerID, ExecutionID: executionID, IntentFingerprint: strings.Repeat("a", 64), TransactionInput: transaction, Validate: validate, TTL: fixedSizingTime(),
 		TransactionStatus: constant.CREATED, Action: constant.ActionCommit, TransactionDate: fixedSizingTime(), TransactionCreatedAt: fixedSizingTime(), TransactionUpdatedAt: fixedSizingTime(), OperationUpdatedAt: fixedSizingTime(),
-		OperationSpecs: []command.OperationRecordSpec{{TransactionID: txID, PostingRef: "from:0:debit", BalanceRef: sourceRef, Role: "primary", Side: command.ProjectionSideFrom, RowType: "DEBIT", Direction: "credit", Description: "description", ChartOfAccounts: "1000", Metadata: input.Send.Source.From[0].Metadata, Balance: projectionBalance, RequestedAmount: decimal.NewFromInt(1), CompatibilityPath: command.ProjectionStandard}},
+		OperationSpecs: []command.OperationRecordSpec{{TransactionID: txID, PostingRef: "from:0:debit", BalanceRef: sourceRef, Role: "primary", Side: command.OperationSpecSideFrom, RowType: "DEBIT", Direction: "credit", Description: "description", ChartOfAccounts: "1000", Metadata: input.Send.Source.From[0].Metadata, Balance: projectionBalance, RequestedAmount: decimal.NewFromInt(1), CompatibilityPath: command.OperationRecordStandard}},
 	}
 	recovery, err := command.EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 
 	limits := Limits{MaxTransactions: 1, MaxPostings: 2, MaxBalances: 2, MaxCompletionPlanBytes: len(recovery) + 1, MaxRequestBytes: bodyLimit * 4, MaxPreparedBytes: bodyLimit * 4}
-	inputExecution := command.EngineExecution{Request: request, IntentFingerprint: "immutable-intent", Guards: []command.ExecutionGuard{{TransactionID: txID, ExpectedToken: "old", NextToken: "next"}}, Recovery: []command.CompletionPlanRecord{{TransactionID: txID, Payload: recovery}}}
+	inputExecution := command.EngineExecution{Request: request, IntentFingerprint: "immutable-intent", Guards: []command.ExecutionGuard{{TransactionID: txID, ExpectedToken: "old", NextToken: "next"}}, CompletionPlans: []command.CompletionPlanRecord{{TransactionID: txID, Payload: recovery}}}
 	resolved := sizingResolvedKeys(request.Balances)
 	prepared, err := prepareExecution(context.Background(), inputExecution, limits, resolved)
 	require.NoError(t, err)
@@ -560,8 +560,8 @@ func prepareTransactionBodyWithFees(t *testing.T, feeCount int) preparedSize {
 	}
 	execution := command.EngineExecution{
 		Request: request, IntentFingerprint: "immutable-intent",
-		Guards:   []command.ExecutionGuard{{TransactionID: transactionID, ExpectedToken: "old", NextToken: "next"}},
-		Recovery: []command.CompletionPlanRecord{{TransactionID: transactionID, Payload: recovery}},
+		Guards:          []command.ExecutionGuard{{TransactionID: transactionID, ExpectedToken: "old", NextToken: "next"}},
+		CompletionPlans: []command.CompletionPlanRecord{{TransactionID: transactionID, Payload: recovery}},
 	}
 	prepared, err := prepareExecution(t.Context(), execution, limits, sizingResolvedKeys(request.Balances))
 	require.NoError(t, err)

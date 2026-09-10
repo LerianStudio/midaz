@@ -63,7 +63,7 @@ func TestCreateTransactionBalanceEngineRequiresFinalizationBeforePreparation(t *
 		LedgerID:       uuid.MustParse("92222222-2222-4222-8222-222222222222"),
 		Transaction:    skippingTransaction(), TransactionStatus: constant.CREATED, IdempotencyTTL: time.Minute,
 	})
-	require.ErrorContains(t, err, "finalizer is not configured")
+	require.ErrorContains(t, err, "completer is not configured")
 	assert.Zero(t, reader.getBalancesCalls)
 	assert.Empty(t, executor.requests)
 }

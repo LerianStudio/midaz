@@ -79,7 +79,7 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 	input.Request.Balances[0].Version = 0
 	input.Request.Balances[0].AllowOverdraft = true
 	input.Request.Transactions[0].Postings[0].Amount = decimal.NewFromInt(30)
-	input.Recovery[0].Payload = json.RawMessage(`{"opaque":true,"version":9007199254740993}`)
+	input.CompletionPlans[0].Payload = json.RawMessage(`{"opaque":true,"version":9007199254740993}`)
 	prefix := "test:" + strings.ReplaceAll(t.Name(), "/", ":") + ":"
 	replace := func(key string) string { return strings.Replace(key, "tenant:fixture:", prefix, 1) }
 	resolved.Schedule, resolved.Recovery = replace(resolved.Schedule), replace(resolved.Recovery)
@@ -468,7 +468,7 @@ func TestIntegrationEngineRejectsInvalidRecoveryPayloadWithoutWrites(t *testing.
 			}
 
 			raw := string(f.prepared(t).Payload)
-			valid, err := json.Marshal(string(f.input.Recovery[0].Payload))
+			valid, err := json.Marshal(string(f.input.CompletionPlans[0].Payload))
 			require.NoError(t, err)
 			invalid, err := json.Marshal(tt.payload)
 			require.NoError(t, err)
@@ -510,7 +510,7 @@ func TestIntegrationEngineReplayAndInt64(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(backup), &saved))
 	require.Equal(t, int64(9007199254740994), saved.Result.Final[0].Version)
-	require.Equal(t, string(f.input.Recovery[0].Payload), saved.Payload)
+	require.Equal(t, string(f.input.CompletionPlans[0].Payload), saved.Payload)
 	before := f.capture(t)
 	replay, err := f.run(t)
 	require.NoError(t, err)
@@ -753,7 +753,7 @@ func TestIntegrationEngineMultipleTransactions(t *testing.T) {
 		transaction.ID = uuid.MustParse(id)
 		f.input.Request.Transactions = append(f.input.Request.Transactions, transaction)
 		f.input.Guards = append(f.input.Guards, command.ExecutionGuard{TransactionID: transaction.ID, NextToken: "committed"})
-		f.input.Recovery = append(f.input.Recovery, command.RecoveryIntent{TransactionID: transaction.ID, Payload: json.RawMessage(`{"opaque":true}`)})
+		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"opaque":true}`)})
 	}
 	raw, err := f.run(t)
 	require.NoError(t, err)
@@ -799,7 +799,7 @@ func TestIntegrationEngineThirdTransactionRefusalPreservesAllState(t *testing.T)
 		}
 		f.input.Request.Transactions = append(f.input.Request.Transactions, transaction)
 		f.input.Guards = append(f.input.Guards, command.ExecutionGuard{TransactionID: transaction.ID, NextToken: "committed"})
-		f.input.Recovery = append(f.input.Recovery, command.RecoveryIntent{TransactionID: transaction.ID, Payload: json.RawMessage(`{"opaque":true}`)})
+		f.input.CompletionPlans = append(f.input.CompletionPlans, command.CompletionPlanRecord{TransactionID: transaction.ID, Payload: json.RawMessage(`{"opaque":true}`)})
 	}
 	require.Equal(t, originalPostingRef, f.input.Request.Transactions[0].Postings[0].Ref)
 	require.Equal(t, "posting-2", f.input.Request.Transactions[1].Postings[0].Ref)

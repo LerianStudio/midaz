@@ -407,7 +407,7 @@ func TestPendingCancelFailsClosedWithoutPersistedOperations(t *testing.T) {
 	uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	_, err := uc.CancelTransactionV2(context.Background(), in)
-	require.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 	assert.Empty(t, executor.guardCalls)
 	assert.Empty(t, executor.requests)
 }
@@ -463,13 +463,13 @@ func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, 
 		},
 	}
 	executor := &transitionEngineExecutor{t: t}
-	finalizer := &createEngineFinalizer{outcome: BalanceEngineRecoveryOutcome{TransactionStatus: terminalStatus}}
+	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: terminalStatus}}
 	ctrl := gomock.NewController(t)
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
 	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, BalanceEngineFinalizer: finalizer,
+		BalanceEngine: executor, TransactionCompleter: finalizer,
 	}
 	return uc, reader, executor, finalizer, PendingTransitionInput{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
 }

@@ -4,7 +4,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package recovery
+package completion
 
 import (
 	"context"
@@ -46,7 +46,7 @@ func setupRecoverySQL(t *testing.T) recoverySQLInfra {
 	}
 }
 
-func recoverySQLRecord(t *testing.T) command.BalanceEnginePersistenceRecord {
+func recoverySQLRecord(t *testing.T) command.TransactionWriteSet {
 	t.Helper()
 	record := frozenStoreRecord()
 	namespace := uuid.MustParse("f5acb658-b8bf-51f8-a208-d4eb90cbcbf3")
@@ -105,7 +105,7 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 		second := *first
 		second.ID = existing.Transaction.Operations[0].ID
 		record.Transaction.Operations = append(record.Transaction.Operations, &second)
-		require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrBalanceEnginePersistenceConflict)
+		require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrTransactionCompletionConflict)
 		require.Equal(t, before, recoverySQLState(t, infra.db))
 	})
 
@@ -148,7 +148,7 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 		require.NoError(t, infra.store.Persist(t.Context(), record))
 		before := recoverySQLState(t, infra.db)
 		record.Transaction.Operations[0].ID = "77777777-7777-5777-8777-777777777777"
-		require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrBalanceEnginePersistenceConflict)
+		require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrTransactionCompletionConflict)
 		require.Equal(t, before, recoverySQLState(t, infra.db))
 	})
 
@@ -186,19 +186,19 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 			} else {
 				record.Action = "commit"
 			}
-			require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrBalanceEnginePersistenceConflict)
+			require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrTransactionCompletionConflict)
 			require.Equal(t, before, recoverySQLState(t, infra.db))
 
 			_, err := infra.db.ExecContext(t.Context(), `UPDATE operation SET amount=amount+1 WHERE id=$1`, second.ID)
 			require.NoError(t, err)
 			corrupt := recoverySQLState(t, infra.db)
-			require.ErrorIs(t, infra.store.Persist(t.Context(), pending), command.ErrBalanceEnginePersistenceConflict)
+			require.ErrorIs(t, infra.store.Persist(t.Context(), pending), command.ErrTransactionCompletionConflict)
 			require.Equal(t, corrupt, recoverySQLState(t, infra.db), "late hold must not overwrite a corrupted old row")
 
 			_, err = infra.db.ExecContext(t.Context(), `DELETE FROM operation WHERE id=$1`, second.ID)
 			require.NoError(t, err)
 			missing := recoverySQLState(t, infra.db)
-			require.ErrorIs(t, infra.store.Persist(t.Context(), pending), command.ErrBalanceEnginePersistenceConflict)
+			require.ErrorIs(t, infra.store.Persist(t.Context(), pending), command.ErrTransactionCompletionConflict)
 			require.Equal(t, missing, recoverySQLState(t, infra.db), "late hold must not recreate a missing old row")
 		})
 	}
@@ -262,7 +262,7 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 			case "snapshot":
 				record.Transaction.Operations[0].Snapshot.OverdraftUsedAfter = "1"
 			}
-			require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrBalanceEnginePersistenceConflict)
+			require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrTransactionCompletionConflict)
 			require.Equal(t, before, recoverySQLState(t, infra.db))
 		})
 	}
@@ -280,7 +280,7 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 		require.NoError(t, infra.store.Persist(t.Context(), record))
 		before := recoverySQLState(t, infra.db)
 		row.RouteCode = nil
-		require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrBalanceEnginePersistenceConflict)
+		require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrTransactionCompletionConflict)
 		require.Equal(t, before, recoverySQLState(t, infra.db))
 	})
 }

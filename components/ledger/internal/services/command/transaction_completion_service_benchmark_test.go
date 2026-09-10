@@ -14,12 +14,12 @@ import (
 
 type finalizationBenchmarkStore struct{}
 
-func (*finalizationBenchmarkStore) Persist(context.Context, BalanceEnginePersistenceRecord) error {
+func (*finalizationBenchmarkStore) Persist(context.Context, TransactionWriteSet) error {
 	return nil
 }
 
-func (*finalizationBenchmarkStore) PersistWithOutcome(context.Context, BalanceEnginePersistenceRecord) (BalanceEngineRecoveryOutcome, error) {
-	return BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED}, nil
+func (*finalizationBenchmarkStore) PersistWithOutcome(context.Context, TransactionWriteSet) (TransactionPersistenceOutcome, error) {
+	return TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}, nil
 }
 
 type finalizationBenchmarkMetadata struct {
@@ -36,18 +36,18 @@ func (repo *finalizationBenchmarkMetadata) FindByEntity(_ context.Context, colle
 	return repo.records[collection+":"+id], nil
 }
 
-// BenchmarkBalanceEngineFinalizer characterizes deterministic recovery decoding,
+// BenchmarkTransactionCompletionService characterizes deterministic recovery decoding,
 // projection, cloning, and metadata verification without database or network I/O.
-func BenchmarkBalanceEngineFinalizer(b *testing.B) {
+func BenchmarkTransactionCompletionService(b *testing.B) {
 	ctx, envelope := finalizationFixture(b)
 	metadata := &finalizationBenchmarkMetadata{records: make(map[string]*mongodb.Metadata)}
-	finalizer := NewBalanceEngineFinalizer(&finalizationBenchmarkStore{}, metadata)
+	finalizer := NewTransactionCompletionService(&finalizationBenchmarkStore{}, metadata)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for range b.N {
-		result, err := finalizer.FinalizeWithOutcome(ctx, envelope)
+		result, err := finalizer.Complete(ctx, envelope)
 		if err != nil {
 			b.Fatal(err)
 		}

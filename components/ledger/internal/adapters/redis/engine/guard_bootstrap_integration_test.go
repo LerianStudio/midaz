@@ -218,7 +218,7 @@ func TestIntegrationEnsureTransactionGuardFencesCommitAndCancel(t *testing.T) {
 func guardBootstrapLimits() Limits {
 	return Limits{
 		MaxTransactions: 2, MaxPostings: 8, MaxBalances: 8,
-		MaxRecoveryBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20,
+		MaxCompletionPlanBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20,
 	}
 }
 
@@ -293,11 +293,11 @@ func guardTransitionExecution(
 	require.NoError(t, err)
 	date := time.Date(2026, time.September, 8, 15, 0, 0, 0, time.UTC)
 	executionID := uuid.NewSHA1(transactionID, []byte(action))
-	payload := command.BalanceEngineRecoveryPayload{
+	payload := command.TransactionCompletionPlan{
 		FormatVersion: 2, TransactionID: transactionID, OrganizationID: organizationID, LedgerID: ledgerID,
 		ExecutionID: executionID, TransactionInput: input, Validate: validate, Action: action, TransactionStatus: status,
 		TTL: date, TransactionDate: date, TransactionCreatedAt: date, TransactionUpdatedAt: date, OperationUpdatedAt: date,
-		Projection: projection,
+		OperationSpecs: projection,
 	}
 	execution := command.EngineExecution{
 		Request: core.Request{
@@ -306,8 +306,8 @@ func guardTransitionExecution(
 		},
 		Guards: []command.ExecutionGuard{{TransactionID: transactionID, ExpectedToken: constant.PENDING, NextToken: status}},
 	}
-	execution.Recovery = []command.RecoveryIntent{{TransactionID: transactionID, Payload: encodeAdapterRecovery(t, &execution, payload)}}
-	require.NoError(t, command.ValidateBalanceEngineRecovery(execution))
+	execution.CompletionPlans = []command.CompletionPlanRecord{{TransactionID: transactionID, Payload: encodeAdapterRecovery(t, &execution, payload)}}
+	require.NoError(t, command.ValidateTransactionCompletion(execution))
 
 	return execution
 }

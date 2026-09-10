@@ -120,11 +120,11 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 		{TransactionID: t3.ID, NextToken: "accepted-t3"},
 	}
 
-	base, err := command.DecodeBalanceEngineRecoveryPayload(input.Recovery[0].Payload)
+	base, err := command.DecodeTransactionCompletionPlan(input.CompletionPlans[0].Payload)
 	require.NoError(t, err)
 	base.ExecutionID = request.ExecutionID
-	primaryProjection := func(transactionID uuid.UUID, posting core.Posting, ordinal uint32) command.FrozenProjectionContext {
-		projection := base.Projection[0]
+	primaryProjection := func(transactionID uuid.UUID, posting core.Posting, ordinal uint32) command.OperationRecordSpec {
+		projection := base.OperationSpecs[0]
 		projection.TransactionID = transactionID
 		projection.PostingRef = posting.Ref
 		projection.Ordinal = ordinal
@@ -138,7 +138,7 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 		}
 		return projection
 	}
-	companionProjection := func(primaryContext command.FrozenProjectionContext) command.FrozenProjectionContext {
+	companionProjection := func(primaryContext command.OperationRecordSpec) command.OperationRecordSpec {
 		projection := primaryContext
 		projection.Role = core.RoleOverdraftCompanion
 		projection.BalanceRef = companion.BalanceRef
@@ -157,23 +157,23 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 	p12 := primaryProjection(t1.ID, t1.Postings[1], 0)
 	p2 := primaryProjection(t2.ID, t2.Postings[0], 0)
 	p3 := primaryProjection(t3.ID, t3.Postings[0], 0)
-	projections := [][]command.FrozenProjectionContext{
+	projections := [][]command.OperationRecordSpec{
 		{p11, p12, companionProjection(p12)},
 		{p2, companionProjection(p2)},
 		{p3, companionProjection(p3)},
 	}
 
-	payloads := make([]command.BalanceEngineRecoveryPayload, len(request.Transactions))
+	payloads := make([]command.TransactionCompletionPlan, len(request.Transactions))
 	intents := make([]command.BalanceEngineTransactionIntent, len(request.Transactions))
 	for index, transaction := range request.Transactions {
 		payloads[index] = *base
 		payloads[index].TransactionID = transaction.ID
-		payloads[index].Projection = projections[index]
+		payloads[index].OperationSpecs = projections[index]
 		postingRefs := make([]string, len(transaction.Postings))
 		for postingIndex, posting := range transaction.Postings {
 			postingRefs[postingIndex] = posting.Ref
 		}
-		projectionIntents := make([]command.FrozenProjectionIntent, len(projections[index]))
+		projectionIntents := make([]command.OperationRecordIntent, len(projections[index]))
 		for projectionIndex, projection := range projections[index] {
 			projectionIntents[projectionIndex] = projection.Intent()
 		}
@@ -181,7 +181,7 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 			TransactionID: transaction.ID, Action: base.Action, TransactionStatus: base.TransactionStatus,
 			TransactionDate: base.TransactionDate, TransactionCreatedAt: base.TransactionCreatedAt,
 			TransactionUpdatedAt: base.TransactionUpdatedAt, OperationUpdatedAt: base.OperationUpdatedAt,
-			Input: base.TransactionInput, PostingRefs: postingRefs, Projection: projectionIntents,
+			Input: base.TransactionInput, PostingRefs: postingRefs, OperationSpecs: projectionIntents,
 		}
 	}
 	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{
@@ -190,39 +190,39 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 	})
 	require.NoError(t, err)
 	input.IntentFingerprint = fingerprint
-	input.Recovery = make([]command.RecoveryIntent, len(payloads))
+	input.CompletionPlans = make([]command.CompletionPlanRecord, len(payloads))
 	for index := range payloads {
 		payloads[index].IntentFingerprint = fingerprint
-		encoded, encodeErr := command.EncodeBalanceEngineRecoveryPayload(payloads[index])
+		encoded, encodeErr := command.EncodeTransactionCompletionPlan(payloads[index])
 		require.NoError(t, encodeErr)
-		input.Recovery[index] = command.RecoveryIntent{TransactionID: payloads[index].TransactionID, Payload: encoded}
+		input.CompletionPlans[index] = command.CompletionPlanRecord{TransactionID: payloads[index].TransactionID, Payload: encoded}
 	}
-	require.NoError(t, command.ValidateBalanceEngineRecovery(input))
+	require.NoError(t, command.ValidateTransactionCompletion(input))
 	return input, limits
 }
 
 func refingerprintMultiTransactionAcceptance(t *testing.T, input command.EngineExecution, description string) command.EngineExecution {
 	t.Helper()
-	payloads := make([]command.BalanceEngineRecoveryPayload, len(input.Recovery))
-	intents := make([]command.BalanceEngineTransactionIntent, len(input.Recovery))
-	for index, recovery := range input.Recovery {
-		payload, err := command.DecodeBalanceEngineRecoveryPayload(recovery.Payload)
+	payloads := make([]command.TransactionCompletionPlan, len(input.CompletionPlans))
+	intents := make([]command.BalanceEngineTransactionIntent, len(input.CompletionPlans))
+	for index, recovery := range input.CompletionPlans {
+		payload, err := command.DecodeTransactionCompletionPlan(recovery.Payload)
 		require.NoError(t, err)
-		payload.Projection[0].Description = description
+		payload.OperationSpecs[0].Description = description
 		payloads[index] = *payload
 		postingRefs := make([]string, len(input.Request.Transactions[index].Postings))
 		for postingIndex, posting := range input.Request.Transactions[index].Postings {
 			postingRefs[postingIndex] = posting.Ref
 		}
-		projectionIntents := make([]command.FrozenProjectionIntent, len(payload.Projection))
-		for projectionIndex, projection := range payload.Projection {
+		projectionIntents := make([]command.OperationRecordIntent, len(payload.OperationSpecs))
+		for projectionIndex, projection := range payload.OperationSpecs {
 			projectionIntents[projectionIndex] = projection.Intent()
 		}
 		intents[index] = command.BalanceEngineTransactionIntent{
 			TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
 			TransactionDate: payload.TransactionDate, TransactionCreatedAt: payload.TransactionCreatedAt,
 			TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
-			Input: payload.TransactionInput, PostingRefs: postingRefs, Projection: projectionIntents,
+			Input: payload.TransactionInput, PostingRefs: postingRefs, OperationSpecs: projectionIntents,
 		}
 	}
 	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{
@@ -233,11 +233,11 @@ func refingerprintMultiTransactionAcceptance(t *testing.T, input command.EngineE
 	input.IntentFingerprint = fingerprint
 	for index := range payloads {
 		payloads[index].IntentFingerprint = fingerprint
-		encoded, encodeErr := command.EncodeBalanceEngineRecoveryPayload(payloads[index])
+		encoded, encodeErr := command.EncodeTransactionCompletionPlan(payloads[index])
 		require.NoError(t, encodeErr)
-		input.Recovery[index].Payload = encoded
+		input.CompletionPlans[index].Payload = encoded
 	}
-	require.NoError(t, command.ValidateBalanceEngineRecovery(input))
+	require.NoError(t, command.ValidateTransactionCompletion(input))
 	return input
 }
 
@@ -323,12 +323,12 @@ func assertMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client
 		field := transaction.ID.String() + ":" + input.Request.ExecutionID.String()
 		raw, getErr := inspector.HGet(ctx, keys.Recovery, field).Bytes()
 		require.NoError(t, getErr)
-		envelope, decodeErr := command.DecodeBalanceEngineRecoveryEnvelope(raw)
+		envelope, decodeErr := command.DecodeTransactionCompletionRecord(raw)
 		require.NoError(t, decodeErr)
 		require.Equal(t, input.Request.ExecutionID, envelope.ExecutionID)
 		require.Equal(t, transaction.ID, envelope.TransactionID)
 		require.Equal(t, input.IntentFingerprint, envelope.IntentFingerprint)
-		require.Equal(t, string(input.Recovery[index].Payload), envelope.Payload)
+		require.Equal(t, string(input.CompletionPlans[index].Payload), envelope.Payload)
 		movementRange := transactionMovementRanges[index]
 		requireJSONEqual(t, expected.Movements[movementRange[0]:movementRange[1]], envelope.Result.Movements)
 		requireJSONEqual(t, []core.BalanceSnapshot{intermediatePrimary[index], intermediateCompanion[index]}, envelope.Result.Final)

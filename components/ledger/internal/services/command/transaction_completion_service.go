@@ -37,118 +37,109 @@ type balanceEngineMetadataRepository interface {
 	FindByEntity(context.Context, string, string) (*mongodb.Metadata, error)
 }
 
-// BalanceEngineFinalizer confirms SQL rows and their frozen metadata without
-// executing accounting or removing the durable recovery envelope.
-type BalanceEngineFinalizer struct {
-	store     BalanceEngineRecoveryStore
+// TransactionCompletionService durably materializes an applied accounting result
+// without executing accounting or removing its completion record.
+type TransactionCompletionService struct {
+	store     TransactionWriteStore
 	metadata  balanceEngineMetadataRepository
 	publisher BalanceEngineEventPublisher
 }
 
-// NewBalanceEngineFinalizer uses the existing metadata repository with the
+// NewTransactionCompletionService uses the existing metadata repository with the
 // authenticated Mongo context supplied by its caller.
-func NewBalanceEngineFinalizer(store BalanceEngineRecoveryStore, metadata balanceEngineMetadataRepository) *BalanceEngineFinalizer {
-	return &BalanceEngineFinalizer{store: store, metadata: metadata}
+func NewTransactionCompletionService(store TransactionWriteStore, metadata balanceEngineMetadataRepository) *TransactionCompletionService {
+	return &TransactionCompletionService{store: store, metadata: metadata}
 }
 
-// NewBalanceEngineFinalizerWithEvents enables best-effort event dispatch after
+// NewTransactionCompletionServiceWithEvents enables best-effort event dispatch after
 // SQL and frozen metadata have both been confirmed.
-func NewBalanceEngineFinalizerWithEvents(
-	store BalanceEngineRecoveryStore,
+func NewTransactionCompletionServiceWithEvents(
+	store TransactionWriteStore,
 	metadata balanceEngineMetadataRepository,
 	publisher BalanceEngineEventPublisher,
-) (*BalanceEngineFinalizer, error) {
+) (*TransactionCompletionService, error) {
 	if publisher == nil || (reflect.ValueOf(publisher).Kind() == reflect.Pointer && reflect.ValueOf(publisher).IsNil()) {
-		return nil, invalidRecovery("balance engine event publisher is not configured")
+		return nil, invalidTransactionCompletionRecord("balance engine event publisher is not configured")
 	}
 
-	if _, ok := store.(BalanceEngineRecoveryStoreWithOutcome); !ok {
-		return nil, invalidRecovery("recovery SQL store does not report durable transaction status")
+	if _, ok := store.(TransactionWriteStoreWithOutcome); !ok {
+		return nil, invalidTransactionCompletionRecord("transaction write store does not report durable transaction status")
 	}
 
-	return &BalanceEngineFinalizer{store: store, metadata: metadata, publisher: publisher}, nil
+	return &TransactionCompletionService{store: store, metadata: metadata, publisher: publisher}, nil
 }
 
-// Finalize returns nil only after SQL commit and metadata verification succeed.
-// Any error leaves the caller responsible for retaining the recovery envelope.
-func (finalizer *BalanceEngineFinalizer) Finalize(ctx context.Context, envelope *BalanceEngineRecoveryEnvelope) error {
-	requireOutcome := finalizer != nil && finalizer.publisher != nil
-	_, err := finalizer.finalize(ctx, envelope, requireOutcome)
-
-	return err
+// Complete returns the durable status and a caller-owned copy of the
+// exact operation records only after SQL commit and metadata verification.
+func (service *TransactionCompletionService) Complete(ctx context.Context, record *TransactionCompletionRecord) (TransactionCompletionResult, error) {
+	return service.complete(ctx, record)
 }
 
-// FinalizeWithOutcome returns the durable status and a caller-owned copy of the
-// exact projected record only after SQL commit and frozen metadata verification.
-func (finalizer *BalanceEngineFinalizer) FinalizeWithOutcome(ctx context.Context, envelope *BalanceEngineRecoveryEnvelope) (BalanceEngineFinalizationResult, error) {
-	return finalizer.finalize(ctx, envelope, true)
-}
-
-func (finalizer *BalanceEngineFinalizer) finalize(ctx context.Context, envelope *BalanceEngineRecoveryEnvelope, requireOutcome bool) (BalanceEngineFinalizationResult, error) {
+func (service *TransactionCompletionService) complete(ctx context.Context, record *TransactionCompletionRecord) (TransactionCompletionResult, error) {
 	if err := ctx.Err(); err != nil {
-		return BalanceEngineFinalizationResult{}, err
+		return TransactionCompletionResult{}, err
 	}
 
-	if finalizer == nil || finalizer.store == nil || finalizer.metadata == nil {
-		return BalanceEngineFinalizationResult{}, invalidRecovery("recovery finalizer dependencies are not configured")
+	if service == nil || service.store == nil || service.metadata == nil {
+		return TransactionCompletionResult{}, invalidTransactionCompletionRecord("transaction completion dependencies are not configured")
 	}
 
-	if envelope == nil {
-		return BalanceEngineFinalizationResult{}, invalidRecovery("recovery envelope is missing")
+	if record == nil {
+		return TransactionCompletionResult{}, invalidTransactionCompletionRecord("transaction completion record is missing")
 	}
 
-	if envelope.TenantID != tmcore.GetTenantIDContext(ctx) {
-		return BalanceEngineFinalizationResult{}, invalidRecovery("recovery tenant does not match authenticated context")
+	if record.TenantID != tmcore.GetTenantIDContext(ctx) {
+		return TransactionCompletionResult{}, invalidTransactionCompletionRecord("completion tenant does not match authenticated context")
 	}
 
-	if err := validateRecoveryEnvelope(*envelope); err != nil {
-		return BalanceEngineFinalizationResult{}, err
+	if err := validateTransactionCompletionRecord(*record); err != nil {
+		return TransactionCompletionResult{}, err
 	}
 
-	payload, err := DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	plan, err := DecodeTransactionCompletionPlan([]byte(record.Payload))
 	if err != nil {
-		return BalanceEngineFinalizationResult{}, err
+		return TransactionCompletionResult{}, err
 	}
 
-	record, err := ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
+	writeSet, err := BuildTransactionWriteSet(*plan, record.Result)
 	if err != nil {
-		return BalanceEngineFinalizationResult{}, err
+		return TransactionCompletionResult{}, err
 	}
 
-	metadata, err := frozenMetadataRecords(record.Transaction, payload.TransactionDate)
+	metadata, err := frozenMetadataRecords(writeSet.Transaction, plan.TransactionDate)
 	if err != nil {
-		return BalanceEngineFinalizationResult{}, err
+		return TransactionCompletionResult{}, err
 	}
 
-	callerRecord, err := cloneBalanceEnginePersistenceRecord(record)
+	callerWriteSet, err := cloneTransactionWriteSet(writeSet)
 	if err != nil {
-		return BalanceEngineFinalizationResult{}, err
+		return TransactionCompletionResult{}, err
 	}
 
-	outcome, err := finalizer.persist(ctx, record, requireOutcome)
+	outcome, err := service.persist(ctx, writeSet)
 	if err != nil {
-		return BalanceEngineFinalizationResult{}, err
+		return TransactionCompletionResult{}, err
 	}
 
 	for _, entry := range metadata {
 		if err := ctx.Err(); err != nil {
-			return BalanceEngineFinalizationResult{}, err
+			return TransactionCompletionResult{}, err
 		}
 
-		if err := finalizer.persistMetadata(ctx, entry); err != nil {
-			return BalanceEngineFinalizationResult{}, err
+		if err := service.persistMetadata(ctx, entry); err != nil {
+			return TransactionCompletionResult{}, err
 		}
 	}
 
-	if finalizer.publisher != nil {
+	if service.publisher != nil {
 		if !validTransactionLifecyclePhase(outcome.LifecyclePhase) {
-			return BalanceEngineFinalizationResult{}, fmt.Errorf("%w: recovery SQL store reported unknown lifecycle phase", ErrBalanceEnginePersistenceConflict)
+			return TransactionCompletionResult{}, fmt.Errorf("%w: transaction write store reported unknown lifecycle phase", ErrTransactionCompletionConflict)
 		}
 
-		finalizer.publisher.PublishBalanceEngineEvents(ctx, record.Transaction, outcome.LifecyclePhase)
+		service.publisher.PublishBalanceEngineEvents(ctx, writeSet.Transaction, outcome.LifecyclePhase)
 	}
 
-	return BalanceEngineFinalizationResult{Record: callerRecord, Outcome: outcome}, nil
+	return TransactionCompletionResult{Record: callerWriteSet, Outcome: outcome}, nil
 }
 
 func validTransactionLifecyclePhase(phase string) bool {
@@ -160,33 +151,25 @@ func validTransactionLifecyclePhase(phase string) bool {
 	}
 }
 
-func (finalizer *BalanceEngineFinalizer) persist(ctx context.Context, record BalanceEnginePersistenceRecord, requireOutcome bool) (BalanceEngineRecoveryOutcome, error) {
-	if !requireOutcome {
-		if err := finalizer.store.Persist(ctx, record); err != nil {
-			return BalanceEngineRecoveryOutcome{}, fmt.Errorf("persist recovered SQL rows: %w", err)
-		}
-
-		return BalanceEngineRecoveryOutcome{}, nil
-	}
-
-	outcomeStore, ok := finalizer.store.(BalanceEngineRecoveryStoreWithOutcome)
+func (service *TransactionCompletionService) persist(ctx context.Context, writeSet TransactionWriteSet) (TransactionPersistenceOutcome, error) {
+	outcomeStore, ok := service.store.(TransactionWriteStoreWithOutcome)
 	if !ok {
-		return BalanceEngineRecoveryOutcome{}, invalidRecovery("recovery SQL store does not report durable transaction status")
+		return TransactionPersistenceOutcome{}, invalidTransactionCompletionRecord("transaction write store does not report durable transaction status")
 	}
 
-	outcome, err := outcomeStore.PersistWithOutcome(ctx, record)
+	outcome, err := outcomeStore.PersistWithOutcome(ctx, writeSet)
 	if err != nil {
-		return BalanceEngineRecoveryOutcome{}, fmt.Errorf("persist recovered SQL rows: %w", err)
+		return TransactionPersistenceOutcome{}, fmt.Errorf("persist transaction write set: %w", err)
 	}
 
-	if !validRecoveryOutcome(outcome) {
-		return BalanceEngineRecoveryOutcome{}, fmt.Errorf("%w: recovery SQL store reported unknown transaction status", ErrBalanceEnginePersistenceConflict)
+	if !validTransactionPersistenceOutcome(outcome) {
+		return TransactionPersistenceOutcome{}, fmt.Errorf("%w: transaction write store reported unknown transaction status", ErrTransactionCompletionConflict)
 	}
 
 	return outcome, nil
 }
 
-func validRecoveryOutcome(outcome BalanceEngineRecoveryOutcome) bool {
+func validTransactionPersistenceOutcome(outcome TransactionPersistenceOutcome) bool {
 	switch outcome.TransactionStatus {
 	case constant.PENDING, constant.APPROVED, constant.CANCELED:
 		return true
@@ -195,14 +178,14 @@ func validRecoveryOutcome(outcome BalanceEngineRecoveryOutcome) bool {
 	}
 }
 
-// ComposeBalanceEnginePersistenceRecord is the single final composition seam
+// BuildTransactionWriteSet is the single final composition seam
 // from frozen transaction context plus an authoritative engine result to the
 // deterministic SQL transaction and operation rows used by normal completion
 // and recovery.
-func ComposeBalanceEnginePersistenceRecord(payload BalanceEngineRecoveryPayload, result engine.Result) (BalanceEnginePersistenceRecord, error) {
-	rows, err := ProjectBalanceEngineOperations(payload, result)
+func BuildTransactionWriteSet(payload TransactionCompletionPlan, result engine.Result) (TransactionWriteSet, error) {
+	rows, err := BuildOperationRecordsFromMovements(payload, result)
 	if err != nil {
-		return BalanceEnginePersistenceRecord{}, err
+		return TransactionWriteSet{}, err
 	}
 
 	status := payload.TransactionStatus
@@ -244,12 +227,12 @@ func ComposeBalanceEnginePersistenceRecord(payload BalanceEngineRecoveryPayload,
 		expectedStatus = constant.PENDING
 	}
 
-	return BalanceEnginePersistenceRecord{Transaction: tran, Action: payload.Action, ExpectedStatus: expectedStatus}, nil
+	return TransactionWriteSet{Transaction: tran, Action: payload.Action, ExpectedStatus: expectedStatus}, nil
 }
 
-func cloneBalanceEnginePersistenceRecord(record BalanceEnginePersistenceRecord) (BalanceEnginePersistenceRecord, error) {
+func cloneTransactionWriteSet(record TransactionWriteSet) (TransactionWriteSet, error) {
 	if record.Transaction == nil {
-		return BalanceEnginePersistenceRecord{}, invalidRecovery("projected persistence record is missing its transaction")
+		return TransactionWriteSet{}, invalidTransactionCompletionRecord("projected persistence record is missing its transaction")
 	}
 
 	tran := *record.Transaction
@@ -265,7 +248,7 @@ func cloneBalanceEnginePersistenceRecord(record BalanceEnginePersistenceRecord) 
 	if !record.Transaction.Body.IsEmpty() {
 		body, err := clonePendingTransactionInput(record.Transaction.Body)
 		if err != nil {
-			return BalanceEnginePersistenceRecord{}, fmt.Errorf("clone projected transaction body: %w", err)
+			return TransactionWriteSet{}, fmt.Errorf("clone materialized transaction body: %w", err)
 		}
 
 		tran.Body = body
@@ -274,7 +257,7 @@ func cloneBalanceEnginePersistenceRecord(record BalanceEnginePersistenceRecord) 
 	tran.Operations = make([]*operation.Operation, len(record.Transaction.Operations))
 	for index, row := range record.Transaction.Operations {
 		if row == nil {
-			return BalanceEnginePersistenceRecord{}, invalidRecovery("projected persistence record contains a nil operation")
+			return TransactionWriteSet{}, invalidTransactionCompletionRecord("projected persistence record contains a nil operation")
 		}
 
 		cloned := *row
@@ -296,7 +279,7 @@ func cloneBalanceEnginePersistenceRecord(record BalanceEnginePersistenceRecord) 
 		tran.Operations[index] = &cloned
 	}
 
-	return BalanceEnginePersistenceRecord{Transaction: &tran, Action: record.Action, ExpectedStatus: record.ExpectedStatus}, nil
+	return TransactionWriteSet{Transaction: &tran, Action: record.Action, ExpectedStatus: record.ExpectedStatus}, nil
 }
 
 func cloneTextPointer(value *string) *string {
@@ -386,12 +369,12 @@ func frozenMetadataRecords(tran *transaction.Transaction, date time.Time) ([]*mo
 	return metadata, nil
 }
 
-func (finalizer *BalanceEngineFinalizer) persistMetadata(ctx context.Context, expected *mongodb.Metadata) error {
-	if err := finalizer.metadata.Create(ctx, expected.EntityName, expected); err != nil {
+func (service *TransactionCompletionService) persistMetadata(ctx context.Context, expected *mongodb.Metadata) error {
+	if err := service.metadata.Create(ctx, expected.EntityName, expected); err != nil {
 		return fmt.Errorf("create recovered metadata: %w", err)
 	}
 
-	actual, err := finalizer.metadata.FindByEntity(ctx, expected.EntityName, expected.EntityID)
+	actual, err := service.metadata.FindByEntity(ctx, expected.EntityName, expected.EntityID)
 	if err != nil {
 		return fmt.Errorf("verify recovered metadata: %w", err)
 	}

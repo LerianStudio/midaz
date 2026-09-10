@@ -19,8 +19,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-// RecoveryIntent freezes the projection context needed to recover a transaction.
-type RecoveryIntent struct {
+// CompletionPlanRecord carries the completion plan for one applied transaction.
+type CompletionPlanRecord struct {
 	TransactionID uuid.UUID
 	Payload       json.RawMessage
 }
@@ -32,7 +32,7 @@ type ExecutionGuard struct {
 	NextToken     string
 }
 
-// EngineExecution combines balance changes with their recovery and replay context.
+// EngineExecution combines balance changes with their completion plans and replay context.
 type EngineExecution struct {
 	Request           engine.Request
 	IntentFingerprint string
@@ -42,7 +42,7 @@ type EngineExecution struct {
 	// at EVAL. The recovery consumer removes protection only after that deadline.
 	RetentionSeconds int64
 	Guards           []ExecutionGuard
-	Recovery         []RecoveryIntent
+	CompletionPlans  []CompletionPlanRecord
 }
 
 // BalanceEngine applies balance changes and records their recovery data atomically.
@@ -50,12 +50,12 @@ type BalanceEngine interface {
 	Execute(ctx context.Context, input EngineExecution) (*engine.Result, error)
 }
 
-// BalanceEngineOutcomeFinalizer durably projects an applied accounting result
+// TransactionCompleter durably projects an applied accounting result
 // and reports the transaction status confirmed by SQL. Create requires this
 // capability whenever BalanceEngine is enabled so an applied result can never
 // fall through to the legacy persistence path.
-type BalanceEngineOutcomeFinalizer interface {
-	FinalizeWithOutcome(context.Context, *BalanceEngineRecoveryEnvelope) (BalanceEngineFinalizationResult, error)
+type TransactionCompleter interface {
+	Complete(context.Context, *TransactionCompletionRecord) (TransactionCompletionResult, error)
 }
 
 // BalanceEngineGuardBootstrapper conditionally seeds the execution guard for a

@@ -303,7 +303,7 @@ func assertAdapterTechnical(t *testing.T, err error, code string, uncertain bool
 }
 
 func TestNewAdapter_ValidationBeforeProviderAccess(t *testing.T) {
-	limits := Limits{MaxTransactions: 1, MaxPostings: 2, MaxBalances: 2, MaxRecoveryBytes: 4096, MaxRequestBytes: 8192, MaxPreparedBytes: 8192}
+	limits := Limits{MaxTransactions: 1, MaxPostings: 2, MaxBalances: 2, MaxCompletionPlanBytes: 4096, MaxRequestBytes: 8192, MaxPreparedBytes: 8192}
 	provider := &countingProvider{}
 	_, err := NewAdapter(nil, limits)
 	require.Error(t, err)
@@ -320,7 +320,7 @@ func TestNewAdapter_ValidationBeforeProviderAccess(t *testing.T) {
 		case "balances":
 			invalid.MaxBalances = 0
 		case "recovery":
-			invalid.MaxRecoveryBytes = 0
+			invalid.MaxCompletionPlanBytes = 0
 		case "request":
 			invalid.MaxRequestBytes = 0
 		case "prepared":

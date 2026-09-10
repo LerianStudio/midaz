@@ -71,23 +71,23 @@ func (a *recordingCreateAdapter) Execute(ctx context.Context, input command.Engi
 }
 
 type adapterCreateFinalizer struct {
-	envelope *command.BalanceEngineRecoveryEnvelope
+	envelope *command.TransactionCompletionRecord
 }
 
-func (f *adapterCreateFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
+func (f *adapterCreateFinalizer) Complete(_ context.Context, envelope *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
 	f.envelope = envelope
-	payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 	if err != nil {
-		return command.BalanceEngineFinalizationResult{}, err
+		return command.TransactionCompletionResult{}, err
 	}
-	record, err := command.ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
+	record, err := command.BuildTransactionWriteSet(*payload, envelope.Result)
 	if err != nil {
-		return command.BalanceEngineFinalizationResult{}, err
+		return command.TransactionCompletionResult{}, err
 	}
 
-	return command.BalanceEngineFinalizationResult{
+	return command.TransactionCompletionResult{
 		Record:  record,
-		Outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED},
+		Outcome: command.TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
 	}, nil
 }
 
@@ -115,7 +115,7 @@ func TestIntegration_CreateTransactionV1_ComposesRealAdapterRecoveryAndFinalizat
 	finalizer := &adapterCreateFinalizer{}
 	uc := &command.UseCase{
 		TransactionRedisRepo: idempotency, TransactionReader: reader,
-		BalanceEngine: executor, BalanceEngineFinalizer: finalizer,
+		BalanceEngine: executor, TransactionCompleter: finalizer,
 	}
 	date := time.Date(2026, time.September, 8, 16, 0, 0, 0, time.UTC)
 	amount := decimal.NewFromInt(30)
@@ -154,15 +154,15 @@ func TestIntegration_CreateTransactionV1_ComposesRealAdapterRecoveryAndFinalizat
 	require.True(t, execution.Request.Transactions[0].Postings[0].Amount.Equal(amount))
 	require.True(t, execution.Request.Transactions[0].Postings[1].Amount.Equal(amount))
 	require.NotNil(t, finalizer.envelope)
-	require.Equal(t, command.BalanceEngineRecoveryVersion, finalizer.envelope.FormatVersion)
+	require.Equal(t, command.TransactionCompletionFormatVersion, finalizer.envelope.FormatVersion)
 	require.Equal(t, execution.Request.ExecutionID, finalizer.envelope.ExecutionID)
 	require.Equal(t, execution.IntentFingerprint, finalizer.envelope.IntentFingerprint)
 
-	payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(finalizer.envelope.Payload))
+	payload, err := command.DecodeTransactionCompletionPlan([]byte(finalizer.envelope.Payload))
 	require.NoError(t, err)
-	require.Equal(t, command.BalanceEngineRecoveryVersion, payload.FormatVersion)
+	require.Equal(t, command.TransactionCompletionFormatVersion, payload.FormatVersion)
 	require.Equal(t, "tenant-create-composition", payload.TenantID)
-	projected, err := command.ProjectBalanceEngineOperations(*payload, finalizer.envelope.Result)
+	projected, err := command.BuildOperationRecordsFromMovements(*payload, finalizer.envelope.Result)
 	require.NoError(t, err)
 	requireJSONEqual(t, projected, got.Operations)
 
@@ -177,14 +177,14 @@ func TestIntegration_CreateTransactionV1_ComposesRealAdapterRecoveryAndFinalizat
 
 	recoveryRaw, err := client.HGet(ctx, keys.Recovery, got.ID+":"+execution.Request.ExecutionID.String()).Bytes()
 	require.NoError(t, err)
-	recovery, err := command.DecodeBalanceEngineRecoveryEnvelope(recoveryRaw)
+	recovery, err := command.DecodeTransactionCompletionRecord(recoveryRaw)
 	require.NoError(t, err)
-	require.Equal(t, command.BalanceEngineRecoveryVersion, recovery.FormatVersion)
+	require.Equal(t, command.TransactionCompletionFormatVersion, recovery.FormatVersion)
 	require.Equal(t, execution.Request.ExecutionID, recovery.ExecutionID)
 	require.Equal(t, execution.IntentFingerprint, recovery.IntentFingerprint)
-	recoveredPayload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(recovery.Payload))
+	recoveredPayload, err := command.DecodeTransactionCompletionPlan([]byte(recovery.Payload))
 	require.NoError(t, err)
-	recovered, err := command.ProjectBalanceEngineOperations(*recoveredPayload, recovery.Result)
+	recovered, err := command.BuildOperationRecordsFromMovements(*recoveredPayload, recovery.Result)
 	require.NoError(t, err)
 	requireJSONEqual(t, got.Operations, recovered)
 
@@ -236,7 +236,7 @@ func assertAdapterCreateBalances(t *testing.T, ctx context.Context, client *redi
 }
 
 var (
-	_ command.BalanceEngine                 = (*recordingCreateAdapter)(nil)
-	_ command.BalanceEngineOutcomeFinalizer = (*adapterCreateFinalizer)(nil)
-	_ command.TransactionReader             = (*adapterCreateReader)(nil)
+	_ command.BalanceEngine        = (*recordingCreateAdapter)(nil)
+	_ command.TransactionCompleter = (*adapterCreateFinalizer)(nil)
+	_ command.TransactionReader    = (*adapterCreateReader)(nil)
 )

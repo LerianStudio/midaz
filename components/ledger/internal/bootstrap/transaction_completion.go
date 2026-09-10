@@ -7,19 +7,19 @@ package bootstrap
 import (
 	"errors"
 
-	postgresRecovery "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/recovery"
+	postgresCompletion "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
-// configureBalanceEngineFinalization shares durable completion and its tenant
+// configureTransactionCompletion shares durable completion and its tenant
 // resolution between normal writes and recovery. It does not enable the engine.
-func configureBalanceEngineFinalization(consumer *RedisQueueConsumer, useCase *command.UseCase, multiTenantEnabled bool, mongoResolver recoveryMongoResolver) error {
+func configureTransactionCompletion(consumer *RedisQueueConsumer, useCase *command.UseCase, multiTenantEnabled bool, mongoResolver recoveryMongoResolver) error {
 	if consumer == nil || useCase == nil {
 		return errors.New("balance engine finalization requires command and recovery owners")
 	}
 
-	delegate, err := command.NewBalanceEngineFinalizerWithEvents(
-		postgresRecovery.NewStore(useCase.TransactionRepo, useCase.OperationRepo),
+	delegate, err := command.NewTransactionCompletionServiceWithEvents(
+		postgresCompletion.NewStore(useCase.TransactionRepo, useCase.OperationRepo),
 		useCase.TransactionMetadataRepo,
 		useCase,
 	)
@@ -27,11 +27,11 @@ func configureBalanceEngineFinalization(consumer *RedisQueueConsumer, useCase *c
 		return err
 	}
 
-	finalizer := &tenantRecoveryFinalizer{
+	completer := &tenantTransactionCompleter{
 		delegate: delegate, multiTenantEnabled: multiTenantEnabled, mongoResolver: mongoResolver,
 	}
-	useCase.BalanceEngineFinalizer = finalizer
-	consumer.WithBalanceEngineFinalizer(finalizer)
+	useCase.TransactionCompleter = completer
+	consumer.WithTransactionCompleter(completer)
 
 	return nil
 }

@@ -66,11 +66,11 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 	finalizer := &adapterCreateFinalizer{}
 	tracerControl := &pendingLifecycleTracer{reservationID: uuid.MustParse("b7777777-7777-4777-8777-777777777777")}
 	uc := &command.UseCase{
-		TransactionRedisRepo:   idempotency,
-		TransactionReader:      reader,
-		BalanceEngine:          executor,
-		BalanceEngineFinalizer: finalizer,
-		TracerReserver:         tracerControl,
+		TransactionRedisRepo: idempotency,
+		TransactionReader:    reader,
+		BalanceEngine:        executor,
+		TransactionCompleter: finalizer,
+		TracerReserver:       tracerControl,
 	}
 
 	date := time.Date(2026, time.September, 8, 18, 0, 0, 0, time.UTC)
@@ -134,18 +134,18 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 
 	recoveryRaw, err := inspector.HGet(ctx, keys.Recovery, execution.Request.Transactions[0].ID.String()+":"+execution.Request.ExecutionID.String()).Bytes()
 	require.NoError(t, err)
-	recovery, err := command.DecodeBalanceEngineRecoveryEnvelope(recoveryRaw)
+	recovery, err := command.DecodeTransactionCompletionRecord(recoveryRaw)
 	require.NoError(t, err)
 	require.Equal(t, execution.Request.ExecutionID, recovery.ExecutionID)
 	require.Equal(t, execution.IntentFingerprint, recovery.IntentFingerprint)
-	payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(recovery.Payload))
+	payload, err := command.DecodeTransactionCompletionPlan([]byte(recovery.Payload))
 	require.NoError(t, err)
-	projected, err := command.ProjectBalanceEngineOperations(*payload, recovery.Result)
+	projected, err := command.BuildOperationRecordsFromMovements(*payload, recovery.Result)
 	require.NoError(t, err)
 	require.Len(t, projected, 2)
 
 	beforeRecoveryFinalization := captureAdapterState(t, inspector, keys)
-	outcome, err := finalizer.FinalizeWithOutcome(ctx, recovery)
+	outcome, err := finalizer.Complete(ctx, recovery)
 	require.NoError(t, err)
 	require.Equal(t, constant.APPROVED, outcome.Outcome.TransactionStatus)
 	require.Same(t, recovery, finalizer.envelope)

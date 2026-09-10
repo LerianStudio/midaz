@@ -134,12 +134,12 @@ func TestRevertTransactionV2UsesOptInBalanceEngineWithStableChildIdentity(t *tes
 		},
 	}
 	executor := &revertLiteralEngine{t: t, reader: reader}
-	finalizer := &createEngineFinalizer{outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED}}
+	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	reservationID := uuid.MustParse("66666666-6666-4666-8666-666666666666")
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, BalanceEngineFinalizer: finalizer, TracerReserver: reserver,
+		BalanceEngine: executor, TransactionCompleter: finalizer, TracerReserver: reserver,
 	}
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-revert")
 	ctx = libObservability.ContextWithHeaderID(ctx, "revert-request")
@@ -209,10 +209,10 @@ func TestRevertTransactionBalanceEngineIndeterminateFailureRetainsClaim(t *testi
 	}
 	transportFailure := errors.New("balance engine outcome unknown")
 	executor := &createEngineErrorExecutor{err: transportFailure}
-	finalizer := &createEngineFinalizer{outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED}}
+	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, BalanceEngineFinalizer: finalizer,
+		BalanceEngine: executor, TransactionCompleter: finalizer,
 	}
 
 	got, replayed, err := uc.RevertTransactionV1(context.Background(), RevertTransactionInput{

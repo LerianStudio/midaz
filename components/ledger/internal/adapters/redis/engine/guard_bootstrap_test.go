@@ -59,7 +59,7 @@ func TestEnsureTransactionGuardRejectsInvalidInputBeforeProvider(t *testing.T) {
 	transactionID := uuid.MustParse("33333333-3333-4333-8333-333333333333")
 	limits := Limits{
 		MaxTransactions: 1, MaxPostings: 1, MaxBalances: 1,
-		MaxRecoveryBytes: 128, MaxRequestBytes: 128, MaxPreparedBytes: 8,
+		MaxCompletionPlanBytes: 128, MaxRequestBytes: 128, MaxPreparedBytes: 8,
 	}
 
 	tests := []struct {
@@ -93,7 +93,7 @@ func TestEnsureTransactionGuardRejectsCanceledContextBeforeProvider(t *testing.T
 	provider := &countingProvider{}
 	adapter, err := NewAdapter(provider, Limits{
 		MaxTransactions: 1, MaxPostings: 1, MaxBalances: 1,
-		MaxRecoveryBytes: 128, MaxRequestBytes: 128, MaxPreparedBytes: 128,
+		MaxCompletionPlanBytes: 128, MaxRequestBytes: 128, MaxPreparedBytes: 128,
 	})
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -118,7 +118,7 @@ func TestEnsureTransactionGuardClassifiesCommandFailureWithoutRetry(t *testing.T
 	client.AddHook(hook)
 	adapter, err := NewAdapter(guardStaticProvider{client: client}, Limits{
 		MaxTransactions: 1, MaxPostings: 1, MaxBalances: 1,
-		MaxRecoveryBytes: 128, MaxRequestBytes: 128, MaxPreparedBytes: 128,
+		MaxCompletionPlanBytes: 128, MaxRequestBytes: 128, MaxPreparedBytes: 128,
 	})
 	require.NoError(t, err)
 

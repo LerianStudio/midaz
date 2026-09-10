@@ -23,10 +23,10 @@ const balanceEngineMaximumAttempts = 3
 var ErrInvalidBalanceEngineResult = errors.New("invalid balance engine result")
 
 // BalanceEngineAttempt carries one freshly prepared execution and its canonical
-// single-transaction recovery payload.
+// single-transaction completion plan.
 type BalanceEngineAttempt struct {
 	Execution EngineExecution
-	Payload   BalanceEngineRecoveryPayload
+	Payload   TransactionCompletionPlan
 }
 
 // BalanceEngineRetryResult preserves the latest prepared attempt and any result
@@ -77,7 +77,7 @@ func ExecuteBalanceEngineWithRetry(
 		if identity == nil {
 			identity = &currentIdentity
 		} else if !identity.matches(currentIdentity) {
-			return latest, invalidRecovery("balance engine retry identity changed")
+			return latest, invalidTransactionCompletionRecord("balance engine retry identity changed")
 		}
 
 		if err := ctx.Err(); err != nil {
@@ -92,7 +92,7 @@ func ExecuteBalanceEngineWithRetry(
 				return latest, invalidBalanceEngineResult(errors.New("executor returned a nil result"))
 			}
 
-			if _, validationErr := validateProjectionResult(attempt.Payload, *result); validationErr != nil {
+			if _, validationErr := validateOperationMovementResult(attempt.Payload, *result); validationErr != nil {
 				return latest, invalidBalanceEngineResult(validationErr)
 			}
 
@@ -112,36 +112,36 @@ func ExecuteBalanceEngineWithRetry(
 }
 
 func validateBalanceEngineAttempt(attempt BalanceEngineAttempt) error {
-	if err := ValidateBalanceEngineRecovery(attempt.Execution); err != nil {
+	if err := ValidateTransactionCompletion(attempt.Execution); err != nil {
 		return err
 	}
 
-	if len(attempt.Execution.Request.Transactions) != 1 || len(attempt.Execution.Recovery) != 1 {
-		return invalidRecovery("balance engine retry requires one transaction and recovery payload")
+	if len(attempt.Execution.Request.Transactions) != 1 || len(attempt.Execution.CompletionPlans) != 1 {
+		return invalidTransactionCompletionRecord("balance engine retry requires one transaction and completion plan")
 	}
 
 	transactionID := attempt.Execution.Request.Transactions[0].ID
-	if attempt.Payload.TransactionID != transactionID || attempt.Execution.Recovery[0].TransactionID != transactionID {
-		return invalidRecovery("retry payload does not match its transaction")
+	if attempt.Payload.TransactionID != transactionID || attempt.Execution.CompletionPlans[0].TransactionID != transactionID {
+		return invalidTransactionCompletionRecord("retry payload does not match its transaction")
 	}
 
-	canonicalPayload, err := EncodeBalanceEngineRecoveryPayload(attempt.Payload)
+	canonicalPayload, err := EncodeTransactionCompletionPlan(attempt.Payload)
 	if err != nil {
 		return err
 	}
 
-	recoveryPayload, err := DecodeBalanceEngineRecoveryPayload(attempt.Execution.Recovery[0].Payload)
+	completionPlan, err := DecodeTransactionCompletionPlan(attempt.Execution.CompletionPlans[0].Payload)
 	if err != nil {
 		return err
 	}
 
-	canonicalRecovery, err := EncodeBalanceEngineRecoveryPayload(*recoveryPayload)
+	canonicalCompletionPlan, err := EncodeTransactionCompletionPlan(*completionPlan)
 	if err != nil {
 		return err
 	}
 
-	if !bytes.Equal(canonicalPayload, canonicalRecovery) {
-		return invalidRecovery("retry payload does not match canonical recovery")
+	if !bytes.Equal(canonicalPayload, canonicalCompletionPlan) {
+		return invalidTransactionCompletionRecord("retry payload does not match canonical completion plan")
 	}
 
 	return nil

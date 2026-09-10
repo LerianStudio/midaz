@@ -38,37 +38,37 @@ func (resolver *recoveryMongoStub) GetDatabaseForTenant(ctx context.Context, ten
 	return resolver.database, resolver.err
 }
 
-type recoveryMongoFinalizerStub struct {
+type recoveryMongoCompleterStub struct {
 	ctx   context.Context
 	calls int
 	err   error
 }
 
 type recoveryMongoOutcomeFinalizerStub struct {
-	recoveryMongoFinalizerStub
-	outcome command.BalanceEngineRecoveryOutcome
+	recoveryMongoCompleterStub
+	outcome command.TransactionPersistenceOutcome
 }
 
-func (finalizer *recoveryMongoFinalizerStub) Finalize(ctx context.Context, _ *command.BalanceEngineRecoveryEnvelope) error {
+func (completer *recoveryMongoCompleterStub) Complete(ctx context.Context, _ *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
+	completer.calls++
+	completer.ctx = ctx
+	return command.TransactionCompletionResult{Outcome: command.TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}, completer.err
+}
+
+func (finalizer *recoveryMongoOutcomeFinalizerStub) Complete(ctx context.Context, _ *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
 	finalizer.calls++
 	finalizer.ctx = ctx
-	return finalizer.err
+	return command.TransactionCompletionResult{Outcome: finalizer.outcome}, finalizer.err
 }
 
-func (finalizer *recoveryMongoOutcomeFinalizerStub) FinalizeWithOutcome(ctx context.Context, _ *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
-	finalizer.calls++
-	finalizer.ctx = ctx
-	return command.BalanceEngineFinalizationResult{Outcome: finalizer.outcome}, finalizer.err
-}
-
-func TestRecoveryMongoFinalizeWithOutcomeForwardsOutcomeAndContext(t *testing.T) {
+func TestRecoveryMongoCompleteForwardsOutcomeAndContext(t *testing.T) {
 	resolver := &recoveryMongoStub{database: &mongo.Database{}}
-	delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: "APPROVED"}}
-	finalizer := &tenantRecoveryFinalizer{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
+	delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.TransactionPersistenceOutcome{TransactionStatus: "APPROVED"}}
+	finalizer := &tenantTransactionCompleter{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
 	ctx, cancel := context.WithTimeout(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), time.Minute)
 	defer cancel()
 
-	outcome, err := finalizer.FinalizeWithOutcome(ctx, &command.BalanceEngineRecoveryEnvelope{TenantID: "tenant-a"})
+	outcome, err := finalizer.Complete(ctx, &command.TransactionCompletionRecord{TenantID: "tenant-a"})
 
 	require.NoError(t, err)
 	require.Equal(t, "APPROVED", outcome.Outcome.TransactionStatus)
@@ -82,34 +82,33 @@ func TestRecoveryMongoFinalizeWithOutcomeForwardsOutcomeAndContext(t *testing.T)
 	require.Equal(t, deadline, delegateDeadline)
 }
 
-func TestRecoveryMongoFinalizeWithOutcomeSingleTenantPreservesContext(t *testing.T) {
-	delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: "PENDING"}}
-	finalizer := &tenantRecoveryFinalizer{delegate: delegate}
+func TestRecoveryMongoCompleteSingleTenantPreservesContext(t *testing.T) {
+	delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.TransactionPersistenceOutcome{TransactionStatus: "PENDING"}}
+	finalizer := &tenantTransactionCompleter{delegate: delegate}
 
-	outcome, err := finalizer.FinalizeWithOutcome(t.Context(), &command.BalanceEngineRecoveryEnvelope{})
+	outcome, err := finalizer.Complete(t.Context(), &command.TransactionCompletionRecord{})
 
 	require.NoError(t, err)
 	require.Equal(t, "PENDING", outcome.Outcome.TransactionStatus)
 	require.Equal(t, t.Context(), delegate.ctx)
 }
 
-func TestRecoveryMongoFinalizeWithOutcomeRequiresCapability(t *testing.T) {
-	finalizer := &tenantRecoveryFinalizer{delegate: &recoveryMongoFinalizerStub{}}
+func TestRecoveryMongoCompleteForwardsCompletion(t *testing.T) {
+	finalizer := &tenantTransactionCompleter{delegate: &recoveryMongoCompleterStub{}}
 
-	outcome, err := finalizer.FinalizeWithOutcome(t.Context(), &command.BalanceEngineRecoveryEnvelope{})
+	outcome, err := finalizer.Complete(t.Context(), &command.TransactionCompletionRecord{})
 
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "outcome")
-	require.Zero(t, outcome)
+	require.NoError(t, err)
+	require.Equal(t, constant.APPROVED, outcome.Outcome.TransactionStatus)
 }
 
-func TestRecoveryMongoFinalizeWithOutcomeReturnsZeroOnResolutionOrDelegateError(t *testing.T) {
+func TestRecoveryMongoCompleteReturnsZeroOnResolutionOrDelegateError(t *testing.T) {
 	t.Run("tenant mismatch", func(t *testing.T) {
 		resolver := &recoveryMongoStub{database: &mongo.Database{}}
-		delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: "APPROVED"}}
-		finalizer := &tenantRecoveryFinalizer{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
+		delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.TransactionPersistenceOutcome{TransactionStatus: "APPROVED"}}
+		finalizer := &tenantTransactionCompleter{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
 
-		outcome, err := finalizer.FinalizeWithOutcome(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), &command.BalanceEngineRecoveryEnvelope{TenantID: "tenant-b"})
+		outcome, err := finalizer.Complete(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), &command.TransactionCompletionRecord{TenantID: "tenant-b"})
 
 		require.Error(t, err)
 		require.Zero(t, outcome)
@@ -119,10 +118,10 @@ func TestRecoveryMongoFinalizeWithOutcomeReturnsZeroOnResolutionOrDelegateError(
 
 	t.Run("resolver error", func(t *testing.T) {
 		resolver := &recoveryMongoStub{database: &mongo.Database{}, err: errors.New("lookup failed")}
-		delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: "APPROVED"}}
-		finalizer := &tenantRecoveryFinalizer{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
+		delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.TransactionPersistenceOutcome{TransactionStatus: "APPROVED"}}
+		finalizer := &tenantTransactionCompleter{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
 
-		outcome, err := finalizer.FinalizeWithOutcome(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), &command.BalanceEngineRecoveryEnvelope{TenantID: "tenant-a"})
+		outcome, err := finalizer.Complete(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), &command.TransactionCompletionRecord{TenantID: "tenant-a"})
 
 		require.ErrorIs(t, err, resolver.err)
 		require.Zero(t, outcome)
@@ -132,24 +131,24 @@ func TestRecoveryMongoFinalizeWithOutcomeReturnsZeroOnResolutionOrDelegateError(
 
 	t.Run("delegate error", func(t *testing.T) {
 		delegateErr := errors.New("persist failed")
-		delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: "APPROVED"}, recoveryMongoFinalizerStub: recoveryMongoFinalizerStub{err: delegateErr}}
-		finalizer := &tenantRecoveryFinalizer{delegate: delegate}
+		delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.TransactionPersistenceOutcome{TransactionStatus: "APPROVED"}, recoveryMongoCompleterStub: recoveryMongoCompleterStub{err: delegateErr}}
+		finalizer := &tenantTransactionCompleter{delegate: delegate}
 
-		outcome, err := finalizer.FinalizeWithOutcome(t.Context(), &command.BalanceEngineRecoveryEnvelope{})
+		outcome, err := finalizer.Complete(t.Context(), &command.TransactionCompletionRecord{})
 
 		require.ErrorIs(t, err, delegateErr)
 		require.Zero(t, outcome)
 	})
 }
 
-func TestRecoveryMongoFinalizeWithOutcomeCanceledContextReturnsZero(t *testing.T) {
+func TestRecoveryMongoCompleteCanceledContextReturnsZero(t *testing.T) {
 	resolver := &recoveryMongoStub{database: &mongo.Database{}}
-	delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: "APPROVED"}}
-	finalizer := &tenantRecoveryFinalizer{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
+	delegate := &recoveryMongoOutcomeFinalizerStub{outcome: command.TransactionPersistenceOutcome{TransactionStatus: "APPROVED"}}
+	finalizer := &tenantTransactionCompleter{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
 	ctx, cancel := context.WithCancel(tmcore.ContextWithTenantID(t.Context(), "tenant-a"))
 	cancel()
 
-	outcome, err := finalizer.FinalizeWithOutcome(ctx, &command.BalanceEngineRecoveryEnvelope{TenantID: "tenant-a"})
+	outcome, err := finalizer.Complete(ctx, &command.TransactionCompletionRecord{TenantID: "tenant-a"})
 
 	require.ErrorIs(t, err, context.Canceled)
 	require.Zero(t, outcome)
@@ -159,12 +158,12 @@ func TestRecoveryMongoFinalizeWithOutcomeCanceledContextReturnsZero(t *testing.T
 
 func TestRecoveryMongoPreservesTenantAndTimeout(t *testing.T) {
 	resolver := &recoveryMongoStub{database: &mongo.Database{}}
-	delegate := &recoveryMongoFinalizerStub{}
-	finalizer := &tenantRecoveryFinalizer{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
+	delegate := &recoveryMongoCompleterStub{}
+	finalizer := &tenantTransactionCompleter{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
 	ctx, cancel := context.WithTimeout(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), time.Minute)
 	defer cancel()
-	envelope := &command.BalanceEngineRecoveryEnvelope{TenantID: "tenant-a"}
-	require.NoError(t, finalizer.Finalize(ctx, envelope))
+	envelope := &command.TransactionCompletionRecord{TenantID: "tenant-a"}
+	require.NoError(t, completionError(finalizer.Complete(ctx, envelope)))
 	require.Equal(t, 1, resolver.calls)
 	require.Equal(t, "tenant-a", resolver.tenant)
 	require.Equal(t, "tenant-a", tmcore.GetTenantIDContext(delegate.ctx))
@@ -188,10 +187,10 @@ func TestRecoveryMongoFailureStopsFinalization(t *testing.T) {
 	for _, scenario := range []string{"missing tenant", "foreign tenant", "missing resolver", "nil database", "lookup error", "canceled"} {
 		t.Run(scenario, func(t *testing.T) {
 			resolver := &recoveryMongoStub{database: &mongo.Database{}}
-			delegate := &recoveryMongoFinalizerStub{}
-			finalizer := &tenantRecoveryFinalizer{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
+			delegate := &recoveryMongoCompleterStub{}
+			finalizer := &tenantTransactionCompleter{delegate: delegate, mongoResolver: resolver, multiTenantEnabled: true}
 			ctx := tmcore.ContextWithTenantID(t.Context(), "tenant-a")
-			envelope := &command.BalanceEngineRecoveryEnvelope{TenantID: "tenant-a"}
+			envelope := &command.TransactionCompletionRecord{TenantID: "tenant-a"}
 			wantCalls := 0
 			switch scenario {
 			case "missing tenant":
@@ -211,7 +210,7 @@ func TestRecoveryMongoFailureStopsFinalization(t *testing.T) {
 				ctx, cancel = context.WithCancel(ctx)
 				cancel()
 			}
-			err := finalizer.Finalize(ctx, envelope)
+			err := completionError(finalizer.Complete(ctx, envelope))
 			require.Error(t, err)
 			if scenario == "lookup error" {
 				require.ErrorIs(t, err, lookupErr)
@@ -225,10 +224,10 @@ func TestRecoveryMongoFailureStopsFinalization(t *testing.T) {
 func TestRecoveryMongoSingleTenantUsesExistingMetadataConnection(t *testing.T) {
 	resolver := &recoveryMongoStub{err: errors.New("must not resolve")}
 	delegateErr := errors.New("metadata persistence failed")
-	delegate := &recoveryMongoFinalizerStub{err: delegateErr}
-	finalizer := &tenantRecoveryFinalizer{delegate: delegate, mongoResolver: resolver}
+	delegate := &recoveryMongoCompleterStub{err: delegateErr}
+	finalizer := &tenantTransactionCompleter{delegate: delegate, mongoResolver: resolver}
 	ctx := t.Context()
-	require.ErrorIs(t, finalizer.Finalize(ctx, &command.BalanceEngineRecoveryEnvelope{}), delegateErr)
+	require.ErrorIs(t, completionError(finalizer.Complete(ctx, &command.TransactionCompletionRecord{})), delegateErr)
 	require.Zero(t, resolver.calls)
 	require.Equal(t, 1, delegate.calls)
 	require.Equal(t, ctx, delegate.ctx)
@@ -240,7 +239,7 @@ func TestRecoveryMongoDoesNotChangeLegacyTenantReadiness(t *testing.T) {
 		pgManager:          &tmpostgres.Manager{},
 		tenantCache:        &tenantcache.TenantCache{},
 	}
-	consumer.WithBalanceEngineFinalizer(&tenantRecoveryFinalizer{multiTenantEnabled: true})
+	consumer.WithTransactionCompleter(&tenantTransactionCompleter{multiTenantEnabled: true})
 	require.True(t, consumer.isMultiTenantReady(), "missing recovery Mongo must not select single-tenant dispatch")
 }
 

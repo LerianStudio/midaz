@@ -115,13 +115,13 @@ type Config struct {
 
 	// Balance engine activation and hard request boundaries. The engine remains
 	// disabled unless explicitly enabled by the environment.
-	BalanceEngineEnabled          bool `env:"BALANCE_ENGINE_ENABLED"`
-	BalanceEngineMaxTransactions  int  `env:"BALANCE_ENGINE_MAX_TRANSACTIONS"`
-	BalanceEngineMaxPostings      int  `env:"BALANCE_ENGINE_MAX_POSTINGS"`
-	BalanceEngineMaxBalances      int  `env:"BALANCE_ENGINE_MAX_BALANCES"`
-	BalanceEngineMaxRecoveryBytes int  `env:"BALANCE_ENGINE_MAX_RECOVERY_BYTES"`
-	BalanceEngineMaxRequestBytes  int  `env:"BALANCE_ENGINE_MAX_REQUEST_BYTES"`
-	BalanceEngineMaxPreparedBytes int  `env:"BALANCE_ENGINE_MAX_PREPARED_BYTES"`
+	BalanceEngineEnabled              bool `env:"BALANCE_ENGINE_ENABLED"`
+	BalanceEngineMaxTransactions      int  `env:"BALANCE_ENGINE_MAX_TRANSACTIONS"`
+	BalanceEngineMaxPostings          int  `env:"BALANCE_ENGINE_MAX_POSTINGS"`
+	BalanceEngineMaxBalances          int  `env:"BALANCE_ENGINE_MAX_BALANCES"`
+	TransactionCompletionMaxPlanBytes int  `env:"BALANCE_ENGINE_MAX_RECOVERY_BYTES"`
+	BalanceEngineMaxRequestBytes      int  `env:"BALANCE_ENGINE_MAX_REQUEST_BYTES"`
+	BalanceEngineMaxPreparedBytes     int  `env:"BALANCE_ENGINE_MAX_PREPARED_BYTES"`
 
 	// Multi-tenant configuration
 	MultiTenantEnabled                     bool   `env:"MULTI_TENANT_ENABLED"`
@@ -1167,7 +1167,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		recoveryMongo = txnMgo.mongoManager
 	}
 
-	if err := configureBalanceEngineFinalization(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo); err != nil {
+	if err := configureTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo); err != nil {
 		doCleanup()
 
 		return nil, fmt.Errorf("failed to configure balance engine finalization: %w", err)

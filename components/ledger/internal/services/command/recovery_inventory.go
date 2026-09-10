@@ -216,7 +216,7 @@ func classifyRecoveryRecord(tenantID string, raw []byte) (recoveryArtifactClassi
 			return recoveryArtifactClassification{}, errors.New("unsupported recovery format version")
 		}
 
-		envelope, err := DecodeBalanceEngineRecoveryEnvelope(raw)
+		envelope, err := DecodeTransactionCompletionRecord(raw)
 		if err != nil {
 			return recoveryArtifactClassification{}, err
 		}
@@ -225,7 +225,7 @@ func classifyRecoveryRecord(tenantID string, raw []byte) (recoveryArtifactClassi
 			return recoveryArtifactClassification{}, errors.New("recovery envelope tenant differs from inventory scope")
 		}
 
-		payload, err := DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+		payload, err := DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 		if err != nil {
 			return recoveryArtifactClassification{}, err
 		}
@@ -253,7 +253,7 @@ func recoveryInventoryObject(raw []byte) (map[string]json.RawMessage, error) {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 
-	if err := validateRecoveryJSONValue(decoder); err != nil {
+	if err := validateCompletionJSONValue(decoder); err != nil {
 		return nil, err
 	}
 
@@ -288,7 +288,7 @@ type recoveryReceiptProtection struct {
 
 func classifyRecoveryReceipt(tenantID string, raw []byte) (recoveryArtifactClassification, error) {
 	var receipt recoveryInventoryReceipt
-	if err := decodeRecoveryJSON(raw, &receipt); err != nil {
+	if err := decodeTransactionCompletionJSON(raw, &receipt); err != nil {
 		return recoveryArtifactClassification{}, err
 	}
 
@@ -310,26 +310,26 @@ func classifyRecoveryReceipt(tenantID string, raw []byte) (recoveryArtifactClass
 		return recoveryArtifactClassification{format: RecoveryFormatReceiptV1Unprotected, action: RecoveryActionUnknown}, nil
 	}
 
-	if err := validateRecoveryReceiptProtection(receipt.ExecutionID, receipt.Protection); err != nil {
+	if err := validateCompletionReceiptProtection(receipt.ExecutionID, receipt.Protection); err != nil {
 		return recoveryArtifactClassification{}, err
 	}
 
 	return recoveryArtifactClassification{format: RecoveryFormatReceiptV1Protected, action: RecoveryActionUnknown}, nil
 }
 
-func validateRecoveryReceiptProtection(executionID string, protection *recoveryReceiptProtection) error {
+func validateCompletionReceiptProtection(executionID string, protection *recoveryReceiptProtection) error {
 	if protection.FormatVersion != 1 || protection.RetentionSeconds < 1 || protection.RetentionSeconds > 604800 ||
 		len(protection.Transactions) == 0 || len(protection.Transactions) != len(protection.RecoveryFields) ||
 		protection.Acknowledged == nil || protection.TerminalCompletedAtMS == nil {
 		return errors.New("invalid recovery receipt protection")
 	}
 
-	knownTransactions, err := validateRecoveryProtectionMembers(executionID, protection)
+	knownTransactions, err := validateCompletionProtectionMembers(executionID, protection)
 	if err != nil {
 		return err
 	}
 
-	allReady, latestTerminal, err := validateRecoveryProtectionProofs(protection, knownTransactions)
+	allReady, latestTerminal, err := validateCompletionProtectionProofs(protection, knownTransactions)
 	if err != nil {
 		return err
 	}
@@ -350,7 +350,7 @@ func validateRecoveryReceiptProtection(executionID string, protection *recoveryR
 	return nil
 }
 
-func validateRecoveryProtectionMembers(executionID string, protection *recoveryReceiptProtection) (map[string]struct{}, error) {
+func validateCompletionProtectionMembers(executionID string, protection *recoveryReceiptProtection) (map[string]struct{}, error) {
 	knownTransactions := make(map[string]struct{}, len(protection.Transactions))
 
 	for index, transactionID := range protection.Transactions {
@@ -372,7 +372,7 @@ func validateRecoveryProtectionMembers(executionID string, protection *recoveryR
 	return knownTransactions, nil
 }
 
-func validateRecoveryProtectionProofs(
+func validateCompletionProtectionProofs(
 	protection *recoveryReceiptProtection,
 	knownTransactions map[string]struct{},
 ) (bool, int64, error) {
@@ -410,7 +410,7 @@ func classifyRecoveryCoordinator(raw []byte) (recoveryArtifactClassification, er
 		Executions     map[string]int64 `json:"executions"`
 		CleanupAfterMS int64            `json:"cleanupAfterMs,omitempty"`
 	}
-	if err := decodeRecoveryJSON(raw, &coordinator); err != nil {
+	if err := decodeTransactionCompletionJSON(raw, &coordinator); err != nil {
 		return recoveryArtifactClassification{}, err
 	}
 

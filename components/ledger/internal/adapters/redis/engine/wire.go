@@ -22,12 +22,12 @@ import (
 
 // Limits bounds one execution. Callers must provide measured, positive limits.
 type Limits struct {
-	MaxTransactions  int
-	MaxPostings      int
-	MaxBalances      int
-	MaxRecoveryBytes int
-	MaxRequestBytes  int
-	MaxPreparedBytes int
+	MaxTransactions        int
+	MaxPostings            int
+	MaxBalances            int
+	MaxCompletionPlanBytes int
+	MaxRequestBytes        int
+	MaxPreparedBytes       int
 }
 
 // resolvedExecutionKeys is supplied by the authenticated adapter boundary,
@@ -71,13 +71,13 @@ type wireRequest struct {
 }
 
 type wireTransaction struct {
-	ID              string        `json:"id"`
-	GuardField      string        `json:"guardField"`
-	ExpectedGuard   string        `json:"expectedGuard"`
-	NextGuard       string        `json:"nextGuard"`
-	RecoveryField   string        `json:"recoveryField"`
-	RecoveryPayload string        `json:"recoveryPayload"`
-	Postings        []wirePosting `json:"postings"`
+	ID             string        `json:"id"`
+	GuardField     string        `json:"guardField"`
+	ExpectedGuard  string        `json:"expectedGuard"`
+	NextGuard      string        `json:"nextGuard"`
+	RecoveryField  string        `json:"recoveryField"`
+	CompletionPlan string        `json:"recoveryPayload"`
+	Postings       []wirePosting `json:"postings"`
 }
 
 type wirePosting struct {
@@ -193,7 +193,7 @@ func effectiveRetentionSeconds(requested int64) (int64, error) {
 }
 
 func validateExecutionEnvelope(input command.EngineExecution, limits Limits) error {
-	if limits.MaxTransactions <= 0 || limits.MaxPostings <= 0 || limits.MaxBalances <= 0 || limits.MaxRecoveryBytes <= 0 || limits.MaxRequestBytes <= 0 || limits.MaxPreparedBytes <= 0 {
+	if limits.MaxTransactions <= 0 || limits.MaxPostings <= 0 || limits.MaxBalances <= 0 || limits.MaxCompletionPlanBytes <= 0 || limits.MaxRequestBytes <= 0 || limits.MaxPreparedBytes <= 0 {
 		return fmt.Errorf("accounting execution limits must be positive")
 	}
 
@@ -210,8 +210,8 @@ func validateExecutionEnvelope(input command.EngineExecution, limits Limits) err
 		return fmt.Errorf("accounting execution exceeds transaction or balance limits")
 	}
 
-	if len(input.Guards) != len(request.Transactions) || len(input.Recovery) != len(request.Transactions) {
-		return fmt.Errorf("accounting execution requires one guard and recovery payload per transaction")
+	if len(input.Guards) != len(request.Transactions) || len(input.CompletionPlans) != len(request.Transactions) {
+		return fmt.Errorf("accounting execution requires one guard and completion plan per transaction")
 	}
 
 	return nil
@@ -231,28 +231,28 @@ func prepareSidecars(input command.EngineExecution, limits Limits) (map[uuid.UUI
 		guards[guard.TransactionID] = guard
 	}
 
-	recovery := make(map[uuid.UUID]json.RawMessage, len(input.Recovery))
+	completionPlans := make(map[uuid.UUID]json.RawMessage, len(input.CompletionPlans))
 
-	recoveryBytes := 0
-	for _, intent := range input.Recovery {
-		if len(intent.Payload) > limits.MaxRecoveryBytes-recoveryBytes {
-			return nil, nil, fmt.Errorf("accounting recovery payload exceeds byte limit")
+	completionPlanBytes := 0
+	for _, intent := range input.CompletionPlans {
+		if len(intent.Payload) > limits.MaxCompletionPlanBytes-completionPlanBytes {
+			return nil, nil, fmt.Errorf("accounting completion plan exceeds byte limit")
 		}
 
 		payload := strings.TrimSpace(string(intent.Payload))
 		if intent.TransactionID == uuid.Nil || len(payload) == 0 || payload[0] != '{' || !json.Valid(intent.Payload) {
-			return nil, nil, fmt.Errorf("invalid accounting recovery object")
+			return nil, nil, fmt.Errorf("invalid accounting completion plan")
 		}
 
-		if _, duplicate := recovery[intent.TransactionID]; duplicate {
-			return nil, nil, fmt.Errorf("duplicate accounting recovery payload")
+		if _, duplicate := completionPlans[intent.TransactionID]; duplicate {
+			return nil, nil, fmt.Errorf("duplicate accounting completion plan")
 		}
 
-		recoveryBytes += len(intent.Payload)
-		recovery[intent.TransactionID] = intent.Payload
+		completionPlanBytes += len(intent.Payload)
+		completionPlans[intent.TransactionID] = intent.Payload
 	}
 
-	return guards, recovery, nil
+	return guards, completionPlans, nil
 }
 
 func prepareBalances(ctx context.Context, request engine.Request, limits Limits) ([]wireBalance, map[string]engine.BalanceSnapshot, error) {
@@ -299,7 +299,7 @@ func validSnapshotIdentity(balance engine.BalanceSnapshot) bool {
 	return balance.ID != uuid.Nil && balance.AccountID != uuid.Nil && balance.Alias != "" && balance.Key != "" && balance.AssetCode != "" && balance.AccountType != "" && balance.BalanceRef == balance.Alias+"#"+balance.Key && validLogicalReference(balance.BalanceRef)
 }
 
-func prepareTransactions(ctx context.Context, request engine.Request, limits Limits, guards map[uuid.UUID]command.ExecutionGuard, recovery map[uuid.UUID]json.RawMessage, balances map[string]engine.BalanceSnapshot) ([]wireTransaction, error) {
+func prepareTransactions(ctx context.Context, request engine.Request, limits Limits, guards map[uuid.UUID]command.ExecutionGuard, completionPlans map[uuid.UUID]json.RawMessage, balances map[string]engine.BalanceSnapshot) ([]wireTransaction, error) {
 	preparedTransactions := make([]wireTransaction, 0, len(request.Transactions))
 	transactionIDs := make(map[uuid.UUID]bool, len(request.Transactions))
 	postingCount := 0
@@ -311,8 +311,8 @@ func prepareTransactions(ctx context.Context, request engine.Request, limits Lim
 
 		guard, hasGuard := guards[transaction.ID]
 
-		payload, hasRecovery := recovery[transaction.ID]
-		if transaction.ID == uuid.Nil || transactionIDs[transaction.ID] || !hasGuard || !hasRecovery {
+		completionPlan, hasCompletionPlan := completionPlans[transaction.ID]
+		if transaction.ID == uuid.Nil || transactionIDs[transaction.ID] || !hasGuard || !hasCompletionPlan {
 			return nil, fmt.Errorf("invalid accounting transaction correlation")
 		}
 
@@ -324,7 +324,7 @@ func prepareTransactions(ctx context.Context, request engine.Request, limits Lim
 		postingCount += len(transaction.Postings)
 		prepared := wireTransaction{
 			ID: transaction.ID.String(), GuardField: transaction.ID.String(), ExpectedGuard: guard.ExpectedToken, NextGuard: guard.NextToken,
-			RecoveryField: transaction.ID.String() + ":" + request.ExecutionID.String(), RecoveryPayload: string(payload),
+			RecoveryField: transaction.ID.String() + ":" + request.ExecutionID.String(), CompletionPlan: string(completionPlan),
 			Postings: make([]wirePosting, 0, len(transaction.Postings)),
 		}
 

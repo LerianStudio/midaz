@@ -24,8 +24,8 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/recovery"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	redisengine "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/engine"
@@ -87,21 +87,21 @@ func recoveryEngineExecution(t *testing.T) command.EngineExecution {
 		OrganizationID: id("organization"), LedgerID: id("ledger"), ExecutionID: id("execution"), Balances: []engine.BalanceSnapshot{balance},
 		Transactions: []engine.Transaction{{ID: id("transaction"), Postings: []engine.Posting{{Ref: "source:0", BalanceRef: balance.BalanceRef, Type: engine.PostingDebit, Amount: decimal.NewFromInt(30), DrawPolicy: engine.DrawForbidden}}}},
 	}
-	projection := command.FrozenProjectionContext{
-		TransactionID: id("transaction"), PostingRef: "source:0", BalanceRef: balance.BalanceRef, Role: engine.RolePrimary, Side: command.ProjectionSideFrom,
+	projection := command.OperationRecordSpec{
+		TransactionID: id("transaction"), PostingRef: "source:0", BalanceRef: balance.BalanceRef, Role: engine.RolePrimary, Side: command.OperationSpecSideFrom,
 		RowType: constant.DEBIT, Direction: constant.DirectionDebit, Description: "frozen operation", RouteCode: "FROZEN", ChartOfAccounts: "frozen chart",
-		Metadata: map[string]any{"purpose": "frozen operation metadata"}, RequestedAmount: decimal.NewFromInt(30), CompatibilityPath: command.ProjectionStandard,
-		Balance: command.FrozenProjectionBalance(mmodel.Balance{
+		Metadata: map[string]any{"purpose": "frozen operation metadata"}, RequestedAmount: decimal.NewFromInt(30), CompatibilityPath: command.OperationRecordStandard,
+		Balance: command.OperationBalanceContext(mmodel.Balance{
 			ID: balance.ID.String(), AccountID: balance.AccountID.String(), OrganizationID: request.OrganizationID.String(), LedgerID: request.LedgerID.String(),
 			Alias: balance.Alias, Key: balance.Key, AssetCode: balance.AssetCode, AccountType: balance.AccountType, Direction: balance.Direction,
 			Available: balance.Available, Version: balance.Version, AllowSending: true, AllowReceiving: true,
 		}),
 	}
-	payload := command.BalanceEngineRecoveryPayload{
-		FormatVersion: command.BalanceEngineRecoveryVersion, HeaderID: "recovery-engine-integration", OrganizationID: request.OrganizationID, LedgerID: request.LedgerID,
+	payload := command.TransactionCompletionPlan{
+		FormatVersion: command.TransactionCompletionFormatVersion, HeaderID: "recovery-engine-integration", OrganizationID: request.OrganizationID, LedgerID: request.LedgerID,
 		TransactionID: id("transaction"), ExecutionID: request.ExecutionID, TTL: date, TransactionDate: date,
 		TransactionCreatedAt: date.Add(-24 * time.Hour), TransactionUpdatedAt: date.Add(time.Millisecond), OperationUpdatedAt: date.Add(2 * time.Millisecond),
-		TransactionStatus: constant.APPROVED, Action: constant.ActionDirect, Projection: []command.FrozenProjectionContext{projection},
+		TransactionStatus: constant.APPROVED, Action: constant.ActionDirect, OperationSpecs: []command.OperationRecordSpec{projection},
 		TransactionInput: mtransaction.Transaction{
 			Description: "frozen transaction", Send: mtransaction.Send{Asset: "USD", Value: decimal.NewFromInt(30)},
 			Metadata: map[string]any{"sequence": json.Number("9007199254740993"), "purpose": "frozen transaction metadata"},
@@ -113,19 +113,19 @@ func recoveryEngineExecution(t *testing.T) command.EngineExecution {
 		Transactions: []command.BalanceEngineTransactionIntent{{
 			TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
 			TransactionDate: payload.TransactionDate, TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
-			Input: payload.TransactionInput, PostingRefs: []string{projection.PostingRef}, Projection: []command.FrozenProjectionIntent{projection.Intent()},
+			Input: payload.TransactionInput, PostingRefs: []string{projection.PostingRef}, OperationSpecs: []command.OperationRecordIntent{projection.Intent()},
 		}},
 	})
 	require.NoError(t, err)
 	payload.IntentFingerprint = fingerprint
-	raw, err := command.EncodeBalanceEngineRecoveryPayload(payload)
+	raw, err := command.EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 	input := command.EngineExecution{
 		Request: request, IntentFingerprint: fingerprint,
-		Guards:   []command.ExecutionGuard{{TransactionID: payload.TransactionID, NextToken: "frozen-execution-completed"}},
-		Recovery: []command.RecoveryIntent{{TransactionID: payload.TransactionID, Payload: raw}},
+		Guards:          []command.ExecutionGuard{{TransactionID: payload.TransactionID, NextToken: "frozen-execution-completed"}},
+		CompletionPlans: []command.CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: raw}},
 	}
-	require.NoError(t, command.ValidateBalanceEngineRecovery(input))
+	require.NoError(t, command.ValidateTransactionCompletion(input))
 
 	return input
 }
@@ -205,7 +205,7 @@ func recoveryEngineKeys(t *testing.T, client *redis.Client, field, raw string, b
 	return backupKey, balanceKey
 }
 
-func assertRecoveryEngineSQL(t *testing.T, db *sql.DB, payload *command.BalanceEngineRecoveryPayload, expected *operation.Operation) {
+func assertRecoveryEngineSQL(t *testing.T, db *sql.DB, payload *command.TransactionCompletionPlan, expected *operation.Operation) {
 	t.Helper()
 	ctx := context.Background()
 	var rootCount, rowCount int
@@ -248,7 +248,7 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 	queue, err := txredis.NewConsumerRedis(provider)
 	require.NoError(t, err)
 	adapter, err := redisengine.NewAdapter(provider, redisengine.Limits{
-		MaxTransactions: 4, MaxPostings: 16, MaxBalances: 16, MaxRecoveryBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20,
+		MaxTransactions: 4, MaxPostings: 16, MaxBalances: 16, MaxCompletionPlanBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20,
 	})
 	require.NoError(t, err)
 	pgConfig := pgtestutil.DefaultContainerConfig()
@@ -256,7 +256,7 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 	pg := pgtestutil.SetupContainerWithConfig(t, pgConfig)
 	dsn := pgtestutil.BuildConnectionString(pg.Host, pg.Port, pg.Config)
 	pgConnection := pgtestutil.CreatePostgresClient(t, dsn, dsn, pg.Config.DBName, pgtestutil.FindMigrationsPath(t, "transaction"))
-	store := recovery.NewStore(transaction.NewTransactionPostgreSQLRepository(pgConnection), operation.NewOperationPostgreSQLRepository(pgConnection))
+	store := completion.NewStore(transaction.NewTransactionPostgreSQLRepository(pgConnection), operation.NewOperationPostgreSQLRepository(pgConnection))
 	mongoConfig := mongotestutil.DefaultContainerConfig()
 	mongoConfig.Image = "mongo:8"
 	mongoContainer := mongotestutil.SetupContainerWithConfig(t, mongoConfig)
@@ -279,11 +279,11 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 			field := input.Request.Transactions[0].ID.String() + ":" + input.Request.ExecutionID.String()
 			raw, exists := messages[field]
 			require.True(t, exists, "the accounting execution must durably write recovery before its caller finalizes")
-			envelope, err := command.DecodeBalanceEngineRecoveryEnvelope([]byte(raw))
+			envelope, err := command.DecodeTransactionCompletionRecord([]byte(raw))
 			require.NoError(t, err)
-			payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+			payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 			require.NoError(t, err)
-			rows, err := command.ProjectBalanceEngineOperations(*payload, *result)
+			rows, err := command.BuildOperationRecordsFromMovements(*payload, *result)
 			require.NoError(t, err)
 			require.Len(t, rows, 1)
 			backupKey, balanceKey := recoveryEngineKeys(t, client, field, raw, input.Request.Balances[0].ID)
@@ -295,8 +295,8 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 			require.NoError(t, client.Set(ctx, balanceKey, currentBalance, 24*time.Hour).Err())
 			accountingState := captureRecoveryEngineState(t, client, backupKey)
 			fault := &recoveryEngineMetadataFault{MetadataMongoDBRepository: metadata, fail: metadataFailure}
-			finalizer := command.NewBalanceEngineFinalizer(store, fault)
-			consumer := NewRedisQueueConsumer(recoveryQuietLogger{}, &command.UseCase{TransactionRedisRepo: queue}, nil).WithBalanceEngineFinalizer(finalizer)
+			finalizer := command.NewTransactionCompletionService(store, fault)
+			consumer := NewRedisQueueConsumer(recoveryQuietLogger{}, &command.UseCase{TransactionRedisRepo: queue}, nil).WithTransactionCompleter(finalizer)
 			require.Nil(t, consumer.Query)
 			consumer.readMessagesAndProcess(ctx)
 			assertRecoveryEngineSQL(t, pg.DB, payload, rows[0])

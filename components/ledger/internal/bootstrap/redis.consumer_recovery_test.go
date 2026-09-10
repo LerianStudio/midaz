@@ -23,9 +23,10 @@ import (
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/engine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-func consumerRecoveryFixture(t *testing.T) (string, string, *command.BalanceEngineRecoveryEnvelope) {
+func consumerRecoveryFixture(t *testing.T) (string, string, *command.TransactionCompletionRecord) {
 	t.Helper()
 	organization := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledger := uuid.MustParse("22222222-2222-4222-8222-222222222222")
@@ -34,19 +35,19 @@ func consumerRecoveryFixture(t *testing.T) (string, string, *command.BalanceEngi
 	balanceID := uuid.MustParse("55555555-5555-4555-8555-555555555555")
 	account := uuid.MustParse("66666666-6666-4666-8666-666666666666")
 	date := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	balance := command.FrozenProjectionBalance{}
+	balance := command.OperationBalanceContext{}
 	balance.ID, balance.AccountID = balanceID.String(), account.String()
 	balance.OrganizationID, balance.LedgerID = organization.String(), ledger.String()
 	balance.Alias, balance.Key, balance.AssetCode, balance.AccountType = "@source", "default", "BRL", "deposit"
 	balance.Available, balance.Version = decimal.NewFromInt(100), 7
-	projection := command.FrozenProjectionContext{
+	projection := command.OperationRecordSpec{
 		TransactionID: transaction, PostingRef: "posting", BalanceRef: "@source#default", Role: engine.RolePrimary,
-		Side: command.ProjectionSideFrom, RowType: "DEBIT", Direction: "debit", Balance: balance,
-		RequestedAmount: decimal.NewFromInt(30), CompatibilityPath: command.ProjectionStandard,
+		Side: command.OperationSpecSideFrom, RowType: "DEBIT", Direction: "debit", Balance: balance,
+		RequestedAmount: decimal.NewFromInt(30), CompatibilityPath: command.OperationRecordStandard,
 	}
-	payload := command.BalanceEngineRecoveryPayload{
+	payload := command.TransactionCompletionPlan{
 		FormatVersion: 2, TransactionID: transaction, OrganizationID: organization, LedgerID: ledger, ExecutionID: execution,
-		TTL: date, TransactionDate: date, Action: "direct", TransactionStatus: "APPROVED", Projection: []command.FrozenProjectionContext{projection},
+		TTL: date, TransactionDate: date, Action: "direct", TransactionStatus: "APPROVED", OperationSpecs: []command.OperationRecordSpec{projection},
 		TransactionCreatedAt: date, TransactionUpdatedAt: date, OperationUpdatedAt: date,
 	}
 	payload.TransactionInput.Send.Asset, payload.TransactionInput.Send.Value = "BRL", decimal.NewFromInt(30)
@@ -56,16 +57,16 @@ func consumerRecoveryFixture(t *testing.T) (string, string, *command.BalanceEngi
 			TransactionID: transaction, Action: payload.Action,
 			TransactionStatus: payload.TransactionStatus, TransactionDate: date, Input: payload.TransactionInput,
 			TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
-			PostingRefs: []string{"posting"}, Projection: []command.FrozenProjectionIntent{projection.Intent()},
+			PostingRefs: []string{"posting"}, OperationSpecs: []command.OperationRecordIntent{projection.Intent()},
 		}},
 	})
 	require.NoError(t, err)
 	payload.IntentFingerprint = fingerprint
-	rawPayload, err := command.EncodeBalanceEngineRecoveryPayload(payload)
+	rawPayload, err := command.EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 	before := engine.BalanceState{Available: decimal.NewFromInt(100), Version: 7}
 	after := engine.BalanceState{Available: decimal.NewFromInt(70), Version: 8}
-	envelope := &command.BalanceEngineRecoveryEnvelope{
+	envelope := &command.TransactionCompletionRecord{
 		FormatVersion: 2, OrganizationID: organization, LedgerID: ledger, TransactionID: transaction, ExecutionID: execution,
 		IntentFingerprint: fingerprint, Payload: string(rawPayload),
 		Result: engine.Result{
@@ -79,7 +80,7 @@ func consumerRecoveryFixture(t *testing.T) (string, string, *command.BalanceEngi
 			}},
 		},
 	}
-	raw, err := command.EncodeBalanceEngineRecoveryEnvelope(*envelope)
+	raw, err := command.EncodeTransactionCompletionRecord(*envelope)
 	require.NoError(t, err)
 	return transaction.String() + ":" + execution.String(), string(raw), envelope
 }
@@ -195,16 +196,16 @@ func TestReadMessagesAndProcess_InvalidLegacyRequiresTrustedScope(t *testing.T) 
 	}
 }
 
-type recoveryFinalizerStub struct {
+type recoveryCompleterStub struct {
 	err   error
 	calls int
 	order *[]string
 }
 
-func (f *recoveryFinalizerStub) Finalize(context.Context, *command.BalanceEngineRecoveryEnvelope) error {
+func (f *recoveryCompleterStub) Complete(context.Context, *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
 	f.calls++
 	*f.order = append(*f.order, "durable-finalization")
-	return f.err
+	return command.TransactionCompletionResult{Outcome: command.TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}, f.err
 }
 
 type recoveryQueueStub struct {
@@ -228,9 +229,9 @@ func (recoveryQuietLogger) Log(context.Context, int, string, ...any) {}
 func TestReadMessagesAndProcess_VersionTwoNeverUsesLegacyDependencies(t *testing.T) {
 	field, raw, _ := consumerRecoveryFixture(t)
 	order := []string{}
-	finalizer := &recoveryFinalizerStub{order: &order}
+	finalizer := &recoveryCompleterStub{order: &order}
 	queue := &recoveryQueueStub{status: 1, order: &order, messages: map[string]string{field: raw}}
-	consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithBalanceEngineFinalizer(finalizer)
+	consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithTransactionCompleter(finalizer)
 	consumer.readMessagesAndProcess(context.Background())
 	require.Equal(t, []string{"durable-finalization", "conditional-ack"}, order)
 	require.Equal(t, field, queue.field)
@@ -243,9 +244,9 @@ func TestReadMessagesAndProcess_UnknownVersionDoesNotFinalizeOrAcknowledge(t *te
 	field, _, _ := consumerRecoveryFixture(t)
 	for _, raw := range []string{`{"formatVersion":null}`, `{"formatVersion":3}`, `{"formatVersion":2}`, `{`} {
 		order := []string{}
-		finalizer := &recoveryFinalizerStub{order: &order}
+		finalizer := &recoveryCompleterStub{order: &order}
 		queue := &recoveryQueueStub{status: 1, order: &order, messages: map[string]string{field: raw}}
-		consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithBalanceEngineFinalizer(finalizer)
+		consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithTransactionCompleter(finalizer)
 		consumer.readMessagesAndProcess(context.Background())
 		require.Zero(t, finalizer.calls)
 		require.Zero(t, queue.calls)
@@ -275,10 +276,10 @@ func TestFinalizeRecoveryRecord_RequiresDurableCompletionAndExactAck(t *testing.
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			order := []string{}
-			finalizer := &recoveryFinalizerStub{err: test.finalizeErr, order: &order}
+			finalizer := &recoveryCompleterStub{err: test.finalizeErr, order: &order}
 			queue := &recoveryQueueStub{status: test.status, err: test.ackErr, order: &order}
-			consumer := (&RedisQueueConsumer{queue: queue}).WithBalanceEngineFinalizer(finalizer)
-			err := consumer.finalizeRecoveryRecord(context.Background(), "transaction:execution", "exact original JSON bytes", &command.BalanceEngineRecoveryEnvelope{})
+			consumer := (&RedisQueueConsumer{queue: queue}).WithTransactionCompleter(finalizer)
+			err := consumer.finalizeRecoveryRecord(context.Background(), "transaction:execution", "exact original JSON bytes", &command.TransactionCompletionRecord{})
 			if test.wantErr {
 				require.Error(t, err)
 			} else {
@@ -303,16 +304,16 @@ func TestFinalizeRecoveryRecord_RequiresDurableCompletionAndExactAck(t *testing.
 
 func TestFinalizeRecoveryRecord_MissingCapabilityAndCancellationRetain(t *testing.T) {
 	order := []string{}
-	finalizer := &recoveryFinalizerStub{order: &order}
-	consumer := (&RedisQueueConsumer{}).WithBalanceEngineFinalizer(finalizer)
+	finalizer := &recoveryCompleterStub{order: &order}
+	consumer := (&RedisQueueConsumer{}).WithTransactionCompleter(finalizer)
 	require.Error(t, consumer.finalizeRecoveryRecord(context.Background(), "field", "raw", nil))
 	require.Zero(t, finalizer.calls)
 	queue := &recoveryQueueStub{order: &order}
 	consumer.queue = queue
-	consumer.recoveryFinalizer = nil
+	consumer.transactionCompleter = nil
 	require.Error(t, consumer.finalizeRecoveryRecord(context.Background(), "field", "raw", nil))
 	require.Zero(t, queue.calls)
-	consumer.recoveryFinalizer = finalizer
+	consumer.transactionCompleter = finalizer
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	require.ErrorIs(t, consumer.finalizeRecoveryRecord(ctx, "field", "raw", nil), context.Canceled)

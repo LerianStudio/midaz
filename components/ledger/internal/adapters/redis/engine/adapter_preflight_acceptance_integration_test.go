@@ -132,7 +132,7 @@ func TestIntegration_AdapterExecute_RejectsEmptyTransactionsBeforeProvider(t *te
 	input, limits := richAdapterExecution(t)
 	input.Request.Transactions = nil
 	input.Guards = nil
-	input.Recovery = nil
+	input.CompletionPlans = nil
 	provider := &integrationClientProvider{}
 	adapter, err := NewAdapter(provider, limits)
 	require.NoError(t, err)
@@ -152,21 +152,21 @@ func scopedAdapterExecution(t *testing.T, tenantID, organizationID, ledgerID str
 	input.Request.Transactions[0].ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(tenantID+":"+organizationID+":"+ledgerID+":transaction"))
 	input.Request.Transactions[0].Postings[0].Amount = decimal.NewFromInt(amount)
 	input.Guards[0].TransactionID = input.Request.Transactions[0].ID
-	input.Recovery[0].TransactionID = input.Request.Transactions[0].ID
+	input.CompletionPlans[0].TransactionID = input.Request.Transactions[0].ID
 
-	payload, err := command.DecodeBalanceEngineRecoveryPayload(input.Recovery[0].Payload)
+	payload, err := command.DecodeTransactionCompletionPlan(input.CompletionPlans[0].Payload)
 	require.NoError(t, err)
 	payload.TenantID = tenantID
 	payload.OrganizationID = input.Request.OrganizationID
 	payload.LedgerID = input.Request.LedgerID
 	payload.ExecutionID = input.Request.ExecutionID
 	payload.TransactionID = input.Request.Transactions[0].ID
-	payload.Projection[0].TransactionID = input.Request.Transactions[0].ID
-	payload.Projection[0].RequestedAmount = decimal.NewFromInt(amount)
-	payload.Projection[0].Balance.OrganizationID = organizationID
-	payload.Projection[0].Balance.LedgerID = ledgerID
-	input.Recovery[0].Payload = encodeAdapterRecovery(t, &input, *payload)
-	require.NoError(t, command.ValidateBalanceEngineRecovery(input))
+	payload.OperationSpecs[0].TransactionID = input.Request.Transactions[0].ID
+	payload.OperationSpecs[0].RequestedAmount = decimal.NewFromInt(amount)
+	payload.OperationSpecs[0].Balance.OrganizationID = organizationID
+	payload.OperationSpecs[0].Balance.LedgerID = ledgerID
+	input.CompletionPlans[0].Payload = encodeAdapterRecovery(t, &input, *payload)
+	require.NoError(t, command.ValidateTransactionCompletion(input))
 
 	return input, limits
 }

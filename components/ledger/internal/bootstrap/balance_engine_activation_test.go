@@ -23,10 +23,10 @@ func (*balanceEngineProviderStub) GetClient(context.Context) (redis.UniversalCli
 	return nil, nil
 }
 
-type balanceEngineFinalizerStub struct{}
+type balanceTransactionCompleterStub struct{}
 
-func (*balanceEngineFinalizerStub) FinalizeWithOutcome(context.Context, *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
-	return command.BalanceEngineFinalizationResult{}, nil
+func (*balanceTransactionCompleterStub) Complete(context.Context, *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
+	return command.TransactionCompletionResult{}, nil
 }
 
 func TestConfigureBalanceEngineDisabledLeavesLegacyPath(t *testing.T) {
@@ -36,22 +36,22 @@ func TestConfigureBalanceEngineDisabledLeavesLegacyPath(t *testing.T) {
 }
 
 func TestConfigureBalanceEngineEnabledWiresAdapter(t *testing.T) {
-	useCase := &command.UseCase{BalanceEngineFinalizer: &balanceEngineFinalizerStub{}}
+	useCase := &command.UseCase{TransactionCompleter: &balanceTransactionCompleterStub{}}
 	cfg := validBalanceEngineConfig()
 
 	require.NoError(t, configureBalanceEngine(useCase, &balanceEngineProviderStub{}, cfg))
 	assert.IsType(t, &redisengine.Adapter{}, useCase.BalanceEngine)
 }
 
-func TestConfigureBalanceEngineEnabledRequiresFinalizer(t *testing.T) {
+func TestConfigureBalanceEngineEnabledRequiresTransactionCompleter(t *testing.T) {
 	cfg := validBalanceEngineConfig()
 	err := configureBalanceEngine(&command.UseCase{}, &balanceEngineProviderStub{}, cfg)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "finalizer")
+	assert.Contains(t, err.Error(), "transaction completer")
 }
 
 func TestConfigureBalanceEngineEnabledRequiresPositiveLimits(t *testing.T) {
-	useCase := &command.UseCase{BalanceEngineFinalizer: &balanceEngineFinalizerStub{}}
+	useCase := &command.UseCase{TransactionCompleter: &balanceTransactionCompleterStub{}}
 	cfg := validBalanceEngineConfig()
 	cfg.BalanceEngineMaxPreparedBytes = 0
 
@@ -76,24 +76,24 @@ func TestBalanceEngineConfigLoadsFromEnvironment(t *testing.T) {
 
 func validBalanceEngineConfig() *Config {
 	return &Config{
-		BalanceEngineEnabled:          true,
-		BalanceEngineMaxTransactions:  1,
-		BalanceEngineMaxPostings:      10_000,
-		BalanceEngineMaxBalances:      20_000,
-		BalanceEngineMaxRecoveryBytes: 32 * 1024 * 1024,
-		BalanceEngineMaxRequestBytes:  64 * 1024 * 1024,
-		BalanceEngineMaxPreparedBytes: 64 * 1024 * 1024,
+		BalanceEngineEnabled:              true,
+		BalanceEngineMaxTransactions:      1,
+		BalanceEngineMaxPostings:          10_000,
+		BalanceEngineMaxBalances:          20_000,
+		TransactionCompletionMaxPlanBytes: 32 * 1024 * 1024,
+		BalanceEngineMaxRequestBytes:      64 * 1024 * 1024,
+		BalanceEngineMaxPreparedBytes:     64 * 1024 * 1024,
 	}
 }
 
 func cfgWithOnlyBalanceEngineFields(cfg *Config) *Config {
 	return &Config{
-		BalanceEngineEnabled:          cfg.BalanceEngineEnabled,
-		BalanceEngineMaxTransactions:  cfg.BalanceEngineMaxTransactions,
-		BalanceEngineMaxPostings:      cfg.BalanceEngineMaxPostings,
-		BalanceEngineMaxBalances:      cfg.BalanceEngineMaxBalances,
-		BalanceEngineMaxRecoveryBytes: cfg.BalanceEngineMaxRecoveryBytes,
-		BalanceEngineMaxRequestBytes:  cfg.BalanceEngineMaxRequestBytes,
-		BalanceEngineMaxPreparedBytes: cfg.BalanceEngineMaxPreparedBytes,
+		BalanceEngineEnabled:              cfg.BalanceEngineEnabled,
+		BalanceEngineMaxTransactions:      cfg.BalanceEngineMaxTransactions,
+		BalanceEngineMaxPostings:          cfg.BalanceEngineMaxPostings,
+		BalanceEngineMaxBalances:          cfg.BalanceEngineMaxBalances,
+		TransactionCompletionMaxPlanBytes: cfg.TransactionCompletionMaxPlanBytes,
+		BalanceEngineMaxRequestBytes:      cfg.BalanceEngineMaxRequestBytes,
+		BalanceEngineMaxPreparedBytes:     cfg.BalanceEngineMaxPreparedBytes,
 	}
 }

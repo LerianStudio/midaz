@@ -17,14 +17,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-type retentionFinalizer struct{}
+type retentionCompleter struct{}
 
-func (retentionFinalizer) Finalize(context.Context, *command.BalanceEngineRecoveryEnvelope) error {
-	return nil
-}
-
-func (retentionFinalizer) FinalizeWithOutcome(context.Context, *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
-	return command.BalanceEngineFinalizationResult{Outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED}}, nil
+func (retentionCompleter) Complete(context.Context, *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
+	return command.TransactionCompletionResult{Outcome: command.TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}, nil
 }
 
 type retentionQueue struct {
@@ -65,9 +61,9 @@ func TestRecoveryCompletionUsesInjectedClockAfterDurableOutcome(t *testing.T) {
 	fixed := time.Date(2042, time.March, 4, 5, 6, 7, 8, time.UTC)
 	queue := &retentionQueue{}
 	consumer := (&RedisQueueConsumer{Logger: recoveryQuietLogger{}, queue: queue}).
-		WithBalanceEngineFinalizer(retentionFinalizer{}).
+		WithTransactionCompleter(retentionCompleter{}).
 		WithRecoveryClock(func() time.Time { return fixed })
-	envelope := &command.BalanceEngineRecoveryEnvelope{
+	envelope := &command.TransactionCompletionRecord{
 		OrganizationID: uuid.MustParse("11111111-1111-4111-8111-111111111111"),
 		LedgerID:       uuid.MustParse("22222222-2222-4222-8222-222222222222"),
 	}

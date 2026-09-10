@@ -36,7 +36,7 @@ func BenchmarkAdapterExecute(b *testing.B) {
 				}
 				client := redis.NewClient(&redis.Options{Addr: address, Password: password, DB: 2, Protocol: 2})
 				b.Cleanup(func() { require.NoError(b, client.Close()) })
-				limits := Limits{MaxTransactions: 4, MaxPostings: 64, MaxBalances: 128, MaxRecoveryBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20}
+				limits := Limits{MaxTransactions: 4, MaxPostings: 64, MaxBalances: 128, MaxCompletionPlanBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20}
 				adapter, err := NewAdapter(&integrationClientProvider{client: client}, limits)
 				require.NoError(b, err)
 
@@ -97,20 +97,20 @@ func benchmarkExecution(tb testing.TB, postingCount, balanceCount, iteration int
 	for i := 0; i < postingCount; i++ {
 		request.Transactions[0].Postings[i] = core.Posting{Ref: fmt.Sprintf("posting-%02d", i), BalanceRef: request.Balances[i].BalanceRef, Type: core.PostingDebit, Amount: decimal.NewFromInt(1), DrawPolicy: core.DrawForbidden}
 	}
-	projection := make([]command.FrozenProjectionContext, postingCount)
+	projection := make([]command.OperationRecordSpec, postingCount)
 	for i, balance := range request.Balances[:postingCount] {
-		projection[i] = command.FrozenProjectionContext{TransactionID: request.Transactions[0].ID, PostingRef: request.Transactions[0].Postings[i].Ref, BalanceRef: balance.BalanceRef, Role: core.RolePrimary, Side: command.ProjectionSideFrom, RowType: "DEBIT", Direction: "credit", RequestedAmount: decimal.NewFromInt(1), CompatibilityPath: command.ProjectionStandard}
+		projection[i] = command.OperationRecordSpec{TransactionID: request.Transactions[0].ID, PostingRef: request.Transactions[0].Postings[i].Ref, BalanceRef: balance.BalanceRef, Role: core.RolePrimary, Side: command.OperationSpecSideFrom, RowType: "DEBIT", Direction: "credit", RequestedAmount: decimal.NewFromInt(1), CompatibilityPath: command.OperationRecordStandard}
 		projection[i].Balance.ID, projection[i].Balance.AccountID = balance.ID.String(), balance.AccountID.String()
 		projection[i].Balance.OrganizationID, projection[i].Balance.LedgerID = request.OrganizationID.String(), request.LedgerID.String()
 		projection[i].Balance.Alias, projection[i].Balance.Key, projection[i].Balance.AssetCode = balance.Alias, balance.Key, balance.AssetCode
 		projection[i].Balance.AccountType = balance.AccountType
 		projection[i].Balance.Available, projection[i].Balance.Version = balance.Available, balance.Version
 	}
-	payload := command.BalanceEngineRecoveryPayload{FormatVersion: 2, TransactionID: request.Transactions[0].ID, OrganizationID: request.OrganizationID, LedgerID: request.LedgerID, ExecutionID: request.ExecutionID, TTL: benchmarkDate().Add(24 * 60 * 60 * 1e9), TransactionDate: benchmarkDate(), TransactionCreatedAt: benchmarkDate(), TransactionUpdatedAt: benchmarkDate(), OperationUpdatedAt: benchmarkDate(), Action: "CREATE", TransactionStatus: "APPROVED", Projection: projection}
+	payload := command.TransactionCompletionPlan{FormatVersion: 2, TransactionID: request.Transactions[0].ID, OrganizationID: request.OrganizationID, LedgerID: request.LedgerID, ExecutionID: request.ExecutionID, TTL: benchmarkDate().Add(24 * 60 * 60 * 1e9), TransactionDate: benchmarkDate(), TransactionCreatedAt: benchmarkDate(), TransactionUpdatedAt: benchmarkDate(), OperationUpdatedAt: benchmarkDate(), Action: "CREATE", TransactionStatus: "APPROVED", OperationSpecs: projection}
 	input := command.EngineExecution{Request: request, Guards: []command.ExecutionGuard{{TransactionID: request.Transactions[0].ID, NextToken: "executed-once"}}}
-	input.Recovery = []command.RecoveryIntent{{TransactionID: request.Transactions[0].ID, Payload: encodeAdapterRecovery(tb, &input, payload)}}
+	input.CompletionPlans = []command.CompletionPlanRecord{{TransactionID: request.Transactions[0].ID, Payload: encodeAdapterRecovery(tb, &input, payload)}}
 	date := benchmarkDate()
-	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{OrganizationID: request.OrganizationID, LedgerID: request.LedgerID, ExecutionID: request.ExecutionID, Transactions: []command.BalanceEngineTransactionIntent{{TransactionID: request.Transactions[0].ID, PostingRefs: postingRefs(request.Transactions[0].Postings), Action: "CREATE", TransactionStatus: "APPROVED", TransactionDate: date, TransactionCreatedAt: date, TransactionUpdatedAt: date, OperationUpdatedAt: date, Projection: frozenProjectionIntents(projection)}}})
+	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{OrganizationID: request.OrganizationID, LedgerID: request.LedgerID, ExecutionID: request.ExecutionID, Transactions: []command.BalanceEngineTransactionIntent{{TransactionID: request.Transactions[0].ID, PostingRefs: postingRefs(request.Transactions[0].Postings), Action: "CREATE", TransactionStatus: "APPROVED", TransactionDate: date, TransactionCreatedAt: date, TransactionUpdatedAt: date, OperationUpdatedAt: date, OperationSpecs: frozenProjectionIntents(projection)}}})
 	require.NoError(tb, err)
 	input.IntentFingerprint = fingerprint
 	return input
@@ -148,8 +148,8 @@ func postingRefs(postings []core.Posting) []string {
 	return refs
 }
 
-func frozenProjectionIntents(items []command.FrozenProjectionContext) []command.FrozenProjectionIntent {
-	out := make([]command.FrozenProjectionIntent, len(items))
+func frozenProjectionIntents(items []command.OperationRecordSpec) []command.OperationRecordIntent {
+	out := make([]command.OperationRecordIntent, len(items))
 	for i := range items {
 		out[i] = items[i].Intent()
 	}

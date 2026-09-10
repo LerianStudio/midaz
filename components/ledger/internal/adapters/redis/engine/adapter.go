@@ -102,7 +102,7 @@ func (e *TechnicalError) OutcomeIndeterminate() bool {
 
 // NewAdapter requires explicit operational limits and does not alter a shared client.
 func NewAdapter(provider RedisClientProvider, limits Limits) (*Adapter, error) {
-	if provider == nil || (reflect.ValueOf(provider).Kind() == reflect.Pointer && reflect.ValueOf(provider).IsNil()) || limits.MaxPreparedBytes <= 0 || limits.MaxRequestBytes <= 0 || limits.MaxTransactions <= 0 || limits.MaxPostings <= 0 || limits.MaxBalances <= 0 || limits.MaxRecoveryBytes <= 0 {
+	if provider == nil || (reflect.ValueOf(provider).Kind() == reflect.Pointer && reflect.ValueOf(provider).IsNil()) || limits.MaxPreparedBytes <= 0 || limits.MaxRequestBytes <= 0 || limits.MaxTransactions <= 0 || limits.MaxPostings <= 0 || limits.MaxBalances <= 0 || limits.MaxCompletionPlanBytes <= 0 {
 		return nil, errors.New("accounting adapter requires a provider and positive limits")
 	}
 
@@ -135,11 +135,11 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (r
 		return nil, technical("invalid_request", false, err)
 	}
 
-	if err := command.ValidateBalanceEngineRecovery(input); err != nil {
+	if err := command.ValidateTransactionCompletion(input); err != nil {
 		return nil, technical("invalid_recovery", false, err)
 	}
 
-	if err := validateRecoveryTenant(input, resolved.TenantID); err != nil {
+	if err := validateCompletionTenant(input, resolved.TenantID); err != nil {
 		return nil, technical("invalid_recovery", false, err)
 	}
 
@@ -258,18 +258,18 @@ func executeScriptNoRetry(ctx context.Context, client *redis.Client, operation s
 	return processNoRetry(ctx, client, wireArgs...).Result()
 }
 
-func validateRecoveryTenant(input command.EngineExecution, tenantID string) error {
-	for _, recovery := range input.Recovery {
+func validateCompletionTenant(input command.EngineExecution, tenantID string) error {
+	for _, completionPlan := range input.CompletionPlans {
 		var scope struct {
 			TenantID string `json:"tenantId"`
 		}
 
-		if err := json.Unmarshal(recovery.Payload, &scope); err != nil {
-			return fmt.Errorf("decode accounting recovery scope: %w", err)
+		if err := json.Unmarshal(completionPlan.Payload, &scope); err != nil {
+			return fmt.Errorf("decode accounting completion scope: %w", err)
 		}
 
 		if scope.TenantID != tenantID {
-			return fmt.Errorf("%w: recovery tenant differs from authenticated scope", command.ErrInvalidBalanceEngineRecovery)
+			return fmt.Errorf("%w: completion tenant differs from authenticated scope", command.ErrInvalidTransactionCompletionRecord)
 		}
 	}
 

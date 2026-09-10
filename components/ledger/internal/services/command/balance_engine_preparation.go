@@ -28,7 +28,7 @@ type balanceEnginePreparationInput struct {
 type balanceEnginePreparedTransaction struct {
 	pool        BalanceEngineSnapshotPool
 	transaction engine.Transaction
-	projection  []FrozenProjectionContext
+	projection  []OperationRecordSpec
 }
 
 // prepareBalanceEngineTransaction performs only snapshot-dependent reads and

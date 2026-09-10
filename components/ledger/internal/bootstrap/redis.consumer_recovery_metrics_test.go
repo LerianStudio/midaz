@@ -40,10 +40,10 @@ func TestFinalizeRecoveryRecord_EmitsBoundedOutcomeMetrics(t *testing.T) {
 		{name: "finalizer deadline", finalizeErr: context.DeadlineExceeded, want: recoveryMetricOutcomeContextCanceled, wantErr: true},
 		{name: "ack canceled", ackErr: context.Canceled, want: recoveryMetricOutcomeContextCanceled, wantErr: true},
 		{name: "missing finalizer", consumer: func(factory *metrics.MetricsFactory) *RedisQueueConsumer {
-			return (&RedisQueueConsumer{metricsFactory: factory}).WithBalanceEngineFinalizer(nil)
+			return (&RedisQueueConsumer{metricsFactory: factory}).WithTransactionCompleter(nil)
 		}, want: recoveryMetricOutcomeNotConfigured, wantErr: true},
 		{name: "missing acknowledgment", consumer: func(factory *metrics.MetricsFactory) *RedisQueueConsumer {
-			return (&RedisQueueConsumer{metricsFactory: factory}).WithBalanceEngineFinalizer(&recoveryFinalizerStub{})
+			return (&RedisQueueConsumer{metricsFactory: factory}).WithTransactionCompleter(&recoveryCompleterStub{})
 		}, want: recoveryMetricOutcomeNotConfigured, wantErr: true},
 		{name: "context canceled", ctx: func() context.Context {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -60,20 +60,20 @@ func TestFinalizeRecoveryRecord_EmitsBoundedOutcomeMetrics(t *testing.T) {
 			factory, err := metrics.NewMetricsFactory(provider.Meter("recovery-metrics-test"), nil)
 			require.NoError(t, err)
 			order := []string{}
-			finalizer := &recoveryFinalizerStub{err: test.finalizeErr, order: &order}
+			finalizer := &recoveryCompleterStub{err: test.finalizeErr, order: &order}
 			queue := &recoveryQueueStub{status: test.status, err: test.ackErr, order: &order}
 			var consumer *RedisQueueConsumer
 			if test.consumer != nil {
 				consumer = test.consumer(factory)
 			}
 			if consumer == nil {
-				consumer = (&RedisQueueConsumer{queue: queue}).WithBalanceEngineFinalizer(finalizer).WithMetricsFactory(factory)
+				consumer = (&RedisQueueConsumer{queue: queue}).WithTransactionCompleter(finalizer).WithMetricsFactory(factory)
 			}
 			ctx := context.Background()
 			if test.ctx != nil {
 				ctx = test.ctx()
 			}
-			gotErr := consumer.finalizeRecoveryRecord(ctx, "field", "raw", &command.BalanceEngineRecoveryEnvelope{})
+			gotErr := consumer.finalizeRecoveryRecord(ctx, "field", "raw", &command.TransactionCompletionRecord{})
 			if test.wantErr {
 				require.Error(t, gotErr)
 			} else {
@@ -127,10 +127,10 @@ func TestFinalizeRecoveryRecord_EmitsBoundedOutcomeMetrics(t *testing.T) {
 
 func TestFinalizeRecoveryRecord_MetricsAreNilFactorySafe(t *testing.T) {
 	order := []string{}
-	finalizer := &recoveryFinalizerStub{order: &order}
+	finalizer := &recoveryCompleterStub{order: &order}
 	queue := &recoveryQueueStub{status: 1, order: &order}
-	consumer := (&RedisQueueConsumer{queue: queue}).WithBalanceEngineFinalizer(finalizer)
-	require.NoError(t, consumer.finalizeRecoveryRecord(context.Background(), "field", "raw", &command.BalanceEngineRecoveryEnvelope{}))
+	consumer := (&RedisQueueConsumer{queue: queue}).WithTransactionCompleter(finalizer)
+	require.NoError(t, consumer.finalizeRecoveryRecord(context.Background(), "field", "raw", &command.TransactionCompletionRecord{}))
 	require.Equal(t, []string{"durable-finalization", "conditional-ack"}, order)
 	require.Equal(t, 1, finalizer.calls)
 	require.Equal(t, 1, queue.calls)

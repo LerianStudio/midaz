@@ -60,7 +60,7 @@ func TestBalanceEnginePortPreservesExecutionAndOutcomes(t *testing.T) {
 			ExpectedToken: "pending",
 			NextToken:     "committed",
 		}},
-		Recovery: []RecoveryIntent{{
+		CompletionPlans: []CompletionPlanRecord{{
 			TransactionID: transactionID,
 			Payload:       json.RawMessage(`{"status":"COMMITTED"}`),
 		}},

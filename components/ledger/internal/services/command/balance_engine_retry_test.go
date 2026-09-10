@@ -145,13 +145,13 @@ func TestExecuteBalanceEngineWithRetryAllowsBalanceDependentReloads(t *testing.T
 		}
 
 		limit := "200"
-		current.Projection[0].Balance.Settings = &mmodel.BalanceSettings{
+		current.OperationSpecs[0].Balance.Settings = &mmodel.BalanceSettings{
 			BalanceScope:          mmodel.BalanceScopeTransactional,
 			AllowOverdraft:        true,
 			OverdraftLimitEnabled: true,
 			OverdraftLimit:        &limit,
 		}
-		companion := current.Projection[0]
+		companion := current.OperationSpecs[0]
 		companion.Role = engine.RoleOverdraftCompanion
 		companion.BalanceRef = "@source#overdraft"
 		companion.Balance.ID = "99999999-9999-4999-8999-999999999999"
@@ -159,7 +159,7 @@ func TestExecuteBalanceEngineWithRetryAllowsBalanceDependentReloads(t *testing.T
 		companion.Balance.Direction = "debit"
 		companion.Metadata = nil
 		companion.ChartOfAccounts = ""
-		current.Projection = append(current.Projection, companion)
+		current.OperationSpecs = append(current.OperationSpecs, companion)
 
 		attempt = retryContractAttempt(t, current, validResult)
 		attempt.Execution.Request.Balances[0].Version = 2
@@ -183,7 +183,7 @@ func TestExecuteBalanceEngineWithRetryAllowsBalanceDependentReloads(t *testing.T
 	require.NoError(t, err)
 	assert.Equal(t, 2, builds)
 	assert.Len(t, executor.requests, 2)
-	assert.Len(t, got.Attempt.Payload.Projection, 2)
+	assert.Len(t, got.Attempt.Payload.OperationSpecs, 2)
 	assert.Len(t, got.Attempt.Execution.Request.Balances, 2)
 	assert.True(t, got.Attempt.Execution.Request.Balances[0].AllowOverdraft)
 }
@@ -193,11 +193,11 @@ func TestExecuteBalanceEngineWithRetryRejectsImmutableIdentityChanges(t *testing
 
 	tests := []struct {
 		name   string
-		mutate func(*testing.T, *BalanceEngineRecoveryPayload, *BalanceEngineAttempt)
+		mutate func(*testing.T, *TransactionCompletionPlan, *BalanceEngineAttempt)
 	}{
 		{
 			name: "execution id",
-			mutate: func(t *testing.T, payload *BalanceEngineRecoveryPayload, attempt *BalanceEngineAttempt) {
+			mutate: func(t *testing.T, payload *TransactionCompletionPlan, attempt *BalanceEngineAttempt) {
 				payload.ExecutionID = uuid.MustParse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 				refingerprintRetryContractPayload(t, payload)
 				*attempt = retryContractAttempt(t, *payload, engine.Result{Movements: []engine.Movement{}, Final: []engine.BalanceSnapshot{}})
@@ -205,7 +205,7 @@ func TestExecuteBalanceEngineWithRetryRejectsImmutableIdentityChanges(t *testing
 		},
 		{
 			name: "fingerprint",
-			mutate: func(t *testing.T, payload *BalanceEngineRecoveryPayload, attempt *BalanceEngineAttempt) {
+			mutate: func(t *testing.T, payload *TransactionCompletionPlan, attempt *BalanceEngineAttempt) {
 				payload.TransactionDate = payload.TransactionDate.Add(time.Second)
 				refingerprintRetryContractPayload(t, payload)
 				*attempt = retryContractAttempt(t, *payload, engine.Result{Movements: []engine.Movement{}, Final: []engine.BalanceSnapshot{}})
@@ -213,7 +213,7 @@ func TestExecuteBalanceEngineWithRetryRejectsImmutableIdentityChanges(t *testing
 		},
 		{
 			name: "guard",
-			mutate: func(_ *testing.T, _ *BalanceEngineRecoveryPayload, attempt *BalanceEngineAttempt) {
+			mutate: func(_ *testing.T, _ *TransactionCompletionPlan, attempt *BalanceEngineAttempt) {
 				attempt.Execution.Guards[0].NextToken = "committed"
 			},
 		},
@@ -239,7 +239,7 @@ func TestExecuteBalanceEngineWithRetryRejectsImmutableIdentityChanges(t *testing
 				return attempt, nil
 			})
 
-			assert.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+			assert.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 			assert.Equal(t, 2, builds)
 			assert.Len(t, executor.requests, 1)
 			assert.Equal(t, got.Attempt.Execution.Request.ExecutionID, got.Attempt.Payload.ExecutionID)
@@ -269,7 +269,7 @@ func TestExecuteBalanceEngineWithRetryCopiesCapturedGuards(t *testing.T) {
 		return attempt, nil
 	})
 
-	assert.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+	assert.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 	assert.Equal(t, 2, builds)
 	assert.Len(t, executor.requests, 1)
 }
@@ -287,7 +287,7 @@ func TestExecuteBalanceEngineWithRetryRequiresCanonicalAttemptPayload(t *testing
 		return attempt, nil
 	})
 
-	assert.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+	assert.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 	assert.Empty(t, executor.requests)
 	assert.Equal(t, "different-correlation-header", got.Attempt.Payload.HeaderID)
 }
@@ -415,7 +415,7 @@ func TestExecuteBalanceEngineWithRetryRejectsPostingIntentChanges(t *testing.T) 
 				return attempt, nil
 			})
 
-			assert.ErrorIs(t, err, ErrInvalidBalanceEngineRecovery)
+			assert.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 			assert.Equal(t, 2, builds)
 			assert.Len(t, executor.requests, 1)
 		})
@@ -472,10 +472,10 @@ func TestExecuteBalanceEngineWithRetryRejectsMalformedStaleFailure(t *testing.T)
 	assert.Len(t, executor.requests, 1)
 }
 
-func retryContractAttempt(t *testing.T, payload BalanceEngineRecoveryPayload, result engine.Result) BalanceEngineAttempt {
+func retryContractAttempt(t *testing.T, payload TransactionCompletionPlan, result engine.Result) BalanceEngineAttempt {
 	t.Helper()
 
-	raw, err := EncodeBalanceEngineRecoveryPayload(payload)
+	raw, err := EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 
 	return BalanceEngineAttempt{
@@ -492,7 +492,7 @@ func retryContractAttempt(t *testing.T, payload BalanceEngineRecoveryPayload, re
 						Ref:        "source:0",
 						BalanceRef: "@source#default",
 						Type:       engine.PostingDebit,
-						Amount:     payload.Projection[0].RequestedAmount,
+						Amount:     payload.OperationSpecs[0].RequestedAmount,
 					}},
 				}},
 			},
@@ -501,7 +501,7 @@ func retryContractAttempt(t *testing.T, payload BalanceEngineRecoveryPayload, re
 				TransactionID: payload.TransactionID,
 				NextToken:     "approved",
 			}},
-			Recovery: []RecoveryIntent{{
+			CompletionPlans: []CompletionPlanRecord{{
 				TransactionID: payload.TransactionID,
 				Payload:       raw,
 			}},
@@ -518,18 +518,18 @@ func retryContractStaleVersion() *engine.Failure {
 	}
 }
 
-func cloneRetryContractPayload(t *testing.T, payload BalanceEngineRecoveryPayload) BalanceEngineRecoveryPayload {
+func cloneRetryContractPayload(t *testing.T, payload TransactionCompletionPlan) TransactionCompletionPlan {
 	t.Helper()
 
-	raw, err := EncodeBalanceEngineRecoveryPayload(payload)
+	raw, err := EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
-	clone, err := DecodeBalanceEngineRecoveryPayload(raw)
+	clone, err := DecodeTransactionCompletionPlan(raw)
 	require.NoError(t, err)
 
 	return *clone
 }
 
-func refingerprintRetryContractPayload(t *testing.T, payload *BalanceEngineRecoveryPayload) {
+func refingerprintRetryContractPayload(t *testing.T, payload *TransactionCompletionPlan) {
 	t.Helper()
 
 	fingerprint, err := ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(*payload))

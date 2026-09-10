@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-package recovery
+package completion
 
 import (
 	"context"
@@ -74,7 +74,7 @@ func newStoreTest(t *testing.T) (*Store, sqlmock.Sqlmock) {
 	return NewStore(transactionStoreStub{db: db}, operationStoreStub{}), mock
 }
 
-func frozenStoreRecord() command.BalanceEnginePersistenceRecord {
+func frozenStoreRecord() command.TransactionWriteSet {
 	date := time.Date(2026, time.September, 4, 12, 0, 0, 0, time.UTC)
 	amount := decimal.RequireFromString("0.00000000000000000001")
 	before, after, hold := decimal.RequireFromString("1.00000000000000000001"), decimal.NewFromInt(1), decimal.Zero
@@ -94,7 +94,7 @@ func frozenStoreRecord() command.BalanceEnginePersistenceRecord {
 		Snapshot: mmodel.OperationSnapshot{OverdraftUsedBefore: "0", OverdraftUsedAfter: "0"},
 	}}
 
-	return command.BalanceEnginePersistenceRecord{Transaction: tran, Action: "direct"}
+	return command.TransactionWriteSet{Transaction: tran, Action: "direct"}
 }
 
 func expectTransaction(mock sqlmock.Sqlmock, status string, active, matches bool) {
@@ -162,7 +162,7 @@ func TestStorePersistCreationRaceDoesNotAppendAnotherExecution(t *testing.T) {
 
 			mock.ExpectQuery("SELECT .* FROM operation").WillReturnRows(sqlmock.NewRows([]string{"matches"}))
 			mock.ExpectRollback()
-			require.ErrorIs(t, store.Persist(context.Background(), frozenStoreRecord()), command.ErrBalanceEnginePersistenceConflict)
+			require.ErrorIs(t, store.Persist(context.Background(), frozenStoreRecord()), command.ErrTransactionCompletionConflict)
 		})
 	}
 }
@@ -177,7 +177,7 @@ func TestStorePersistRequiresConfirmedStatusUpdate(t *testing.T) {
 			expectTransaction(mock, constant.PENDING, true, true)
 			mock.ExpectExec("UPDATE transaction").WillReturnResult(sqlmock.NewResult(0, changedRows))
 			mock.ExpectRollback()
-			require.ErrorIs(t, store.Persist(context.Background(), record), command.ErrBalanceEnginePersistenceConflict)
+			require.ErrorIs(t, store.Persist(context.Background(), record), command.ErrTransactionCompletionConflict)
 		})
 	}
 }
@@ -204,7 +204,7 @@ func TestStorePersistLifecycle(t *testing.T) {
 			expectTransaction(mock, scenario.existing, true, true)
 			if scenario.conflict {
 				mock.ExpectRollback()
-				require.ErrorIs(t, store.Persist(context.Background(), record), command.ErrBalanceEnginePersistenceConflict)
+				require.ErrorIs(t, store.Persist(context.Background(), record), command.ErrTransactionCompletionConflict)
 				return
 			}
 
@@ -346,7 +346,7 @@ func TestStorePersistLateHoldRequiresEveryFrozenRow(t *testing.T) {
 					require.NoError(t, store.Persist(t.Context(), record))
 				} else {
 					mock.ExpectRollback()
-					require.ErrorIs(t, store.Persist(t.Context(), record), command.ErrBalanceEnginePersistenceConflict)
+					require.ErrorIs(t, store.Persist(t.Context(), record), command.ErrTransactionCompletionConflict)
 				}
 			})
 		}
@@ -378,7 +378,7 @@ func TestStorePersistRejectsDivergentRows(t *testing.T) {
 			}
 
 			mock.ExpectRollback()
-			require.ErrorIs(t, store.Persist(context.Background(), frozenStoreRecord()), command.ErrBalanceEnginePersistenceConflict)
+			require.ErrorIs(t, store.Persist(context.Background(), frozenStoreRecord()), command.ErrTransactionCompletionConflict)
 		})
 	}
 }
@@ -456,24 +456,24 @@ func TestStorePersistRequiresQuerierBeforeWrites(t *testing.T) {
 func TestStorePersistRejectsInvalidInputBeforeBegin(t *testing.T) {
 	for _, scenario := range []struct {
 		name   string
-		mutate func(*command.BalanceEnginePersistenceRecord)
+		mutate func(*command.TransactionWriteSet)
 	}{
-		{"nil transaction", func(r *command.BalanceEnginePersistenceRecord) { r.Transaction = nil }},
-		{"foreign operation", func(r *command.BalanceEnginePersistenceRecord) {
+		{"nil transaction", func(r *command.TransactionWriteSet) { r.Transaction = nil }},
+		{"foreign operation", func(r *command.TransactionWriteSet) {
 			r.Transaction.Operations[0].OrganizationID = r.Transaction.LedgerID
 		}},
-		{"duplicate operation", func(r *command.BalanceEnginePersistenceRecord) {
+		{"duplicate operation", func(r *command.TransactionWriteSet) {
 			r.Transaction.Operations = append(r.Transaction.Operations, r.Transaction.Operations[0])
 		}},
-		{"unknown lifecycle", func(r *command.BalanceEnginePersistenceRecord) { r.Action = "unknown" }},
-		{"unguarded commit", func(r *command.BalanceEnginePersistenceRecord) { r.Action = "commit" }},
-		{"missing amount", func(r *command.BalanceEnginePersistenceRecord) { r.Transaction.Operations[0].Amount.Value = nil }},
+		{"unknown lifecycle", func(r *command.TransactionWriteSet) { r.Action = "unknown" }},
+		{"unguarded commit", func(r *command.TransactionWriteSet) { r.Action = "commit" }},
+		{"missing amount", func(r *command.TransactionWriteSet) { r.Transaction.Operations[0].Amount.Value = nil }},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			store, _ := newStoreTest(t)
 			record := frozenStoreRecord()
 			scenario.mutate(&record)
-			require.ErrorIs(t, store.Persist(context.Background(), record), command.ErrBalanceEnginePersistenceConflict)
+			require.ErrorIs(t, store.Persist(context.Background(), record), command.ErrTransactionCompletionConflict)
 		})
 	}
 }

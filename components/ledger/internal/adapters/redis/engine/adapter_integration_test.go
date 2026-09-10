@@ -88,31 +88,31 @@ func richAdapterExecution(t *testing.T) (command.EngineExecution, Limits) {
 	input := command.EngineExecution{Request: request}
 	transaction := request.Transactions[0]
 	balance := request.Balances[0]
-	projectionBalance := command.FrozenProjectionBalance{}
+	projectionBalance := command.OperationBalanceContext{}
 	projectionBalance.ID, projectionBalance.AccountID = balance.ID.String(), balance.AccountID.String()
 	projectionBalance.OrganizationID, projectionBalance.LedgerID = request.OrganizationID.String(), request.LedgerID.String()
 	projectionBalance.Alias, projectionBalance.Key, projectionBalance.AssetCode = balance.Alias, balance.Key, balance.AssetCode
 	projectionBalance.AccountType = balance.AccountType
 	projectionBalance.Available, projectionBalance.Version = balance.Available, balance.Version
 	date := time.Date(2026, time.September, 4, 12, 0, 0, 0, time.UTC)
-	payload := command.BalanceEngineRecoveryPayload{
+	payload := command.TransactionCompletionPlan{
 		FormatVersion: 2, TransactionID: transaction.ID, OrganizationID: request.OrganizationID, LedgerID: request.LedgerID,
 		ExecutionID: request.ExecutionID, TTL: date.Add(24 * time.Hour), TransactionDate: date,
 		TransactionCreatedAt: date, TransactionUpdatedAt: date, OperationUpdatedAt: date,
 		Action: "CREATE", TransactionStatus: "APPROVED",
-		Projection: []command.FrozenProjectionContext{{
+		OperationSpecs: []command.OperationRecordSpec{{
 			TransactionID: transaction.ID, PostingRef: transaction.Postings[0].Ref, BalanceRef: balance.BalanceRef, Role: core.RolePrimary,
-			Side: command.ProjectionSideFrom, RowType: "DEBIT", Direction: "credit", Balance: projectionBalance,
-			RequestedAmount: decimal.NewFromInt(30), CompatibilityPath: command.ProjectionStandard,
+			Side: command.OperationSpecSideFrom, RowType: "DEBIT", Direction: "credit", Balance: projectionBalance,
+			RequestedAmount: decimal.NewFromInt(30), CompatibilityPath: command.OperationRecordStandard,
 		}},
 	}
 	input.Guards = []command.ExecutionGuard{{TransactionID: transaction.ID, NextToken: "executed-once"}}
-	input.Recovery = []command.RecoveryIntent{{TransactionID: transaction.ID, Payload: encodeAdapterRecovery(t, &input, payload)}}
-	require.NoError(t, command.ValidateBalanceEngineRecovery(input))
-	return input, Limits{MaxTransactions: 4, MaxPostings: 16, MaxBalances: 16, MaxRecoveryBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20}
+	input.CompletionPlans = []command.CompletionPlanRecord{{TransactionID: transaction.ID, Payload: encodeAdapterRecovery(t, &input, payload)}}
+	require.NoError(t, command.ValidateTransactionCompletion(input))
+	return input, Limits{MaxTransactions: 4, MaxPostings: 16, MaxBalances: 16, MaxCompletionPlanBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20}
 }
 
-func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload command.BalanceEngineRecoveryPayload) json.RawMessage {
+func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload command.TransactionCompletionPlan) json.RawMessage {
 	t.Helper()
 	require.Len(t, input.Request.Transactions, 1)
 	transaction := command.BalanceEngineTransactionIntent{
@@ -120,14 +120,14 @@ func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
 		TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
-		PostingRefs: make([]string, 0, len(input.Request.Transactions[0].Postings)),
-		Projection:  make([]command.FrozenProjectionIntent, 0, len(payload.Projection)),
+		PostingRefs:    make([]string, 0, len(input.Request.Transactions[0].Postings)),
+		OperationSpecs: make([]command.OperationRecordIntent, 0, len(payload.OperationSpecs)),
 	}
 	for _, posting := range input.Request.Transactions[0].Postings {
 		transaction.PostingRefs = append(transaction.PostingRefs, posting.Ref)
 	}
-	for _, projection := range payload.Projection {
-		transaction.Projection = append(transaction.Projection, projection.Intent())
+	for _, projection := range payload.OperationSpecs {
+		transaction.OperationSpecs = append(transaction.OperationSpecs, projection.Intent())
 	}
 	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{
 		TenantID: payload.TenantID, OrganizationID: input.Request.OrganizationID, LedgerID: input.Request.LedgerID,
@@ -135,7 +135,7 @@ func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload
 	})
 	require.NoError(t, err)
 	input.IntentFingerprint, payload.IntentFingerprint = fingerprint, fingerprint
-	encoded, err := command.EncodeBalanceEngineRecoveryPayload(payload)
+	encoded, err := command.EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 	return encoded
 }
@@ -275,12 +275,12 @@ func TestIntegration_AdapterExecute_WritesDualBalanceCacheContract(t *testing.T)
 			balance.AllowOverdraft = true
 			balance.OverdraftLimitEnabled = false
 
-			payload, err := command.DecodeBalanceEngineRecoveryPayload(input.Recovery[0].Payload)
+			payload, err := command.DecodeTransactionCompletionPlan(input.CompletionPlans[0].Payload)
 			require.NoError(t, err)
-			payload.Projection[0].Balance.Available = balance.Available
-			payload.Projection[0].Balance.Version = balance.Version
-			input.Recovery[0].Payload = encodeAdapterRecovery(t, &input, *payload)
-			require.NoError(t, command.ValidateBalanceEngineRecovery(input))
+			payload.OperationSpecs[0].Balance.Available = balance.Available
+			payload.OperationSpecs[0].Balance.Version = balance.Version
+			input.CompletionPlans[0].Payload = encodeAdapterRecovery(t, &input, *payload)
+			require.NoError(t, command.ValidateTransactionCompletion(input))
 
 			keys, err := resolveAdapterKeys(ctx, input.Request)
 			require.NoError(t, err)
@@ -462,11 +462,11 @@ func captureAdapterState(t *testing.T, client *redis.Client, keys resolvedExecut
 
 func TestIntegration_AdapterExecute_RejectsRecoveryTenantBeforeProvider(t *testing.T) {
 	input, limits := richAdapterExecution(t)
-	payload, err := command.DecodeBalanceEngineRecoveryPayload(input.Recovery[0].Payload)
+	payload, err := command.DecodeTransactionCompletionPlan(input.CompletionPlans[0].Payload)
 	require.NoError(t, err)
 	payload.TenantID = "unrelated-tenant"
-	input.Recovery[0].Payload = encodeAdapterRecovery(t, &input, *payload)
-	require.NoError(t, command.ValidateBalanceEngineRecovery(input))
+	input.CompletionPlans[0].Payload = encodeAdapterRecovery(t, &input, *payload)
+	require.NoError(t, command.ValidateTransactionCompletion(input))
 	provider := &integrationClientProvider{}
 	adapter, err := NewAdapter(provider, limits)
 	require.NoError(t, err)
@@ -478,10 +478,10 @@ func TestIntegration_AdapterExecute_RejectsRecoveryTenantBeforeProvider(t *testi
 
 func TestIntegration_AdapterExecute_RejectsMutatedIntentBeforeProvider(t *testing.T) {
 	input, limits := richAdapterExecution(t)
-	payload, err := command.DecodeBalanceEngineRecoveryPayload(input.Recovery[0].Payload)
+	payload, err := command.DecodeTransactionCompletionPlan(input.CompletionPlans[0].Payload)
 	require.NoError(t, err)
-	payload.Projection[0].Description = "changed immutable attribution"
-	input.Recovery[0].Payload, err = command.EncodeBalanceEngineRecoveryPayload(*payload)
+	payload.OperationSpecs[0].Description = "changed immutable attribution"
+	input.CompletionPlans[0].Payload, err = command.EncodeTransactionCompletionPlan(*payload)
 	require.NoError(t, err)
 	provider := &integrationClientProvider{}
 	adapter, err := NewAdapter(provider, limits)

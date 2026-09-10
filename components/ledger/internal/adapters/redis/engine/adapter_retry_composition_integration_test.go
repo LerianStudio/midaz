@@ -145,9 +145,9 @@ func TestIntegration_ExecuteBalanceEngineWithRetry_RebuildsAgainstLiveValkeyStat
 			require.Equal(t, attempts[0].Execution.Guards, attempts[1].Execution.Guards)
 			require.Equal(t, attempts[0].Execution.Request.Transactions, attempts[1].Execution.Request.Transactions)
 			require.NotEqual(t, attempts[0].Execution.Request.Balances, attempts[1].Execution.Request.Balances)
-			require.NotEqual(t, attempts[0].Payload.Projection, attempts[1].Payload.Projection)
-			require.Equal(t, decimal.NewFromInt(test.seedAvailable), decimal.Decimal(attempts[0].Payload.Projection[0].Balance.Available))
-			require.Equal(t, decimal.NewFromInt(test.liveAvailable), decimal.Decimal(attempts[1].Payload.Projection[0].Balance.Available))
+			require.NotEqual(t, attempts[0].Payload.OperationSpecs, attempts[1].Payload.OperationSpecs)
+			require.Equal(t, decimal.NewFromInt(test.seedAvailable), decimal.Decimal(attempts[0].Payload.OperationSpecs[0].Balance.Available))
+			require.Equal(t, decimal.NewFromInt(test.liveAvailable), decimal.Decimal(attempts[1].Payload.OperationSpecs[0].Balance.Available))
 
 			require.NotNil(t, got.Result)
 			require.Equal(t, attempts[1], got.Attempt)
@@ -158,7 +158,7 @@ func TestIntegration_ExecuteBalanceEngineWithRetry_RebuildsAgainstLiveValkeyStat
 				test.wantPrimaryOverdraftUsed, test.wantPrimaryVersion, test.wantCompanionAvailable, test.wantCompanionVersion)
 			assertRetryCompositionSchedule(t, ctx, client, keys, test.wantRows == 2)
 
-			rows, err := command.ProjectBalanceEngineOperations(got.Attempt.Payload, *got.Result)
+			rows, err := command.BuildOperationRecordsFromMovements(got.Attempt.Payload, *got.Result)
 			require.NoError(t, err)
 			require.Len(t, rows, test.wantRows)
 			assertRetryCompositionStoredOutcome(t, ctx, client, keys, got, rows)
@@ -189,9 +189,9 @@ func TestIntegration_AdapterExecute_UsesLiveOverdraftSettingsWithoutVersionBump(
 	require.False(t, preparedPrimary.AllowOverdraft)
 	require.False(t, preparedPrimary.OverdraftLimitEnabled)
 	require.Equal(t, int64(7), preparedPrimary.Version)
-	require.Len(t, attempt.Payload.Projection, 2)
-	require.Equal(t, core.RoleOverdraftCompanion, attempt.Payload.Projection[1].Role)
-	require.Equal(t, "@source#overdraft", attempt.Payload.Projection[1].BalanceRef)
+	require.Len(t, attempt.Payload.OperationSpecs, 2)
+	require.Equal(t, core.RoleOverdraftCompanion, attempt.Payload.OperationSpecs[1].Role)
+	require.Equal(t, "@source#overdraft", attempt.Payload.OperationSpecs[1].BalanceRef)
 
 	livePrimary := fixture.primary
 	livePrimary.AllowOverdraft = true
@@ -213,7 +213,7 @@ func TestIntegration_AdapterExecute_UsesLiveOverdraftSettingsWithoutVersionBump(
 	assertRetryCompositionPersistedBalances(t, ctx, client, keys, "0", "20", 8, "20", 4)
 	assertRetryCompositionSchedule(t, ctx, client, keys, true)
 
-	rows, err := command.ProjectBalanceEngineOperations(attempt.Payload, *result)
+	rows, err := command.BuildOperationRecordsFromMovements(attempt.Payload, *result)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	require.Equal(t, []string{constant.DEBIT, constant.OVERDRAFT}, []string{rows[0].Type, rows[1].Type})
@@ -325,13 +325,13 @@ func buildRetryCompositionAttempt(
 		return command.BalanceEngineAttempt{}, err
 	}
 
-	payload := command.BalanceEngineRecoveryPayload{
-		FormatVersion: command.BalanceEngineRecoveryVersion, HeaderID: "retry-composition",
+	payload := command.TransactionCompletionPlan{
+		FormatVersion: command.TransactionCompletionFormatVersion, HeaderID: "retry-composition",
 		TransactionID: fixture.transactionID, OrganizationID: fixture.organizationID, LedgerID: fixture.ledgerID,
 		ExecutionID: fixture.executionID, TransactionInput: fixture.transaction, Validate: fixture.validation,
 		TTL: fixture.date, TransactionStatus: constant.CREATED, Action: constant.ActionDirect,
 		TransactionDate: fixture.date, TransactionCreatedAt: fixture.date, TransactionUpdatedAt: fixture.date, OperationUpdatedAt: fixture.date,
-		Projection: projection,
+		OperationSpecs: projection,
 	}
 	execution := command.EngineExecution{
 		Request: core.Request{
@@ -340,7 +340,7 @@ func buildRetryCompositionAttempt(
 		},
 		Guards: []command.ExecutionGuard{{TransactionID: fixture.transactionID, NextToken: constant.APPROVED}},
 	}
-	execution.Recovery = []command.RecoveryIntent{{TransactionID: fixture.transactionID, Payload: encodeAdapterRecovery(t, &execution, payload)}}
+	execution.CompletionPlans = []command.CompletionPlanRecord{{TransactionID: fixture.transactionID, Payload: encodeAdapterRecovery(t, &execution, payload)}}
 	payload.IntentFingerprint = execution.IntentFingerprint
 
 	return command.BalanceEngineAttempt{Execution: execution, Payload: payload}, nil
@@ -468,16 +468,16 @@ func assertRetryCompositionStoredOutcome(
 
 	raw, err := client.HGet(ctx, keys.Recovery, transactionID.String()+":"+executionID.String()).Bytes()
 	require.NoError(t, err)
-	envelope, err := command.DecodeBalanceEngineRecoveryEnvelope(raw)
+	envelope, err := command.DecodeTransactionCompletionRecord(raw)
 	require.NoError(t, err)
 	require.Equal(t, executionID, envelope.ExecutionID)
 	require.Equal(t, transactionID, envelope.TransactionID)
 	require.Equal(t, got.Attempt.Execution.IntentFingerprint, envelope.IntentFingerprint)
-	require.JSONEq(t, string(got.Attempt.Execution.Recovery[0].Payload), envelope.Payload)
+	require.JSONEq(t, string(got.Attempt.Execution.CompletionPlans[0].Payload), envelope.Payload)
 
-	recoveredPayload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	recoveredPayload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 	require.NoError(t, err)
-	recoveredRows, err := command.ProjectBalanceEngineOperations(*recoveredPayload, envelope.Result)
+	recoveredRows, err := command.BuildOperationRecordsFromMovements(*recoveredPayload, envelope.Result)
 	require.NoError(t, err)
 	wantJSON, err := json.Marshal(rows)
 	require.NoError(t, err)

@@ -21,8 +21,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/recovery"
 	postgresTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txredis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -36,7 +36,7 @@ import (
 type realPersistenceFixture struct {
 	db        *sql.DB
 	metadata  *mongodb.MetadataMongoDBRepository
-	finalizer *command.BalanceEngineFinalizer
+	finalizer command.TransactionCompleter
 }
 
 type realPersistenceSQLSnapshot struct {
@@ -60,7 +60,7 @@ func newRealPersistenceFixture(t *testing.T) realPersistenceFixture {
 	pg := pgtestutil.SetupContainerWithConfig(t, pgConfig)
 	dsn := pgtestutil.BuildConnectionString(pg.Host, pg.Port, pg.Config)
 	pgConnection := pgtestutil.CreatePostgresClient(t, dsn, dsn, pg.Config.DBName, pgtestutil.FindMigrationsPath(t, "transaction"))
-	store := recovery.NewStore(
+	store := completion.NewStore(
 		postgresTransaction.NewTransactionPostgreSQLRepository(pgConnection),
 		operation.NewOperationPostgreSQLRepository(pgConnection),
 	)
@@ -73,7 +73,7 @@ func newRealPersistenceFixture(t *testing.T) realPersistenceFixture {
 	return realPersistenceFixture{
 		db:        pg.DB,
 		metadata:  metadata,
-		finalizer: command.NewBalanceEngineFinalizer(store, metadata),
+		finalizer: command.NewTransactionCompletionService(store, metadata),
 	}
 }
 
@@ -96,7 +96,7 @@ func captureRealPersistenceSQL(t *testing.T, db *sql.DB, transactionID string) r
 	return snapshot
 }
 
-func assertRealPersistenceProjection(t *testing.T, db *sql.DB, record command.BalanceEnginePersistenceRecord) {
+func assertRealPersistenceProjection(t *testing.T, db *sql.DB, record command.TransactionWriteSet) {
 	t.Helper()
 	for _, expected := range record.Transaction.Operations {
 		var beforeVersion, afterVersion int64
@@ -155,12 +155,12 @@ func resetRealPersistenceToPending(t *testing.T, ctx context.Context, fixture re
 	require.NoError(t, err)
 }
 
-func realPersistenceRecoveryEnvelope(t *testing.T, ctx context.Context, client *redis.Client, keys resolvedExecutionKeys, execution command.EngineExecution) ([]byte, *command.BalanceEngineRecoveryEnvelope) {
+func realPersistenceRecoveryEnvelope(t *testing.T, ctx context.Context, client *redis.Client, keys resolvedExecutionKeys, execution command.EngineExecution) ([]byte, *command.TransactionCompletionRecord) {
 	t.Helper()
 	field := execution.Request.Transactions[0].ID.String() + ":" + execution.Request.ExecutionID.String()
 	raw, err := client.HGet(ctx, keys.Recovery, field).Bytes()
 	require.NoError(t, err)
-	envelope, err := command.DecodeBalanceEngineRecoveryEnvelope(raw)
+	envelope, err := command.DecodeTransactionCompletionRecord(raw)
 	require.NoError(t, err)
 
 	return raw, envelope
@@ -194,7 +194,7 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		executor := &recordingCreateAdapter{delegate: realAdapter}
 		uc := &command.UseCase{
 			TransactionRedisRepo: idempotency, TransactionReader: reader,
-			BalanceEngine: executor, BalanceEngineFinalizer: fixture.finalizer,
+			BalanceEngine: executor, TransactionCompleter: fixture.finalizer,
 		}
 		amount := decimal.NewFromInt(30)
 		created, replayed, err := uc.CreateTransactionV2(ctx, command.CreateTransactionV2Input{
@@ -234,21 +234,21 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		normalState := captureAdapterState(t, client, keys)
 		evalSHA, eval := hook.evalSHA.Load(), hook.eval.Load()
 		recoveryRaw, envelope := realPersistenceRecoveryEnvelope(t, ctx, client, keys, execution)
-		payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+		payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 		require.NoError(t, err)
-		record, err := command.ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
+		record, err := command.BuildTransactionWriteSet(*payload, envelope.Result)
 		require.NoError(t, err)
 		assertRealPersistenceProjection(t, fixture.db, record)
 
 		clearRealPersistenceRecord(t, ctx, fixture, normalSQL, created.ID)
-		outcome, err := fixture.finalizer.FinalizeWithOutcome(ctx, envelope)
+		outcome, err := fixture.finalizer.Complete(ctx, envelope)
 		require.NoError(t, err)
 		require.Equal(t, command.TransactionLifecyclePhaseCreated, outcome.Outcome.LifecyclePhase)
 		require.Equal(t, normalSQL, captureRealPersistenceSQL(t, fixture.db, created.ID))
 		require.Equal(t, normalMetadata, captureRealPersistenceMetadata(t, ctx, fixture.metadata, created.ID, normalSQL.operationIDs))
 		assertRealPersistenceProjection(t, fixture.db, record)
 
-		outcome, err = fixture.finalizer.FinalizeWithOutcome(ctx, envelope)
+		outcome, err = fixture.finalizer.Complete(ctx, envelope)
 		require.NoError(t, err)
 		require.Equal(t, command.TransactionLifecyclePhaseNoop, outcome.Outcome.LifecyclePhase)
 		require.Equal(t, normalSQL, captureRealPersistenceSQL(t, fixture.db, created.ID))
@@ -286,7 +286,7 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		executor := &pendingLifecycleAdapter{delegate: realAdapter}
 		uc := &command.UseCase{
 			TransactionRedisRepo: idempotency, TransactionReader: reader,
-			BalanceEngine: executor, BalanceEngineFinalizer: fixture.finalizer,
+			BalanceEngine: executor, TransactionCompleter: fixture.finalizer,
 		}
 		amount := decimal.NewFromInt(30)
 		pending, replayed, err := uc.CreateTransactionV2(ctx, command.CreateTransactionV2Input{
@@ -338,9 +338,9 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		normalState := captureAdapterState(t, client, keys)
 		evalSHA, eval := hook.evalSHA.Load(), hook.eval.Load()
 		recoveryRaw, envelope := realPersistenceRecoveryEnvelope(t, ctx, client, keys, terminalExecution)
-		payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+		payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 		require.NoError(t, err)
-		terminalRecord, err := command.ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
+		terminalRecord, err := command.BuildTransactionWriteSet(*payload, envelope.Result)
 		require.NoError(t, err)
 		assertRealPersistenceProjection(t, fixture.db, terminalRecord)
 		terminalOperationIDs := make([]string, 0, len(terminalRecord.Transaction.Operations))
@@ -349,14 +349,14 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		}
 
 		resetRealPersistenceToPending(t, ctx, fixture, pending, terminalOperationIDs)
-		outcome, err := fixture.finalizer.FinalizeWithOutcome(ctx, envelope)
+		outcome, err := fixture.finalizer.Complete(ctx, envelope)
 		require.NoError(t, err)
 		require.Equal(t, command.TransactionLifecyclePhaseUpdated, outcome.Outcome.LifecyclePhase)
 		require.Equal(t, normalSQL, captureRealPersistenceSQL(t, fixture.db, committed.ID))
 		require.Equal(t, normalMetadata, captureRealPersistenceMetadata(t, ctx, fixture.metadata, committed.ID, normalSQL.operationIDs))
 		assertRealPersistenceProjection(t, fixture.db, terminalRecord)
 
-		outcome, err = fixture.finalizer.FinalizeWithOutcome(ctx, envelope)
+		outcome, err = fixture.finalizer.Complete(ctx, envelope)
 		require.NoError(t, err)
 		require.Equal(t, command.TransactionLifecyclePhaseNoop, outcome.Outcome.LifecyclePhase)
 		require.Equal(t, normalSQL, captureRealPersistenceSQL(t, fixture.db, committed.ID))

@@ -61,28 +61,28 @@ func (reader *createEngineReader) ValidateAccountingRules(context.Context, uuid.
 }
 
 type createEngineFinalizer struct {
-	outcome   BalanceEngineRecoveryOutcome
+	outcome   TransactionPersistenceOutcome
 	err       error
-	envelopes []*BalanceEngineRecoveryEnvelope
+	envelopes []*TransactionCompletionRecord
 }
 
-func (finalizer *createEngineFinalizer) FinalizeWithOutcome(_ context.Context, envelope *BalanceEngineRecoveryEnvelope) (BalanceEngineFinalizationResult, error) {
+func (finalizer *createEngineFinalizer) Complete(_ context.Context, envelope *TransactionCompletionRecord) (TransactionCompletionResult, error) {
 	finalizer.envelopes = append(finalizer.envelopes, envelope)
 	if finalizer.err != nil {
-		return BalanceEngineFinalizationResult{}, finalizer.err
+		return TransactionCompletionResult{}, finalizer.err
 	}
 
-	payload, err := DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	payload, err := DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 	if err != nil {
-		return BalanceEngineFinalizationResult{}, err
+		return TransactionCompletionResult{}, err
 	}
 
-	record, err := ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
+	record, err := BuildTransactionWriteSet(*payload, envelope.Result)
 	if err != nil {
-		return BalanceEngineFinalizationResult{}, err
+		return TransactionCompletionResult{}, err
 	}
 
-	return BalanceEngineFinalizationResult{Record: record, Outcome: finalizer.outcome}, nil
+	return TransactionCompletionResult{Record: record, Outcome: finalizer.outcome}, nil
 }
 
 type applyingCreateEngine struct {
@@ -194,12 +194,12 @@ func TestCreateTransactionV1UsesOptInBalanceEngineWithoutLegacyMutationPorts(t *
 	target := translationBalance(organizationID, ledgerID, "44444444-4444-4444-8444-444444444444", "@target", constant.DefaultBalanceKey)
 	reader := &createEngineReader{balances: []*mmodel.Balance{source, target}}
 	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
-	finalizer := &createEngineFinalizer{outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED}}
+	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	uc := &UseCase{
-		TransactionRedisRepo:   redisRepo,
-		TransactionReader:      reader,
-		BalanceEngine:          executor,
-		BalanceEngineFinalizer: finalizer,
+		TransactionRedisRepo: redisRepo,
+		TransactionReader:    reader,
+		BalanceEngine:        executor,
+		TransactionCompleter: finalizer,
 	}
 
 	transactionDate := time.Date(2026, time.September, 8, 12, 30, 0, 0, time.UTC)
@@ -224,7 +224,7 @@ func TestCreateTransactionV1UsesOptInBalanceEngineWithoutLegacyMutationPorts(t *
 	assert.Equal(t, "request-a", payload.HeaderID)
 	assert.Equal(t, executor.requests[0].Request.ExecutionID, finalizer.envelopes[0].ExecutionID)
 	assert.GreaterOrEqual(t, reader.reads, 2)
-	projected, err := ProjectBalanceEngineOperations(*payload, finalizer.envelopes[0].Result)
+	projected, err := BuildOperationRecordsFromMovements(*payload, finalizer.envelopes[0].Result)
 	require.NoError(t, err)
 	assert.Equal(t, projected, got.Operations)
 	assert.Equal(t, []string{"10", "10"}, []string{got.Operations[0].Amount.Value.String(), got.Operations[1].Amount.Value.String()})
@@ -270,13 +270,13 @@ func TestCreateTransactionV2ReservesOnceAndRefreshesOnlySnapshotsOnStale(t *test
 			BalanceRef: execution.Request.Transactions[0].Postings[0].BalanceRef,
 		}
 	}}
-	finalizer := &createEngineFinalizer{outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED}}
+	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	feeApplier := &fakeFeeApplier{}
 	reservationID := uuid.MustParse("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, BalanceEngineFinalizer: finalizer,
+		BalanceEngine: executor, TransactionCompleter: finalizer,
 		FeeApplier: feeApplier, TracerReserver: reserver,
 	}
 
@@ -338,12 +338,12 @@ func TestCreateTransactionBalanceEnginePendingRetainsBodyAndDefersTracerConfirm(
 		translationBalance(organizationID, ledgerID, "78787878-7878-4878-8878-787878787878", "@target", constant.DefaultBalanceKey),
 	}}
 	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
-	finalizer := &createEngineFinalizer{outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.PENDING}}
+	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.PENDING}}
 	reservationID := uuid.MustParse("90909090-9090-4090-8090-909090909090")
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, BalanceEngineFinalizer: finalizer, TracerReserver: reserver,
+		BalanceEngine: executor, TransactionCompleter: finalizer, TracerReserver: reserver,
 	}
 
 	transactionDate := time.Date(2026, time.September, 8, 15, 0, 0, 0, time.UTC)
@@ -422,11 +422,11 @@ func TestCreateTransactionBalanceEngineFailureCleanupBoundary(t *testing.T) {
 				translationBalance(organizationID, ledgerID, "44444444-dddd-4ddd-8ddd-dddddddddddd", "@target", constant.DefaultBalanceKey),
 			}}
 			finalizer := &createEngineFinalizer{
-				outcome: BalanceEngineRecoveryOutcome{TransactionStatus: constant.APPROVED}, err: test.finalizeErr,
+				outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}, err: test.finalizeErr,
 			}
 			uc := &UseCase{
 				TransactionRedisRepo: redisRepo, TransactionReader: reader,
-				BalanceEngine: test.executor(), BalanceEngineFinalizer: finalizer,
+				BalanceEngine: test.executor(), TransactionCompleter: finalizer,
 			}
 			transactionDate := time.Date(2026, time.September, 8, 14, 15, 0, 0, time.UTC)
 
@@ -478,17 +478,17 @@ func createEngineTransaction(transactionDate time.Time) mtransaction.Transaction
 	}
 }
 
-func mustCreateEnginePayload(t *testing.T, envelope *BalanceEngineRecoveryEnvelope) *BalanceEngineRecoveryPayload {
+func mustCreateEnginePayload(t *testing.T, envelope *TransactionCompletionRecord) *TransactionCompletionPlan {
 	t.Helper()
-	payload, err := DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	payload, err := DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 	require.NoError(t, err)
 	return payload
 }
 
-func mustCreateEngineRecovery(t *testing.T, execution EngineExecution) *BalanceEngineRecoveryPayload {
+func mustCreateEngineRecovery(t *testing.T, execution EngineExecution) *TransactionCompletionPlan {
 	t.Helper()
-	require.Len(t, execution.Recovery, 1)
-	payload, err := DecodeBalanceEngineRecoveryPayload(execution.Recovery[0].Payload)
+	require.Len(t, execution.CompletionPlans, 1)
+	payload, err := DecodeTransactionCompletionPlan(execution.CompletionPlans[0].Payload)
 	require.NoError(t, err)
 	return payload
 }
@@ -502,7 +502,7 @@ func TestIdempotencyRetentionSecondsSupportsBothDurationConventions(t *testing.T
 }
 
 var (
-	_ BalanceEngineOutcomeFinalizer = (*createEngineFinalizer)(nil)
-	_ BalanceEngine                 = (*applyingCreateEngine)(nil)
-	_ BalanceEngine                 = (*createEngineErrorExecutor)(nil)
+	_ TransactionCompleter = (*createEngineFinalizer)(nil)
+	_ BalanceEngine        = (*applyingCreateEngine)(nil)
+	_ BalanceEngine        = (*createEngineErrorExecutor)(nil)
 )

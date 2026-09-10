@@ -11,45 +11,45 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 )
 
-// ErrBalanceEnginePersistenceConflict means the persisted state cannot be
+// ErrTransactionCompletionConflict means the persisted state cannot be
 // reconciled with the frozen execution without replacing existing information.
-var ErrBalanceEnginePersistenceConflict = errors.New("balance engine persistence conflict")
+var ErrTransactionCompletionConflict = errors.New("transaction completion conflict")
 
-// BalanceEnginePersistenceRecord carries already projected, deterministic rows.
+// TransactionWriteSet carries already projected, deterministic rows.
 // ExpectedStatus is empty for creation and PENDING for commit or cancellation.
-type BalanceEnginePersistenceRecord struct {
+type TransactionWriteSet struct {
 	Transaction    *transaction.Transaction
 	Action         string
 	ExpectedStatus string
 }
 
-// BalanceEngineRecoveryOutcome reports the transaction status confirmed by the
-// durable SQL store. It is not derived from the frozen recovery payload.
-type BalanceEngineRecoveryOutcome struct {
+// TransactionPersistenceOutcome reports the transaction status confirmed by the
+// durable SQL store. It is not derived from the completion plan.
+type TransactionPersistenceOutcome struct {
 	TransactionStatus string
 	// LifecyclePhase identifies creation, transition, or a verified replay in
 	// this committed SQL attempt. It does not confirm event publication.
 	LifecyclePhase string
 }
 
-// BalanceEngineFinalizationResult returns the durable outcome together with a
+// TransactionCompletionResult returns the durable outcome together with a
 // caller-owned copy of the exact transaction and operation rows that were
 // projected and persisted.
-type BalanceEngineFinalizationResult struct {
-	Record  BalanceEnginePersistenceRecord
-	Outcome BalanceEngineRecoveryOutcome
+type TransactionCompletionResult struct {
+	Record  TransactionWriteSet
+	Outcome TransactionPersistenceOutcome
 }
 
-// BalanceEngineRecoveryStore confirms only durable SQL transaction and operation
+// TransactionWriteStore confirms only durable SQL transaction and operation
 // persistence. Success does not confirm Mongo metadata or authorize backup removal.
-type BalanceEngineRecoveryStore interface {
-	Persist(context.Context, BalanceEnginePersistenceRecord) error
+type TransactionWriteStore interface {
+	Persist(context.Context, TransactionWriteSet) error
 }
 
-// BalanceEngineRecoveryStoreWithOutcome is the additive recovery-store
+// TransactionWriteStoreWithOutcome is the additive recovery-store
 // capability used when callers need the status actually observed in durable
 // SQL. PersistWithOutcome returns successfully only after the SQL transaction
 // commits.
-type BalanceEngineRecoveryStoreWithOutcome interface {
-	PersistWithOutcome(context.Context, BalanceEnginePersistenceRecord) (BalanceEngineRecoveryOutcome, error)
+type TransactionWriteStoreWithOutcome interface {
+	PersistWithOutcome(context.Context, TransactionWriteSet) (TransactionPersistenceOutcome, error)
 }

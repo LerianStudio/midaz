@@ -152,11 +152,11 @@ func (a *pendingLifecycleAdapter) EnsureTransactionGuard(ctx context.Context, or
 
 type pendingLifecycleFinalizer struct {
 	outcomes  []string
-	envelopes []*command.BalanceEngineRecoveryEnvelope
+	envelopes []*command.TransactionCompletionRecord
 }
 
 type pendingRaceFinalizer struct {
-	envelopes []*command.BalanceEngineRecoveryEnvelope
+	envelopes []*command.TransactionCompletionRecord
 }
 
 type pendingLockExpiryFinalizer struct {
@@ -165,48 +165,48 @@ type pendingLockExpiryFinalizer struct {
 	err       error
 }
 
-func (f *pendingLockExpiryFinalizer) FinalizeWithOutcome(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
-	result, err := f.pendingRaceFinalizer.FinalizeWithOutcome(ctx, envelope)
+func (f *pendingLockExpiryFinalizer) Complete(ctx context.Context, envelope *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
+	result, err := f.pendingRaceFinalizer.Complete(ctx, envelope)
 	if err != nil {
-		return command.BalanceEngineFinalizationResult{}, err
+		return command.TransactionCompletionResult{}, err
 	}
 	if len(f.envelopes) > f.failAfter {
-		return command.BalanceEngineFinalizationResult{}, f.err
+		return command.TransactionCompletionResult{}, f.err
 	}
 	return result, nil
 }
 
-func (f *pendingRaceFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
-	payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+func (f *pendingRaceFinalizer) Complete(_ context.Context, envelope *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
+	payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 	if err != nil {
-		return command.BalanceEngineFinalizationResult{}, err
+		return command.TransactionCompletionResult{}, err
 	}
 	f.envelopes = append(f.envelopes, envelope)
-	record, err := command.ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
+	record, err := command.BuildTransactionWriteSet(*payload, envelope.Result)
 	if err != nil {
-		return command.BalanceEngineFinalizationResult{}, err
+		return command.TransactionCompletionResult{}, err
 	}
 
-	return command.BalanceEngineFinalizationResult{
+	return command.TransactionCompletionResult{
 		Record:  record,
-		Outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: payload.TransactionStatus},
+		Outcome: command.TransactionPersistenceOutcome{TransactionStatus: payload.TransactionStatus},
 	}, nil
 }
 
-func (f *pendingLifecycleFinalizer) FinalizeWithOutcome(_ context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
+func (f *pendingLifecycleFinalizer) Complete(_ context.Context, envelope *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
 	f.envelopes = append(f.envelopes, envelope)
-	payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 	if err != nil {
-		return command.BalanceEngineFinalizationResult{}, err
+		return command.TransactionCompletionResult{}, err
 	}
-	record, err := command.ComposeBalanceEnginePersistenceRecord(*payload, envelope.Result)
+	record, err := command.BuildTransactionWriteSet(*payload, envelope.Result)
 	if err != nil {
-		return command.BalanceEngineFinalizationResult{}, err
+		return command.TransactionCompletionResult{}, err
 	}
 
-	return command.BalanceEngineFinalizationResult{
+	return command.TransactionCompletionResult{
 		Record:  record,
-		Outcome: command.BalanceEngineRecoveryOutcome{TransactionStatus: f.outcomes[len(f.envelopes)-1]},
+		Outcome: command.TransactionPersistenceOutcome{TransactionStatus: f.outcomes[len(f.envelopes)-1]},
 	}, nil
 }
 
@@ -308,11 +308,11 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			reservationID := uuid.MustParse("97777777-7777-4777-8777-777777777777")
 			tracerControl := &pendingLifecycleTracer{reservationID: reservationID}
 			uc := &command.UseCase{
-				TransactionRedisRepo:   redisRepository,
-				TransactionReader:      reader,
-				BalanceEngine:          executor,
-				BalanceEngineFinalizer: finalizer,
-				TracerReserver:         tracerControl,
+				TransactionRedisRepo: redisRepository,
+				TransactionReader:    reader,
+				BalanceEngine:        executor,
+				TransactionCompleter: finalizer,
+				TracerReserver:       tracerControl,
 			}
 
 			amount := decimal.NewFromInt(30)
@@ -453,11 +453,11 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	finalizer := &pendingRaceFinalizer{}
 	tracerControl := &pendingLifecycleTracer{reservationID: uuid.MustParse("a7777777-7777-4777-8777-777777777777")}
 	uc := &command.UseCase{
-		TransactionRedisRepo:   redisRepository,
-		TransactionReader:      reader,
-		BalanceEngine:          executor,
-		BalanceEngineFinalizer: finalizer,
-		TracerReserver:         tracerControl,
+		TransactionRedisRepo: redisRepository,
+		TransactionReader:    reader,
+		BalanceEngine:        executor,
+		TransactionCompleter: finalizer,
+		TracerReserver:       tracerControl,
 	}
 
 	amount := decimal.NewFromInt(30)
@@ -630,10 +630,10 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	finalizationErr := errors.New("pending transition persistence unavailable")
 	finalizer := &pendingLockExpiryFinalizer{failAfter: 1, err: finalizationErr}
 	uc := &command.UseCase{
-		TransactionRedisRepo:   redisRepository,
-		TransactionReader:      reader,
-		BalanceEngine:          executor,
-		BalanceEngineFinalizer: finalizer,
+		TransactionRedisRepo: redisRepository,
+		TransactionReader:    reader,
+		BalanceEngine:        executor,
+		TransactionCompleter: finalizer,
 	}
 
 	amount := decimal.NewFromInt(30)
@@ -717,9 +717,9 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 		require.False(t, client.HExists(ctx, keys.Recovery, pending.ID+":"+rejected.Request.ExecutionID.String()).Val())
 		require.False(t, client.HExists(ctx, keys.Receipts, rejected.Request.ExecutionID.String()).Val())
 	}
-	winningPayload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(finalizer.envelopes[1].Payload))
+	winningPayload, err := command.DecodeTransactionCompletionPlan([]byte(finalizer.envelopes[1].Payload))
 	require.NoError(t, err)
-	winningRecord, err := command.ComposeBalanceEnginePersistenceRecord(*winningPayload, finalizer.envelopes[1].Result)
+	winningRecord, err := command.BuildTransactionWriteSet(*winningPayload, finalizer.envelopes[1].Result)
 	require.NoError(t, err)
 	assertPendingLifecycleRecovery(t, ctx, client, keys, winningExecution, winningRecord.Transaction)
 	assertPendingLifecycleBalances(t, ctx, client, keys, []pendingLifecycleBalanceExpectation{
@@ -751,11 +751,11 @@ func pendingLifecyclePostingTypes(execution command.EngineExecution) []core.Post
 	return types
 }
 
-func assertPendingLifecycleProjection(t *testing.T, envelope *command.BalanceEngineRecoveryEnvelope, transaction *postgresTransaction.Transaction) {
+func assertPendingLifecycleProjection(t *testing.T, envelope *command.TransactionCompletionRecord, transaction *postgresTransaction.Transaction) {
 	t.Helper()
-	payload, err := command.DecodeBalanceEngineRecoveryPayload([]byte(envelope.Payload))
+	payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 	require.NoError(t, err)
-	projected, err := command.ProjectBalanceEngineOperations(*payload, envelope.Result)
+	projected, err := command.BuildOperationRecordsFromMovements(*payload, envelope.Result)
 	require.NoError(t, err)
 	requireJSONEqual(t, transaction.Operations, projected)
 }
@@ -764,7 +764,7 @@ func assertPendingLifecycleRecovery(t *testing.T, ctx context.Context, client *r
 	t.Helper()
 	recoveryRaw, err := client.HGet(ctx, keys.Recovery, transaction.ID+":"+execution.Request.ExecutionID.String()).Bytes()
 	require.NoError(t, err)
-	recovery, err := command.DecodeBalanceEngineRecoveryEnvelope(recoveryRaw)
+	recovery, err := command.DecodeTransactionCompletionRecord(recoveryRaw)
 	require.NoError(t, err)
 	require.Equal(t, execution.Request.ExecutionID, recovery.ExecutionID)
 	require.Equal(t, execution.IntentFingerprint, recovery.IntentFingerprint)
@@ -790,8 +790,8 @@ var (
 	_ command.BalanceEngineGuardBootstrapper = (*pendingLifecycleAdapter)(nil)
 	_ command.BalanceEngine                  = (*racingPendingLifecycleAdapter)(nil)
 	_ command.BalanceEngineGuardBootstrapper = (*racingPendingLifecycleAdapter)(nil)
-	_ command.BalanceEngineOutcomeFinalizer  = (*pendingLifecycleFinalizer)(nil)
-	_ command.BalanceEngineOutcomeFinalizer  = (*pendingRaceFinalizer)(nil)
-	_ command.BalanceEngineOutcomeFinalizer  = (*pendingLockExpiryFinalizer)(nil)
+	_ command.TransactionCompleter           = (*pendingLifecycleFinalizer)(nil)
+	_ command.TransactionCompleter           = (*pendingRaceFinalizer)(nil)
+	_ command.TransactionCompleter           = (*pendingLockExpiryFinalizer)(nil)
 	_ command.TracerReserver                 = (*pendingLifecycleTracer)(nil)
 )

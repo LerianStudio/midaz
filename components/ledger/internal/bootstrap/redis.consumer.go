@@ -69,83 +69,65 @@ type RedisQueueConsumer struct {
 	// queue is the backup-queue repository the consumer drives directly for the
 	// queue mechanics it owns: cycle lock, reads, attempt counters, removal. It
 	// is always the same repository Command holds.
-	queue              txRedis.RedisRepository
-	quarantineRepo     transactionquarantine.Repository
-	metricsFactory     *metrics.MetricsFactory
-	multiTenantEnabled bool
-	tenantCache        *tenantcache.TenantCache
-	pgManager          *tmpostgres.Manager
-	recoveryFinalizer  balanceRecoveryFinalizer
-	recoveryClock      func() time.Time
+	queue                txRedis.RedisRepository
+	quarantineRepo       transactionquarantine.Repository
+	metricsFactory       *metrics.MetricsFactory
+	multiTenantEnabled   bool
+	tenantCache          *tenantcache.TenantCache
+	pgManager            *tmpostgres.Manager
+	transactionCompleter transactionCompleter
+	recoveryClock        func() time.Time
 }
 
 type recoveryMongoResolver interface {
 	GetDatabaseForTenant(context.Context, string) (*mongo.Database, error)
 }
 
-type balanceRecoveryFinalizerWithOutcome interface {
-	FinalizeWithOutcome(context.Context, *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error)
-}
-
-// tenantRecoveryFinalizer resolves metadata storage inside the existing recovery
-// timeout. Legacy records do not use this finalizer or acquire Mongo connections.
-type tenantRecoveryFinalizer struct {
-	delegate           balanceRecoveryFinalizer
+// tenantTransactionCompleter resolves metadata storage inside the existing recovery
+// timeout. Legacy records do not use this completer or acquire Mongo connections.
+type tenantTransactionCompleter struct {
+	delegate           transactionCompleter
 	mongoResolver      recoveryMongoResolver
 	multiTenantEnabled bool
 }
 
-func (finalizer *tenantRecoveryFinalizer) Finalize(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) error {
-	ctx, err := finalizer.resolveContext(ctx, envelope)
+func (completer *tenantTransactionCompleter) Complete(ctx context.Context, record *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
+	ctx, err := completer.resolveContext(ctx, record)
 	if err != nil {
-		return err
+		return command.TransactionCompletionResult{}, err
 	}
 
-	return finalizer.delegate.Finalize(ctx, envelope)
-}
-
-func (finalizer *tenantRecoveryFinalizer) FinalizeWithOutcome(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (command.BalanceEngineFinalizationResult, error) {
-	ctx, err := finalizer.resolveContext(ctx, envelope)
+	result, err := completer.delegate.Complete(ctx, record)
 	if err != nil {
-		return command.BalanceEngineFinalizationResult{}, err
-	}
-
-	delegate, ok := finalizer.delegate.(balanceRecoveryFinalizerWithOutcome)
-	if !ok {
-		return command.BalanceEngineFinalizationResult{}, fmt.Errorf("balance recovery finalizer outcome is not configured")
-	}
-
-	result, err := delegate.FinalizeWithOutcome(ctx, envelope)
-	if err != nil {
-		return command.BalanceEngineFinalizationResult{}, err
+		return command.TransactionCompletionResult{}, err
 	}
 
 	return result, nil
 }
 
-func (finalizer *tenantRecoveryFinalizer) resolveContext(ctx context.Context, envelope *command.BalanceEngineRecoveryEnvelope) (context.Context, error) {
+func (completer *tenantTransactionCompleter) resolveContext(ctx context.Context, record *command.TransactionCompletionRecord) (context.Context, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	if finalizer.delegate == nil {
-		return nil, fmt.Errorf("balance recovery finalizer is not configured")
+	if completer.delegate == nil {
+		return nil, fmt.Errorf("transaction completer is not configured")
 	}
 
-	if !finalizer.multiTenantEnabled {
+	if !completer.multiTenantEnabled {
 		return ctx, nil
 	}
 
 	tenantID := tmcore.GetTenantIDContext(ctx)
-	if tenantID == "" || envelope == nil || envelope.TenantID != tenantID {
+	if tenantID == "" || record == nil || record.TenantID != tenantID {
 		return nil, fmt.Errorf("balance recovery requires matching authenticated tenant context")
 	}
 
-	if finalizer.mongoResolver == nil {
+	if completer.mongoResolver == nil {
 		return nil, fmt.Errorf("balance recovery tenant Mongo resolver is not configured")
 	}
 
-	database, err := finalizer.mongoResolver.GetDatabaseForTenant(ctx, tenantID)
+	database, err := completer.mongoResolver.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("resolve balance recovery tenant Mongo database: %w", err)
 	}
@@ -431,10 +413,10 @@ Outer:
 
 		var (
 			transaction mmodel.TransactionRedisQueue
-			recovery    *command.BalanceEngineRecoveryEnvelope
+			recovery    *command.TransactionCompletionRecord
 			ttl         time.Time
 		)
-		if version == command.BalanceEngineRecoveryVersion {
+		if version == command.TransactionCompletionFormatVersion {
 			recovery, ttl, err = decodeRecoveryRecord(ctx, key, message)
 			if err != nil {
 				r.Logger.Log(ctx, libLog.LevelWarn, "Invalid version-two backup; record retained", libLog.String("redis_key", key), libLog.Err(err))

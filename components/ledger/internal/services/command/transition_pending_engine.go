@@ -127,13 +127,13 @@ func (uc *UseCase) preparePendingBalanceEngineTransition(ctx context.Context, ru
 		return pendingBalanceEngineTransition{}, err
 	}
 
-	if uc.TransactionReader == nil || isNilBalanceEngineFinalizer(uc.BalanceEngineFinalizer) {
+	if uc.TransactionReader == nil || isNilTransactionCompleter(uc.TransactionCompleter) {
 		return pendingBalanceEngineTransition{}, fmt.Errorf("balance engine transition dependencies are not configured")
 	}
 
 	transactionID, err := uuid.Parse(run.tran.ID)
 	if err != nil || transactionID == uuid.Nil {
-		return pendingBalanceEngineTransition{}, fmt.Errorf("confirm pending transaction identity: %w", ErrInvalidBalanceEngineRecovery)
+		return pendingBalanceEngineTransition{}, fmt.Errorf("confirm pending transaction identity: %w", ErrInvalidTransactionCompletionRecord)
 	}
 
 	persisted, err := uc.TransactionReader.GetTransactionWithOperationsByID(
@@ -143,7 +143,7 @@ func (uc *UseCase) preparePendingBalanceEngineTransition(ctx context.Context, ru
 		return pendingBalanceEngineTransition{}, err
 	}
 
-	if err := validatePersistedPendingTransition(persisted, run.organizationID, run.ledgerID, transactionID, run.status); err != nil {
+	if err := validatePersistedCompletionTransition(persisted, run.organizationID, run.ledgerID, transactionID, run.status); err != nil {
 		return pendingBalanceEngineTransition{}, err
 	}
 
@@ -226,7 +226,7 @@ func (uc *UseCase) preparePendingBalanceEngineIntent(ctx context.Context, run *p
 	}, nil
 }
 
-func validatePersistedPendingTransition(persisted *transaction.Transaction, organizationID, ledgerID, transactionID uuid.UUID, status string) error {
+func validatePersistedCompletionTransition(persisted *transaction.Transaction, organizationID, ledgerID, transactionID uuid.UUID, status string) error {
 	if persisted == nil || persisted.ID == "" {
 		return pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, constant.EntityTransaction)
 	}
@@ -240,15 +240,15 @@ func validatePersistedPendingTransition(persisted *transaction.Transaction, orga
 	}
 
 	if persisted.Body.IsEmpty() || persisted.CreatedAt.IsZero() {
-		return fmt.Errorf("confirm pending transaction body and creation date: %w", ErrInvalidBalanceEngineRecovery)
+		return fmt.Errorf("confirm pending transaction body and creation date: %w", ErrInvalidTransactionCompletionRecord)
 	}
 
 	if status == constant.CANCELED && len(persisted.Operations) == 0 {
-		return fmt.Errorf("cancel pending transaction without persisted operations: %w", ErrInvalidBalanceEngineRecovery)
+		return fmt.Errorf("cancel pending transaction without persisted operations: %w", ErrInvalidTransactionCompletionRecord)
 	}
 
 	if status != constant.APPROVED && status != constant.CANCELED {
-		return fmt.Errorf("unsupported pending transition status %q: %w", status, ErrInvalidBalanceEngineRecovery)
+		return fmt.Errorf("unsupported pending transition status %q: %w", status, ErrInvalidTransactionCompletionRecord)
 	}
 
 	return nil
@@ -260,7 +260,7 @@ func validatePersistedTransitionScope(persisted *transaction.Transaction, organi
 
 	persistedLedgerID, ledgerErr := uuid.Parse(persisted.LedgerID)
 	if idErr != nil || organizationErr != nil || ledgerErr != nil || persistedID != transactionID || persistedOrganizationID != organizationID || persistedLedgerID != ledgerID {
-		return fmt.Errorf("confirm pending transaction scope: %w", ErrInvalidBalanceEngineRecovery)
+		return fmt.Errorf("confirm pending transaction scope: %w", ErrInvalidTransactionCompletionRecord)
 	}
 
 	return nil
@@ -304,7 +304,7 @@ func pendingBalanceEngineParentID(transactionID uuid.UUID, value *string) (*uuid
 
 	parentID, err := uuid.Parse(*value)
 	if err != nil || parentID == uuid.Nil || parentID == transactionID {
-		return nil, fmt.Errorf("invalid pending parent transaction identity: %w", ErrInvalidBalanceEngineRecovery)
+		return nil, fmt.Errorf("invalid pending parent transaction identity: %w", ErrInvalidTransactionCompletionRecord)
 	}
 
 	return &parentID, nil
@@ -318,8 +318,8 @@ func buildPendingBalanceEngineAttempt(
 	frozen pendingBalanceEngineFrozen,
 	action string,
 ) (BalanceEngineAttempt, error) {
-	payload := BalanceEngineRecoveryPayload{
-		FormatVersion:        BalanceEngineRecoveryVersion,
+	payload := TransactionCompletionPlan{
+		FormatVersion:        TransactionCompletionFormatVersion,
 		TenantID:             frozen.tenantID,
 		HeaderID:             frozen.headerID,
 		TransactionID:        prepared.transaction.ID,
@@ -338,7 +338,7 @@ func buildPendingBalanceEngineAttempt(
 		TransactionCreatedAt: persisted.CreatedAt,
 		TransactionUpdatedAt: frozen.transactionUpdated,
 		OperationUpdatedAt:   frozen.operationUpdated,
-		Projection:           prepared.projection,
+		OperationSpecs:       prepared.projection,
 	}
 
 	intent := BalanceEngineIntent{
@@ -346,7 +346,7 @@ func buildPendingBalanceEngineAttempt(
 		OrganizationID: payload.OrganizationID,
 		LedgerID:       payload.LedgerID,
 		ExecutionID:    frozen.executionID,
-		Transactions:   []BalanceEngineTransactionIntent{recoveryTransactionIntent(prepared.transaction, payload)},
+		Transactions:   []BalanceEngineTransactionIntent{transactionCompletionIntent(prepared.transaction, payload)},
 	}
 
 	fingerprint, err := ComputeBalanceEngineIntentFingerprint(intent)
@@ -356,7 +356,7 @@ func buildPendingBalanceEngineAttempt(
 
 	payload.IntentFingerprint = fingerprint
 
-	raw, err := EncodeBalanceEngineRecoveryPayload(payload)
+	raw, err := EncodeTransactionCompletionPlan(payload)
 	if err != nil {
 		return BalanceEngineAttempt{}, err
 	}
@@ -371,7 +371,7 @@ func buildPendingBalanceEngineAttempt(
 		},
 		IntentFingerprint: fingerprint,
 		Guards:            []ExecutionGuard{frozen.guard},
-		Recovery:          []RecoveryIntent{{TransactionID: payload.TransactionID, Payload: raw}},
+		CompletionPlans:   []CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: raw}},
 	}
 
 	return BalanceEngineAttempt{Execution: execution, Payload: payload}, nil
@@ -383,18 +383,18 @@ func (uc *UseCase) finalizePendingBalanceEngineResult(ctx context.Context, expec
 		return nil, err
 	}
 
-	finalization, err := uc.BalanceEngineFinalizer.FinalizeWithOutcome(ctx, envelope)
+	completion, err := uc.TransactionCompleter.Complete(ctx, envelope)
 	if err != nil {
 		return nil, err
 	}
 
-	if finalization.Outcome.TransactionStatus != expectedStatus {
-		return nil, fmt.Errorf("%w: pending finalizer confirmed %q, expected %q", ErrBalanceEnginePersistenceConflict, finalization.Outcome.TransactionStatus, expectedStatus)
+	if completion.Outcome.TransactionStatus != expectedStatus {
+		return nil, fmt.Errorf("%w: pending completer confirmed %q, expected %q", ErrTransactionCompletionConflict, completion.Outcome.TransactionStatus, expectedStatus)
 	}
 
-	tran := finalization.Record.Transaction
+	tran := completion.Record.Transaction
 	if tran == nil {
-		return nil, invalidRecovery("pending finalizer returned no projected transaction")
+		return nil, invalidTransactionCompletionRecord("pending completer returned no materialized transaction")
 	}
 
 	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
@@ -432,7 +432,7 @@ func (uc *UseCase) resolvePendingGuardConflict(ctx context.Context, organization
 		return pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
 	}
 
-	return fmt.Errorf("pending transaction guard conflicts with status %q: %w", persisted.Status.Code, ErrInvalidBalanceEngineRecovery)
+	return fmt.Errorf("pending transaction guard conflicts with status %q: %w", persisted.Status.Code, ErrInvalidTransactionCompletionRecord)
 }
 
 const (
