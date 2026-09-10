@@ -1059,7 +1059,12 @@ func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, map
 	return collected
 }
 
-func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[string]*mmodel.Balance) (*mmodel.BalanceAtomicResult, error) {
+// decodeBalanceAtomicResult turns the script's single JSON string into the
+// domain result. The second return is the script's replay flag: true when the
+// response was re-reported from the idempotency marker instead of computed. It
+// stays here, out of mmodel.BalanceAtomicResult, because it describes how the
+// adapter obtained the answer, not the posting itself.
+func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[string]*mmodel.Balance) (*mmodel.BalanceAtomicResult, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.decode_balance_atomic_result")
@@ -1069,7 +1074,7 @@ func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[
 	if err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Unexpected result type from Lua script", libLog.Err(err))
 
-		return nil, err
+		return nil, false, err
 	}
 
 	var atomicResp balanceAtomicResponse
@@ -1077,17 +1082,17 @@ func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[
 		libOpentelemetry.HandleSpanError(span, "Failed to deserialize Lua script response", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to deserialize Lua script response", libLog.Err(err))
 
-		return nil, err
+		return nil, false, err
 	}
 
 	return &mmodel.BalanceAtomicResult{
 		Before: collectBalanceSnapshots(ctx, atomicResp.Before, mapBalances, "before"),
 		After:  collectBalanceSnapshots(ctx, atomicResp.After, mapBalances, "after"),
-	}, nil
+	}, atomicResp.Replayed, nil
 }
 
 func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation, binding *mtransaction.AccountBlockExceptionBinding) (*mmodel.BalanceAtomicResult, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, _, metricsFactory := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.process_balance_atomic_operation")
 	defer span.End()
@@ -1170,6 +1175,17 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	result, err := rr.runBalanceAtomicScript(ctx, rds, prefixedKeys, finalArgs)
 	if err != nil {
+		// A lost response is not proof the script did not run. The marker is the
+		// only thing that can tell the two apart, and when it proves the
+		// application the caller must not roll back a posting that happened.
+		if isResponseLostError(err) {
+			if reconciled, ok := rr.reconcileFromApplyMarker(
+				ctx, span, rds, applyMarkerKey, transactionID.String(), plan.mapBalances,
+			); ok {
+				return reconciled, nil
+			}
+		}
+
 		return nil, err
 	}
 
@@ -1179,7 +1195,16 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		libLog.String("transaction_key", prefixedKeys[1]),
 	)
 
-	return decodeBalanceAtomicResult(ctx, result, plan.mapBalances)
+	atomicResult, replayed, err := decodeBalanceAtomicResult(ctx, result, plan.mapBalances)
+	if err != nil {
+		return nil, err
+	}
+
+	if replayed {
+		recordBalanceScriptReplay(ctx, span, logger, metricsFactory, transactionID.String())
+	}
+
+	return atomicResult, nil
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
