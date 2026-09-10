@@ -255,7 +255,7 @@ func TestReadMessagesAndProcess_VersionTwoNeverUsesLegacyDependencies(t *testing
 	order := []string{}
 	finalizer := &recoveryCompleterStub{order: &order}
 	queue := &recoveryQueueStub{status: 1, order: &order, messages: map[string]string{field: raw}}
-	consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithTransactionCompleter(finalizer)
+	consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithAppliedTransactionCompleter(finalizer)
 	consumer.readMessagesAndProcess(context.Background())
 	require.Equal(t, []string{"durable-finalization", "conditional-ack"}, order)
 	require.Equal(t, field, queue.field)
@@ -270,7 +270,7 @@ func TestReadMessagesAndProcess_UnknownVersionDoesNotFinalizeOrAcknowledge(t *te
 		order := []string{}
 		finalizer := &recoveryCompleterStub{order: &order}
 		queue := &recoveryQueueStub{status: 1, order: &order, messages: map[string]string{field: raw}}
-		consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithTransactionCompleter(finalizer)
+		consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithAppliedTransactionCompleter(finalizer)
 		consumer.readMessagesAndProcess(context.Background())
 		require.Zero(t, finalizer.calls)
 		require.Zero(t, queue.calls)
@@ -289,7 +289,7 @@ func TestReadMessagesAndProcess_OriginsRemainIndependent(t *testing.T) {
 		},
 		readErrBySource: map[txRedis.RecoveryQueueSource]error{},
 	}
-	consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithTransactionCompleter(finalizer)
+	consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithAppliedTransactionCompleter(finalizer)
 	consumer.readMessagesAndProcess(t.Context())
 
 	require.Equal(t, 2, finalizer.calls)
@@ -315,7 +315,7 @@ func TestLegacyBackupConsumerReadsOnlyLegacyOrigin(t *testing.T) {
 		readErrBySource: map[txRedis.RecoveryQueueSource]error{},
 	}
 	runner := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).
-		WithTransactionCompleter(&recoveryCompleterStub{order: &order})
+		WithAppliedTransactionCompleter(&recoveryCompleterStub{order: &order})
 
 	stats := runner.newLegacyBackupConsumer().Consume(t.Context())
 
@@ -337,7 +337,7 @@ func TestEngineRecoveryConsumerReadsOnlyEngineOrigin(t *testing.T) {
 		readErrBySource: map[txRedis.RecoveryQueueSource]error{},
 	}
 	runner := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).
-		WithTransactionCompleter(&recoveryCompleterStub{order: &order})
+		WithAppliedTransactionCompleter(&recoveryCompleterStub{order: &order})
 
 	stats := runner.newEngineRecoveryConsumer().Consume(t.Context())
 
@@ -364,7 +364,7 @@ func TestReadMessagesAndProcess_OneOriginFailureDoesNotBlockOther(t *testing.T) 
 				},
 				readErrBySource: map[txRedis.RecoveryQueueSource]error{failedSource: errors.New("read failed")},
 			}
-			consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithTransactionCompleter(finalizer)
+			consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}}).WithAppliedTransactionCompleter(finalizer)
 			consumer.readMessagesAndProcess(t.Context())
 			require.Equal(t, 1, finalizer.calls)
 			require.Len(t, queue.ackSources, 1)
@@ -387,7 +387,7 @@ func TestReadMessagesAndProcess_EngineRecoverNeverFallsBackToLegacyOrQuarantine(
 		},
 		readErrBySource: map[txRedis.RecoveryQueueSource]error{},
 	}
-	consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}, quarantineRepo: &recoveryQuarantineStub{}}).WithTransactionCompleter(finalizer)
+	consumer := (&RedisQueueConsumer{queue: queue, Logger: recoveryQuietLogger{}, quarantineRepo: &recoveryQuarantineStub{}}).WithAppliedTransactionCompleter(finalizer)
 	consumer.readMessagesAndProcess(t.Context())
 	require.Zero(t, finalizer.calls)
 	require.Zero(t, queue.calls)
@@ -418,7 +418,7 @@ func TestCompleteRecoveryRecord_RequiresDurableCompletionAndExactAck(t *testing.
 			order := []string{}
 			finalizer := &recoveryCompleterStub{err: test.finalizeErr, order: &order}
 			queue := &recoveryQueueStub{status: test.status, err: test.ackErr, order: &order}
-			consumer := (&RedisQueueConsumer{queue: queue}).WithTransactionCompleter(finalizer)
+			consumer := (&RedisQueueConsumer{queue: queue}).WithAppliedTransactionCompleter(finalizer)
 			err := consumer.newRecoveryRecordCompleter().complete(context.Background(), txRedis.RecoveryQueueSourceLegacyBackup, "transaction:execution", "exact original JSON bytes", &command.TransactionCompletionRecord{})
 			if test.wantErr {
 				require.Error(t, err)
@@ -445,15 +445,15 @@ func TestCompleteRecoveryRecord_RequiresDurableCompletionAndExactAck(t *testing.
 func TestCompleteRecoveryRecord_MissingCapabilityAndCancellationRetain(t *testing.T) {
 	order := []string{}
 	finalizer := &recoveryCompleterStub{order: &order}
-	consumer := (&RedisQueueConsumer{}).WithTransactionCompleter(finalizer)
+	consumer := (&RedisQueueConsumer{}).WithAppliedTransactionCompleter(finalizer)
 	require.Error(t, consumer.newRecoveryRecordCompleter().complete(context.Background(), txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", nil))
 	require.Zero(t, finalizer.calls)
 	queue := &recoveryQueueStub{order: &order}
 	consumer.queue = queue
-	consumer.transactionCompleter = nil
+	consumer.appliedTransactionCompleter = nil
 	require.Error(t, consumer.newRecoveryRecordCompleter().complete(context.Background(), txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", nil))
 	require.Zero(t, queue.calls)
-	consumer.transactionCompleter = finalizer
+	consumer.appliedTransactionCompleter = finalizer
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	require.ErrorIs(t, consumer.newRecoveryRecordCompleter().complete(ctx, txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", nil), context.Canceled)

@@ -313,7 +313,7 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 			financialState := captureRecoveryEngineFinancialState(t, client, recoverKey)
 			fault := &recoveryEngineMetadataFault{MetadataMongoDBRepository: metadata, fail: metadataFailure}
 			finalizer := command.NewTransactionCompletionService(store, fault)
-			consumer := NewRedisQueueConsumer(recoveryQuietLogger{}, &command.UseCase{TransactionRedisRepo: queue}, nil).WithTransactionCompleter(finalizer)
+			consumer := NewRedisQueueConsumer(recoveryQuietLogger{}, &command.UseCase{TransactionRedisRepo: queue}, nil).WithAppliedTransactionCompleter(finalizer)
 			require.Nil(t, consumer.Query)
 			consumer.readMessagesAndProcess(ctx)
 			assertRecoveryEngineSQL(t, pg.DB, payload, rows[0])

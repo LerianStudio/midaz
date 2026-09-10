@@ -11,11 +11,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
-// configureTransactionCompletion shares durable completion and its tenant
-// resolution between normal writes and recovery. It does not enable the engine.
-func configureTransactionCompletion(consumer *RedisQueueConsumer, useCase *command.UseCase, multiTenantEnabled bool, mongoResolver recoveryMongoResolver) error {
+// configureAppliedTransactionCompletion shares completion of already-applied
+// transactions and its tenant resolution between normal writes and recovery.
+// It does not enable the engine.
+func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase *command.UseCase, multiTenantEnabled bool, mongoResolver recoveryMongoResolver) error {
 	if consumer == nil || useCase == nil {
-		return errors.New("balance engine finalization requires command and recovery owners")
+		return errors.New("applied transaction completion requires command and recovery owners")
 	}
 
 	delegate, err := command.NewTransactionCompletionServiceWithEvents(
@@ -27,11 +28,11 @@ func configureTransactionCompletion(consumer *RedisQueueConsumer, useCase *comma
 		return err
 	}
 
-	completer := &tenantTransactionCompleter{
+	completer := &tenantAppliedTransactionCompleter{
 		delegate: delegate, multiTenantEnabled: multiTenantEnabled, mongoResolver: mongoResolver,
 	}
-	useCase.TransactionCompleter = completer
-	consumer.WithTransactionCompleter(completer)
+	useCase.AppliedTransactionCompleter = completer
+	consumer.WithAppliedTransactionCompleter(completer)
 
 	return nil
 }

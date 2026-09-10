@@ -66,11 +66,11 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 	finalizer := &adapterCreateFinalizer{}
 	tracerControl := &pendingLifecycleTracer{reservationID: uuid.MustParse("b7777777-7777-4777-8777-777777777777")}
 	uc := &command.UseCase{
-		TransactionRedisRepo: idempotency,
-		TransactionReader:    reader,
-		BalanceEngine:        executor,
-		TransactionCompleter: finalizer,
-		TracerReserver:       tracerControl,
+		TransactionRedisRepo:        idempotency,
+		TransactionReader:           reader,
+		BalanceEngine:               executor,
+		AppliedTransactionCompleter: finalizer,
+		TracerReserver:              tracerControl,
 	}
 
 	date := time.Date(2026, time.September, 8, 18, 0, 0, 0, time.UTC)

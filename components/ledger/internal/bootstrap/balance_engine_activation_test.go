@@ -23,9 +23,9 @@ func (*balanceEngineProviderStub) GetClient(context.Context) (redis.UniversalCli
 	return nil, nil
 }
 
-type balanceTransactionCompleterStub struct{}
+type appliedTransactionCompleterStub struct{}
 
-func (*balanceTransactionCompleterStub) Complete(context.Context, *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
+func (*appliedTransactionCompleterStub) Complete(context.Context, *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
 	return command.TransactionCompletionResult{}, nil
 }
 
@@ -36,22 +36,22 @@ func TestConfigureBalanceEngineDisabledLeavesLegacyPath(t *testing.T) {
 }
 
 func TestConfigureBalanceEngineEnabledWiresAdapter(t *testing.T) {
-	useCase := &command.UseCase{TransactionCompleter: &balanceTransactionCompleterStub{}}
+	useCase := &command.UseCase{AppliedTransactionCompleter: &appliedTransactionCompleterStub{}}
 	cfg := validBalanceEngineConfig()
 
 	require.NoError(t, configureBalanceEngine(useCase, &balanceEngineProviderStub{}, cfg))
 	assert.IsType(t, &redisengine.Adapter{}, useCase.BalanceEngine)
 }
 
-func TestConfigureBalanceEngineEnabledRequiresTransactionCompleter(t *testing.T) {
+func TestConfigureBalanceEngineEnabledRequiresAppliedTransactionCompleter(t *testing.T) {
 	cfg := validBalanceEngineConfig()
 	err := configureBalanceEngine(&command.UseCase{}, &balanceEngineProviderStub{}, cfg)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "transaction completer")
+	assert.Contains(t, err.Error(), "applied transaction completer")
 }
 
 func TestConfigureBalanceEngineEnabledRequiresPositiveLimits(t *testing.T) {
-	useCase := &command.UseCase{TransactionCompleter: &balanceTransactionCompleterStub{}}
+	useCase := &command.UseCase{AppliedTransactionCompleter: &appliedTransactionCompleterStub{}}
 	cfg := validBalanceEngineConfig()
 	cfg.BalanceEngineMaxPreparedBytes = 0
 

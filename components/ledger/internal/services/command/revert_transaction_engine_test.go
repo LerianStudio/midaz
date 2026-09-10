@@ -132,7 +132,7 @@ func TestRevertTransactionV2UsesOptInBalanceEngineWithStableChildIdentity(t *tes
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, TransactionCompleter: finalizer, TracerReserver: reserver,
+		BalanceEngine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
 	}
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-revert")
 	ctx = libObservability.ContextWithHeaderID(ctx, "revert-request")
@@ -200,7 +200,7 @@ func TestRevertTransactionBalanceEngineIndeterminateFailureRetainsClaim(t *testi
 	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, TransactionCompleter: finalizer,
+		BalanceEngine: executor, AppliedTransactionCompleter: finalizer,
 	}
 
 	got, replayed, err := uc.RevertTransactionV1(context.Background(), RevertTransactionInput{

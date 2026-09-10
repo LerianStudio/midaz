@@ -60,9 +60,9 @@ func (uc *UseCase) executeCreateBalanceEngine(
 	run *createTransactionRun,
 	tracerEligible bool,
 ) (*transaction.Transaction, error) {
-	if isNilTransactionCompleter(uc.TransactionCompleter) {
+	if isNilAppliedTransactionCompleter(uc.AppliedTransactionCompleter) {
 		uc.rollbackCreateClaim(ctx, run)
-		return nil, fmt.Errorf("balance engine completer is not configured")
+		return nil, fmt.Errorf("applied transaction completer is not configured")
 	}
 
 	executionID, err := libCommons.GenerateUUIDv7()
@@ -139,7 +139,7 @@ func (uc *UseCase) finalizeCreateBalanceEngineResult(ctx context.Context, run *c
 		return nil, err
 	}
 
-	completion, err := uc.TransactionCompleter.Complete(ctx, envelope)
+	completion, err := uc.AppliedTransactionCompleter.Complete(ctx, envelope)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +264,7 @@ func buildBalanceEngineParentID(parentID uuid.UUID) *uuid.UUID {
 	return &value
 }
 
-func isNilTransactionCompleter(completer TransactionCompleter) bool {
+func isNilAppliedTransactionCompleter(completer AppliedTransactionCompleter) bool {
 	if completer == nil {
 		return true
 	}

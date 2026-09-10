@@ -1167,7 +1167,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		recoveryMongo = txnMgo.mongoManager
 	}
 
-	if err := configureTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo); err != nil {
+	if err := configureAppliedTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo); err != nil {
 		doCleanup()
 
 		return nil, fmt.Errorf("failed to configure balance engine finalization: %w", err)

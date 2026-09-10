@@ -25,10 +25,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-type transactionCompleter interface {
-	Complete(context.Context, *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error)
-}
-
 type legacyRecoveryRecordAcknowledger interface {
 	CompareAndDeleteRecovery(context.Context, string, string) (int64, error)
 }
@@ -57,7 +53,7 @@ const recoveryCleanupBatchSize = 100
 type recoveryRecordCompleter struct {
 	logger         libLog.Logger
 	queue          txRedis.RedisRepository
-	completer      transactionCompleter
+	completer      command.AppliedTransactionCompleter
 	clock          func() time.Time
 	metricsFactory *metrics.MetricsFactory
 }
@@ -66,16 +62,16 @@ func (r *RedisQueueConsumer) newRecoveryRecordCompleter() *recoveryRecordComplet
 	return &recoveryRecordCompleter{
 		logger:         r.Logger,
 		queue:          r.queue,
-		completer:      r.transactionCompleter,
+		completer:      r.appliedTransactionCompleter,
 		clock:          r.recoveryClock,
 		metricsFactory: r.metricsFactory,
 	}
 }
 
-// WithTransactionCompleter supplies durable SQL and metadata completion for
-// version-two records. A missing completer leaves those records in the queue.
-func (r *RedisQueueConsumer) WithTransactionCompleter(completer transactionCompleter) *RedisQueueConsumer {
-	r.transactionCompleter = completer
+// WithAppliedTransactionCompleter supplies durable SQL and metadata completion
+// for version-two records. A missing completer leaves those records in the queue.
+func (r *RedisQueueConsumer) WithAppliedTransactionCompleter(completer command.AppliedTransactionCompleter) *RedisQueueConsumer {
+	r.appliedTransactionCompleter = completer
 	return r
 }
 
@@ -241,7 +237,7 @@ func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.R
 
 	if r.completer == nil {
 		outcome = recoveryMetricOutcomeNotConfigured
-		return errors.New("durable transaction completer is not configured")
+		return errors.New("applied transaction completer is not configured")
 	}
 
 	acknowledger, hasOriginAwareAck := r.queue.(recoveryRecordAcknowledger)

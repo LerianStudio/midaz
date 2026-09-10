@@ -21,8 +21,8 @@ func configureBalanceEngine(useCase *command.UseCase, provider redisengine.Redis
 		return nil
 	}
 
-	if useCase.TransactionCompleter == nil {
-		return errors.New("balance engine activation requires a transaction completer")
+	if useCase.AppliedTransactionCompleter == nil {
+		return errors.New("balance engine activation requires an applied transaction completer")
 	}
 
 	adapter, err := redisengine.NewAdapter(provider, redisengine.Limits{

@@ -308,11 +308,11 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			reservationID := uuid.MustParse("97777777-7777-4777-8777-777777777777")
 			tracerControl := &pendingLifecycleTracer{reservationID: reservationID}
 			uc := &command.UseCase{
-				TransactionRedisRepo: redisRepository,
-				TransactionReader:    reader,
-				BalanceEngine:        executor,
-				TransactionCompleter: finalizer,
-				TracerReserver:       tracerControl,
+				TransactionRedisRepo:        redisRepository,
+				TransactionReader:           reader,
+				BalanceEngine:               executor,
+				AppliedTransactionCompleter: finalizer,
+				TracerReserver:              tracerControl,
 			}
 
 			amount := decimal.NewFromInt(30)
@@ -453,11 +453,11 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	finalizer := &pendingRaceFinalizer{}
 	tracerControl := &pendingLifecycleTracer{reservationID: uuid.MustParse("a7777777-7777-4777-8777-777777777777")}
 	uc := &command.UseCase{
-		TransactionRedisRepo: redisRepository,
-		TransactionReader:    reader,
-		BalanceEngine:        executor,
-		TransactionCompleter: finalizer,
-		TracerReserver:       tracerControl,
+		TransactionRedisRepo:        redisRepository,
+		TransactionReader:           reader,
+		BalanceEngine:               executor,
+		AppliedTransactionCompleter: finalizer,
+		TracerReserver:              tracerControl,
 	}
 
 	amount := decimal.NewFromInt(30)
@@ -630,10 +630,10 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	finalizationErr := errors.New("pending transition persistence unavailable")
 	finalizer := &pendingLockExpiryFinalizer{failAfter: 1, err: finalizationErr}
 	uc := &command.UseCase{
-		TransactionRedisRepo: redisRepository,
-		TransactionReader:    reader,
-		BalanceEngine:        executor,
-		TransactionCompleter: finalizer,
+		TransactionRedisRepo:        redisRepository,
+		TransactionReader:           reader,
+		BalanceEngine:               executor,
+		AppliedTransactionCompleter: finalizer,
 	}
 
 	amount := decimal.NewFromInt(30)
@@ -790,8 +790,8 @@ var (
 	_ command.BalanceEngineGuardBootstrapper = (*pendingLifecycleAdapter)(nil)
 	_ command.BalanceEngine                  = (*racingPendingLifecycleAdapter)(nil)
 	_ command.BalanceEngineGuardBootstrapper = (*racingPendingLifecycleAdapter)(nil)
-	_ command.TransactionCompleter           = (*pendingLifecycleFinalizer)(nil)
-	_ command.TransactionCompleter           = (*pendingRaceFinalizer)(nil)
-	_ command.TransactionCompleter           = (*pendingLockExpiryFinalizer)(nil)
+	_ command.AppliedTransactionCompleter    = (*pendingLifecycleFinalizer)(nil)
+	_ command.AppliedTransactionCompleter    = (*pendingRaceFinalizer)(nil)
+	_ command.AppliedTransactionCompleter    = (*pendingLockExpiryFinalizer)(nil)
 	_ command.TracerReserver                 = (*pendingLifecycleTracer)(nil)
 )

@@ -61,7 +61,7 @@ func TestRecoveryCompletionUsesInjectedClockAfterDurableOutcome(t *testing.T) {
 	fixed := time.Date(2042, time.March, 4, 5, 6, 7, 8, time.UTC)
 	queue := &retentionQueue{}
 	consumer := (&RedisQueueConsumer{Logger: recoveryQuietLogger{}, queue: queue}).
-		WithTransactionCompleter(retentionCompleter{}).
+		WithAppliedTransactionCompleter(retentionCompleter{}).
 		WithRecoveryClock(func() time.Time { return fixed })
 	envelope := &command.TransactionCompletionRecord{
 		OrganizationID: uuid.MustParse("11111111-1111-4111-8111-111111111111"),

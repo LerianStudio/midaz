@@ -36,7 +36,7 @@ import (
 type realPersistenceFixture struct {
 	db        *sql.DB
 	metadata  *mongodb.MetadataMongoDBRepository
-	finalizer command.TransactionCompleter
+	finalizer command.AppliedTransactionCompleter
 }
 
 type realPersistenceSQLSnapshot struct {
@@ -194,7 +194,7 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		executor := &recordingCreateAdapter{delegate: realAdapter}
 		uc := &command.UseCase{
 			TransactionRedisRepo: idempotency, TransactionReader: reader,
-			BalanceEngine: executor, TransactionCompleter: fixture.finalizer,
+			BalanceEngine: executor, AppliedTransactionCompleter: fixture.finalizer,
 		}
 		amount := decimal.NewFromInt(30)
 		created, replayed, err := uc.CreateTransactionV2(ctx, command.CreateTransactionV2Input{
@@ -286,7 +286,7 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		executor := &pendingLifecycleAdapter{delegate: realAdapter}
 		uc := &command.UseCase{
 			TransactionRedisRepo: idempotency, TransactionReader: reader,
-			BalanceEngine: executor, TransactionCompleter: fixture.finalizer,
+			BalanceEngine: executor, AppliedTransactionCompleter: fixture.finalizer,
 		}
 		amount := decimal.NewFromInt(30)
 		pending, replayed, err := uc.CreateTransactionV2(ctx, command.CreateTransactionV2Input{

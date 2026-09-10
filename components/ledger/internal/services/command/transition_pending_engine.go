@@ -128,7 +128,7 @@ func (uc *UseCase) preparePendingBalanceEngineTransition(ctx context.Context, ru
 		return pendingBalanceEngineTransition{}, err
 	}
 
-	if uc.TransactionReader == nil || isNilTransactionCompleter(uc.TransactionCompleter) {
+	if uc.TransactionReader == nil || isNilAppliedTransactionCompleter(uc.AppliedTransactionCompleter) {
 		return pendingBalanceEngineTransition{}, fmt.Errorf("balance engine transition dependencies are not configured")
 	}
 
@@ -384,7 +384,7 @@ func (uc *UseCase) finalizePendingBalanceEngineResult(ctx context.Context, expec
 		return nil, err
 	}
 
-	completion, err := uc.TransactionCompleter.Complete(ctx, envelope)
+	completion, err := uc.AppliedTransactionCompleter.Complete(ctx, envelope)
 	if err != nil {
 		return nil, err
 	}

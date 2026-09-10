@@ -196,10 +196,10 @@ func TestCreateTransactionV1UsesOptInBalanceEngineWithoutLegacyMutationPorts(t *
 	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
 	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	uc := &UseCase{
-		TransactionRedisRepo: redisRepo,
-		TransactionReader:    reader,
-		BalanceEngine:        executor,
-		TransactionCompleter: finalizer,
+		TransactionRedisRepo:        redisRepo,
+		TransactionReader:           reader,
+		BalanceEngine:               executor,
+		AppliedTransactionCompleter: finalizer,
 	}
 
 	transactionDate := time.Date(2026, time.September, 8, 12, 30, 0, 0, time.UTC)
@@ -265,7 +265,7 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, TransactionCompleter: finalizer,
+		BalanceEngine: executor, AppliedTransactionCompleter: finalizer,
 		FeeApplier: feeApplier, TracerReserver: reserver,
 	}
 
@@ -324,7 +324,7 @@ func TestCreateTransactionBalanceEnginePendingRetainsBodyAndDefersTracerConfirm(
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, TransactionCompleter: finalizer, TracerReserver: reserver,
+		BalanceEngine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
 	}
 
 	transactionDate := time.Date(2026, time.September, 8, 15, 0, 0, 0, time.UTC)
@@ -407,7 +407,7 @@ func TestCreateTransactionBalanceEngineFailureCleanupBoundary(t *testing.T) {
 			}
 			uc := &UseCase{
 				TransactionRedisRepo: redisRepo, TransactionReader: reader,
-				BalanceEngine: test.executor(), TransactionCompleter: finalizer,
+				BalanceEngine: test.executor(), AppliedTransactionCompleter: finalizer,
 			}
 			transactionDate := time.Date(2026, time.September, 8, 14, 15, 0, 0, time.UTC)
 
@@ -491,7 +491,7 @@ func TestIdempotencyRetentionSecondsSupportsBothDurationConventions(t *testing.T
 }
 
 var (
-	_ TransactionCompleter = (*createEngineFinalizer)(nil)
-	_ BalanceEngine        = (*applyingCreateEngine)(nil)
-	_ BalanceEngine        = (*createEngineErrorExecutor)(nil)
+	_ AppliedTransactionCompleter = (*createEngineFinalizer)(nil)
+	_ BalanceEngine               = (*applyingCreateEngine)(nil)
+	_ BalanceEngine               = (*createEngineErrorExecutor)(nil)
 )

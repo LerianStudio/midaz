@@ -448,7 +448,7 @@ func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, 
 	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, TransactionCompleter: finalizer,
+		BalanceEngine: executor, AppliedTransactionCompleter: finalizer,
 	}
 	return uc, reader, executor, finalizer, PendingTransitionInput{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
 }

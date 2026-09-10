@@ -63,29 +63,30 @@ type RedisQueueConsumer struct {
 	Query   *query.UseCase
 	// queue is the Redis repository the runner and both recovery consumers share.
 	// It is always the same repository Command holds.
-	queue                txRedis.RedisRepository
-	quarantineRepo       transactionquarantine.Repository
-	metricsFactory       *metrics.MetricsFactory
-	multiTenantEnabled   bool
-	tenantCache          *tenantcache.TenantCache
-	pgManager            *tmpostgres.Manager
-	transactionCompleter transactionCompleter
-	recoveryClock        func() time.Time
+	queue                       txRedis.RedisRepository
+	quarantineRepo              transactionquarantine.Repository
+	metricsFactory              *metrics.MetricsFactory
+	multiTenantEnabled          bool
+	tenantCache                 *tenantcache.TenantCache
+	pgManager                   *tmpostgres.Manager
+	appliedTransactionCompleter command.AppliedTransactionCompleter
+	recoveryClock               func() time.Time
 }
 
 type recoveryMongoResolver interface {
 	GetDatabaseForTenant(context.Context, string) (*mongo.Database, error)
 }
 
-// tenantTransactionCompleter resolves metadata storage inside the existing recovery
-// timeout. Legacy records do not use this completer or acquire Mongo connections.
-type tenantTransactionCompleter struct {
-	delegate           transactionCompleter
+// tenantAppliedTransactionCompleter resolves metadata storage inside the
+// existing recovery timeout. Legacy records do not use this completer or
+// acquire Mongo connections.
+type tenantAppliedTransactionCompleter struct {
+	delegate           command.AppliedTransactionCompleter
 	mongoResolver      recoveryMongoResolver
 	multiTenantEnabled bool
 }
 
-func (completer *tenantTransactionCompleter) Complete(ctx context.Context, record *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
+func (completer *tenantAppliedTransactionCompleter) Complete(ctx context.Context, record *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
 	ctx, err := completer.resolveContext(ctx, record)
 	if err != nil {
 		return command.TransactionCompletionResult{}, err
@@ -99,13 +100,13 @@ func (completer *tenantTransactionCompleter) Complete(ctx context.Context, recor
 	return result, nil
 }
 
-func (completer *tenantTransactionCompleter) resolveContext(ctx context.Context, record *command.TransactionCompletionRecord) (context.Context, error) {
+func (completer *tenantAppliedTransactionCompleter) resolveContext(ctx context.Context, record *command.TransactionCompletionRecord) (context.Context, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
 	if completer.delegate == nil {
-		return nil, fmt.Errorf("transaction completer is not configured")
+		return nil, fmt.Errorf("applied transaction completer is not configured")
 	}
 
 	if !completer.multiTenantEnabled {

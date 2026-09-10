@@ -41,10 +41,10 @@ func TestCompleteRecoveryRecord_EmitsBoundedOutcomeMetrics(t *testing.T) {
 		{name: "finalizer deadline", finalizeErr: context.DeadlineExceeded, want: recoveryMetricOutcomeContextCanceled, wantErr: true},
 		{name: "ack canceled", ackErr: context.Canceled, want: recoveryMetricOutcomeContextCanceled, wantErr: true},
 		{name: "missing finalizer", consumer: func(factory *metrics.MetricsFactory) *RedisQueueConsumer {
-			return (&RedisQueueConsumer{metricsFactory: factory}).WithTransactionCompleter(nil)
+			return (&RedisQueueConsumer{metricsFactory: factory}).WithAppliedTransactionCompleter(nil)
 		}, want: recoveryMetricOutcomeNotConfigured, wantErr: true},
 		{name: "missing acknowledgment", consumer: func(factory *metrics.MetricsFactory) *RedisQueueConsumer {
-			return (&RedisQueueConsumer{metricsFactory: factory}).WithTransactionCompleter(&recoveryCompleterStub{})
+			return (&RedisQueueConsumer{metricsFactory: factory}).WithAppliedTransactionCompleter(&recoveryCompleterStub{})
 		}, want: recoveryMetricOutcomeNotConfigured, wantErr: true},
 		{name: "context canceled", ctx: func() context.Context {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -68,7 +68,7 @@ func TestCompleteRecoveryRecord_EmitsBoundedOutcomeMetrics(t *testing.T) {
 				consumer = test.consumer(factory)
 			}
 			if consumer == nil {
-				consumer = (&RedisQueueConsumer{queue: queue}).WithTransactionCompleter(finalizer).WithMetricsFactory(factory)
+				consumer = (&RedisQueueConsumer{queue: queue}).WithAppliedTransactionCompleter(finalizer).WithMetricsFactory(factory)
 			}
 			ctx := context.Background()
 			if test.ctx != nil {
@@ -133,7 +133,7 @@ func TestCompleteRecoveryRecord_MetricsAreNilFactorySafe(t *testing.T) {
 	order := []string{}
 	finalizer := &recoveryCompleterStub{order: &order}
 	queue := &recoveryQueueStub{status: 1, order: &order}
-	consumer := (&RedisQueueConsumer{queue: queue}).WithTransactionCompleter(finalizer)
+	consumer := (&RedisQueueConsumer{queue: queue}).WithAppliedTransactionCompleter(finalizer)
 	require.NoError(t, consumer.newRecoveryRecordCompleter().complete(context.Background(), txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", &command.TransactionCompletionRecord{}))
 	require.Equal(t, []string{"durable-finalization", "conditional-ack"}, order)
 	require.Equal(t, 1, finalizer.calls)
