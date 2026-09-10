@@ -24,6 +24,8 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -2742,4 +2744,224 @@ func TestIntegration_Chaos_ApplyMarker_AllAttemptsTimeOutApplyOnce(t *testing.T)
 	assert.Equal(t, stored.Version, afterReplay.Version, "the replay must not move the balance")
 
 	t.Log("PASS: every response lost, still exactly one application, marker available for reconciliation")
+}
+
+// =============================================================================
+// POST-TIMEOUT RECONCILIATION UNDER REAL PACKET LOSS
+// =============================================================================
+// The two tests above end where the damage begins: the script applied, the
+// caller holds a technical error, and the layers above it are about to roll back
+// a posting that happened. These two drive the reconciliation that closes that
+// gap, and its refusal to convert anything it cannot prove.
+
+// reconcileChaosQuiescenceWindow is how long the server must go without a new
+// script execution before the client is treated as done retrying. It is wider
+// than one read timeout plus go-redis's retry backoff, so a gap BETWEEN attempts
+// is never mistaken for the end of them.
+const (
+	reconcileChaosQuiescenceWindow = 700 * time.Millisecond
+	reconcileChaosPollInterval     = 25 * time.Millisecond
+	reconcileChaosQuiescenceLimit  = 15 * time.Second
+)
+
+// evalshaCallCount reads how many times the server has executed a cached script
+// since the last CONFIG RESETSTAT, straight from the container client so the
+// observation never crosses the proxy.
+func evalshaCallCount(t *testing.T, infra *chaosNetworkTestInfra) int {
+	t.Helper()
+
+	info, err := infra.redisContainer.Client.Info(context.Background(), "commandstats").Result()
+	require.NoError(t, err, "failed to read command stats")
+
+	for _, line := range strings.Split(info, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "cmdstat_evalsha:") {
+			continue
+		}
+
+		for _, field := range strings.Split(strings.TrimPrefix(line, "cmdstat_evalsha:"), ",") {
+			if !strings.HasPrefix(field, "calls=") {
+				continue
+			}
+
+			calls, convErr := strconv.Atoi(strings.TrimPrefix(field, "calls="))
+			require.NoError(t, convErr, "failed to parse evalsha call count")
+
+			return calls
+		}
+	}
+
+	return 0
+}
+
+// resetChaosCommandStats zeroes the server's command counters so the executions
+// a test cares about are the only ones it can see.
+func resetChaosCommandStats(t *testing.T, infra *chaosNetworkTestInfra) {
+	t.Helper()
+
+	require.NoError(t, infra.redisContainer.Client.Do(context.Background(), "CONFIG", "RESETSTAT").Err(),
+		"failed to reset command stats")
+}
+
+// waitForScriptSendQuiescence blocks until the server has executed the script at
+// least once and then stopped seeing new executions for the quiescence window.
+//
+// It is what makes this scenario deterministic instead of a sleep race: the
+// window is longer than one read timeout, so once it elapses the client's last
+// attempt has necessarily timed out and the error has surfaced — the caller is
+// inside the reconciliation, which is exactly when the network must come back.
+func waitForScriptSendQuiescence(t *testing.T, infra *chaosNetworkTestInfra) {
+	t.Helper()
+
+	deadline := time.Now().Add(reconcileChaosQuiescenceLimit)
+	lastCount := 0
+	lastChange := time.Now()
+
+	for time.Now().Before(deadline) {
+		current := evalshaCallCount(t, infra)
+		if current != lastCount {
+			lastCount = current
+			lastChange = time.Now()
+		}
+
+		if lastCount > 0 && time.Since(lastChange) >= reconcileChaosQuiescenceWindow {
+			t.Logf("Quiescence: %d script executions, none for %v", lastCount, reconcileChaosQuiescenceWindow)
+
+			return
+		}
+
+		time.Sleep(reconcileChaosPollInterval)
+	}
+
+	t.Errorf("the script was never executed, or the client never stopped retrying, within %v",
+		reconcileChaosQuiescenceLimit)
+}
+
+// TestIntegration_Chaos_Reconcile_LostResponseConvertsToSuccess is the payoff of
+// the whole epic: every attempt loses its response, the caller would have seen a
+// technical error over a posting that DID happen, and the marker turns it back
+// into the success it always was — with the balance still moved exactly once.
+func TestIntegration_Chaos_Reconcile_LostResponseConvertsToSuccess(t *testing.T) {
+	if os.Getenv("CHAOS") != "1" {
+		t.Skip("Set CHAOS=1 to run chaos tests")
+	}
+
+	if testing.Short() {
+		t.Skip("Skipping chaos test in short mode")
+	}
+
+	infra := setupRedisChaosNetworkInfra(t)
+	retryRepo := newApplyMarkerRetryRepo(t, infra)
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+	alias := "@reconcile-lost-" + uuid.New().String()[:8]
+	initialAvailable := decimal.NewFromInt(7000)
+	initialVersion := int64(1)
+
+	ops := buildTestBalanceOps(orgID, ledgerID, alias, initialAvailable, decimal.Zero, initialVersion, true)
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, mtransaction.AliasKey(alias, constant.DefaultBalanceKey))
+	markerKey := utils.TransactionApplyMarkerKey(orgID, ledgerID, txID.String(), constant.PENDING)
+
+	warmApplyMarkerRetryPool(t, retryRepo, orgID, ledgerID)
+	resetChaosCommandStats(t, infra)
+
+	t.Log("Inject: 1500 ms downstream latency against a 300 ms read timeout -- every response is lost")
+	require.NoError(t, infra.proxy.AddLatency(1500*time.Millisecond, 0))
+
+	// Restore the network the moment the client has stopped retrying, so the
+	// reconciliation lookup — and only it — finds a healthy path. Joined before the
+	// test returns so nothing logs into a finished test.
+	restored := make(chan struct{})
+
+	go func() {
+		defer close(restored)
+
+		waitForScriptSendQuiescence(t, infra)
+
+		if err := infra.proxy.RemoveAllToxics(); err != nil {
+			t.Errorf("failed to remove toxics after the retry window: %v", err)
+		}
+	}()
+
+	result, err := retryRepo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, txID, constant.PENDING, true, ops, nil,
+	)
+
+	<-restored
+
+	require.NoError(t, err, "the marker proves the application, so the lost response must convert to success")
+	require.NotNil(t, result)
+	require.Len(t, result.After, 1)
+	assert.Equal(t, initialVersion+1, result.After[0].Version,
+		"the reconciled result must describe the single application")
+	assert.True(t, result.After[0].OnHold.Equal(decimal.NewFromInt(100)),
+		"the reconciled result must carry the hold the script applied, got %s", result.After[0].OnHold.String())
+
+	stored := applyMarkerChaosState(t, infra, internalKey)
+	assert.Equal(t, initialVersion+1, stored.Version,
+		"reconciling must not have added an application of its own")
+	assert.True(t, stored.OnHold.Equal(decimal.NewFromInt(100)),
+		"OnHold must carry one hold, got %s", stored.OnHold.String())
+
+	exists, err := infra.redisContainer.Client.Exists(ctx, markerKey).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), exists, "the reconciled execution's marker must still be there")
+
+	t.Log("PASS: every response lost, reconciled from the marker into the success it already was")
+}
+
+// TestIntegration_Chaos_Reconcile_NoExecutionKeepsError is the fail-safe half:
+// the command never reaches the server, so nothing applied and no marker exists.
+// The caller must get its ORIGINAL error back — never a success invented by the
+// reconciliation, and never an error the reconciliation raised itself.
+func TestIntegration_Chaos_Reconcile_NoExecutionKeepsError(t *testing.T) {
+	if os.Getenv("CHAOS") != "1" {
+		t.Skip("Set CHAOS=1 to run chaos tests")
+	}
+
+	if testing.Short() {
+		t.Skip("Skipping chaos test in short mode")
+	}
+
+	infra := setupRedisChaosNetworkInfra(t)
+	retryRepo := newApplyMarkerRetryRepo(t, infra)
+
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+	alias := "@reconcile-none-" + uuid.New().String()[:8]
+
+	ops := buildTestBalanceOps(orgID, ledgerID, alias, decimal.NewFromInt(6000), decimal.Zero, 1, true)
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, mtransaction.AliasKey(alias, constant.DefaultBalanceKey))
+	markerKey := utils.TransactionApplyMarkerKey(orgID, ledgerID, txID.String(), constant.PENDING)
+
+	warmApplyMarkerRetryPool(t, retryRepo, orgID, ledgerID)
+	resetChaosCommandStats(t, infra)
+
+	t.Log("Inject: the proxy is disabled -- no byte reaches the server")
+	require.NoError(t, infra.proxy.Disconnect())
+
+	_, err := retryRepo.ProcessBalanceAtomicOperation(
+		ctx, orgID, ledgerID, txID, constant.PENDING, true, ops, nil,
+	)
+	require.Error(t, err, "with nothing applied the caller must keep its original failure")
+	t.Logf("caller received the expected unreconciled error: %v", err)
+
+	require.NoError(t, infra.proxy.Reconnect())
+
+	assert.Equal(t, 0, evalshaCallCount(t, infra), "the script must never have executed")
+
+	balanceExists, err := infra.redisContainer.Client.Exists(ctx, internalKey).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), balanceExists, "the balance must be untouched")
+
+	markerExists, err := infra.redisContainer.Client.Exists(ctx, markerKey).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), markerExists, "an unexecuted identity must leave no marker")
+
+	t.Log("PASS: nothing applied, nothing reconciled, the original error stands and the balance is intact")
 }
