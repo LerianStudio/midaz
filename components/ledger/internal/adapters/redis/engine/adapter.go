@@ -100,8 +100,13 @@ func (e *TechnicalError) OutcomeIndeterminate() bool {
 	return e != nil && e.Indeterminate
 }
 
-// NewAdapter requires explicit operational limits and does not alter a shared client.
-func NewAdapter(provider RedisClientProvider, limits Limits) (*Adapter, error) {
+// NewAdapter uses engine-owned hard safety limits and does not alter a shared
+// client. The limits are deliberately not deployment configuration.
+func NewAdapter(provider RedisClientProvider) (*Adapter, error) {
+	return newAdapterWithLimits(provider, hardLimits())
+}
+
+func newAdapterWithLimits(provider RedisClientProvider, limits Limits) (*Adapter, error) {
 	if provider == nil || (reflect.ValueOf(provider).Kind() == reflect.Pointer && reflect.ValueOf(provider).IsNil()) || limits.MaxPreparedBytes <= 0 || limits.MaxRequestBytes <= 0 || limits.MaxTransactions <= 0 || limits.MaxPostings <= 0 || limits.MaxBalances <= 0 || limits.MaxCompletionPlanBytes <= 0 {
 		return nil, errors.New("accounting adapter requires a provider and positive limits")
 	}

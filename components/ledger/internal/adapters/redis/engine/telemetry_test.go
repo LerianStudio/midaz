@@ -67,7 +67,7 @@ func TestAdapterExecute_CanceledRequestMetrics(t *testing.T) {
 	cancel()
 	_, limits, _ := validWireExecution()
 	provider := &countingProvider{}
-	adapter, err := NewAdapter(provider, limits)
+	adapter, err := newAdapterWithLimits(provider, limits)
 	require.NoError(t, err)
 	result, err := adapter.Execute(ctx, command.EngineExecution{})
 	require.Nil(t, result)

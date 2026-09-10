@@ -94,7 +94,7 @@ func TestIntegration_AdapterExecute_SurvivesSentinelMasterSwitch(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, shared.Close()) })
 	provider := &integrationClientProvider{client: shared}
 	input, limits := richAdapterExecution(t)
-	adapter, err := NewAdapter(provider, limits)
+	adapter, err := newAdapterWithLimits(provider, limits)
 	require.NoError(t, err)
 
 	initial, err := adapter.Execute(ctx, input)

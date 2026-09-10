@@ -20,7 +20,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 )
 
-// Limits bounds one execution. Callers must provide measured, positive limits.
+// Limits bound one execution. Production uses the engine-owned hard limits;
+// tests may supply smaller limits to exercise boundary behavior.
 type Limits struct {
 	MaxTransactions        int
 	MaxPostings            int
@@ -28,6 +29,26 @@ type Limits struct {
 	MaxCompletionPlanBytes int
 	MaxRequestBytes        int
 	MaxPreparedBytes       int
+}
+
+const (
+	maxTransactionsPerExecution = 1
+	maxPostingsPerExecution     = 10_000
+	maxBalancesPerExecution     = 20_000
+	maxCompletionPlanBytes      = 32 * 1024 * 1024
+	maxRequestBytes             = 64 * 1024 * 1024
+	maxPreparedBytes            = 64 * 1024 * 1024
+)
+
+func hardLimits() Limits {
+	return Limits{
+		MaxTransactions:        maxTransactionsPerExecution,
+		MaxPostings:            maxPostingsPerExecution,
+		MaxBalances:            maxBalancesPerExecution,
+		MaxCompletionPlanBytes: maxCompletionPlanBytes,
+		MaxRequestBytes:        maxRequestBytes,
+		MaxPreparedBytes:       maxPreparedBytes,
+	}
 }
 
 // resolvedExecutionKeys is supplied by the authenticated adapter boundary,

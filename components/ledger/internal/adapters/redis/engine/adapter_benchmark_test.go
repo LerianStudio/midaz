@@ -37,7 +37,7 @@ func BenchmarkAdapterExecute(b *testing.B) {
 				client := redis.NewClient(&redis.Options{Addr: address, Password: password, DB: 2, Protocol: 2})
 				b.Cleanup(func() { require.NoError(b, client.Close()) })
 				limits := Limits{MaxTransactions: 4, MaxPostings: 64, MaxBalances: 128, MaxCompletionPlanBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20}
-				adapter, err := NewAdapter(&integrationClientProvider{client: client}, limits)
+				adapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, limits)
 				require.NoError(b, err)
 
 				warmup := benchmarkExecution(b, postings, balanceCount, -1)

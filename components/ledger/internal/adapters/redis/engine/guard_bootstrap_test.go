@@ -79,7 +79,7 @@ func TestEnsureTransactionGuardRejectsInvalidInputBeforeProvider(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			provider := &countingProvider{}
-			adapter, err := NewAdapter(provider, limits)
+			adapter, err := newAdapterWithLimits(provider, limits)
 			require.NoError(t, err)
 
 			err = adapter.EnsureTransactionGuard(context.Background(), test.organizationID, test.ledgerID, test.transactionID, test.nextToken)
@@ -91,7 +91,7 @@ func TestEnsureTransactionGuardRejectsInvalidInputBeforeProvider(t *testing.T) {
 
 func TestEnsureTransactionGuardRejectsCanceledContextBeforeProvider(t *testing.T) {
 	provider := &countingProvider{}
-	adapter, err := NewAdapter(provider, Limits{
+	adapter, err := newAdapterWithLimits(provider, Limits{
 		MaxTransactions: 1, MaxPostings: 1, MaxBalances: 1,
 		MaxCompletionPlanBytes: 128, MaxRequestBytes: 128, MaxPreparedBytes: 128,
 	})
@@ -116,7 +116,7 @@ func TestEnsureTransactionGuardClassifiesCommandFailureWithoutRetry(t *testing.T
 	client := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1", MaxRetries: 3})
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
 	client.AddHook(hook)
-	adapter, err := NewAdapter(guardStaticProvider{client: client}, Limits{
+	adapter, err := newAdapterWithLimits(guardStaticProvider{client: client}, Limits{
 		MaxTransactions: 1, MaxPostings: 1, MaxBalances: 1,
 		MaxCompletionPlanBytes: 128, MaxRequestBytes: 128, MaxPreparedBytes: 128,
 	})

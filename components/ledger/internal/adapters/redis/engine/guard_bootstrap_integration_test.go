@@ -67,7 +67,7 @@ func TestIntegrationEnsureTransactionGuardIsConditionalAndPersistent(t *testing.
 	client, _, _ := newAdapterValkey(t)
 	hook := &guardBootstrapHook{}
 	client.AddHook(hook)
-	adapter, err := NewAdapter(guardClientProvider{client: client}, guardBootstrapLimits())
+	adapter, err := newAdapterWithLimits(guardClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
 	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
@@ -126,7 +126,7 @@ func TestIntegrationEnsureTransactionGuardIsConditionalAndPersistent(t *testing.
 
 func TestIntegrationEnsureTransactionGuardIsolatesAuthenticatedScope(t *testing.T) {
 	client, _, _ := newAdapterValkey(t)
-	adapter, err := NewAdapter(guardClientProvider{client: client}, guardBootstrapLimits())
+	adapter, err := newAdapterWithLimits(guardClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
 	transactionID := uuid.MustParse("63333333-3333-4333-8333-333333333333")
 
@@ -157,7 +157,7 @@ func TestIntegrationEnsureTransactionGuardIsolatesAuthenticatedScope(t *testing.
 func TestIntegrationEnsureTransactionGuardFencesCommitAndCancel(t *testing.T) {
 	ctx := context.Background()
 	client, _, _ := newAdapterValkey(t)
-	adapter, err := NewAdapter(guardClientProvider{client: client}, guardBootstrapLimits())
+	adapter, err := newAdapterWithLimits(guardClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
 	organizationID := uuid.MustParse("41111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("42222222-2222-4222-8222-222222222222")

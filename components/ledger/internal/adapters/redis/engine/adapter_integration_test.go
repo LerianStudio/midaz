@@ -189,7 +189,7 @@ func TestIntegration_AdapterExecute_TransportAndReceipt(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, shared.Close()) })
 			provider := &integrationClientProvider{client: shared}
 			input, limits := richAdapterExecution(t)
-			adapter, err := NewAdapter(provider, limits)
+			adapter, err := newAdapterWithLimits(provider, limits)
 			require.NoError(t, err)
 			result, err := adapter.Execute(ctx, input)
 			if drop {
@@ -240,7 +240,7 @@ func TestIntegration_AdapterExecute_UsesSharedCommandHooks(t *testing.T) {
 	shared.AddHook(hook)
 
 	input, limits := richAdapterExecution(t)
-	adapter, err := NewAdapter(&integrationClientProvider{client: shared}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: shared}, limits)
 	require.NoError(t, err)
 	_, err = adapter.Execute(ctx, input)
 	require.NoError(t, err)
@@ -309,7 +309,7 @@ func TestIntegration_AdapterExecute_WritesDualBalanceCacheContract(t *testing.T)
 				require.NoError(t, inspector.Set(ctx, cacheKey, raw, 0).Err())
 			}
 
-			adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+			adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 			require.NoError(t, err)
 			result, err := adapter.Execute(ctx, input)
 			require.NoError(t, err)
@@ -386,7 +386,7 @@ func TestIntegration_AdapterExecute_PostWriteFailureIsIndeterminate(t *testing.T
 	})
 	t.Cleanup(func() { require.NoError(t, shared.Close()) })
 	input, limits := richAdapterExecution(t)
-	adapter, err := NewAdapter(&integrationClientProvider{client: shared}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: shared}, limits)
 	require.NoError(t, err)
 	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
@@ -421,7 +421,7 @@ func TestIntegration_AdapterExecute_CorruptReceiptIsIndeterminate(t *testing.T) 
 	for _, corrupted := range []string{`{`, `[]`, `{}`, `{"formatVersion":1}`, "empty saved response"} {
 		t.Run(corrupted, func(t *testing.T) {
 			input, limits := richAdapterExecution(t)
-			adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+			adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 			require.NoError(t, err)
 			_, err = adapter.Execute(ctx, input)
 			require.NoError(t, err)
@@ -469,7 +469,7 @@ func TestIntegration_AdapterExecute_RejectsRecoveryTenantBeforeProvider(t *testi
 	input.CompletionPlans[0].Payload = encodeAdapterRecovery(t, &input, *payload)
 	require.NoError(t, command.ValidateTransactionCompletion(input))
 	provider := &integrationClientProvider{}
-	adapter, err := NewAdapter(provider, limits)
+	adapter, err := newAdapterWithLimits(provider, limits)
 	require.NoError(t, err)
 	_, err = adapter.Execute(context.Background(), input)
 	assertAdapterTechnical(t, err, "invalid_recovery", false)
@@ -485,7 +485,7 @@ func TestIntegration_AdapterExecute_RejectsMutatedIntentBeforeProvider(t *testin
 	input.CompletionPlans[0].Payload, err = command.EncodeTransactionCompletionPlan(*payload)
 	require.NoError(t, err)
 	provider := &integrationClientProvider{}
-	adapter, err := NewAdapter(provider, limits)
+	adapter, err := newAdapterWithLimits(provider, limits)
 	require.NoError(t, err)
 	_, err = adapter.Execute(context.Background(), input)
 	assertAdapterTechnical(t, err, "invalid_recovery", false)

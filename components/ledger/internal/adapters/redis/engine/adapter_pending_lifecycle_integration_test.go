@@ -301,7 +301,7 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			)
 			redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
 
-			realAdapter, err := NewAdapter(&integrationClientProvider{client: client}, guardBootstrapLimits())
+			realAdapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, guardBootstrapLimits())
 			require.NoError(t, err)
 			executor := &pendingLifecycleAdapter{delegate: realAdapter}
 			finalizer := &pendingLifecycleFinalizer{outcomes: []string{constant.PENDING, test.terminalStatus}}
@@ -443,7 +443,7 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).Return(true, nil).Times(2)
 	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
-	realAdapter, err := NewAdapter(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
+	realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
 	executor := &racingPendingLifecycleAdapter{
 		delegate: realAdapter,
@@ -624,7 +624,7 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	).Times(3)
 	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
-	realAdapter, err := NewAdapter(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
+	realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
 	executor := &pendingLifecycleAdapter{delegate: realAdapter}
 	finalizationErr := errors.New("pending transition persistence unavailable")

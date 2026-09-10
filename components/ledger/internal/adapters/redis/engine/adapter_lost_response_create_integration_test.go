@@ -60,7 +60,7 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 		},
 	)
 
-	realAdapter, err := NewAdapter(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
+	realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
 	executor := &recordingCreateAdapter{delegate: realAdapter}
 	finalizer := &adapterCreateFinalizer{}

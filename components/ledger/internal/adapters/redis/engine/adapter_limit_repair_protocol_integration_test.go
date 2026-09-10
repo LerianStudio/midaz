@@ -68,7 +68,7 @@ func TestIntegration_AdapterExecute_BoundsAccountingAttemptsDuringCASContention(
 		}
 	})
 
-	adapter, err := NewAdapter(&integrationClientProvider{client: shared}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: shared}, limits)
 	require.NoError(t, err)
 	result, err := adapter.Execute(ctx, input)
 	require.Nil(t, result)
@@ -107,7 +107,7 @@ func TestIntegration_AdapterExecute_DoesNotReplayAccountingAfterRepairTransportA
 
 	proxy := newAccountingProxy(t, address, true)
 	shared := newProtocolProxyClient(t, proxy, password)
-	adapter, err := NewAdapter(&integrationClientProvider{client: shared}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: shared}, limits)
 	require.NoError(t, err)
 	result, err := adapter.Execute(ctx, input)
 	require.Nil(t, result)
@@ -149,7 +149,7 @@ func TestIntegration_AdapterExecute_MissingBalanceAfterNormalizationIsNotRecreat
 		}
 	})
 
-	adapter, err := NewAdapter(&integrationClientProvider{client: shared}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: shared}, limits)
 	require.NoError(t, err)
 	result, err := adapter.Execute(ctx, input)
 	require.Nil(t, result)

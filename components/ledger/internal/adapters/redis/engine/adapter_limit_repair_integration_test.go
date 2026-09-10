@@ -47,7 +47,7 @@ func TestIntegration_AdapterExecute_RepairsNoncanonicalHotCacheLimit(t *testing.
 	require.NoError(t, inspector.Set(ctx, cacheKey, encoded, time.Hour).Err())
 	before := captureAdapterState(t, inspector, keys)
 
-	adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 	require.NoError(t, err)
 	result, err := adapter.Execute(ctx, input)
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestIntegration_AdapterExecute_LimitRepairPromotesLegacyCache(t *testing.T)
 			cacheKey := keys.Balances[hot.BalanceRef].Balance
 			require.NoError(t, inspector.Set(ctx, cacheKey, encoded, time.Hour).Err())
 			before := captureAdapterState(t, inspector, keys)
-			adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+			adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 			require.NoError(t, err)
 			result, err := adapter.Execute(ctx, input)
 			require.Nil(t, result)
@@ -310,7 +310,7 @@ func TestIntegration_AdapterExecute_RepairThenRefusalPreservesHotBalance(t *test
 			require.NoError(t, inspector.Set(ctx, cacheKey, encoded, time.Hour).Err())
 			before := captureAdapterState(t, inspector, keys)
 
-			adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+			adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 			require.NoError(t, err)
 			result, err := adapter.Execute(ctx, input)
 			require.Nil(t, result)
@@ -363,7 +363,7 @@ func TestIntegration_AdapterExecute_InvalidNoncanonicalLimitDoesNotMutate(t *tes
 			require.NoError(t, inspector.Set(ctx, cacheKey, encoded, time.Hour).Err())
 			before := captureAdapterState(t, inspector, keys)
 
-			adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+			adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 			require.NoError(t, err)
 			result, err := adapter.Execute(ctx, input)
 			require.Nil(t, result)

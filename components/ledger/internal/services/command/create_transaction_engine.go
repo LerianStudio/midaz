@@ -34,7 +34,7 @@ type createBalanceExecutionContext struct {
 	guard              ExecutionGuard
 }
 
-// createTransactionWithBalanceEngine is the opt-in create path. Everything
+// createTransactionWithBalanceEngine is the default executable create path. Everything
 // before it remains the version-specific validation/control pipeline; everything
 // after it is engine execution plus recovery completion, never legacy balance
 // mutation or write-behind persistence.

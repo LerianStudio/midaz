@@ -3,18 +3,19 @@
 ## Status and scope
 
 The ledger defines a storage-independent accounting contract in
-`components/ledger/internal/domain/accounting`. The existing Redis transaction adapter remains
-the active execution path. Canonical overdraft-limit serialization and conditional
-warm-cache repair protect that path independently of the new contract.
+`components/ledger/internal/domain/accounting`. Bootstrap wires the Redis engine
+adapter as the default accounting implementation for executable transaction flows.
+Canonical overdraft-limit serialization and conditional warm-cache repair protect
+both the engine and the remaining compatibility paths.
 
 The posting Lua implementation and Redis adapter, dual-format cache codec, and
 typed version-2 recovery payload/projector are implemented and tested foundations.
 The compatible recovery consumer is wired in bootstrap to the real SQL store and
 MongoDB metadata repository. The v1/v2 create, revert, and pending commit/cancel
-pipelines have opt-in engine branches, but bootstrap still leaves the execution
-port unset. Annotation requests retain their separate legacy path. Cache writers
-support the dual representation, but this does not establish completion of the
-accounting integration or activation gates.
+pipelines execute through the engine. Annotation requests retain their separate
+legacy path. Legacy balance-cache and transaction-recovery consumers remain
+compatible during rollout, while cache writers continue to emit the dual
+representation.
 Reader compatibility in code does not establish deployment to every consumer.
 The adapter accepts concrete `*redis.Client` connections;
 standalone execution and replay after a synchronized, manually requested
@@ -22,10 +23,10 @@ Sentinel master switch are verified. Crash-triggered or in-flight failover and
 high-availability Sentinel quorum behavior remain outside that evidence.
 Configured Cluster connections are rejected before accounting is sent.
 
-No activation, request-limit defaults, or receipt/guard retention policy is
-implicitly supplied by these foundations. Consumer-first deployment, measured
-limits, observability, normal-path integration, and retention gates below remain mandatory.
-The current work does not switch transaction execution or change the HTTP API.
+The engine owns fixed request ceilings and its receipt/guard retention policy;
+deployments do not tune or enable them through environment variables. Consumer-first
+deployment, observability, recovery compatibility, and retention verification remain
+mandatory rollout concerns. The HTTP API is unchanged.
 
 The boundary separates transaction processing from balance arithmetic while
 preserving the observable rows, amounts, versions, and public errors of valid
@@ -179,7 +180,7 @@ BalanceAfter in a named Go compatibility projection; never overwrite truthful
 movement state to imitate a row. Normal finalization and recovery use the same
 projector and must produce identical operation IDs, rows, and versions.
 
-The opt-in transaction paths compose two preparation functions:
+The engine transaction paths compose two preparation functions:
 
 - `LoadBalanceEngineSnapshotPool` reads explicit targets and deduplicated optional
   overdraft candidates within the same organization and ledger. Candidate loading
@@ -204,7 +205,8 @@ preserves the static double-entry hold shape. Account validation receives one
 entry per original leg, not the full snapshot pool or generated companions.
 Repeated legs on one balance therefore retain their validation cardinality.
 Balance reads request the primary, and cancellation is checked again after route
-lookup. These functions alone do not activate the engine.
+lookup. These preparation functions do not mutate balances; only the subsequent
+engine execution can approve the transaction and publish monetary state.
 
 Pending commit/cancel confirms the transaction and its operations in scoped
 primary SQL before bootstrapping a missing `PENDING` guard. Existing terminal
@@ -238,7 +240,8 @@ Money remains textual throughout arithmetic and serialization.
 The shared codec supports dual and new-only output. Decoding ignores unknown
 cache extensions, so decode/encode alone does not preserve them. The Lua live
 writer preserves unrelated fields from the original blob, including exact
-numeric tokens. Payload limits still require explicit measured configuration.
+numeric tokens. Payload ceilings are fixed engine invariants and are measured by
+the adapter metrics described below.
 
 Mutating cache paths use strict decoding: a noncanonical overdraft limit is an
 explicit repair condition, not a value to normalize silently. `DecodeForRead`
@@ -312,7 +315,7 @@ validation rejects them. Both Go serializers canonicalize without mutating the
 caller's settings. The existing script performs a read-only whole-batch preflight
 before any seed or monetary write and reports all noncanonical warm-cache limits.
 
-The inactive posting adapter repairs only after that confirmed prewrite server
+The engine adapter repairs only after that confirmed prewrite server
 signal. It never repairs from a database snapshot and does not delete or seed a
 missing cache entry. Uppercase legacy `OverdraftLimit` remains authoritative when
 present; lower-case `overdraftLimit` is used only when the uppercase field is absent.
@@ -361,15 +364,16 @@ accepted. Similar text inside runtime or transport errors remains technical.
 
 ## Preflight, ordered execution, and commit
 
-The inactive posting adapter sends one versioned envelope in `ARGV[1]` containing the
+The engine adapter sends one versioned envelope in `ARGV[1]` containing the
 accounting DTO, opaque recovery payloads, and indices into `KEYS`. Every physical
 balance, deletion marker, schedule, recover, receipt, and guard key must appear in
 `KEYS`; hash field names belong in ARGV. Preserve the existing `{transactions}`
 hash tag. Tenant namespacing comes only from authenticated context.
 
-`ARGV[2]` and `ARGV[3]` carry trusted request-byte and total-prepared-byte bounds.
+`ARGV[2]` and `ARGV[3]` carry trusted request-byte and total-prepared-byte bounds
+derived from engine-owned constants.
 The latter covers the response, balance blobs, recovery records, receipt, and
-prepared guard/hash-field data. These bounds are required inputs, not defaults.
+prepared guard/hash-field data. They are protocol inputs, not deployment settings.
 
 The embedded new-engine Lua source is wrapped once by `LuaSource`, which
 prepends fixed local policy values before the raw script. Raw Lua assets consume
@@ -378,7 +382,7 @@ legacy script retains its three top-level KEYS and its 24-argument stride per ba
 
 Before the first write, the engine must:
 
-1. Validate protocol/schema, configured limits, references, amounts, snapshots,
+1. Validate protocol/schema, engine limits, references, amounts, snapshots,
    recovery correlation, receipt/guard state, and expected Redis key types.
 2. Resolve touched balances and use live data when present; use cache-miss seeds
    only in working memory. Do not seed Redis early with `SET NX`.
@@ -414,7 +418,7 @@ fees, tracer reservation, and HTTP idempotency work. Do not restart the whole
 transaction workflow. Context cancellation stops additional attempts.
 
 `ExecuteBalanceEngineWithRetry` implements this retry boundary for one prepared
-transaction and is used by the opt-in create, revert, and pending transitions.
+transaction and is used by the engine-backed create, revert, and pending transitions.
 It validates each
 attempt's canonical recovery payload and preserves copied execution/guard identity
 and posting refs, balances, types, amounts, and repayment caps. Snapshots, live
@@ -450,11 +454,10 @@ and asserts the node addresses returned by Sentinel; it does not replace discove
 with a static client. Balances, versions, schedule, recovery, receipts, guards, and
 absolute expirations are preserved. This does not prove crash-triggered or
 in-flight failover, partition safety, or a multi-Sentinel quorum. Cluster
-returns `*redis.ClusterClient` and is currently rejected: implementing and
-verifying its transport guarantees is an activation blocker for that supported
-deployment topology. Ring is not selected by the current service configuration.
-Standalone verification is not permission to restrict deployed topology during
-activation.
+returns `*redis.ClusterClient` and is currently rejected because the engine's
+single-slot transport guarantees have not been implemented for that topology.
+Ring is not selected by the current service configuration. Deployments using the
+default engine must use a supported standalone or Sentinel connection.
 
 Structured refusals use exact `MIDAZ_ENGINE_V1 ` framing followed by
 validated JSON. Accept at most one known Redis `ERR ` framing prefix before the
@@ -608,8 +611,8 @@ Malformed or inconsistent proofs fail without artifact writes.
 
 Legacy receipts never enter the due index and do not receive retroactive cleanup
 eligibility. Pending, partially acknowledged, and durably incomplete executions
-also remain unscheduled. The engine execution port remains unset; finite cleanup
-does not activate it or relax the separate activation gates.
+also remain unscheduled. Finite cleanup is independent of transaction execution
+and does not relax recovery or retention guarantees.
 
 ### Finalization outcomes
 
@@ -679,7 +682,7 @@ without dispatch. The original finalizer constructor remains persistence-only.
 Both paths project the same deterministic rows and preserve the legacy public
 source/destination aliases without balance keys or generated companions.
 Bootstrap supplies the same tenant-aware, event-enabled finalizer to command and
-the recovery consumer, while leaving the engine execution port unset.
+the recovery consumer before wiring the engine execution port.
 
 Event dispatch retains the existing independent emitter timeouts and cancellation
 detachment. It remains best-effort: this capability adds no outbox or delivery
@@ -696,7 +699,7 @@ acknowledged; replacements and failed or unknown acknowledgments are not reporte
 as successful deletion. The ACK itself never deletes receipt, guard, or protection
 data and never assigns a TTL.
 
-## Compatibility changes and activation gates
+## Compatibility changes and rollout
 
 Valid-flow state and row fixtures are compatibility requirements, not evidence
 that every historical integrity behavior is desirable. Two intentional
@@ -706,8 +709,8 @@ corrupt state. Cover these separately from valid-flow compatibility fixtures.
 Expanded CAS also changes concurrency detection while retaining final code 0174.
 Never regenerate expected rows merely to make a regression pass.
 
-The compatible reader is implemented, but no rollout has been performed or
-verified across all consumers. New accounting writers remain inactive.
+The engine is the default writer in this release. Rollout must retain compatible
+readers and both recovery consumers until legacy in-flight work has drained.
 
 The active `GetBalances` query, Redis transaction `ListBalanceByKey`, and
 `GetBalancesByKeys` use the shared read-only `DecodeForRead` projection. The
@@ -733,16 +736,15 @@ decimal strings are valid monetary representations and are projected exactly,
 without float conversion. Schema-version-2 new-only blobs retain strict
 canonical-string decoding and existing validation rules.
 
-The legacy accounting path remains active, with dual-compatible cache writers,
-parser, and repair handling. The new engine writer remains inactive. Reader or
-writer compatibility alone does not activate the new accounting implementation.
+The legacy accounting path remains only where the flow intentionally bypasses
+the engine and for compatibility with work created by older instances. Both paths
+retain dual-compatible cache parsing and repair handling.
 
 ### Cache writer compatibility
 
 The shared readers accept legacy, dual, and schema-version-2 new-only balance
-blobs. The inactive new-engine writer emits dual blobs when exercised, but it is
-not an active production writer. Successful mutations through the active legacy
-atomic Lua writer emit both representations. It accepts legacy, mixed, and
+blobs. The default engine writer and the legacy atomic Lua writer both emit the
+dual representation. The legacy writer accepts legacy, mixed, and
 schema-version-2 new-only blobs; present uppercase values remain authoritative,
 including malformed values that must not fall back to lowerCamel shadows.
 
@@ -753,17 +755,17 @@ accounting no-op preserves its original bytes, and legacy rollback restores the
 original raw blob rather than converting it as a side effect. These exceptions
 do not weaken the requirement for successful mutations to maintain both formats.
 
-Activation has a consumer-first sequence:
+Rollout has a compatibility-first sequence:
 
-1. Deploy a reader-compatible release with support for legacy and version-2
-   recovery while the existing accounting writer remains active. Verify every
-   consumer is compatible.
-2. Integrate the posting adapter, full snapshot-pool loading, shared projection,
-   complete CAS retry, durable guards/receipts, and dual cache codec. Enable only
-   after the verification below and explicit limits/retention configuration.
-3. Keep compatible readers throughout rollback. Disable new executions and
-   drain or recover version-2 records before any rollback to an incompatible
-   consumer. Never send the same live posting to both engines for comparison.
+1. Deploy the release with support for both legacy backup records and engine
+   recovery records. New instances write through the engine by default; older
+   instances may continue producing legacy work during a rolling replacement.
+2. Run separate consumers for the legacy backup key and the engine recovery key.
+   Never send the same live posting to both accounting implementations for
+   comparison.
+3. Keep compatible readers throughout rollback. Before rolling back to an
+   incompatible consumer, stop new engine executions and drain or recover all
+   version-2 records.
 4. Switch to new-only cache writing only after all dual writers are deployed,
    every reader accepts new-only blobs, all writers have been inventoried, and
    at least 24 hours have elapsed after the complete dual-writer rollout.
@@ -776,7 +778,7 @@ The balance-cache participant inventory is:
 | Role | Entry point | Current write/read contract |
 | --- | --- | --- |
 | Writer | `transaction/scripts/balance_atomic_operation.lua`: cold seed and successful monetary mutation | complete dual |
-| Writer | `engine/scripts/balance_engine.lua`: inactive engine cold seed and successful monetary mutation | complete dual |
+| Writer | `engine/scripts/balance_engine.lua`: default engine cold seed and successful monetary mutation | complete dual |
 | Writer | `RedisConsumerRepository.UpdateBalanceCacheSettings` via `balancecache.PatchSettingsDual` | complete dual |
 | Writer | `transaction.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |
 | Writer | `engine.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |
@@ -801,7 +803,7 @@ complete dual representation, and adding a legacy-output branch would weaken
 that invariant. A future new-only switch must be introduced only when every
 writer above honors one atomic selection and the complete inventory, compatible
 consumer rollout, rollback floor, and elapsed-time conditions are independently
-verified. The format report alone is not activation evidence.
+verified. The format report alone is not rollout evidence.
 
 Once new-only blobs are written, rollback requires a reader that accepts them.
 The dual-compatible reader is the minimum cache rollback target; a precompatible
@@ -810,7 +812,7 @@ after production fallback removal.
 
 ## Verification and operational limits
 
-Before activation, require evidence for:
+For rollout and subsequent engine changes, retain evidence for:
 
 - Valid-flow state, operation-row, amount, and version equivalence across direct,
   pending, commit, cancel, revert-shaped, NOTED, both directions, and external
@@ -829,54 +831,39 @@ Before activation, require evidence for:
 - Decimal magnitude/scale and version boundary round trips, empty collections,
   malformed wire, tenant separation, and unused versus touched pool entries.
 
-Bound serialized bytes, transactions, postings, and snapshots before EVAL. The
-adapter accepts all four limits explicitly and checks them in Go before the
-first EVAL attempt. Activation values must preserve the existing HTTP
-contracts: v1 accepts bodies up to 4 MiB without a per-side/per-leg cap, while
-v2 caps each side at 500 entries and its body at less than 1 MiB. Therefore the
-cardinality limits selected for rollout must be high enough that the serialized
-byte limit, rather than a new leg cap, is the effective v1 constraint.
+Bound serialized bytes, transactions, postings, and snapshots before EVAL. These
+bounds protect Redis latency and memory and prevent one request from creating
+unbounded Lua work. They are engine-owned product invariants rather than environment
+configuration:
 
-Do not derive the activation byte limit by simply doubling 4 MiB. The recovery
-payload freezes normalized input and is JSON-escaped inside the engine wire. A
-valid 4,193,188-byte v1 fixture with worst-case escaping expands to a
-10,490,524-byte recovery payload and a 12,251,470-byte engine wire even when the
-wire deliberately carries only two postings, two snapshots, and one projection
-context. This is a lower bound: full per-leg projection and route expansion can
-only add bytes. It proves that 8 MiB is unsafe, but it does not yet establish a
-production maximum or close the v1 boundary gate. v1 does not execute fees.
+| Boundary | Hard ceiling |
+| --- | ---: |
+| Transactions per execution | 1 |
+| Postings per execution | 10,000 |
+| Balance snapshots per execution | 20,000 |
+| Completion plan | 32 MiB |
+| Serialized request | 64 MiB |
+| Total prepared data | 64 MiB |
 
-A finite activation ceiling cannot currently be derived from application
-validators. Request metadata is bounded by the body and its per-entry validators;
-JSON escaping can expand each byte by at most six bytes at each serialization
-layer. Accounting rubric codes and descriptions are bounded to 50 and 250
-characters. Those dimensions can be included in a future derivation. The
-shared adapter configuration must also account for v2 fee expansion. The fee
-package `fees` map has a minimum but no maximum cardinality. Package updates add
-new dotted `fees.<key>` fields while retaining existing entries. Fee calculation
-runs before the second transaction validation. Non-deductible fees redistribute
-over the growing source map, so the current full path can expand postings faster
-than the number of configured fees; each resulting posting has a primary
-projection context, with additional contexts possible for validated hold/cancel
-and overdraft-companion paths. This expansion is independent of the transaction
-body’s cardinality. MongoDB's physical 16 MiB document limit makes a stored
-package finite, but it is not an application validator or an engine activation
-value; no full-path maximum has been derived from it and the other request,
-projection, and storage bounds.
+The adapter applies the ceilings in Go before the first EVAL attempt and passes
+the byte ceilings to Lua as trusted protocol inputs. Changing a ceiling requires
+a code change, review, and release; operators cannot create different accounting
+behavior by changing deployment configuration.
 
-Account creation caps `type` at 256 characters, so an oversized persisted
-`balance.account_type` is not a current public-create shape. The column remains
-PostgreSQL `TEXT`, however; legacy, imported, or manually written rows are not
-length-revalidated when snapshot pools are built. Activation therefore also
-needs an inventory proving those rows satisfy the public invariant, or an
-enforced read/write invariant, rather than treating the schema as a size bound.
+These ceilings are deliberately generous but are not claimed to preserve every
+previously accepted extreme input. v1 accepts bodies up to 4 MiB without a
+per-side/per-leg cap, and v2 fee expansion can add postings independently of the
+request body's leg count. Inputs whose expanded engine representation exceeds a
+ceiling are rejected before monetary writes. This is an explicit safety boundary,
+not a runtime tuning mechanism.
 
-Consequently no value for `MaxRecoveryBytes`, `MaxRequestBytes`,
-`MaxPreparedBytes`, `MaxPostings`, or `MaxBalances` is an acceptance-preserving
-activation value yet. Keep the execution port unset. Closing the gate requires
-an application-level maximum for fee-expanded cardinality, or a complete
-full-path derivation from every enforced request and storage bound; it must not
-be approximated with an observed fixture size.
+The byte ceilings account for nested serialization rather than simply mirroring
+the HTTP body limit. A 4,193,188-byte v1 characterization fixture with worst-case
+escaping produced a 10,490,524-byte completion plan and a 12,251,470-byte engine
+wire with only two postings, two snapshots, and one projection context. This
+demonstrates why an 8 MiB ceiling is unsafe and leaves headroom under the fixed
+32 MiB and 64 MiB boundaries. Metrics must still be monitored for real workloads;
+future evidence may justify a reviewed code change.
 
 The deterministic representative wire measurements are 2 postings/2 pool
 snapshots: 2,134 bytes; 10 postings/20 pool snapshots: 12,974 bytes; and 50
@@ -888,12 +875,12 @@ labels.
 
 Observe request counts, posting types, closed failure enums, CAS attempts,
 indeterminate outcomes, recovery, latency, and payload/pool sizes. Labels must
-not contain money, aliases, metadata, or IDs. Limits and these signals are
-enablement requirements, not follow-up hardening.
+not contain money, aliases, metadata, or IDs. These signals guard the fixed
+boundaries and support future capacity decisions.
 
 ### Adapter metrics
 
-The inactive adapter emits metrics through the context-provided
+The adapter emits metrics through the context-provided
 `MetricsFactory`. Emission failures are logged at Debug and never change the
 accounting result or error. No monetary state or identifiers are emitted.
 
@@ -915,9 +902,8 @@ failures. The metrics do not perform public error mapping.
 
 Duration buckets are 1, 5, 10, 25, 50, 100, 250, 500, 1000, and 5000 ms.
 Payload buckets are 1, 4, 16, 64, 256 KiB and 1, 4, 16 MiB; these are observation
-boundaries, not request-limit defaults. Rejected unprepared requests have no
-posting or payload-size sample. Full-pool loading measurements still require
-instrumentation before activation.
+boundaries, not request ceilings. Rejected unprepared requests have no posting
+or payload-size sample.
 
 ### Recovery metrics
 

@@ -263,9 +263,7 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 	provider := recoveryEngineClientProvider{client: client}
 	queue, err := txredis.NewConsumerRedis(provider)
 	require.NoError(t, err)
-	adapter, err := redisengine.NewAdapter(provider, redisengine.Limits{
-		MaxTransactions: 4, MaxPostings: 16, MaxBalances: 16, MaxCompletionPlanBytes: 1 << 20, MaxRequestBytes: 1 << 20, MaxPreparedBytes: 1 << 20,
-	})
+	adapter, err := redisengine.NewAdapter(provider)
 	require.NoError(t, err)
 	pgConfig := pgtestutil.DefaultContainerConfig()
 	pgConfig.Image = "postgres:17"

@@ -22,7 +22,7 @@ func TestIntegrationDelayedFinalizationKeepsReplayProtectionThroughFullWindow(t 
 	input, limits := richAdapterExecution(t)
 	input.RetentionSeconds = maximumRetentionSeconds
 	provider := &integrationClientProvider{client: client}
-	adapter, err := NewAdapter(provider, limits)
+	adapter, err := newAdapterWithLimits(provider, limits)
 	require.NoError(t, err)
 
 	ctx := context.Background()

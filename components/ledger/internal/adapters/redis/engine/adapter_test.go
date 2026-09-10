@@ -305,10 +305,10 @@ func assertAdapterTechnical(t *testing.T, err error, code string, uncertain bool
 func TestNewAdapter_ValidationBeforeProviderAccess(t *testing.T) {
 	limits := Limits{MaxTransactions: 1, MaxPostings: 2, MaxBalances: 2, MaxCompletionPlanBytes: 4096, MaxRequestBytes: 8192, MaxPreparedBytes: 8192}
 	provider := &countingProvider{}
-	_, err := NewAdapter(nil, limits)
+	_, err := newAdapterWithLimits(nil, limits)
 	require.Error(t, err)
 	var missingProvider *countingProvider
-	_, err = NewAdapter(missingProvider, limits)
+	_, err = newAdapterWithLimits(missingProvider, limits)
 	require.Error(t, err)
 	for _, field := range []string{"transactions", "postings", "balances", "recovery", "request", "prepared"} {
 		invalid := limits
@@ -326,10 +326,10 @@ func TestNewAdapter_ValidationBeforeProviderAccess(t *testing.T) {
 		case "prepared":
 			invalid.MaxPreparedBytes = 0
 		}
-		_, err := NewAdapter(provider, invalid)
+		_, err := newAdapterWithLimits(provider, invalid)
 		require.Error(t, err)
 	}
-	adapter, err := NewAdapter(provider, limits)
+	adapter, err := newAdapterWithLimits(provider, limits)
 	require.NoError(t, err)
 	_, err = adapter.Execute(context.Background(), command.EngineExecution{})
 	require.Error(t, err)
@@ -339,5 +339,21 @@ func TestNewAdapter_ValidationBeforeProviderAccess(t *testing.T) {
 	_, err = adapter.Execute(ctx, command.EngineExecution{})
 	assertAdapterTechnical(t, err, "context_canceled", false)
 	require.ErrorIs(t, err, context.Canceled)
+	require.Zero(t, provider.calls)
+}
+
+func TestNewAdapter_UsesEngineHardLimits(t *testing.T) {
+	provider := &countingProvider{}
+
+	adapter, err := NewAdapter(provider)
+	require.NoError(t, err)
+	require.Equal(t, Limits{
+		MaxTransactions:        1,
+		MaxPostings:            10_000,
+		MaxBalances:            20_000,
+		MaxCompletionPlanBytes: 32 * 1024 * 1024,
+		MaxRequestBytes:        64 * 1024 * 1024,
+		MaxPreparedBytes:       64 * 1024 * 1024,
+	}, adapter.limits)
 	require.Zero(t, provider.calls)
 }

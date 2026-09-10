@@ -49,7 +49,7 @@ func TestIntegration_AdapterExecute_IsolatesSameAliasAcrossAuthenticatedScopes(t
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := tmcore.ContextWithTenantID(context.Background(), tt.tenantID)
 			input, limits := scopedAdapterExecution(t, tt.tenantID, tt.orgID, tt.ledgerID, tt.amount)
-			adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+			adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 			require.NoError(t, err)
 
 			result, err := adapter.Execute(ctx, input)
@@ -115,7 +115,7 @@ func TestIntegration_AdapterExecute_TouchedDeletionMarkerAbortsMixedBatchWithout
 	}
 
 	before := captureAdapterState(t, inspector, keys)
-	adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 	require.NoError(t, err)
 	result, err := adapter.Execute(ctx, input)
 	require.Nil(t, result)
@@ -134,7 +134,7 @@ func TestIntegration_AdapterExecute_RejectsEmptyTransactionsBeforeProvider(t *te
 	input.Guards = nil
 	input.CompletionPlans = nil
 	provider := &integrationClientProvider{}
-	adapter, err := NewAdapter(provider, limits)
+	adapter, err := newAdapterWithLimits(provider, limits)
 	require.NoError(t, err)
 
 	result, err := adapter.Execute(context.Background(), input)

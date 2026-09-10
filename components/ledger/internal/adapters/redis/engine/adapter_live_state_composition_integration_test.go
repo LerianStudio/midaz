@@ -71,7 +71,7 @@ func TestIntegration_ExecutePreparedBalanceEngine_UsesLiveValkeyState(t *testing
 			seedLiveStateCompositionBalance(t, ctx, client, keys, fixture.companion)
 			t.Cleanup(func() { deleteLiveStateCompositionState(t, client, keys) })
 
-			adapter, err := NewAdapter(&integrationClientProvider{client: client}, guardBootstrapLimits())
+			adapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, guardBootstrapLimits())
 			require.NoError(t, err)
 			prepared, err := buildLiveStateCompositionExecution(ctx, t, client, keys, fixture)
 			require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestIntegration_AdapterExecute_UsesLiveOverdraftSettingsWithoutVersionBump(
 	require.NoError(t, client.Set(ctx, keys.Balances[livePrimary.BalanceRef].Balance, encoded, 0).Err())
 
 	provider := &integrationClientProvider{client: client}
-	adapter, err := NewAdapter(provider, guardBootstrapLimits())
+	adapter, err := newAdapterWithLimits(provider, guardBootstrapLimits())
 	require.NoError(t, err)
 	result, err := adapter.Execute(ctx, prepared.Execution)
 	require.NoError(t, err)

@@ -12,27 +12,16 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
-func configureBalanceEngine(useCase *command.UseCase, provider redisengine.RedisClientProvider, cfg *Config) error {
-	if useCase == nil || cfg == nil {
-		return errors.New("balance engine activation requires command and configuration owners")
-	}
-
-	if !cfg.BalanceEngineEnabled {
-		return nil
+func configureBalanceEngine(useCase *command.UseCase, provider redisengine.RedisClientProvider) error {
+	if useCase == nil {
+		return errors.New("balance engine configuration requires a command owner")
 	}
 
 	if useCase.AppliedTransactionCompleter == nil {
-		return errors.New("balance engine activation requires an applied transaction completer")
+		return errors.New("balance engine configuration requires an applied transaction completer")
 	}
 
-	adapter, err := redisengine.NewAdapter(provider, redisengine.Limits{
-		MaxTransactions:        cfg.BalanceEngineMaxTransactions,
-		MaxPostings:            cfg.BalanceEngineMaxPostings,
-		MaxBalances:            cfg.BalanceEngineMaxBalances,
-		MaxCompletionPlanBytes: cfg.TransactionCompletionMaxPlanBytes,
-		MaxRequestBytes:        cfg.BalanceEngineMaxRequestBytes,
-		MaxPreparedBytes:       cfg.BalanceEngineMaxPreparedBytes,
-	})
+	adapter, err := redisengine.NewAdapter(provider)
 	if err != nil {
 		return fmt.Errorf("initialize balance engine adapter: %w", err)
 	}

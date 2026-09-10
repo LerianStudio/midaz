@@ -113,16 +113,6 @@ type Config struct {
 	RedisMinRetryBackoff         int    `env:"REDIS_MIN_RETRY_BACKOFF"`
 	RedisMaxRetryBackoff         int    `env:"REDIS_MAX_RETRY_BACKOFF"`
 
-	// Balance engine activation and hard request boundaries. The engine remains
-	// disabled unless explicitly enabled by the environment.
-	BalanceEngineEnabled              bool `env:"BALANCE_ENGINE_ENABLED"`
-	BalanceEngineMaxTransactions      int  `env:"BALANCE_ENGINE_MAX_TRANSACTIONS"`
-	BalanceEngineMaxPostings          int  `env:"BALANCE_ENGINE_MAX_POSTINGS"`
-	BalanceEngineMaxBalances          int  `env:"BALANCE_ENGINE_MAX_BALANCES"`
-	TransactionCompletionMaxPlanBytes int  `env:"BALANCE_ENGINE_MAX_RECOVERY_BYTES"`
-	BalanceEngineMaxRequestBytes      int  `env:"BALANCE_ENGINE_MAX_REQUEST_BYTES"`
-	BalanceEngineMaxPreparedBytes     int  `env:"BALANCE_ENGINE_MAX_PREPARED_BYTES"`
-
 	// Multi-tenant configuration
 	MultiTenantEnabled                     bool   `env:"MULTI_TENANT_ENABLED"`
 	MultiTenantURL                         string `env:"MULTI_TENANT_URL"`
@@ -1173,15 +1163,13 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to configure balance engine finalization: %w", err)
 	}
 
-	if err := configureBalanceEngine(commandUseCase, redisConnection, cfg); err != nil {
+	if err := configureBalanceEngine(commandUseCase, redisConnection); err != nil {
 		doCleanup()
 
 		return nil, fmt.Errorf("failed to configure balance engine: %w", err)
 	}
 
-	if cfg.BalanceEngineEnabled {
-		logger.Log(context.Background(), libLog.LevelInfo, "Balance engine enabled")
-	}
+	logger.Log(context.Background(), libLog.LevelInfo, "Balance engine configured as the default accounting path")
 
 	// The quarantine repository is the durable sink for poison backup records;
 	// the metrics factory powers the backup-queue observability gauges/counter.

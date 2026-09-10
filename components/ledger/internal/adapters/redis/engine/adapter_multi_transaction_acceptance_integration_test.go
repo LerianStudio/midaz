@@ -27,7 +27,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 
 	t.Run("ordered shared balance execution, recovery, and replay", func(t *testing.T) {
 		input, limits := multiTransactionAcceptanceExecution(t)
-		adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 		require.NoError(t, err)
 
 		result, err := adapter.Execute(ctx, input)
@@ -62,7 +62,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		encoded, err := balancecache.Encode(live, balancecache.FormatDual)
 		require.NoError(t, err)
 		require.NoError(t, inspector.Set(ctx, keys.Balances[live.BalanceRef].Balance, encoded, 0).Err())
-		adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 		require.NoError(t, err)
 		result, err := adapter.Execute(ctx, input)
 		require.NoError(t, err)

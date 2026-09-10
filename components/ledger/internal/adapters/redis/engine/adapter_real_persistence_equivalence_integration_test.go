@@ -189,7 +189,7 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 		idempotency.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
 			func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 		)
-		realAdapter, err := NewAdapter(&integrationClientProvider{client: client}, guardBootstrapLimits())
+		realAdapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, guardBootstrapLimits())
 		require.NoError(t, err)
 		executor := &recordingCreateAdapter{delegate: realAdapter}
 		uc := &command.UseCase{
@@ -281,7 +281,7 @@ func TestIntegration_BalanceEngineNormalAndRecoveryPersistenceAreEquivalent(t *t
 			func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 		)
 		idempotency.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
-		realAdapter, err := NewAdapter(&integrationClientProvider{client: client}, guardBootstrapLimits())
+		realAdapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, guardBootstrapLimits())
 		require.NoError(t, err)
 		executor := &pendingLifecycleAdapter{delegate: realAdapter}
 		uc := &command.UseCase{

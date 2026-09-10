@@ -33,7 +33,7 @@ func TestIntegration_AdapterExecute_IndeterminateMetrics(t *testing.T) {
 	})
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
 	input, limits := richAdapterExecution(t)
-	adapter, err := NewAdapter(&integrationClientProvider{client: client}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, limits)
 	require.NoError(t, err)
 	result, err := adapter.Execute(ctx, input)
 	require.Nil(t, result)
@@ -80,7 +80,7 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 	hook := &integrationCommandHook{}
 	client.AddHook(hook)
 	input, limits := richAdapterExecution(t)
-	adapter, err := NewAdapter(&integrationClientProvider{client: client}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, limits)
 	require.NoError(t, err)
 	first, err := adapter.Execute(ctx, input)
 	require.NoError(t, err)

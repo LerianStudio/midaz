@@ -51,7 +51,7 @@ func TestIntegration_AdapterExecute_LimitRepairBatchPrevalidatesAllBalances(t *t
 		DB: 2, Protocol: 2, TLSConfig: proxy.clientTLS, MaxRetries: 3,
 	})
 	t.Cleanup(func() { require.NoError(t, shared.Close()) })
-	adapter, err := NewAdapter(&integrationClientProvider{client: shared}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: shared}, limits)
 	require.NoError(t, err)
 
 	result, err := adapter.Execute(ctx, input)
@@ -74,7 +74,7 @@ func TestIntegration_AdapterExecute_LimitRepairBatchPreservesFinancialStateOnRef
 	input, limits := adapterLimitRepairBatchExecution(t)
 	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
-	adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 	require.NoError(t, err)
 
 	expiresAt := time.Date(2100, time.February, 3, 4, 5, 6, 0, time.UTC).UnixMilli()
@@ -107,7 +107,7 @@ func TestIntegration_AdapterExecute_LimitRepairPreservesPersistentKey(t *testing
 	input, limits := richAdapterExecution(t)
 	keys, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
-	adapter, err := NewAdapter(&integrationClientProvider{client: inspector}, limits)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 	require.NoError(t, err)
 
 	live := input.Execution.Balances[0]

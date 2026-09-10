@@ -451,8 +451,8 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 // its fees map has a minimum but no application-level maximum.
 //
 // This is not a claim that storage has infinite capacity. It proves the narrower
-// activation fact: transaction-body limits and application validators do not
-// supply the bound needed to configure engine byte and cardinality limits.
+// safety fact: transaction-body limits and application validators do not bound
+// the engine's expanded byte and cardinality workload.
 func TestV2TransactionBodyDoesNotBoundFeeExpandedEngineBytes(t *testing.T) {
 	t.Parallel()
 
