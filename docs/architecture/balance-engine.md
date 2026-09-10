@@ -42,6 +42,9 @@ transaction flows. Explicit integrity corrections are described separately.
 | Live balance arithmetic, overdraft split/repayment, movement versions | Accounting engine |
 | Physical keys, cache codec, script transport, execution receipts and guards | Redis engine adapter |
 | Accounting rows, metadata, route attribution and historical row compatibility | Go projection shared by normal finalization and recovery |
+| Recovery scheduling, tenant dispatch, and distributed cycle lock | Redis recovery runner |
+| Legacy write-behind replay and poison-record quarantine | Legacy backup consumer |
+| Completion of already-applied engine executions | Engine recovery consumer |
 
 The domain `accounting` package must not import commands, adapters, or bootstrap.
 The command layer owns the `BalanceEngine` port; bootstrap selects its
@@ -626,19 +629,31 @@ an error returns an empty outcome. The phase does not confirm broker publication
 and it does not authorize receipt/guard expiry. These outcomes do not themselves
 change event dispatch or wire the posting engine into normal execution.
 
-### Compatible recovery consumer
+### Compatible recovery consumers
 
-The bootstrap-wired consumer reads the legacy and engine recovery hashes
-independently; failure to read one origin does not prevent processing the other.
-Within the legacy hash it selects the existing legacy path only when
+One bootstrap-wired recovery runner owns tenant discovery, cadence, and the
+distributed cycle lock. Under that lock it invokes two logically separate
+consumers in sequence. Serial invocation prevents concurrent completion when a
+field temporarily exists in both hashes during a rolling deployment, while a
+failure to read one origin does not prevent processing the other.
+
+The legacy backup consumer reads only `backup_queue:{transactions}`. It selects
+the existing legacy replay path only when
 `formatVersion` is absent from a complete JSON object. Explicit unsupported,
 duplicate, or ambiguously cased versions never fall back to legacy decoding.
 Malformed legacy records enter quarantine only when their canonical physical
 field matches the authenticated tenant scope. Untrusted fields remain untouched.
 Invalid version-2 records are retained rather than passed to legacy processing.
-The engine recovery hash accepts only a strictly validated version-two envelope;
+
+The engine recovery consumer reads only `engine:{transactions}:recover:v2` and
+accepts only a strictly validated version-two envelope;
 unversioned, malformed, and unsupported records remain there and never enter the
-legacy decoder or legacy quarantine.
+legacy decoder or legacy quarantine. Its dependency surface exposes completion
+and exact acknowledgment, but no accounting-engine execution capability. It can
+finish SQL/metadata projection for an execution whose balance effects were
+already applied; it cannot apply those effects again. Once the legacy hash has
+been verified empty across the rollout window, the legacy consumer can be
+removed from the runner without changing engine recovery.
 
 Version 2 validates envelope scope and the exact raw
 `transactionUUID:executionUUID` field before finalization. It uses frozen context

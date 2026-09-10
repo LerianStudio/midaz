@@ -35,7 +35,7 @@ const (
 
 var recoveryMetricDurationBuckets = []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000}
 
-func (r *RedisQueueConsumer) emitRecoveryMetrics(ctx context.Context, source txRedis.RecoveryQueueSource, outcome string, duration time.Duration) {
+func (r *recoveryRecordCompleter) emitRecoveryMetrics(ctx context.Context, source txRedis.RecoveryQueueSource, outcome string, duration time.Duration) {
 	if r.metricsFactory == nil {
 		return
 	}

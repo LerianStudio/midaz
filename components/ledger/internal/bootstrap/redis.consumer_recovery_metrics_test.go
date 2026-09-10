@@ -19,7 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
-func TestFinalizeRecoveryRecord_EmitsBoundedOutcomeMetrics(t *testing.T) {
+func TestCompleteRecoveryRecord_EmitsBoundedOutcomeMetrics(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -74,7 +74,7 @@ func TestFinalizeRecoveryRecord_EmitsBoundedOutcomeMetrics(t *testing.T) {
 			if test.ctx != nil {
 				ctx = test.ctx()
 			}
-			gotErr := consumer.finalizeRecoveryRecord(ctx, txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", &command.TransactionCompletionRecord{})
+			gotErr := consumer.newRecoveryRecordCompleter().complete(ctx, txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", &command.TransactionCompletionRecord{})
 			if test.wantErr {
 				require.Error(t, gotErr)
 			} else {
@@ -129,12 +129,12 @@ func TestFinalizeRecoveryRecord_EmitsBoundedOutcomeMetrics(t *testing.T) {
 	}
 }
 
-func TestFinalizeRecoveryRecord_MetricsAreNilFactorySafe(t *testing.T) {
+func TestCompleteRecoveryRecord_MetricsAreNilFactorySafe(t *testing.T) {
 	order := []string{}
 	finalizer := &recoveryCompleterStub{order: &order}
 	queue := &recoveryQueueStub{status: 1, order: &order}
 	consumer := (&RedisQueueConsumer{queue: queue}).WithTransactionCompleter(finalizer)
-	require.NoError(t, consumer.finalizeRecoveryRecord(context.Background(), txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", &command.TransactionCompletionRecord{}))
+	require.NoError(t, consumer.newRecoveryRecordCompleter().complete(context.Background(), txRedis.RecoveryQueueSourceLegacyBackup, "field", "raw", &command.TransactionCompletionRecord{}))
 	require.Equal(t, []string{"durable-finalization", "conditional-ack"}, order)
 	require.Equal(t, 1, finalizer.calls)
 	require.Equal(t, 1, queue.calls)

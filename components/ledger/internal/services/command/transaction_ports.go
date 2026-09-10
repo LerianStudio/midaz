@@ -45,15 +45,19 @@ type EngineExecution struct {
 	CompletionPlans  []CompletionPlanRecord
 }
 
-// BalanceEngine applies balance changes and records their recovery data atomically.
+// BalanceEngine is the ledger's accounting mutation boundary. Execute validates
+// live balances and applies postings atomically with the evidence required to
+// finish durable transaction projection. A successful result is the point of no
+// return: its accounting effect is permanent and may only be counteracted by a
+// later explicit transaction such as a revert. Callers must not implicitly retry
+// Execute after an error because the outcome may be indeterminate.
 type BalanceEngine interface {
 	Execute(ctx context.Context, input EngineExecution) (*accounting.ExecutionResult, error)
 }
 
-// TransactionCompleter durably projects an applied accounting result
-// and reports the transaction status confirmed by SQL. Create requires this
-// capability whenever BalanceEngine is enabled so an applied result can never
-// fall through to the legacy persistence path.
+// TransactionCompleter durably projects an accounting result already applied by
+// BalanceEngine and reports the transaction status confirmed by SQL. Completion
+// and recovery must never invoke BalanceEngine or mutate balances again.
 type TransactionCompleter interface {
 	Complete(context.Context, *TransactionCompletionRecord) (TransactionCompletionResult, error)
 }

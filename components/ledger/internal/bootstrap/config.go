@@ -1154,7 +1154,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Workers ===
 
-	// RedisQueueConsumer: multi-tenant or single-tenant
+	// Redis recovery runner: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
 	if cfg.MultiTenantEnabled && tenantCache != nil {
 		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, commandUseCase, queryUseCase, true, tenantCache, txnPG.pgManager)

@@ -33,7 +33,9 @@ type BalanceEngineExecutionOutcome struct {
 }
 
 // ExecutePreparedBalanceEngine executes a prepared request exactly once. Live
-// balance concurrency is resolved inside the atomic engine implementation.
+// balance concurrency is resolved inside the atomic engine implementation. It
+// deliberately performs no retry: an error may follow an applied mutation, and
+// only recovery of that recorded execution may continue automatically.
 func ExecutePreparedBalanceEngine(
 	ctx context.Context,
 	executor BalanceEngine,

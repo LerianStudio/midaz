@@ -2,8 +2,10 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-// Package accounting defines the ledger's accounting execution contract.
-// It does not own transaction composition, accounting-row projection, or storage.
+// Package accounting defines the ledger's replaceable accounting-engine
+// contract. An engine implementation owns atomic live-balance validation and
+// mutation. It does not own transaction composition, durable row projection, or
+// storage-specific recovery orchestration.
 package accounting
 
 import "github.com/google/uuid"

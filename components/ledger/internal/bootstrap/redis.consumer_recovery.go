@@ -16,6 +16,7 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
 	tmvalkey "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/valkey"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -50,6 +51,27 @@ type recoveryCleanupOwner interface {
 
 const recoveryCleanupBatchSize = 100
 
+// recoveryRecordCompleter is the only capability exposed to the engine
+// recovery consumer. It can complete durable projections and acknowledge the
+// exact recovery record; it cannot execute accounting mutations.
+type recoveryRecordCompleter struct {
+	logger         libLog.Logger
+	queue          txRedis.RedisRepository
+	completer      transactionCompleter
+	clock          func() time.Time
+	metricsFactory *metrics.MetricsFactory
+}
+
+func (r *RedisQueueConsumer) newRecoveryRecordCompleter() *recoveryRecordCompleter {
+	return &recoveryRecordCompleter{
+		logger:         r.Logger,
+		queue:          r.queue,
+		completer:      r.transactionCompleter,
+		clock:          r.recoveryClock,
+		metricsFactory: r.metricsFactory,
+	}
+}
+
 // WithTransactionCompleter supplies durable SQL and metadata completion for
 // version-two records. A missing completer leaves those records in the queue.
 func (r *RedisQueueConsumer) WithTransactionCompleter(completer transactionCompleter) *RedisQueueConsumer {
@@ -69,42 +91,46 @@ func (r *RedisQueueConsumer) WithRecoveryClock(clock func() time.Time) *RedisQue
 }
 
 func (r *RedisQueueConsumer) cleanupEngineRecovery(ctx context.Context) {
+	r.newRecoveryRecordCompleter().cleanup(ctx)
+}
+
+func (r *recoveryRecordCompleter) cleanup(ctx context.Context) {
 	owner, ok := r.queue.(recoveryCleanupOwner)
 	if !ok {
 		return
 	}
 
-	if r.recoveryClock == nil {
-		r.Logger.Log(ctx, libLog.LevelWarn, "Engine recovery cleanup clock is not configured")
+	if r.clock == nil {
+		r.logger.Log(ctx, libLog.LevelWarn, "Engine recovery cleanup clock is not configured")
 		return
 	}
 
-	result, err := owner.CleanupEngineRecovery(ctx, r.recoveryClock(), recoveryCleanupBatchSize)
+	result, err := owner.CleanupEngineRecovery(ctx, r.clock(), recoveryCleanupBatchSize)
 	if err != nil {
-		r.Logger.Log(ctx, libLog.LevelWarn, "Failed to clean protected engine recovery artifacts", libLog.Err(err))
+		r.logger.Log(ctx, libLog.LevelWarn, "Failed to clean protected engine recovery artifacts", libLog.Err(err))
 		return
 	}
 
-	r.Logger.Log(ctx, libLog.LevelDebug, "Cleaned protected engine recovery artifacts",
+	r.logger.Log(ctx, libLog.LevelDebug, "Cleaned protected engine recovery artifacts",
 		libLog.Int("scanned_count", result.Scanned),
 		libLog.Int("cleaned_count", result.Cleaned),
 		libLog.Int("stale_count", result.Stale),
 		libLog.Int("rescheduled_count", result.Rescheduled))
 }
 
-// backupRecordVersion permits legacy decoding only when the discriminator is
+// recoveryRecordVersion permits legacy decoding only when the discriminator is
 // absent from a complete JSON object. Explicit but unsupported versions never
 // inherit the legacy decoder's permissive zero-value behavior.
-func backupRecordVersion(raw string) (int, error) {
+func recoveryRecordVersion(raw string) (int, error) {
 	if !json.Valid([]byte(raw)) {
-		return 0, errors.New("invalid backup JSON")
+		return 0, errors.New("invalid recovery JSON")
 	}
 
 	decoder := json.NewDecoder(strings.NewReader(raw))
 
 	opening, err := decoder.Token()
 	if err != nil || opening != json.Delim('{') {
-		return 0, errors.New("backup record must be an object")
+		return 0, errors.New("recovery record must be an object")
 	}
 
 	found := false
@@ -112,17 +138,17 @@ func backupRecordVersion(raw string) (int, error) {
 	for decoder.More() {
 		name, err := decoder.Token()
 		if err != nil {
-			return 0, fmt.Errorf("read backup discriminator: %w", err)
+			return 0, fmt.Errorf("read recovery discriminator: %w", err)
 		}
 
 		var value json.RawMessage
 		if err := decoder.Decode(&value); err != nil {
-			return 0, fmt.Errorf("read backup field: %w", err)
+			return 0, fmt.Errorf("read recovery field: %w", err)
 		}
 
 		field, ok := name.(string)
 		if !ok {
-			return 0, errors.New("invalid backup field")
+			return 0, errors.New("invalid recovery field")
 		}
 
 		if !strings.EqualFold(field, "formatVersion") {
@@ -174,11 +200,11 @@ func decodeRecoveryRecord(ctx context.Context, field, raw string) (*command.Tran
 	}
 
 	if envelope.TenantID != tmcore.GetTenantIDContext(ctx) {
-		return nil, time.Time{}, errors.New("backup tenant differs from authenticated scope")
+		return nil, time.Time{}, errors.New("recovery tenant differs from authenticated scope")
 	}
 
 	if field != envelope.TransactionID.String()+":"+envelope.ExecutionID.String() {
-		return nil, time.Time{}, errors.New("backup field differs from frozen execution identity")
+		return nil, time.Time{}, errors.New("recovery field differs from recorded execution identity")
 	}
 
 	payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
@@ -189,17 +215,17 @@ func decodeRecoveryRecord(ctx context.Context, field, raw string) (*command.Tran
 	return envelope, payload.TTL, nil
 }
 
-func backupRecordEligible(ttl, now time.Time) bool {
+func recoveryRecordEligible(ttl, now time.Time) bool {
 	return ttl.Unix() <= now.Add(-MessageTimeOfLife*time.Minute).Unix()
 }
 
-func (r *RedisQueueConsumer) processRecoveryRecord(ctx context.Context, source txRedis.RecoveryQueueSource, field, raw string, envelope *command.TransactionCompletionRecord) {
-	if err := r.finalizeRecoveryRecord(ctx, source, field, raw, envelope); err != nil {
-		r.Logger.Log(ctx, libLog.LevelError, "Version-two record retained after recovery failure", libLog.String("source", string(source)), libLog.String("redis_key", field), libLog.Err(err))
+func (r *recoveryRecordCompleter) process(ctx context.Context, source txRedis.RecoveryQueueSource, field, raw string, envelope *command.TransactionCompletionRecord) {
+	if err := r.complete(ctx, source, field, raw, envelope); err != nil {
+		r.logger.Log(ctx, libLog.LevelError, "Version-two record retained after recovery failure", libLog.String("source", string(source)), libLog.String("redis_key", field), libLog.Err(err))
 	}
 }
 
-func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, source txRedis.RecoveryQueueSource, field, raw string, envelope *command.TransactionCompletionRecord) error {
+func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.RecoveryQueueSource, field, raw string, envelope *command.TransactionCompletionRecord) error {
 	startedAt := time.Now()
 	outcome := recoveryMetricOutcomeCompleted
 
@@ -213,7 +239,7 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, source 
 		return err
 	}
 
-	if r.transactionCompleter == nil {
+	if r.completer == nil {
 		outcome = recoveryMetricOutcomeNotConfigured
 		return errors.New("durable transaction completer is not configured")
 	}
@@ -228,7 +254,7 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, source 
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	completion, err := r.transactionCompleter.Complete(ctx, envelope)
+	completion, err := r.completer.Complete(ctx, envelope)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			outcome = recoveryMetricOutcomeContextCanceled
@@ -253,12 +279,12 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, source 
 			return fmt.Errorf("complete recovered transaction: durable SQL reported unsupported status %q", completion.Outcome.TransactionStatus)
 		}
 
-		if r.recoveryClock == nil {
+		if r.clock == nil {
 			outcome = recoveryMetricOutcomeNotConfigured
 			return errors.New("durable balance recovery completion clock is not configured")
 		}
 
-		completedAt := r.recoveryClock()
+		completedAt := r.clock()
 
 		status, err = protected.CompareAndDeleteRecoveryWithProtectionFrom(
 			ctx, source, envelope.OrganizationID, envelope.LedgerID, field, raw, terminal, completedAt,
@@ -270,12 +296,12 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, source 
 				outcome = recoveryMetricOutcomeFinalizationFailed
 				return fmt.Errorf("complete recovered transaction: durable SQL reported unsupported status %q", completion.Outcome.TransactionStatus)
 			}
-			if r.recoveryClock == nil {
+			if r.clock == nil {
 				outcome = recoveryMetricOutcomeNotConfigured
 				return errors.New("durable balance recovery completion clock is not configured")
 			}
 			status, err = protected.CompareAndDeleteRecoveryWithProtection(
-				ctx, envelope.OrganizationID, envelope.LedgerID, field, raw, terminal, r.recoveryClock(),
+				ctx, envelope.OrganizationID, envelope.LedgerID, field, raw, terminal, r.clock(),
 			)
 		} else if hasOriginAwareAck {
 			status, err = acknowledger.CompareAndDeleteRecoveryFrom(ctx, source, field, raw)
@@ -301,7 +327,7 @@ func (r *RedisQueueConsumer) finalizeRecoveryRecord(ctx context.Context, source 
 		return nil
 	case 2:
 		outcome = recoveryMetricOutcomeRecordChanged
-		return errors.New("backup changed during recovery; replacement retained")
+		return errors.New("recovery record changed during completion; replacement retained")
 	default:
 		outcome = recoveryMetricOutcomeInvalidAck
 		return errors.New("invalid conditional recovery acknowledgment result")
