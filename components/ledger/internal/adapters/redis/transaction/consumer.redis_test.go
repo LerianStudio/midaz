@@ -220,6 +220,85 @@ func newRecordingConnection(t *testing.T) (*testClientProvider, *recordingRedisC
 	return &testClientProvider{client: client}, client
 }
 
+func TestListBalanceByKeyMapsOverdraftUsed(t *testing.T) {
+	t.Parallel()
+
+	provider, client := newRecordingConnection(t)
+	client.getReturnVal = `{
+		"id":"balance-id",
+		"accountId":"account-id",
+		"alias":"@alice",
+		"key":"default",
+		"assetCode":"USD",
+		"available":0,
+		"onHold":0,
+		"version":7,
+		"accountType":"deposit",
+		"allowSending":1,
+		"allowReceiving":1,
+		"overdraftUsed":"50.00"
+	}`
+
+	repo := &RedisConsumerRepository{conn: provider}
+	balance, err := repo.ListBalanceByKey(context.Background(), uuid.New(), uuid.New(), "@alice#default")
+
+	require.NoError(t, err)
+	require.NotNil(t, balance)
+	assert.True(t, balance.OverdraftUsed.Equal(decimal.NewFromInt(50)))
+}
+
+// TestListBalanceByKeyOverdraftUsedEmptyIsZeroMalformedFailsClosed locks the cached
+// OverdraftUsed contract: the pre-overdraft snapshot shape (empty) reads as zero debt, while an
+// unreadable value is reported so a caller guarding money cannot mistake it for zero.
+func TestListBalanceByKeyOverdraftUsedEmptyIsZeroMalformedFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name          string
+		overdraftUsed string
+		wantErr       bool
+	}{
+		{name: "empty", overdraftUsed: ""},
+		{name: "malformed", overdraftUsed: "not-a-number", wantErr: true},
+	} {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider, client := newRecordingConnection(t)
+			client.getReturnVal = `{
+				"id":"balance-id",
+				"accountId":"account-id",
+				"alias":"@alice",
+				"key":"default",
+				"assetCode":"USD",
+				"available":0,
+				"onHold":0,
+				"version":7,
+				"accountType":"deposit",
+				"allowSending":1,
+				"allowReceiving":1,
+				"overdraftUsed":"` + testCase.overdraftUsed + `"
+			}`
+
+			repo := &RedisConsumerRepository{conn: provider}
+			balance, err := repo.ListBalanceByKey(context.Background(), uuid.New(), uuid.New(), "@alice#default")
+
+			if testCase.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to parse overdraft used from balance cache")
+				assert.Nil(t, balance)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, balance)
+			assert.True(t, balance.OverdraftUsed.IsZero())
+		})
+	}
+}
+
 // scriptCapturingRedisClient extends recordingRedisClient with the ability to capture
 // Lua script calls (EvalSha / Eval / ScriptExists) so tests can assert which KEYS
 // and ARGV values were passed to the Redis scripting interface.

@@ -12,8 +12,12 @@ import (
 	"strings"
 	"testing"
 
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -26,7 +30,17 @@ import (
 // =============================================================================
 // These tests cover the Lua pre-pass in balance_atomic_operation.lua that
 // rejects a batch with ErrAccountIneligibility (0019) when any balance in it
-// carries a live "<balanceKey>:deleted" delete marker, before any mutation runs.
+// carries a live marker in the dedicated delete-marker namespace, before any mutation runs.
+
+const deleteMarkerNamespacePrefix = "balance_delete_marker:{transactions}:"
+
+func deleteMarkerKeyForIntegration(balanceKey string) string {
+	return deleteMarkerNamespacePrefix + strings.TrimPrefix(balanceKey, "balance:{transactions}:")
+}
+
+func legacyDeleteMarkerKeyForIntegration(balanceKey string) string {
+	return balanceKey + ":deleted"
+}
 
 // readCachedBalance fetches and decodes the balance cache entry written by the
 // Lua script for the given key. It fails the test if the key is missing.
@@ -67,8 +81,11 @@ func TestIntegration_DeleteMarker_RejectsAndDoesNotMutate(t *testing.T) {
 	before := readCachedBalance(t, infra, primeOp.InternalKey)
 
 	// Lay down the delete marker on the SEPARATE key; the balance key is untouched.
-	deleteMarkerKey := primeOp.InternalKey + ":deleted"
+	deleteMarkerKey := deleteMarkerKeyForIntegration(primeOp.InternalKey)
 	require.NoError(t, infra.redisContainer.Client.Set(ctx, deleteMarkerKey, "1", 0).Err())
+	markerExists, markerErr := infra.redisContainer.Client.Exists(ctx, deleteMarkerKey).Result()
+	require.NoError(t, markerErr)
+	require.Equal(t, int64(1), markerExists, "the dedicated marker must be present before the guarded operation")
 
 	// A subsequent op on the balance carrying a delete marker must be rejected with 0019.
 	rejectOp := overdraftOp(orgID, ledgerID, "@ts-single", "deposit", "credit",
@@ -88,6 +105,66 @@ func TestIntegration_DeleteMarker_RejectsAndDoesNotMutate(t *testing.T) {
 		"Available must be unchanged when the batch is rejected")
 	assert.Equal(t, before.Version, after.Version,
 		"Version must not increment when the batch is rejected")
+}
+
+func TestIntegration_DeleteMarker_MixedLegacyAndNamespacedMarkersReject(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	op := overdraftOp(orgID, ledgerID, "@ts-mixed-marker", "deposit", "credit",
+		decimal.NewFromInt(500), decimal.Zero, 1, nil,
+		constant.DEBIT, decimal.NewFromInt(100))
+
+	for _, markerKey := range []string{
+		legacyDeleteMarkerKeyForIntegration(op.InternalKey),
+		deleteMarkerKeyForIntegration(op.InternalKey),
+	} {
+		_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
+		require.NoError(t, err)
+		require.NoError(t, infra.redisContainer.Client.Set(ctx, markerKey, "owner", 0).Err())
+
+		_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), constant.ErrAccountIneligibility.Error())
+		require.NoError(t, infra.redisContainer.Client.Del(ctx, markerKey).Err())
+	}
+}
+
+func TestIntegration_DeleteMarker_TenantNamespaceRejectsMatchingBalance(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	tenantID := "delete-marker-tenant-" + uuid.NewString()
+	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	op := overdraftOp(orgID, ledgerID, "@ts-tenant-marker", "deposit", "credit",
+		decimal.NewFromInt(500), decimal.Zero, 1, nil,
+		constant.DEBIT, decimal.NewFromInt(100))
+
+	// SetNX in the command layer would namespace this logical marker as below.
+	// The Lua operation receives the tenant-prefixed balance key and must replace
+	// its balance namespace in-place to find this physical marker.
+	physicalMarkerKey := "tenant:" + tenantID + ":" + deleteMarkerKeyForIntegration(op.InternalKey)
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, physicalMarkerKey, "owner", 0).Err())
+	markerExists, markerErr := infra.redisContainer.Client.Exists(context.Background(), physicalMarkerKey).Result()
+	require.NoError(t, markerErr)
+	require.Equal(t, int64(1), markerExists, "the tenant-prefixed marker must be present before the guarded operation")
+
+	_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{op}, nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), constant.ErrAccountIneligibility.Error())
 }
 
 // TestIntegration_DeleteMarker_NoMarker_ProceedsNormally exercises case
@@ -145,7 +222,7 @@ func TestIntegration_DeleteMarker_BatchAtomicity(t *testing.T) {
 	beforeA := readCachedBalance(t, infra, opA.InternalKey)
 
 	// Delete marker ONLY balance B.
-	require.NoError(t, infra.redisContainer.Client.Set(ctx, opB.InternalKey+":deleted", "1", 0).Err())
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, deleteMarkerKeyForIntegration(opB.InternalKey), "1", 0).Err())
 
 	// Re-run the batch (A first, then B carrying a delete marker). The pre-pass must
 	// reject the whole batch before A is mutated.
@@ -169,6 +246,56 @@ func TestIntegration_DeleteMarker_BatchAtomicity(t *testing.T) {
 		"balance without a delete marker Available must be unchanged")
 	assert.Equal(t, beforeA.Version, afterA.Version,
 		"balance without a delete marker Version must not increment")
+}
+
+func TestIntegration_DeleteMarkerNamespaceCannotCollideWithSiblingBalanceKey(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	alias := "@ts-collision"
+	baseInternalKey := utils.BalanceInternalKey(orgID, ledgerID, alias+"#usd")
+	siblingInternalKey := utils.BalanceInternalKey(orgID, ledgerID, alias+"#usd:deleted")
+	markerKey := deleteMarkerKeyForIntegration(baseInternalKey)
+
+	// This is the marker for balance "usd". A valid sibling balance is allowed to
+	// use "usd:deleted" as its key and must remain independently mutable.
+	assert.NotEqual(t, markerKey, siblingInternalKey)
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, markerKey, "owner", 0).Err())
+
+	sibling := mmodel.BalanceOperation{
+		Balance: &mmodel.Balance{
+			ID:             uuid.NewString(),
+			OrganizationID: orgID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      uuid.NewString(),
+			Alias:          alias,
+			Key:            "usd:deleted",
+			AssetCode:      "USD",
+			Available:      decimal.NewFromInt(500),
+			OnHold:         decimal.Zero,
+			Version:        1,
+			AccountType:    "deposit",
+			AllowSending:   true,
+			AllowReceiving: true,
+			Direction:      "credit",
+			OverdraftUsed:  decimal.Zero,
+		},
+		Alias:       alias + "#usd:deleted",
+		Amount:      mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100), Operation: constant.DEBIT},
+		InternalKey: siblingInternalKey,
+	}
+
+	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		uuid.New(), constant.APPROVED, false, []mmodel.BalanceOperation{sibling}, nil)
+
+	require.NoError(t, err, "a marker for usd must not block the valid sibling balance usd:deleted")
+	require.Len(t, result.After, 1)
+	assert.True(t, result.After[0].Available.Equal(decimal.NewFromInt(400)))
 }
 
 // availableDecimal parses the cached Available string into a decimal for reuse

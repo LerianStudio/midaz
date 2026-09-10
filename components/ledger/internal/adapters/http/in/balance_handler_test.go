@@ -163,7 +163,9 @@ func TestDeleteBalance_204Empty(t *testing.T) {
 	// guard. Lenient expectations keep this a transport-level test.
 	redisRepo := redis.NewMockRedisRepository(ctrl)
 	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+	redisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).Times(1)
 	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	redisRepo.EXPECT().ExpireIfValue(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
 
 	handler := &BalanceHandler{Command: &command.UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo}}
 
