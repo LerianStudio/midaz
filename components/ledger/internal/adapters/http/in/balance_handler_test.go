@@ -523,6 +523,11 @@ func TestUpdateBalance_Success(t *testing.T) {
 	}, nil).Times(1)
 	redisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
 
+	// An allow-flags PATCH propagates the new flags to the cached balance blob
+	// before the response is written; the command layer fails closed on error.
+	redisRepo.EXPECT().UpdateBalanceCacheAllowFlags(gomock.Any(), orgID, ledgerID, "@user1#default",
+		testutils.Ptr(false), testutils.Ptr(true)).Return(nil).Times(1)
+
 	handler := &BalanceHandler{Command: &command.UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo}}
 
 	app := buildHumaBalanceApp(t, handler, true)
