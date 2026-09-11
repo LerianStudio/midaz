@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1197,6 +1198,24 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		return nil, fmt.Errorf("failed to validate RI declaration IdP TLS: %w", err)
 	}
 
+	// Fail-closed on a bad RI declaration configuration: with the flag on, an
+	// empty IDP_* or a rejected embedded manifest is an operator/build defect,
+	// not a transient IdP problem, and must not reach a ready pod. Runtime
+	// publish failures stay fail-open inside the publisher.
+	//
+	// Placed BEFORE the success log for the same reason as the TLS gate above: a
+	// boot that is about to abort must not first claim it started. doCleanup()
+	// runs first so the abort does not strand the pools this function opened
+	// (onboarding/transaction Postgres, the Mongo clients, Redis, the RabbitMQ
+	// producer, the streaming closer, the tracer gRPC ClientConn); publishers
+	// that did start are drained inside buildDeclarationPublishers.
+	declarationStops, err := buildDeclarationPublishers(cfg, auth, logger)
+	if err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to wire RI declaration publishers: %w", err)
+	}
+
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
 		libLog.String("version", cfg.Version),
@@ -1220,7 +1239,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		metricsFactory:           rmq.metricsFactory,
 		StreamingClose:           streamingClose,
 		StreamingEnabled:         cfg.StreamingEnabled,
-		DeclarationStops:         buildDeclarationPublishers(cfg, auth, logger),
+		DeclarationStops:         declarationStops,
 		TracerClose:              tracerClose,
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,
@@ -1920,6 +1939,15 @@ func applyConfigDefaults(cfg *Config) {
 		}
 
 		cfg.BulkRecorderSize = workers * prefetch
+	}
+
+	// RouteTransactionalReadsToPrimary defaults to true: transactional-flow reads
+	// carry read-your-own-write intent, and serving them from a lagging replica
+	// returns wrong state (e.g. a revert 404 on a transaction that exists only on
+	// the primary). Explicit "false" opts out; unset, empty, and invalid values
+	// resolve to the default.
+	if _, err := strconv.ParseBool(os.Getenv("DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY")); err != nil {
+		cfg.RouteTransactionalReadsToPrimary = true
 	}
 
 	// Balance Sync Worker defaults (dual-trigger)

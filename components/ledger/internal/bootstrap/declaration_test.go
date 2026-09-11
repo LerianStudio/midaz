@@ -52,7 +52,8 @@ func (fixedTokenMinter) GetApplicationToken(_ context.Context, _, _ string) (str
 func TestBuildDeclarationPublishers_DisabledReturnsNoStops(t *testing.T) {
 	cfg := &Config{DeclarationEnabled: false}
 
-	stops := buildDeclarationPublishers(cfg, nil, libLog.NewNop())
+	stops, err := buildDeclarationPublishers(cfg, nil, libLog.NewNop())
+	require.NoError(t, err, "the disabled path validates nothing and never errors")
 
 	assert.Empty(t, stops, "disabled declaration must yield no stop funcs")
 }
@@ -97,7 +98,8 @@ func TestBuildDeclarationPublishers_IdentityAlways5xx_FailsOpenAndStopsDrain(t *
 
 	// The helper returning at all is the primary fail-open evidence: an identity
 	// that only 5xxs did not block or crash boot.
-	stops := buildDeclarationPublishers(cfg, fixedTokenMinter{}, libLog.NewNop())
+	stops, err := buildDeclarationPublishers(cfg, fixedTokenMinter{}, libLog.NewNop())
+	require.NoError(t, err, "an identity answering 5xx is a RUNTIME failure and must stay fail-open")
 
 	require.Len(t, stops, 1, "the single midaz publisher must be constructed and started")
 
@@ -247,14 +249,16 @@ func TestValidateSaaSDeclarationTLS(t *testing.T) {
 	}
 }
 
-// TestBuildDeclarationPublishers_EnabledIncompleteConfigFailsOpen exercises the
-// enabled-but-incomplete-config branch: RI is ON but IDP_HOST and both M2M
-// credentials are empty. The pre-flight warnIncompleteDeclarationConfig names the
-// empty env vars, then declaration.New rejects the empty IdentityAddr/credentials
-// (lib-auth's validateConfig), so the publisher is Warn-skipped and
-// the returned stops slice is empty. No goroutine is started (New fails before
-// Start), so the package goleak check stays clean, and the helper must not panic.
-func TestBuildDeclarationPublishers_EnabledIncompleteConfigFailsOpen(t *testing.T) {
+// TestBuildDeclarationPublishers_EnabledIncompleteConfigFailsClosed pins the
+// CONFIGURATION half of the failure policy: RI is ON but IDP_HOST and both M2M
+// credentials are empty, which is deterministic operator error, so the helper
+// returns an error and the caller aborts boot. It used to Warn and serve, which
+// took the pod green while nothing was declared — silent policy drift, and the
+// one place where the ledger diverged from every other RI adopter.
+//
+// The error must name the three empty env vars and must never carry a value.
+// No goroutine is started (validation precedes New), so goleak stays clean.
+func TestBuildDeclarationPublishers_EnabledIncompleteConfigFailsClosed(t *testing.T) {
 	cfg := &Config{
 		DeclarationEnabled: true,
 		IDPHost:            "",
@@ -262,7 +266,34 @@ func TestBuildDeclarationPublishers_EnabledIncompleteConfigFailsOpen(t *testing.
 		IDPM2MClientSecret: "",
 	}
 
-	stops := buildDeclarationPublishers(cfg, stubTokenMinter{}, libLog.NewNop())
+	stops, err := buildDeclarationPublishers(cfg, stubTokenMinter{}, libLog.NewNop())
 
-	assert.Empty(t, stops, "enabled RI with empty IdP host/credentials must skip the publisher fail-open")
+	require.Error(t, err, "enabled RI with empty IdP host/credentials must fail closed")
+	assert.Empty(t, stops, "no publisher may be returned on the fail-closed path")
+	assert.Contains(t, err.Error(), "IDP_HOST")
+	assert.Contains(t, err.Error(), "IDP_M2M_CLIENT_ID")
+	assert.Contains(t, err.Error(), "IDP_M2M_CLIENT_SECRET")
+}
+
+// TestValidateDeclarationConfig_CompleteAndDisabled covers the two paths that must
+// NOT fail: a complete configuration, and every partial shape naming only the
+// field that is actually missing.
+func TestValidateDeclarationConfig_NamesOnlyTheMissingFields(t *testing.T) {
+	require.NoError(t, validateDeclarationConfig(&Config{
+		DeclarationEnabled: true,
+		IDPHost:            "https://identity.example.test",
+		IDPM2MClientID:     "id",
+		IDPM2MClientSecret: "secret",
+	}), "a complete configuration must validate")
+
+	err := validateDeclarationConfig(&Config{
+		DeclarationEnabled: true,
+		IDPHost:            "https://identity.example.test",
+		IDPM2MClientID:     "",
+		IDPM2MClientSecret: "shhh",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "IDP_M2M_CLIENT_ID")
+	assert.NotContains(t, err.Error(), "IDP_HOST", "a field that is set must not be reported missing")
+	assert.NotContains(t, err.Error(), "shhh", "the secret VALUE must never reach the error")
 }

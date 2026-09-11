@@ -110,7 +110,7 @@ func setupIntegrationInfra(t *testing.T) *integrationTestInfra {
 	conn := pgtestutil.ConnectPostgresClient(t.Context(), t, connStr, connStr)
 
 	// Create repository
-	repo := NewTransactionPostgreSQLRepository(conn)
+	repo := NewTransactionPostgreSQLRepository(conn, false)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -143,7 +143,7 @@ func setupChaosInfra(t *testing.T) *chaosTestInfra {
 	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, pgContainer.Config.DBName, migrationsPath)
 
 	// Create repository
-	repo := NewTransactionPostgreSQLRepository(conn)
+	repo := NewTransactionPostgreSQLRepository(conn, false)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -198,7 +198,7 @@ func setupNetworkChaosInfra(t *testing.T) *networkChaosTestInfra {
 	conn := pgtestutil.CreatePostgresClient(t, proxyConnStr, proxyConnStr, pgResult.Config.DBName, migrationsPath)
 
 	// Create repository
-	repo := NewTransactionPostgreSQLRepository(conn)
+	repo := NewTransactionPostgreSQLRepository(conn, false)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())

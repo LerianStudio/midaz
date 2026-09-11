@@ -197,6 +197,55 @@ func TestBalanceAtomicResponse_UnmarshalJSON_MixedArrayAndEmptyObject(t *testing
 	assert.Empty(t, resp.After)
 }
 
+// =============================================================================
+// balanceAtomicResponse.Replayed — the idempotency marker's wire contract
+// =============================================================================
+// The script replays a consumed execution by splicing "replayed":true onto the
+// front of the STORED response string, without decoding it. These tests lock the
+// Go end of that contract: the flag is read, its absence is false, and the
+// balance payload that travels behind it is unaffected either way.
+
+func TestBalanceAtomicResponse_UnmarshalJSON_ReplayedFlagPresent(t *testing.T) {
+	input := `{"replayed":true,"before":[{"id":"b1","alias":"@src","accountId":"a1","available":"1000","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}],"after":[{"id":"b1","alias":"@src","accountId":"a1","available":"900","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}]}`
+
+	var resp balanceAtomicResponse
+	err := json.Unmarshal([]byte(input), &resp)
+
+	require.NoError(t, err)
+	assert.True(t, resp.Replayed, "a spliced replay flag must decode")
+	require.Len(t, resp.Before, 1)
+	require.Len(t, resp.After, 1)
+	assert.Equal(t, int64(1), resp.Before[0].Version)
+	assert.Equal(t, int64(2), resp.After[0].Version)
+	assert.Equal(t, "900", resp.After[0].Available.String())
+}
+
+func TestBalanceAtomicResponse_UnmarshalJSON_ReplayedFlagAbsentIsFalse(t *testing.T) {
+	input := `{"before":[{"id":"b1","alias":"@src","accountId":"a1","available":"1000","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}],"after":[{"id":"b1","alias":"@src","accountId":"a1","available":"900","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}]}`
+
+	var resp balanceAtomicResponse
+	err := json.Unmarshal([]byte(input), &resp)
+
+	require.NoError(t, err)
+	assert.False(t, resp.Replayed, "a first execution carries no flag and must decode to false")
+	require.Len(t, resp.After, 1)
+}
+
+// The empty-batch response is stored and replayed like any other, and cjson may
+// encode its empty arrays as objects — the fallback decode path must still pick
+// the flag up.
+func TestBalanceAtomicResponse_UnmarshalJSON_ReplayedFlagWithEmptyObjects(t *testing.T) {
+	input := `{"replayed":true,"before":{},"after":{}}`
+
+	var resp balanceAtomicResponse
+	err := json.Unmarshal([]byte(input), &resp)
+
+	require.NoError(t, err)
+	assert.True(t, resp.Replayed)
+	assert.Empty(t, resp.Before)
+	assert.Empty(t, resp.After)
+}
+
 func TestBalanceAtomicResponse_UnmarshalJSON_InvalidJSON(t *testing.T) {
 	var resp balanceAtomicResponse
 	err := json.Unmarshal([]byte(`{invalid`), &resp)

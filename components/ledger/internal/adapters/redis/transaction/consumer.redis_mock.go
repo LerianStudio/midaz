@@ -146,6 +146,21 @@ func (mr *MockRedisRepositoryMockRecorder) Get(ctx, key any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRedisRepository)(nil).Get), ctx, key)
 }
 
+// GetAccountBlockException mocks base method.
+func (m *MockRedisRepository) GetAccountBlockException(ctx context.Context, organizationID, ledgerID, exceptionID uuid.UUID) (*mmodel.AccountBlockExceptionRedis, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAccountBlockException", ctx, organizationID, ledgerID, exceptionID)
+	ret0, _ := ret[0].(*mmodel.AccountBlockExceptionRedis)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAccountBlockException indicates an expected call of GetAccountBlockException.
+func (mr *MockRedisRepositoryMockRecorder) GetAccountBlockException(ctx, organizationID, ledgerID, exceptionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountBlockException", reflect.TypeOf((*MockRedisRepository)(nil).GetAccountBlockException), ctx, organizationID, ledgerID, exceptionID)
+}
+
 // GetBalanceSyncKeys mocks base method.
 func (m *MockRedisRepository) GetBalanceSyncKeys(ctx context.Context, limit int64) ([]SyncKey, error) {
 	m.ctrl.T.Helper()
@@ -174,21 +189,6 @@ func (m *MockRedisRepository) GetBalanceSyncKeysLegacy(ctx context.Context, limi
 func (mr *MockRedisRepositoryMockRecorder) GetBalanceSyncKeysLegacy(ctx, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBalanceSyncKeysLegacy", reflect.TypeOf((*MockRedisRepository)(nil).GetBalanceSyncKeysLegacy), ctx, limit)
-}
-
-// GetAccountBlockException mocks base method.
-func (m *MockRedisRepository) GetAccountBlockException(ctx context.Context, organizationID, ledgerID, exceptionID uuid.UUID) (*mmodel.AccountBlockExceptionRedis, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAccountBlockException", ctx, organizationID, ledgerID, exceptionID)
-	ret0, _ := ret[0].(*mmodel.AccountBlockExceptionRedis)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAccountBlockException indicates an expected call of GetAccountBlockException.
-func (mr *MockRedisRepositoryMockRecorder) GetAccountBlockException(ctx, organizationID, ledgerID, exceptionID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountBlockException", reflect.TypeOf((*MockRedisRepository)(nil).GetAccountBlockException), ctx, organizationID, ledgerID, exceptionID)
 }
 
 // GetBalancesByKeys mocks base method.
@@ -409,6 +409,20 @@ func (m *MockRedisRepository) SetNX(ctx context.Context, key, value string, ttl 
 func (mr *MockRedisRepositoryMockRecorder) SetNX(ctx, key, value, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockRedisRepository)(nil).SetNX), ctx, key, value, ttl)
+}
+
+// UpdateBalanceCacheAllowFlags mocks base method.
+func (m *MockRedisRepository) UpdateBalanceCacheAllowFlags(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, allowSending, allowReceiving *bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateBalanceCacheAllowFlags", ctx, organizationID, ledgerID, cacheKey, allowSending, allowReceiving)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateBalanceCacheAllowFlags indicates an expected call of UpdateBalanceCacheAllowFlags.
+func (mr *MockRedisRepositoryMockRecorder) UpdateBalanceCacheAllowFlags(ctx, organizationID, ledgerID, cacheKey, allowSending, allowReceiving any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBalanceCacheAllowFlags", reflect.TypeOf((*MockRedisRepository)(nil).UpdateBalanceCacheAllowFlags), ctx, organizationID, ledgerID, cacheKey, allowSending, allowReceiving)
 }
 
 // UpdateBalanceCacheBlocked mocks base method.

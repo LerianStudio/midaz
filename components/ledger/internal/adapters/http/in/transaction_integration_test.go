@@ -103,7 +103,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
 
 	// Create repositories
-	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
+	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn, false)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn, false)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
@@ -701,7 +701,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	// Create repositories
-	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn)
+	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn, false)
 	operationRepo := operation.NewOperationPostgreSQLRepository(infra.pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(infra.pgConn, false)
 	ledgerRepo := ledger.NewLedgerPostgreSQLRepository(infra.pgConn)
