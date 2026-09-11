@@ -41,6 +41,10 @@ type recoveryProtectionAcknowledger interface {
 	CompareAndDeleteRecoveryWithProtectionFrom(context.Context, txRedis.RecoveryQueueSource, uuid.UUID, uuid.UUID, string, string, bool, time.Time) (int64, error)
 }
 
+type recoveryRecordReader interface {
+	ReadRecoveryMessage(context.Context, txRedis.RecoveryQueueSource, string) (string, error)
+}
+
 type recoveryCleanupOwner interface {
 	CleanupEngineRecovery(context.Context, time.Time, int) (txRedis.RecoveryCleanupResult, error)
 }
@@ -293,6 +297,95 @@ func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.R
 		outcome = recoveryMetricOutcomeInvalidAck
 		return errors.New("invalid conditional recovery acknowledgment result")
 	}
+}
+
+// AcknowledgeEngineRecovery removes the exact engine recovery record after the
+// normal request path has completed its durable projections. Missing records
+// are already acknowledged; changed records are retained for inspection and
+// asynchronous recovery.
+func (r *recoveryRecordCompleter) AcknowledgeEngineRecovery(
+	ctx context.Context,
+	envelope *command.TransactionCompletionRecord,
+	completion command.TransactionCompletionResult,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if envelope == nil {
+		return errors.New("engine recovery acknowledgment requires a completion record")
+	}
+
+	reader, ok := r.queue.(recoveryRecordReader)
+	if !ok {
+		return errors.New("engine recovery acknowledgment is not configured")
+	}
+
+	if _, ok := r.queue.(recoveryProtectionAcknowledger); !ok {
+		return errors.New("protected engine recovery acknowledgment is not configured")
+	}
+
+	field := envelope.TransactionID.String() + ":" + envelope.ExecutionID.String()
+	raw, err := reader.ReadRecoveryMessage(ctx, txRedis.RecoveryQueueSourceEngineRecover, field)
+	if err != nil {
+		return fmt.Errorf("read engine recovery record: %w", err)
+	}
+
+	if raw == "" {
+		return nil
+	}
+
+	stored, err := command.DecodeTransactionCompletionRecord([]byte(raw))
+	if err != nil {
+		return fmt.Errorf("decode engine recovery record: %w", err)
+	}
+
+	if err := sameRecoveryCompletionRecord(envelope, stored); err != nil {
+		return err
+	}
+
+	status, _, err := r.acknowledgeCompletion(
+		ctx,
+		txRedis.RecoveryQueueSourceEngineRecover,
+		field,
+		raw,
+		envelope,
+		completion,
+	)
+	if err != nil {
+		return fmt.Errorf("acknowledge engine recovery record: %w", err)
+	}
+
+	switch status {
+	case txRedis.RecoveryAckMissing, txRedis.RecoveryAckDeleted:
+		return nil
+	case txRedis.RecoveryAckReplaced:
+		return errors.New("engine recovery record changed before acknowledgment; replacement retained")
+	default:
+		return errors.New("invalid engine recovery acknowledgment result")
+	}
+}
+
+func sameRecoveryCompletionRecord(expected, actual *command.TransactionCompletionRecord) error {
+	if expected == nil || actual == nil {
+		return errors.New("engine recovery record does not match completed execution")
+	}
+
+	expectedRaw, err := command.EncodeTransactionCompletionRecord(*expected)
+	if err != nil {
+		return fmt.Errorf("encode completed engine record: %w", err)
+	}
+
+	actualRaw, err := command.EncodeTransactionCompletionRecord(*actual)
+	if err != nil {
+		return fmt.Errorf("encode stored engine recovery record: %w", err)
+	}
+
+	if !bytes.Equal(expectedRaw, actualRaw) {
+		return errors.New("engine recovery record does not match completed execution")
+	}
+
+	return nil
 }
 
 func supportsRecoveryAcknowledgment(queue txRedis.RedisRepository, source txRedis.RecoveryQueueSource) bool {

@@ -277,6 +277,46 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 	mongoConnection := mongotestutil.CreateConnection(t, mongoContainer.URI, mongoContainer.DBName)
 	metadata := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
+	t.Run("synchronous completion acknowledges exact protected record", func(t *testing.T) {
+		input := recoveryEngineExecution(t)
+		result, err := adapter.Execute(ctx, input)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		field := input.Execution.Transactions[0].ID.String() + ":" + input.Execution.ExecutionID.String()
+		raw, err := queue.ReadRecoveryMessage(ctx, txredis.RecoveryQueueSourceEngineRecover, field)
+		require.NoError(t, err)
+		require.NotEmpty(t, raw)
+		envelope, err := command.DecodeTransactionCompletionRecord([]byte(raw))
+		require.NoError(t, err)
+		payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
+		require.NoError(t, err)
+		rows, err := command.BuildOperationRecordsFromMovements(*payload, *result)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+
+		recoverKey, _ := recoveryEngineKeys(t, client, field, raw, input.Execution.Balances[0].ID)
+		financialState := captureRecoveryEngineFinancialState(t, client, recoverKey)
+		finalizer := command.NewTransactionCompletionService(store, metadata)
+		completionResult, err := finalizer.Complete(ctx, envelope)
+		require.NoError(t, err)
+
+		completedAt := time.Date(2026, time.September, 11, 15, 30, 0, 0, time.UTC)
+		coordinator := &recoveryRecordCompleter{queue: queue, clock: func() time.Time { return completedAt }}
+		require.NoError(t, coordinator.AcknowledgeEngineRecovery(ctx, envelope, completionResult))
+
+		remaining, err := queue.ReadRecoveryMessage(ctx, txredis.RecoveryQueueSourceEngineRecover, field)
+		require.NoError(t, err)
+		require.Empty(t, remaining)
+		assertRecoveryEngineSQL(t, pg.DB, payload, rows[0])
+		require.Equal(t, financialState, captureRecoveryEngineFinancialState(t, client, recoverKey), "acknowledgment must not mutate live balances or their sync schedule")
+
+		scope := input.Execution.OrganizationID.String() + ":" + input.Execution.LedgerID.String()
+		require.True(t, client.HExists(ctx, "engine:"+cachepolicy.HashTag+":receipts:"+scope, input.Execution.ExecutionID.String()).Val())
+		require.True(t, client.HExists(ctx, "engine:"+cachepolicy.HashTag+":guards:"+scope, input.Execution.Transactions[0].ID.String()).Val())
+		require.True(t, client.HExists(ctx, "engine:"+cachepolicy.HashTag+":protection:"+scope, input.Execution.Transactions[0].ID.String()).Val())
+	})
+
 	for _, metadataFailure := range []bool{false, true} {
 		name := "crash before finalization"
 		if metadataFailure {

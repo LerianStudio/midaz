@@ -142,6 +142,12 @@ type UseCase struct {
 	// applied engine result. It is required when Engine is set.
 	AppliedTransactionCompleter AppliedTransactionCompleter
 
+	// EngineRecoveryAcknowledger removes the exact recovery record after
+	// AppliedTransactionCompleter confirms durable SQL and MongoDB projections.
+	// Failures are non-fatal because the asynchronous recovery consumer owns the
+	// fallback retry.
+	EngineRecoveryAcknowledger EngineRecoveryAcknowledger
+
 	// FeeApplier drives the in-process fee engine inside the create seam. It is
 	// injected at bootstrap from the fee use case; a nil applier disables fee
 	// application (the create path stays unchanged).

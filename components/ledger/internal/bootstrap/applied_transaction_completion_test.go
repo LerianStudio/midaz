@@ -23,6 +23,7 @@ func TestConfigureAppliedTransactionCompletionSharesTenantAwareCompleter(t *test
 	completer, ok := consumer.appliedTransactionCompleter.(*tenantAppliedTransactionCompleter)
 	require.True(t, ok)
 	assert.Same(t, completer, uc.AppliedTransactionCompleter)
+	assert.IsType(t, &recoveryRecordCompleter{}, uc.EngineRecoveryAcknowledger)
 	assert.Same(t, resolver, completer.mongoResolver)
 	assert.True(t, completer.multiTenantEnabled)
 	assert.IsType(t, &command.TransactionCompletionService{}, completer.delegate)

@@ -251,10 +251,12 @@ type recordingRedisClient struct {
 	hgetAllCalls []string
 	// getReturnVal overrides the default "test-value" returned by Get/GetBytes.
 	// Set this when the test requires a specific string (e.g. valid JSON for ListBalanceByKey).
-	getReturnVal string
-	getErr       error
-	mgetValues   map[string]any
-	mgetErr      error
+	getReturnVal  string
+	getErr        error
+	hgetReturnVal string
+	hgetErr       error
+	mgetValues    map[string]any
+	mgetErr       error
 	redis.UniversalClient
 }
 
@@ -373,7 +375,16 @@ func (r *recordingRedisClient) HGet(ctx context.Context, key, field string) *red
 	r.hgetCalls = append(r.hgetCalls, recordedHGetCall{Key: key, Field: field})
 
 	cmd := redis.NewStringCmd(ctx)
-	cmd.SetVal("test-queue-data")
+	if r.hgetErr != nil {
+		cmd.SetErr(r.hgetErr)
+		return cmd
+	}
+
+	value := r.hgetReturnVal
+	if value == "" {
+		value = "test-queue-data"
+	}
+	cmd.SetVal(value)
 
 	return cmd
 }
@@ -412,6 +423,30 @@ func newRecordingConnection(t *testing.T) (*testClientProvider, *recordingRedisC
 	client := &recordingRedisClient{t: t}
 
 	return &testClientProvider{client: client}, client
+}
+
+func TestReadRecoveryMessageReadsOneTenantScopedEngineRecord(t *testing.T) {
+	const field = "11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222"
+	ctx := tmcore.ContextWithTenantID(t.Context(), "tenant-recovery-reader")
+	provider, client := newRecordingConnection(t)
+	client.hgetReturnVal = `{"formatVersion":2}`
+	repo := &RedisConsumerRepository{conn: provider}
+
+	raw, err := repo.ReadRecoveryMessage(ctx, RecoveryQueueSourceEngineRecover, field)
+
+	require.NoError(t, err)
+	assert.Equal(t, client.hgetReturnVal, raw)
+	require.Len(t, client.hgetCalls, 1)
+	queueKey, err := recoveryQueueKey(RecoveryQueueSourceEngineRecover)
+	require.NoError(t, err)
+	expectedKey, err := tenantKeyFromContextOrError(ctx, queueKey)
+	require.NoError(t, err)
+	assert.Equal(t, recordedHGetCall{Key: expectedKey, Field: field}, client.hgetCalls[0])
+
+	client.hgetErr = redis.Nil
+	raw, err = repo.ReadRecoveryMessage(ctx, RecoveryQueueSourceEngineRecover, field)
+	require.NoError(t, err)
+	assert.Empty(t, raw)
 }
 
 func TestListBalanceByKeyMapsOverdraftUsed(t *testing.T) {

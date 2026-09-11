@@ -122,7 +122,7 @@ func (uc *UseCase) transitionPendingWithEngine(
 		}
 	}
 
-	return uc.finalizePendingEngineResult(ctx, run.status, outcome)
+	return uc.finalizePendingEngineResult(ctx, logger, run.status, outcome)
 }
 
 func (uc *UseCase) preparePendingEngineTransition(ctx context.Context, run *pendingTransitionRun) (pendingEngineTransition, error) {
@@ -380,7 +380,7 @@ func buildPendingEngineExecution(
 	return PreparedEngineExecution{Execution: execution, CompletionPlan: payload}, nil
 }
 
-func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, expectedStatus string, outcome EngineExecutionOutcome) (*transaction.Transaction, error) {
+func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, logger libLog.Logger, expectedStatus string, outcome EngineExecutionOutcome) (*transaction.Transaction, error) {
 	envelope, err := createEngineEnvelope(outcome)
 	if err != nil {
 		return nil, err
@@ -399,6 +399,8 @@ func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, expectedStat
 	if tran == nil {
 		return nil, invalidTransactionCompletionRecord("pending completer returned no materialized transaction")
 	}
+
+	uc.acknowledgeEngineRecovery(ctx, logger, envelope, completion)
 
 	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
 	uc.sendLogTransactionAuditQueueAsync(tenantCtx, tran.Operations, envelope.OrganizationID, envelope.LedgerID, envelope.TransactionID)

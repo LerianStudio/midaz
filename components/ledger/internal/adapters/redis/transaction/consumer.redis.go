@@ -1662,6 +1662,51 @@ func (rr *RedisConsumerRepository) ReadAllRecoveryMessages(ctx context.Context, 
 	return data, nil
 }
 
+// ReadRecoveryMessage reads the exact raw recovery envelope from one closed
+// origin. A missing field returns an empty string without an error so an
+// acknowledgment that raced with another owner remains idempotent.
+func (rr *RedisConsumerRepository) ReadRecoveryMessage(ctx context.Context, source RecoveryQueueSource, field string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.read_recovery_message")
+	defer span.End()
+
+	queueKey, err := recoveryQueueKey(source)
+	if err != nil {
+		return "", err
+	}
+
+	if _, _, err := recoveryAcknowledgmentIDs(field); err != nil {
+		return "", err
+	}
+
+	prefixedQueue, err := tenantKeyFromContextOrError(ctx, queueKey)
+	if err != nil {
+		return "", err
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return "", fmt.Errorf("get recovery message client: %w", err)
+	}
+
+	raw, err := client.HGet(ctx, prefixedQueue, field).Result()
+	if errors.Is(err, redis.Nil) {
+		return "", nil
+	}
+
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to read recovery message", err)
+		return "", fmt.Errorf("read recovery message: %w", err)
+	}
+
+	return raw, nil
+}
+
 // RemoveMessageFromQueue remove message from redis queue
 func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, key string) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -1718,16 +1763,12 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryFrom(ctx context.Cont
 	ctx, span := tracer.Start(ctx, "redis.compare_delete_recovery")
 	defer span.End()
 
-	transactionID, executionID, ok := strings.Cut(field, ":")
-	if !ok || expectedPayload == "" {
+	if expectedPayload == "" {
 		return 0, fmt.Errorf("invalid recovery acknowledgement identity or payload")
 	}
 
-	for _, raw := range []string{transactionID, executionID} {
-		id, err := uuid.Parse(raw)
-		if err != nil || id == uuid.Nil || id.String() != raw {
-			return 0, fmt.Errorf("invalid canonical recovery acknowledgement identity")
-		}
+	if _, _, err := recoveryAcknowledgmentIDs(field); err != nil {
+		return 0, err
 	}
 
 	queueKey, err := recoveryQueueKey(source)
@@ -1771,6 +1812,22 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryFrom(ctx context.Cont
 	}
 
 	return result, nil
+}
+
+func recoveryAcknowledgmentIDs(field string) (uuid.UUID, uuid.UUID, error) {
+	transactionRaw, executionRaw, ok := strings.Cut(field, ":")
+	if !ok {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("invalid recovery acknowledgement identity")
+	}
+
+	transactionID, transactionErr := uuid.Parse(transactionRaw)
+	executionID, executionErr := uuid.Parse(executionRaw)
+	if transactionErr != nil || executionErr != nil || transactionID == uuid.Nil || executionID == uuid.Nil ||
+		transactionID.String() != transactionRaw || executionID.String() != executionRaw {
+		return uuid.Nil, uuid.Nil, fmt.Errorf("invalid canonical recovery acknowledgement identity")
+	}
+
+	return transactionID, executionID, nil
 }
 
 // CompareAndDeleteRecoveryWithProtection acknowledges a durably finalized

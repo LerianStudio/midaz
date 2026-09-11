@@ -33,6 +33,7 @@ func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase
 	}
 	useCase.AppliedTransactionCompleter = completer
 	consumer.WithAppliedTransactionCompleter(completer)
+	useCase.EngineRecoveryAcknowledger = consumer.newRecoveryRecordCompleter()
 
 	return nil
 }

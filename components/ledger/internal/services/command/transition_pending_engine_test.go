@@ -189,6 +189,7 @@ func TestPendingTransitionUsesOptInEngineAfterSQLConfirmation(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, test.status)
+			acknowledger := uc.EngineRecoveryAcknowledger.(*recordingEngineRecoveryAcknowledger)
 			reader.settings.Tracer.Mode = mmodel.TracerModeEnforce
 			reserver := &stubReserver{}
 			uc.TracerReserver = reserver
@@ -207,6 +208,8 @@ func TestPendingTransitionUsesOptInEngineAfterSQLConfirmation(t *testing.T) {
 			require.Len(t, executor.requests, 1)
 			assert.Equal(t, ExecutionGuard{TransactionID: in.TransactionID, ExpectedToken: constant.PENDING, NextToken: test.status}, executor.requests[0].Guards[0])
 			require.Len(t, finalizer.envelopes, 1)
+			require.Len(t, acknowledger.completions, 1)
+			assert.Equal(t, test.status, acknowledger.completions[0].Outcome.TransactionStatus)
 			payload := mustCreateEnginePayload(t, finalizer.envelopes[0])
 			assert.Equal(t, fixedPendingCreatedAt, payload.TransactionCreatedAt)
 			assert.Equal(t, "tenant-transition", payload.TenantID)
@@ -449,6 +452,7 @@ func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, 
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
 		Engine: executor, AppliedTransactionCompleter: finalizer,
+		EngineRecoveryAcknowledger: &recordingEngineRecoveryAcknowledger{},
 	}
 	return uc, reader, executor, finalizer, PendingTransitionInput{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
 }

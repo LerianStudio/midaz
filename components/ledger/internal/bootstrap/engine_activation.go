@@ -21,6 +21,10 @@ func configureEngine(useCase *command.UseCase, provider redisengine.RedisClientP
 		return errors.New("engine configuration requires an applied transaction completer")
 	}
 
+	if useCase.EngineRecoveryAcknowledger == nil {
+		return errors.New("engine configuration requires a recovery acknowledger")
+	}
+
 	adapter, err := redisengine.NewAdapter(provider)
 	if err != nil {
 		return fmt.Errorf("initialize engine adapter: %w", err)

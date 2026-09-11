@@ -131,10 +131,10 @@ func (uc *UseCase) executeCreateEngine(
 		uc.confirmReservations(ctx, span, logger, reservation.Handle)
 	}
 
-	return uc.finalizeCreateEngineResult(ctx, run, outcome)
+	return uc.finalizeCreateEngineResult(ctx, logger, run, outcome)
 }
 
-func (uc *UseCase) finalizeCreateEngineResult(ctx context.Context, run *createTransactionRun, outcome EngineExecutionOutcome) (*transaction.Transaction, error) {
+func (uc *UseCase) finalizeCreateEngineResult(ctx context.Context, logger libLog.Logger, run *createTransactionRun, outcome EngineExecutionOutcome) (*transaction.Transaction, error) {
 	envelope, err := createEngineEnvelope(outcome)
 	if err != nil {
 		return nil, err
@@ -158,6 +158,8 @@ func (uc *UseCase) finalizeCreateEngineResult(ctx context.Context, run *createTr
 	if tran == nil {
 		return nil, invalidTransactionCompletionRecord("create completer returned no materialized transaction")
 	}
+
+	uc.acknowledgeEngineRecovery(ctx, logger, envelope, completion)
 
 	if run.status == constant.CREATED {
 		created := constant.CREATED

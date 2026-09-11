@@ -128,11 +128,13 @@ func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T)
 	}
 	executor := &revertLiteralEngine{t: t}
 	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
+	acknowledger := &recordingEngineRecoveryAcknowledger{}
 	reservationID := uuid.MustParse("66666666-6666-4666-8666-666666666666")
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
 		Engine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
+		EngineRecoveryAcknowledger: acknowledger,
 	}
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-revert")
 	ctx = libObservability.ContextWithHeaderID(ctx, "revert-request")
@@ -157,6 +159,8 @@ func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T)
 	assert.GreaterOrEqual(t, reader.reads, 2)
 
 	require.Len(t, finalizer.envelopes, 1)
+	require.Len(t, acknowledger.records, 1)
+	assert.Same(t, finalizer.envelopes[0], acknowledger.records[0])
 	payload := mustCreateEnginePayload(t, finalizer.envelopes[0])
 	require.NotNil(t, payload.ParentTransactionID)
 	assert.Equal(t, originID, *payload.ParentTransactionID)

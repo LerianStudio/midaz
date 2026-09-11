@@ -28,8 +28,17 @@ func (*appliedTransactionCompleterStub) Complete(context.Context, *command.Trans
 	return command.TransactionCompletionResult{}, nil
 }
 
+type engineRecoveryAcknowledgerStub struct{}
+
+func (*engineRecoveryAcknowledgerStub) AcknowledgeEngineRecovery(context.Context, *command.TransactionCompletionRecord, command.TransactionCompletionResult) error {
+	return nil
+}
+
 func TestConfigureEngineWiresDefaultAdapter(t *testing.T) {
-	useCase := &command.UseCase{AppliedTransactionCompleter: &appliedTransactionCompleterStub{}}
+	useCase := &command.UseCase{
+		AppliedTransactionCompleter: &appliedTransactionCompleterStub{},
+		EngineRecoveryAcknowledger:  &engineRecoveryAcknowledgerStub{},
+	}
 
 	require.NoError(t, configureEngine(useCase, &engineProviderStub{}))
 	assert.IsType(t, &redisengine.Adapter{}, useCase.Engine)
@@ -41,6 +50,12 @@ func TestConfigureEngineRequiresAppliedTransactionCompleter(t *testing.T) {
 	assert.Contains(t, err.Error(), "applied transaction completer")
 }
 
+func TestConfigureEngineRequiresRecoveryAcknowledger(t *testing.T) {
+	err := configureEngine(&command.UseCase{AppliedTransactionCompleter: &appliedTransactionCompleterStub{}}, &engineProviderStub{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "recovery acknowledger")
+}
+
 func TestConfigureEngineRequiresCommandOwner(t *testing.T) {
 	err := configureEngine(nil, &engineProviderStub{})
 	require.Error(t, err)
@@ -48,7 +63,10 @@ func TestConfigureEngineRequiresCommandOwner(t *testing.T) {
 }
 
 func TestConfigureEngineRequiresProvider(t *testing.T) {
-	useCase := &command.UseCase{AppliedTransactionCompleter: &appliedTransactionCompleterStub{}}
+	useCase := &command.UseCase{
+		AppliedTransactionCompleter: &appliedTransactionCompleterStub{},
+		EngineRecoveryAcknowledger:  &engineRecoveryAcknowledgerStub{},
+	}
 
 	err := configureEngine(useCase, nil)
 	require.Error(t, err)

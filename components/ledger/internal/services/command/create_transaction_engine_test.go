@@ -66,6 +66,23 @@ type createAppliedTransactionCompleter struct {
 	envelopes []*TransactionCompletionRecord
 }
 
+type recordingEngineRecoveryAcknowledger struct {
+	records     []*TransactionCompletionRecord
+	completions []TransactionCompletionResult
+	err         error
+}
+
+func (acknowledger *recordingEngineRecoveryAcknowledger) AcknowledgeEngineRecovery(
+	_ context.Context,
+	record *TransactionCompletionRecord,
+	completion TransactionCompletionResult,
+) error {
+	acknowledger.records = append(acknowledger.records, record)
+	acknowledger.completions = append(acknowledger.completions, completion)
+
+	return acknowledger.err
+}
+
 func (finalizer *createAppliedTransactionCompleter) Complete(_ context.Context, envelope *TransactionCompletionRecord) (TransactionCompletionResult, error) {
 	finalizer.envelopes = append(finalizer.envelopes, envelope)
 	if finalizer.err != nil {
@@ -195,11 +212,13 @@ func TestCreateTransactionV1UsesOptInEngineWithoutLegacyMutationPorts(t *testing
 	reader := &createEngineReader{balances: []*mmodel.Balance{source, target}}
 	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
 	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
+	acknowledger := &recordingEngineRecoveryAcknowledger{}
 	uc := &UseCase{
 		TransactionRedisRepo:        redisRepo,
 		TransactionReader:           reader,
 		Engine:                      executor,
 		AppliedTransactionCompleter: finalizer,
+		EngineRecoveryAcknowledger:  acknowledger,
 	}
 
 	transactionDate := time.Date(2026, time.September, 8, 12, 30, 0, 0, time.UTC)
@@ -219,6 +238,9 @@ func TestCreateTransactionV1UsesOptInEngineWithoutLegacyMutationPorts(t *testing
 	assert.Len(t, got.Operations, 2)
 	require.Len(t, executor.requests, 1)
 	require.Len(t, finalizer.envelopes, 1)
+	require.Len(t, acknowledger.records, 1)
+	assert.Same(t, finalizer.envelopes[0], acknowledger.records[0])
+	assert.Equal(t, constant.APPROVED, acknowledger.completions[0].Outcome.TransactionStatus)
 	assert.Equal(t, "tenant-a", finalizer.envelopes[0].TenantID)
 	payload := mustCreateEnginePayload(t, finalizer.envelopes[0])
 	assert.Equal(t, "request-a", payload.HeaderID)
@@ -320,11 +342,13 @@ func TestCreateTransactionEnginePendingRetainsBodyAndDefersTracerConfirm(t *test
 	}}
 	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
 	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.PENDING}}
+	acknowledger := &recordingEngineRecoveryAcknowledger{}
 	reservationID := uuid.MustParse("90909090-9090-4090-8090-909090909090")
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
 		Engine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
+		EngineRecoveryAcknowledger: acknowledger,
 	}
 
 	transactionDate := time.Date(2026, time.September, 8, 15, 0, 0, 0, time.UTC)
@@ -346,6 +370,8 @@ func TestCreateTransactionEnginePendingRetainsBodyAndDefersTracerConfirm(t *test
 	assert.Empty(t, reserver.confirmedIDs)
 	assert.Empty(t, reserver.releasedIDs)
 	require.Len(t, executor.requests, 1)
+	require.Len(t, acknowledger.completions, 1)
+	assert.Equal(t, constant.PENDING, acknowledger.completions[0].Outcome.TransactionStatus)
 	assert.Equal(t, ExecutionGuard{
 		TransactionID: executor.requests[0].Execution.Transactions[0].ID,
 		ExpectedToken: "", NextToken: constant.PENDING,
@@ -405,9 +431,11 @@ func TestCreateTransactionEngineFailureCleanupBoundary(t *testing.T) {
 			finalizer := &createAppliedTransactionCompleter{
 				outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}, err: test.finalizeErr,
 			}
+			acknowledger := &recordingEngineRecoveryAcknowledger{}
 			uc := &UseCase{
 				TransactionRedisRepo: redisRepo, TransactionReader: reader,
 				Engine: test.executor(), AppliedTransactionCompleter: finalizer,
+				EngineRecoveryAcknowledger: acknowledger,
 			}
 			transactionDate := time.Date(2026, time.September, 8, 14, 15, 0, 0, time.UTC)
 
@@ -427,7 +455,57 @@ func TestCreateTransactionEngineFailureCleanupBoundary(t *testing.T) {
 			} else {
 				assert.Empty(t, finalizer.envelopes)
 			}
+			assert.Empty(t, acknowledger.records)
 		})
+	}
+}
+
+func TestCreateTransactionEngineRecoveryAcknowledgmentFailureIsNonFatal(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	idempotencySet := make(chan struct{})
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil)
+	redisRepo.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
+		func(context.Context, string, string, time.Duration) error {
+			close(idempotencySet)
+			return nil
+		},
+	)
+
+	organizationID := uuid.MustParse("81111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("82222222-2222-4222-8222-222222222222")
+	reader := &createEngineReader{balances: []*mmodel.Balance{
+		translationBalance(organizationID, ledgerID, "83333333-3333-4333-8333-333333333333", "@source", constant.DefaultBalanceKey),
+		translationBalance(organizationID, ledgerID, "84444444-4444-4444-8444-444444444444", "@target", constant.DefaultBalanceKey),
+	}}
+	acknowledger := &recordingEngineRecoveryAcknowledger{err: errors.New("redis unavailable")}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo, TransactionReader: reader,
+		Engine: &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}},
+		AppliedTransactionCompleter: &createAppliedTransactionCompleter{
+			outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
+		},
+		EngineRecoveryAcknowledger: acknowledger,
+	}
+
+	got, replayed, err := uc.CreateTransactionV1(
+		tmcore.ContextWithTenantID(context.Background(), "tenant-ack-failure"),
+		CreateTransactionV1Input{
+			OrganizationID: organizationID, LedgerID: ledgerID,
+			Transaction:       createEngineTransaction(time.Date(2026, time.September, 11, 12, 0, 0, 0, time.UTC)),
+			TransactionStatus: constant.CREATED, IdempotencyTTL: time.Minute,
+		},
+	)
+
+	require.NoError(t, err)
+	assert.False(t, replayed)
+	require.NotNil(t, got)
+	require.Len(t, acknowledger.records, 1)
+	select {
+	case <-idempotencySet:
+	case <-time.After(time.Second):
+		t.Fatal("durable success did not populate the idempotency value")
 	}
 }
 

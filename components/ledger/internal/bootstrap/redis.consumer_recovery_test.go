@@ -226,6 +226,129 @@ type originRecoveryQueueStub struct {
 	ackSources       []txRedis.RecoveryQueueSource
 }
 
+type synchronousRecoveryQueueStub struct {
+	txRedis.RedisRepository
+	raw                     string
+	readErr, acknowledgeErr error
+	status                  int64
+	readSource, ackSource   txRedis.RecoveryQueueSource
+	readField, ackField     string
+	expectedPayload         string
+	organizationID          uuid.UUID
+	ledgerID                uuid.UUID
+	terminal                bool
+	completedAt             time.Time
+	acknowledgments         int
+}
+
+func (q *synchronousRecoveryQueueStub) ReadRecoveryMessage(_ context.Context, source txRedis.RecoveryQueueSource, field string) (string, error) {
+	q.readSource, q.readField = source, field
+	return q.raw, q.readErr
+}
+
+func (q *synchronousRecoveryQueueStub) CompareAndDeleteRecoveryWithProtectionFrom(
+	_ context.Context,
+	source txRedis.RecoveryQueueSource,
+	organizationID, ledgerID uuid.UUID,
+	field, expectedPayload string,
+	terminal bool,
+	completedAt time.Time,
+) (int64, error) {
+	q.acknowledgments++
+	q.ackSource, q.organizationID, q.ledgerID = source, organizationID, ledgerID
+	q.ackField, q.expectedPayload = field, expectedPayload
+	q.terminal, q.completedAt = terminal, completedAt
+
+	return q.status, q.acknowledgeErr
+}
+
+func TestAcknowledgeEngineRecoveryUsesExactProtectedRecord(t *testing.T) {
+	field, raw, envelope := consumerRecoveryFixture(t)
+	completedAt := time.Date(2026, time.September, 11, 15, 30, 0, 0, time.UTC)
+
+	for _, test := range []struct {
+		status   string
+		terminal bool
+	}{
+		{status: constant.APPROVED, terminal: true},
+		{status: constant.CANCELED, terminal: true},
+		{status: constant.PENDING, terminal: false},
+	} {
+		t.Run(test.status, func(t *testing.T) {
+			queue := &synchronousRecoveryQueueStub{raw: raw, status: txRedis.RecoveryAckDeleted}
+			coordinator := &recoveryRecordCompleter{queue: queue, clock: func() time.Time { return completedAt }}
+
+			err := coordinator.AcknowledgeEngineRecovery(t.Context(), envelope, command.TransactionCompletionResult{
+				Outcome: command.TransactionPersistenceOutcome{TransactionStatus: test.status},
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, 1, queue.acknowledgments)
+			require.Equal(t, txRedis.RecoveryQueueSourceEngineRecover, queue.readSource)
+			require.Equal(t, txRedis.RecoveryQueueSourceEngineRecover, queue.ackSource)
+			require.Equal(t, field, queue.readField)
+			require.Equal(t, field, queue.ackField)
+			require.Equal(t, raw, queue.expectedPayload)
+			require.Equal(t, envelope.OrganizationID, queue.organizationID)
+			require.Equal(t, envelope.LedgerID, queue.ledgerID)
+			require.Equal(t, test.terminal, queue.terminal)
+			require.Equal(t, completedAt, queue.completedAt)
+		})
+	}
+}
+
+func TestAcknowledgeEngineRecoveryRetainsUncertainRecords(t *testing.T) {
+	_, raw, envelope := consumerRecoveryFixture(t)
+	completedAt := time.Date(2026, time.September, 11, 15, 30, 0, 0, time.UTC)
+
+	t.Run("missing is already acknowledged", func(t *testing.T) {
+		queue := &synchronousRecoveryQueueStub{status: txRedis.RecoveryAckDeleted}
+		coordinator := &recoveryRecordCompleter{queue: queue, clock: func() time.Time { return completedAt }}
+		require.NoError(t, coordinator.AcknowledgeEngineRecovery(t.Context(), envelope, command.TransactionCompletionResult{
+			Outcome: command.TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
+		}))
+		require.Zero(t, queue.acknowledgments)
+	})
+
+	t.Run("replacement is retained", func(t *testing.T) {
+		queue := &synchronousRecoveryQueueStub{raw: raw, status: txRedis.RecoveryAckReplaced}
+		coordinator := &recoveryRecordCompleter{queue: queue, clock: func() time.Time { return completedAt }}
+		err := coordinator.AcknowledgeEngineRecovery(t.Context(), envelope, command.TransactionCompletionResult{
+			Outcome: command.TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
+		})
+		require.ErrorContains(t, err, "replacement retained")
+	})
+
+	t.Run("different envelope is retained", func(t *testing.T) {
+		replacement := *envelope
+		payload, err := command.DecodeTransactionCompletionPlan([]byte(replacement.Payload))
+		require.NoError(t, err)
+		payload.HeaderID = "different-request"
+		payloadRaw, err := command.EncodeTransactionCompletionPlan(*payload)
+		require.NoError(t, err)
+		replacement.Payload = string(payloadRaw)
+		replacementRaw, err := command.EncodeTransactionCompletionRecord(replacement)
+		require.NoError(t, err)
+		queue := &synchronousRecoveryQueueStub{raw: string(replacementRaw), status: txRedis.RecoveryAckDeleted}
+		coordinator := &recoveryRecordCompleter{queue: queue, clock: func() time.Time { return completedAt }}
+		err = coordinator.AcknowledgeEngineRecovery(t.Context(), envelope, command.TransactionCompletionResult{
+			Outcome: command.TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
+		})
+		require.ErrorContains(t, err, "does not match")
+		require.Zero(t, queue.acknowledgments)
+	})
+
+	t.Run("unsupported durable status is retained", func(t *testing.T) {
+		queue := &synchronousRecoveryQueueStub{raw: raw, status: txRedis.RecoveryAckDeleted}
+		coordinator := &recoveryRecordCompleter{queue: queue, clock: func() time.Time { return completedAt }}
+		err := coordinator.AcknowledgeEngineRecovery(t.Context(), envelope, command.TransactionCompletionResult{
+			Outcome: command.TransactionPersistenceOutcome{TransactionStatus: "CREATED"},
+		})
+		require.ErrorContains(t, err, "unsupported status")
+		require.Zero(t, queue.acknowledgments)
+	})
+}
+
 func (q *originRecoveryQueueStub) ReadAllRecoveryMessages(_ context.Context, source txRedis.RecoveryQueueSource) (map[string]string, error) {
 	q.reads = append(q.reads, source)
 	if err := q.readErrBySource[source]; err != nil {
