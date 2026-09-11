@@ -8,6 +8,8 @@ Related operational references:
   defines safe drain/inventory evidence for both recovery generations.
 - [`engine-report.md`](../performance/engine-report.md) records the bounded local
   performance characterization and its evidence limits.
+- [`type-ownership.md`](type-ownership.md) defines where engine contracts and
+  other service-private types belong.
 
 ## Status and scope
 
