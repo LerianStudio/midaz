@@ -433,6 +433,7 @@ func prepareKeys(balances []accounting.BalanceSnapshot, resolved resolvedExecuti
 	keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection}
 	for _, balance := range balances {
 		pair, exists := resolved.Balances[balance.BalanceRef]
+
 		expectedMarker, validBalanceKey := cachepolicy.DeletionMarkerKey(pair.Balance)
 		if !exists || !validBalanceKey || pair.Deleted != expectedMarker ||
 			pair.LegacyDeleted != pair.Balance+cachepolicy.DeletionMarkerSuffix {

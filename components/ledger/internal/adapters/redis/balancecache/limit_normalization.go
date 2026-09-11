@@ -310,17 +310,26 @@ func snapshotDualField(snapshot accounting.BalanceSnapshot, name string) (json.R
 		return quotedDualField(name, snapshot.OverdraftLimit.String())
 	case "Version":
 		return dualVersionField(json.RawMessage(strconv.FormatInt(snapshot.Version, 10)), true)
-	case "AllowSending":
-		return dualFlagField(name, json.RawMessage(strconv.FormatBool(snapshot.AllowSending)), false)
-	case "AllowReceiving":
-		return dualFlagField(name, json.RawMessage(strconv.FormatBool(snapshot.AllowReceiving)), false)
-	case "Blocked":
-		return dualFlagField(name, json.RawMessage(strconv.FormatBool(snapshot.Blocked)), false)
-	case "AllowOverdraft":
-		return dualFlagField(name, json.RawMessage(strconv.FormatBool(snapshot.AllowOverdraft)), false)
-	case "OverdraftLimitEnabled":
-		return dualFlagField(name, json.RawMessage(strconv.FormatBool(snapshot.OverdraftLimitEnabled)), false)
+	case "AllowSending", "AllowReceiving", "Blocked", "AllowOverdraft", "OverdraftLimitEnabled":
+		return dualFlagField(name, json.RawMessage(strconv.FormatBool(snapshotFlagValue(snapshot, name))), false)
 	default:
 		return nil, nil, fmt.Errorf("unknown cached balance field %s", name)
+	}
+}
+
+func snapshotFlagValue(snapshot accounting.BalanceSnapshot, name string) bool {
+	switch name {
+	case "AllowSending":
+		return snapshot.AllowSending
+	case "AllowReceiving":
+		return snapshot.AllowReceiving
+	case "Blocked":
+		return snapshot.Blocked
+	case "AllowOverdraft":
+		return snapshot.AllowOverdraft
+	case "OverdraftLimitEnabled":
+		return snapshot.OverdraftLimitEnabled
+	default:
+		return false
 	}
 }

@@ -503,16 +503,7 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 
 	run.validate = validate
 
-	run.fromTo = append(run.fromTo, mtransaction.MutateConcatAliases(run.input.Send.Source.From)...)
-	to := mtransaction.MutateConcatAliases(run.input.Send.Distribute.To)
-
-	if run.status != constant.PENDING {
-		run.fromTo = append(run.fromTo, to...)
-	}
-
-	if run.ledgerSettings.Accounting.ValidateRoutes {
-		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
-	}
+	prepareRevertV2Aliases(ctx, run)
 
 	// Account-block exception: the /v2 revert accepts a grant, so resolve the
 	// presented identifier before balances are staged. createRevertV1 names this
@@ -582,4 +573,17 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 	}
 
 	return tran, false, nil
+}
+
+func prepareRevertV2Aliases(ctx context.Context, run *createTransactionRun) {
+	run.fromTo = append(run.fromTo, mtransaction.MutateConcatAliases(run.input.Send.Source.From)...)
+	to := mtransaction.MutateConcatAliases(run.input.Send.Distribute.To)
+
+	if run.status != constant.PENDING {
+		run.fromTo = append(run.fromTo, to...)
+	}
+
+	if run.ledgerSettings.Accounting.ValidateRoutes {
+		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
+	}
 }

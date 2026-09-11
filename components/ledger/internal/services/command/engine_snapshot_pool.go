@@ -187,6 +187,12 @@ func validateSnapshotPoolCoverage(explicit, all []balanceSnapshotEntry) error {
 }
 
 func equalEngineSnapshot(left, right accounting.BalanceSnapshot) bool {
+	return equalEngineSnapshotIdentity(left, right) &&
+		equalEngineSnapshotAmounts(left, right) &&
+		equalEngineSnapshotControls(left, right)
+}
+
+func equalEngineSnapshotIdentity(left, right accounting.BalanceSnapshot) bool {
 	return left.BalanceRef == right.BalanceRef &&
 		left.ID == right.ID &&
 		left.AccountID == right.AccountID &&
@@ -195,13 +201,19 @@ func equalEngineSnapshot(left, right accounting.BalanceSnapshot) bool {
 		left.Alias == right.Alias &&
 		left.Key == right.Key &&
 		left.Direction == right.Direction &&
-		left.BalanceScope == right.BalanceScope &&
-		left.Available.Equal(right.Available) &&
+		left.BalanceScope == right.BalanceScope
+}
+
+func equalEngineSnapshotAmounts(left, right accounting.BalanceSnapshot) bool {
+	return left.Available.Equal(right.Available) &&
 		left.OnHold.Equal(right.OnHold) &&
 		left.OverdraftUsed.Equal(right.OverdraftUsed) &&
 		left.OverdraftLimit.Equal(right.OverdraftLimit) &&
-		left.Version == right.Version &&
-		left.AllowSending == right.AllowSending &&
+		left.Version == right.Version
+}
+
+func equalEngineSnapshotControls(left, right accounting.BalanceSnapshot) bool {
+	return left.AllowSending == right.AllowSending &&
 		left.AllowReceiving == right.AllowReceiving &&
 		left.Blocked == right.Blocked &&
 		left.AllowOverdraft == right.AllowOverdraft &&
