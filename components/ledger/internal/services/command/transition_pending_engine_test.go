@@ -70,8 +70,8 @@ func (reader *transitionEngineReader) GetBalances(_ context.Context, _, _ uuid.U
 	return out, nil
 }
 
-func (reader *transitionEngineReader) GetBalanceEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
-	pool, err := LoadBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, reader.GetBalances)
+func (reader *transitionEngineReader) GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	pool, err := LoadEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, reader.GetBalances)
 	return pool.ExplicitBalances, pool.Balances, err
 }
 
@@ -174,7 +174,7 @@ func literalFinalSnapshot(snapshot accounting.BalanceSnapshot, available, onHold
 	return snapshot
 }
 
-func TestPendingTransitionUsesOptInBalanceEngineAfterSQLConfirmation(t *testing.T) {
+func TestPendingTransitionUsesOptInEngineAfterSQLConfirmation(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	for _, test := range []struct {
 		name     string
@@ -280,7 +280,7 @@ func TestPendingCancelUsesPersistedOverdraftCapAndOnlyLoadsSources(t *testing.T)
 
 func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
 	finalizationErr := errors.New("finalization unavailable")
-	indeterminate := testBalanceEngineTechnicalError{code: "transport", indeterminate: true, cause: errors.New("outcome unknown")}
+	indeterminate := testEngineTechnicalError{code: "transport", indeterminate: true, cause: errors.New("outcome unknown")}
 
 	for _, test := range []struct {
 		name        string
@@ -341,7 +341,7 @@ func TestPendingTransitionRejectsTerminalSQLAndResolvesGuardConflict(t *testing.
 	t.Run("guard conflict with pending SQL is locked", func(t *testing.T) {
 		uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
 		executor.before = func(EngineExecution) error {
-			return testBalanceEngineTechnicalError{code: "execution_guard_conflict", cause: errors.New("guard changed")}
+			return testEngineTechnicalError{code: "execution_guard_conflict", cause: errors.New("guard changed")}
 		}
 		uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
@@ -355,7 +355,7 @@ func TestPendingTransitionRejectsTerminalSQLAndResolvesGuardConflict(t *testing.
 		uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
 		executor.before = func(EngineExecution) error {
 			reader.persisted.Status.Code = constant.CANCELED
-			return testBalanceEngineTechnicalError{code: "execution_guard_conflict", cause: errors.New("guard changed")}
+			return testEngineTechnicalError{code: "execution_guard_conflict", cause: errors.New("guard changed")}
 		}
 		uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
@@ -412,7 +412,7 @@ func assertBusinessCode(t *testing.T, err error, code string) {
 	assert.Equal(t, code, conflict.Code)
 }
 
-func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, *transitionEngineReader, *transitionEngineExecutor, *createEngineFinalizer, PendingTransitionInput) {
+func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, *transitionEngineReader, *transitionEngineExecutor, *createAppliedTransactionCompleter, PendingTransitionInput) {
 	t.Helper()
 	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
@@ -442,13 +442,13 @@ func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, 
 		},
 	}
 	executor := &transitionEngineExecutor{t: t}
-	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: terminalStatus}}
+	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: terminalStatus}}
 	ctrl := gomock.NewController(t)
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
 	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, AppliedTransactionCompleter: finalizer,
+		Engine: executor, AppliedTransactionCompleter: finalizer,
 	}
 	return uc, reader, executor, finalizer, PendingTransitionInput{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
 }
@@ -460,4 +460,4 @@ func transitionBalance(organizationID, ledgerID uuid.UUID, id, alias string, ava
 	return balance
 }
 
-var _ BalanceEngineGuardBootstrapper = (*transitionEngineExecutor)(nil)
+var _ EngineGuardBootstrapper = (*transitionEngineExecutor)(nil)

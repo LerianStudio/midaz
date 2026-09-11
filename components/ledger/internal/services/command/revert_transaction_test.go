@@ -39,7 +39,7 @@ type revertReader struct {
 	routeErr      error
 }
 
-func (r *revertReader) GetBalanceEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+func (r *revertReader) GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
 	balances, err := r.GetBalances(ctx, organizationID, ledgerID, aliases)
 	return balances, balances, err
 }

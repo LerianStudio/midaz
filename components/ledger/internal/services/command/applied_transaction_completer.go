@@ -7,8 +7,8 @@ package command
 import "context"
 
 // AppliedTransactionCompleter durably projects an accounting result already
-// applied by BalanceEngine and reports the transaction status confirmed by SQL.
-// Completion and recovery must never invoke BalanceEngine or mutate balances.
+// applied by the engine and reports the transaction status confirmed by SQL.
+// Completion and recovery must never invoke the engine or mutate balances.
 type AppliedTransactionCompleter interface {
 	Complete(context.Context, *TransactionCompletionRecord) (TransactionCompletionResult, error)
 }

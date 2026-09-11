@@ -24,9 +24,9 @@ type TransactionReader interface {
 	// GetBalances loads the balances backing the given aliases.
 	GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 
-	// GetBalanceEngineBalances loads the explicitly requested balances separately
+	// GetEngineBalances loads the explicitly requested balances separately
 	// from the complete set of balances required for engine execution.
-	GetBalanceEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, explicitAliases []string) (explicitBalances, executionBalances []*mmodel.Balance, err error)
+	GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, explicitAliases []string) (explicitBalances, executionBalances []*mmodel.Balance, err error)
 
 	// ValidateAccountingRules enforces the ledger's accounting routes over the
 	// balance operations and returns the resolved route cache.

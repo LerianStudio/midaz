@@ -68,7 +68,7 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 	uc := &command.UseCase{
 		TransactionRedisRepo:        idempotency,
 		TransactionReader:           reader,
-		BalanceEngine:               executor,
+		Engine:                      executor,
 		AppliedTransactionCompleter: finalizer,
 		TracerReserver:              tracerControl,
 	}

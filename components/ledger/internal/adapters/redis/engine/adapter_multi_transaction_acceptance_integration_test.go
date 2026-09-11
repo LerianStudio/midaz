@@ -164,7 +164,7 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 	}
 
 	payloads := make([]command.TransactionCompletionPlan, len(request.Transactions))
-	intents := make([]command.BalanceEngineTransactionIntent, len(request.Transactions))
+	intents := make([]command.EngineTransactionIntent, len(request.Transactions))
 	for index, transaction := range request.Transactions {
 		payloads[index] = *base
 		payloads[index].TransactionID = transaction.ID
@@ -177,14 +177,14 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 		for projectionIndex, projection := range projections[index] {
 			projectionIntents[projectionIndex] = projection.Intent()
 		}
-		intents[index] = command.BalanceEngineTransactionIntent{
+		intents[index] = command.EngineTransactionIntent{
 			TransactionID: transaction.ID, Action: base.Action, TransactionStatus: base.TransactionStatus,
 			TransactionDate: base.TransactionDate, TransactionCreatedAt: base.TransactionCreatedAt,
 			TransactionUpdatedAt: base.TransactionUpdatedAt, OperationUpdatedAt: base.OperationUpdatedAt,
 			Input: base.TransactionInput, PostingRefs: postingRefs, OperationSpecs: projectionIntents,
 		}
 	}
-	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{
+	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{
 		TenantID: base.TenantID, OrganizationID: request.OrganizationID, LedgerID: request.LedgerID,
 		ExecutionID: request.ExecutionID, Transactions: intents,
 	})
@@ -204,7 +204,7 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 func refingerprintMultiTransactionAcceptance(t *testing.T, input command.EngineExecution, description string) command.EngineExecution {
 	t.Helper()
 	payloads := make([]command.TransactionCompletionPlan, len(input.CompletionPlans))
-	intents := make([]command.BalanceEngineTransactionIntent, len(input.CompletionPlans))
+	intents := make([]command.EngineTransactionIntent, len(input.CompletionPlans))
 	for index, recovery := range input.CompletionPlans {
 		payload, err := command.DecodeTransactionCompletionPlan(recovery.Payload)
 		require.NoError(t, err)
@@ -218,14 +218,14 @@ func refingerprintMultiTransactionAcceptance(t *testing.T, input command.EngineE
 		for projectionIndex, projection := range payload.OperationSpecs {
 			projectionIntents[projectionIndex] = projection.Intent()
 		}
-		intents[index] = command.BalanceEngineTransactionIntent{
+		intents[index] = command.EngineTransactionIntent{
 			TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
 			TransactionDate: payload.TransactionDate, TransactionCreatedAt: payload.TransactionCreatedAt,
 			TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
 			Input: payload.TransactionInput, PostingRefs: postingRefs, OperationSpecs: projectionIntents,
 		}
 	}
-	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{
+	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{
 		TenantID: payloads[0].TenantID, OrganizationID: input.Execution.OrganizationID, LedgerID: input.Execution.LedgerID,
 		ExecutionID: input.Execution.ExecutionID, Transactions: intents,
 	})

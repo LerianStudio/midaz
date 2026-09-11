@@ -134,12 +134,12 @@ type UseCase struct {
 	// UseCase (signatures match).
 	TransactionReader TransactionReader
 
-	// BalanceEngine applies balance changes through the execution port.
+	// Engine applies balance changes through the execution port.
 	// A nil value leaves the existing transaction execution path unchanged.
-	BalanceEngine BalanceEngine
+	Engine Engine
 
 	// AppliedTransactionCompleter confirms the SQL and MongoDB projections of an
-	// applied balance-engine result. It is required when BalanceEngine is set.
+	// applied engine result. It is required when Engine is set.
 	AppliedTransactionCompleter AppliedTransactionCompleter
 
 	// FeeApplier drives the in-process fee engine inside the create seam. It is

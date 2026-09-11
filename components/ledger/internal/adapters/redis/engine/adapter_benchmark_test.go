@@ -110,7 +110,7 @@ func benchmarkExecution(tb testing.TB, postingCount, balanceCount, iteration int
 	input := command.EngineExecution{Execution: request, Guards: []command.ExecutionGuard{{TransactionID: request.Transactions[0].ID, NextToken: "executed-once"}}}
 	input.CompletionPlans = []command.CompletionPlanRecord{{TransactionID: request.Transactions[0].ID, Payload: encodeAdapterRecovery(tb, &input, payload)}}
 	date := benchmarkDate()
-	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{OrganizationID: request.OrganizationID, LedgerID: request.LedgerID, ExecutionID: request.ExecutionID, Transactions: []command.BalanceEngineTransactionIntent{{TransactionID: request.Transactions[0].ID, PostingRefs: postingRefs(request.Transactions[0].Postings), Action: "CREATE", TransactionStatus: "APPROVED", TransactionDate: date, TransactionCreatedAt: date, TransactionUpdatedAt: date, OperationUpdatedAt: date, OperationSpecs: frozenProjectionIntents(projection)}}})
+	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{OrganizationID: request.OrganizationID, LedgerID: request.LedgerID, ExecutionID: request.ExecutionID, Transactions: []command.EngineTransactionIntent{{TransactionID: request.Transactions[0].ID, PostingRefs: postingRefs(request.Transactions[0].Postings), Action: "CREATE", TransactionStatus: "APPROVED", TransactionDate: date, TransactionCreatedAt: date, TransactionUpdatedAt: date, OperationUpdatedAt: date, OperationSpecs: frozenProjectionIntents(projection)}}})
 	require.NoError(tb, err)
 	input.IntentFingerprint = fingerprint
 	return input

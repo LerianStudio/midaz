@@ -51,8 +51,8 @@ func (r *adapterCreateReader) GetBalances(_ context.Context, _, _ uuid.UUID, ali
 	return out, nil
 }
 
-func (r *adapterCreateReader) GetBalanceEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
-	pool, err := command.LoadBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, r.GetBalances)
+func (r *adapterCreateReader) GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	pool, err := command.LoadEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, r.GetBalances)
 	return pool.ExplicitBalances, pool.Balances, err
 }
 
@@ -61,7 +61,7 @@ func (r *adapterCreateReader) ValidateAccountingRules(context.Context, uuid.UUID
 }
 
 type recordingCreateAdapter struct {
-	delegate command.BalanceEngine
+	delegate command.Engine
 	inputs   []command.EngineExecution
 }
 
@@ -115,7 +115,7 @@ func TestIntegration_CreateTransactionV1_ComposesRealAdapterRecoveryAndFinalizat
 	finalizer := &adapterCreateFinalizer{}
 	uc := &command.UseCase{
 		TransactionRedisRepo: idempotency, TransactionReader: reader,
-		BalanceEngine: executor, AppliedTransactionCompleter: finalizer,
+		Engine: executor, AppliedTransactionCompleter: finalizer,
 	}
 	date := time.Date(2026, time.September, 8, 16, 0, 0, 0, time.UTC)
 	amount := decimal.NewFromInt(30)
@@ -236,7 +236,7 @@ func assertAdapterCreateBalances(t *testing.T, ctx context.Context, client *redi
 }
 
 var (
-	_ command.BalanceEngine               = (*recordingCreateAdapter)(nil)
+	_ command.Engine                      = (*recordingCreateAdapter)(nil)
 	_ command.AppliedTransactionCompleter = (*adapterCreateFinalizer)(nil)
 	_ command.TransactionReader           = (*adapterCreateReader)(nil)
 )

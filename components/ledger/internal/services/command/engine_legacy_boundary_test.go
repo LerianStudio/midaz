@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBalanceEnginePathDoesNotCallLegacyLiveBalanceMutationOrProjectionHelpers(t *testing.T) {
-	optInFiles, err := filepath.Glob("balance_engine_*.go")
+func TestEnginePathDoesNotCallLegacyLiveBalanceMutationOrProjectionHelpers(t *testing.T) {
+	optInFiles, err := filepath.Glob("engine_*.go")
 	require.NoError(t, err)
 
 	optInFiles = append(

@@ -13,23 +13,23 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
-type testBalanceEngineTechnicalError struct {
+type testEngineTechnicalError struct {
 	code          string
 	indeterminate bool
 	cause         error
 }
 
-func (e testBalanceEngineTechnicalError) Error() string { return e.cause.Error() }
-func (e testBalanceEngineTechnicalError) Unwrap() error { return e.cause }
-func (e testBalanceEngineTechnicalError) EngineFailureCode() string {
+func (e testEngineTechnicalError) Error() string { return e.cause.Error() }
+func (e testEngineTechnicalError) Unwrap() error { return e.cause }
+func (e testEngineTechnicalError) EngineFailureCode() string {
 	return e.code
 }
 
-func (e testBalanceEngineTechnicalError) OutcomeIndeterminate() bool {
+func (e testEngineTechnicalError) OutcomeIndeterminate() bool {
 	return e.indeterminate
 }
 
-func TestMapBalanceEngineError(t *testing.T) {
+func TestMapEngineError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -57,7 +57,7 @@ func TestMapBalanceEngineError(t *testing.T) {
 			}}}}}
 			failure := &accounting.Failure{Code: tt.code, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "balance-1"}
 
-			got := MapBalanceEngineError(request, failure)
+			got := MapEngineError(request, failure)
 			if code := errorCode(got); code != tt.wantCode {
 				t.Fatalf("error code = %q, want %q (error: %v)", code, tt.wantCode, got)
 			}
@@ -65,12 +65,12 @@ func TestMapBalanceEngineError(t *testing.T) {
 	}
 }
 
-func TestMapBalanceEngineError_TechnicalPrecedence(t *testing.T) {
+func TestMapEngineError_TechnicalPrecedence(t *testing.T) {
 	t.Parallel()
 
 	cause := &accounting.Failure{Code: "insufficient_funds", TransactionIndex: 0, PostingIndex: 0, BalanceRef: "balance-1"}
-	technical := testBalanceEngineTechnicalError{code: "unknown_fingerprint", cause: cause}
-	got := MapBalanceEngineError(accounting.Execution{}, technical)
+	technical := testEngineTechnicalError{code: "unknown_fingerprint", cause: cause}
+	got := MapEngineError(accounting.Execution{}, technical)
 
 	if !errors.Is(got, cause) {
 		t.Fatalf("technical cause was not preserved: %v", got)
@@ -80,25 +80,25 @@ func TestMapBalanceEngineError_TechnicalPrecedence(t *testing.T) {
 	}
 }
 
-func TestMapBalanceEngineError_ExecutionGuardConflict(t *testing.T) {
+func TestMapEngineError_ExecutionGuardConflict(t *testing.T) {
 	t.Parallel()
 
 	cause := errors.New("guard conflict")
-	confirmed := testBalanceEngineTechnicalError{code: "execution_guard_conflict", cause: cause}
-	if got := errorCode(MapBalanceEngineError(accounting.Execution{}, confirmed)); got != "0486" {
+	confirmed := testEngineTechnicalError{code: "execution_guard_conflict", cause: cause}
+	if got := errorCode(MapEngineError(accounting.Execution{}, confirmed)); got != "0486" {
 		t.Fatalf("confirmed guard conflict code = %q, want 0486", got)
 	}
 
-	indeterminate := testBalanceEngineTechnicalError{code: "execution_guard_conflict", indeterminate: true, cause: cause}
-	if got := MapBalanceEngineError(accounting.Execution{}, indeterminate); !errors.Is(got, cause) {
+	indeterminate := testEngineTechnicalError{code: "execution_guard_conflict", indeterminate: true, cause: cause}
+	if got := MapEngineError(accounting.Execution{}, indeterminate); !errors.Is(got, cause) {
 		t.Fatalf("indeterminate guard conflict lost cause: %v", got)
 	}
 }
 
-func TestMapBalanceEngineError_NilAndUnmappedInputs(t *testing.T) {
+func TestMapEngineError_NilAndUnmappedInputs(t *testing.T) {
 	t.Parallel()
 
-	if got := MapBalanceEngineError(accounting.Execution{}, nil); got != nil {
+	if got := MapEngineError(accounting.Execution{}, nil); got != nil {
 		t.Fatalf("nil error mapped to %v", got)
 	}
 
@@ -124,7 +124,7 @@ func TestMapBalanceEngineError_NilAndUnmappedInputs(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := MapBalanceEngineError(tt.req, tt.err)
+			got := MapEngineError(tt.req, tt.err)
 			if !errors.Is(got, tt.err) {
 				t.Fatalf("original error was not preserved: %v", got)
 			}
@@ -135,7 +135,7 @@ func TestMapBalanceEngineError_NilAndUnmappedInputs(t *testing.T) {
 	}
 }
 
-func TestMapBalanceEngineError_BalanceRequirements(t *testing.T) {
+func TestMapEngineError_BalanceRequirements(t *testing.T) {
 	t.Parallel()
 
 	for _, test := range []struct {
@@ -152,7 +152,7 @@ func TestMapBalanceEngineError_BalanceRequirements(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			request := validRequirementEngineRequest(test.permission, test.forbidExternal)
 			failure := &accounting.Failure{Code: test.code, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "balance-1"}
-			if got := errorCode(MapBalanceEngineError(request, failure)); got != test.want {
+			if got := errorCode(MapEngineError(request, failure)); got != test.want {
 				t.Fatalf("requirement failure code = %q, want %q", got, test.want)
 			}
 		})

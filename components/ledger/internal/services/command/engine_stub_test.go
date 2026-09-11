@@ -17,25 +17,25 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
-type balanceEngineResponse struct {
+type engineResponse struct {
 	result *accounting.ExecutionResult
 	err    error
 }
 
-type scriptedBalanceEngine struct {
+type scriptedEngine struct {
 	requests  []EngineExecution
 	contexts  []context.Context
-	responses []balanceEngineResponse
+	responses []engineResponse
 }
 
-var _ BalanceEngine = (*scriptedBalanceEngine)(nil)
+var _ Engine = (*scriptedEngine)(nil)
 
-func (s *scriptedBalanceEngine) Execute(ctx context.Context, input EngineExecution) (*accounting.ExecutionResult, error) {
+func (s *scriptedEngine) Execute(ctx context.Context, input EngineExecution) (*accounting.ExecutionResult, error) {
 	s.requests = append(s.requests, input)
 	s.contexts = append(s.contexts, ctx)
 
 	if len(s.responses) == 0 {
-		return nil, errors.New("unexpected balance engine execution")
+		return nil, errors.New("unexpected engine execution")
 	}
 
 	response := s.responses[0]
@@ -44,7 +44,7 @@ func (s *scriptedBalanceEngine) Execute(ctx context.Context, input EngineExecuti
 	return response.result, response.err
 }
 
-func TestBalanceEnginePortPreservesExecutionAndOutcomes(t *testing.T) {
+func TestEnginePortPreservesExecutionAndOutcomes(t *testing.T) {
 	t.Parallel()
 
 	transactionID := uuid.MustParse("ff06f52d-d6e3-425f-83ab-58b7ae73145a")
@@ -74,27 +74,27 @@ func TestBalanceEnginePortPreservesExecutionAndOutcomes(t *testing.T) {
 	}
 	technicalCause := errors.New("connection lost")
 	technicalErr := fmt.Errorf("execute balances: %w", technicalCause)
-	stub := &scriptedBalanceEngine{responses: []balanceEngineResponse{
+	stub := &scriptedEngine{responses: []engineResponse{
 		{result: result},
 		{err: failure},
 		{err: technicalErr},
 	}}
-	useCase := UseCase{BalanceEngine: stub}
+	useCase := UseCase{Engine: stub}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	got, err := useCase.BalanceEngine.Execute(ctx, execution)
+	got, err := useCase.Engine.Execute(ctx, execution)
 	if err != nil || got != result {
 		t.Fatalf("successful execution = (%p, %v), want (%p, nil)", got, err, result)
 	}
 
-	got, err = useCase.BalanceEngine.Execute(ctx, execution)
+	got, err = useCase.Engine.Execute(ctx, execution)
 	var gotFailure *accounting.Failure
 	if got != nil || !errors.As(err, &gotFailure) || gotFailure != failure || !errors.Is(err, failure) {
 		t.Fatalf("business failure = (%v, %v), want original typed failure", got, err)
 	}
 
-	got, err = useCase.BalanceEngine.Execute(ctx, execution)
+	got, err = useCase.Engine.Execute(ctx, execution)
 	if got != nil || err != technicalErr || !errors.Is(err, technicalCause) {
 		t.Fatalf("technical failure = (%v, %v), want original wrapped cause", got, err)
 	}
@@ -113,11 +113,11 @@ func TestBalanceEnginePortPreservesExecutionAndOutcomes(t *testing.T) {
 	}
 }
 
-func TestBalanceEnginePortDefaultsToDisabled(t *testing.T) {
+func TestEnginePortDefaultsToDisabled(t *testing.T) {
 	t.Parallel()
 
 	var useCase UseCase
-	if useCase.BalanceEngine != nil {
-		t.Fatal("zero-value use case must not enable balance engine execution")
+	if useCase.Engine != nil {
+		t.Fatal("zero-value use case must not enable engine execution")
 	}
 }

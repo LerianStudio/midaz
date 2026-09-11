@@ -47,7 +47,7 @@ func (r *versionReader) GetBalances(context.Context, uuid.UUID, uuid.UUID, []str
 	return nil, errBalancesUnavailable
 }
 
-func (r *versionReader) GetBalanceEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+func (r *versionReader) GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
 	balances, err := r.GetBalances(ctx, organizationID, ledgerID, aliases)
 	return balances, balances, err
 }

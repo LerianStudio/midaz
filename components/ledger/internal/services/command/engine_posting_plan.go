@@ -32,24 +32,24 @@ func buildPostingPlan(action, status, side string, routeValidationEnabled bool, 
 	switch action {
 	case constant.ActionDirect, constant.ActionRevert:
 		if status != constant.CREATED {
-			return postingPlan{}, invalidBalanceEngineTranslation("direct or revert action requires created status")
+			return postingPlan{}, invalidEngineTranslation("direct or revert action requires created status")
 		}
 
 		return buildConclusivePostingPlan(historicalOverdraftCap, side), nil
 	case constant.ActionHold:
 		if status != constant.PENDING {
-			return postingPlan{}, invalidBalanceEngineTranslation("hold action requires pending status")
+			return postingPlan{}, invalidEngineTranslation("hold action requires pending status")
 		}
 	case constant.ActionCommit:
 		if status != constant.APPROVED {
-			return postingPlan{}, invalidBalanceEngineTranslation("commit action requires approved status")
+			return postingPlan{}, invalidEngineTranslation("commit action requires approved status")
 		}
 	case constant.ActionCancel:
 		if status != constant.CANCELED {
-			return postingPlan{}, invalidBalanceEngineTranslation("cancel action requires canceled status")
+			return postingPlan{}, invalidEngineTranslation("cancel action requires canceled status")
 		}
 	default:
-		return postingPlan{}, invalidBalanceEngineTranslation("unsupported transaction action")
+		return postingPlan{}, invalidEngineTranslation("unsupported transaction action")
 	}
 
 	if routeValidationEnabled {

@@ -28,7 +28,7 @@ import (
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
-//go:embed scripts/balance_engine.lua
+//go:embed scripts/engine.lua
 var integrationEngineLuaRaw string
 
 var integrationEngineLua = cachepolicy.LuaSource(integrationEngineLuaRaw)

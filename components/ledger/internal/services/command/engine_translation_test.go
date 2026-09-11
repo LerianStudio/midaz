@@ -20,7 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-func TestTranslateBalanceEngineTransactionPreservesOrderedLegIdentity(t *testing.T) {
+func TestTranslateEngineTransactionPreservesOrderedLegIdentity(t *testing.T) {
 	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
 	transactionID := uuid.MustParse("33333333-3333-4333-8333-333333333333")
@@ -28,7 +28,7 @@ func TestTranslateBalanceEngineTransactionPreservesOrderedLegIdentity(t *testing
 	two := decimal.NewFromInt(2)
 	three := decimal.NewFromInt(3)
 
-	input := BalanceEngineTranslationInput{
+	input := EngineTranslationInput{
 		TransactionID:     transactionID,
 		Action:            constant.ActionDirect,
 		TransactionStatus: constant.CREATED,
@@ -57,7 +57,7 @@ func TestTranslateBalanceEngineTransactionPreservesOrderedLegIdentity(t *testing
 		},
 	}
 
-	transaction, projection, err := TranslateBalanceEngineTransaction(input)
+	transaction, projection, err := TranslateEngineTransaction(input)
 	require.NoError(t, err)
 	require.Len(t, transaction.Postings, 3)
 	require.Len(t, transaction.BalanceRequirements, 3)
@@ -93,7 +93,7 @@ func TestTranslateBalanceEngineTransactionPreservesOrderedLegIdentity(t *testing
 	assert.Equal(t, map[string]any{"leg": "first"}, projection[0].Metadata)
 }
 
-func TestTranslateBalanceEngineTransactionLifecyclePaths(t *testing.T) {
+func TestTranslateEngineTransactionLifecyclePaths(t *testing.T) {
 	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
 	transactionID := uuid.MustParse("33333333-3333-4333-8333-333333333333")
@@ -162,7 +162,7 @@ func TestTranslateBalanceEngineTransactionLifecyclePaths(t *testing.T) {
 				Asset: "USD", Value: decimal.NewFromInt(10), TransactionType: tt.status,
 				RouteValidationEnabled: tt.routeValidation, OverdraftAmount: tt.overdraftAmount,
 			}
-			input := BalanceEngineTranslationInput{
+			input := EngineTranslationInput{
 				TransactionID: transactionID, Action: tt.action, TransactionStatus: tt.status,
 				TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
 					Asset:      "USD",
@@ -179,7 +179,7 @@ func TestTranslateBalanceEngineTransactionLifecyclePaths(t *testing.T) {
 				},
 			}
 
-			transaction, projection, err := TranslateBalanceEngineTransaction(input)
+			transaction, projection, err := TranslateEngineTransaction(input)
 			require.NoError(t, err)
 			require.Len(t, transaction.Postings, len(tt.postingTypes))
 			require.Len(t, projection, len(tt.postingTypes))
@@ -298,12 +298,12 @@ func TestBuildPostingPlanRejectsInvalidLifecyclePairs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := buildPostingPlan(tt.action, tt.status, OperationSpecSideFrom, false, decimal.Zero)
-			assert.ErrorIs(t, err, ErrInvalidBalanceEngineTranslation)
+			assert.ErrorIs(t, err, ErrInvalidEngineTranslation)
 		})
 	}
 }
 
-func TestTranslateBalanceEngineTransactionPreservesRouteAndCompanionContext(t *testing.T) {
+func TestTranslateEngineTransactionPreservesRouteAndCompanionContext(t *testing.T) {
 	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
 	transactionID := uuid.MustParse("33333333-3333-4333-8333-333333333333")
@@ -325,7 +325,7 @@ func TestTranslateBalanceEngineTransactionPreservesRouteAndCompanionContext(t *t
 		Overdraft: &mmodel.AccountingEntry{Debit: &mmodel.AccountingRubric{Code: "OD-D", Description: "Overdraft draw"}},
 	}
 	route := mmodel.OperationRouteCache{AccountingEntries: entries}
-	input := BalanceEngineTranslationInput{
+	input := EngineTranslationInput{
 		TransactionID: transactionID, Action: constant.ActionDirect, TransactionStatus: constant.CREATED,
 		RouteValidationEnabled: true,
 		TransactionInput: mtransaction.Transaction{Description: "fallback", Send: mtransaction.Send{
@@ -346,7 +346,7 @@ func TestTranslateBalanceEngineTransactionPreservesRouteAndCompanionContext(t *t
 		}},
 	}
 
-	transaction, projection, err := TranslateBalanceEngineTransaction(input)
+	transaction, projection, err := TranslateEngineTransaction(input)
 	require.NoError(t, err)
 	require.Len(t, transaction.Postings, 1)
 	require.Len(t, projection, 2)
@@ -371,31 +371,31 @@ func TestTranslateBalanceEngineTransactionPreservesRouteAndCompanionContext(t *t
 	assert.Equal(t, time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC), *projection[0].Balance.DeletedAt)
 
 	input.RouteCache = nil
-	denied, _, err := TranslateBalanceEngineTransaction(input)
+	denied, _, err := TranslateEngineTransaction(input)
 	require.NoError(t, err)
 	assert.Equal(t, accounting.DrawRouteDenied, denied.Postings[0].DrawPolicy)
 }
 
-func TestTranslateBalanceEngineTransactionRejectsNonExecutableAndInvalidAmounts(t *testing.T) {
+func TestTranslateEngineTransactionRejectsNonExecutableAndInvalidAmounts(t *testing.T) {
 	transactionID := uuid.MustParse("33333333-3333-4333-8333-333333333333")
-	input := BalanceEngineTranslationInput{TransactionID: transactionID, TransactionStatus: constant.NOTED}
-	_, _, err := TranslateBalanceEngineTransaction(input)
-	assert.ErrorIs(t, err, ErrBalanceEngineTransactionNotExecutable)
+	input := EngineTranslationInput{TransactionID: transactionID, TransactionStatus: constant.NOTED}
+	_, _, err := TranslateEngineTransaction(input)
+	assert.ErrorIs(t, err, ErrEngineTransactionNotExecutable)
 
-	input = BalanceEngineTranslationInput{
+	input = EngineTranslationInput{
 		TransactionID: transactionID, Action: constant.ActionDirect, TransactionStatus: constant.CREATED,
 		TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{Source: mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "0#@source#default"}}}}},
 		Validate:         &mtransaction.Responses{From: map[string]mtransaction.Amount{"0#@source#default": {Value: decimal.NewFromInt(-1)}}},
 		Balances:         []*mmodel.Balance{{Alias: "@source", Key: "default"}},
 	}
-	_, _, err = TranslateBalanceEngineTransaction(input)
-	assert.True(t, errors.Is(err, ErrInvalidBalanceEngineTranslation))
+	_, _, err = TranslateEngineTransaction(input)
+	assert.True(t, errors.Is(err, ErrInvalidEngineTranslation))
 
 	input.Validate.From["0#@source#default"] = mtransaction.Amount{
 		Value: decimal.NewFromInt(1), OverdraftAmount: decimal.NewFromInt(-1),
 	}
-	_, _, err = TranslateBalanceEngineTransaction(input)
-	assert.ErrorIs(t, err, ErrInvalidBalanceEngineTranslation)
+	_, _, err = TranslateEngineTransaction(input)
+	assert.ErrorIs(t, err, ErrInvalidEngineTranslation)
 }
 
 func translationBalance(organizationID, ledgerID uuid.UUID, id, alias, key string) *mmodel.Balance {

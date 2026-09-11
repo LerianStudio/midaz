@@ -1,4 +1,4 @@
-# Balance-engine performance report
+# Engine performance report
 
 This report records a local integration benchmark of the internal adapter. It does not
 claim a public HTTP before/after comparison; the measurements below isolate the adapter
@@ -21,7 +21,7 @@ ALLOW_INSECURE_TLS=true go test -tags=integration \
 go test ./components/ledger/internal/bootstrap \
   -run 'Recovery|recovery' -count=1
 go test ./components/ledger/internal/services/command \
-  -run '^$' -bench '^BenchmarkBalanceEngineFinalizer$' \
+  -run '^$' -bench '^BenchmarkTransactionCompletionService$' \
   -benchmem -benchtime=500ms -count=3
 ```
 

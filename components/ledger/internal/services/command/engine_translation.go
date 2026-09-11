@@ -18,17 +18,17 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-// ErrBalanceEngineTransactionNotExecutable identifies transaction shapes that
+// ErrEngineTransactionNotExecutable identifies transaction shapes that
 // deliberately have no monetary execution, such as annotations.
-var ErrBalanceEngineTransactionNotExecutable = errors.New("balance engine transaction is not executable")
+var ErrEngineTransactionNotExecutable = errors.New("engine transaction is not executable")
 
-// ErrInvalidBalanceEngineTranslation identifies inconsistent internal inputs at
+// ErrInvalidEngineTranslation identifies inconsistent internal inputs at
 // the command-to-engine translation seam.
-var ErrInvalidBalanceEngineTranslation = errors.New("invalid balance engine translation")
+var ErrInvalidEngineTranslation = errors.New("invalid engine translation")
 
-// BalanceEngineTranslationInput carries ordered transaction legs and their
+// EngineTranslationInput carries ordered transaction legs and their
 // validated intentions together with the complete scoped balance pool.
-type BalanceEngineTranslationInput struct {
+type EngineTranslationInput struct {
 	TransactionID     uuid.UUID
 	Action            string
 	TransactionStatus string
@@ -41,15 +41,15 @@ type BalanceEngineTranslationInput struct {
 	RouteCache             *mmodel.TransactionRouteCache
 }
 
-// TranslateBalanceEngineTransaction converts command-layer transaction intent
+// TranslateEngineTransaction converts command-layer transaction intent
 // into ordered engine postings and immutable accounting-row context.
-func TranslateBalanceEngineTransaction(input BalanceEngineTranslationInput) (accounting.Transaction, []OperationRecordSpec, error) {
+func TranslateEngineTransaction(input EngineTranslationInput) (accounting.Transaction, []OperationRecordSpec, error) {
 	if input.TransactionStatus == constant.NOTED {
-		return accounting.Transaction{}, nil, ErrBalanceEngineTransactionNotExecutable
+		return accounting.Transaction{}, nil, ErrEngineTransactionNotExecutable
 	}
 
 	if input.TransactionID == uuid.Nil || input.Validate == nil {
-		return accounting.Transaction{}, nil, invalidBalanceEngineTranslation("missing transaction identity or validation")
+		return accounting.Transaction{}, nil, invalidEngineTranslation("missing transaction identity or validation")
 	}
 
 	balances, err := indexTranslationBalances(input.Balances)
@@ -59,7 +59,7 @@ func TranslateBalanceEngineTransaction(input BalanceEngineTranslationInput) (acc
 
 	transaction := accounting.Transaction{
 		ID:                  input.TransactionID,
-		BalanceRequirements: balanceEngineRequirements(input),
+		BalanceRequirements: engineRequirements(input),
 		Postings:            make([]accounting.Posting, 0),
 	}
 	projection := make([]OperationRecordSpec, 0)
@@ -67,7 +67,7 @@ func TranslateBalanceEngineTransaction(input BalanceEngineTranslationInput) (acc
 	for index, leg := range input.TransactionInput.Send.Source.From {
 		amount, exists := input.Validate.From[leg.AccountAlias]
 		if !exists {
-			return accounting.Transaction{}, nil, invalidBalanceEngineTranslation("missing validated source leg")
+			return accounting.Transaction{}, nil, invalidEngineTranslation("missing validated source leg")
 		}
 
 		if err := appendLegTranslation(&transaction, &projection, input, balances, leg, amount, OperationSpecSideFrom, index); err != nil {
@@ -78,7 +78,7 @@ func TranslateBalanceEngineTransaction(input BalanceEngineTranslationInput) (acc
 	for index, leg := range input.TransactionInput.Send.Distribute.To {
 		amount, exists := input.Validate.To[leg.AccountAlias]
 		if !exists {
-			return accounting.Transaction{}, nil, invalidBalanceEngineTranslation("missing validated destination leg")
+			return accounting.Transaction{}, nil, invalidEngineTranslation("missing validated destination leg")
 		}
 
 		if err := appendLegTranslation(&transaction, &projection, input, balances, leg, amount, OperationSpecSideTo, index); err != nil {
@@ -89,7 +89,7 @@ func TranslateBalanceEngineTransaction(input BalanceEngineTranslationInput) (acc
 	return transaction, projection, nil
 }
 
-func balanceEngineRequirements(input BalanceEngineTranslationInput) []accounting.BalanceRequirement {
+func engineRequirements(input EngineTranslationInput) []accounting.BalanceRequirement {
 	if input.Action == constant.ActionCommit || input.Action == constant.ActionCancel {
 		return []accounting.BalanceRequirement{}
 	}
@@ -118,13 +118,13 @@ func balanceEngineRequirements(input BalanceEngineTranslationInput) []accounting
 	return requirements
 }
 
-func appendLegTranslation(transaction *accounting.Transaction, projection *[]OperationRecordSpec, input BalanceEngineTranslationInput, balances map[string]*mmodel.Balance, leg mtransaction.FromTo, amount mtransaction.Amount, side string, index int) error {
+func appendLegTranslation(transaction *accounting.Transaction, projection *[]OperationRecordSpec, input EngineTranslationInput, balances map[string]*mmodel.Balance, leg mtransaction.FromTo, amount mtransaction.Amount, side string, index int) error {
 	if !amount.Value.IsPositive() {
-		return invalidBalanceEngineTranslation("posting amount must be positive")
+		return invalidEngineTranslation("posting amount must be positive")
 	}
 
 	if amount.OverdraftAmount.IsNegative() {
-		return invalidBalanceEngineTranslation("overdraft amount must not be negative")
+		return invalidEngineTranslation("overdraft amount must not be negative")
 	}
 
 	plan, err := buildPostingPlan(
@@ -146,7 +146,7 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 
 	balance, exists := balances[balanceRef]
 	if !exists {
-		return invalidBalanceEngineTranslation("ordered leg has no balance in scoped pool")
+		return invalidEngineTranslation("ordered leg has no balance in scoped pool")
 	}
 
 	routeID := translationRouteID(input.Validate, leg, side)
@@ -189,7 +189,7 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 	return nil
 }
 
-func newOperationRecordSpec(input BalanceEngineTranslationInput, leg mtransaction.FromTo, balance *mmodel.Balance, postingRef, originRef, side, rowType, direction, routeID string, requestedAmount decimal.Decimal, compatibilityPath string) OperationRecordSpec {
+func newOperationRecordSpec(input EngineTranslationInput, leg mtransaction.FromTo, balance *mmodel.Balance, postingRef, originRef, side, rowType, direction, routeID string, requestedAmount decimal.Decimal, compatibilityPath string) OperationRecordSpec {
 	description := leg.Description
 	if description == "" {
 		description = input.TransactionInput.Description
@@ -220,12 +220,12 @@ func indexTranslationBalances(balances []*mmodel.Balance) (map[string]*mmodel.Ba
 	indexed := make(map[string]*mmodel.Balance, len(balances))
 	for _, balance := range balances {
 		if balance == nil {
-			return nil, invalidBalanceEngineTranslation("nil balance in scoped pool")
+			return nil, invalidEngineTranslation("nil balance in scoped pool")
 		}
 
 		ref := mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), balance.Key)
 		if _, duplicate := indexed[ref]; duplicate {
-			return nil, invalidBalanceEngineTranslation("duplicate logical balance in scoped pool")
+			return nil, invalidEngineTranslation("duplicate logical balance in scoped pool")
 		}
 
 		indexed[ref] = balance
@@ -304,6 +304,6 @@ func cloneTranslationBalance(balance *mmodel.Balance) OperationBalanceContext {
 	return OperationBalanceContext(cloned)
 }
 
-func invalidBalanceEngineTranslation(message string) error {
-	return fmt.Errorf("%w: %s", ErrInvalidBalanceEngineTranslation, message)
+func invalidEngineTranslation(message string) error {
+	return fmt.Errorf("%w: %s", ErrInvalidEngineTranslation, message)
 }

@@ -1,21 +1,20 @@
-// Midaz Ledger — Balance engine dashboard.
+// Midaz Ledger — Engine dashboard.
 //
-// The accounting adapter is currently an internal, inactive port. These panels are
-// intentionally useful when the port is enabled in a local or instrumented environment;
-// an empty panel today means that no engine invocation has emitted a sample.
+// These panels expose the accounting engine configured as the ledger's default
+// executable transaction path.
 
 local d = import '../../lib/dashboard.libsonnet';
 local app = d.selector.app;
 local pos = d.pos;
 
-local requests = 'balance_engine_requests_total';
-local failures = 'balance_engine_failures_total';
-local recovery = 'balance_engine_recovery_total';
-local duration = 'balance_engine_duration_ms_milliseconds';
-local recoveryDuration = 'balance_engine_recovery_duration_ms_milliseconds';
-local requestBytes = 'balance_engine_request_size_bytes';
-local poolSize = 'balance_engine_pool_balance_count';
-local touchedSize = 'balance_engine_touched_balance_count';
+local requests = 'engine_requests_total';
+local failures = 'engine_failures_total';
+local recovery = 'engine_recovery_total';
+local duration = 'engine_duration_ms_milliseconds';
+local recoveryDuration = 'engine_recovery_duration_ms_milliseconds';
+local requestBytes = 'engine_request_size_bytes';
+local poolSize = 'engine_pool_balance_count';
+local touchedSize = 'engine_touched_balance_count';
 
 local rate(metric, extra='') =
   if extra == '' then
@@ -28,18 +27,18 @@ local quantile(metric, q, extra='') =
   'histogram_quantile(%s, sum by (%s) (rate(%s_bucket{%s}[$__rate_interval])))' % [q, grouping, metric, app];
 
 d.dashboard(
-  'midaz-v4-balance-engine',
-  'Midaz · Balance Engine (v4)',
+  'midaz-v4-engine',
+  'Midaz · Engine (v4)',
   |||
     Internal accounting-adapter RED/USE signals: invocation outcomes, bounded failures,
     CAS/preflight attempts, request and recovery latency, payload size, and pool/touched
-    cardinality. The execution port is currently unset, so the absence of samples is
-    expected until a local opt-in or instrumented environment invokes the adapter.
+    cardinality. The absence of samples means that the selected environment has not
+    emitted engine telemetry in the current time range or telemetry is not configured.
     Queries use only bounded labels (outcome, code, type) and $__rate_interval.
 
-    Source of truth: docs/dashboards/v4/balance-engine/balance-engine.libsonnet.
+    Source of truth: docs/dashboards/v4/engine/engine.libsonnet.
   |||,
-  ['midaz', 'ledger', 'balance-engine', 'v4'],
+  ['midaz', 'ledger', 'engine', 'v4'],
   [
     d.row('Invocation outcomes and failure modes', 0),
 
@@ -66,7 +65,7 @@ d.dashboard(
 
     d.timeSeries(
       'Indeterminate outcomes',
-      [d.promTarget(rate('balance_engine_indeterminate_total'))],
+      [d.promTarget(rate('engine_indeterminate_total'))],
       pos(12, 9, 12, 8),
       { unit: 'reqps', description: 'Invocations whose accounting result could not be confirmed.' }
     ),
@@ -119,14 +118,14 @@ d.dashboard(
 
     d.timeSeries(
       'CAS / preflight attempts',
-      [d.promTarget(rate('balance_engine_cas_attempts_total'))],
+      [d.promTarget(rate('engine_cas_attempts_total'))],
       pos(0, 37, 12, 8),
       { unit: 'reqps', description: 'Preflight attempts, including receipt replay and normalization retries; NOSCRIPT fallback is not an additional attempt.' }
     ),
 
     d.timeSeries(
       'Validated postings by type',
-      [d.promTarget(rate('balance_engine_postings_total', 'type'), '{{type}}')],
+      [d.promTarget(rate('engine_postings_total', 'type'), '{{type}}')],
       pos(12, 37, 12, 8),
       { unit: 'reqps', legend: 'table', description: 'Requested postings by the six bounded posting types; not applied movements or generated companions.' }
     ),

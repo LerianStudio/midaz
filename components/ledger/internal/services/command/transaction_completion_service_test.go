@@ -87,7 +87,7 @@ type finalizationEventPublisherStub struct {
 	phases       []string
 }
 
-func (publisher *finalizationEventPublisherStub) PublishBalanceEngineEvents(_ context.Context, tran *postgresTransaction.Transaction, phase string) {
+func (publisher *finalizationEventPublisherStub) PublishAppliedTransactionEvents(_ context.Context, tran *postgresTransaction.Transaction, phase string) {
 	*publisher.calls = append(*publisher.calls, "publish")
 	publisher.transactions = append(publisher.transactions, tran)
 	publisher.phases = append(publisher.phases, phase)
@@ -157,7 +157,7 @@ func finalizationFixture(t testing.TB) (context.Context, *TransactionCompletionR
 	payload.TransactionInput.ChartOfAccountsGroupName = "frozen chart"
 	payload.Validate.Sources, payload.Validate.Destinations = []string{"@source"}, []string{"@destination"}
 	var err error
-	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	envelope := recoveryContractEnvelope(t, payload, result)
 
@@ -222,7 +222,7 @@ func TestTransactionCompletionServicePreservesLegacyPublicAliasesFromNormalizedV
 		"@destination#reserve",
 	}
 	var err error
-	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	envelope := recoveryContractEnvelope(t, payload, result)
 	ctx := tmcore.ContextWithTenantID(context.Background(), payload.TenantID)
@@ -508,7 +508,7 @@ func TestTransactionCompletionServiceReturnsZeroOutcomeWhenCompletionFails(t *te
 			result, err := NewTransactionCompletionService(store, metadata).Complete(ctx, envelope)
 
 			if scenario.name == "metadata compare" {
-				require.ErrorIs(t, err, ErrBalanceEngineMetadataConflict)
+				require.ErrorIs(t, err, ErrEngineMetadataConflict)
 			} else {
 				require.ErrorIs(t, err, failure)
 			}
@@ -558,7 +558,7 @@ func TestTransactionCompletionServiceAcceptsPendingAndRecoveredHoldTerminalOutco
 			payload.Action = constant.ActionHold
 			payload.TransactionStatus = constant.PENDING
 			var err error
-			payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+			payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 			require.NoError(t, err)
 			envelope := recoveryContractEnvelope(t, payload, result)
 			ctx := tmcore.ContextWithTenantID(context.Background(), payload.TenantID)
@@ -640,7 +640,7 @@ func TestTransactionCompletionServiceRejectsUnconfirmedMetadata(t *testing.T) {
 			ctx, envelope := finalizationFixture(t)
 			finalizer, _, metadata, _ := finalizationDependencies()
 			metadata.find = scenario.find
-			require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), ErrBalanceEngineMetadataConflict)
+			require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), ErrEngineMetadataConflict)
 		})
 	}
 }
@@ -650,7 +650,7 @@ func TestTransactionCompletionServiceDoesNotOverwriteExistingMetadata(t *testing
 	finalizer, _, metadata, _ := finalizationDependencies()
 	key := constant.EntityTransaction + ":" + envelope.TransactionID.String()
 	metadata.data[key] = &mongodb.Metadata{EntityID: envelope.TransactionID.String(), EntityName: constant.EntityTransaction, Data: mongodb.JSON{"purpose": "later authorized edit"}}
-	require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), ErrBalanceEngineMetadataConflict)
+	require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), ErrEngineMetadataConflict)
 	assert.Equal(t, mongodb.JSON{"purpose": "later authorized edit"}, metadata.data[key].Data)
 }
 
@@ -679,11 +679,11 @@ func TestTransactionCompletionServicePreflightsLateMetadataBeforeSQL(t *testing.
 	payload, err := DecodeTransactionCompletionPlan([]byte(envelope.Payload))
 	require.NoError(t, err)
 	payload.OperationSpecs[0].Metadata["unrepresentable"] = json.Number("0.12345678901234567890123456789")
-	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(*payload))
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(*payload))
 	require.NoError(t, err)
 	updated := recoveryContractEnvelope(t, *payload, envelope.Result)
 	finalizer, _, _, calls := finalizationDependencies()
-	require.ErrorIs(t, completionError(finalizer.Complete(ctx, &updated)), ErrBalanceEngineMetadataConflict)
+	require.ErrorIs(t, completionError(finalizer.Complete(ctx, &updated)), ErrEngineMetadataConflict)
 	assert.Empty(t, *calls)
 }
 
@@ -721,7 +721,7 @@ func TestTransactionCompletionServiceEmptyTenantAndMetadata(t *testing.T) {
 	payload.TenantID = ""
 	payload.TransactionInput.Metadata, payload.OperationSpecs[0].Metadata = nil, nil
 	var err error
-	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	envelope := recoveryContractEnvelope(t, payload, result)
 	finalizer, _, _, calls := finalizationDependencies()
@@ -771,7 +771,7 @@ func TestFrozenMetadataNumericRoundTrip(t *testing.T) {
 func TestFrozenMetadataRejectsLossAndUnsupportedValues(t *testing.T) {
 	for _, value := range []any{json.Number("0.123456789012345678901"), uint64(math.MaxUint64), json.Number("1e1000000000"), json.Number("1e-1000000000"), json.Number("01"), math.NaN(), math.Inf(1), []string{"nested"}, map[string]any{"nested": true}} {
 		_, err := normalizeFrozenMetadata(map[string]any{"value": value})
-		require.ErrorIs(t, err, ErrBalanceEngineMetadataConflict)
+		require.ErrorIs(t, err, ErrEngineMetadataConflict)
 	}
 }
 
@@ -783,6 +783,6 @@ func TestFrozenMetadataComparesExactNumericSemantics(t *testing.T) {
 	}
 
 	require.NoError(t, compareFrozenMetadata(mongodb.JSON{"value": int64(1)}, mongodb.JSON{"value": int32(1)}))
-	require.ErrorIs(t, compareFrozenMetadata(mongodb.JSON{"value": int64(9007199254740993)}, mongodb.JSON{"value": float64(9007199254740992)}), ErrBalanceEngineMetadataConflict)
-	require.ErrorIs(t, compareFrozenMetadata(mongodb.JSON{"value": int64(1)}, mongodb.JSON{"value": "1"}), ErrBalanceEngineMetadataConflict)
+	require.ErrorIs(t, compareFrozenMetadata(mongodb.JSON{"value": int64(9007199254740993)}, mongodb.JSON{"value": float64(9007199254740992)}), ErrEngineMetadataConflict)
+	require.ErrorIs(t, compareFrozenMetadata(mongodb.JSON{"value": int64(1)}, mongodb.JSON{"value": "1"}), ErrEngineMetadataConflict)
 }

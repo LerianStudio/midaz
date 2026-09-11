@@ -23,7 +23,7 @@ func recoveryInventoryEnvelope(t *testing.T, action string) []byte {
 	payload, result := recoveryContractFixture(t)
 	payload.Action = action
 	var err error
-	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	envelope := recoveryContractEnvelope(t, payload, result)
 	raw, err := EncodeTransactionCompletionRecord(envelope)

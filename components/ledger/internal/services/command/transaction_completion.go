@@ -27,8 +27,8 @@ import (
 const (
 	// TransactionCompletionFormatVersion identifies the completion plan and record schema.
 	TransactionCompletionFormatVersion = 2
-	// BalanceEngineOperationIDNamespaceV1 is immutable: changing it changes replayed row IDs.
-	BalanceEngineOperationIDNamespaceV1 = "c102438e-88ba-5d08-b785-a699df083ecd"
+	// EngineOperationIDNamespaceV1 is immutable: changing it changes replayed row IDs.
+	EngineOperationIDNamespaceV1 = "c102438e-88ba-5d08-b785-a699df083ecd"
 
 	OperationSpecSideFrom = "from"
 	OperationSpecSideTo   = "to"
@@ -116,9 +116,9 @@ type TransactionCompletionRecord struct {
 	Result            accounting.ExecutionResult `json:"result"`
 }
 
-// BalanceEngineTransactionIntent contains only immutable intent, not calculated
+// EngineTransactionIntent contains only immutable intent, not calculated
 // postings, validation output, balance seeds, guards, or overdraft splits.
-type BalanceEngineTransactionIntent struct {
+type EngineTransactionIntent struct {
 	TransactionID        uuid.UUID                       `json:"transactionId"`
 	ParentTransactionID  *uuid.UUID                      `json:"parentTransactionId"`
 	FeesSkipped          bool                            `json:"feesSkipped"`
@@ -167,24 +167,24 @@ func (spec OperationRecordSpec) Intent() OperationRecordIntent {
 	}
 }
 
-// BalanceEngineIntent fixes the execution scope and ordered logical intentions.
-type BalanceEngineIntent struct {
-	TenantID       string                           `json:"tenantId"`
-	OrganizationID uuid.UUID                        `json:"organizationId"`
-	LedgerID       uuid.UUID                        `json:"ledgerId"`
-	ExecutionID    uuid.UUID                        `json:"executionId"`
-	Transactions   []BalanceEngineTransactionIntent `json:"transactions"`
+// EngineIntent fixes the execution scope and ordered logical intentions.
+type EngineIntent struct {
+	TenantID       string                    `json:"tenantId"`
+	OrganizationID uuid.UUID                 `json:"organizationId"`
+	LedgerID       uuid.UUID                 `json:"ledgerId"`
+	ExecutionID    uuid.UUID                 `json:"executionId"`
+	Transactions   []EngineTransactionIntent `json:"transactions"`
 }
 
-// ComputeBalanceEngineIntentFingerprint hashes deterministic JSON of explicit
+// ComputeEngineIntentFingerprint hashes deterministic JSON of explicit
 // immutable intent. Derived companion contexts are excluded; their attribution
 // is inherited from primaries. encoding/json sorts map keys; money stays strings.
-func ComputeBalanceEngineIntentFingerprint(intent BalanceEngineIntent) (string, error) {
+func ComputeEngineIntentFingerprint(intent EngineIntent) (string, error) {
 	if intent.OrganizationID == uuid.Nil || intent.LedgerID == uuid.Nil || intent.ExecutionID == uuid.Nil || len(intent.Transactions) == 0 {
 		return "", invalidTransactionCompletionRecord("missing intent identity")
 	}
 
-	intent.Transactions = append([]BalanceEngineTransactionIntent(nil), intent.Transactions...)
+	intent.Transactions = append([]EngineTransactionIntent(nil), intent.Transactions...)
 	seen := make(map[uuid.UUID]bool, len(intent.Transactions))
 
 	for index, transaction := range intent.Transactions {
@@ -234,7 +234,7 @@ func ComputeBalanceEngineIntentFingerprint(intent BalanceEngineIntent) (string, 
 
 	encoded, err := json.Marshal(intent)
 	if err != nil {
-		return "", fmt.Errorf("encode balance engine intention: %w", err)
+		return "", fmt.Errorf("encode engine intention: %w", err)
 	}
 
 	hash := sha256.Sum256(append([]byte("midaz.balance-accounting.intent.v1\x00"), encoded...))
@@ -257,7 +257,7 @@ func DeterministicOperationID(executionID, transactionID uuid.UUID, postingRef, 
 
 	input = binary.BigEndian.AppendUint32(input, ordinal)
 
-	namespace, err := uuid.Parse(BalanceEngineOperationIDNamespaceV1)
+	namespace, err := uuid.Parse(EngineOperationIDNamespaceV1)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("parse operation namespace: %w", err)
 	}
@@ -315,7 +315,7 @@ func ValidateTransactionCompletion(input EngineExecution) error {
 	}
 
 	seen := make(map[uuid.UUID]bool, len(input.CompletionPlans))
-	intents := make(map[uuid.UUID]BalanceEngineTransactionIntent, len(input.CompletionPlans))
+	intents := make(map[uuid.UUID]EngineTransactionIntent, len(input.CompletionPlans))
 
 	var tenant string
 
@@ -396,16 +396,16 @@ func validateCompletionGuards(guards []ExecutionGuard, transactions map[uuid.UUI
 	return nil
 }
 
-func validateCompletionExecutionFingerprint(request accounting.Execution, tenant string, intents map[uuid.UUID]BalanceEngineTransactionIntent, expected string) error {
-	intent := BalanceEngineIntent{
+func validateCompletionExecutionFingerprint(request accounting.Execution, tenant string, intents map[uuid.UUID]EngineTransactionIntent, expected string) error {
+	intent := EngineIntent{
 		TenantID: tenant, OrganizationID: request.OrganizationID, LedgerID: request.LedgerID, ExecutionID: request.ExecutionID,
-		Transactions: make([]BalanceEngineTransactionIntent, 0, len(request.Transactions)),
+		Transactions: make([]EngineTransactionIntent, 0, len(request.Transactions)),
 	}
 	for _, transaction := range request.Transactions {
 		intent.Transactions = append(intent.Transactions, intents[transaction.ID])
 	}
 
-	fingerprint, err := ComputeBalanceEngineIntentFingerprint(intent)
+	fingerprint, err := ComputeEngineIntentFingerprint(intent)
 	if err != nil {
 		return err
 	}
@@ -438,8 +438,8 @@ func validateCompletionSnapshotIdentities(snapshots []accounting.BalanceSnapshot
 	return nil
 }
 
-func transactionCompletionIntent(transaction accounting.Transaction, payload TransactionCompletionPlan) BalanceEngineTransactionIntent {
-	intent := BalanceEngineTransactionIntent{
+func transactionCompletionIntent(transaction accounting.Transaction, payload TransactionCompletionPlan) EngineTransactionIntent {
+	intent := EngineTransactionIntent{
 		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID,
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,

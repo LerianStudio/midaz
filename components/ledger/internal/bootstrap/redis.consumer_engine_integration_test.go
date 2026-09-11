@@ -110,9 +110,9 @@ func recoveryEngineExecution(t *testing.T) command.EngineExecution {
 		},
 		Validate: &mtransaction.Responses{Sources: []string{"@source"}, Destinations: []string{"@destination"}},
 	}
-	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{
+	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{
 		OrganizationID: request.OrganizationID, LedgerID: request.LedgerID, ExecutionID: request.ExecutionID,
-		Transactions: []command.BalanceEngineTransactionIntent{{
+		Transactions: []command.EngineTransactionIntent{{
 			TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
 			TransactionDate: payload.TransactionDate, TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
 			Input: payload.TransactionInput, PostingRefs: []string{projection.PostingRef}, OperationSpecs: []command.OperationRecordIntent{projection.Intent()},

@@ -42,9 +42,9 @@ func TestIntegration_AdapterExecute_IndeterminateMetrics(t *testing.T) {
 	var collected metricdata.ResourceMetrics
 	require.NoError(t, reader.Collect(context.Background(), &collected))
 	wanted := map[string]string{
-		"balance_engine_requests_total":      "indeterminate",
-		"balance_engine_failures_total":      "transport",
-		"balance_engine_indeterminate_total": "",
+		"engine_requests_total":      "indeterminate",
+		"engine_failures_total":      "transport",
+		"engine_indeterminate_total": "",
 	}
 	for _, scope := range collected.ScopeMetrics {
 		for _, metric := range scope.Metrics {
@@ -97,7 +97,7 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 			observed[metric.Name] = metric
 		}
 	}
-	for _, name := range []string{"balance_engine_requests_total", "balance_engine_postings_total", "balance_engine_cas_attempts_total"} {
+	for _, name := range []string{"engine_requests_total", "engine_postings_total", "engine_cas_attempts_total"} {
 		require.Contains(t, observed, name)
 		counter, ok := observed[name].Data.(metricdata.Sum[int64])
 		require.True(t, ok)
@@ -105,11 +105,11 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 		require.Equal(t, int64(2), counter.DataPoints[0].Value, "requests and requested postings count replay, NOSCRIPT does not add a CAS attempt")
 		labels := counter.DataPoints[0].Attributes.ToSlice()
 		switch name {
-		case "balance_engine_requests_total":
+		case "engine_requests_total":
 			require.Len(t, labels, 1)
 			require.Equal(t, "outcome", string(labels[0].Key))
 			require.Equal(t, "success", labels[0].Value.AsString())
-		case "balance_engine_postings_total":
+		case "engine_postings_total":
 			require.Len(t, labels, 1)
 			require.Equal(t, "type", string(labels[0].Key))
 			require.Equal(t, "debit", labels[0].Value.AsString())
@@ -121,8 +121,8 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 	require.NoError(t, err)
 	prepared, err := prepareExecution(ctx, input, limits, resolved)
 	require.NoError(t, err)
-	require.Contains(t, observed, "balance_engine_request_size_bytes")
-	size, ok := observed["balance_engine_request_size_bytes"].Data.(metricdata.Histogram[int64])
+	require.Contains(t, observed, "engine_request_size_bytes")
+	size, ok := observed["engine_request_size_bytes"].Data.(metricdata.Histogram[int64])
 	require.True(t, ok)
 	require.Len(t, size.DataPoints, 1)
 	require.Equal(t, uint64(2), size.DataPoints[0].Count)
@@ -136,8 +136,8 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 		}
 	}
 	for name, want := range map[string]int64{
-		"balance_engine_pool_balance_count":    int64(len(input.Execution.Balances)),
-		"balance_engine_touched_balance_count": int64(len(touched)),
+		"engine_pool_balance_count":    int64(len(input.Execution.Balances)),
+		"engine_touched_balance_count": int64(len(touched)),
 	} {
 		require.Contains(t, observed, name)
 		histogram, histogramOK := observed[name].Data.(metricdata.Histogram[int64])
@@ -148,6 +148,6 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 		require.Zero(t, histogram.DataPoints[0].Attributes.Len())
 	}
 
-	require.NotContains(t, observed, "balance_engine_failures_total")
-	require.NotContains(t, observed, "balance_engine_indeterminate_total")
+	require.NotContains(t, observed, "engine_failures_total")
+	require.NotContains(t, observed, "engine_indeterminate_total")
 }

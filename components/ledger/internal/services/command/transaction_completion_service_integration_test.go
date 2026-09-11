@@ -140,9 +140,9 @@ func encodeFinalizerIntegrationEnvelope(t *testing.T, payload command.Transactio
 		}
 	}
 
-	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{
+	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{
 		TenantID: payload.TenantID, OrganizationID: payload.OrganizationID, LedgerID: payload.LedgerID, ExecutionID: payload.ExecutionID,
-		Transactions: []command.BalanceEngineTransactionIntent{{
+		Transactions: []command.EngineTransactionIntent{{
 			TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
 			ParentTransactionID: payload.ParentTransactionID, FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped,
 			TransactionDate: payload.TransactionDate, TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
@@ -357,7 +357,7 @@ func TestIntegrationTransactionCompletionServiceSQLAndMongo(t *testing.T) {
 		require.NoError(t, metadata.Create(ctx, constant.EntityTransaction, &mongodb.Metadata{
 			EntityID: envelope.TransactionID.String(), EntityName: constant.EntityTransaction, Data: mongodb.JSON{"purpose": "authorized later edit"}, CreatedAt: date, UpdatedAt: date,
 		}))
-		require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), command.ErrBalanceEngineMetadataConflict)
+		require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), command.ErrEngineMetadataConflict)
 		actual, err := metadata.FindByEntity(ctx, constant.EntityTransaction, envelope.TransactionID.String())
 		require.NoError(t, err)
 		require.NotNil(t, actual)
@@ -392,7 +392,7 @@ func TestIntegrationTransactionCompletionServiceSQLAndMongo(t *testing.T) {
 
 	t.Run("unsupported late metadata does not write SQL", func(t *testing.T) {
 		envelope := finalizerIntegrationEnvelope(t, t.Name(), "", false, false, true)
-		require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), command.ErrBalanceEngineMetadataConflict)
+		require.ErrorIs(t, completionError(finalizer.Complete(ctx, envelope)), command.ErrEngineMetadataConflict)
 		assertFinalizerSQLCounts(t, pg.DB, envelope.TransactionID, 0, 0)
 		assertFinalizerMetadataCount(t, mongoContainer.Database, constant.EntityTransaction, envelope.TransactionID.String(), 0)
 	})

@@ -13,7 +13,7 @@ import (
 const (
 	BalanceTTL = 24 * time.Hour
 	HashTag    = "{transactions}"
-	// EngineRecoverQueue stores only version-two balance-engine recovery
+	// EngineRecoverQueue stores only version-two engine recovery
 	// envelopes. It deliberately remains separate from the legacy transaction
 	// backup hash while sharing its Redis Cluster slot.
 	EngineRecoverQueue   = "engine:" + HashTag + ":recover:v2"

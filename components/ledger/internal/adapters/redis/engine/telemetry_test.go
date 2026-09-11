@@ -81,8 +81,8 @@ func TestAdapterExecute_CanceledRequestMetrics(t *testing.T) {
 			observed[metric.Name] = metric
 		}
 	}
-	require.Contains(t, observed, "balance_engine_requests_total")
-	requests, ok := observed["balance_engine_requests_total"].Data.(metricdata.Sum[int64])
+	require.Contains(t, observed, "engine_requests_total")
+	requests, ok := observed["engine_requests_total"].Data.(metricdata.Sum[int64])
 	require.True(t, ok)
 	require.Len(t, requests.DataPoints, 1)
 	require.Equal(t, int64(1), requests.DataPoints[0].Value)
@@ -90,7 +90,7 @@ func TestAdapterExecute_CanceledRequestMetrics(t *testing.T) {
 	require.Len(t, labels, 1)
 	require.Equal(t, "outcome", string(labels[0].Key))
 	require.Equal(t, "technical_error", labels[0].Value.AsString())
-	failures, ok := observed["balance_engine_failures_total"].Data.(metricdata.Sum[int64])
+	failures, ok := observed["engine_failures_total"].Data.(metricdata.Sum[int64])
 	require.True(t, ok)
 	require.Len(t, failures.DataPoints, 1)
 	require.Equal(t, int64(1), failures.DataPoints[0].Value)
@@ -98,12 +98,12 @@ func TestAdapterExecute_CanceledRequestMetrics(t *testing.T) {
 	require.Len(t, failureLabels, 1)
 	require.Equal(t, "code", string(failureLabels[0].Key))
 	require.Equal(t, "context_canceled", failureLabels[0].Value.AsString())
-	duration, ok := observed["balance_engine_duration_ms"].Data.(metricdata.Histogram[int64])
+	duration, ok := observed["engine_duration_ms"].Data.(metricdata.Histogram[int64])
 	require.True(t, ok)
 	require.Len(t, duration.DataPoints, 1)
 	require.Equal(t, uint64(1), duration.DataPoints[0].Count)
 	require.Zero(t, duration.DataPoints[0].Attributes.Len())
-	require.NotContains(t, observed, "balance_engine_cas_attempts_total")
-	require.NotContains(t, observed, "balance_engine_postings_total")
-	require.NotContains(t, observed, "balance_engine_request_size_bytes")
+	require.NotContains(t, observed, "engine_cas_attempts_total")
+	require.NotContains(t, observed, "engine_postings_total")
+	require.NotContains(t, observed, "engine_request_size_bytes")
 }

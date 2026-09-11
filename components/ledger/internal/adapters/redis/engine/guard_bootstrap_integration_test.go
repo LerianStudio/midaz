@@ -249,7 +249,7 @@ func guardTransitionBalances(t *testing.T, organizationID, ledgerID uuid.UUID) (
 		},
 	}
 	aliases := []string{"@source#default", "@destination#default"}
-	pool, err := command.LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID, aliases,
+	pool, err := command.LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID, aliases,
 		func(_ context.Context, _, _ uuid.UUID, requested []string) ([]*mmodel.Balance, error) {
 			for _, alias := range requested {
 				if strings.HasSuffix(alias, "#"+constant.OverdraftBalanceKey) {
@@ -286,7 +286,7 @@ func guardTransitionExecution(
 		Asset: "USD", From: map[string]mtransaction.Amount{"0#@source#default": amount},
 		To: map[string]mtransaction.Amount{"0#@destination#default": amount},
 	}
-	translated, projection, err := command.TranslateBalanceEngineTransaction(command.BalanceEngineTranslationInput{
+	translated, projection, err := command.TranslateEngineTransaction(command.EngineTranslationInput{
 		TransactionID: transactionID, Action: action, TransactionStatus: status,
 		TransactionInput: input, Validate: validate, Balances: balances,
 	})

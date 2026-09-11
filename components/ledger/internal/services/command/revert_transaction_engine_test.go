@@ -48,8 +48,8 @@ func (reader *revertEngineReader) GetBalances(_ context.Context, _, _ uuid.UUID,
 	return balances, nil
 }
 
-func (reader *revertEngineReader) GetBalanceEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
-	pool, err := LoadBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, reader.GetBalances)
+func (reader *revertEngineReader) GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	pool, err := LoadEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, reader.GetBalances)
 	return pool.ExplicitBalances, pool.Balances, err
 }
 
@@ -100,7 +100,7 @@ func (executor *revertLiteralEngine) Execute(_ context.Context, execution Engine
 	}, nil
 }
 
-func TestRevertTransactionV2UsesOptInBalanceEngineWithStableChildIdentity(t *testing.T) {
+func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	ctrl := gomock.NewController(t)
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
@@ -127,12 +127,12 @@ func TestRevertTransactionV2UsesOptInBalanceEngineWithStableChildIdentity(t *tes
 		},
 	}
 	executor := &revertLiteralEngine{t: t}
-	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
+	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	reservationID := uuid.MustParse("66666666-6666-4666-8666-666666666666")
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
+		Engine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
 	}
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-revert")
 	ctx = libObservability.ContextWithHeaderID(ctx, "revert-request")
@@ -180,7 +180,7 @@ func TestRevertTransactionV2UsesOptInBalanceEngineWithStableChildIdentity(t *tes
 	}
 }
 
-func TestRevertTransactionBalanceEngineIndeterminateFailureRetainsClaim(t *testing.T) {
+func TestRevertTransactionEngineIndeterminateFailureRetainsClaim(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	ctrl := gomock.NewController(t)
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
@@ -195,12 +195,12 @@ func TestRevertTransactionBalanceEngineIndeterminateFailureRetainsClaim(t *testi
 			revertEngineBalance(organizationID, ledgerID, "75555555-5555-4555-8555-555555555555", "@payer", 20, 3),
 		},
 	}
-	transportFailure := errors.New("balance engine outcome unknown")
+	transportFailure := errors.New("engine outcome unknown")
 	executor := &createEngineErrorExecutor{err: transportFailure}
-	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
+	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, AppliedTransactionCompleter: finalizer,
+		Engine: executor, AppliedTransactionCompleter: finalizer,
 	}
 
 	got, replayed, err := uc.RevertTransactionV1(context.Background(), RevertTransactionInput{
@@ -241,4 +241,4 @@ func revertEngineBalance(organizationID, ledgerID uuid.UUID, id, alias string, a
 	}
 }
 
-var _ BalanceEngine = (*revertLiteralEngine)(nil)
+var _ Engine = (*revertLiteralEngine)(nil)

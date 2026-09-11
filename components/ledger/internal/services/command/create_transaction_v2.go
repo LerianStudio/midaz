@@ -246,8 +246,8 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 	// Keep exception-bearing requests on the compatibility path until the engine
 	// can validate and consume the single-use grant in the same atomic operation
 	// that applies the balances.
-	if uc.BalanceEngine != nil && run.status != constant.NOTED && run.accountBlockExceptionGrant == nil {
-		tran, err := uc.createTransactionWithBalanceEngine(ctx, span, logger, run, true)
+	if uc.Engine != nil && run.status != constant.NOTED && run.accountBlockExceptionGrant == nil {
+		tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, true)
 		return tran, false, err
 	}
 

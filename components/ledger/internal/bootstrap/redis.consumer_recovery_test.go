@@ -51,9 +51,9 @@ func consumerRecoveryFixture(t *testing.T) (string, string, *command.Transaction
 		TransactionCreatedAt: date, TransactionUpdatedAt: date, OperationUpdatedAt: date,
 	}
 	payload.TransactionInput.Send.Asset, payload.TransactionInput.Send.Value = "BRL", decimal.NewFromInt(30)
-	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{
+	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{
 		OrganizationID: organization, LedgerID: ledger, ExecutionID: execution,
-		Transactions: []command.BalanceEngineTransactionIntent{{
+		Transactions: []command.EngineTransactionIntent{{
 			TransactionID: transaction, Action: payload.Action,
 			TransactionStatus: payload.TransactionStatus, TransactionDate: date, Input: payload.TransactionInput,
 			TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,

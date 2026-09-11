@@ -561,10 +561,10 @@ func prepareTransactionBodyWithFees(t *testing.T, feeCount int) preparedSize {
 		}
 		balances = append(balances, sizingBalance(organizationID, ledgerID, alias, key, available))
 	}
-	pool, err := command.BuildBalanceEngineSnapshotPool(t.Context(), organizationID, ledgerID, validate.Aliases, balances, balances)
+	pool, err := command.BuildEngineSnapshotPool(t.Context(), organizationID, ledgerID, validate.Aliases, balances, balances)
 	require.NoError(t, err)
 
-	translated, projection, err := command.TranslateBalanceEngineTransaction(command.BalanceEngineTranslationInput{
+	translated, projection, err := command.TranslateEngineTransaction(command.EngineTranslationInput{
 		TransactionID: transactionID, Action: constant.ActionDirect, TransactionStatus: constant.CREATED,
 		TransactionInput: transaction, Validate: validate, Balances: pool.Balances,
 	})

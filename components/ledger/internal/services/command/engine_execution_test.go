@@ -14,14 +14,14 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
-func TestExecutePreparedBalanceEngineExecutesExactlyOnce(t *testing.T) {
+func TestExecutePreparedEngineExecutesExactlyOnce(t *testing.T) {
 	t.Parallel()
 
 	plan, result := recoveryContractFixture(t)
 	prepared := preparedExecutionFixture(t, plan, result)
-	executor := &scriptedBalanceEngine{responses: []balanceEngineResponse{{result: &result}}}
+	executor := &scriptedEngine{responses: []engineResponse{{result: &result}}}
 
-	outcome, err := ExecutePreparedBalanceEngine(context.Background(), executor, prepared)
+	outcome, err := ExecutePreparedEngine(context.Background(), executor, prepared)
 	require.NoError(t, err)
 	assert.Equal(t, prepared, outcome.Prepared)
 	assert.Same(t, &result, outcome.Result)
@@ -29,7 +29,7 @@ func TestExecutePreparedBalanceEngineExecutesExactlyOnce(t *testing.T) {
 	require.Len(t, executor.requests, 1)
 }
 
-func TestExecutePreparedBalanceEngineDoesNotRetryRefusals(t *testing.T) {
+func TestExecutePreparedEngineDoesNotRetryRefusals(t *testing.T) {
 	t.Parallel()
 
 	plan, result := recoveryContractFixture(t)
@@ -37,9 +37,9 @@ func TestExecutePreparedBalanceEngineDoesNotRetryRefusals(t *testing.T) {
 	refusal := &accounting.Failure{
 		Code: accounting.FailureInsufficientFunds, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default",
 	}
-	executor := &scriptedBalanceEngine{responses: []balanceEngineResponse{{err: refusal}, {result: &result}}}
+	executor := &scriptedEngine{responses: []engineResponse{{err: refusal}, {result: &result}}}
 
-	outcome, err := ExecutePreparedBalanceEngine(context.Background(), executor, prepared)
+	outcome, err := ExecutePreparedEngine(context.Background(), executor, prepared)
 	assert.Same(t, refusal, err)
 	assert.Nil(t, outcome.Result)
 	assert.True(t, outcome.Executed)
@@ -47,42 +47,42 @@ func TestExecutePreparedBalanceEngineDoesNotRetryRefusals(t *testing.T) {
 	require.Len(t, executor.responses, 1, "the execution boundary must not consume a second outcome")
 }
 
-func TestExecutePreparedBalanceEngineTreatsInvalidSuccessAsIndeterminate(t *testing.T) {
+func TestExecutePreparedEngineTreatsInvalidSuccessAsIndeterminate(t *testing.T) {
 	t.Parallel()
 
 	plan, result := recoveryContractFixture(t)
 	prepared := preparedExecutionFixture(t, plan, result)
-	executor := &scriptedBalanceEngine{responses: []balanceEngineResponse{{}}}
+	executor := &scriptedEngine{responses: []engineResponse{{}}}
 
-	_, err := ExecutePreparedBalanceEngine(context.Background(), executor, prepared)
-	require.ErrorIs(t, err, ErrInvalidBalanceEngineResult)
-	var technical balanceEngineTechnicalError
+	_, err := ExecutePreparedEngine(context.Background(), executor, prepared)
+	require.ErrorIs(t, err, ErrInvalidEngineResult)
+	var technical engineTechnicalError
 	require.ErrorAs(t, err, &technical)
 	assert.True(t, technical.OutcomeIndeterminate())
 	require.Len(t, executor.requests, 1)
 }
 
-func TestExecutePreparedBalanceEngineRejectsMismatchedPlanBeforeExecution(t *testing.T) {
+func TestExecutePreparedEngineRejectsMismatchedPlanBeforeExecution(t *testing.T) {
 	t.Parallel()
 
 	plan, result := recoveryContractFixture(t)
 	prepared := preparedExecutionFixture(t, plan, result)
 	prepared.CompletionPlan.HeaderID = "different"
-	executor := &scriptedBalanceEngine{}
+	executor := &scriptedEngine{}
 
-	outcome, err := ExecutePreparedBalanceEngine(context.Background(), executor, prepared)
+	outcome, err := ExecutePreparedEngine(context.Background(), executor, prepared)
 	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 	assert.False(t, outcome.Executed)
 	assert.Empty(t, executor.requests)
 }
 
-func preparedExecutionFixture(t *testing.T, plan TransactionCompletionPlan, result accounting.ExecutionResult) PreparedBalanceEngineExecution {
+func preparedExecutionFixture(t *testing.T, plan TransactionCompletionPlan, result accounting.ExecutionResult) PreparedEngineExecution {
 	t.Helper()
 
 	raw, err := EncodeTransactionCompletionPlan(plan)
 	require.NoError(t, err)
 
-	return PreparedBalanceEngineExecution{
+	return PreparedEngineExecution{
 		CompletionPlan: plan,
 		Execution: EngineExecution{
 			Execution: accounting.Execution{

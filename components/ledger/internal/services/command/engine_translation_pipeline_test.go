@@ -20,7 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-func TestBalanceEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *testing.T) {
+func TestEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *testing.T) {
 	t.Parallel()
 
 	payload, _ := recoveryContractFixture(t)
@@ -41,7 +41,7 @@ func TestBalanceEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *tes
 	companion.Direction = constant.DirectionDebit
 	companion.Settings = &mmodel.BalanceSettings{BalanceScope: mmodel.BalanceScopeInternal}
 	reads := 0
-	pool, err := LoadBalanceEngineSnapshotPool(context.Background(), payload.OrganizationID, payload.LedgerID,
+	pool, err := LoadEngineSnapshotPool(context.Background(), payload.OrganizationID, payload.LedgerID,
 		[]string{"@source#default", "@target#default"},
 		func(_ context.Context, orgID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 			assert.Equal(t, payload.OrganizationID, orgID)
@@ -82,7 +82,7 @@ func TestBalanceEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *tes
 		},
 		To: map[string]mtransaction.Amount{"0#@target#default": {Asset: "USD", Value: decimal.NewFromInt(60), Operation: constant.CREDIT}},
 	}
-	translated, projection, err := TranslateBalanceEngineTransaction(BalanceEngineTranslationInput{
+	translated, projection, err := TranslateEngineTransaction(EngineTranslationInput{
 		TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
 		TransactionInput: payload.TransactionInput, Validate: payload.Validate, Balances: pool.Balances,
 	})
@@ -94,9 +94,9 @@ func TestBalanceEngineTranslationPipelinePreservesRepeatedLegsAndRecovery(t *tes
 	assert.Equal(t, accounting.DrawAllowed, translated.Postings[0].DrawPolicy)
 	assert.Equal(t, accounting.DrawAllowed, translated.Postings[1].DrawPolicy)
 	payload.OperationSpecs = projection
-	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(BalanceEngineIntent{
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(EngineIntent{
 		TenantID: payload.TenantID, OrganizationID: payload.OrganizationID, LedgerID: payload.LedgerID, ExecutionID: payload.ExecutionID,
-		Transactions: []BalanceEngineTransactionIntent{transactionCompletionIntent(translated, payload)},
+		Transactions: []EngineTransactionIntent{transactionCompletionIntent(translated, payload)},
 	})
 	require.NoError(t, err)
 	frozenPayload, err := EncodeTransactionCompletionPlan(payload)

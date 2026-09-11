@@ -13,44 +13,44 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 )
 
-// ErrInvalidBalanceEngineResult identifies a nil or malformed result returned
+// ErrInvalidEngineResult identifies a nil or malformed result returned
 // as a successful accounting execution.
-var ErrInvalidBalanceEngineResult = errors.New("invalid balance engine result")
+var ErrInvalidEngineResult = errors.New("invalid engine result")
 
-// PreparedBalanceEngineExecution carries one validated execution and its
+// PreparedEngineExecution carries one validated execution and its
 // canonical single-transaction completion plan.
-type PreparedBalanceEngineExecution struct {
+type PreparedEngineExecution struct {
 	Execution      EngineExecution
 	CompletionPlan TransactionCompletionPlan
 }
 
-// BalanceEngineExecutionOutcome preserves the prepared input and any result
+// EngineExecutionOutcome preserves the prepared input and any result
 // returned by its single atomic execution.
-type BalanceEngineExecutionOutcome struct {
-	Prepared PreparedBalanceEngineExecution
+type EngineExecutionOutcome struct {
+	Prepared PreparedEngineExecution
 	Result   *accounting.ExecutionResult
 	Executed bool
 }
 
-// ExecutePreparedBalanceEngine executes a prepared request exactly once. Live
+// ExecutePreparedEngine executes a prepared request exactly once. Live
 // balance concurrency is resolved inside the atomic engine implementation. It
 // deliberately performs no retry: an error may follow an applied mutation, and
 // only recovery of that recorded execution may continue automatically.
-func ExecutePreparedBalanceEngine(
+func ExecutePreparedEngine(
 	ctx context.Context,
-	executor BalanceEngine,
-	prepared PreparedBalanceEngineExecution,
-) (BalanceEngineExecutionOutcome, error) {
-	outcome := BalanceEngineExecutionOutcome{Prepared: prepared}
+	executor Engine,
+	prepared PreparedEngineExecution,
+) (EngineExecutionOutcome, error) {
+	outcome := EngineExecutionOutcome{Prepared: prepared}
 	if executor == nil {
-		return outcome, fmt.Errorf("balance engine execution requires an executor")
+		return outcome, fmt.Errorf("engine execution requires an executor")
 	}
 
 	if err := ctx.Err(); err != nil {
 		return outcome, err
 	}
 
-	if err := validatePreparedBalanceEngineExecution(prepared); err != nil {
+	if err := validatePreparedEngineExecution(prepared); err != nil {
 		return outcome, err
 	}
 
@@ -59,30 +59,30 @@ func ExecutePreparedBalanceEngine(
 	outcome.Result = result
 	if err != nil {
 		if result != nil {
-			return outcome, invalidBalanceEngineResult(fmt.Errorf("executor returned both a result and an error: %w", err))
+			return outcome, invalidEngineResult(fmt.Errorf("executor returned both a result and an error: %w", err))
 		}
 
 		return outcome, err
 	}
 
 	if result == nil {
-		return outcome, invalidBalanceEngineResult(errors.New("executor returned a nil result"))
+		return outcome, invalidEngineResult(errors.New("executor returned a nil result"))
 	}
 
 	if _, validationErr := validateOperationMovementResult(prepared.CompletionPlan, *result); validationErr != nil {
-		return outcome, invalidBalanceEngineResult(validationErr)
+		return outcome, invalidEngineResult(validationErr)
 	}
 
 	return outcome, nil
 }
 
-func validatePreparedBalanceEngineExecution(prepared PreparedBalanceEngineExecution) error {
+func validatePreparedEngineExecution(prepared PreparedEngineExecution) error {
 	if err := ValidateTransactionCompletion(prepared.Execution); err != nil {
 		return err
 	}
 
 	if len(prepared.Execution.Execution.Transactions) != 1 || len(prepared.Execution.CompletionPlans) != 1 {
-		return invalidTransactionCompletionRecord("balance engine execution requires one transaction and completion plan")
+		return invalidTransactionCompletionRecord("engine execution requires one transaction and completion plan")
 	}
 
 	transactionID := prepared.Execution.Execution.Transactions[0].ID
@@ -112,26 +112,26 @@ func validatePreparedBalanceEngineExecution(prepared PreparedBalanceEngineExecut
 	return nil
 }
 
-type invalidBalanceEngineResultError struct {
+type invalidEngineResultError struct {
 	err error
 }
 
-func (e *invalidBalanceEngineResultError) Error() string {
-	return "balance engine returned an invalid result: " + e.err.Error()
+func (e *invalidEngineResultError) Error() string {
+	return "engine returned an invalid result: " + e.err.Error()
 }
 
-func (e *invalidBalanceEngineResultError) Unwrap() error {
+func (e *invalidEngineResultError) Unwrap() error {
 	return e.err
 }
 
-func (e *invalidBalanceEngineResultError) EngineFailureCode() string {
+func (e *invalidEngineResultError) EngineFailureCode() string {
 	return "invalid_result"
 }
 
-func (e *invalidBalanceEngineResultError) OutcomeIndeterminate() bool {
+func (e *invalidEngineResultError) OutcomeIndeterminate() bool {
 	return true
 }
 
-func invalidBalanceEngineResult(cause error) error {
-	return &invalidBalanceEngineResultError{err: fmt.Errorf("%w: %w", ErrInvalidBalanceEngineResult, cause)}
+func invalidEngineResult(cause error) error {
+	return &invalidEngineResultError{err: fmt.Errorf("%w: %w", ErrInvalidEngineResult, cause)}
 }

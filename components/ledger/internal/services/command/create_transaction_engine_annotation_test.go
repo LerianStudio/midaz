@@ -19,14 +19,14 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-func TestCreateTransactionBalanceEngineLeavesAnnotationsOnLegacyPath(t *testing.T) {
+func TestCreateTransactionEngineLeavesAnnotationsOnLegacyPath(t *testing.T) {
 	for _, version := range []string{"v1", "v2"} {
 		t.Run(version, func(t *testing.T) {
 			uc, reader, redisRepo := newVersionUseCase(t, mmodel.LedgerSettings{})
 			redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			redisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).Times(1)
-			executor := &scriptedBalanceEngine{}
-			uc.BalanceEngine = executor
+			executor := &scriptedEngine{}
+			uc.Engine = executor
 			input := skippingTransaction()
 			input.Skip = nil
 			date := time.Date(2026, time.July, 1, 12, 0, 0, 0, time.UTC)
@@ -52,11 +52,11 @@ func TestCreateTransactionBalanceEngineLeavesAnnotationsOnLegacyPath(t *testing.
 	}
 }
 
-func TestCreateTransactionBalanceEngineRequiresFinalizationBeforePreparation(t *testing.T) {
+func TestCreateTransactionEngineRequiresFinalizationBeforePreparation(t *testing.T) {
 	uc, reader, redisRepo := newVersionUseCase(t, mmodel.LedgerSettings{})
 	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
-	executor := &scriptedBalanceEngine{}
-	uc.BalanceEngine = executor
+	executor := &scriptedEngine{}
+	uc.Engine = executor
 
 	_, _, err := uc.CreateTransactionV1(context.Background(), CreateTransactionV1Input{
 		OrganizationID: uuid.MustParse("91111111-1111-4111-8111-111111111111"),

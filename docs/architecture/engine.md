@@ -1,4 +1,4 @@
-# Balance engine
+# Engine
 
 ## Status and scope
 
@@ -48,7 +48,7 @@ transaction flows. Explicit integrity corrections are described separately.
 | Completion of already-applied engine executions | Engine recovery consumer |
 
 The domain `accounting` package must not import commands, adapters, or bootstrap.
-The command layer owns the `BalanceEngine` port; bootstrap selects its
+The command layer owns the `Engine` port; bootstrap selects its
 implementation. The Redis implementation belongs under
 `components/ledger/internal/adapters/redis/engine`. Imports use `accounting` for
 the domain contract and `redisengine` when the adapter needs an explicit alias. Tests importing
@@ -198,13 +198,13 @@ projector and must produce identical operation IDs, rows, and versions.
 
 The engine transaction paths compose two preparation functions:
 
-- `LoadBalanceEngineSnapshotPool` reads explicit targets and deduplicated optional
+- `LoadEngineSnapshotPool` reads explicit targets and deduplicated optional
   overdraft candidates within the same organization and ledger. Candidate loading
   does not depend on a snapshot's overdraft permission or predicted deficit.
   Missing optional rows are omitted; read errors and inconsistent identities are
   rejected. Explicit targets remain separate for existing targeting validation;
   an available internal companion must not become a user-requested leg.
-- `TranslateBalanceEngineTransaction` walks ordered source and destination legs,
+- `TranslateEngineTransaction` walks ordered source and destination legs,
   not validation-map or pool order. Origin references identify the original leg;
   posting references add its accounting mutation. The ledger-level route decision
   controls direct/revert draw policy independently of the per-leg flag used for
@@ -426,7 +426,7 @@ manual rollback must not be mistaken for the target prepared-commit guarantee.
 
 ## Single execution, transport, and error classification
 
-`ExecutePreparedBalanceEngine` validates the canonical completion plan and sends
+`ExecutePreparedEngine` validates the canonical completion plan and sends
 each prepared action to the accounting engine exactly once. The Lua execution
 reads and validates live cache state atomically, so the command layer does not
 perform stale-version retries or rebuild a second execution attempt. Any returned
@@ -688,7 +688,7 @@ A late pending-hold record after terminal completion is accepted only when every
 historical row already exists exactly; it cannot insert old rows or regress the
 terminal transaction. Persistence conflicts retain the recovery record.
 
-`NewBalanceEngineFinalizerWithEvents` optionally dispatches the existing
+`NewTransactionCompletionServiceWithEvents` optionally dispatches the existing
 transaction, overdraft, and balance-change emitters after SQL and frozen metadata
 have both been confirmed. It requires a store reporting the actual committed
 `created`, `updated`, or `noop` lifecycle phase; an absent or unknown phase fails
@@ -792,14 +792,14 @@ The balance-cache participant inventory is:
 | Role | Entry point | Current write/read contract |
 | --- | --- | --- |
 | Writer | `transaction/scripts/balance_atomic_operation.lua`: cold seed and successful monetary mutation | complete dual |
-| Writer | `engine/scripts/balance_engine.lua`: default engine cold seed and successful monetary mutation | complete dual |
+| Writer | `engine/scripts/engine.lua`: default engine cold seed and successful monetary mutation | complete dual |
 | Writer | `RedisConsumerRepository.UpdateBalanceCacheSettings` via `balancecache.PatchSettingsDual` | complete dual |
 | Writer | `transaction.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |
 | Writer | `engine.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |
 | Writer | `balance_atomic_operation.lua` rollback | exact original bytes; never a format conversion |
 | Reader | `balancecache.DecodeForRead`, used by `ListBalanceByKey`, `GetBalancesByKeys`, query overlays, and balance sync | legacy, dual, new-only |
 | Reader | `balance_atomic_operation.lua` `decode_cached_balance` | legacy, mixed, dual, new-only; uppercase wins when present |
-| Reader | `balance_engine.lua` `decodeBalance` | legacy, mixed, dual, new-only; uppercase wins when present |
+| Reader | `engine.lua` `decodeBalance` | legacy, mixed, dual, new-only; uppercase wins when present |
 
 `balancecache.ClassifyShape` and `balancecache.BuildInventory` provide the
 read-only format check for a complete externally supplied key walk. The report
@@ -883,8 +883,8 @@ The deterministic representative wire measurements are 2 postings/2 pool
 snapshots: 2,134 bytes; 10 postings/20 pool snapshots: 12,974 bytes; and 50
 postings/100 pool snapshots: 61,960 bytes. These are serialized JSON payload
 sizes (not RESP framing). Full-pool loading is measured separately from the
-touched set; the adapter emits `balance_engine_pool_balance_count` and
-`balance_engine_touched_balance_count` histograms with no identifiers or monetary
+touched set; the adapter emits `engine_pool_balance_count` and
+`engine_touched_balance_count` histograms with no identifiers or monetary
 labels.
 
 Observe request counts, posting types, closed failure enums, script attempts,
@@ -900,15 +900,15 @@ accounting result or error. No monetary state or identifiers are emitted.
 
 | Metric | Meaning | Labels |
 | --- | --- | --- |
-| `balance_engine_requests_total` | Every `Execute` invocation, including early rejection and receipt replay | `outcome`: `success`, `refused`, `technical_error`, `indeterminate` |
-| `balance_engine_postings_total` | Requested postings after complete request/recovery validation, including replay; not applied movements or generated companions | `type`: the six supported posting types |
-| `balance_engine_failures_total` | Failed invocations, using recognized protocol codes; unexpected classifications become `unknown` | `code`: closed vocabulary |
-| `balance_engine_cas_attempts_total` | Historical metric name for accounting script attempts, including receipt replay and post-normalization execution; NOSCRIPT fallback is not an additional attempt | None |
-| `balance_engine_indeterminate_total` | Invocations whose accounting outcome cannot be confirmed | None |
-| `balance_engine_duration_ms` | Complete adapter invocation duration, including validation and normalization | None |
-| `balance_engine_request_size_bytes` | Validated Lua JSON payload length; excludes Redis keys and RESP framing | None |
-| `balance_engine_pool_balance_count` | Full snapshot pool carried into preflight | None |
-| `balance_engine_touched_balance_count` | Distinct balance references targeted by postings | None |
+| `engine_requests_total` | Every `Execute` invocation, including early rejection and receipt replay | `outcome`: `success`, `refused`, `technical_error`, `indeterminate` |
+| `engine_postings_total` | Requested postings after complete request/recovery validation, including replay; not applied movements or generated companions | `type`: the six supported posting types |
+| `engine_failures_total` | Failed invocations, using recognized protocol codes; unexpected classifications become `unknown` | `code`: closed vocabulary |
+| `engine_cas_attempts_total` | Historical metric name for accounting script attempts, including receipt replay and post-normalization execution; NOSCRIPT fallback is not an additional attempt | None |
+| `engine_indeterminate_total` | Invocations whose accounting outcome cannot be confirmed | None |
+| `engine_duration_ms` | Complete adapter invocation duration, including validation and normalization | None |
+| `engine_request_size_bytes` | Validated Lua JSON payload length; excludes Redis keys and RESP framing | None |
+| `engine_pool_balance_count` | Full snapshot pool carried into preflight | None |
+| `engine_touched_balance_count` | Distinct balance references targeted by postings | None |
 
 `refused` means a recognized pre-write protocol refusal, not necessarily an HTTP
 business error: missing companions and on-hold underflow remain integrity
@@ -922,7 +922,7 @@ or payload-size sample.
 ### Recovery metrics
 
 The version-two consumer uses its injected `MetricsFactory` to emit
-`balance_engine_recovery_total` and `balance_engine_recovery_duration_ms` once
+`engine_recovery_total` and `engine_recovery_duration_ms` once
 per finalization attempt, including rejection before persistence. Both use a
 closed `source` label (`legacy_backup` or `engine_recover`) and the closed
 `outcome` label: `completed`, `context_canceled`, `not_configured`,

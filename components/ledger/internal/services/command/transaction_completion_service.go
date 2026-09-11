@@ -28,11 +28,11 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-// ErrBalanceEngineMetadataConflict identifies metadata that cannot be confirmed
+// ErrEngineMetadataConflict identifies metadata that cannot be confirmed
 // without changing the frozen value or replacing an existing document.
-var ErrBalanceEngineMetadataConflict = errors.New("balance engine metadata conflict")
+var ErrEngineMetadataConflict = errors.New("engine metadata conflict")
 
-type balanceEngineMetadataRepository interface {
+type engineMetadataRepository interface {
 	Create(context.Context, string, *mongodb.Metadata) error
 	FindByEntity(context.Context, string, string) (*mongodb.Metadata, error)
 }
@@ -41,13 +41,13 @@ type balanceEngineMetadataRepository interface {
 // without executing accounting or removing its completion record.
 type TransactionCompletionService struct {
 	store     TransactionWriteStore
-	metadata  balanceEngineMetadataRepository
-	publisher BalanceEngineEventPublisher
+	metadata  engineMetadataRepository
+	publisher AppliedTransactionEventPublisher
 }
 
 // NewTransactionCompletionService uses the existing metadata repository with the
 // authenticated Mongo context supplied by its caller.
-func NewTransactionCompletionService(store TransactionWriteStore, metadata balanceEngineMetadataRepository) *TransactionCompletionService {
+func NewTransactionCompletionService(store TransactionWriteStore, metadata engineMetadataRepository) *TransactionCompletionService {
 	return &TransactionCompletionService{store: store, metadata: metadata}
 }
 
@@ -55,11 +55,11 @@ func NewTransactionCompletionService(store TransactionWriteStore, metadata balan
 // SQL and frozen metadata have both been confirmed.
 func NewTransactionCompletionServiceWithEvents(
 	store TransactionWriteStore,
-	metadata balanceEngineMetadataRepository,
-	publisher BalanceEngineEventPublisher,
+	metadata engineMetadataRepository,
+	publisher AppliedTransactionEventPublisher,
 ) (*TransactionCompletionService, error) {
 	if publisher == nil || (reflect.ValueOf(publisher).Kind() == reflect.Pointer && reflect.ValueOf(publisher).IsNil()) {
-		return nil, invalidTransactionCompletionRecord("balance engine event publisher is not configured")
+		return nil, invalidTransactionCompletionRecord("engine event publisher is not configured")
 	}
 
 	if _, ok := store.(TransactionWriteStoreWithOutcome); !ok {
@@ -136,7 +136,7 @@ func (service *TransactionCompletionService) complete(ctx context.Context, recor
 			return TransactionCompletionResult{}, fmt.Errorf("%w: transaction write store reported unknown lifecycle phase", ErrTransactionCompletionConflict)
 		}
 
-		service.publisher.PublishBalanceEngineEvents(ctx, writeSet.Transaction, outcome.LifecyclePhase)
+		service.publisher.PublishAppliedTransactionEvents(ctx, writeSet.Transaction, outcome.LifecyclePhase)
 	}
 
 	return TransactionCompletionResult{Record: callerWriteSet, Outcome: outcome}, nil
@@ -562,5 +562,5 @@ func (number metadataNumber) bsonNumber() (any, error) {
 }
 
 func metadataConflict(reason string) error {
-	return fmt.Errorf("%w: %s", ErrBalanceEngineMetadataConflict, reason)
+	return fmt.Errorf("%w: %s", ErrEngineMetadataConflict, reason)
 }

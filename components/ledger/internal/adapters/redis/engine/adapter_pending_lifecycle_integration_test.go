@@ -56,7 +56,7 @@ func (r *pendingLifecycleReader) GetBalances(_ context.Context, _, _ uuid.UUID, 
 	return out, nil
 }
 
-func (r *pendingLifecycleReader) GetBalanceEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+func (r *pendingLifecycleReader) GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
 	balances, err := r.GetBalances(ctx, organizationID, ledgerID, aliases)
 	return balances, balances, err
 }
@@ -310,7 +310,7 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			uc := &command.UseCase{
 				TransactionRedisRepo:        redisRepository,
 				TransactionReader:           reader,
-				BalanceEngine:               executor,
+				Engine:                      executor,
 				AppliedTransactionCompleter: finalizer,
 				TracerReserver:              tracerControl,
 			}
@@ -455,7 +455,7 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	uc := &command.UseCase{
 		TransactionRedisRepo:        redisRepository,
 		TransactionReader:           reader,
-		BalanceEngine:               executor,
+		Engine:                      executor,
 		AppliedTransactionCompleter: finalizer,
 		TracerReserver:              tracerControl,
 	}
@@ -632,7 +632,7 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	uc := &command.UseCase{
 		TransactionRedisRepo:        redisRepository,
 		TransactionReader:           reader,
-		BalanceEngine:               executor,
+		Engine:                      executor,
 		AppliedTransactionCompleter: finalizer,
 	}
 
@@ -785,13 +785,13 @@ func assertPendingLifecycleBalances(t *testing.T, ctx context.Context, client *r
 }
 
 var (
-	_ command.TransactionReader              = (*pendingLifecycleReader)(nil)
-	_ command.BalanceEngine                  = (*pendingLifecycleAdapter)(nil)
-	_ command.BalanceEngineGuardBootstrapper = (*pendingLifecycleAdapter)(nil)
-	_ command.BalanceEngine                  = (*racingPendingLifecycleAdapter)(nil)
-	_ command.BalanceEngineGuardBootstrapper = (*racingPendingLifecycleAdapter)(nil)
-	_ command.AppliedTransactionCompleter    = (*pendingLifecycleFinalizer)(nil)
-	_ command.AppliedTransactionCompleter    = (*pendingRaceFinalizer)(nil)
-	_ command.AppliedTransactionCompleter    = (*pendingLockExpiryFinalizer)(nil)
-	_ command.TracerReserver                 = (*pendingLifecycleTracer)(nil)
+	_ command.TransactionReader           = (*pendingLifecycleReader)(nil)
+	_ command.Engine                      = (*pendingLifecycleAdapter)(nil)
+	_ command.EngineGuardBootstrapper     = (*pendingLifecycleAdapter)(nil)
+	_ command.Engine                      = (*racingPendingLifecycleAdapter)(nil)
+	_ command.EngineGuardBootstrapper     = (*racingPendingLifecycleAdapter)(nil)
+	_ command.AppliedTransactionCompleter = (*pendingLifecycleFinalizer)(nil)
+	_ command.AppliedTransactionCompleter = (*pendingRaceFinalizer)(nil)
+	_ command.AppliedTransactionCompleter = (*pendingLockExpiryFinalizer)(nil)
+	_ command.TracerReserver              = (*pendingLifecycleTracer)(nil)
 )

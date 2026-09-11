@@ -23,14 +23,14 @@ const (
 	recoveryMetricOutcomeRecordChanged      = "record_changed"
 	recoveryMetricOutcomeInvalidAck         = "invalid_ack"
 
-	recoveryMetricName         = "balance_engine_recovery_total"
-	recoveryMetricDurationName = "balance_engine_recovery_duration_ms"
+	recoveryMetricName         = "engine_recovery_total"
+	recoveryMetricDurationName = "engine_recovery_duration_ms"
 	recoveryMetricOutcomeLabel = "outcome"
 	recoveryMetricSourceLabel  = "source"
 	recoveryMetricCounterUnit  = "1"
 	recoveryMetricDurationUnit = "ms"
-	recoveryMetricCounterDesc  = "Number of bounded balance-engine recovery outcomes."
-	recoveryMetricDurationDesc = "Duration of balance-engine recovery finalization in milliseconds."
+	recoveryMetricCounterDesc  = "Number of bounded engine recovery outcomes."
+	recoveryMetricDurationDesc = "Duration of engine recovery finalization in milliseconds."
 )
 
 var recoveryMetricDurationBuckets = []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000}
@@ -44,10 +44,10 @@ func (r *recoveryRecordCompleter) emitRecoveryMetrics(ctx context.Context, sourc
 	labels := map[string]string{recoveryMetricOutcomeLabel: outcome, recoveryMetricSourceLabel: string(source)}
 
 	if err := r.metricsFactory.AddCounter(ctx, recoveryMetricName, recoveryMetricCounterDesc, recoveryMetricCounterUnit, labels, 1); err != nil {
-		logger.Log(ctx, libLog.LevelDebug, "Unable to record balance-engine recovery outcome metric", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelDebug, "Unable to record engine recovery outcome metric", libLog.Err(err))
 	}
 
 	if err := r.metricsFactory.RecordHistogram(ctx, recoveryMetricDurationName, recoveryMetricDurationDesc, recoveryMetricDurationUnit, labels, float64(duration)/float64(time.Millisecond), recoveryMetricDurationBuckets); err != nil {
-		logger.Log(ctx, libLog.LevelDebug, "Unable to record balance-engine recovery duration metric", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelDebug, "Unable to record engine recovery duration metric", libLog.Err(err))
 	}
 }

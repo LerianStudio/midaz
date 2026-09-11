@@ -18,7 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
-var _ command.BalanceEngineGuardBootstrapper = (*Adapter)(nil)
+var _ command.EngineGuardBootstrapper = (*Adapter)(nil)
 
 type guardFailureHook struct {
 	cause   error

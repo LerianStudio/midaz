@@ -18,28 +18,28 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-type balanceEnginePreparationInput struct {
+type enginePreparationInput struct {
 	organizationID uuid.UUID
 	ledgerID       uuid.UUID
-	translation    BalanceEngineTranslationInput
+	translation    EngineTranslationInput
 }
 
-type balanceEnginePreparedTransaction struct {
-	pool        BalanceEngineSnapshotPool
+type enginePreparedTransaction struct {
+	pool        EngineSnapshotPool
 	transaction accounting.Transaction
 	projection  []OperationRecordSpec
 }
 
-// prepareBalanceEngineTransaction performs cache-aside seed loading and route
+// prepareEngineTransaction performs cache-aside seed loading and route
 // validation. Balance state and account eligibility are evaluated later against
 // live cached values by the atomic engine execution.
-func (uc *UseCase) prepareBalanceEngineTransaction(ctx context.Context, input balanceEnginePreparationInput) (balanceEnginePreparedTransaction, error) {
+func (uc *UseCase) prepareEngineTransaction(ctx context.Context, input enginePreparationInput) (enginePreparedTransaction, error) {
 	if err := ctx.Err(); err != nil {
-		return balanceEnginePreparedTransaction{}, err
+		return enginePreparedTransaction{}, err
 	}
 
 	if uc == nil || uc.TransactionReader == nil || input.translation.Validate == nil {
-		return balanceEnginePreparedTransaction{}, invalidBalanceEngineTranslation("preparation requires a reader and validated intent")
+		return enginePreparedTransaction{}, invalidEngineTranslation("preparation requires a reader and validated intent")
 	}
 
 	ctx = readrouting.WithPrimaryRead(ctx)
@@ -54,58 +54,58 @@ func (uc *UseCase) prepareBalanceEngineTransaction(ctx context.Context, input ba
 		}
 	}
 
-	pool, err := loadPreparedBalanceEngineSnapshots(ctx, uc.TransactionReader, input.organizationID, input.ledgerID, aliases)
+	pool, err := loadPreparedEngineSnapshots(ctx, uc.TransactionReader, input.organizationID, input.ledgerID, aliases)
 	if err != nil {
-		return balanceEnginePreparedTransaction{}, err
+		return enginePreparedTransaction{}, err
 	}
 
 	if err := rejectInternalScopeBalances(ctx, pool.ExplicitBalances); err != nil {
-		return balanceEnginePreparedTransaction{}, err
+		return enginePreparedTransaction{}, err
 	}
 
-	operations, err := orderedBalanceEngineValidationOperations(input.translation, pool.ExplicitBalances)
+	operations, err := orderedEngineValidationOperations(input.translation, pool.ExplicitBalances)
 	if err != nil {
-		return balanceEnginePreparedTransaction{}, err
+		return enginePreparedTransaction{}, err
 	}
 
 	if err := ctx.Err(); err != nil {
-		return balanceEnginePreparedTransaction{}, err
+		return enginePreparedTransaction{}, err
 	}
 
 	routeCache, err := uc.TransactionReader.ValidateAccountingRules(ctx, input.organizationID, input.ledgerID, operations, input.translation.Validate, input.translation.Action)
 	if err != nil {
-		return balanceEnginePreparedTransaction{}, err
+		return enginePreparedTransaction{}, err
 	}
 
 	if err := ctx.Err(); err != nil {
-		return balanceEnginePreparedTransaction{}, err
+		return enginePreparedTransaction{}, err
 	}
 
 	input.translation.Balances = pool.Balances
 	input.translation.RouteCache = routeCache
 
-	translated, projection, err := TranslateBalanceEngineTransaction(input.translation)
+	translated, projection, err := TranslateEngineTransaction(input.translation)
 	if err != nil {
-		return balanceEnginePreparedTransaction{}, err
+		return enginePreparedTransaction{}, err
 	}
 
-	return balanceEnginePreparedTransaction{pool: pool, transaction: translated, projection: projection}, nil
+	return enginePreparedTransaction{pool: pool, transaction: translated, projection: projection}, nil
 }
 
-func loadPreparedBalanceEngineSnapshots(ctx context.Context, reader TransactionReader, organizationID, ledgerID uuid.UUID, aliases []string) (BalanceEngineSnapshotPool, error) {
-	explicitBalances, executionBalances, err := reader.GetBalanceEngineBalances(ctx, organizationID, ledgerID, aliases)
+func loadPreparedEngineSnapshots(ctx context.Context, reader TransactionReader, organizationID, ledgerID uuid.UUID, aliases []string) (EngineSnapshotPool, error) {
+	explicitBalances, executionBalances, err := reader.GetEngineBalances(ctx, organizationID, ledgerID, aliases)
 	if err != nil {
-		return BalanceEngineSnapshotPool{}, fmt.Errorf("load balance engine balances: %w", err)
+		return EngineSnapshotPool{}, fmt.Errorf("load engine balances: %w", err)
 	}
 
-	return BuildBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, explicitBalances, executionBalances)
+	return BuildEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, explicitBalances, executionBalances)
 }
 
-// orderedBalanceEngineValidationOperations preserves the existing route DTO's
+// orderedEngineValidationOperations preserves the existing route DTO's
 // double-entry shape without calculating balances or adding overdraft companions.
 // Repeated aliases remain separate legs; deduplicateBalances subsequently collapses
 // only the two static entries belonging to the same source leg.
-func orderedBalanceEngineValidationOperations(input BalanceEngineTranslationInput, explicit []*mmodel.Balance) ([]mmodel.BalanceOperation, error) {
+func orderedEngineValidationOperations(input EngineTranslationInput, explicit []*mmodel.Balance) ([]mmodel.BalanceOperation, error) {
 	balances, err := indexTranslationBalances(explicit)
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func orderedBalanceEngineValidationOperations(input BalanceEngineTranslationInpu
 		for _, leg := range side.legs {
 			amount, ok := side.amounts[leg.AccountAlias]
 			if !ok {
-				return nil, invalidBalanceEngineTranslation("missing validated leg during preparation")
+				return nil, invalidEngineTranslation("missing validated leg during preparation")
 			}
 
 			balance, ok := balances[mtransaction.SplitAliasWithKey(leg.AccountAlias)]

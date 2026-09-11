@@ -34,26 +34,26 @@ type createBalanceExecutionContext struct {
 	guard              ExecutionGuard
 }
 
-// createTransactionWithBalanceEngine is the default executable create path. Everything
+// createTransactionWithEngine is the default executable create path. Everything
 // before it remains the version-specific validation/control pipeline; everything
 // after it is engine execution plus recovery completion, never legacy balance
 // mutation or write-behind persistence.
-func (uc *UseCase) createTransactionWithBalanceEngine(
+func (uc *UseCase) createTransactionWithEngine(
 	ctx context.Context,
 	span trace.Span,
 	logger libLog.Logger,
 	run *createTransactionRun,
 	tracerEligible bool,
 ) (*transaction.Transaction, error) {
-	tran, err := uc.executeCreateBalanceEngine(ctx, span, logger, run, tracerEligible)
+	tran, err := uc.executeCreateEngine(ctx, span, logger, run, tracerEligible)
 	if err != nil {
-		recordCommandError(ctx, span, logger, "Failed to create transaction with balance engine", err)
+		recordCommandError(ctx, span, logger, "Failed to create transaction with engine", err)
 	}
 
 	return tran, err
 }
 
-func (uc *UseCase) executeCreateBalanceEngine(
+func (uc *UseCase) executeCreateEngine(
 	ctx context.Context,
 	span trace.Span,
 	logger libLog.Logger,
@@ -68,11 +68,11 @@ func (uc *UseCase) executeCreateBalanceEngine(
 	executionID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
 		uc.rollbackCreateClaim(ctx, run)
-		return nil, fmt.Errorf("generate balance engine execution id: %w", err)
+		return nil, fmt.Errorf("generate engine execution id: %w", err)
 	}
 
 	_, _, headerID, _ := libObservability.NewTrackingFromContext(ctx)
-	parentID := buildBalanceEngineParentID(run.parentTransactionID)
+	parentID := buildEngineParentID(run.parentTransactionID)
 
 	nextToken := constant.APPROVED
 	if run.status == constant.PENDING {
@@ -86,13 +86,13 @@ func (uc *UseCase) executeCreateBalanceEngine(
 		guard:    ExecutionGuard{TransactionID: run.transactionID, ExpectedToken: "", NextToken: nextToken},
 	}
 
-	engineState, err := uc.prepareCreateBalanceEngineExecution(ctx, run)
+	engineState, err := uc.prepareCreateEngineExecution(ctx, run)
 	if err != nil {
 		uc.rollbackCreateClaim(ctx, run)
 		return nil, err
 	}
 
-	prepared, err := uc.buildCreateBalanceEngineExecution(run, frozen, engineState)
+	prepared, err := uc.buildCreateEngineExecution(run, frozen, engineState)
 	if err != nil {
 		uc.rollbackCreateClaim(ctx, run)
 		return nil, err
@@ -110,9 +110,9 @@ func (uc *UseCase) executeCreateBalanceEngine(
 		}
 	}
 
-	outcome, executeErr := ExecutePreparedBalanceEngine(ctx, uc.BalanceEngine, prepared)
+	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)
 	if executeErr != nil {
-		if !outcome.Executed || confirmedPrecommitBalanceEngineFailure(prepared.Execution.Execution, executeErr) {
+		if !outcome.Executed || confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
 			uc.rollbackCreateClaim(ctx, run)
 
 			if tracerEligible {
@@ -123,18 +123,18 @@ func (uc *UseCase) executeCreateBalanceEngine(
 			return nil, executeErr
 		}
 
-		return nil, MapBalanceEngineError(prepared.Execution.Execution, executeErr)
+		return nil, MapEngineError(prepared.Execution.Execution, executeErr)
 	}
 
 	if run.status != constant.PENDING && tracerEligible {
 		uc.confirmReservations(ctx, span, logger, reservation.Handle)
 	}
 
-	return uc.finalizeCreateBalanceEngineResult(ctx, run, outcome)
+	return uc.finalizeCreateEngineResult(ctx, run, outcome)
 }
 
-func (uc *UseCase) finalizeCreateBalanceEngineResult(ctx context.Context, run *createTransactionRun, outcome BalanceEngineExecutionOutcome) (*transaction.Transaction, error) {
-	envelope, err := createBalanceEngineEnvelope(outcome)
+func (uc *UseCase) finalizeCreateEngineResult(ctx context.Context, run *createTransactionRun, outcome EngineExecutionOutcome) (*transaction.Transaction, error) {
+	envelope, err := createEngineEnvelope(outcome)
 	if err != nil {
 		return nil, err
 	}
@@ -170,11 +170,11 @@ func (uc *UseCase) finalizeCreateBalanceEngineResult(ctx context.Context, run *c
 	return tran, nil
 }
 
-func (uc *UseCase) prepareCreateBalanceEngineExecution(ctx context.Context, run *createTransactionRun) (balanceEnginePreparedTransaction, error) {
-	return uc.prepareBalanceEngineTransaction(ctx, balanceEnginePreparationInput{
+func (uc *UseCase) prepareCreateEngineExecution(ctx context.Context, run *createTransactionRun) (enginePreparedTransaction, error) {
+	return uc.prepareEngineTransaction(ctx, enginePreparationInput{
 		organizationID: run.organizationID,
 		ledgerID:       run.ledgerID,
-		translation: BalanceEngineTranslationInput{
+		translation: EngineTranslationInput{
 			TransactionID: run.transactionID, Action: run.action, TransactionStatus: run.status,
 			RouteValidationEnabled: run.ledgerSettings.Accounting.ValidateRoutes,
 			TransactionInput:       run.input, Validate: run.validate,
@@ -182,7 +182,7 @@ func (uc *UseCase) prepareCreateBalanceEngineExecution(ctx context.Context, run 
 	})
 }
 
-func (uc *UseCase) buildCreateBalanceEngineExecution(run *createTransactionRun, frozen createBalanceExecutionContext, prepared balanceEnginePreparedTransaction) (PreparedBalanceEngineExecution, error) {
+func (uc *UseCase) buildCreateEngineExecution(run *createTransactionRun, frozen createBalanceExecutionContext, prepared enginePreparedTransaction) (PreparedEngineExecution, error) {
 	payload := TransactionCompletionPlan{
 		FormatVersion: TransactionCompletionFormatVersion,
 		TenantID:      frozen.tenantID, HeaderID: frozen.headerID,
@@ -195,22 +195,22 @@ func (uc *UseCase) buildCreateBalanceEngineExecution(run *createTransactionRun, 
 		OperationUpdatedAt: frozen.operationUpdated, OperationSpecs: prepared.projection,
 	}
 
-	intent := BalanceEngineIntent{
+	intent := EngineIntent{
 		TenantID: frozen.tenantID, OrganizationID: run.organizationID, LedgerID: run.ledgerID,
 		ExecutionID:  frozen.executionID,
-		Transactions: []BalanceEngineTransactionIntent{transactionCompletionIntent(prepared.transaction, payload)},
+		Transactions: []EngineTransactionIntent{transactionCompletionIntent(prepared.transaction, payload)},
 	}
 
-	fingerprint, err := ComputeBalanceEngineIntentFingerprint(intent)
+	fingerprint, err := ComputeEngineIntentFingerprint(intent)
 	if err != nil {
-		return PreparedBalanceEngineExecution{}, err
+		return PreparedEngineExecution{}, err
 	}
 
 	payload.IntentFingerprint = fingerprint
 
 	raw, err := EncodeTransactionCompletionPlan(payload)
 	if err != nil {
-		return PreparedBalanceEngineExecution{}, err
+		return PreparedEngineExecution{}, err
 	}
 
 	execution := EngineExecution{
@@ -224,7 +224,7 @@ func (uc *UseCase) buildCreateBalanceEngineExecution(run *createTransactionRun, 
 		CompletionPlans:   []CompletionPlanRecord{{TransactionID: run.transactionID, Payload: raw}},
 	}
 
-	return PreparedBalanceEngineExecution{Execution: execution, CompletionPlan: payload}, nil
+	return PreparedEngineExecution{Execution: execution, CompletionPlan: payload}, nil
 }
 
 // idempotencyRetentionSeconds accepts the repository's historical seconds-count
@@ -237,9 +237,9 @@ func idempotencyRetentionSeconds(ttl time.Duration) int64 {
 	return int64(ttl)
 }
 
-func createBalanceEngineEnvelope(outcome BalanceEngineExecutionOutcome) (*TransactionCompletionRecord, error) {
+func createEngineEnvelope(outcome EngineExecutionOutcome) (*TransactionCompletionRecord, error) {
 	if outcome.Result == nil || len(outcome.Prepared.Execution.CompletionPlans) != 1 {
-		return nil, invalidBalanceEngineResult(errors.New("successful create has no correlated recovery result"))
+		return nil, invalidEngineResult(errors.New("successful create has no correlated recovery result"))
 	}
 
 	payload := outcome.Prepared.CompletionPlan
@@ -254,7 +254,7 @@ func createBalanceEngineEnvelope(outcome BalanceEngineExecutionOutcome) (*Transa
 	}, nil
 }
 
-func buildBalanceEngineParentID(parentID uuid.UUID) *uuid.UUID {
+func buildEngineParentID(parentID uuid.UUID) *uuid.UUID {
 	if parentID == uuid.Nil {
 		return nil
 	}
@@ -274,8 +274,8 @@ func isNilAppliedTransactionCompleter(completer AppliedTransactionCompleter) boo
 	return value.Kind() == reflect.Pointer && value.IsNil()
 }
 
-func confirmedPrecommitBalanceEngineFailure(request accounting.Execution, err error) bool {
-	var technical balanceEngineTechnicalError
+func confirmedPrecommitEngineFailure(request accounting.Execution, err error) bool {
+	var technical engineTechnicalError
 	if errors.As(err, &technical) {
 		return !technical.OutcomeIndeterminate() && technical.EngineFailureCode() != "execution_guard_conflict"
 	}

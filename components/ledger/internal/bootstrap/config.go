@@ -1160,16 +1160,16 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	if err := configureAppliedTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo); err != nil {
 		doCleanup()
 
-		return nil, fmt.Errorf("failed to configure balance engine finalization: %w", err)
+		return nil, fmt.Errorf("failed to configure engine finalization: %w", err)
 	}
 
-	if err := configureBalanceEngine(commandUseCase, redisConnection); err != nil {
+	if err := configureEngine(commandUseCase, redisConnection); err != nil {
 		doCleanup()
 
-		return nil, fmt.Errorf("failed to configure balance engine: %w", err)
+		return nil, fmt.Errorf("failed to configure engine: %w", err)
 	}
 
-	logger.Log(context.Background(), libLog.LevelInfo, "Balance engine configured as the default accounting path")
+	logger.Log(context.Background(), libLog.LevelInfo, "Engine configured as the default accounting path")
 
 	// The quarantine repository is the durable sink for poison backup records;
 	// the metrics factory powers the backup-queue observability gauges/counter.

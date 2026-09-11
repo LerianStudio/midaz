@@ -16,25 +16,25 @@ import (
 )
 
 var executionDuration = metrics.Metric{
-	Name: "balance_engine_duration_ms", Unit: "ms",
+	Name: "engine_duration_ms", Unit: "ms",
 	Description: "Duration of one accounting adapter invocation, including preflight and limit repair.",
 	Buckets:     []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 5000},
 }
 
 var executionSize = metrics.Metric{
-	Name: "balance_engine_request_size_bytes", Unit: "By",
+	Name: "engine_request_size_bytes", Unit: "By",
 	Description: "Validated accounting Lua JSON payload size, excluding Redis keys and RESP framing.",
 	Buckets:     []float64{1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216},
 }
 
 var executionPoolSize = metrics.Metric{
-	Name: "balance_engine_pool_balance_count", Unit: "1",
+	Name: "engine_pool_balance_count", Unit: "1",
 	Description: "Number of balance snapshots carried by a validated accounting request.",
 	Buckets:     []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512},
 }
 
 var executionTouchedSize = metrics.Metric{
-	Name: "balance_engine_touched_balance_count", Unit: "1",
+	Name: "engine_touched_balance_count", Unit: "1",
 	Description: "Number of distinct balance references targeted by validated postings.",
 	Buckets:     []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512},
 }
@@ -55,7 +55,7 @@ func recordPreparedExecution(ctx context.Context, factory *metrics.MetricsFactor
 	// Iterate only the supported vocabulary even if validation changes later.
 	for _, kind := range []accounting.PostingType{accounting.PostingDebit, accounting.PostingCredit, accounting.PostingReserve, accounting.PostingUnreserve, accounting.PostingHold, accounting.PostingRelease} {
 		if count := counts[kind]; count > 0 {
-			emitCounter(ctx, factory, logger, "balance_engine_postings_total", "Requested postings in validated invocations, including replay; not applied movements.", map[string]string{"type": string(kind)}, count)
+			emitCounter(ctx, factory, logger, "engine_postings_total", "Requested postings in validated invocations, including replay; not applied movements.", map[string]string{"type": string(kind)}, count)
 		}
 	}
 
@@ -95,14 +95,14 @@ func recordExecutionOutcome(ctx context.Context, factory *metrics.MetricsFactory
 	}
 
 	outcome, code := executionOutcome(err)
-	emitCounter(ctx, factory, logger, "balance_engine_requests_total", "Accounting adapter invocations by outcome, including replay and preflight rejection.", map[string]string{"outcome": outcome}, 1)
+	emitCounter(ctx, factory, logger, "engine_requests_total", "Accounting adapter invocations by outcome, including replay and preflight rejection.", map[string]string{"outcome": outcome}, 1)
 
 	if code != "" {
-		emitCounter(ctx, factory, logger, "balance_engine_failures_total", "Accounting adapter failures by closed protocol classification.", map[string]string{"code": code}, 1)
+		emitCounter(ctx, factory, logger, "engine_failures_total", "Accounting adapter failures by closed protocol classification.", map[string]string{"code": code}, 1)
 	}
 
 	if outcome == "indeterminate" {
-		emitCounter(ctx, factory, logger, "balance_engine_indeterminate_total", "Accounting adapter invocations whose accounting outcome is unknown.", nil, 1)
+		emitCounter(ctx, factory, logger, "engine_indeterminate_total", "Accounting adapter invocations whose accounting outcome is unknown.", nil, 1)
 	}
 
 	histogram, emitErr := factory.Histogram(executionDuration)

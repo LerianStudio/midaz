@@ -11,17 +11,17 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 )
 
-// BalanceEngineEventPublisher dispatches the existing best-effort transaction,
+// AppliedTransactionEventPublisher dispatches the existing best-effort transaction,
 // overdraft, and balance-change emitters after durable finalization.
-type BalanceEngineEventPublisher interface {
-	PublishBalanceEngineEvents(ctx context.Context, tran *transaction.Transaction, phase string)
+type AppliedTransactionEventPublisher interface {
+	PublishAppliedTransactionEvents(ctx context.Context, tran *transaction.Transaction, phase string)
 }
 
-var _ BalanceEngineEventPublisher = (*UseCase)(nil)
+var _ AppliedTransactionEventPublisher = (*UseCase)(nil)
 
-// PublishBalanceEngineEvents delegates to the same best-effort event dispatch
+// PublishAppliedTransactionEvents delegates to the same best-effort event dispatch
 // used by the legacy transaction persistence path.
-func (uc *UseCase) PublishBalanceEngineEvents(ctx context.Context, tran *transaction.Transaction, phase string) {
+func (uc *UseCase) PublishAppliedTransactionEvents(ctx context.Context, tran *transaction.Transaction, phase string) {
 	uc.dispatchTransactionEvents(ctx, tran, phase)
 }
 

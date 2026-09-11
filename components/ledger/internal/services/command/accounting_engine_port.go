@@ -39,18 +39,18 @@ type EngineExecution struct {
 	CompletionPlans  []CompletionPlanRecord
 }
 
-// BalanceEngine is the ledger's accounting mutation boundary. Execute validates
+// Engine is the ledger's accounting mutation boundary. Execute validates
 // live balances and applies postings atomically with the evidence required to
 // finish durable transaction projection. A successful result is the point of no
 // return: its accounting effect is permanent and may only be counteracted by a
 // later explicit transaction such as a revert. Callers must not implicitly retry
 // Execute after an error because the outcome may be indeterminate.
-type BalanceEngine interface {
+type Engine interface {
 	Execute(ctx context.Context, input EngineExecution) (*accounting.ExecutionResult, error)
 }
 
-// BalanceEngineGuardBootstrapper conditionally seeds the execution guard for a
-// persisted legacy transaction that predates balance-engine guards.
-type BalanceEngineGuardBootstrapper interface {
+// EngineGuardBootstrapper conditionally seeds the execution guard for a
+// persisted legacy transaction that predates engine guards.
+type EngineGuardBootstrapper interface {
 	EnsureTransactionGuard(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, nextToken string) error
 }

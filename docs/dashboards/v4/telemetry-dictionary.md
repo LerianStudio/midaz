@@ -379,7 +379,7 @@ live_observed: true
 unit: "1"
 ```
 
-### balance_engine_requests_total
+### engine_requests_total
 
 ```yaml
 declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:98
@@ -391,7 +391,7 @@ live_observed: unknown
 unit: "1"
 ```
 
-### balance_engine_postings_total
+### engine_postings_total
 
 ```yaml
 declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:58
@@ -403,7 +403,7 @@ live_observed: unknown
 unit: "1"
 ```
 
-### balance_engine_failures_total
+### engine_failures_total
 
 ```yaml
 declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:101
@@ -415,7 +415,7 @@ live_observed: unknown
 unit: "1"
 ```
 
-### balance_engine_cas_attempts_total / balance_engine_indeterminate_total
+### engine_cas_attempts_total / engine_indeterminate_total
 
 ```yaml
 declared_at: components/ledger/internal/adapters/redis/engine/adapter.go:216 / components/ledger/internal/adapters/redis/engine/telemetry.go:105
@@ -426,11 +426,11 @@ live_observed: unknown
 unit: "1"
 ```
 
-### balance_engine_recovery_total
+### engine_recovery_total
 
 ```yaml
 declared_at: components/ledger/internal/bootstrap/redis.consumer_recovery_metrics.go:24
-description: Bounded balance-engine recovery finalization outcomes.
+description: Bounded engine recovery finalization outcomes.
 labels: [outcome]
 label_values: [completed, context_canceled, not_configured, finalization_failed, ack_failed, record_changed, invalid_ack]
 label_cardinality_estimate: low
@@ -478,7 +478,7 @@ live_observed: true
 unit: ms
 ```
 
-### balance_engine_duration_ms_milliseconds
+### engine_duration_ms_milliseconds
 
 ```yaml
 declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:19
@@ -489,7 +489,7 @@ live_observed: unknown
 unit: ms
 ```
 
-### balance_engine_recovery_duration_ms_milliseconds
+### engine_recovery_duration_ms_milliseconds
 
 ```yaml
 declared_at: components/ledger/internal/bootstrap/redis.consumer_recovery_metrics.go:25
@@ -500,7 +500,7 @@ live_observed: unknown
 unit: ms
 ```
 
-### balance_engine_request_size_bytes
+### engine_request_size_bytes
 
 ```yaml
 declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:25
@@ -511,7 +511,7 @@ live_observed: unknown
 unit: By
 ```
 
-### balance_engine_pool_balance_count / balance_engine_touched_balance_count
+### engine_pool_balance_count / engine_touched_balance_count
 
 ```yaml
 declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:31-37

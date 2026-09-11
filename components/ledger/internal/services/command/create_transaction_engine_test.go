@@ -51,8 +51,8 @@ func (reader *createEngineReader) GetBalances(_ context.Context, _, _ uuid.UUID,
 	return out, nil
 }
 
-func (reader *createEngineReader) GetBalanceEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
-	pool, err := LoadBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, reader.GetBalances)
+func (reader *createEngineReader) GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	pool, err := LoadEngineSnapshotPool(ctx, organizationID, ledgerID, aliases, reader.GetBalances)
 	return pool.ExplicitBalances, pool.Balances, err
 }
 
@@ -60,13 +60,13 @@ func (reader *createEngineReader) ValidateAccountingRules(context.Context, uuid.
 	return nil, nil
 }
 
-type createEngineFinalizer struct {
+type createAppliedTransactionCompleter struct {
 	outcome   TransactionPersistenceOutcome
 	err       error
 	envelopes []*TransactionCompletionRecord
 }
 
-func (finalizer *createEngineFinalizer) Complete(_ context.Context, envelope *TransactionCompletionRecord) (TransactionCompletionResult, error) {
+func (finalizer *createAppliedTransactionCompleter) Complete(_ context.Context, envelope *TransactionCompletionRecord) (TransactionCompletionResult, error) {
 	finalizer.envelopes = append(finalizer.envelopes, envelope)
 	if finalizer.err != nil {
 		return TransactionCompletionResult{}, finalizer.err
@@ -175,7 +175,7 @@ func (executor *createEngineErrorExecutor) Execute(_ context.Context, execution 
 	return nil, executor.err
 }
 
-func TestCreateTransactionV1UsesOptInBalanceEngineWithoutLegacyMutationPorts(t *testing.T) {
+func TestCreateTransactionV1UsesOptInEngineWithoutLegacyMutationPorts(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	ctrl := gomock.NewController(t)
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
@@ -194,11 +194,11 @@ func TestCreateTransactionV1UsesOptInBalanceEngineWithoutLegacyMutationPorts(t *
 	target := translationBalance(organizationID, ledgerID, "44444444-4444-4444-8444-444444444444", "@target", constant.DefaultBalanceKey)
 	reader := &createEngineReader{balances: []*mmodel.Balance{source, target}}
 	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
-	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
+	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	uc := &UseCase{
 		TransactionRedisRepo:        redisRepo,
 		TransactionReader:           reader,
-		BalanceEngine:               executor,
+		Engine:                      executor,
 		AppliedTransactionCompleter: finalizer,
 	}
 
@@ -259,13 +259,13 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	settings.Tracer.Mode = mmodel.TracerModeEnforce
 	reader := &createEngineReader{settings: settings, balances: []*mmodel.Balance{source, target}}
 	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
-	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
+	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}}
 	feeApplier := &fakeFeeApplier{}
 	reservationID := uuid.MustParse("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, AppliedTransactionCompleter: finalizer,
+		Engine: executor, AppliedTransactionCompleter: finalizer,
 		FeeApplier: feeApplier, TracerReserver: reserver,
 	}
 
@@ -297,7 +297,7 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	}
 }
 
-func TestCreateTransactionBalanceEnginePendingRetainsBodyAndDefersTracerConfirm(t *testing.T) {
+func TestCreateTransactionEnginePendingRetainsBodyAndDefersTracerConfirm(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	ctrl := gomock.NewController(t)
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
@@ -319,12 +319,12 @@ func TestCreateTransactionBalanceEnginePendingRetainsBodyAndDefersTracerConfirm(
 		translationBalance(organizationID, ledgerID, "78787878-7878-4878-8878-787878787878", "@target", constant.DefaultBalanceKey),
 	}}
 	executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
-	finalizer := &createEngineFinalizer{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.PENDING}}
+	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.PENDING}}
 	reservationID := uuid.MustParse("90909090-9090-4090-8090-909090909090")
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
-		BalanceEngine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
+		Engine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
 	}
 
 	transactionDate := time.Date(2026, time.September, 8, 15, 0, 0, 0, time.UTC)
@@ -358,20 +358,20 @@ func TestCreateTransactionBalanceEnginePendingRetainsBodyAndDefersTracerConfirm(
 	}
 }
 
-func TestCreateTransactionBalanceEngineFailureCleanupBoundary(t *testing.T) {
+func TestCreateTransactionEngineFailureCleanupBoundary(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	technicalFailure := errors.New("transport outcome unknown")
 	finalizationFailure := errors.New("sql unavailable")
 
 	for _, test := range []struct {
 		name        string
-		executor    func() BalanceEngine
+		executor    func() Engine
 		finalizeErr error
 		wantDelete  bool
 	}{
 		{
 			name: "confirmed financial refusal releases claim",
-			executor: func() BalanceEngine {
+			executor: func() Engine {
 				return &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}, before: func(execution EngineExecution) error {
 					return &accounting.Failure{
 						Code: accounting.FailureInsufficientFunds, TransactionIndex: 0, PostingIndex: 0,
@@ -381,10 +381,10 @@ func TestCreateTransactionBalanceEngineFailureCleanupBoundary(t *testing.T) {
 			},
 			wantDelete: true,
 		},
-		{name: "unknown transport retains claim", executor: func() BalanceEngine {
+		{name: "unknown transport retains claim", executor: func() Engine {
 			return &createEngineErrorExecutor{err: technicalFailure}
 		}},
-		{name: "post-success finalization failure retains claim", executor: func() BalanceEngine {
+		{name: "post-success finalization failure retains claim", executor: func() Engine {
 			return &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
 		}, finalizeErr: finalizationFailure},
 	} {
@@ -402,12 +402,12 @@ func TestCreateTransactionBalanceEngineFailureCleanupBoundary(t *testing.T) {
 				translationBalance(organizationID, ledgerID, "33333333-cccc-4ccc-8ccc-cccccccccccc", "@source", constant.DefaultBalanceKey),
 				translationBalance(organizationID, ledgerID, "44444444-dddd-4ddd-8ddd-dddddddddddd", "@target", constant.DefaultBalanceKey),
 			}}
-			finalizer := &createEngineFinalizer{
+			finalizer := &createAppliedTransactionCompleter{
 				outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}, err: test.finalizeErr,
 			}
 			uc := &UseCase{
 				TransactionRedisRepo: redisRepo, TransactionReader: reader,
-				BalanceEngine: test.executor(), AppliedTransactionCompleter: finalizer,
+				Engine: test.executor(), AppliedTransactionCompleter: finalizer,
 			}
 			transactionDate := time.Date(2026, time.September, 8, 14, 15, 0, 0, time.UTC)
 
@@ -431,7 +431,7 @@ func TestCreateTransactionBalanceEngineFailureCleanupBoundary(t *testing.T) {
 	}
 }
 
-func TestConfirmedPrecommitBalanceEngineFailureIsConservative(t *testing.T) {
+func TestConfirmedPrecommitEngineFailureIsConservative(t *testing.T) {
 	request := accounting.Execution{
 		Transactions: []accounting.Transaction{{
 			BalanceRequirements: []accounting.BalanceRequirement{{BalanceRef: "@source#default", AssetCode: "USD", Permission: accounting.BalancePermissionSend}},
@@ -440,13 +440,13 @@ func TestConfirmedPrecommitBalanceEngineFailureIsConservative(t *testing.T) {
 		Balances: []accounting.BalanceSnapshot{{BalanceRef: "@source#default"}},
 	}
 	financial := &accounting.Failure{Code: accounting.FailureInsufficientFunds, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default"}
-	technical := testBalanceEngineTechnicalError{code: "execute_indeterminate", indeterminate: true, cause: financial}
-	assert.False(t, confirmedPrecommitBalanceEngineFailure(request, technical))
-	assert.False(t, confirmedPrecommitBalanceEngineFailure(request, &accounting.Failure{
+	technical := testEngineTechnicalError{code: "execute_indeterminate", indeterminate: true, cause: financial}
+	assert.False(t, confirmedPrecommitEngineFailure(request, technical))
+	assert.False(t, confirmedPrecommitEngineFailure(request, &accounting.Failure{
 		Code: "unknown", TransactionIndex: 0, PostingIndex: 0, BalanceRef: financial.BalanceRef,
 	}))
-	assert.True(t, confirmedPrecommitBalanceEngineFailure(request, financial))
-	assert.True(t, confirmedPrecommitBalanceEngineFailure(request, &accounting.Failure{
+	assert.True(t, confirmedPrecommitEngineFailure(request, financial))
+	assert.True(t, confirmedPrecommitEngineFailure(request, &accounting.Failure{
 		Code: accounting.FailureSendingNotAllowed, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "@source#default",
 	}))
 }
@@ -491,7 +491,7 @@ func TestIdempotencyRetentionSecondsSupportsBothDurationConventions(t *testing.T
 }
 
 var (
-	_ AppliedTransactionCompleter = (*createEngineFinalizer)(nil)
-	_ BalanceEngine               = (*applyingCreateEngine)(nil)
-	_ BalanceEngine               = (*createEngineErrorExecutor)(nil)
+	_ AppliedTransactionCompleter = (*createAppliedTransactionCompleter)(nil)
+	_ Engine                      = (*applyingCreateEngine)(nil)
+	_ Engine                      = (*createEngineErrorExecutor)(nil)
 )

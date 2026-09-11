@@ -30,7 +30,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-//go:embed scripts/balance_engine.lua
+//go:embed scripts/engine.lua
 var accountingScriptRaw string
 
 var (
@@ -218,7 +218,7 @@ func executeAccounting(ctx context.Context, client *redis.Client, keys []string,
 
 	logger, _, _, factory := libObservability.NewTrackingFromContext(ctx)
 	if factory != nil {
-		emitCounter(ctx, factory, logger, "balance_engine_cas_attempts_total", "Accounting script attempts, including receipt replay and post-normalization execution but excluding NOSCRIPT fallback.", nil, 1)
+		emitCounter(ctx, factory, logger, "engine_cas_attempts_total", "Accounting script attempts, including receipt replay and post-normalization execution but excluding NOSCRIPT fallback.", nil, 1)
 	}
 
 	response, err := executeScriptNoRetry(ctx, client, "evalsha", accountingScript.Hash(), keys, args)
@@ -882,4 +882,4 @@ func requireResponseFields(fields map[string]json.RawMessage, target reflect.Typ
 	return nil
 }
 
-var _ command.BalanceEngine = (*Adapter)(nil)
+var _ command.Engine = (*Adapter)(nil)

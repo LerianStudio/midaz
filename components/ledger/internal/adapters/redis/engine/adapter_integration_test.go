@@ -115,7 +115,7 @@ func richAdapterExecution(t *testing.T) (command.EngineExecution, Limits) {
 func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload command.TransactionCompletionPlan) json.RawMessage {
 	t.Helper()
 	require.Len(t, input.Execution.Transactions, 1)
-	transaction := command.BalanceEngineTransactionIntent{
+	transaction := command.EngineTransactionIntent{
 		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID,
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
@@ -130,9 +130,9 @@ func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload
 	for _, projection := range payload.OperationSpecs {
 		transaction.OperationSpecs = append(transaction.OperationSpecs, projection.Intent())
 	}
-	fingerprint, err := command.ComputeBalanceEngineIntentFingerprint(command.BalanceEngineIntent{
+	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{
 		TenantID: payload.TenantID, OrganizationID: input.Execution.OrganizationID, LedgerID: input.Execution.LedgerID,
-		ExecutionID: input.Execution.ExecutionID, Transactions: []command.BalanceEngineTransactionIntent{transaction},
+		ExecutionID: input.Execution.ExecutionID, Transactions: []command.EngineTransactionIntent{transaction},
 	})
 	require.NoError(t, err)
 	input.IntentFingerprint, payload.IntentFingerprint = fingerprint, fingerprint

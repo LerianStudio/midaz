@@ -26,7 +26,7 @@ func TestConfigureAppliedTransactionCompletionSharesTenantAwareCompleter(t *test
 	assert.Same(t, resolver, completer.mongoResolver)
 	assert.True(t, completer.multiTenantEnabled)
 	assert.IsType(t, &command.TransactionCompletionService{}, completer.delegate)
-	assert.Nil(t, uc.BalanceEngine)
+	assert.Nil(t, uc.Engine)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

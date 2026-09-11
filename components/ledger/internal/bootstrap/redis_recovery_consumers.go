@@ -24,7 +24,7 @@ import (
 
 const (
 	legacyBackupConsumerComponent   = "ledger.redis-backup-consumer"
-	engineRecoveryConsumerComponent = "ledger.balance-engine-recovery-consumer"
+	engineRecoveryConsumerComponent = "ledger.engine-recovery-consumer"
 )
 
 type recoveryOriginConsumer interface {
@@ -38,7 +38,7 @@ type recoveryQueueReader interface {
 // LegacyBackupConsumer owns compatibility with records produced by the old
 // transaction write-behind path. It accepts both the unversioned legacy format
 // and version-two records left in the old hash during a rolling deployment.
-// Removing this consumer must not change balance-engine recovery.
+// Removing this consumer must not change engine recovery.
 type LegacyBackupConsumer struct {
 	logger     libLog.Logger
 	queue      txRedis.RedisRepository
@@ -171,17 +171,17 @@ func (c *LegacyBackupConsumer) handleMalformedLegacyRecord(ctx context.Context, 
 
 func (c *EngineRecoveryConsumer) Consume(ctx context.Context) recoveryOriginStats {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-	ctx, span := tracer.Start(ctx, "redis.recovery.balance_engine.consume")
+	ctx, span := tracer.Start(ctx, "redis.recovery.engine.consume")
 	defer span.End()
 
 	messages, err := readRecoveryMessages(ctx, c.queue, txRedis.RecoveryQueueSourceEngineRecover)
 	if err != nil {
-		c.logger.Log(ctx, libLog.LevelError, "Failed to read balance-engine recovery messages from Redis", libLog.Err(err))
+		c.logger.Log(ctx, libLog.LevelError, "Failed to read engine recovery messages from Redis", libLog.Err(err))
 		return recoveryOriginStats{}
 	}
 
 	stats := recoveryOriginStats{read: true, messageCount: len(messages)}
-	c.logger.Log(ctx, libLog.LevelDebug, "Read balance-engine recovery messages", libLog.Int("message_count", len(messages)))
+	c.logger.Log(ctx, libLog.LevelDebug, "Read engine recovery messages", libLog.Int("message_count", len(messages)))
 	if len(messages) == 0 {
 		return stats
 	}
@@ -192,23 +192,23 @@ func (c *EngineRecoveryConsumer) Consume(ctx context.Context) recoveryOriginStat
 EngineRecords:
 	for field, raw := range messages {
 		if ctx.Err() != nil {
-			c.logger.Log(ctx, libLog.LevelWarn, "Shutdown in progress: skipping remaining balance-engine recovery messages")
+			c.logger.Log(ctx, libLog.LevelWarn, "Shutdown in progress: skipping remaining engine recovery messages")
 			break EngineRecords
 		}
 
 		version, versionErr := recoveryRecordVersion(raw)
 		if versionErr != nil {
-			c.logger.Log(ctx, libLog.LevelWarn, "Invalid balance-engine recovery record retained", libLog.String("redis_key", field), libLog.Err(versionErr))
+			c.logger.Log(ctx, libLog.LevelWarn, "Invalid engine recovery record retained", libLog.String("redis_key", field), libLog.Err(versionErr))
 			continue
 		}
 		if version != command.TransactionCompletionFormatVersion {
-			c.logger.Log(ctx, libLog.LevelWarn, "Unversioned balance-engine recovery record retained", libLog.String("redis_key", field))
+			c.logger.Log(ctx, libLog.LevelWarn, "Unversioned engine recovery record retained", libLog.String("redis_key", field))
 			continue
 		}
 
 		recovery, ttl, decodeErr := decodeRecoveryRecord(ctx, field, raw)
 		if decodeErr != nil {
-			c.logger.Log(ctx, libLog.LevelWarn, "Invalid balance-engine recovery envelope retained", libLog.String("redis_key", field), libLog.Err(decodeErr))
+			c.logger.Log(ctx, libLog.LevelWarn, "Invalid engine recovery envelope retained", libLog.String("redis_key", field), libLog.Err(decodeErr))
 			continue
 		}
 
@@ -222,7 +222,7 @@ EngineRecords:
 		wg.Add(1)
 
 		libRuntime.SafeGoWithContextAndComponent(ctx, c.logger, engineRecoveryConsumerComponent,
-			"ledger-balance-engine-recovery-consumer", libRuntime.KeepRunning,
+			"ledger-engine-recovery-consumer", libRuntime.KeepRunning,
 			func(ctx context.Context) {
 				defer func() {
 					<-sem

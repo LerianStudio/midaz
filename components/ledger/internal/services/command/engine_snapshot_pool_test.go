@@ -20,7 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-func TestLoadBalanceEngineSnapshotPoolIncludesOptionalCompanionsIndependentlyOfSnapshotSettings(t *testing.T) {
+func TestLoadEngineSnapshotPoolIncludesOptionalCompanionsIndependentlyOfSnapshotSettings(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.WithValue(context.Background(), snapshotPoolContextKey{}, "same-context")
@@ -47,7 +47,7 @@ func TestLoadBalanceEngineSnapshotPoolIncludesOptionalCompanionsIndependentlyOfS
 		return []*mmodel.Balance{companion}, nil
 	}
 
-	pool, err := LoadBalanceEngineSnapshotPool(ctx, organizationID, ledgerID, []string{"@alice#default"}, loader)
+	pool, err := LoadEngineSnapshotPool(ctx, organizationID, ledgerID, []string{"@alice#default"}, loader)
 	require.NoError(t, err)
 	require.Equal(t, [][]string{{"@alice#default"}, {"@alice#overdraft"}}, calls)
 	require.Equal(t, []*mmodel.Balance{explicit}, pool.ExplicitBalances)
@@ -65,7 +65,7 @@ func TestLoadBalanceEngineSnapshotPoolIncludesOptionalCompanionsIndependentlyOfS
 		"the full pool is intentionally not the explicit-target validation set")
 }
 
-func TestLoadBalanceEngineSnapshotPoolTreatsOnlyAbsentCompanionsAsOptional(t *testing.T) {
+func TestLoadEngineSnapshotPoolTreatsOnlyAbsentCompanionsAsOptional(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("8f809d3e-48e8-4dc8-b850-3d7c78516316")
@@ -75,7 +75,7 @@ func TestLoadBalanceEngineSnapshotPoolTreatsOnlyAbsentCompanionsAsOptional(t *te
 
 	t.Run("empty optional read leaves the companion absent", func(t *testing.T) {
 		calls := 0
-		pool, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+		pool, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 			[]string{"@alice#default"}, func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 				calls++
 				if calls == 1 {
@@ -96,7 +96,7 @@ func TestLoadBalanceEngineSnapshotPoolTreatsOnlyAbsentCompanionsAsOptional(t *te
 	t.Run("optional read infrastructure error is not disguised as absence", func(t *testing.T) {
 		infrastructureErr := errors.New("database unavailable")
 		calls := 0
-		_, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+		_, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 			[]string{"@alice#default"}, func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 				calls++
 				if calls == 1 {
@@ -116,7 +116,7 @@ func TestLoadBalanceEngineSnapshotPoolTreatsOnlyAbsentCompanionsAsOptional(t *te
 		companion := snapshotPoolBalance(organizationID, ledgerID,
 			uuid.MustParse(explicit.AccountID), "@alice", constant.OverdraftBalanceKey)
 		calls := 0
-		pool, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+		pool, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 			[]string{"@alice#default", "@bob#default"}, func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 				calls++
 				if calls == 1 {
@@ -131,7 +131,7 @@ func TestLoadBalanceEngineSnapshotPoolTreatsOnlyAbsentCompanionsAsOptional(t *te
 	})
 }
 
-func TestLoadBalanceEngineSnapshotPoolMapsTheCompleteSnapshot(t *testing.T) {
+func TestLoadEngineSnapshotPoolMapsTheCompleteSnapshot(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("9d314aa6-a8d4-4e3b-a33d-c7aaa269b223")
@@ -157,7 +157,7 @@ func TestLoadBalanceEngineSnapshotPoolMapsTheCompleteSnapshot(t *testing.T) {
 		OverdraftLimit:        &limit,
 	}
 	calls := 0
-	pool, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+	pool, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 		[]string{"@alice#available"}, func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 			calls++
 			if calls == 1 {
@@ -191,7 +191,7 @@ func TestLoadBalanceEngineSnapshotPoolMapsTheCompleteSnapshot(t *testing.T) {
 	}, pool.Snapshots[0])
 }
 
-func TestLoadBalanceEngineSnapshotPoolDeduplicatesCandidatesAndOrdersThePool(t *testing.T) {
+func TestLoadEngineSnapshotPoolDeduplicatesCandidatesAndOrdersThePool(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("7253e939-fbe5-416f-aeef-7c8487c24ee8")
@@ -205,7 +205,7 @@ func TestLoadBalanceEngineSnapshotPoolDeduplicatesCandidatesAndOrdersThePool(t *
 	bobCompanion := snapshotPoolBalance(organizationID, ledgerID, bobAccountID, "@bob", constant.OverdraftBalanceKey)
 
 	var calls [][]string
-	pool, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+	pool, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 		[]string{"@bob#default", "@alice#available", "@alice#default", "@bob#default"},
 		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 			calls = append(calls, append([]string(nil), aliases...))
@@ -226,7 +226,7 @@ func TestLoadBalanceEngineSnapshotPoolDeduplicatesCandidatesAndOrdersThePool(t *
 	assert.Equal(t, snapshotPoolRefs(pool.Snapshots), snapshotPoolBalanceRefs(pool.Balances), "models and snapshots must stay aligned")
 }
 
-func TestLoadBalanceEngineSnapshotPoolRejectsCompanionWithWrongAccountIdentity(t *testing.T) {
+func TestLoadEngineSnapshotPoolRejectsCompanionWithWrongAccountIdentity(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("36e42be2-8e77-4435-899f-4883a7fdb72d")
@@ -237,7 +237,7 @@ func TestLoadBalanceEngineSnapshotPoolRejectsCompanionWithWrongAccountIdentity(t
 		uuid.MustParse("a7276afa-ef78-407f-8abd-fadfd08ace6f"), "@alice", constant.OverdraftBalanceKey)
 	calls := 0
 
-	_, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+	_, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 		[]string{"@alice#default"}, func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 			calls++
 			if calls == 1 {
@@ -251,7 +251,7 @@ func TestLoadBalanceEngineSnapshotPoolRejectsCompanionWithWrongAccountIdentity(t
 	assert.Contains(t, err.Error(), "account identity")
 }
 
-func TestLoadBalanceEngineSnapshotPoolRejectsInvalidIdentityAndScope(t *testing.T) {
+func TestLoadEngineSnapshotPoolRejectsInvalidIdentityAndScope(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("43be61e5-aec0-4cc3-91b8-116838c5f30a")
@@ -288,7 +288,7 @@ func TestLoadBalanceEngineSnapshotPoolRejectsInvalidIdentityAndScope(t *testing.
 		t.Run(tt.name, func(t *testing.T) {
 			balance := snapshotPoolBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey)
 			tt.mutate(balance)
-			_, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+			_, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 				[]string{"@alice#default"}, func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 					return []*mmodel.Balance{balance}, nil
 				})
@@ -299,7 +299,7 @@ func TestLoadBalanceEngineSnapshotPoolRejectsInvalidIdentityAndScope(t *testing.
 	}
 }
 
-func TestLoadBalanceEngineSnapshotPoolRejectsNilRowsAndDuplicateLogicalReferences(t *testing.T) {
+func TestLoadEngineSnapshotPoolRejectsNilRowsAndDuplicateLogicalReferences(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("e32de2b9-496d-4855-bf58-4cf4f37c4a04")
@@ -308,7 +308,7 @@ func TestLoadBalanceEngineSnapshotPoolRejectsNilRowsAndDuplicateLogicalReference
 	balance := snapshotPoolBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey)
 
 	t.Run("nil row", func(t *testing.T) {
-		_, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+		_, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 			[]string{"@alice#default"}, func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 				return []*mmodel.Balance{nil}, nil
 			})
@@ -320,7 +320,7 @@ func TestLoadBalanceEngineSnapshotPoolRejectsNilRowsAndDuplicateLogicalReference
 	t.Run("duplicate logical reference", func(t *testing.T) {
 		duplicate := *balance
 		duplicate.ID = uuid.New().String()
-		_, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+		_, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 			[]string{"@alice#default"}, func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 				return []*mmodel.Balance{balance, &duplicate}, nil
 			})
@@ -330,7 +330,7 @@ func TestLoadBalanceEngineSnapshotPoolRejectsNilRowsAndDuplicateLogicalReference
 	})
 }
 
-func TestLoadBalanceEngineSnapshotPoolNormalizesAliasAndDefaultKeyOnlyOnce(t *testing.T) {
+func TestLoadEngineSnapshotPoolNormalizesAliasAndDefaultKeyOnlyOnce(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("580c767d-89cc-45d3-ac5e-f31766437fa2")
@@ -340,7 +340,7 @@ func TestLoadBalanceEngineSnapshotPoolNormalizesAliasAndDefaultKeyOnlyOnce(t *te
 	companion := snapshotPoolBalance(organizationID, ledgerID, accountID, "@alice", constant.OverdraftBalanceKey)
 	calls := 0
 
-	pool, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+	pool, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 		[]string{"@alice#default"}, func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 			calls++
 			if calls == 1 {
@@ -356,13 +356,13 @@ func TestLoadBalanceEngineSnapshotPoolNormalizesAliasAndDefaultKeyOnlyOnce(t *te
 	assert.NotContains(t, snapshotPoolRefs(pool.Snapshots), "@alice#default#default")
 }
 
-func TestLoadBalanceEngineSnapshotPoolStopsOnCanceledContext(t *testing.T) {
+func TestLoadEngineSnapshotPoolStopsOnCanceledContext(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	called := false
-	_, err := LoadBalanceEngineSnapshotPool(ctx, uuid.New(), uuid.New(), []string{"@alice#default"},
+	_, err := LoadEngineSnapshotPool(ctx, uuid.New(), uuid.New(), []string{"@alice#default"},
 		func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 			called = true
 			return nil, nil
@@ -372,7 +372,7 @@ func TestLoadBalanceEngineSnapshotPoolStopsOnCanceledContext(t *testing.T) {
 	assert.False(t, called)
 }
 
-func TestLoadBalanceEngineSnapshotPoolLeavesExplicitInternalTargetsForTheExplicitGuard(t *testing.T) {
+func TestLoadEngineSnapshotPoolLeavesExplicitInternalTargetsForTheExplicitGuard(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("73340d4e-89b4-4c08-99f1-f86268083b35")
@@ -383,7 +383,7 @@ func TestLoadBalanceEngineSnapshotPoolLeavesExplicitInternalTargetsForTheExplici
 	explicit.Settings = &mmodel.BalanceSettings{BalanceScope: mmodel.BalanceScopeInternal}
 	calls := 0
 
-	pool, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+	pool, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 		[]string{"@alice#overdraft"}, func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 			calls++
 			return []*mmodel.Balance{explicit}, nil
@@ -395,7 +395,7 @@ func TestLoadBalanceEngineSnapshotPoolLeavesExplicitInternalTargetsForTheExplici
 	assert.Error(t, rejectInternalScopeBalances(context.Background(), pool.ExplicitBalances))
 }
 
-func TestLoadBalanceEngineSnapshotPoolDoesNotRefetchMixedExplicitCompanion(t *testing.T) {
+func TestLoadEngineSnapshotPoolDoesNotRefetchMixedExplicitCompanion(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("66093ed1-5ad9-4346-a62b-046628d6aa28")
@@ -407,7 +407,7 @@ func TestLoadBalanceEngineSnapshotPoolDoesNotRefetchMixedExplicitCompanion(t *te
 	companion.Settings = &mmodel.BalanceSettings{BalanceScope: mmodel.BalanceScopeInternal}
 	calls := 0
 
-	pool, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+	pool, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 		[]string{"@alice#default", "@alice#overdraft"},
 		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 			calls++
@@ -422,7 +422,7 @@ func TestLoadBalanceEngineSnapshotPoolDoesNotRefetchMixedExplicitCompanion(t *te
 	assert.Error(t, rejectInternalScopeBalances(context.Background(), pool.ExplicitBalances))
 }
 
-func TestLoadBalanceEngineSnapshotPoolRejectsMixedExplicitCompanionFromAnotherAccount(t *testing.T) {
+func TestLoadEngineSnapshotPoolRejectsMixedExplicitCompanionFromAnotherAccount(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("9c47e03b-51f4-45e4-9a8e-c5a9da4a2035")
@@ -432,7 +432,7 @@ func TestLoadBalanceEngineSnapshotPoolRejectsMixedExplicitCompanionFromAnotherAc
 	companion := snapshotPoolBalance(organizationID, ledgerID,
 		uuid.MustParse("612a8db1-9708-470d-8543-cd060fd7f6f4"), "@alice", constant.OverdraftBalanceKey)
 
-	_, err := LoadBalanceEngineSnapshotPool(context.Background(), organizationID, ledgerID,
+	_, err := LoadEngineSnapshotPool(context.Background(), organizationID, ledgerID,
 		[]string{"@alice#default", "@alice#overdraft"},
 		func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 			return []*mmodel.Balance{companion, primary}, nil
@@ -443,7 +443,7 @@ func TestLoadBalanceEngineSnapshotPoolRejectsMixedExplicitCompanionFromAnotherAc
 	assert.Contains(t, err.Error(), "account identity")
 }
 
-func TestBuildBalanceEngineSnapshotPoolRejectsDivergentExplicitState(t *testing.T) {
+func TestBuildEngineSnapshotPoolRejectsDivergentExplicitState(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("f36006c5-02db-4ba4-8f97-a219c0dd2809")
@@ -453,7 +453,7 @@ func TestBuildBalanceEngineSnapshotPoolRejectsDivergentExplicitState(t *testing.
 	pooled := *explicit
 	pooled.Available = decimal.NewFromInt(99)
 
-	_, err := BuildBalanceEngineSnapshotPool(t.Context(), organizationID, ledgerID,
+	_, err := BuildEngineSnapshotPool(t.Context(), organizationID, ledgerID,
 		[]string{"@alice#default"}, []*mmodel.Balance{explicit}, []*mmodel.Balance{&pooled})
 
 	require.Error(t, err)

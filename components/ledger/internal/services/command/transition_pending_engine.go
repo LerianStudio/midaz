@@ -30,7 +30,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/skip"
 )
 
-type pendingBalanceEngineStableContext struct {
+type pendingEngineStableContext struct {
 	executionID        uuid.UUID
 	organizationID     uuid.UUID
 	ledgerID           uuid.UUID
@@ -44,7 +44,7 @@ type pendingBalanceEngineStableContext struct {
 	guard              ExecutionGuard
 }
 
-type pendingBalanceEngineTransition struct {
+type pendingEngineTransition struct {
 	transactionID     uuid.UUID
 	persisted         *transaction.Transaction
 	input             mtransaction.Transaction
@@ -52,10 +52,10 @@ type pendingBalanceEngineTransition struct {
 	ledgerSettings    mmodel.LedgerSettings
 	honoredTracerSkip bool
 	action            string
-	stableContext     pendingBalanceEngineStableContext
+	stableContext     pendingEngineStableContext
 }
 
-func (uc *UseCase) transitionPendingWithBalanceEngine(
+func (uc *UseCase) transitionPendingWithEngine(
 	ctx context.Context,
 	span trace.Span,
 	logger libLog.Logger,
@@ -63,16 +63,16 @@ func (uc *UseCase) transitionPendingWithBalanceEngine(
 	unlock func(),
 	tracerEligible bool,
 ) (*transaction.Transaction, error) {
-	transition, err := uc.preparePendingBalanceEngineTransition(ctx, run)
+	transition, err := uc.preparePendingEngineTransition(ctx, run)
 	if err != nil {
 		unlock()
 		return nil, err
 	}
 
-	engineState, err := uc.prepareBalanceEngineTransaction(ctx, balanceEnginePreparationInput{
+	engineState, err := uc.prepareEngineTransaction(ctx, enginePreparationInput{
 		organizationID: run.organizationID,
 		ledgerID:       run.ledgerID,
-		translation: BalanceEngineTranslationInput{
+		translation: EngineTranslationInput{
 			TransactionID:          transition.transactionID,
 			Action:                 transition.action,
 			TransactionStatus:      run.status,
@@ -86,29 +86,29 @@ func (uc *UseCase) transitionPendingWithBalanceEngine(
 		return nil, err
 	}
 
-	prepared, err := buildPendingBalanceEngineExecution(transition.persisted, transition.input, transition.validate, engineState, transition.stableContext, transition.action)
+	prepared, err := buildPendingEngineExecution(transition.persisted, transition.input, transition.validate, engineState, transition.stableContext, transition.action)
 	if err != nil {
 		unlock()
 		return nil, err
 	}
 
-	outcome, executeErr := ExecutePreparedBalanceEngine(ctx, uc.BalanceEngine, prepared)
+	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)
 	if executeErr != nil {
 		if !outcome.Executed {
 			unlock()
 			return nil, executeErr
 		}
 
-		if isConfirmedBalanceEngineGuardConflict(executeErr) {
+		if isConfirmedEngineGuardConflict(executeErr) {
 			unlock()
 			return nil, uc.resolvePendingGuardConflict(ctx, run.organizationID, run.ledgerID, transition.transactionID)
 		}
 
-		if confirmedPrecommitBalanceEngineFailure(prepared.Execution.Execution, executeErr) {
+		if confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
 			unlock()
 		}
 
-		return nil, MapBalanceEngineError(prepared.Execution.Execution, executeErr)
+		return nil, MapEngineError(prepared.Execution.Execution, executeErr)
 	}
 
 	if tracerEligible {
@@ -120,55 +120,55 @@ func (uc *UseCase) transitionPendingWithBalanceEngine(
 		}
 	}
 
-	return uc.finalizePendingBalanceEngineResult(ctx, run.status, outcome)
+	return uc.finalizePendingEngineResult(ctx, run.status, outcome)
 }
 
-func (uc *UseCase) preparePendingBalanceEngineTransition(ctx context.Context, run *pendingTransitionRun) (pendingBalanceEngineTransition, error) {
+func (uc *UseCase) preparePendingEngineTransition(ctx context.Context, run *pendingTransitionRun) (pendingEngineTransition, error) {
 	if err := ctx.Err(); err != nil {
-		return pendingBalanceEngineTransition{}, err
+		return pendingEngineTransition{}, err
 	}
 
 	if uc.TransactionReader == nil || isNilAppliedTransactionCompleter(uc.AppliedTransactionCompleter) {
-		return pendingBalanceEngineTransition{}, fmt.Errorf("balance engine transition dependencies are not configured")
+		return pendingEngineTransition{}, fmt.Errorf("engine transition dependencies are not configured")
 	}
 
 	transactionID, err := uuid.Parse(run.tran.ID)
 	if err != nil || transactionID == uuid.Nil {
-		return pendingBalanceEngineTransition{}, fmt.Errorf("confirm pending transaction identity: %w", ErrInvalidTransactionCompletionRecord)
+		return pendingEngineTransition{}, fmt.Errorf("confirm pending transaction identity: %w", ErrInvalidTransactionCompletionRecord)
 	}
 
 	persisted, err := uc.TransactionReader.GetTransactionWithOperationsByID(
 		readrouting.WithPrimaryRead(ctx), run.organizationID, run.ledgerID, transactionID,
 	)
 	if err != nil {
-		return pendingBalanceEngineTransition{}, err
+		return pendingEngineTransition{}, err
 	}
 
 	if err := validatePersistedCompletionTransition(persisted, run.organizationID, run.ledgerID, transactionID, run.status); err != nil {
-		return pendingBalanceEngineTransition{}, err
+		return pendingEngineTransition{}, err
 	}
 
-	guardBootstrapper, ok := uc.BalanceEngine.(BalanceEngineGuardBootstrapper)
+	guardBootstrapper, ok := uc.Engine.(EngineGuardBootstrapper)
 	if !ok {
-		return pendingBalanceEngineTransition{}, fmt.Errorf("balance engine transition guard bootstrapper is not configured")
+		return pendingEngineTransition{}, fmt.Errorf("engine transition guard bootstrapper is not configured")
 	}
 
-	prepared, err := uc.preparePendingBalanceEngineIntent(ctx, run, persisted, transactionID)
+	prepared, err := uc.preparePendingEngineIntent(ctx, run, persisted, transactionID)
 	if err != nil {
-		return pendingBalanceEngineTransition{}, err
+		return pendingEngineTransition{}, err
 	}
 
 	if err := guardBootstrapper.EnsureTransactionGuard(ctx, run.organizationID, run.ledgerID, transactionID, constant.PENDING); err != nil {
-		return pendingBalanceEngineTransition{}, fmt.Errorf("ensure pending transaction guard: %w", err)
+		return pendingEngineTransition{}, fmt.Errorf("ensure pending transaction guard: %w", err)
 	}
 
 	executionID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
-		return pendingBalanceEngineTransition{}, fmt.Errorf("generate balance engine execution id: %w", err)
+		return pendingEngineTransition{}, fmt.Errorf("generate engine execution id: %w", err)
 	}
 
 	_, _, headerID, _ := libObservability.NewTrackingFromContext(ctx)
-	prepared.stableContext = pendingBalanceEngineStableContext{
+	prepared.stableContext = pendingEngineStableContext{
 		executionID: executionID, organizationID: run.organizationID, ledgerID: run.ledgerID,
 		tenantID: tmcore.GetTenantIDContext(ctx), headerID: headerID,
 		enqueuedAt: time.Now(), actionDate: time.Now(), transactionUpdated: time.Now(), operationUpdated: time.Now(),
@@ -179,10 +179,10 @@ func (uc *UseCase) preparePendingBalanceEngineTransition(ctx context.Context, ru
 	return prepared, nil
 }
 
-func (uc *UseCase) preparePendingBalanceEngineIntent(ctx context.Context, run *pendingTransitionRun, persisted *transaction.Transaction, transactionID uuid.UUID) (pendingBalanceEngineTransition, error) {
+func (uc *UseCase) preparePendingEngineIntent(ctx context.Context, run *pendingTransitionRun, persisted *transaction.Transaction, transactionID uuid.UUID) (pendingEngineTransition, error) {
 	input, err := clonePendingTransactionInput(persisted.Body)
 	if err != nil {
-		return pendingBalanceEngineTransition{}, err
+		return pendingEngineTransition{}, err
 	}
 
 	mtransaction.ApplyDefaultBalanceKeys(input.Send.Source.From)
@@ -192,12 +192,12 @@ func (uc *UseCase) preparePendingBalanceEngineIntent(ctx context.Context, run *p
 
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, input, run.status)
 	if err != nil {
-		return pendingBalanceEngineTransition{}, pkg.HandleKnownBusinessValidationErrors(err)
+		return pendingEngineTransition{}, pkg.HandleKnownBusinessValidationErrors(err)
 	}
 
 	ledgerSettings, err := uc.TransactionReader.GetParsedLedgerSettings(ctx, run.organizationID, run.ledgerID)
 	if err != nil {
-		return pendingBalanceEngineTransition{}, err
+		return pendingEngineTransition{}, err
 	}
 
 	if ledgerSettings.Accounting.ValidateRoutes {
@@ -210,9 +210,9 @@ func (uc *UseCase) preparePendingBalanceEngineIntent(ctx context.Context, run *p
 
 	honoredTracerSkip, _ := skip.ResolveSkipFor("tracer", persisted.Body.Skip != nil && persisted.Body.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
 
-	parentID, err := pendingBalanceEngineParentID(transactionID, persisted.ParentTransactionID)
+	parentID, err := pendingEngineParentID(transactionID, persisted.ParentTransactionID)
 	if err != nil {
-		return pendingBalanceEngineTransition{}, err
+		return pendingEngineTransition{}, err
 	}
 
 	action := constant.ActionCommit
@@ -220,10 +220,10 @@ func (uc *UseCase) preparePendingBalanceEngineIntent(ctx context.Context, run *p
 		action = constant.ActionCancel
 	}
 
-	return pendingBalanceEngineTransition{
+	return pendingEngineTransition{
 		transactionID: transactionID, persisted: persisted, input: input, validate: validate,
 		ledgerSettings: ledgerSettings, honoredTracerSkip: honoredTracerSkip, action: action,
-		stableContext: pendingBalanceEngineStableContext{parentID: parentID},
+		stableContext: pendingEngineStableContext{parentID: parentID},
 	}, nil
 }
 
@@ -298,7 +298,7 @@ func applyPendingOverdraftCaps(validate *mtransaction.Responses, operations []*o
 	}
 }
 
-func pendingBalanceEngineParentID(transactionID uuid.UUID, value *string) (*uuid.UUID, error) {
+func pendingEngineParentID(transactionID uuid.UUID, value *string) (*uuid.UUID, error) {
 	if value == nil {
 		return nil, nil
 	}
@@ -311,14 +311,14 @@ func pendingBalanceEngineParentID(transactionID uuid.UUID, value *string) (*uuid
 	return &parentID, nil
 }
 
-func buildPendingBalanceEngineExecution(
+func buildPendingEngineExecution(
 	persisted *transaction.Transaction,
 	input mtransaction.Transaction,
 	validate *mtransaction.Responses,
-	prepared balanceEnginePreparedTransaction,
-	stableContext pendingBalanceEngineStableContext,
+	prepared enginePreparedTransaction,
+	stableContext pendingEngineStableContext,
 	action string,
-) (PreparedBalanceEngineExecution, error) {
+) (PreparedEngineExecution, error) {
 	payload := TransactionCompletionPlan{
 		FormatVersion:        TransactionCompletionFormatVersion,
 		TenantID:             stableContext.tenantID,
@@ -342,24 +342,24 @@ func buildPendingBalanceEngineExecution(
 		OperationSpecs:       prepared.projection,
 	}
 
-	intent := BalanceEngineIntent{
+	intent := EngineIntent{
 		TenantID:       stableContext.tenantID,
 		OrganizationID: payload.OrganizationID,
 		LedgerID:       payload.LedgerID,
 		ExecutionID:    stableContext.executionID,
-		Transactions:   []BalanceEngineTransactionIntent{transactionCompletionIntent(prepared.transaction, payload)},
+		Transactions:   []EngineTransactionIntent{transactionCompletionIntent(prepared.transaction, payload)},
 	}
 
-	fingerprint, err := ComputeBalanceEngineIntentFingerprint(intent)
+	fingerprint, err := ComputeEngineIntentFingerprint(intent)
 	if err != nil {
-		return PreparedBalanceEngineExecution{}, err
+		return PreparedEngineExecution{}, err
 	}
 
 	payload.IntentFingerprint = fingerprint
 
 	raw, err := EncodeTransactionCompletionPlan(payload)
 	if err != nil {
-		return PreparedBalanceEngineExecution{}, err
+		return PreparedEngineExecution{}, err
 	}
 
 	execution := EngineExecution{
@@ -375,11 +375,11 @@ func buildPendingBalanceEngineExecution(
 		CompletionPlans:   []CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: raw}},
 	}
 
-	return PreparedBalanceEngineExecution{Execution: execution, CompletionPlan: payload}, nil
+	return PreparedEngineExecution{Execution: execution, CompletionPlan: payload}, nil
 }
 
-func (uc *UseCase) finalizePendingBalanceEngineResult(ctx context.Context, expectedStatus string, outcome BalanceEngineExecutionOutcome) (*transaction.Transaction, error) {
-	envelope, err := createBalanceEngineEnvelope(outcome)
+func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, expectedStatus string, outcome EngineExecutionOutcome) (*transaction.Transaction, error) {
+	envelope, err := createEngineEnvelope(outcome)
 	if err != nil {
 		return nil, err
 	}
@@ -404,8 +404,8 @@ func (uc *UseCase) finalizePendingBalanceEngineResult(ctx context.Context, expec
 	return tran, nil
 }
 
-func isConfirmedBalanceEngineGuardConflict(err error) bool {
-	var technical balanceEngineTechnicalError
+func isConfirmedEngineGuardConflict(err error) bool {
+	var technical engineTechnicalError
 	return errors.As(err, &technical) && technical.EngineFailureCode() == "execution_guard_conflict" && !technical.OutcomeIndeterminate()
 }
 

@@ -46,7 +46,7 @@ func recoveryContractFixture(t testing.TB) (TransactionCompletionPlan, accountin
 		RequestedAmount: decimal.NewFromInt(30), CompatibilityPath: OperationRecordStandard,
 	}}
 	var err error
-	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	result := accounting.ExecutionResult{Movements: []accounting.Movement{{
 		Ref: "movement:0", TransactionID: payload.TransactionID, PostingRef: "source:0", Role: accounting.RolePrimary,
@@ -56,7 +56,7 @@ func recoveryContractFixture(t testing.TB) (TransactionCompletionPlan, accountin
 	return payload, result
 }
 
-func recoveryContractIntent(payload TransactionCompletionPlan) BalanceEngineIntent {
+func recoveryContractIntent(payload TransactionCompletionPlan) EngineIntent {
 	projection := make([]OperationRecordIntent, 0, len(payload.OperationSpecs))
 	refs := make([]string, 0, len(payload.OperationSpecs))
 	for _, context := range payload.OperationSpecs {
@@ -65,9 +65,9 @@ func recoveryContractIntent(payload TransactionCompletionPlan) BalanceEngineInte
 			refs = append(refs, context.PostingRef)
 		}
 	}
-	return BalanceEngineIntent{
+	return EngineIntent{
 		TenantID: payload.TenantID, OrganizationID: payload.OrganizationID, LedgerID: payload.LedgerID, ExecutionID: payload.ExecutionID,
-		Transactions: []BalanceEngineTransactionIntent{{
+		Transactions: []EngineTransactionIntent{{
 			TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
 			ParentTransactionID: payload.ParentTransactionID, FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped,
 			TransactionDate: payload.TransactionDate, Input: payload.TransactionInput, PostingRefs: refs, OperationSpecs: projection,
@@ -183,7 +183,7 @@ func TestTransactionCompletionFrozenLifecycleTimestamps(t *testing.T) {
 	payload.TransactionUpdatedAt = payload.TransactionDate.Add(time.Second)
 	payload.OperationUpdatedAt = payload.TransactionDate.Add(2 * time.Second)
 	var err error
-	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	normal, err := BuildOperationRecordsFromMovements(payload, result)
 	require.NoError(t, err)
@@ -225,14 +225,14 @@ func TestTransactionCompletionRequiresFrozenTimestamps(t *testing.T) {
 			})
 		}
 	}
-	for _, clear := range []func(*BalanceEngineTransactionIntent){
-		func(intent *BalanceEngineTransactionIntent) { intent.TransactionCreatedAt = time.Time{} },
-		func(intent *BalanceEngineTransactionIntent) { intent.TransactionUpdatedAt = time.Time{} },
-		func(intent *BalanceEngineTransactionIntent) { intent.OperationUpdatedAt = time.Time{} },
+	for _, clear := range []func(*EngineTransactionIntent){
+		func(intent *EngineTransactionIntent) { intent.TransactionCreatedAt = time.Time{} },
+		func(intent *EngineTransactionIntent) { intent.TransactionUpdatedAt = time.Time{} },
+		func(intent *EngineTransactionIntent) { intent.OperationUpdatedAt = time.Time{} },
 	} {
 		intent := recoveryContractIntent(payload)
 		clear(&intent.Transactions[0])
-		_, err := ComputeBalanceEngineIntentFingerprint(intent)
+		_, err := ComputeEngineIntentFingerprint(intent)
 		require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 	}
 }
@@ -243,7 +243,7 @@ func TestTransactionCompletionDoesNotOrderFrozenTimestamps(t *testing.T) {
 	payload.TransactionUpdatedAt = payload.TransactionDate.Add(-time.Hour)
 	payload.OperationUpdatedAt = payload.TransactionDate.Add(-2 * time.Hour)
 	var err error
-	payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	_, err = EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
@@ -321,28 +321,28 @@ func TestTransactionCompletionCorrelation(t *testing.T) {
 	}
 }
 
-func TestBalanceEngineCompletionPlanRecordFingerprint(t *testing.T) {
+func TestEngineCompletionPlanRecordFingerprint(t *testing.T) {
 	payload, _ := recoveryContractFixture(t)
-	before, err := ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	before, err := ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	payload.OperationSpecs[0].Balance.Available = decimal.NewFromInt(999)
 	payload.OperationSpecs[0].Balance.Version = 999
 	payload.Validate.From["@source"] = mtransaction.Amount{Value: decimal.NewFromInt(1), OverdraftAmount: decimal.NewFromInt(29)}
-	after, err := ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	after, err := ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	assert.Equal(t, before, after)
 	companion := payload.OperationSpecs[0]
 	companion.Role, companion.BalanceRef = accounting.RoleOverdraftCompanion, "@source#overdraft"
 	companion.Metadata, companion.ChartOfAccounts = nil, ""
 	payload.OperationSpecs = append(payload.OperationSpecs, companion)
-	withCompanion, err := ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+	withCompanion, err := ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 	require.NoError(t, err)
 	assert.Equal(t, before, withCompanion, "engine-derived companion need must not change immutable intent")
 	withRequirementIntent := recoveryContractIntent(payload)
 	withRequirementIntent.Transactions[0].BalanceRequirements = []accounting.BalanceRequirement{{
 		BalanceRef: "@source#default", AssetCode: "USD", Permission: accounting.BalancePermissionSend,
 	}}
-	withRequirement, err := ComputeBalanceEngineIntentFingerprint(withRequirementIntent)
+	withRequirement, err := ComputeEngineIntentFingerprint(withRequirementIntent)
 	require.NoError(t, err)
 	assert.NotEqual(t, before, withRequirement, "live balance requirements are immutable execution intent")
 	for _, scenario := range []struct {
@@ -368,7 +368,7 @@ func TestBalanceEngineCompletionPlanRecordFingerprint(t *testing.T) {
 		t.Run(scenario.name, func(t *testing.T) {
 			payload, _ := recoveryContractFixture(t)
 			scenario.mutate(&payload)
-			changed, err := ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+			changed, err := ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 			require.NoError(t, err)
 			assert.NotEqual(t, before, changed)
 		})
@@ -387,7 +387,7 @@ func TestTransactionCompletionFrozenAuditRoundTrip(t *testing.T) {
 					}
 					payload.FeesSkipped, payload.TracerSkipped = feesSkipped, tracerSkipped
 					var err error
-					payload.IntentFingerprint, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+					payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 					require.NoError(t, err)
 					envelope := recoveryContractEnvelope(t, payload, result)
 					raw, err := EncodeTransactionCompletionRecord(envelope)
@@ -399,7 +399,7 @@ func TestTransactionCompletionFrozenAuditRoundTrip(t *testing.T) {
 					assert.Equal(t, payload.ParentTransactionID, frozen.ParentTransactionID)
 					assert.Equal(t, feesSkipped, frozen.FeesSkipped)
 					assert.Equal(t, tracerSkipped, frozen.TracerSkipped)
-					fingerprint, err := ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(*frozen))
+					fingerprint, err := ComputeEngineIntentFingerprint(recoveryContractIntent(*frozen))
 					require.NoError(t, err)
 					assert.Equal(t, payload.IntentFingerprint, fingerprint)
 					assert.Contains(t, decoded.Payload, `"parentTransactionId":`)
@@ -422,7 +422,7 @@ func TestTransactionCompletionRejectsInvalidParent(t *testing.T) {
 			payload.ParentTransactionID = &parent
 			_, err := EncodeTransactionCompletionPlan(payload)
 			require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
-			_, err = ComputeBalanceEngineIntentFingerprint(recoveryContractIntent(payload))
+			_, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
 			require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 			raw, err := json.Marshal(payload)
 			require.NoError(t, err)
@@ -611,7 +611,7 @@ func TestTransactionCompletionMultipleTransactionsKeepIntermediateState(t *testi
 	secondResult.Final = recoveryContractFinal(second, secondResult.Movements)
 	intent := recoveryContractIntent(first)
 	intent.Transactions = append(intent.Transactions, recoveryContractIntent(second).Transactions...)
-	fingerprint, err := ComputeBalanceEngineIntentFingerprint(intent)
+	fingerprint, err := ComputeEngineIntentFingerprint(intent)
 	require.NoError(t, err)
 	first.IntentFingerprint, second.IntentFingerprint = fingerprint, fingerprint
 	input := EngineExecution{IntentFingerprint: fingerprint, Execution: accounting.Execution{OrganizationID: first.OrganizationID, LedgerID: first.LedgerID, ExecutionID: first.ExecutionID}}
@@ -644,7 +644,7 @@ func TestTransactionCompletionMultipleTransactionsKeepIntermediateState(t *testi
 	input.CompletionPlans[0].Payload = raw
 	intent = recoveryContractIntent(first)
 	intent.Transactions = append(intent.Transactions, recoveryContractIntent(second).Transactions...)
-	fingerprint, err = ComputeBalanceEngineIntentFingerprint(intent)
+	fingerprint, err = ComputeEngineIntentFingerprint(intent)
 	require.NoError(t, err)
 	input.IntentFingerprint = fingerprint
 	for index := range input.CompletionPlans {

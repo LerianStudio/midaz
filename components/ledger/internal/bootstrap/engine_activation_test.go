@@ -16,9 +16,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
-type balanceEngineProviderStub struct{}
+type engineProviderStub struct{}
 
-func (*balanceEngineProviderStub) GetClient(context.Context) (redis.UniversalClient, error) {
+func (*engineProviderStub) GetClient(context.Context) (redis.UniversalClient, error) {
 	return nil, nil
 }
 
@@ -28,30 +28,30 @@ func (*appliedTransactionCompleterStub) Complete(context.Context, *command.Trans
 	return command.TransactionCompletionResult{}, nil
 }
 
-func TestConfigureBalanceEngineWiresDefaultAdapter(t *testing.T) {
+func TestConfigureEngineWiresDefaultAdapter(t *testing.T) {
 	useCase := &command.UseCase{AppliedTransactionCompleter: &appliedTransactionCompleterStub{}}
 
-	require.NoError(t, configureBalanceEngine(useCase, &balanceEngineProviderStub{}))
-	assert.IsType(t, &redisengine.Adapter{}, useCase.BalanceEngine)
+	require.NoError(t, configureEngine(useCase, &engineProviderStub{}))
+	assert.IsType(t, &redisengine.Adapter{}, useCase.Engine)
 }
 
-func TestConfigureBalanceEngineRequiresAppliedTransactionCompleter(t *testing.T) {
-	err := configureBalanceEngine(&command.UseCase{}, &balanceEngineProviderStub{})
+func TestConfigureEngineRequiresAppliedTransactionCompleter(t *testing.T) {
+	err := configureEngine(&command.UseCase{}, &engineProviderStub{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "applied transaction completer")
 }
 
-func TestConfigureBalanceEngineRequiresCommandOwner(t *testing.T) {
-	err := configureBalanceEngine(nil, &balanceEngineProviderStub{})
+func TestConfigureEngineRequiresCommandOwner(t *testing.T) {
+	err := configureEngine(nil, &engineProviderStub{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "command owner")
 }
 
-func TestConfigureBalanceEngineRequiresProvider(t *testing.T) {
+func TestConfigureEngineRequiresProvider(t *testing.T) {
 	useCase := &command.UseCase{AppliedTransactionCompleter: &appliedTransactionCompleterStub{}}
 
-	err := configureBalanceEngine(useCase, nil)
+	err := configureEngine(useCase, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "provider")
-	assert.Nil(t, useCase.BalanceEngine)
+	assert.Nil(t, useCase.Engine)
 }

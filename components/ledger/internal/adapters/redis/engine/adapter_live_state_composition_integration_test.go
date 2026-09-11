@@ -26,7 +26,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
-func TestIntegration_ExecutePreparedBalanceEngine_UsesLiveValkeyState(t *testing.T) {
+func TestIntegration_ExecutePreparedEngine_UsesLiveValkeyState(t *testing.T) {
 	ctx := context.Background()
 	client, _, _ := newAdapterValkey(t)
 
@@ -84,7 +84,7 @@ func TestIntegration_ExecutePreparedBalanceEngine_UsesLiveValkeyState(t *testing
 			require.NoError(t, err)
 			require.NoError(t, client.Set(ctx, keys.Balances[live.BalanceRef].Balance, encoded, 0).Err())
 
-			got, err := command.ExecutePreparedBalanceEngine(ctx, adapter, prepared)
+			got, err := command.ExecutePreparedEngine(ctx, adapter, prepared)
 			require.NoError(t, err)
 
 			require.NotNil(t, got.Result)
@@ -156,7 +156,7 @@ func TestIntegration_AdapterExecute_UsesLiveOverdraftSettingsWithoutVersionBump(
 	require.Equal(t, []string{constant.DEBIT, constant.OVERDRAFT}, []string{rows[0].Type, rows[1].Type})
 	require.Equal(t, []string{"10", "20"}, []string{rows[0].Amount.Value.String(), rows[1].Amount.Value.String()})
 	assertLiveStateCompositionStoredOutcome(t, ctx, client, keys,
-		command.BalanceEngineExecutionOutcome{Prepared: prepared, Result: result}, rows)
+		command.EngineExecutionOutcome{Prepared: prepared, Result: result}, rows)
 }
 
 type liveStateCompositionFixture struct {
@@ -228,9 +228,9 @@ func buildLiveStateCompositionExecution(
 	client *redis.Client,
 	keys resolvedExecutionKeys,
 	fixture liveStateCompositionFixture,
-) (command.PreparedBalanceEngineExecution, error) {
+) (command.PreparedEngineExecution, error) {
 	t.Helper()
-	pool, err := command.LoadBalanceEngineSnapshotPool(ctx, fixture.organizationID, fixture.ledgerID,
+	pool, err := command.LoadEngineSnapshotPool(ctx, fixture.organizationID, fixture.ledgerID,
 		[]string{"@source#default"}, func(ctx context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 			balances := make([]*mmodel.Balance, 0, len(aliases))
 			for _, alias := range aliases {
@@ -251,15 +251,15 @@ func buildLiveStateCompositionExecution(
 			return balances, nil
 		})
 	if err != nil {
-		return command.PreparedBalanceEngineExecution{}, err
+		return command.PreparedEngineExecution{}, err
 	}
 
-	translated, projection, err := command.TranslateBalanceEngineTransaction(command.BalanceEngineTranslationInput{
+	translated, projection, err := command.TranslateEngineTransaction(command.EngineTranslationInput{
 		TransactionID: fixture.transactionID, Action: constant.ActionDirect, TransactionStatus: constant.CREATED,
 		TransactionInput: fixture.transaction, Validate: fixture.validation, Balances: pool.Balances,
 	})
 	if err != nil {
-		return command.PreparedBalanceEngineExecution{}, err
+		return command.PreparedEngineExecution{}, err
 	}
 
 	payload := command.TransactionCompletionPlan{
@@ -280,7 +280,7 @@ func buildLiveStateCompositionExecution(
 	execution.CompletionPlans = []command.CompletionPlanRecord{{TransactionID: fixture.transactionID, Payload: encodeAdapterRecovery(t, &execution, payload)}}
 	payload.IntentFingerprint = execution.IntentFingerprint
 
-	return command.PreparedBalanceEngineExecution{Execution: execution, CompletionPlan: payload}, nil
+	return command.PreparedEngineExecution{Execution: execution, CompletionPlan: payload}, nil
 }
 
 func liveStateCompositionModel(fixture liveStateCompositionFixture, snapshot core.BalanceSnapshot) *mmodel.Balance {
@@ -384,7 +384,7 @@ func assertLiveStateCompositionStoredOutcome(
 	ctx context.Context,
 	client *redis.Client,
 	keys resolvedExecutionKeys,
-	got command.BalanceEngineExecutionOutcome,
+	got command.EngineExecutionOutcome,
 	rows any,
 ) {
 	t.Helper()

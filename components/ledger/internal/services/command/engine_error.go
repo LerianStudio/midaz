@@ -17,38 +17,38 @@ import (
 
 const balanceValidationEntity = "validateBalance"
 
-type balanceEngineTechnicalError interface {
+type engineTechnicalError interface {
 	error
 	EngineFailureCode() string
 	OutcomeIndeterminate() bool
 }
 
-// MapBalanceEngineError translates deterministic balance-engine failures to the
+// MapEngineError translates deterministic engine failures to the
 // legacy public contract. Technical and malformed engine errors retain their
 // cause for classification at the caller's error boundary.
-func MapBalanceEngineError(request accounting.Execution, err error) error {
+func MapEngineError(request accounting.Execution, err error) error {
 	if err == nil {
 		return nil
 	}
 
-	var technicalErr balanceEngineTechnicalError
+	var technicalErr engineTechnicalError
 	if errors.As(err, &technicalErr) {
 		if technicalErr.EngineFailureCode() == "execution_guard_conflict" && !technicalErr.OutcomeIndeterminate() {
 			return pkg.ValidateBusinessError(constant.ErrPendingTransactionLocked, balanceValidationEntity)
 		}
 
-		return fmt.Errorf("balance engine technical failure: %w", err)
+		return fmt.Errorf("engine technical failure: %w", err)
 	}
 
 	var failure *accounting.Failure
 	if !errors.As(err, &failure) {
-		return fmt.Errorf("balance engine failure: %w", err)
+		return fmt.Errorf("engine failure: %w", err)
 	}
 
 	if failure.PostingIndex == -1 {
 		requirement, balance, ok := engineFailureRequirement(request, failure)
 		if !ok {
-			return fmt.Errorf("malformed balance engine requirement failure: %w", err)
+			return fmt.Errorf("malformed engine requirement failure: %w", err)
 		}
 
 		switch failure.Code {
@@ -61,32 +61,32 @@ func MapBalanceEngineError(request accounting.Execution, err error) error {
 			return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, entity)
 		case accounting.FailureSendingNotAllowed:
 			if requirement.Permission != accounting.BalancePermissionSend {
-				return fmt.Errorf("malformed balance engine sending requirement failure: %w", err)
+				return fmt.Errorf("malformed engine sending requirement failure: %w", err)
 			}
 
 			return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
 		case accounting.FailureReceivingNotAllowed:
 			if requirement.Permission != accounting.BalancePermissionReceive {
-				return fmt.Errorf("malformed balance engine receiving requirement failure: %w", err)
+				return fmt.Errorf("malformed engine receiving requirement failure: %w", err)
 			}
 
 			return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
 		case accounting.FailureExternalHoldNotAllowed:
 			if !requirement.ForbidExternal {
-				return fmt.Errorf("malformed balance engine external hold requirement failure: %w", err)
+				return fmt.Errorf("malformed engine external hold requirement failure: %w", err)
 			}
 
 			return pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, balanceValidationEntity, balance.Alias)
 		case accounting.FailureBalanceDeleted:
 			return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
 		default:
-			return fmt.Errorf("unexpected balance engine requirement failure: %w", err)
+			return fmt.Errorf("unexpected engine requirement failure: %w", err)
 		}
 	}
 
 	posting, ok := engineFailurePosting(request, failure)
 	if !ok {
-		return fmt.Errorf("malformed balance engine failure: %w", err)
+		return fmt.Errorf("malformed engine failure: %w", err)
 	}
 
 	switch failure.Code {
@@ -101,7 +101,7 @@ func MapBalanceEngineError(request accounting.Execution, err error) error {
 		case accounting.DrawForbidden:
 			return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, balanceValidationEntity)
 		default:
-			return fmt.Errorf("unexpected draw policy for balance engine failure: %w", err)
+			return fmt.Errorf("unexpected draw policy for engine failure: %w", err)
 		}
 	case "overdraft_companion_missing":
 		return fmt.Errorf("overdraft companion missing: %w", err)
@@ -112,7 +112,7 @@ func MapBalanceEngineError(request accounting.Execution, err error) error {
 	case "onhold_underflow":
 		return fmt.Errorf("on-hold balance underflow: %w", err)
 	default:
-		return fmt.Errorf("unknown balance engine failure: %w", err)
+		return fmt.Errorf("unknown engine failure: %w", err)
 	}
 }
 

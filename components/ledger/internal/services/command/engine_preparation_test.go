@@ -32,8 +32,8 @@ func (reader enginePreparationReader) GetBalances(ctx context.Context, orgID, le
 	return reader.load(ctx, orgID, ledgerID, aliases)
 }
 
-func (reader enginePreparationReader) GetBalanceEngineBalances(ctx context.Context, orgID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
-	pool, err := LoadBalanceEngineSnapshotPool(ctx, orgID, ledgerID, aliases, reader.load)
+func (reader enginePreparationReader) GetEngineBalances(ctx context.Context, orgID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	pool, err := LoadEngineSnapshotPool(ctx, orgID, ledgerID, aliases, reader.load)
 	return pool.ExplicitBalances, pool.Balances, err
 }
 
@@ -41,7 +41,7 @@ func (reader enginePreparationReader) ValidateAccountingRules(ctx context.Contex
 	return reader.routes(ctx, orgID, ledgerID, operations, validate, action)
 }
 
-func enginePreparationFixture(t *testing.T) (balanceEnginePreparationInput, []*mmodel.Balance) {
+func enginePreparationFixture(t *testing.T) (enginePreparationInput, []*mmodel.Balance) {
 	t.Helper()
 	payload, _ := recoveryContractFixture(t)
 	source := translationBalance(payload.OrganizationID, payload.LedgerID, "55555555-5555-4555-8555-555555555555", "@source", "default")
@@ -54,9 +54,9 @@ func enginePreparationFixture(t *testing.T) (balanceEnginePreparationInput, []*m
 		balance.AssetCode = "USD"
 		balance.AllowSending, balance.AllowReceiving = true, true
 	}
-	input := balanceEnginePreparationInput{
+	input := enginePreparationInput{
 		organizationID: payload.OrganizationID, ledgerID: payload.LedgerID,
-		translation: BalanceEngineTranslationInput{
+		translation: EngineTranslationInput{
 			TransactionID: payload.TransactionID, Action: constant.ActionDirect, TransactionStatus: constant.CREATED,
 			TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
 				Asset: "USD", Value: decimal.NewFromInt(3),
@@ -78,7 +78,7 @@ func enginePreparationFixture(t *testing.T) (balanceEnginePreparationInput, []*m
 	return input, []*mmodel.Balance{source, target, companion}
 }
 
-func TestPrepareBalanceEngineTransactionSeparatesLegsFromPool(t *testing.T) {
+func TestPrepareEngineTransactionSeparatesLegsFromPool(t *testing.T) {
 	input, balances := enginePreparationFixture(t)
 	reads, routeCalls := 0, 0
 	uc := &UseCase{TransactionReader: enginePreparationReader{
@@ -106,7 +106,7 @@ func TestPrepareBalanceEngineTransactionSeparatesLegsFromPool(t *testing.T) {
 			return nil, nil
 		},
 	}}
-	prepared, err := uc.prepareBalanceEngineTransaction(context.Background(), input)
+	prepared, err := uc.prepareEngineTransaction(context.Background(), input)
 	require.NoError(t, err)
 	assert.Equal(t, 2, reads)
 	assert.Equal(t, 1, routeCalls)
@@ -118,7 +118,7 @@ func TestPrepareBalanceEngineTransactionSeparatesLegsFromPool(t *testing.T) {
 	assert.Nil(t, input.translation.Balances)
 }
 
-func TestPrepareBalanceEngineTransactionRejectsBeforeExecution(t *testing.T) {
+func TestPrepareEngineTransactionRejectsBeforeExecution(t *testing.T) {
 	for _, scenario := range []string{"canceled", "canceled after routes", "missing reader", "internal target", "missing target", "route failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			input, balances := enginePreparationFixture(t)
@@ -157,7 +157,7 @@ func TestPrepareBalanceEngineTransactionRejectsBeforeExecution(t *testing.T) {
 				input.translation.Validate.From["0#@missing#default"] = input.translation.Validate.From["0#@source#default"]
 				delete(input.translation.Validate.From, "0#@source#default")
 			}
-			_, err := uc.prepareBalanceEngineTransaction(ctx, input)
+			_, err := uc.prepareEngineTransaction(ctx, input)
 			require.Error(t, err)
 			switch scenario {
 			case "canceled":
@@ -178,7 +178,7 @@ func TestPrepareBalanceEngineTransactionRejectsBeforeExecution(t *testing.T) {
 	}
 }
 
-func TestPrepareBalanceEngineTransactionDefersEligibilityToAtomicExecution(t *testing.T) {
+func TestPrepareEngineTransactionDefersEligibilityToAtomicExecution(t *testing.T) {
 	input, balances := enginePreparationFixture(t)
 	balances[0].AllowSending = false
 	balances[1].AllowReceiving = false
@@ -197,7 +197,7 @@ func TestPrepareBalanceEngineTransactionDefersEligibilityToAtomicExecution(t *te
 		},
 	}}
 
-	prepared, err := uc.prepareBalanceEngineTransaction(context.Background(), input)
+	prepared, err := uc.prepareEngineTransaction(context.Background(), input)
 	require.NoError(t, err)
 	require.Len(t, prepared.transaction.BalanceRequirements, 3)
 	assert.Equal(t, accounting.BalancePermissionSend, prepared.transaction.BalanceRequirements[0].Permission)
@@ -205,7 +205,7 @@ func TestPrepareBalanceEngineTransactionDefersEligibilityToAtomicExecution(t *te
 	assert.Equal(t, accounting.BalancePermissionReceive, prepared.transaction.BalanceRequirements[2].Permission)
 }
 
-func TestOrderedBalanceEngineValidationOperationsPreservesStaticHoldEntries(t *testing.T) {
+func TestOrderedEngineValidationOperationsPreservesStaticHoldEntries(t *testing.T) {
 	input, balances := enginePreparationFixture(t)
 	input.translation.Action = constant.ActionHold
 	input.translation.TransactionStatus = constant.PENDING
@@ -215,7 +215,7 @@ func TestOrderedBalanceEngineValidationOperationsPreservesStaticHoldEntries(t *t
 		amount.Operation = constant.ONHOLD
 		input.translation.Validate.From[alias] = amount
 	}
-	ops, err := orderedBalanceEngineValidationOperations(input.translation, balances[:2])
+	ops, err := orderedEngineValidationOperations(input.translation, balances[:2])
 	require.NoError(t, err)
 	require.Len(t, ops, 5)
 	assert.Equal(t, []string{constant.DEBIT, constant.ONHOLD, constant.DEBIT, constant.ONHOLD, constant.CREDIT}, []string{
@@ -231,7 +231,7 @@ func TestOrderedBalanceEngineValidationOperationsPreservesStaticHoldEntries(t *t
 	require.NoError(t, mtransaction.ValidateBalancesRules(context.Background(), input.translation.TransactionInput, *input.translation.Validate, legBalances, nil))
 }
 
-func TestPrepareBalanceEngineCancellationDoesNotRequireDestinationBalance(t *testing.T) {
+func TestPrepareEngineCancellationDoesNotRequireDestinationBalance(t *testing.T) {
 	input, balances := enginePreparationFixture(t)
 	input.translation.Action = constant.ActionCancel
 	input.translation.TransactionStatus = constant.CANCELED
@@ -260,7 +260,7 @@ func TestPrepareBalanceEngineCancellationDoesNotRequireDestinationBalance(t *tes
 			return nil, nil
 		},
 	}}
-	prepared, err := uc.prepareBalanceEngineTransaction(context.Background(), input)
+	prepared, err := uc.prepareEngineTransaction(context.Background(), input)
 	require.NoError(t, err)
 	assert.Equal(t, 2, reads)
 	assert.Len(t, prepared.pool.ExplicitBalances, 1)
