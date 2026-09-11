@@ -456,6 +456,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			projectionErr := fmt.Errorf("project legacy replay balance: %w", err)
 			libOpentelemetry.HandleSpanError(msgSpan, "Failed to project legacy replay balance", projectionErr)
 			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to project legacy replay balance", libLog.Err(projectionErr))
+			r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "balance_projection_failure")
 
 			return
 		}
@@ -473,6 +474,7 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 				projectionErr := fmt.Errorf("project legacy replay after-balance: %w", err)
 				libOpentelemetry.HandleSpanError(msgSpan, "Failed to project legacy replay after-balance", projectionErr)
 				logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to project legacy replay after-balance", libLog.Err(projectionErr))
+				r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "after_balance_projection_failure")
 
 				return
 			}
