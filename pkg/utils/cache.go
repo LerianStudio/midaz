@@ -66,9 +66,7 @@ func TransactionApplyMarkerKey(organizationID, ledgerID uuid.UUID, transactionID
 
 	builder.WriteString("transaction_apply_marker")
 	builder.WriteString(keySeparator)
-	builder.WriteString(beginningKey)
-	builder.WriteString("transactions")
-	builder.WriteString(endKey)
+	builder.WriteString(cachepolicy.HashTag)
 	builder.WriteString(keySeparator)
 	builder.WriteString(organizationID.String())
 	builder.WriteString(keySeparator)
