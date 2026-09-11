@@ -23,6 +23,7 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -2767,11 +2768,20 @@ const (
 // evalshaCallCount reads how many times the server has executed a cached script
 // since the last CONFIG RESETSTAT, straight from the container client so the
 // observation never crosses the proxy.
-func evalshaCallCount(t *testing.T, infra *chaosNetworkTestInfra) int {
+//
+// Returns the error instead of asserting on it. waitForScriptSendQuiescence
+// below calls this from a goroutine it spawns, and require/t.FailNow is valid
+// only from the goroutine running the test function itself — calling it from
+// another goroutine can runtime.Goexit that goroutine before its own cleanup
+// (RemoveAllToxics) ever runs, leaving the injected toxic active for later
+// tests. The direct, test-goroutine caller may still assert on the error.
+func evalshaCallCount(t *testing.T, infra *chaosNetworkTestInfra) (int, error) {
 	t.Helper()
 
 	info, err := infra.redisContainer.Client.Info(context.Background(), "commandstats").Result()
-	require.NoError(t, err, "failed to read command stats")
+	if err != nil {
+		return 0, fmt.Errorf("failed to read command stats: %w", err)
+	}
 
 	for _, line := range strings.Split(info, "\n") {
 		line = strings.TrimSpace(line)
@@ -2785,13 +2795,15 @@ func evalshaCallCount(t *testing.T, infra *chaosNetworkTestInfra) int {
 			}
 
 			calls, convErr := strconv.Atoi(strings.TrimPrefix(field, "calls="))
-			require.NoError(t, convErr, "failed to parse evalsha call count")
+			if convErr != nil {
+				return 0, fmt.Errorf("failed to parse evalsha call count: %w", convErr)
+			}
 
-			return calls
+			return calls, nil
 		}
 	}
 
-	return 0
+	return 0, nil
 }
 
 // resetChaosCommandStats zeroes the server's command counters so the executions
@@ -2818,7 +2830,17 @@ func waitForScriptSendQuiescence(t *testing.T, infra *chaosNetworkTestInfra) {
 	lastChange := time.Now()
 
 	for time.Now().Before(deadline) {
-		current := evalshaCallCount(t, infra)
+		current, err := evalshaCallCount(t, infra)
+		if err != nil {
+			// Reported, never fatal: this function runs off the test goroutine (see
+			// the call site in TestIntegration_Chaos_Reconcile_LostResponseConvertsToSuccess),
+			// where t.FailNow is invalid. Returning here — instead of failing — lets
+			// the caller's own RemoveAllToxics still run and the toxic get cleared.
+			t.Errorf("failed to read evalsha call count: %v", err)
+
+			return
+		}
+
 		if current != lastCount {
 			lastCount = current
 			lastChange = time.Now()
@@ -2953,7 +2975,9 @@ func TestIntegration_Chaos_Reconcile_NoExecutionKeepsError(t *testing.T) {
 
 	require.NoError(t, infra.proxy.Reconnect())
 
-	assert.Equal(t, 0, evalshaCallCount(t, infra), "the script must never have executed")
+	calls, callErr := evalshaCallCount(t, infra)
+	require.NoError(t, callErr)
+	assert.Equal(t, 0, calls, "the script must never have executed")
 
 	balanceExists, err := infra.redisContainer.Client.Exists(ctx, internalKey).Result()
 	require.NoError(t, err)
