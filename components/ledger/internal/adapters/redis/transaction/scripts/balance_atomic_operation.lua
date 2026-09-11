@@ -1114,12 +1114,14 @@ local function main()
     local cachedVersions = {}
     local cachedSchemaVersions = {}
     local cachedDuplicateLowerVersions = {}
+    local cachedRawBalances = {}
     for i = argvHeader + 1, #ARGV, groupSize do
         local key = ARGV[i]
         if not checkedKeys[key] then
             checkedKeys[key] = true
             local raw = redis.call("GET", key)
             if raw then
+                cachedRawBalances[key] = raw
                 local ok, cached = pcall(cjson.decode, raw)
                 if not ok or type(cached) ~= "table" or not string.match(raw, "^%s*{") then
                     return redis.error_reply("BALANCE_LIMIT_INVALID")
@@ -1159,7 +1161,7 @@ local function main()
             return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
         end
         local candidate
-        local raw = redis.call("GET", ARGV[i])
+        local raw = cachedRawBalances[ARGV[i]]
         if raw then
             local ok, decoded = pcall(cjson.decode, raw)
             if not ok or type(decoded) ~= "table" then
