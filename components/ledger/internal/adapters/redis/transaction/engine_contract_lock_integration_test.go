@@ -129,10 +129,11 @@ func TestIntegration_AccountingExecutionGoldens(t *testing.T) {
 	ctx := context.Background()
 	orgID := uuid.MustParse("f047d278-82c0-454d-a120-9192f522a21c")
 	ledgerID := uuid.MustParse("f921655a-c653-46e3-ad43-b737dc604372")
-	transactionID := uuid.MustParse("899928e3-726c-487b-b245-ff546634ca30")
+	transactionNamespace := uuid.MustParse("899928e3-726c-487b-b245-ff546634ca30")
 	const scheduleKey = "schedule:{transactions}:balance-sync-v2"
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
+			transactionID := uuid.NewSHA1(transactionNamespace, []byte(tc.Name))
 			mainKey := utils.BalanceInternalKey(orgID, ledgerID, "@source#default")
 			destKey := utils.BalanceInternalKey(orgID, ledgerID, "@destination#default")
 			if tc.Input.Companion {
