@@ -119,6 +119,7 @@ func (uc *UseCase) executeCreateEngine(
 				uc.releaseReservations(ctx, span, logger, reservation.Handle)
 			}
 		}
+
 		if !outcome.Executed {
 			return nil, executeErr
 		}

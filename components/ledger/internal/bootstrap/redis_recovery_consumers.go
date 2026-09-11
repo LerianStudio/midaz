@@ -75,6 +75,7 @@ func (r *RedisQueueConsumer) newEngineRecoveryConsumer() *EngineRecoveryConsumer
 
 func (c *LegacyBackupConsumer) Consume(ctx context.Context) recoveryOriginStats {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "redis.recovery.legacy_backup.consume")
 	defer span.End()
 
@@ -86,11 +87,13 @@ func (c *LegacyBackupConsumer) Consume(ctx context.Context) recoveryOriginStats 
 
 	stats := recoveryOriginStats{read: true, messageCount: len(messages)}
 	c.logger.Log(ctx, libLog.LevelDebug, "Read legacy backup messages", libLog.Int("message_count", len(messages)))
+
 	if len(messages) == 0 {
 		return stats
 	}
 
 	sem := make(chan struct{}, MaxWorkers)
+
 	var wg sync.WaitGroup
 
 LegacyRecords:
@@ -126,12 +129,14 @@ LegacyRecords:
 		}
 
 		trackRecoveryRecordAge(&stats, ttl)
+
 		if !recoveryRecordEligible(ttl, time.Now()) {
 			stats.tooYoung++
 			continue
 		}
 
 		sem <- struct{}{}
+
 		wg.Add(1)
 
 		libRuntime.SafeGoWithContextAndComponent(ctx, c.logger, legacyBackupConsumerComponent,
@@ -163,6 +168,7 @@ func (c *LegacyBackupConsumer) handleMalformedLegacyRecord(ctx context.Context, 
 	if !trusted {
 		c.logger.Log(ctx, libLog.LevelError, "Unparseable backup record without trusted key scope; cannot quarantine, left in backup queue",
 			libLog.String("redis_key", field))
+
 		return
 	}
 
@@ -171,6 +177,7 @@ func (c *LegacyBackupConsumer) handleMalformedLegacyRecord(ctx context.Context, 
 
 func (c *EngineRecoveryConsumer) Consume(ctx context.Context) recoveryOriginStats {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "redis.recovery.engine.consume")
 	defer span.End()
 
@@ -182,11 +189,13 @@ func (c *EngineRecoveryConsumer) Consume(ctx context.Context) recoveryOriginStat
 
 	stats := recoveryOriginStats{read: true, messageCount: len(messages)}
 	c.logger.Log(ctx, libLog.LevelDebug, "Read engine recovery messages", libLog.Int("message_count", len(messages)))
+
 	if len(messages) == 0 {
 		return stats
 	}
 
 	sem := make(chan struct{}, MaxWorkers)
+
 	var wg sync.WaitGroup
 
 EngineRecords:
@@ -201,6 +210,7 @@ EngineRecords:
 			c.logger.Log(ctx, libLog.LevelWarn, "Invalid engine recovery record retained", libLog.String("redis_key", field), libLog.Err(versionErr))
 			continue
 		}
+
 		if version != command.TransactionCompletionFormatVersion {
 			c.logger.Log(ctx, libLog.LevelWarn, "Unversioned engine recovery record retained", libLog.String("redis_key", field))
 			continue
@@ -213,12 +223,14 @@ EngineRecords:
 		}
 
 		trackRecoveryRecordAge(&stats, ttl)
+
 		if !recoveryRecordEligible(ttl, time.Now()) {
 			stats.tooYoung++
 			continue
 		}
 
 		sem <- struct{}{}
+
 		wg.Add(1)
 
 		libRuntime.SafeGoWithContextAndComponent(ctx, c.logger, engineRecoveryConsumerComponent,

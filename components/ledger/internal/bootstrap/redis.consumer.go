@@ -380,7 +380,9 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	}
 
 	var aggregate recoveryOriginStats
+
 	successfulOriginReads := 0
+
 	for _, consumer := range consumers {
 		stats := consumer.Consume(ctx)
 		if !stats.read {
@@ -390,6 +392,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 		successfulOriginReads++
 		aggregate.messageCount += stats.messageCount
 		aggregate.tooYoung += stats.tooYoung
+
 		if aggregate.oldestTTL.IsZero() || (!stats.oldestTTL.IsZero() && stats.oldestTTL.Before(aggregate.oldestTTL)) {
 			aggregate.oldestTTL = stats.oldestTTL
 		}
@@ -402,6 +405,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 		r.emitDepthGauge(ctx, int64(aggregate.messageCount))
 		r.emitOldestAgeGauge(ctx, aggregate.oldestTTL)
 	}
+
 	r.cleanupEngineRecovery(ctx)
 	r.Logger.Log(ctx, libLog.LevelDebug, "Messages under time-of-life threshold", libLog.Int("threshold_minutes", MessageTimeOfLife), libLog.Int("message_count", aggregate.tooYoung))
 	r.Logger.Log(ctx, libLog.LevelDebug, "Finished processing eligible messages", libLog.Int("eligible_count", aggregate.messageCount-aggregate.tooYoung))

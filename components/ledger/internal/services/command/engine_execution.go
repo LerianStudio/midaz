@@ -56,6 +56,7 @@ func ExecutePreparedEngine(
 
 	outcome.Executed = true
 	result, err := executor.Execute(ctx, prepared.Execution)
+
 	outcome.Result = result
 	if err != nil {
 		if result != nil {

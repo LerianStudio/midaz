@@ -76,9 +76,10 @@ func (cti *CreateTransactionRequest) BuildTransaction() *mtransaction.Transactio
 		Pending:                  cti.Pending,
 		Metadata:                 cti.Metadata,
 		TransactionDate:          cti.TransactionDate,
-		Route:                    cti.Route,
-		RouteID:                  cti.RouteID,
-		Send:                     send,
+		//nolint:staticcheck // The v1 transport intentionally preserves the deprecated route field.
+		Route:   cti.Route,
+		RouteID: cti.RouteID,
+		Send:    send,
 	}
 }
 
@@ -149,8 +150,9 @@ func (c *CreateTransactionInflowRequestBody) BuildInflowEntry() *mtransaction.Tr
 		Code:                     c.Code,
 		Metadata:                 c.Metadata,
 		TransactionDate:          c.TransactionDate,
-		Route:                    c.Route,
-		RouteID:                  c.RouteID,
+		//nolint:staticcheck // The v1 transport intentionally preserves the deprecated route field.
+		Route:   c.Route,
+		RouteID: c.RouteID,
 		Send: mtransaction.Send{
 			Asset:      c.Send.Asset,
 			Value:      c.Send.Value,
@@ -241,8 +243,9 @@ func (c *CreateTransactionOutflowRequestBody) BuildOutflowEntry() *mtransaction.
 		Pending:                  c.Pending,
 		Metadata:                 c.Metadata,
 		TransactionDate:          c.TransactionDate,
-		Route:                    c.Route,
-		RouteID:                  c.RouteID,
+		//nolint:staticcheck // The v1 transport intentionally preserves the deprecated route field.
+		Route:   c.Route,
+		RouteID: c.RouteID,
 		Send: mtransaction.Send{
 			Asset: c.Send.Asset,
 			Value: c.Send.Value,

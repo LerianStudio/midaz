@@ -1734,6 +1734,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryFrom(ctx context.Cont
 	if err != nil {
 		return 0, err
 	}
+
 	attemptsKey := TransactionBackupAttemptsQueue
 	if !source.clearsLegacyAttempts() {
 		attemptsKey = queueKey
@@ -1814,10 +1815,12 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtectionFrom(
 	}
 
 	scope := organizationID.String() + ":" + ledgerID.String()
+
 	queueKey, err := recoveryQueueKey(source)
 	if err != nil {
 		return 0, err
 	}
+
 	attemptsKey := TransactionBackupAttemptsQueue
 	if !source.clearsLegacyAttempts() {
 		attemptsKey = queueKey
@@ -1849,6 +1852,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtectionFrom(
 	if terminal {
 		terminalFlag = "1"
 	}
+
 	clearAttempts := "0"
 	if source.clearsLegacyAttempts() {
 		clearAttempts = "1"

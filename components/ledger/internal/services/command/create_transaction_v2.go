@@ -56,6 +56,8 @@ type CreateTransactionV2Input struct {
 //
 // It returns the created transaction and whether the idempotency slot answered with
 // a replay, so the transport sets X-Idempotency-Replayed itself.
+//
+//nolint:gocyclo // Keeping compensation beside each ordered v2 seam makes the orchestration contract explicit.
 func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransactionV2Input) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
