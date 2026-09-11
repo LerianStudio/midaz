@@ -166,7 +166,8 @@ func (uc *UseCase) finalizeCreateEngineResult(ctx context.Context, run *createTr
 
 	bgCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
 	go uc.SetTransactionIdempotencyValue(bgCtx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, *tran, run.idempotencyTTL)
-	go uc.SendLogTransactionAuditQueue(bgCtx, tran.Operations, run.organizationID, run.ledgerID, tran.IDtoUUID())
+
+	uc.sendLogTransactionAuditQueueAsync(bgCtx, tran.Operations, run.organizationID, run.ledgerID, tran.IDtoUUID())
 
 	return tran, nil
 }

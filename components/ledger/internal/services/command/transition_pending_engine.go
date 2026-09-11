@@ -399,7 +399,7 @@ func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, expectedStat
 	}
 
 	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
-	go uc.SendLogTransactionAuditQueue(tenantCtx, tran.Operations, envelope.OrganizationID, envelope.LedgerID, envelope.TransactionID)
+	uc.sendLogTransactionAuditQueueAsync(tenantCtx, tran.Operations, envelope.OrganizationID, envelope.LedgerID, envelope.TransactionID)
 
 	return tran, nil
 }

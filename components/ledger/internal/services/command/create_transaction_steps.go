@@ -283,7 +283,7 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 
 	go uc.SetTransactionIdempotencyValue(bgCtx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, *tran, run.idempotencyTTL)
 
-	go uc.SendLogTransactionAuditQueue(bgCtx, operations, run.organizationID, run.ledgerID, tran.IDtoUUID())
+	uc.sendLogTransactionAuditQueueAsync(bgCtx, operations, run.organizationID, run.ledgerID, tran.IDtoUUID())
 
 	return tran, nil
 }

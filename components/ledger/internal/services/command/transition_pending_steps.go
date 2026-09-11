@@ -375,7 +375,7 @@ func (uc *UseCase) finalizePendingTransition(ctx context.Context, span trace.Spa
 
 	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
 
-	go uc.SendLogTransactionAuditQueue(tenantCtx, operations, run.organizationID, run.ledgerID, run.tran.IDtoUUID())
+	uc.sendLogTransactionAuditQueueAsync(tenantCtx, operations, run.organizationID, run.ledgerID, run.tran.IDtoUUID())
 
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
 		go uc.UpdateWriteBehindTransaction(tenantCtx, run.organizationID, run.ledgerID, run.tran)
