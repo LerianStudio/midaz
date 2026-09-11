@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -96,7 +97,8 @@ func TestIntegration_CrossGate_CommitAfterCancelIsRejected(t *testing.T) {
 	}
 
 	infra := setupRedisIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 	txID := uuid.New()
@@ -152,7 +154,8 @@ func TestIntegration_CrossGate_CancelAfterCommitIsRejected(t *testing.T) {
 	}
 
 	infra := setupRedisIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 	txID := uuid.New()
@@ -231,7 +234,8 @@ func TestIntegration_CrossGate_ReplayWinsOverTheCrossConflict(t *testing.T) {
 	}
 
 	infra := setupRedisIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 	txID := uuid.New()
@@ -298,7 +302,8 @@ func TestIntegration_CrossGate_ExpiredOppositeMarkerIsTransparent(t *testing.T) 
 	}
 
 	infra := setupRedisIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 	txID := uuid.New()
@@ -350,7 +355,8 @@ func TestIntegration_CrossGate_IndependentTransitionsAreUnaffected(t *testing.T)
 	}
 
 	infra := setupRedisIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
@@ -392,7 +398,8 @@ func TestIntegration_CrossGate_StatusWithoutOppositeIsDisarmed(t *testing.T) {
 	}
 
 	infra := setupRedisIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 	txID := uuid.New()

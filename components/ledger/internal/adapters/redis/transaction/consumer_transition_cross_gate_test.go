@@ -40,6 +40,12 @@ func TestTransitionCrossGate_OppositeMarkerKeyByStatus(t *testing.T) {
 		{name: "pending create arms nothing", status: constant.PENDING},
 		{name: "direct create arms nothing", status: constant.CREATED},
 		{name: "annotation arms nothing", status: constant.NOTED},
+		// The marker key uppercases the status, so a caller holding either
+		// casing has to resolve the same pair — otherwise a lowercase status
+		// would silently disarm the gate.
+		{name: "lowercase commit reads the cancel marker", status: "approved", wantOppositeOf: constant.CANCELED},
+		{name: "lowercase cancel reads the commit marker", status: "canceled", wantOppositeOf: constant.APPROVED},
+		{name: "lowercase pending arms nothing", status: "pending"},
 	}
 
 	for _, tc := range testCases {

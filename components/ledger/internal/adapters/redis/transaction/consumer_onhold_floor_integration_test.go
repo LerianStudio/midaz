@@ -9,16 +9,32 @@ package redis
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
+
+// requireOnHoldFloorRejection asserts the adapter translated the script's floor
+// breach into the typed 422. The code is read off the struct rather than the
+// message so the assertion cannot pass on a different stale-state rejection.
+func requireOnHoldFloorRejection(t *testing.T, err error) {
+	t.Helper()
+
+	require.Error(t, err)
+
+	var unprocessable pkg.UnprocessableOperationError
+
+	require.ErrorAs(t, err, &unprocessable, "the OnHold floor must surface as an unprocessable operation")
+	require.Equal(t, constant.ErrStaleBalanceVersion.Error(), unprocessable.Code)
+}
 
 // =============================================================================
 // ON-HOLD FLOOR (0174) INTEGRATION TESTS
@@ -121,7 +137,8 @@ func TestIntegration_OnHoldFloor_ReleaseBeyondHoldIsRejected(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			infra := setupRedisIntegrationInfra(t)
-			ctx := context.Background()
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			t.Cleanup(cancel)
 			orgID := uuid.New()
 			ledgerID := uuid.New()
 
@@ -138,8 +155,7 @@ func TestIntegration_OnHoldFloor_ReleaseBeyondHoldIsRejected(t *testing.T) {
 			_, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
 				uuid.New(), tc.transactionStatus, true, []mmodel.BalanceOperation{breach}, nil)
 
-			require.Error(t, err, "a subtraction that would take OnHold below zero must be refused")
-			assert.Contains(t, err.Error(), constant.ErrStaleBalanceVersion.Error())
+			requireOnHoldFloorRejection(t, err)
 
 			assert.Equal(t, afterHold, snapshotOf(t, infra, key),
 				"the rollback must restore Available, OnHold and Version exactly")
@@ -158,7 +174,8 @@ func TestIntegration_OnHoldFloor_ExactZeroIsAllowed(t *testing.T) {
 	}
 
 	infra := setupRedisIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 	alias := "@onhold-floor-exact-zero"
@@ -192,7 +209,8 @@ func TestIntegration_OnHoldFloor_RollbackUnwindsTheWholeBatch(t *testing.T) {
 	}
 
 	infra := setupRedisIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 	orgID := uuid.New()
 	ledgerID := uuid.New()
 
@@ -228,8 +246,7 @@ func TestIntegration_OnHoldFloor_RollbackUnwindsTheWholeBatch(t *testing.T) {
 	_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
 		uuid.New(), constant.APPROVED, true, []mmodel.BalanceOperation{destinationLeg, sourceLeg}, nil)
 
-	require.Error(t, err, "the batch must abort on the second group's floor breach")
-	assert.Contains(t, err.Error(), constant.ErrStaleBalanceVersion.Error())
+	requireOnHoldFloorRejection(t, err)
 
 	assert.Equal(t, destinationBefore, snapshotOf(t, infra, destinationKey),
 		"the group that already applied must be rolled back, version included")
@@ -259,7 +276,8 @@ func TestIntegration_OnHoldFloor_HappyPendingLifecycleIsUnchanged(t *testing.T) 
 
 	t.Run("commit consumes the hold", func(t *testing.T) {
 		infra := setupRedisIntegrationInfra(t)
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		t.Cleanup(cancel)
 		orgID := uuid.New()
 		ledgerID := uuid.New()
 		alias := "@onhold-floor-happy-commit"
@@ -294,7 +312,8 @@ func TestIntegration_OnHoldFloor_HappyPendingLifecycleIsUnchanged(t *testing.T) 
 
 	t.Run("cancel returns the hold", func(t *testing.T) {
 		infra := setupRedisIntegrationInfra(t)
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		t.Cleanup(cancel)
 		orgID := uuid.New()
 		ledgerID := uuid.New()
 		alias := "@onhold-floor-happy-cancel"
@@ -304,12 +323,12 @@ func TestIntegration_OnHoldFloor_HappyPendingLifecycleIsUnchanged(t *testing.T) 
 		require.Equal(t, "300", afterHold.available)
 		require.Equal(t, "200", afterHold.onHold)
 
-		cancel := onHoldFloorOp(orgID, ledgerID, alias,
+		cancelOp := onHoldFloorOp(orgID, ledgerID, alias,
 			decimal.NewFromInt(300), decimal.NewFromInt(200), afterHold.version,
 			constant.RELEASE, constant.CANCELED, decimal.NewFromInt(200), false)
 
 		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-			uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{cancel}, nil)
+			uuid.New(), constant.CANCELED, true, []mmodel.BalanceOperation{cancelOp}, nil)
 		require.NoError(t, err)
 		require.Len(t, result.After, 1)
 
