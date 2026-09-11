@@ -418,6 +418,93 @@ func TestAccountBlockExceptionInternalKey_SharesBalanceHashSlot(t *testing.T) {
 		"the exception key must share the balance keys' hash slot")
 }
 
+func TestTransactionApplyMarkerKey(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		transactionID  string
+		status         string
+		expected       string
+	}{
+		{
+			name:           "approved marker",
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			transactionID:  "0198c2a1-0000-7000-8000-000000000001",
+			status:         "APPROVED",
+			expected: "transaction_apply_marker:{transactions}:550e8400-e29b-41d4-a716-446655440000:" +
+				"6ba7b810-9dad-11d1-80b4-00c04fd430c8:0198c2a1-0000-7000-8000-000000000001:APPROVED",
+		},
+		{
+			name:           "pending and approved of the same transaction are distinct identities",
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			transactionID:  "0198c2a1-0000-7000-8000-000000000001",
+			status:         "PENDING",
+			expected: "transaction_apply_marker:{transactions}:550e8400-e29b-41d4-a716-446655440000:" +
+				"6ba7b810-9dad-11d1-80b4-00c04fd430c8:0198c2a1-0000-7000-8000-000000000001:PENDING",
+		},
+		{
+			name:           "lowercase status is normalized to uppercase",
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			transactionID:  "tx-1",
+			status:         "canceled",
+			expected: "transaction_apply_marker:{transactions}:550e8400-e29b-41d4-a716-446655440000:" +
+				"6ba7b810-9dad-11d1-80b4-00c04fd430c8:tx-1:CANCELED",
+		},
+		{
+			name:           "nil UUID (zero value)",
+			organizationID: uuid.Nil,
+			ledgerID:       uuid.Nil,
+			transactionID:  "tx-2",
+			status:         "CREATED",
+			expected: "transaction_apply_marker:{transactions}:00000000-0000-0000-0000-000000000000:" +
+				"00000000-0000-0000-0000-000000000000:tx-2:CREATED",
+		},
+		{
+			name:           "empty status still yields a well-formed key",
+			organizationID: orgID,
+			ledgerID:       ledgerID,
+			transactionID:  "tx-3",
+			status:         "",
+			expected: "transaction_apply_marker:{transactions}:550e8400-e29b-41d4-a716-446655440000:" +
+				"6ba7b810-9dad-11d1-80b4-00c04fd430c8:tx-3:",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected,
+				TransactionApplyMarkerKey(tt.organizationID, tt.ledgerID, tt.transactionID, tt.status))
+		})
+	}
+}
+
+// TestTransactionApplyMarkerKey_SharesBalanceHashSlot locks the co-location the
+// balance EVAL depends on: the marker is read and written inside the same
+// multi-key script that mutates the balances, so it must key to their slot.
+func TestTransactionApplyMarkerKey_SharesBalanceHashSlot(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+	markerKey := TransactionApplyMarkerKey(orgID, ledgerID, "tx-1", "APPROVED")
+	balanceKey := BalanceInternalKey(orgID, ledgerID, "@holder#default")
+
+	assert.Equal(t, hashTagOf(t, balanceKey), hashTagOf(t, markerKey),
+		"the apply marker key must share the balance keys' hash slot")
+}
+
 // hashTagOf extracts the "{...}" hash tag Redis Cluster keys a slot on.
 func hashTagOf(t *testing.T, key string) string {
 	t.Helper()

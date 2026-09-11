@@ -44,6 +44,43 @@ func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 	return builder.String()
 }
 
+// TransactionApplyMarkerKey returns a key with the following format to be used on redis cluster:
+// "transaction_apply_marker:{transactions}:organizationID:ledgerID:transactionID:STATUS"
+//
+// The key is the idempotency identity of ONE execution of the balance atomic script.
+// Status is part of the identity because the same transaction reaches the script more
+// than once legitimately: a pending create posts as PENDING and its commit posts as
+// APPROVED under the SAME transaction id, so a key without the status would make the
+// commit look like a replay of the create.
+//
+// Status is uppercased so the key is stable regardless of the casing the caller holds.
+//
+// The {transactions} hash tag is the SAME literal tag BalanceInternalKey uses, so the
+// marker lands in the slot the balance keys already occupy and can be read and written
+// inside the same multi-key EVAL that mutates them.
+func TransactionApplyMarkerKey(organizationID, ledgerID uuid.UUID, transactionID, status string) string {
+	var builder strings.Builder
+
+	// "transaction_apply_marker:{transactions}:" + 2×UUID + 3×":" + id + status
+	builder.Grow(115 + len(transactionID) + len(status))
+
+	builder.WriteString("transaction_apply_marker")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString("transactions")
+	builder.WriteString(endKey)
+	builder.WriteString(keySeparator)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(transactionID)
+	builder.WriteString(keySeparator)
+	builder.WriteString(strings.ToUpper(status))
+
+	return builder.String()
+}
+
 // BalanceInternalKey returns a key with the following format to be used on redis cluster:
 // "balance:{transactions}:organizationID:ledgerID:key"
 func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {

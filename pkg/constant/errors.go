@@ -524,6 +524,15 @@ var (
 	// transaction would need two grants, so the field is rejected explicitly
 	// rather than ignored silently. Args: the rejecting surface.
 	ErrAccountBlockExceptionNotSupported = errors.New("0509")
+	// ErrBalanceApplyMarkerMissingAliases is returned when a marker-derived
+	// balance atomic result — the Lua script's own replay, or the Go-side
+	// reconciliation read from the apply marker after a lost response — names
+	// an alias the current mapBalances does not resolve. The result's
+	// Before/After sets are then truncated relative to what actually posted,
+	// and a normal (non-replayed) execution can never hit this: its snapshots
+	// are built from the mapBalances that produced the plan in the first
+	// place, so every alias resolves by construction.
+	ErrBalanceApplyMarkerMissingAliases = errors.New("0510")
 )
 
 // List of CRM domain errors.

@@ -43,7 +43,7 @@ func setupBenchmarkInfra(b *testing.B) *benchmarkInfra {
 	connStr := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 	conn := pgtestutil.CreatePostgresClient(t, connStr, connStr, container.Config.DBName, migrationsPath)
 
-	repo := NewTransactionPostgreSQLRepository(conn)
+	repo := NewTransactionPostgreSQLRepository(conn, false)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())

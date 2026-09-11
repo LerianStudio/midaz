@@ -1330,8 +1330,13 @@ func TestIntegration_Redis_VersionContinuity(t *testing.T) {
 			"deposit",
 		)
 
+		// One leg per call is a test convenience: the production pipeline hands
+		// every leg of a posting to a single call. Reusing the create's
+		// (transaction id, status) here would be a resend of it, which the
+		// script's idempotency marker answers from the first leg's stored
+		// response instead of executing — so this leg carries its own id.
 		destResult, err := infra.repo.ProcessBalanceAtomicOperation(
-			ctx, orgID, ledgerID, pendingTxID,
+			ctx, orgID, ledgerID, uuid.New(),
 			constant.PENDING, true,
 			[]mmodel.BalanceOperation{destOp},
 			nil,
@@ -1371,8 +1376,10 @@ func TestIntegration_Redis_VersionContinuity(t *testing.T) {
 			"deposit",
 		)
 
+		// Own transaction id for the same reason as the PENDING destination leg
+		// above: a second call under the create's identity is a resend.
 		destResultApproved, err := infra.repo.ProcessBalanceAtomicOperation(
-			ctx, orgID, ledgerID, approvedTxID,
+			ctx, orgID, ledgerID, uuid.New(),
 			constant.APPROVED, true,
 			[]mmodel.BalanceOperation{destOpApproved},
 			nil,
@@ -2420,8 +2427,12 @@ func TestIntegration_Redis_DoubleEntryCanceled_FullSourceLifecycle(t *testing.T)
 		"deposit", true, // routeValidationEnabled = true
 	)
 
+	// One leg per call is a test convenience: the production cancel hands the
+	// RELEASE and the CREDIT to a single call. Reusing cancelTxID here would be a
+	// resend of the RELEASE, which the script's idempotency marker answers from
+	// the stored response instead of executing — so this leg carries its own id.
 	creditResult, err := infra.repo.ProcessBalanceAtomicOperation(
-		ctx, orgID, ledgerID, cancelTxID,
+		ctx, orgID, ledgerID, uuid.New(),
 		constant.CANCELED, true,
 		[]mmodel.BalanceOperation{creditOp},
 		nil,
