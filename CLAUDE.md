@@ -60,7 +60,7 @@ Keep the boundary exact:
   SQL and MongoDB after the engine; recovery invokes that completer, never the
   engine. Once an approved movement is applied, correction is a new explicit
   revert transaction, not an automatic rollback.
-- Engine recovery uses `engine:{transactions}:recover:v2`; the legacy writer uses
+- Engine recovery uses `engine:{transactions}:recover`; the legacy writer uses
   `backup_queue:{transactions}`. Separate consumers share one scheduled runner so
   the legacy consumer can later be removed without changing engine recovery.
 

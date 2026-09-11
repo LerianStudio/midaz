@@ -16,10 +16,10 @@ const (
 	HashTag                       = "{transactions}"
 	BalanceNamespacePrefix        = "balance:" + HashTag + ":"
 	DeletionMarkerNamespacePrefix = "balance_delete_marker:" + HashTag + ":"
-	// EngineRecoverQueue stores only version-two engine recovery
-	// envelopes. It deliberately remains separate from the legacy transaction
-	// backup hash while sharing its Redis Cluster slot.
-	EngineRecoverQueue   = "engine:" + HashTag + ":recover:v2"
+	// EngineRecoverQueue stores engine recovery envelopes. Schema evolution is
+	// identified by each record's formatVersion. The queue remains separate from
+	// the legacy transaction backup hash while sharing its Redis Cluster slot.
+	EngineRecoverQueue   = "engine:" + HashTag + ":recover"
 	DeletionMarkerSuffix = ":deleted"
 )
 

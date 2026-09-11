@@ -118,7 +118,7 @@ revert, commit, or cancel that reaches the engine:
 8. After validating the durable outcome, the normal path asks
    `EngineRecoveryAcknowledger` to read the exact raw version-2 record, validate
    that it represents the completed execution, and run the protected
-   exact-value ACK. The ACK removes only `recover:v2`; it updates acknowledgment
+   exact-value ACK. The ACK removes only `recover`; it updates acknowledgment
    and terminal proof and, when terminal conditions hold, schedules future
    receipt/guard cleanup atomically.
 9. A missing record is already acknowledged. If this best-effort synchronous
@@ -781,7 +781,7 @@ required companions, immutable balance identity, and per-transaction final state
 historical synthetic row states remain separate from truthful movements.
 
 The script commits version-two recovery data to the tenant-scoped
-`engine:{transactions}:recover:v2` hash in the same execution as balance changes
+`engine:{transactions}:recover` hash in the same execution as balance changes
 and receipts/guards; a later Go update must not be required for recoverability.
 The legacy `backup_queue:{transactions}` hash remains the only target of legacy
 writers and may contain historical version-two envelopes. There is no dual write,
@@ -859,7 +859,7 @@ Malformed legacy records enter quarantine only when their canonical physical
 field matches the authenticated tenant scope. Untrusted fields remain untouched.
 Invalid version-2 records are retained rather than passed to legacy processing.
 
-The engine recovery consumer reads only `engine:{transactions}:recover:v2` and
+The engine recovery consumer reads only `engine:{transactions}:recover` and
 accepts only a strictly validated version-two envelope;
 unversioned, malformed, and unsupported records remain there and never enter the
 legacy decoder or legacy quarantine. Its dependency surface exposes completion
@@ -915,7 +915,7 @@ reconciles any record that remains. The ACK never deletes receipt, guard, or
 protection data and never assigns a TTL.
 
 Immediate acknowledgment reduces the common-case cardinality of
-`recover:v2`; it is not by itself a hard memory bound. Prolonged completion or
+`recover`; it is not by itself a hard memory bound. Prolonged completion or
 Redis failures can still create a backlog, and receipt/guard/protection removal
 still depends on cleanup throughput. Bounded recovery scans, backlog age and
 cardinality monitoring, and cleanup-capacity alerts remain separate operational
