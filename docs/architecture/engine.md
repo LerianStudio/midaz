@@ -115,10 +115,18 @@ revert, commit, or cancel that reaches the engine:
 7. On a confirmed result, `AppliedTransactionCompleter.Complete` projects or
    verifies the transaction, operations, and metadata. Completion failure returns
    an error to the request but does not undo accounting.
-8. If normal completion did not finish, `EngineRecoveryConsumer` reads the exact
-   version-2 recovery record and invokes the same completer. Successful durable
-   completion is followed by exact-value acknowledgment and retention cleanup;
-   the consumer never calls `Engine.Execute`.
+8. After validating the durable outcome, the normal path asks
+   `EngineRecoveryAcknowledger` to read the exact raw version-2 record, validate
+   that it represents the completed execution, and run the protected
+   exact-value ACK. The ACK removes only `recover:v2`; it updates acknowledgment
+   and terminal proof and, when terminal conditions hold, schedules future
+   receipt/guard cleanup atomically.
+9. A missing record is already acknowledged. If this best-effort synchronous
+   ACK fails or observes a replacement, the request still succeeds because the
+   accounting result and projections are durable. A record that remains is
+   handled by `EngineRecoveryConsumer`; an uncertain response may also mean the
+   atomic ACK already succeeded. The consumer invokes the same completer and
+   protected ACK without ever calling `Engine.Execute`.
 
 ```mermaid
 flowchart LR
@@ -135,12 +143,18 @@ flowchart LR
     I --> L[EngineRecoveryConsumer]
     L --> K
     K --> M[SQL and MongoDB confirmed]
-    M -->|recovery consumer only| N[Exact recovery ACK and retention schedule]
+    M --> N[Read exact recover record]
+    N --> O[Protected exact ACK and retention schedule]
+    N -->|failure or replacement| L
 ```
 
-The ACK edge belongs only to the recovery consumer. Normal request completion
-does not delete recovery evidence, receipts, or guards; the scheduled consumer
-later verifies the same durable outcome and owns acknowledgment/cleanup.
+The normal request owns the first, best-effort ACK attempt after durable
+completion. The recovery consumer remains the fallback for a crash before ACK,
+a canceled context, Redis failure, an uncertain response, or a retained
+replacement. Both paths use the same exact protected operation; neither uses a
+plain `HDEL`. A successful ACK removes the recovery member but not the receipt,
+guard, or protection fields. Their later deletion remains owned by the bounded
+cleanup runner.
 
 Annotation/NOTED transactions intentionally do not enter this story. The legacy
 balance and backup paths remain readable during rollout, but production bootstrap
@@ -162,7 +176,8 @@ seams; they are not an operational rollout switch.
 | Accounting rows, metadata, route attribution and historical row compatibility | Go projection shared by normal completion and recovery |
 | Recovery scheduling, tenant dispatch, and distributed cycle lock | Redis recovery runner |
 | Legacy write-behind replay and poison-record quarantine | Legacy backup consumer |
-| Completion of already-applied engine executions | Engine recovery consumer |
+| Completion of already-applied engine executions | `AppliedTransactionCompleter`, shared by the normal path and engine recovery consumer |
+| Exact protected engine-recovery acknowledgment | Normal command best effort, with the engine recovery consumer as fallback |
 
 The domain `accounting` package must not import commands, adapters, or bootstrap.
 The command layer owns the `Engine` port; bootstrap selects its
@@ -593,8 +608,10 @@ after confirmed accounting retain the idempotency claim and recovery evidence.
 Only confirmed precommit failures permit compensation. Normal completion uses
 the stable completion plan and applied transaction completer, without invoking legacy
 queue seeds, recover rewrites, or BTO persistence. The normal response preserves
-CREATED while SQL stores APPROVED. The recovery consumer owns exact-byte recover
-acknowledgment; successful normal completion does not delete receipts or guards.
+CREATED while SQL stores APPROVED. The normal path attempts exact protected
+recover acknowledgment immediately after durable completion, while the recovery
+consumer owns fallback. Successful normal completion never deletes receipts or
+guards immediately.
 
 Accounting `EVALSHA`/`EVAL` and repair calls use a command wrapper with
 `NoRetry=true`, without changing the shared client's settings. `EVALSHA` to
@@ -883,16 +900,26 @@ Event dispatch retains the existing independent emitter timeouts and cancellatio
 detachment. It remains best-effort: this capability adds no outbox or delivery
 guarantee, and a successful completer return does not prove event delivery.
 
-Only after SQL and metadata verification succeeds does the consumer request an
-atomic comparison of the exact original envelope bytes and deletion of its raw
-field from the origin that was read. A matching attempt counter is cleared in
-that same operation only for the legacy hash; engine recovery does not create or
-clear legacy attempt fields. For
-new receipts, the same atomic ACK also updates the member/completion proof and
-the eventual cleanup deadline described above. Missing records are already
-acknowledged; replacements and failed or unknown acknowledgments are not reported
-as successful deletion. The ACK itself never deletes receipt, guard, or protection
-data and never assigns a TTL.
+Only after SQL and metadata verification succeeds may either path request the
+atomic ACK. The normal path first reads the one engine recovery field, strictly
+decodes it, canonicalizes both the stored and expected typed records to verify
+semantic identity, and passes the exact stored bytes to the protected
+compare-and-delete script. The consumer already holds the validated exact bytes
+it read from its recovery scan and calls the same script. A matching attempt
+counter is cleared in that operation only for the legacy hash; engine recovery
+does not create or clear legacy attempt fields. For new receipts, the atomic ACK
+also updates member/completion proof and the eventual cleanup deadline described
+above. Missing records are already acknowledged; replacements and failed or
+unknown acknowledgments are never assumed to have deleted it. The consumer later
+reconciles any record that remains. The ACK never deletes receipt, guard, or
+protection data and never assigns a TTL.
+
+Immediate acknowledgment reduces the common-case cardinality of
+`recover:v2`; it is not by itself a hard memory bound. Prolonged completion or
+Redis failures can still create a backlog, and receipt/guard/protection removal
+still depends on cleanup throughput. Bounded recovery scans, backlog age and
+cardinality monitoring, and cleanup-capacity alerts remain separate operational
+safeguards.
 
 ## Compatibility changes and rollout
 
@@ -1126,6 +1153,13 @@ transaction state and never authorizes receipt or guard expiration. Replacement
 records, persistence failures, and acknowledgment failures retain their existing
 protection. Invalid envelopes rejected before completion do not enter these
 metrics; they retain the consumer's existing handling.
+
+The synchronous path additionally increments
+`engine_recovery_ack_deferred_total` without labels when its post-completion ACK
+cannot be confirmed. The request remains successful and any retained record is
+left for the engine recovery consumer when the atomic operation did not already
+succeed before an uncertain response. Metric-emission failure is Debug-only and
+cannot alter that fallback behavior.
 
 ## Tentative alternative-engine mapping
 
