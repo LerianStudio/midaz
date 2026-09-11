@@ -2063,7 +2063,7 @@ func InitServers(ctx context.Context) (*Service, error) {
 	// finalizeStartup also builds the opt-in reservation gRPC server and runs the
 	// startup self-probe BEFORE the HTTP server begins accepting traffic; folded
 	// into one helper to keep InitServers under the gocyclo budget.
-	svc, err := finalizeStartup(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose)
+	svc, err := finalizeStartup(ctx, cfg, limitDeps, auditWriter, syncWorker, serverAPI, reservationService, postgresConn, healthChecker, logger, telemetry, clk, mtComponents, streamingEmitter, streamingClose, sd.authHost)
 	if err != nil {
 		return nil, err
 	}
@@ -2074,8 +2074,6 @@ func InitServers(ctx context.Context) (*Service, error) {
 	svc.ServiceDiscoveryEnabled = sd.enabled
 	svc.ServiceDescriptor = sd.descriptor
 	svc.ServiceDiscoveryMetrics = sd.recorder
-
-	svc.DeclarationStops = wireDeclarationPublisher(cfg, sd.authHost, logger)
 
 	// The launcher Runnable now owns the manager's graceful close; disarm the
 	// boot-failure closer so it does not double-close on the success path.
@@ -2241,6 +2239,7 @@ func finalizeStartup(
 	mtComponents *componentsMT,
 	streamingEmitter libStreaming.Emitter,
 	streamingClose func() error,
+	authHost string,
 ) (*Service, error) {
 	var pgManager *tmpostgres.Manager
 	if mtComponents != nil {
@@ -2259,6 +2258,16 @@ func finalizeStartup(
 
 	if err := executeStartupSelfProbe(ctx, cfg, healthChecker, logger); err != nil {
 		return nil, err
+	}
+
+	// Fail-closed on a bad RI declaration configuration: with the flag on, an
+	// empty IDP_* or a rejected embedded manifest is an operator/build defect,
+	// not a transient IdP problem, and must not reach a ready pod. Runtime
+	// publish failures stay fail-open inside the publisher. Wired here, where
+	// the Service is assembled, so InitServers keeps its branch count.
+	svc.DeclarationStops, err = wireDeclarationPublisher(cfg, authHost, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wire the RI declaration publisher: %w", err)
 	}
 
 	return svc, nil

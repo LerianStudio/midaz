@@ -54,29 +54,21 @@ func TestBuildDeclarationPublisher_DisabledReturnsNoStops(t *testing.T) {
 
 	cfg := &Config{DeclarationEnabled: false}
 
-	stops := buildDeclarationPublisher(cfg, nil, libLog.NewNop())
+	stops, err := buildDeclarationPublisher(cfg, nil, libLog.NewNop())
+	require.NoError(t, err, "the disabled path validates nothing and never errors")
 
 	assert.Empty(t, stops, "disabled declaration must yield no stop funcs")
 }
 
-// TestBuildDeclarationPublisher_EnabledIncompleteConfigFailsOpen exercises the
-// enabled-but-incomplete-config branch for tracer's single slug: RI is ON but
-// IDP_HOST and both M2M credentials are empty. The pre-flight
-// warnIncompleteDeclarationConfig names the empty env vars (names only, no secret),
-// then declaration.New rejects the empty IdentityAddr/credentials (lib-auth's
-// validateConfig), so the sole publisher is Warn-skipped and the returned stops
-// slice is empty. No goroutine is started (New fails before Start), so there is
-// nothing to leak, and the helper must not panic — boot stays byte-safe.
+// TestBuildDeclarationPublisher_EnabledIncompleteConfigFailsClosed pins the
+// CONFIGURATION half of the failure policy for tracer's single slug: RI is ON but
+// IDP_HOST and both M2M credentials are empty, which is deterministic operator
+// error, so the helper returns an error and the caller aborts boot instead of
+// serving with nothing declared.
 //
-// This is the fail-open remediation case: it covers buildDeclarationPublisher's
-// `declaration.New` error -> Warn+nil branch and the full
-// warnIncompleteDeclarationConfig append/log path.
-//
-// No t.Parallel(): a bounded guard is unnecessary (New fails synchronously, no
-// goroutine), but this shares the package with the sequential signal test; it is
-// left parallel-eligible only where it touches no process-global state — and it
-// does not, so it stays parallel.
-func TestBuildDeclarationPublisher_EnabledIncompleteConfigFailsOpen(t *testing.T) {
+// The error must name the three empty env vars and must never carry a value. No
+// goroutine is started (validation precedes New), so there is nothing to leak.
+func TestBuildDeclarationPublisher_EnabledIncompleteConfigFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	cfg := &Config{
@@ -86,13 +78,45 @@ func TestBuildDeclarationPublisher_EnabledIncompleteConfigFailsOpen(t *testing.T
 		IDPM2MClientSecret: "",
 	}
 
-	var stops []func()
+	var (
+		stops []func()
+		err   error
+	)
 
 	require.NotPanics(t, func() {
-		stops = buildDeclarationPublisher(cfg, stubTokenMinter{}, libLog.NewNop())
-	}, "incomplete-config fail-open must never panic; boot stays safe")
+		stops, err = buildDeclarationPublisher(cfg, stubTokenMinter{}, libLog.NewNop())
+	}, "the fail-closed path must return an error, never panic")
 
-	assert.Empty(t, stops, "enabled RI with empty IdP host/credentials must skip the publisher fail-open")
+	require.Error(t, err, "enabled RI with empty IdP host/credentials must fail closed")
+	assert.Empty(t, stops, "no publisher may be returned on the fail-closed path")
+	assert.Contains(t, err.Error(), "IDP_HOST")
+	assert.Contains(t, err.Error(), "IDP_M2M_CLIENT_ID")
+	assert.Contains(t, err.Error(), "IDP_M2M_CLIENT_SECRET")
+}
+
+// TestValidateDeclarationConfig_NamesOnlyTheMissingFields mirrors the ledger's
+// guard: a complete configuration validates, a partial one names only what is
+// missing, and the secret value never reaches the error.
+func TestValidateDeclarationConfig_NamesOnlyTheMissingFields(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, validateDeclarationConfig(&Config{
+		DeclarationEnabled: true,
+		IDPHost:            "https://identity.example.test",
+		IDPM2MClientID:     "id",
+		IDPM2MClientSecret: "secret",
+	}), "a complete configuration must validate")
+
+	err := validateDeclarationConfig(&Config{
+		DeclarationEnabled: true,
+		IDPHost:            "https://identity.example.test",
+		IDPM2MClientID:     "",
+		IDPM2MClientSecret: "shhh",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "IDP_M2M_CLIENT_ID")
+	assert.NotContains(t, err.Error(), "IDP_HOST", "a field that is set must not be reported missing")
+	assert.NotContains(t, err.Error(), "shhh", "the secret VALUE must never reach the error")
 }
 
 // TestBuildDeclarationPublisher_IdentityAlways5xx_FailsOpenAndStopsDrain
@@ -138,7 +162,8 @@ func TestBuildDeclarationPublisher_IdentityAlways5xx_FailsOpenAndStopsDrain(t *t
 
 	// The helper returning at all is the primary fail-open evidence: an identity
 	// that only 5xxs did not block or crash boot.
-	stops := buildDeclarationPublisher(cfg, fixedTokenMinter{}, libLog.NewNop())
+	stops, err := buildDeclarationPublisher(cfg, fixedTokenMinter{}, libLog.NewNop())
+	require.NoError(t, err, "an identity answering 5xx is a RUNTIME failure and must stay fail-open")
 
 	require.Len(t, stops, 1, "tracer owns a single slug, so exactly one publisher must be constructed and started")
 	require.NotNil(t, stops[0], "the started publisher must yield a non-nil stop func")
