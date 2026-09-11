@@ -129,7 +129,8 @@ func TestIntegration_UpdateStatusFromPending_FlipsPendingRowOnce(t *testing.T) {
 	}
 
 	infra := setupIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 
 	row := seedTransactionWithStatus(t, infra, constant.PENDING, nil)
 
@@ -177,7 +178,8 @@ func TestIntegration_UpdateStatusFromPending_TerminalRowIsNeverFlipped(t *testin
 	}
 
 	infra := setupIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 
 	for _, seededStatus := range []string{constant.APPROVED, constant.CANCELED} {
 		t.Run(seededStatus, func(t *testing.T) {
@@ -208,7 +210,8 @@ func TestIntegration_UpdateStatusFromPending_GenericUpdateKeepsPatchSemantics(t 
 	}
 
 	infra := setupIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 
 	row := seedTransactionWithStatus(t, infra, constant.APPROVED, nil)
 
@@ -236,7 +239,8 @@ func TestIntegration_UpdateStatusFromPending_ConcurrentTransitionsElectOneWinner
 	}
 
 	infra := setupIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 
 	const racers = 8
 
@@ -307,7 +311,8 @@ func TestIntegration_UpdateStatusFromPending_SoftDeletedRowIsNeverFlipped(t *tes
 	}
 
 	infra := setupIntegrationInfra(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
 
 	deletedAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	row := seedTransactionWithStatus(t, infra, constant.PENDING, &deletedAt)
@@ -322,4 +327,102 @@ func TestIntegration_UpdateStatusFromPending_SoftDeletedRowIsNeverFlipped(t *tes
 	status, _, bodyIsNull := readStatusRow(t, infra, row.ID)
 	assert.Equal(t, constant.PENDING, status)
 	assert.False(t, bodyIsNull, "a row the CAS did not match must keep its body")
+}
+
+// TestIntegration_UpdateStatusFromPending_WritesDescriptionAndPreservesSeeded
+// covers the description column on both sides of the conditional SET: a
+// transition that carries one writes it, and a transition that carries none
+// leaves the seeded description standing. The status path shares its SET
+// assembly with the generic update, so a change there that dropped or forced
+// the description would surface here.
+func TestIntegration_UpdateStatusFromPending_WritesDescriptionAndPreservesSeeded(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
+
+	t.Run("a carried description is written", func(t *testing.T) {
+		row := seedTransactionWithStatus(t, infra, constant.PENDING, nil)
+
+		settling := transitionOf(row, constant.APPROVED)
+		settling.Description = "settled by the commit"
+
+		_, transitioned, err := infra.repo.UpdateStatusFromPending(ctx,
+			infra.orgID, infra.ledgerID, parseID(t, row.ID), settling)
+
+		require.NoError(t, err)
+		require.True(t, transitioned)
+
+		found, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, row.ID))
+		require.NoError(t, err)
+		assert.Equal(t, "settled by the commit", found.Description)
+
+		status, _, bodyIsNull := readStatusRow(t, infra, row.ID)
+		assert.Equal(t, constant.APPROVED, status)
+		assert.True(t, bodyIsNull)
+	})
+
+	t.Run("no description leaves the seeded one standing", func(t *testing.T) {
+		row := seedTransactionWithStatus(t, infra, constant.PENDING, nil)
+		require.NotEmpty(t, row.Description)
+
+		_, transitioned, err := infra.repo.UpdateStatusFromPending(ctx,
+			infra.orgID, infra.ledgerID, parseID(t, row.ID), transitionOf(row, constant.CANCELED))
+
+		require.NoError(t, err)
+		require.True(t, transitioned)
+
+		found, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, row.ID))
+		require.NoError(t, err)
+		assert.Equal(t, row.Description, found.Description,
+			"a transition that carries no description must not blank the persisted one")
+	})
+}
+
+// TestIntegration_UpdateStatusFromPending_PatchDoesNotDestroyThePendingBody is
+// the regression guard for the field patch: the generic update nulls the body
+// only when it also carries a status, so a description patch on a PENDING
+// transaction leaves the body its commit replays intact. Without the condition
+// the patch strips the body and the commit afterwards rejects the transaction as
+// already transitioned while its funds stay held.
+func TestIntegration_UpdateStatusFromPending_PatchDoesNotDestroyThePendingBody(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	t.Cleanup(cancel)
+
+	row := seedTransactionWithStatus(t, infra, constant.PENDING, nil)
+
+	_, _, bodyIsNull := readStatusRow(t, infra, row.ID)
+	require.False(t, bodyIsNull)
+
+	patched, err := infra.repo.Update(ctx, infra.orgID, infra.ledgerID, parseID(t, row.ID),
+		&Transaction{Description: "patched while pending"})
+	require.NoError(t, err)
+	assert.Equal(t, "patched while pending", patched.Description)
+
+	status, _, bodyIsNullAfterPatch := readStatusRow(t, infra, row.ID)
+	assert.Equal(t, constant.PENDING, status, "a field patch must not move the status")
+	assert.False(t, bodyIsNullAfterPatch,
+		"a field patch must not destroy the body a PENDING transaction replays on commit")
+
+	// The transition still works afterwards, which is the behaviour the stripped
+	// body used to break.
+	_, transitioned, err := infra.repo.UpdateStatusFromPending(ctx,
+		infra.orgID, infra.ledgerID, parseID(t, row.ID), transitionOf(row, constant.APPROVED))
+
+	require.NoError(t, err)
+	assert.True(t, transitioned, "the patched PENDING row must still be committable")
+
+	settledStatus, _, settledBodyIsNull := readStatusRow(t, infra, row.ID)
+	assert.Equal(t, constant.APPROVED, settledStatus)
+	assert.True(t, settledBodyIsNull, "the terminal transition still drops the body")
 }

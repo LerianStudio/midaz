@@ -29,7 +29,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -1104,6 +1103,13 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 }
 
 // Update a Transaction entity into Postgresql and returns the Transaction updated.
+//
+// The body is nulled only by an update that also CARRIES a status. Nulling the
+// body is the terminal transition's doing — a settled transaction replays
+// nothing — so an update that names no status is a field patch and must leave
+// the body alone. Without that condition a description or metadata patch on a
+// PENDING transaction destroys the body its commit replays, and the commit then
+// rejects the transaction as already transitioned while its funds stay held.
 func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -1124,7 +1130,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 	var args []any
 
-	if transaction.Body.IsEmpty() {
+	if !transaction.Status.IsEmpty() && transaction.Body.IsEmpty() {
 		updates = append(updates, "body = $"+strconv.Itoa(len(args)+1))
 		args = append(args, nil)
 	}
@@ -1177,85 +1183,6 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	}
 
 	return record.ToEntity(), nil
-}
-
-func (r *TransactionPostgreSQLRepository) UpdateStatusFromPending(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.update_transaction_status_from_pending")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.transaction_id", id.String()),
-	)
-
-	db, err := r.getDB(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		return nil, false, err
-	}
-
-	record := &TransactionPostgreSQLModel{}
-	record.FromEntity(transaction)
-	record.UpdatedAt = time.Now()
-
-	qb := squirrel.Update(r.tableName).
-		Set("updated_at", record.UpdatedAt).
-		Where(squirrel.Eq{
-			"organization_id": organizationID,
-			"ledger_id":       ledgerID,
-			"id":              id,
-			"deleted_at":      nil,
-			"status":          constant.PENDING,
-		}).
-		PlaceholderFormat(squirrel.Dollar)
-
-	// The body is nulled by the terminal transition, exactly as the generic
-	// Update does it: a settled transaction replays nothing, and the row keeps
-	// its operations as the record of what posted.
-	if transaction.Body.IsEmpty() {
-		qb = qb.Set("body", nil)
-	}
-
-	if transaction.Description != "" {
-		qb = qb.Set("description", record.Description)
-	}
-
-	if !transaction.Status.IsEmpty() {
-		qb = qb.Set("status", record.Status).Set("status_description", record.StatusDescription)
-	}
-
-	query, args, err := qb.ToSql()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
-
-		return nil, false, err
-	}
-
-	result, err := db.ExecContext(ctx, query, args...)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
-
-		return nil, false, err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
-
-		return nil, false, err
-	}
-
-	span.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
-
-	if rowsAffected == 0 {
-		return nil, false, nil
-	}
-
-	return record.ToEntity(), true, nil
 }
 
 // Delete removes a Transaction entity from the database using the provided IDs.
