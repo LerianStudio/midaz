@@ -26,6 +26,21 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
+// settledTransactionOf copies the transition's transaction with an empty body,
+// which is the shape a terminal status is persisted in: a settled transaction
+// replays nothing, so the repository drops the body column with the status.
+//
+// It copies instead of clearing in place because the caller keeps using the
+// loaded transaction afterwards — it travels into the transaction write and the
+// write-behind refresh — and neither may lose the body as a side effect of how
+// the status row is written.
+func settledTransactionOf(tran *transaction.Transaction) *transaction.Transaction {
+	settled := *tran
+	settled.Body = mtransaction.Transaction{}
+
+	return &settled
+}
+
 // loadPendingTransaction resolves the transaction the transition acts on, reading
 // the write-behind cache first and falling back to the database.
 func (uc *UseCase) loadPendingTransaction(ctx context.Context, span trace.Span, in PendingTransitionInput) (*transaction.Transaction, error) {
@@ -381,18 +396,22 @@ func (uc *UseCase) finalizePendingTransition(ctx context.Context, span trace.Spa
 	uc.UpdateTransactionBackupOperations(ctx, run.organizationID, run.ledgerID, run.tran.IDtoUUID().String(), operations, run.action)
 
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
-		_, transitioned, statusErr := uc.UpdateTransactionStatusFromPending(ctx, run.tran)
-		if statusErr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction status synchronously", statusErr)
+		_, transitioned, statusErr := uc.UpdateTransactionStatusFromPending(ctx, settledTransactionOf(run.tran))
+
+		switch {
+		case statusErr != nil:
+			// Technical failure of the write itself. The status is unknown, not
+			// known-lost, so the request carries on to the transaction write and
+			// the backup queue reconciles — answering a conflict here would
+			// report a settled transition that may not have happened.
+			libOpentelemetry.HandleSpanError(span, "Failed to update transaction status synchronously", statusErr)
 
 			logger.Log(ctx, libLog.LevelError, "Failed to update transaction status synchronously", libLog.String("transaction_id", run.tran.ID), libLog.Err(statusErr))
-		}
-
-		// The compare-and-set matched no PENDING row: another transition of the
-		// same transaction already settled it. The balances of this one moved,
-		// so the failure is loud — the backup queue and reconciliation own the
-		// repair, and answering success would hide a double transition.
-		if statusErr == nil && !transitioned {
+		case !transitioned:
+			// The compare-and-set matched no PENDING row: another transition of
+			// the same transaction already settled it. The balances of this one
+			// moved, so the failure is loud — the backup queue and reconciliation
+			// own the repair, and answering success would hide a double transition.
 			err := pkg.ValidateBusinessError(constant.ErrTransactionAlreadyTransitioned, constant.EntityTransaction)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is no longer pending on status update", err)
@@ -400,6 +419,12 @@ func (uc *UseCase) finalizePendingTransition(ctx context.Context, span trace.Spa
 			logger.Log(ctx, libLog.LevelError, "Transaction is no longer pending on status update", libLog.String("transaction_id", run.tran.ID), libLog.Err(err))
 
 			return nil, err
+		default:
+			// This call won the transition, so it owns the lifecycle event. The
+			// backup consumer that receives the write below finds the row already
+			// settled, reports a no-op and emits nothing, which is what keeps the
+			// fact on the wire exactly once across both write modes.
+			uc.SendTransactionEvents(ctx, run.tran, TransactionLifecyclePhaseUpdated)
 		}
 	}
 

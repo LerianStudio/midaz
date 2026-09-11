@@ -18,6 +18,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -270,4 +271,116 @@ func TestCreateOrUpdateTransaction_TransitionCASLands(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, TransactionLifecyclePhaseUpdated, phase)
+}
+
+// TestPendingTransition_StatusCASErrorDoesNotMasqueradeAsConflict separates the
+// two ways the compare-and-set can fail to land. A technical failure of the
+// write leaves the status UNKNOWN, not known-lost, so it must not be reported as
+// the already-transitioned conflict: the request carries on to the transaction
+// write and the backup queue reconciles. Reporting 0511 here would tell a caller
+// another transition settled the transaction when nothing of the sort is known.
+func TestPendingTransition_StatusCASErrorDoesNotMasqueradeAsConflict(t *testing.T) {
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
+
+	tran := pendingTransaction(false)
+	dbErr := errors.New("status update unavailable")
+
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+
+	redisRepo.EXPECT().GetBytes(gomock.Any(), gomock.Any()).Return(nil, errors.New("cache miss")).AnyTimes()
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+	redisRepo.EXPECT().AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil, errors.New("no backup entry")).AnyTimes()
+	redisRepo.EXPECT().ProcessBalanceAtomicOperation(
+		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+	).Return(&mmodel.BalanceAtomicResult{}, nil).AnyTimes()
+
+	// The balances moved, so no branch past the atomic mutation releases the lock.
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Times(0)
+
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	transactionRepo.EXPECT().
+		UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, false, dbErr).Times(1)
+
+	transactionRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, errWriteUnavailable).AnyTimes()
+
+	// Reaching the async transaction write is the proof the run carried on. It
+	// fails here for its own reason, which is the error the caller must see.
+	producer := rabbitmq.NewMockProducerRepository(ctrl)
+	producer.EXPECT().ProducerDefaultWithContext(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, errWriteUnavailable).Times(1)
+
+	reader := &pendingReader{pending: tran}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo,
+		TransactionReader:    reader,
+		TransactionRepo:      transactionRepo,
+		RabbitMQRepo:         producer,
+	}
+
+	_, err := uc.CommitTransactionV1(context.Background(), pendingTransitionInputFor(tran))
+
+	require.Error(t, err)
+
+	var conflict pkg.EntityConflictError
+
+	if errors.As(err, &conflict) {
+		assert.NotEqual(t, constant.ErrTransactionAlreadyTransitioned.Error(), conflict.Code,
+			"a technical status-write failure must never be reported as an already-transitioned conflict")
+	}
+}
+
+// TestPendingTransition_AsyncStatusFlipSettlesTheBody proves the inline
+// compare-and-set persists the transaction the way a terminal status is stored —
+// with the body dropped — while the in-memory transaction the run carries on
+// using keeps its body for the write and the write-behind refresh.
+func TestPendingTransition_AsyncStatusFlipSettlesTheBody(t *testing.T) {
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
+
+	tran := pendingTransaction(false)
+
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+
+	redisRepo.EXPECT().GetBytes(gomock.Any(), gomock.Any()).Return(nil, errors.New("cache miss")).AnyTimes()
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
+	redisRepo.EXPECT().AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	redisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil, errors.New("no backup entry")).AnyTimes()
+	redisRepo.EXPECT().ProcessBalanceAtomicOperation(
+		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+	).Return(&mmodel.BalanceAtomicResult{}, nil).AnyTimes()
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Times(0)
+
+	var settledBodyEmpty bool
+
+	transactionRepo := transaction.NewMockRepository(ctrl)
+	transactionRepo.EXPECT().
+		UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, persisted *transaction.Transaction) (*transaction.Transaction, bool, error) {
+			settledBodyEmpty = persisted.Body.IsEmpty()
+
+			return persisted, true, nil
+		}).Times(1)
+	transactionRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil, errWriteUnavailable).AnyTimes()
+
+	producer := rabbitmq.NewMockProducerRepository(ctrl)
+	producer.EXPECT().ProducerDefaultWithContext(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, errWriteUnavailable).AnyTimes()
+
+	reader := &pendingReader{pending: tran}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo,
+		TransactionReader:    reader,
+		TransactionRepo:      transactionRepo,
+		RabbitMQRepo:         producer,
+	}
+
+	_, _ = uc.CommitTransactionV1(context.Background(), pendingTransitionInputFor(tran))
+
+	assert.True(t, settledBodyEmpty,
+		"the status write must carry an empty body so the terminal row drops the body column")
+	assert.False(t, tran.Body.IsEmpty(),
+		"the loaded transaction must keep its body: it still travels into the write and the cache refresh")
 }

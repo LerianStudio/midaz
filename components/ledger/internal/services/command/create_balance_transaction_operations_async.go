@@ -197,16 +197,18 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 // lib-streaming event_type:
 //
 //   - TransactionLifecyclePhaseCreated — fresh insert via
-//     TransactionRepo.Create (L193 success). Emits transaction.posted
-//     when ParentTransactionID is nil, transaction.reverted otherwise.
-//   - TransactionLifecyclePhaseUpdated — status transition via the
-//     unique-violation idempotency branch
-//     (UpdateTransactionStatus, L198 success). Emits
-//     transaction.committed when Status.Code is APPROVED,
+//     TransactionRepo.Create. Emits transaction.posted when
+//     ParentTransactionID is nil, transaction.reverted otherwise.
+//   - TransactionLifecyclePhaseUpdated — status transition won through
+//     the unique-violation idempotency branch, where
+//     UpdateTransactionStatusFromPending found the row still PENDING.
+//     Emits transaction.committed when Status.Code is APPROVED,
 //     transaction.canceled when CANCELED.
-//   - TransactionLifecyclePhaseNoop — no state change occurred (e.g.
-//     unique violation with no status transition). Callers must NOT
-//     emit a lifecycle event in this phase.
+//   - TransactionLifecyclePhaseNoop — no state change occurred: a unique
+//     violation with no eligible status transition, or a compare-and-set
+//     that matched no PENDING row because another transition already
+//     settled it. Callers must NOT emit a lifecycle event in this phase;
+//     the transition that won the row emits instead.
 //
 // Tracking the phase explicitly inside this function — rather than
 // inferring it from CreatedAt vs UpdatedAt downstream — keeps the
@@ -243,7 +245,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 				// already settled the same transaction.
 				_, transitioned, err := uc.UpdateTransactionStatusFromPending(ctx, tran)
 				if err != nil {
-					libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to update transaction", err)
+					libOpentelemetry.HandleSpanError(spanCreateTransaction, "Failed to update transaction", err)
 
 					logger.Log(ctx, libLog.LevelWarn, "Failed to update transaction status",
 						libLog.String("status", tran.Status.Code), libLog.String("transaction_id", tran.ID))
