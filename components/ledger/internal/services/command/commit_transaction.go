@@ -141,7 +141,7 @@ func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransiti
 		return nil, err
 	}
 
-	return uc.finalizePendingTransition(ctx, span, logger, run, unlock)
+	return uc.finalizePendingTransition(ctx, span, logger, run)
 }
 
 // transitionPendingV2 is the /v2 state-transition pipeline: the /v1 sequence plus
@@ -193,5 +193,5 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 		uc.releaseReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, identity, run.honoredTracerSkip)
 	}
 
-	return uc.finalizePendingTransition(ctx, span, logger, run, unlock)
+	return uc.finalizePendingTransition(ctx, span, logger, run)
 }

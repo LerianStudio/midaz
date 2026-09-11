@@ -238,7 +238,10 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
 			if t.Validate != nil && t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
-				_, err = uc.UpdateTransactionStatus(ctx, tran)
+				// The transition variant: the flip lands only while the row is
+				// still PENDING, so a commit cannot overwrite a cancel that
+				// already settled the same transaction.
+				_, transitioned, err := uc.UpdateTransactionStatusFromPending(ctx, tran)
 				if err != nil {
 					libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to update transaction", err)
 
@@ -246,6 +249,19 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 						libLog.String("status", tran.Status.Code), libLog.String("transaction_id", tran.ID))
 
 					return nil, TransactionLifecyclePhaseNoop, err
+				}
+
+				if !transitioned {
+					// The row is already terminal: the request-path transition
+					// landed first, or this message is a replay of one that did.
+					// Failing here would send an idempotent message to retry and
+					// then to the DLQ for a transition that is already done, so
+					// it is reported as a no-op — which also keeps a duplicate
+					// lifecycle event off the wire.
+					logger.Log(ctx, libLog.LevelWarn, "Transaction is no longer pending; status transition already applied",
+						libLog.String("status", tran.Status.Code), libLog.String("transaction_id", tran.ID))
+
+					return tran, TransactionLifecyclePhaseNoop, nil
 				}
 
 				// Status transition succeeded via the idempotency branch.
