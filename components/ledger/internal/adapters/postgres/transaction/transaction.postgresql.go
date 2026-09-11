@@ -29,6 +29,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -125,6 +126,18 @@ type Repository interface {
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
+	// UpdateStatusFromPending writes the same status columns Update does, but only
+	// onto a row that is still PENDING. It is the durable backstop of the
+	// commit/cancel transition: the compare-and-set is what stops a second
+	// transition from flipping a transaction that another one already settled.
+	//
+	// The boolean reports whether the row was still PENDING and therefore
+	// transitioned. Zero rows is NOT an error: the caller decides what it means,
+	// because the row's existence was already established when the transition
+	// loaded the transaction — so zero rows here is a lost race, never a missing
+	// transaction. Callers on the request path treat it as a conflict; the
+	// backup consumer treats it as already-applied and carries on.
+	UpdateStatusFromPending(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
@@ -1164,6 +1177,85 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	}
 
 	return record.ToEntity(), nil
+}
+
+func (r *TransactionPostgreSQLRepository) UpdateStatusFromPending(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_transaction_status_from_pending")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.transaction_id", id.String()),
+	)
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return nil, false, err
+	}
+
+	record := &TransactionPostgreSQLModel{}
+	record.FromEntity(transaction)
+	record.UpdatedAt = time.Now()
+
+	qb := squirrel.Update(r.tableName).
+		Set("updated_at", record.UpdatedAt).
+		Where(squirrel.Eq{
+			"organization_id": organizationID,
+			"ledger_id":       ledgerID,
+			"id":              id,
+			"deleted_at":      nil,
+			"status":          constant.PENDING,
+		}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	// The body is nulled by the terminal transition, exactly as the generic
+	// Update does it: a settled transaction replays nothing, and the row keeps
+	// its operations as the record of what posted.
+	if transaction.Body.IsEmpty() {
+		qb = qb.Set("body", nil)
+	}
+
+	if transaction.Description != "" {
+		qb = qb.Set("description", record.Description)
+	}
+
+	if !transaction.Status.IsEmpty() {
+		qb = qb.Set("status", record.Status).Set("status_description", record.StatusDescription)
+	}
+
+	query, args, err := qb.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return nil, false, err
+	}
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
+
+		return nil, false, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
+
+		return nil, false, err
+	}
+
+	span.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
+
+	if rowsAffected == 0 {
+		return nil, false, nil
+	}
+
+	return record.ToEntity(), true, nil
 }
 
 // Delete removes a Transaction entity from the database using the provided IDs.

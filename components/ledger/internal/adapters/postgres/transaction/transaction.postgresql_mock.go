@@ -270,3 +270,19 @@ func (mr *MockRepositoryMockRecorder) UpdateBulkTx(ctx, tx, transactions any) *g
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBulkTx", reflect.TypeOf((*MockRepository)(nil).UpdateBulkTx), ctx, tx, transactions)
 }
+
+// UpdateStatusFromPending mocks base method.
+func (m *MockRepository) UpdateStatusFromPending(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateStatusFromPending", ctx, organizationID, ledgerID, id, transaction)
+	ret0, _ := ret[0].(*Transaction)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// UpdateStatusFromPending indicates an expected call of UpdateStatusFromPending.
+func (mr *MockRepositoryMockRecorder) UpdateStatusFromPending(ctx, organizationID, ledgerID, id, transaction any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatusFromPending", reflect.TypeOf((*MockRepository)(nil).UpdateStatusFromPending), ctx, organizationID, ledgerID, id, transaction)
+}

@@ -70,6 +70,66 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 	return transUpdated, nil
 }
 
+// UpdateTransactionStatusFromPending flips the status of a transaction that is
+// still PENDING, and reports whether the flip landed. It is the transition-only
+// variant of UpdateTransactionStatus: the repository's compare-and-set is what
+// keeps a commit and a cancel of the same transaction from both settling it.
+//
+// A false return is not an error — the row exists (the transition loaded it) and
+// simply is no longer PENDING, so the caller decides between rejecting the
+// request and treating the transition as already applied.
+func (uc *UseCase) UpdateTransactionStatusFromPending(ctx context.Context, tran *transaction.Transaction) (_ *transaction.Transaction, _ bool, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.update_transaction_status_from_pending")
+	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_transaction_status_from_pending", start, err)
+	}()
+
+	if tran == nil {
+		err := errors.New("transaction cannot be nil")
+		libOpentelemetry.HandleSpanError(span, "Nil transaction provided", err)
+
+		return nil, false, err
+	}
+
+	organizationID, err := uuid.Parse(tran.OrganizationID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Invalid organization id on transaction", err)
+
+		return nil, false, err
+	}
+
+	ledgerID, err := uuid.Parse(tran.LedgerID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Invalid ledger id on transaction", err)
+
+		return nil, false, err
+	}
+
+	transactionID, err := uuid.Parse(tran.ID)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Invalid transaction id on transaction", err)
+
+		return nil, false, err
+	}
+
+	updateTran, transitioned, err := uc.TransactionRepo.UpdateStatusFromPending(ctx, organizationID, ledgerID, transactionID, tran)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to update status transaction on repo by id", err)
+
+		logger.Log(ctx, libLog.LevelError, "Error updating status transaction on repo by id", libLog.Err(err))
+
+		return nil, false, err
+	}
+
+	return updateTran, transitioned, nil
+}
+
 // UpdateTransactionStatus update a status transaction from the repository by given id.
 func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transaction.Transaction) (_ *transaction.Transaction, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
