@@ -80,10 +80,11 @@ type Config struct {
 	JWKAddress  string `env:"CASDOOR_JWK_ADDRESS"`
 
 	// Resource-inventory (RI) permission declaration against the IdP (identity, :4001),
-	// distinct from PLUGIN_AUTH_HOST (auth, :4000). RI is OPTIONAL and fail-open: an unset
-	// or invalid IDP_DECLARATION_ENABLED decodes to false (safe), and empty host/credentials
-	// never block boot — the publisher handles incomplete config fail-open. IDPM2MClientSecret
-	// MUST NOT be logged, span-attached, or serialized.
+	// distinct from PLUGIN_AUTH_HOST (auth, :4000). RI is optional: an unset or invalid
+	// IDP_DECLARATION_ENABLED decodes to false. When explicitly enabled, an empty IDP_HOST,
+	// IDP_M2M_CLIENT_ID, or IDP_M2M_CLIENT_SECRET fails closed and aborts startup. Runtime
+	// publication failures remain fail-open. IDPM2MClientSecret MUST NOT be logged,
+	// span-attached, or serialized.
 	DeclarationEnabled bool   `env:"IDP_DECLARATION_ENABLED"`
 	IDPHost            string `env:"IDP_HOST"`
 	IDPM2MClientID     string `env:"IDP_M2M_CLIENT_ID"`
