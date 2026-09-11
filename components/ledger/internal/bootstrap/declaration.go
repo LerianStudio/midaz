@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -26,33 +27,59 @@ import (
 // enforces BOLA one-identity-one-slug, so fees and CRM are resources INSIDE midaz,
 // not slugs of their own.
 //
-// It is fail-open from construction onward: RI is optional and MUST NOT block or
-// crash boot.
-//   - DeclarationEnabled=false: returns nil immediately — no publisher, no
-//     goroutine, no runnable registered.
-//   - Flag on but IDP_HOST / IDP_M2M_CLIENT_ID / IDP_M2M_CLIENT_SECRET empty: a
-//     single pre-flight Warn names the empty env vars, then construction proceeds;
-//     declaration.New rejects the empty IdentityAddr/credentials, so that publisher
-//     is Warn-skipped. The service still serves.
-//   - AuthEnabled=false with RI on: the M2M mint yields an empty token, so the
-//     background publish fails-open (Warn) inside the publisher; boot is unaffected.
-//   - Server-side BOLA rejection arrives as a *declaration.PublishError on the async
-//     publish path; it is Warn-only and never blocks the boot.
+// FAILURE POLICY — the platform standard, split by failure class. This mirrors
+// lib-auth auth/declaration.WireFromEnv, which br-sisbajud, plugin-br-pix-switch
+// and plugin-br-pix-indirect-btg already follow; the ledger used to be the one
+// adopter that fail-opened on a bad configuration, and that divergence is what
+// this shape removes.
 //
-// The secret VALUE is NEVER logged, span-attached, or serialized. The pre-flight
-// Warn reports only the NAMES of empty env vars (names are not secrets). Field
-// names are chosen to avoid lib-observability redaction tokens (secret, credential,
-// client_id, key), which would otherwise blank the field value to [REDACTED].
+// CONFIGURATION ERROR -> FAIL CLOSED (returns an error; the caller aborts boot).
+// Deterministic, never transient, and always an operator or build defect:
+//   - DeclarationEnabled=true with IDP_HOST / IDP_M2M_CLIENT_ID /
+//     IDP_M2M_CLIENT_SECRET empty.
+//   - declaration.New rejecting the embedded manifest (parse, validate, or a
+//     slug that does not equal manifest.service) or the IdP address.
+//
+// Degrading these to a Warn is worse than a stalled rollout: the pod goes green
+// and the operator believes RI is on while nothing is declared — silent policy
+// drift. A rolling update turns this into a stalled rollout, not an outage: the
+// new pod never becomes ready and the previous ReplicaSet keeps serving.
+//
+// RUNTIME FAILURE -> FAIL OPEN (Warn inside the publisher; boot unaffected).
+// Environmental and transient, and never a policy risk, because whatever is
+// already materialized in the IdP keeps enforcing — the declaration only
+// converges it:
+//   - identity unreachable, 5xx, or a failing initial publish (FailFast=false,
+//     so Start does not block and the publish runs in the publisher's own
+//     recovered goroutine).
+//   - AuthEnabled=false with RI on: the M2M mint yields an empty token and the
+//     background publish Warns.
+//   - Server-side BOLA rejection, arriving as a *declaration.PublishError on the
+//     async publish path.
+//
+// DeclarationEnabled=false returns (nil, nil) immediately — no validation, no
+// publisher, no goroutine, no runnable. While that flag still exists it is the
+// switch that says whether this deployment is on RI at all, so a deployment that
+// has not adopted RI must boot untouched. When the flag is retired and RI is the
+// only path, the validation becomes unconditional (lmap #5163).
+//
+// The secret VALUE is NEVER logged, span-attached, serialized, or included in any
+// returned error. Only the NAMES of empty env vars are reported (names are not
+// secrets). Field names avoid lib-observability redaction tokens (secret,
+// credential, client_id, key), which would otherwise blank the value to
+// [REDACTED].
 //
 // authClient is taken as the declaration.TokenMinter interface (satisfied by
 // *middleware.AuthClient) so it is stubbable in tests; the disabled path returns
 // before it is dereferenced, so callers may pass nil there.
-func buildDeclarationPublishers(cfg *Config, authClient declaration.TokenMinter, logger libLog.Logger) []func() {
+func buildDeclarationPublishers(cfg *Config, authClient declaration.TokenMinter, logger libLog.Logger) ([]func(), error) {
 	if !cfg.DeclarationEnabled {
-		return nil
+		return nil, nil
 	}
 
-	warnIncompleteDeclarationConfig(cfg, logger)
+	if err := validateDeclarationConfig(cfg); err != nil {
+		return nil, err
+	}
 
 	specs := []struct {
 		slug     string
@@ -77,39 +104,40 @@ func buildDeclarationPublishers(cfg *Config, authClient declaration.TokenMinter,
 			Logger:       logger,
 		})
 		if err != nil {
-			logger.Log(context.Background(), libLog.LevelWarn,
-				"skipping RI declaration publisher: construction failed (fail-open, serving continues)",
-				libLog.String("declaration_slug", spec.slug),
-				libLog.Err(err))
-
-			continue
+			// Construction only fails on the embedded manifest or the IdP
+			// address — both deterministic, both configuration class.
+			return nil, fmt.Errorf("build RI declaration publisher for slug %q: %w", spec.slug, err)
 		}
 
 		// FailFast is false, so Start never blocks and never returns a publish
 		// error; the initial publish runs in the publisher's own recovered
-		// goroutine. A non-nil error here is not expected, but is treated as
-		// fail-open all the same.
+		// goroutine. A non-nil error here is therefore not an unreachable IdP —
+		// it is a wiring defect, so it fails closed with the rest.
 		stop, err := publisher.Start(context.Background())
 		if err != nil {
-			logger.Log(context.Background(), libLog.LevelWarn,
-				"skipping RI declaration publisher: start failed (fail-open, serving continues)",
-				libLog.String("declaration_slug", spec.slug),
-				libLog.Err(err))
+			drainStops(stops)
 
-			continue
+			return nil, fmt.Errorf("start RI declaration publisher for slug %q: %w", spec.slug, err)
 		}
 
 		stops = append(stops, stop)
 	}
 
-	return stops
+	return stops, nil
 }
 
-// warnIncompleteDeclarationConfig emits a single structured Warn when RI is enabled
-// but one or more required IdP settings are empty. It logs the NAMES of the empty
-// env vars only — never any value, and never the secret. The field name avoids
-// redaction tokens so the value survives the zap redactor.
-func warnIncompleteDeclarationConfig(cfg *Config, logger libLog.Logger) {
+// drainStops releases the publishers already started when a later one fails to
+// start, so the fail-closed path leaks no background goroutine on the way out.
+func drainStops(stops []func()) {
+	for _, stop := range stops {
+		stop()
+	}
+}
+
+// validateDeclarationConfig fails closed when RI is enabled but one or more
+// required IdP settings are empty. The error names the empty env vars only —
+// never any value, and never the secret.
+func validateDeclarationConfig(cfg *Config) error {
 	missing := make([]string, 0, 3)
 
 	if cfg.IDPHost == "" {
@@ -125,12 +153,12 @@ func warnIncompleteDeclarationConfig(cfg *Config, logger libLog.Logger) {
 	}
 
 	if len(missing) == 0 {
-		return
+		return nil
 	}
 
-	logger.Log(context.Background(), libLog.LevelWarn,
-		"RI declaration enabled but IdP configuration is incomplete; publishers will fail-open (serving continues)",
-		libLog.String("empty_idp_declaration_env", strings.Join(missing, ",")))
+	return fmt.Errorf(
+		"IDP_DECLARATION_ENABLED=true but the required IdP configuration is empty: %s",
+		strings.Join(missing, ","))
 }
 
 // declarationPublisherRunnable adapts the RI declaration publishers' stop hooks to
