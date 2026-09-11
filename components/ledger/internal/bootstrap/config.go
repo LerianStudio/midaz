@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1922,6 +1923,15 @@ func applyConfigDefaults(cfg *Config) {
 		}
 
 		cfg.BulkRecorderSize = workers * prefetch
+	}
+
+	// RouteTransactionalReadsToPrimary defaults to true: transactional-flow reads
+	// carry read-your-own-write intent, and serving them from a lagging replica
+	// returns wrong state (e.g. a revert 404 on a transaction that exists only on
+	// the primary). Explicit "false" opts out; unset, empty, and invalid values
+	// resolve to the default.
+	if _, err := strconv.ParseBool(os.Getenv("DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY")); err != nil {
+		cfg.RouteTransactionalReadsToPrimary = true
 	}
 
 	// Balance Sync Worker defaults (dual-trigger)

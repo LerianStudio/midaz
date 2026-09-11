@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -123,7 +124,15 @@ func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransaction
 // returns the reversal payload TransactionRevert reconstructs from the persisted parent
 // operations.
 func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span, in RevertTransactionInput) (mtransaction.Transaction, error) {
-	parent, err := uc.TransactionReader.GetParentByTransactionID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
+	// Route ONLY the transaction and parent reads of the eligibility gate to the primary
+	// via a dedicated ctx: a revert issued right after its create must read its own
+	// write, and on a primary+replica deploy a lagging replica answers not-found for a
+	// transaction that exists — a 0007 for a revert the caller is entitled to. The
+	// unmarked ctx flows to everything else (the operation-route lookup, which is not a
+	// read of the create) so those keep their default routing.
+	readCtx := readrouting.WithPrimaryRead(ctx)
+
+	parent, err := uc.TransactionReader.GetParentByTransactionID(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
 	if err != nil {
 		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve Parent Transaction on query", err)
 
@@ -138,7 +147,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return mtransaction.Transaction{}, err
 	}
 
-	tran, err := uc.TransactionReader.GetTransactionWithOperationsByID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
+	tran, err := uc.TransactionReader.GetTransactionWithOperationsByID(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
 	if err != nil {
 		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
@@ -150,7 +159,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 	// not-found for a missing transaction and returns the real row for an
 	// operation-less one — either way the gate never inspects an empty transaction.
 	if tran == nil || tran.ID == "" {
-		tran, err = uc.TransactionReader.GetTransactionByID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
+		tran, err = uc.TransactionReader.GetTransactionByID(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
 		if err != nil {
 			spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 

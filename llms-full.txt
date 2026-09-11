@@ -652,6 +652,7 @@ are set programmatically by `applyConfigDefaults()`.
 | DB_TRANSACTION_REPLICA_SSLMODE | disable | Replica SSL mode |
 | DB_TRANSACTION_MAX_OPEN_CONNS | 3000 | Max open connections (shared) |
 | DB_TRANSACTION_MAX_IDLE_CONNS | 3000 | Max idle connections (shared) |
+| DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY | true | Route transactional-flow reads (read-your-own-write paths) to the primary; false opts out |
 
 #### MongoDB — Onboarding
 | Variable | Default | Description |

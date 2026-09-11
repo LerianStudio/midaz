@@ -274,6 +274,21 @@ local function updateTransactionHash(transactionBackupQueue, transactionKey, bal
     return updated
 end
 
+-- finalizeSuccess stamps the idempotency marker of this execution and returns the
+-- response verbatim. It is the ONLY exit that writes the marker, so an aborted
+-- batch never leaves one behind: an aborted batch is rolled back, and a retry of
+-- it must be free to reproduce the same rejection.
+--
+-- The marker holds the exact response string, which is what lets the replay gate
+-- at the top of main() re-report a consumed execution without re-encoding it.
+local function finalizeSuccess(applyMarkerKey, response, markerTTL)
+    if applyMarkerKey ~= "" then
+        redis.call("SET", applyMarkerKey, response, "EX", markerTTL)
+    end
+
+    return response
+end
+
 local function rollback(rollbackBalances, ttl)
   if next(rollbackBalances) then
       local msetArgs = {}
@@ -296,6 +311,14 @@ local function main()
     -- atomic operation after the marker expires.
     local ttl = 86400 -- 1 day; keep in sync with balanceCacheSnapshotTTLSeconds
 
+    -- Lifetime of the idempotency marker written by finalizeSuccess. It is the
+    -- snapshot lifetime, not a copy of it: the marker has to outlive the
+    -- asynchronous flush to PostgreSQL, because until that flush lands the
+    -- database still reports the pre-execution state and a client retry would
+    -- look legitimate. That window is exactly what `ttl` bounds, so the two move
+    -- together by construction.
+    local markerTTL = ttl
+
     local groupSize = 25
     local returnBalances = {}
     local returnBalancesAfter = {}
@@ -312,21 +335,50 @@ local function main()
     -- atomic step that mutates the balances.
     local exceptionKey = KEYS[4]
 
-    -- ARGV carries a header ahead of the per-operation groups. Its first THREE
+    -- ARGV carries a header ahead of the per-operation groups. Its first FOUR
     -- slots are always present, whether or not a grant was presented:
     --   ARGV[1] -> the source alias the caller's transaction debits, as Go
     --              resolved it from the batch for the presented grant ("" when none)
     --   ARGV[2] -> the amount that alias is debited by, canonical decimal string
     --   ARGV[3] -> how many bypassed balance keys follow ("0" when none)
-    --   ARGV[4 .. 3+N] -> those N balance keys
+    --   ARGV[4] -> the idempotency marker key of this execution, already
+    --              tenant-namespaced by Go ("" only if a caller omits it)
+    --   ARGV[5 .. 4+N] -> those N balance keys
     --
     -- The count makes the header self-describing, so the stride of every loop
     -- below is derived once here and no loop has to know whether a grant exists.
-    local argvHeaderFixed = 3
+    -- This layout is a lock-step contract with luaArgsHeaderFixedSize in
+    -- consumer.redis.go; the script ships embedded in the binary, so the two
+    -- always travel together.
+    local argvHeaderFixed = 4
     local expectedGrantAlias = ARGV[1] or ""
     local expectedGrantAmount = ARGV[2] or ""
     local grantedKeyCount = tonumber(ARGV[3]) or 0
+    local applyMarkerKey = ARGV[4] or ""
     local argvHeader = argvHeaderFixed + grantedKeyCount
+
+    -- Replay gate. This is the FIRST thing the script does, ahead of the grant
+    -- validation and of the delete-marker and account-block pre-passes, because
+    -- every one of those gates was already answered by the execution that wrote
+    -- the marker: this one only re-reports a consumed result. Requiring a grant
+    -- here would be actively wrong — the grant was consumed by that first
+    -- execution, and the client resending the command (a go-redis retry after a
+    -- read timeout, invisible to the calling Go code) presents no new one.
+    --
+    -- The stored payload is returned verbatim, with the flag spliced onto its
+    -- front as raw string bytes. It is deliberately NOT decoded and re-encoded:
+    -- a cjson round trip can reformat the decimal strings that carry financial
+    -- values, so the replayed response would no longer be the response the first
+    -- caller got.
+    --
+    -- An empty slot 4 is defensive only: it degrades to the pre-marker behavior
+    -- (execute normally, write nothing) instead of aborting.
+    if applyMarkerKey ~= "" then
+        local storedResponse = redis.call("GET", applyMarkerKey)
+        if storedResponse then
+            return '{"replayed":true,' .. string.sub(storedResponse, 2)
+        end
+    end
 
     -- One logical debit can touch MORE THAN ONE balance of the granted account:
     -- when the debit overdraws, the system derives an overdraft companion leg on
@@ -860,12 +912,17 @@ local function main()
     if #returnBalances == 0 then
         local emptyArray = cjson.decode("[]")
         updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray, emptyArray)
-        return cjson.encode({ before = cjson.decode("[]"), after = cjson.decode("[]") })
+
+        -- A batch that changed nothing is still a completed execution: marking it
+        -- is what makes a resend of it a replay instead of a re-evaluation.
+        return finalizeSuccess(applyMarkerKey,
+            cjson.encode({ before = cjson.decode("[]"), after = cjson.decode("[]") }), markerTTL)
     end
 
     updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances, returnBalancesAfter)
 
-    return cjson.encode({ before = returnBalances, after = returnBalancesAfter })
+    return finalizeSuccess(applyMarkerKey,
+        cjson.encode({ before = returnBalances, after = returnBalancesAfter }), markerTTL)
 end
 
 return main()

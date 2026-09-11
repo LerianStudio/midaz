@@ -87,7 +87,7 @@ func setupTransactionChaosNetworkInfra(t *testing.T) *chaosNetworkTransactionInf
 
 	conn := pgtestutil.CreatePostgresClient(t, proxyConnStr, proxyConnStr, pgResult.Config.DBName, migrationsPath)
 
-	repo := NewTransactionPostgreSQLRepository(conn)
+	repo := NewTransactionPostgreSQLRepository(conn, false)
 
 	// Use fake UUIDs for external entities (no FK constraints between components)
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())

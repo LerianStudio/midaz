@@ -85,7 +85,7 @@ func initTransactionMultiTenantPostgres(opts *Options, cfg *Config, logger libLo
 	return &transactionPostgresComponents{
 		connection:           conn,
 		pgManager:            pgMgr,
-		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, true),
+		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary, true),
 		operationRepo:        operation.NewOperationPostgreSQLRepository(conn, true),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn, true),
 		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary, true),
@@ -104,7 +104,7 @@ func initTransactionSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*tr
 
 	return &transactionPostgresComponents{
 		connection:           conn,
-		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn),
+		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary),
 		operationRepo:        operation.NewOperationPostgreSQLRepository(conn),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn),
 		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary),
