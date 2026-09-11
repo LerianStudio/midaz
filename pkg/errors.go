@@ -1080,6 +1080,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Transaction Status",
 			Message:    "The transaction status does not allow the requested action. Please check the transaction status.",
 		},
+		constant.ErrTransactionAlreadyTransitioned: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionAlreadyTransitioned.Error(),
+			Title:      "Transaction Already Transitioned",
+			Message:    "The transaction has already been committed or canceled, so the requested transition cannot run again. Please check the transaction status.",
+		},
 		constant.ErrPendingTransactionLocked: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrPendingTransactionLocked.Error(),

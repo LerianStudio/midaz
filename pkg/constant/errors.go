@@ -533,6 +533,15 @@ var (
 	// are built from the mapBalances that produced the plan in the first
 	// place, so every alias resolves by construction.
 	ErrBalanceApplyMarkerMissingAliases = errors.New("0510")
+	// ErrTransactionAlreadyTransitioned is returned when a commit or a cancel
+	// finds evidence that the transaction already went through the OPPOSITE
+	// terminal transition: the opposite apply marker exists in Redis, the
+	// status CAS matched no PENDING row, or the persisted body was already
+	// nulled by a terminal transition. Distinct from
+	// ErrCommitTransactionNotPending (0099), which reports the status the
+	// caller can read; this one reports a transition that is already in flight
+	// or landed elsewhere, so the requested one must not re-execute.
+	ErrTransactionAlreadyTransitioned = errors.New("0511")
 )
 
 // List of CRM domain errors.
