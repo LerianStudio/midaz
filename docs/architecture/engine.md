@@ -391,10 +391,15 @@ derived from engine-owned constants.
 The latter covers the response, balance blobs, recovery records, receipt, and
 prepared guard/hash-field data. They are protocol inputs, not deployment settings.
 
-The embedded new-engine Lua source is wrapped once by `LuaSource`, which
-prepends fixed local policy values before the raw script. Raw Lua assets consume
-those provided locals and are not standalone definitions of cache policy. The
-legacy script retains its three top-level KEYS and its 24-argument stride per balance; the new engine retains exactly three ARGV values. Physical key bytes and the 24-hour balance-cache TTL are unchanged.
+The embedded engine Lua source is assembled from responsibility-specific
+fragments in an explicit dependency order and wrapped once by `LuaSource`.
+Redis receives and compiles the concatenated result as one script; the split
+adds no imports, commands, round trips, or atomicity boundaries. Production and
+integration tests use the same assembled source. Raw Lua assets consume the
+fixed local policy values prepended by `LuaSource` and are not standalone
+definitions of cache policy. The legacy script retains its three top-level KEYS
+and its 24-argument stride per balance; the engine retains exactly three ARGV
+values. Physical key bytes and the 24-hour balance-cache TTL are unchanged.
 
 Before the first write, the engine must:
 
@@ -792,14 +797,14 @@ The balance-cache participant inventory is:
 | Role | Entry point | Current write/read contract |
 | --- | --- | --- |
 | Writer | `transaction/scripts/balance_atomic_operation.lua`: cold seed and successful monetary mutation | complete dual |
-| Writer | `engine/scripts/engine.lua`: default engine cold seed and successful monetary mutation | complete dual |
+| Writer | `engine/script.go` plus `engine/scripts/engine/*.lua`: default engine cold seed and successful monetary mutation | complete dual |
 | Writer | `RedisConsumerRepository.UpdateBalanceCacheSettings` via `balancecache.PatchSettingsDual` | complete dual |
 | Writer | `transaction.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |
 | Writer | `engine.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |
 | Writer | `balance_atomic_operation.lua` rollback | exact original bytes; never a format conversion |
 | Reader | `balancecache.DecodeForRead`, used by `ListBalanceByKey`, `GetBalancesByKeys`, query overlays, and balance sync | legacy, dual, new-only |
 | Reader | `balance_atomic_operation.lua` `decode_cached_balance` | legacy, mixed, dual, new-only; uppercase wins when present |
-| Reader | `engine.lua` `decodeBalance` | legacy, mixed, dual, new-only; uppercase wins when present |
+| Reader | `engine/scripts/engine/balance_cache.lua` `decodeBalance` | legacy, mixed, dual, new-only; uppercase wins when present |
 
 `balancecache.ClassifyShape` and `balancecache.BuildInventory` provide the
 read-only format check for a complete externally supplied key walk. The report

@@ -7,7 +7,6 @@ package engine
 import (
 	"bytes"
 	"context"
-	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,14 +27,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-)
-
-//go:embed scripts/engine.lua
-var accountingScriptRaw string
-
-var (
-	accountingScriptSource = cachepolicy.LuaSource(accountingScriptRaw)
-	accountingScript       = redis.NewScript(accountingScriptSource)
 )
 
 // RedisClientProvider resolves the authenticated tenant's connection configuration.

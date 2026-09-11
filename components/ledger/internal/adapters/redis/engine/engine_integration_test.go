@@ -8,7 +8,6 @@ package engine
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"math"
 	"strconv"
@@ -28,10 +27,7 @@ import (
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
-//go:embed scripts/engine.lua
-var integrationEngineLuaRaw string
-
-var integrationEngineLua = cachepolicy.LuaSource(integrationEngineLuaRaw)
+var integrationEngineLua = accountingScriptSource
 
 type integrationState struct {
 	Available     string `json:"available"`
