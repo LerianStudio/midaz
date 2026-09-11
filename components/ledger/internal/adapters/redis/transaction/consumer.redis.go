@@ -600,9 +600,9 @@ type balanceAtomicOperationPlan struct {
 //   - A single-element result may arrive as a bare object instead of a 1-element array.
 //
 // The implementation uses json.RawMessage to keep each element's raw bytes and
-// routes it through the shared balance-cache decoder. That decoder understands
-// legacy, dual, and new-only fields without case-insensitive struct matching
-// conflating their intentionally different representations.
+// routes it through the response decoder. That decoder understands legacy,
+// dual, and new-only fields without imposing cache-entry identity validation on
+// the script response; unresolved aliases are reported by reconciliation.
 type balanceRedisList []mmodel.BalanceRedis
 
 func balanceResponseString(fields map[string]json.RawMessage, uppercase, lowerCamel string) (string, bool, error) {
@@ -689,12 +689,25 @@ func normalizeQualifiedBalanceReadKey(raw []byte) (decodeRaw []byte, originalAli
 }
 
 func decodeBalanceRedisResponseEntry(raw json.RawMessage) (mmodel.BalanceRedis, error) {
-	balance, err := decodeBalanceRedisForRead(raw)
+	decodeRaw, originalAlias, originalKey, qualifiedKey, err := normalizeQualifiedBalanceReadKey(raw)
 	if err != nil {
 		return mmodel.BalanceRedis{}, fmt.Errorf("decode balance response entry: %w", err)
 	}
 
-	return *balance, nil
+	var balance mmodel.BalanceRedis
+	if err := json.Unmarshal(decodeRaw, &balance); err != nil {
+		return mmodel.BalanceRedis{}, fmt.Errorf("decode balance response entry: %w", err)
+	}
+
+	if qualifiedKey {
+		balance.Key = originalKey
+	}
+
+	if originalAlias != "" {
+		balance.Alias = originalAlias
+	}
+
+	return balance, nil
 }
 
 func decodeBalanceResponseArray(trimmed []byte) (balanceRedisList, error) {
