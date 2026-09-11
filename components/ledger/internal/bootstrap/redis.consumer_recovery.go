@@ -240,9 +240,7 @@ func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.R
 		return errors.New("applied transaction completer is not configured")
 	}
 
-	acknowledger, hasOriginAwareAck := r.queue.(recoveryRecordAcknowledger)
-	legacyAcknowledger, hasLegacyAck := r.queue.(legacyRecoveryRecordAcknowledger)
-	if !hasOriginAwareAck && (source != txRedis.RecoveryQueueSourceLegacyBackup || !hasLegacyAck) {
+	if !supportsRecoveryAcknowledgment(r.queue, source) {
 		outcome = recoveryMetricOutcomeNotConfigured
 		return errors.New("conditional balance recovery acknowledgment is not configured")
 	}
@@ -266,49 +264,16 @@ func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.R
 		return err
 	}
 
-	var status int64
-
-	if protected, ok := r.queue.(recoveryProtectionAcknowledger); ok {
-		terminal, validStatus := durableRecoveryTerminal(completion.Outcome.TransactionStatus)
-		if !validStatus {
-			outcome = recoveryMetricOutcomeFinalizationFailed
-			return fmt.Errorf("complete recovered transaction: durable SQL reported unsupported status %q", completion.Outcome.TransactionStatus)
-		}
-
-		if r.clock == nil {
-			outcome = recoveryMetricOutcomeNotConfigured
-			return errors.New("durable balance recovery completion clock is not configured")
-		}
-
-		completedAt := r.clock()
-
-		status, err = protected.CompareAndDeleteRecoveryWithProtectionFrom(
-			ctx, source, envelope.OrganizationID, envelope.LedgerID, field, raw, terminal, completedAt,
-		)
-	} else if source == txRedis.RecoveryQueueSourceLegacyBackup {
-		if protected, ok := r.queue.(legacyRecoveryProtectionAcknowledger); ok {
-			terminal, validStatus := durableRecoveryTerminal(completion.Outcome.TransactionStatus)
-			if !validStatus {
-				outcome = recoveryMetricOutcomeFinalizationFailed
-				return fmt.Errorf("complete recovered transaction: durable SQL reported unsupported status %q", completion.Outcome.TransactionStatus)
-			}
-			if r.clock == nil {
-				outcome = recoveryMetricOutcomeNotConfigured
-				return errors.New("durable balance recovery completion clock is not configured")
-			}
-			status, err = protected.CompareAndDeleteRecoveryWithProtection(
-				ctx, envelope.OrganizationID, envelope.LedgerID, field, raw, terminal, r.clock(),
-			)
-		} else if hasOriginAwareAck {
-			status, err = acknowledger.CompareAndDeleteRecoveryFrom(ctx, source, field, raw)
-		} else {
-			status, err = legacyAcknowledger.CompareAndDeleteRecovery(ctx, field, raw)
-		}
-	} else {
-		status, err = acknowledger.CompareAndDeleteRecoveryFrom(ctx, source, field, raw)
+	status, acknowledgmentOutcome, err := r.acknowledgeCompletion(ctx, source, field, raw, envelope, completion)
+	if acknowledgmentOutcome != "" {
+		outcome = acknowledgmentOutcome
 	}
 
 	if err != nil {
+		if acknowledgmentOutcome != "" {
+			return err
+		}
+
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			outcome = recoveryMetricOutcomeContextCanceled
 		} else {
@@ -328,6 +293,87 @@ func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.R
 		outcome = recoveryMetricOutcomeInvalidAck
 		return errors.New("invalid conditional recovery acknowledgment result")
 	}
+}
+
+func supportsRecoveryAcknowledgment(queue txRedis.RedisRepository, source txRedis.RecoveryQueueSource) bool {
+	if _, ok := queue.(recoveryRecordAcknowledger); ok {
+		return true
+	}
+
+	if source != txRedis.RecoveryQueueSourceLegacyBackup {
+		return false
+	}
+
+	_, ok := queue.(legacyRecoveryRecordAcknowledger)
+
+	return ok
+}
+
+func (r *recoveryRecordCompleter) acknowledgeCompletion(
+	ctx context.Context,
+	source txRedis.RecoveryQueueSource,
+	field, raw string,
+	envelope *command.TransactionCompletionRecord,
+	completion command.TransactionCompletionResult,
+) (int64, string, error) {
+	if protected, ok := r.queue.(recoveryProtectionAcknowledger); ok {
+		terminal, completedAt, outcome, err := r.completionEvidence(completion.Outcome.TransactionStatus)
+		if err != nil {
+			return 0, outcome, err
+		}
+
+		status, err := protected.CompareAndDeleteRecoveryWithProtectionFrom(
+			ctx, source, envelope.OrganizationID, envelope.LedgerID, field, raw, terminal, completedAt,
+		)
+
+		return status, "", err
+	}
+
+	if source != txRedis.RecoveryQueueSourceLegacyBackup {
+		acknowledger := r.queue.(recoveryRecordAcknowledger)
+		status, err := acknowledger.CompareAndDeleteRecoveryFrom(ctx, source, field, raw)
+
+		return status, "", err
+	}
+
+	if protected, ok := r.queue.(legacyRecoveryProtectionAcknowledger); ok {
+		terminal, completedAt, outcome, err := r.completionEvidence(completion.Outcome.TransactionStatus)
+		if err != nil {
+			return 0, outcome, err
+		}
+
+		status, err := protected.CompareAndDeleteRecoveryWithProtection(
+			ctx, envelope.OrganizationID, envelope.LedgerID, field, raw, terminal, completedAt,
+		)
+
+		return status, "", err
+	}
+
+	if acknowledger, ok := r.queue.(recoveryRecordAcknowledger); ok {
+		status, err := acknowledger.CompareAndDeleteRecoveryFrom(ctx, source, field, raw)
+
+		return status, "", err
+	}
+
+	acknowledger := r.queue.(legacyRecoveryRecordAcknowledger)
+	status, err := acknowledger.CompareAndDeleteRecovery(ctx, field, raw)
+
+	return status, "", err
+}
+
+func (r *recoveryRecordCompleter) completionEvidence(status string) (bool, time.Time, string, error) {
+	terminal, validStatus := durableRecoveryTerminal(status)
+	if !validStatus {
+		return false, time.Time{}, recoveryMetricOutcomeFinalizationFailed,
+			fmt.Errorf("complete recovered transaction: durable SQL reported unsupported status %q", status)
+	}
+
+	if r.clock == nil {
+		return false, time.Time{}, recoveryMetricOutcomeNotConfigured,
+			errors.New("durable balance recovery completion clock is not configured")
+	}
+
+	return terminal, r.clock(), "", nil
 }
 
 func durableRecoveryTerminal(status string) (terminal, valid bool) {
