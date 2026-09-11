@@ -58,7 +58,7 @@ d.dashboard(
 
     d.timeSeries(
       'Recovery outcomes',
-      [d.promTarget(rate(recovery, 'outcome'), '{{outcome}}')],
+      [d.promTarget(rate(recovery, 'source, outcome'), '{{source}} {{outcome}}')],
       pos(0, 9, 12, 8),
       { unit: 'reqps', legend: 'table', description: 'Recovery finalization outcomes, including finalization and acknowledgment failures.' }
     ),
@@ -85,11 +85,11 @@ d.dashboard(
     d.timeSeries(
       'Recovery duration p95 / p99',
       [
-        d.promTarget(quantile(recoveryDuration, '0.95', 'outcome'), 'p95 {{outcome}}', 'A'),
-        d.promTarget(quantile(recoveryDuration, '0.99', 'outcome'), 'p99 {{outcome}}', 'B'),
+        d.promTarget(quantile(recoveryDuration, '0.95', 'source, outcome'), '{{source}} p95 {{outcome}}', 'A'),
+        d.promTarget(quantile(recoveryDuration, '0.99', 'source, outcome'), '{{source}} p99 {{outcome}}', 'B'),
       ],
       pos(12, 18, 12, 9),
-      { unit: 'ms', fill: 0, description: 'Recovery finalization duration by bounded outcome.' }
+      { unit: 'ms', fill: 0, description: 'Recovery finalization duration by bounded source and outcome.' }
     ),
 
     d.timeSeries(
