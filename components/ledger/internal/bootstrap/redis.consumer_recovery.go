@@ -326,6 +326,7 @@ func (r *recoveryRecordCompleter) AcknowledgeEngineRecovery(
 	}
 
 	field := envelope.TransactionID.String() + ":" + envelope.ExecutionID.String()
+
 	raw, err := reader.ReadRecoveryMessage(ctx, txRedis.RecoveryQueueSourceEngineRecover, field)
 	if err != nil {
 		return fmt.Errorf("read engine recovery record: %w", err)

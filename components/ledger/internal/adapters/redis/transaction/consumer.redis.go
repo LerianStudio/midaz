@@ -1680,7 +1680,7 @@ func (rr *RedisConsumerRepository) ReadRecoveryMessage(ctx context.Context, sour
 		return "", err
 	}
 
-	if _, _, err := recoveryAcknowledgmentIDs(field); err != nil {
+	if err := validateRecoveryAcknowledgmentID(field); err != nil {
 		return "", err
 	}
 
@@ -1767,7 +1767,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryFrom(ctx context.Cont
 		return 0, fmt.Errorf("invalid recovery acknowledgement identity or payload")
 	}
 
-	if _, _, err := recoveryAcknowledgmentIDs(field); err != nil {
+	if err := validateRecoveryAcknowledgmentID(field); err != nil {
 		return 0, err
 	}
 
@@ -1814,20 +1814,21 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryFrom(ctx context.Cont
 	return result, nil
 }
 
-func recoveryAcknowledgmentIDs(field string) (uuid.UUID, uuid.UUID, error) {
+func validateRecoveryAcknowledgmentID(field string) error {
 	transactionRaw, executionRaw, ok := strings.Cut(field, ":")
 	if !ok {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("invalid recovery acknowledgement identity")
+		return fmt.Errorf("invalid recovery acknowledgement identity")
 	}
 
 	transactionID, transactionErr := uuid.Parse(transactionRaw)
+
 	executionID, executionErr := uuid.Parse(executionRaw)
 	if transactionErr != nil || executionErr != nil || transactionID == uuid.Nil || executionID == uuid.Nil ||
 		transactionID.String() != transactionRaw || executionID.String() != executionRaw {
-		return uuid.Nil, uuid.Nil, fmt.Errorf("invalid canonical recovery acknowledgement identity")
+		return fmt.Errorf("invalid canonical recovery acknowledgement identity")
 	}
 
-	return transactionID, executionID, nil
+	return nil
 }
 
 // CompareAndDeleteRecoveryWithProtection acknowledges a durably finalized
