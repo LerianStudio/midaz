@@ -29,7 +29,7 @@ import (
 //   - a missing module-keyed onboarding Mongo makes the metadata repo fall back to the generic key
 //     and write the account metadata into the CRM store — silent, not an error.
 //
-// The TenantMiddleware fields are unexported in lib-commons v6, so the module maps are read via
+// The TenantMiddleware fields are unexported in lib-commons v7, so the module maps are read via
 // reflect (see mapKeys in fees_tenant_wiring_test.go).
 func TestCompositionTenantMiddlewareWiring(t *testing.T) {
 	t.Parallel()

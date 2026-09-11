@@ -33,7 +33,7 @@ func TestIntegrationDelayedFinalizationKeepsReplayProtectionThroughFullWindow(t 
 	t.Cleanup(func() {
 		keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection, txredis.EngineRecoveryCleanupSchedule}
 		for _, pair := range resolved.Balances {
-			keys = append(keys, pair.Balance, pair.Deleted)
+			keys = append(keys, pair.Balance, pair.Deleted, pair.LegacyDeleted)
 		}
 		require.NoError(t, client.Del(context.Background(), keys...).Err())
 	})

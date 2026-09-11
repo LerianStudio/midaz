@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	tmvalkey "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/valkey"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -305,7 +305,14 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 			return resolvedExecutionKeys{}, err
 		}
 
-		resolved.Balances[balance.BalanceRef] = resolvedBalanceKeys{Balance: prefixed, Deleted: prefixed + cachepolicy.DeletionMarkerSuffix}
+		deleted, ok := cachepolicy.DeletionMarkerKey(prefixed)
+		if !ok {
+			return resolvedExecutionKeys{}, fmt.Errorf("resolve accounting deletion marker key")
+		}
+
+		resolved.Balances[balance.BalanceRef] = resolvedBalanceKeys{
+			Balance: prefixed, Deleted: deleted, LegacyDeleted: prefixed + cachepolicy.DeletionMarkerSuffix,
+		}
 	}
 
 	return resolved, nil
@@ -352,8 +359,8 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 			return technical("invalid_normalization_failure", true, err)
 		}
 
-		allowed := make(map[string]bool, len(keys)/2)
-		for i := 5; i < len(keys); i += 2 {
+		allowed := make(map[string]bool, len(keys)/3)
+		for i := 5; i < len(keys); i += 3 {
 			allowed[keys[i]] = true
 		}
 
@@ -378,7 +385,7 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 func validateFailure(failure accounting.Failure, request accounting.Execution) error {
 	switch failure.Code {
 	case accounting.FailureInsufficientFunds, accounting.FailureOverdraftLimitExceeded, accounting.FailureOverdraftNotEligible,
-		accounting.FailureOverdraftCompanionMissing, accounting.FailureBalanceDeleted, accounting.FailureOnHoldUnderflow,
+		accounting.FailureOverdraftCompanionMissing, accounting.FailureBalanceDeleted, accounting.FailureAccountBlocked, accounting.FailureOnHoldUnderflow,
 		accounting.FailureBalanceMissing, accounting.FailureAssetMismatch, accounting.FailureSendingNotAllowed,
 		accounting.FailureReceivingNotAllowed, accounting.FailureExternalHoldNotAllowed:
 	default:
@@ -399,7 +406,7 @@ func validateFailure(failure accounting.Failure, request accounting.Execution) e
 func validateRequirementFailure(failure accounting.Failure, request accounting.Execution) error {
 	switch failure.Code {
 	case accounting.FailureAssetMismatch, accounting.FailureSendingNotAllowed, accounting.FailureReceivingNotAllowed,
-		accounting.FailureExternalHoldNotAllowed, accounting.FailureBalanceDeleted:
+		accounting.FailureExternalHoldNotAllowed, accounting.FailureBalanceDeleted, accounting.FailureAccountBlocked:
 		for _, requirement := range request.Transactions[failure.TransactionIndex].BalanceRequirements {
 			if requirement.BalanceRef == failure.BalanceRef {
 				return nil

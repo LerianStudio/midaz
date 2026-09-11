@@ -132,7 +132,7 @@ func assertUntouchedBenchmarkBalances(tb testing.TB, ctx context.Context, inspec
 	require.NoError(tb, err)
 	for _, balance := range input.Execution.Balances[postingCount:] {
 		resolved := keys.Balances[balance.BalanceRef]
-		exists, err := inspector.Exists(ctx, resolved.Balance, resolved.Deleted).Result()
+		exists, err := inspector.Exists(ctx, resolved.Balance, resolved.Deleted, resolved.LegacyDeleted).Result()
 		require.NoError(tb, err)
 		require.Zero(tb, exists, "untouched balance %s was persisted", balance.BalanceRef)
 	}

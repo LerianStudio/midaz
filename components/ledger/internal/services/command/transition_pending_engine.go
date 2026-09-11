@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
@@ -112,11 +112,13 @@ func (uc *UseCase) transitionPendingWithEngine(
 	}
 
 	if tracerEligible {
+		identity := run.reservationIdentity()
+
 		switch run.status {
 		case constant.APPROVED:
-			uc.confirmReservationsByTransaction(ctx, span, logger, transition.ledgerSettings.Tracer, transition.transactionID, transition.honoredTracerSkip)
+			uc.confirmReservationsByTransaction(ctx, span, logger, transition.ledgerSettings.Tracer, identity, transition.honoredTracerSkip)
 		case constant.CANCELED:
-			uc.releaseReservationsByTransaction(ctx, span, logger, transition.ledgerSettings.Tracer, transition.transactionID, transition.honoredTracerSkip)
+			uc.releaseReservationsByTransaction(ctx, span, logger, transition.ledgerSettings.Tracer, identity, transition.honoredTracerSkip)
 		}
 	}
 

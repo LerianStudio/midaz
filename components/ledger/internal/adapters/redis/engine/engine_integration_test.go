@@ -81,13 +81,15 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 	resolved.Schedule, resolved.Recovery = replace(resolved.Schedule), replace(resolved.Recovery)
 	resolved.Receipts, resolved.Guards, resolved.Protection = replace(resolved.Receipts), replace(resolved.Guards), replace(resolved.Protection)
 	for ref, pair := range resolved.Balances {
-		resolved.Balances[ref] = resolvedBalanceKeys{Balance: replace(pair.Balance), Deleted: replace(pair.Deleted)}
+		resolved.Balances[ref] = resolvedBalanceKeys{
+			Balance: replace(pair.Balance), Deleted: replace(pair.Deleted), LegacyDeleted: replace(pair.LegacyDeleted),
+		}
 	}
 	fixture := &integrationFixture{input: input, limits: limits, resolved: resolved, client: client}
 	t.Cleanup(func() {
 		keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection}
 		for _, pair := range fixture.resolved.Balances {
-			keys = append(keys, pair.Balance, pair.Deleted)
+			keys = append(keys, pair.Balance, pair.Deleted, pair.LegacyDeleted)
 		}
 		require.NoError(t, client.Del(context.Background(), keys...).Err())
 	})
@@ -103,7 +105,7 @@ func (f *integrationFixture) addCompanion(available string) {
 	balance.AllowOverdraft = false
 	f.input.Execution.Balances = append(f.input.Execution.Balances, balance)
 	key := strings.Replace(f.resolved.Balances["@source#default"].Balance, "#default", "#overdraft", 1)
-	f.resolved.Balances[balance.BalanceRef] = resolvedBalanceKeys{Balance: key, Deleted: key + ":deleted"}
+	f.resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys(key)
 }
 
 func (f *integrationFixture) prepared(t *testing.T) *preparedExecution {
@@ -369,12 +371,13 @@ func TestIntegrationEngineValidatesBalanceRequirementsAgainstLiveState(t *testin
 
 	container := redistestutil.SetupReusableContainer(t)
 	tests := []struct {
-		name       string
-		permission accounting.BalancePermission
-		forbid     bool
-		prepare    func(*accounting.BalanceSnapshot)
-		live       func(*accounting.BalanceSnapshot)
-		failure    string
+		name          string
+		permission    accounting.BalancePermission
+		forbid        bool
+		rejectBlocked bool
+		prepare       func(*accounting.BalanceSnapshot)
+		live          func(*accounting.BalanceSnapshot)
+		failure       string
 	}{
 		{
 			name: "live sending permission", permission: accounting.BalancePermissionSend, failure: accounting.FailureSendingNotAllowed,
@@ -383,6 +386,10 @@ func TestIntegrationEngineValidatesBalanceRequirementsAgainstLiveState(t *testin
 		{
 			name: "live receiving permission", permission: accounting.BalancePermissionReceive, failure: accounting.FailureReceivingNotAllowed,
 			live: func(balance *accounting.BalanceSnapshot) { balance.AllowReceiving = false },
+		},
+		{
+			name: "live account block", permission: accounting.BalancePermissionSend, rejectBlocked: true, failure: accounting.FailureAccountBlocked,
+			live: func(balance *accounting.BalanceSnapshot) { balance.Blocked = true },
 		},
 		{
 			name: "transaction asset", permission: accounting.BalancePermissionSend, failure: accounting.FailureAssetMismatch,
@@ -404,6 +411,7 @@ func TestIntegrationEngineValidatesBalanceRequirementsAgainstLiveState(t *testin
 			fixture.input.Execution.Transactions[0].BalanceRequirements = []accounting.BalanceRequirement{{
 				BalanceRef: seed.BalanceRef, AssetCode: "USD", Permission: test.permission, ForbidExternal: test.forbid,
 			}}
+			fixture.input.Execution.Transactions[0].RejectBlockedBalances = test.rejectBlocked
 
 			live := *seed
 			if test.live != nil {
@@ -706,7 +714,7 @@ func TestIntegrationEngineCachedMoneyMatchesCodec(t *testing.T) {
 					late.Alias, late.BalanceRef = "@late", "@late#default"
 					f.input.Execution.Balances = append(f.input.Execution.Balances, late)
 					key := strings.Replace(f.resolved.Balances["@source#default"].Balance, "@source#default", late.BalanceRef, 1)
-					f.resolved.Balances[late.BalanceRef] = resolvedBalanceKeys{Balance: key, Deleted: key + ":deleted"}
+					f.resolved.Balances[late.BalanceRef] = testResolvedBalanceKeys(key)
 					primary := &f.input.Execution.Transactions[0].Postings[0]
 					primary.Type, primary.Amount = accounting.PostingCredit, decimal.NewFromInt(1)
 					f.input.Execution.Transactions[0].Postings = append(f.input.Execution.Transactions[0].Postings,
@@ -992,6 +1000,35 @@ func TestIntegrationEngineUnusedPoolDoesNotParticipate(t *testing.T) {
 	members, err := container.Client.ZRange(context.Background(), f.resolved.Schedule, 0, -1).Result()
 	require.NoError(t, err)
 	require.Equal(t, []string{f.resolved.Balances["@source#default"].Balance}, members)
+}
+
+func TestIntegrationEngineRejectsBothDeletionMarkerNamespaces(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	for _, test := range []struct {
+		name   string
+		marker func(resolvedBalanceKeys) string
+	}{
+		{name: "current", marker: func(keys resolvedBalanceKeys) string { return keys.Deleted }},
+		{name: "legacy", marker: func(keys resolvedBalanceKeys) string { return keys.LegacyDeleted }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newIntegrationFixture(t, container.Client)
+			fixture.input.Execution.Transactions[0].BalanceRequirements = []accounting.BalanceRequirement{{
+				BalanceRef: "@source#default", AssetCode: "USD", Permission: accounting.BalancePermissionSend,
+			}}
+			marker := test.marker(fixture.resolved.Balances["@source#default"])
+			require.NoError(t, container.Client.Set(context.Background(), marker, "1", time.Hour).Err())
+			before := fixture.capture(t)
+
+			_, err := fixture.run(t)
+			require.ErrorContains(t, err, `"code":"balance_deleted"`)
+			require.Equal(t, before, fixture.capture(t), "deletion refusal must not mutate any key")
+		})
+	}
 }
 
 func TestIntegrationEngineRejectsMalformedProtocol(t *testing.T) {

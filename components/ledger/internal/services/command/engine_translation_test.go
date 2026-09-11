@@ -181,6 +181,7 @@ func TestTranslateEngineTransactionLifecyclePaths(t *testing.T) {
 
 			transaction, projection, err := TranslateEngineTransaction(input)
 			require.NoError(t, err)
+			assert.Equal(t, tt.action != constant.ActionCancel, transaction.RejectBlockedBalances)
 			require.Len(t, transaction.Postings, len(tt.postingTypes))
 			require.Len(t, projection, len(tt.postingTypes))
 			if tt.action == constant.ActionCommit || tt.action == constant.ActionCancel {

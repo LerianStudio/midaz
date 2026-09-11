@@ -62,6 +62,7 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	require.Equal(t, []string{
 		resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection,
 		resolved.Balances["@source#default"].Balance, resolved.Balances["@source#default"].Deleted,
+		resolved.Balances["@source#default"].LegacyDeleted,
 	}, first.Keys)
 	require.Equal(t, 1, wire.ScheduleKeyIndex)
 	require.Equal(t, 2, wire.RecoveryKeyIndex)
@@ -72,6 +73,7 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	require.Len(t, wire.Balances, 1)
 	require.Equal(t, 6, wire.Balances[0].KeyIndex)
 	require.Equal(t, 7, wire.Balances[0].DeleteKeyIndex)
+	require.Equal(t, 8, wire.Balances[0].LegacyDeleteKeyIndex)
 	require.Equal(t, "9223372036854775807", wire.Balances[0].Snapshot.Version)
 	require.Equal(t, "12345678901234567890.1234567890123456789", wire.Balances[0].Snapshot.Available)
 	require.Equal(t, "0.0000000000000000001", wire.Transactions[0].Postings[0].Amount)
@@ -269,6 +271,22 @@ func TestPrepareExecutionCarriesBalanceRequirements(t *testing.T) {
 	}}, wire.Transactions[0].BalanceRequirements)
 }
 
+func TestPrepareExecutionCarriesBlockedAccountControl(t *testing.T) {
+	t.Parallel()
+
+	input, limits, resolved := validWireExecution()
+	input.Execution.Transactions[0].RejectBlockedBalances = true
+	input.Execution.Balances[0].Blocked = true
+
+	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+
+	var wire wireRequest
+	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
+	require.True(t, wire.Transactions[0].RejectBlockedBalances)
+	require.True(t, wire.Balances[0].Snapshot.Blocked)
+}
+
 func TestPrepareExecutionCanceledContext(t *testing.T) {
 	t.Parallel()
 
@@ -314,7 +332,7 @@ func validWireExecution() (command.EngineExecution, Limits, resolvedExecutionKey
 	prefix := "tenant:fixture:"
 	scope := organizationID.String() + ":" + ledgerID.String()
 	balanceKey := prefix + "balance:{transactions}:" + scope + ":@source#default"
-	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + cachepolicy.EngineRecoverQueue, Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Protection: prefix + "engine:{transactions}:protection:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": {Balance: balanceKey, Deleted: balanceKey + ":deleted"}}}
+	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + cachepolicy.EngineRecoverQueue, Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Protection: prefix + "engine:{transactions}:protection:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": testResolvedBalanceKeys(balanceKey)}}
 	return input, Limits{MaxTransactions: 10, MaxPostings: 100, MaxBalances: 100, MaxCompletionPlanBytes: 4096, MaxRequestBytes: 16384, MaxPreparedBytes: 1048576}, resolved
 }
 
@@ -349,9 +367,9 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 		wantBytes  int
 		maxTouched int
 	}{
-		{name: "two postings", postings: 2, pool: 2, wantBytes: 2158, maxTouched: 2},
-		{name: "ten postings", postings: 10, pool: 20, wantBytes: 12998, maxTouched: 10},
-		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 61984, maxTouched: 50},
+		{name: "two postings", postings: 2, pool: 2, wantBytes: 2272, maxTouched: 2},
+		{name: "ten postings", postings: 10, pool: 20, wantBytes: 13868, maxTouched: 10},
+		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 66314, maxTouched: 50},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -441,7 +459,7 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 	t.Logf("v1 lower-bound bytes: original=%d frozen_recovery=%d v1_legs=%d wire_postings=%d snapshots=%d final_wire=%d", len(body), len(recovery), len(transaction.Send.Source.From)+len(transaction.Send.Distribute.To), len(request.Transactions[0].Postings), len(request.Balances), len(prepared.Payload))
 	require.Equal(t, 4193188, len(body))
 	require.Equal(t, 10490524, len(recovery))
-	require.Equal(t, 12251494, len(prepared.Payload))
+	require.Equal(t, 12251608, len(prepared.Payload))
 	require.Greater(t, len(recovery), len(body), "completion plan must retain transaction and stable projection data")
 	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry the completion plan plus engine postings and snapshots")
 	require.Equal(t, 2, len(request.Transactions[0].Postings), "v1 retains both logical legs; no v1 leg cap is introduced")
@@ -652,7 +670,7 @@ func sizingResolvedKeys(balances []accounting.BalanceSnapshot) resolvedExecution
 	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: "tenant:fixture:schedule:{transactions}", Recovery: "tenant:fixture:recovery:{transactions}", Receipts: "tenant:fixture:receipts:{transactions}", Guards: "tenant:fixture:guards:{transactions}", Protection: "tenant:fixture:protection:{transactions}", Balances: make(map[string]resolvedBalanceKeys, len(balances))}
 	for _, balance := range balances {
 		key := "tenant:fixture:balance:{transactions}:" + balance.BalanceRef
-		resolved.Balances[balance.BalanceRef] = resolvedBalanceKeys{Balance: key, Deleted: key + ":deleted"}
+		resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys(key)
 	}
 	return resolved
 }
@@ -671,11 +689,22 @@ func measuredWireExecution(postingCount, poolCount int) (command.EngineExecution
 		balance.BalanceRef = balance.Alias + "#default"
 		input.Execution.Balances[i] = balance
 		key := "tenant:fixture:balance:{transactions}:measurement:" + index
-		resolved.Balances[balance.BalanceRef] = resolvedBalanceKeys{Balance: key, Deleted: key + ":deleted"}
+		resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys(key)
 	}
 	input.Execution.Transactions[0].Postings = make([]accounting.Posting, postingCount)
 	for i := 0; i < postingCount; i++ {
 		input.Execution.Transactions[0].Postings[i] = accounting.Posting{Ref: "debit-" + strconv.Itoa(i), BalanceRef: input.Execution.Balances[i].BalanceRef, Type: accounting.PostingDebit, Amount: decimal.NewFromInt(1), DrawPolicy: accounting.DrawAllowed}
 	}
 	return input, limits, resolved
+}
+
+func testResolvedBalanceKeys(key string) resolvedBalanceKeys {
+	deleted, ok := cachepolicy.DeletionMarkerKey(key)
+	if !ok {
+		panic("test balance key does not use the balance namespace")
+	}
+
+	return resolvedBalanceKeys{
+		Balance: key, Deleted: deleted, LegacyDeleted: key + cachepolicy.DeletionMarkerSuffix,
+	}
 }

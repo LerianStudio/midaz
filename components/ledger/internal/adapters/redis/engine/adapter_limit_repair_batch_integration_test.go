@@ -172,7 +172,7 @@ func requireAdapterRepairSidecarsAbsent(t *testing.T, client *redis.Client, keys
 	t.Helper()
 	inventory := []string{keys.Schedule, keys.Recovery, keys.Guards, keys.Receipts}
 	for _, pair := range keys.Balances {
-		inventory = append(inventory, pair.Deleted)
+		inventory = append(inventory, pair.Deleted, pair.LegacyDeleted)
 	}
 	exists, err := client.Exists(context.Background(), inventory...).Result()
 	require.NoError(t, err)

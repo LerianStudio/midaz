@@ -56,9 +56,10 @@ local function loadBalancePool(request)
     local pool, companions = {}, {}
     local normalization = array()
     for i, balance in ipairs(request.balances) do
-        local keyIndex, markerIndex = 4 + 2 * i, 5 + 2 * i
+        local keyIndex, markerIndex, legacyMarkerIndex = 3 + 3 * i, 4 + 3 * i, 5 + 3 * i
         expectRedisType(KEYS[keyIndex], "string")
         expectRedisType(KEYS[markerIndex], "string")
+        expectRedisType(KEYS[legacyMarkerIndex], "string")
         local raw = redis.call("GET", KEYS[keyIndex])
         local blob, current
         if raw then
@@ -74,7 +75,7 @@ local function loadBalancePool(request)
         end
         local item = {
             current = current, blob = blob, keyIndex = keyIndex,
-            deleted = redis.call("EXISTS", KEYS[markerIndex]) == 1
+            deleted = redis.call("EXISTS", KEYS[markerIndex], KEYS[legacyMarkerIndex]) > 0
         }
         pool[balance.balanceRef] = item
         -- Index the single internal overdraft companion for later draw or repay
@@ -92,7 +93,8 @@ local function loadBalancePool(request)
 end
 
 -- validateLiveBalanceAvailability rejects every requirement or posting that
--- targets a balance currently protected by a deletion marker. This check uses
+-- targets a balance protected by either deletion marker, or by the live
+-- account-block control when the lifecycle action requires it. These checks use
 -- live Redis state inside the same atomic execution as the eventual mutation.
 local function validateLiveBalanceAvailability(request, pool)
     for txIndex, transaction in ipairs(request.transactions) do
@@ -100,10 +102,16 @@ local function validateLiveBalanceAvailability(request, pool)
             if pool[requirement.balanceRef].deleted then
                 refuse("balance_deleted", txIndex - 1, -1, requirement.balanceRef)
             end
+            if transaction.rejectBlockedBalances and pool[requirement.balanceRef].current.blocked then
+                refuse("account_blocked", txIndex - 1, -1, requirement.balanceRef)
+            end
         end
         for postingIndex, posting in ipairs(transaction.postings) do
             if pool[posting.balanceRef].deleted then
                 refuse("balance_deleted", txIndex - 1, postingIndex - 1, posting.balanceRef)
+            end
+            if transaction.rejectBlockedBalances and pool[posting.balanceRef].current.blocked then
+                refuse("account_blocked", txIndex - 1, postingIndex - 1, posting.balanceRef)
             end
         end
     end
@@ -114,10 +122,14 @@ end
 -- produced by earlier transactions in the same execution.
 local function applyTransactionsInMemory(request, pool, companions)
     local movements, touched, touchedSet, transactionResults = array(), {}, {}, {}
-    -- touch repeats deletion protection at the exact mutation site, including
-    -- companion movements generated internally rather than declared as postings.
-    local function touch(item, txIndex, postingIndex)
+    -- touch repeats deletion and account-block protection at the exact mutation
+    -- site, including companion movements generated internally rather than
+    -- declared as postings.
+    local function touch(item, txIndex, postingIndex, rejectBlockedBalances)
         if item.deleted then refuse("balance_deleted", txIndex, postingIndex, item.current.balanceRef) end
+        if rejectBlockedBalances and item.current.blocked then
+            refuse("account_blocked", txIndex, postingIndex, item.current.balanceRef)
+        end
     end
 
     for txIndex, transaction in ipairs(request.transactions) do
@@ -162,7 +174,7 @@ local function applyTransactionsInMemory(request, pool, companions)
         -- repaid by that primary transition.
         for postingIndex, posting in ipairs(transaction.postings) do
             local item = pool[posting.balanceRef]
-            touch(item, txIndex - 1, postingIndex - 1)
+            touch(item, txIndex - 1, postingIndex - 1, transaction.rejectBlockedBalances)
             local current, nextState = item.current, clone(item.current)
             local external = current.accountType == "external"
             local amount = posting.amount
@@ -196,7 +208,7 @@ local function applyTransactionsInMemory(request, pool, companions)
                 if companion == item or companion.current.direction ~= "debit" or companion.current.balanceScope ~= "internal" or companion.current.accountType == "external" or companion.current.assetCode ~= current.assetCode then
                     technical("invalid_companion", "invalid overdraft companion")
                 end
-                touch(companion, txIndex - 1, postingIndex - 1)
+                touch(companion, txIndex - 1, postingIndex - 1, transaction.rejectBlockedBalances)
                 companionNext = clone(companion.current)
                 if cmp_decimal(delta, "0") > 0 then
                     companionAmount, companionType = delta, "debit"

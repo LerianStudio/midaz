@@ -435,7 +435,7 @@ func deleteLiveStateCompositionState(t *testing.T, client *redis.Client, keys re
 	t.Helper()
 	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards}
 	for _, balance := range keys.Balances {
-		inventory = append(inventory, balance.Balance, balance.Deleted)
+		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
 	}
 	require.NoError(t, client.Del(context.Background(), inventory...).Err())
 }

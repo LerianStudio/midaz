@@ -327,7 +327,8 @@ func TestPendingTransition_GrantMissRejectsAndReleasesLock(t *testing.T) {
 	).Times(0)
 
 	reader := &pendingReader{pending: tran}
-	uc := &UseCase{TransactionRedisRepo: redisRepo, TransactionReader: reader}
+	executor := &transitionEngineExecutor{t: t}
+	uc := &UseCase{TransactionRedisRepo: redisRepo, TransactionReader: reader, Engine: executor}
 
 	in := pendingTransitionInputFor(tran)
 	exceptionID := uuid.New()
@@ -338,6 +339,10 @@ func TestPendingTransition_GrantMissRejectsAndReleasesLock(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), constant.ErrAccountBlockExceptionInvalid.Error(),
 		"an unreadable grant must reject with the exception code")
+	assert.Empty(t, executor.guardCalls,
+		"a commit carrying an account-block exception must use the legacy atomic grant path")
+	assert.Empty(t, executor.requests,
+		"the engine cannot execute until its protocol can consume the grant atomically")
 }
 
 // TestPendingTransition_V1CommitNeverReadsAGrant is the version guard's runtime

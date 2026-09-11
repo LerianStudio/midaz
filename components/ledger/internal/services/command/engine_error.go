@@ -91,6 +91,8 @@ func mapEngineRequirementFailure(request accounting.Execution, failure *accounti
 		return pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, balanceValidationEntity, balance.Alias)
 	case accounting.FailureBalanceDeleted:
 		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
+	case accounting.FailureAccountBlocked:
+		return pkg.ValidateBusinessError(constant.ErrAccountBlocked, balanceValidationEntity)
 	default:
 		return fmt.Errorf("unexpected engine requirement failure: %w", cause)
 	}
@@ -115,6 +117,8 @@ func mapEnginePostingFailure(posting accounting.Posting, failure *accounting.Fai
 		return fmt.Errorf("overdraft companion missing: %w", cause)
 	case "balance_deleted":
 		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
+	case accounting.FailureAccountBlocked:
+		return pkg.ValidateBusinessError(constant.ErrAccountBlocked, balanceValidationEntity)
 	case "balance_missing":
 		return pkg.ValidateBusinessError(constant.ErrTransactionBackupCacheRetrievalFailed, balanceValidationEntity)
 	case "onhold_underflow":

@@ -43,6 +43,7 @@ func TestMapEngineError(t *testing.T) {
 		{name: "route denied", code: "overdraft_not_eligible", drawPolicy: accounting.DrawRouteDenied, wantCode: "0492"},
 		{name: "draw forbidden", code: "overdraft_not_eligible", drawPolicy: accounting.DrawForbidden, wantCode: "0018"},
 		{name: "balance deleted", code: "balance_deleted", wantCode: "0019"},
+		{name: "account blocked", code: "account_blocked", wantCode: "0502"},
 		{name: "balance missing", code: "balance_missing", wantCode: "0139"},
 	}
 
@@ -148,6 +149,7 @@ func TestMapEngineError_BalanceRequirements(t *testing.T) {
 		{name: "receiving", code: accounting.FailureReceivingNotAllowed, want: "0024", permission: accounting.BalancePermissionReceive},
 		{name: "external hold", code: accounting.FailureExternalHoldNotAllowed, want: "0098", permission: accounting.BalancePermissionSend, forbidExternal: true},
 		{name: "deleted", code: accounting.FailureBalanceDeleted, want: "0019", permission: accounting.BalancePermissionSend},
+		{name: "blocked", code: accounting.FailureAccountBlocked, want: "0502", permission: accounting.BalancePermissionSend},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			request := validRequirementEngineRequest(test.permission, test.forbidExternal)

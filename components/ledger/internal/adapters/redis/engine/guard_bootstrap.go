@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	tmvalkey "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/valkey"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 

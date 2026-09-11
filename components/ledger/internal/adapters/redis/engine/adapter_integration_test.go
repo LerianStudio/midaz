@@ -446,7 +446,7 @@ func captureAdapterState(t *testing.T, client *redis.Client, keys resolvedExecut
 	state := make(map[string]any)
 	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards}
 	for _, balance := range keys.Balances {
-		inventory = append(inventory, balance.Balance, balance.Deleted)
+		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
 	}
 	for _, key := range inventory {
 		dump, err := client.Dump(context.Background(), key).Result()

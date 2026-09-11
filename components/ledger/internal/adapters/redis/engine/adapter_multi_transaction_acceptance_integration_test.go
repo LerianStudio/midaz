@@ -365,7 +365,7 @@ func deleteMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client
 	t.Helper()
 	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards}
 	for _, balance := range keys.Balances {
-		inventory = append(inventory, balance.Balance, balance.Deleted)
+		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
 	}
 	require.NoError(t, inspector.Del(context.Background(), inventory...).Err())
 }

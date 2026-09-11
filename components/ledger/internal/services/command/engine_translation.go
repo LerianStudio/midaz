@@ -58,9 +58,10 @@ func TranslateEngineTransaction(input EngineTranslationInput) (accounting.Transa
 	}
 
 	transaction := accounting.Transaction{
-		ID:                  input.TransactionID,
-		BalanceRequirements: engineRequirements(input),
-		Postings:            make([]accounting.Posting, 0),
+		ID:                    input.TransactionID,
+		RejectBlockedBalances: input.Action != constant.ActionCancel,
+		BalanceRequirements:   engineRequirements(input),
+		Postings:              make([]accounting.Posting, 0),
 	}
 	projection := make([]OperationRecordSpec, 0)
 

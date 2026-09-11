@@ -203,6 +203,7 @@ func equalEngineSnapshot(left, right accounting.BalanceSnapshot) bool {
 		left.Version == right.Version &&
 		left.AllowSending == right.AllowSending &&
 		left.AllowReceiving == right.AllowReceiving &&
+		left.Blocked == right.Blocked &&
 		left.AllowOverdraft == right.AllowOverdraft &&
 		left.OverdraftLimitEnabled == right.OverdraftLimitEnabled
 }
@@ -316,6 +317,7 @@ func balanceToEngineSnapshot(organizationID, ledgerID uuid.UUID, balance *mmodel
 		Version:               transactionBalance.Version,
 		AllowSending:          transactionBalance.AllowSending,
 		AllowReceiving:        transactionBalance.AllowReceiving,
+		Blocked:               transactionBalance.Blocked,
 		AllowOverdraft:        transactionBalance.AllowOverdraft,
 		OverdraftLimitEnabled: transactionBalance.OverdraftLimitEnabled,
 	}, nil

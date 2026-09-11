@@ -670,6 +670,7 @@ func decodeBalanceRedisFlags(fields map[string]json.RawMessage, schemaVersion in
 	}{
 		{upper: "AllowSending", lower: "allowSending", dst: &balance.AllowSending},
 		{upper: "AllowReceiving", lower: "allowReceiving", dst: &balance.AllowReceiving},
+		{upper: "Blocked", lower: "blocked", dst: &balance.Blocked},
 		{upper: "AllowOverdraft", lower: "allowOverdraft", dst: &balance.AllowOverdraft},
 		{upper: "OverdraftLimitEnabled", lower: "overdraftLimitEnabled", dst: &balance.OverdraftLimitEnabled},
 	} {

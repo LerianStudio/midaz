@@ -64,8 +64,9 @@ type resolvedExecutionKeys struct {
 }
 
 type resolvedBalanceKeys struct {
-	Balance string
-	Deleted string
+	Balance       string
+	Deleted       string
+	LegacyDeleted string
 }
 
 type preparedExecution struct {
@@ -92,14 +93,15 @@ type wireRequest struct {
 }
 
 type wireTransaction struct {
-	ID                  string                   `json:"id"`
-	GuardField          string                   `json:"guardField"`
-	ExpectedGuard       string                   `json:"expectedGuard"`
-	NextGuard           string                   `json:"nextGuard"`
-	RecoveryField       string                   `json:"recoveryField"`
-	CompletionPlan      string                   `json:"completionPlan"`
-	BalanceRequirements []wireBalanceRequirement `json:"balanceRequirements"`
-	Postings            []wirePosting            `json:"postings"`
+	ID                    string                   `json:"id"`
+	RejectBlockedBalances bool                     `json:"rejectBlockedBalances"`
+	GuardField            string                   `json:"guardField"`
+	ExpectedGuard         string                   `json:"expectedGuard"`
+	NextGuard             string                   `json:"nextGuard"`
+	RecoveryField         string                   `json:"recoveryField"`
+	CompletionPlan        string                   `json:"completionPlan"`
+	BalanceRequirements   []wireBalanceRequirement `json:"balanceRequirements"`
+	Postings              []wirePosting            `json:"postings"`
 }
 
 type wireBalanceRequirement struct {
@@ -119,10 +121,11 @@ type wirePosting struct {
 }
 
 type wireBalance struct {
-	BalanceRef     string              `json:"balanceRef"`
-	KeyIndex       int                 `json:"keyIndex"`
-	DeleteKeyIndex int                 `json:"deleteKeyIndex"`
-	Snapshot       wireBalanceSnapshot `json:"snapshot"`
+	BalanceRef           string              `json:"balanceRef"`
+	KeyIndex             int                 `json:"keyIndex"`
+	DeleteKeyIndex       int                 `json:"deleteKeyIndex"`
+	LegacyDeleteKeyIndex int                 `json:"legacyDeleteKeyIndex"`
+	Snapshot             wireBalanceSnapshot `json:"snapshot"`
 }
 
 type wireBalanceSnapshot struct {
@@ -141,6 +144,7 @@ type wireBalanceSnapshot struct {
 	Version               string `json:"version"`
 	AllowSending          bool   `json:"allowSending"`
 	AllowReceiving        bool   `json:"allowReceiving"`
+	Blocked               bool   `json:"blocked"`
 	AllowOverdraft        bool   `json:"allowOverdraft"`
 	OverdraftLimitEnabled bool   `json:"overdraftLimitEnabled"`
 }
@@ -318,7 +322,10 @@ func prepareBalances(ctx context.Context, request accounting.Execution, limits L
 		}
 
 		balances[balance.BalanceRef], identities[balance.ID], accounts[balance.AccountID], aliases[balance.Alias] = balance, true, balance, balance.AccountID
-		prepared = append(prepared, wireBalance{BalanceRef: balance.BalanceRef, KeyIndex: 6 + 2*i, DeleteKeyIndex: 7 + 2*i, Snapshot: snapshot})
+		prepared = append(prepared, wireBalance{
+			BalanceRef: balance.BalanceRef, KeyIndex: 6 + 3*i,
+			DeleteKeyIndex: 7 + 3*i, LegacyDeleteKeyIndex: 8 + 3*i, Snapshot: snapshot,
+		})
 	}
 
 	return prepared, balances, nil
@@ -353,7 +360,8 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 		postingCount += len(transaction.Postings)
 		prepared := wireTransaction{
 			ID: transaction.ID.String(), GuardField: transaction.ID.String(), ExpectedGuard: guard.ExpectedToken, NextGuard: guard.NextToken,
-			RecoveryField: transaction.ID.String() + ":" + request.ExecutionID.String(), CompletionPlan: string(completionPlan),
+			RejectBlockedBalances: transaction.RejectBlockedBalances,
+			RecoveryField:         transaction.ID.String() + ":" + request.ExecutionID.String(), CompletionPlan: string(completionPlan),
 			BalanceRequirements: make([]wireBalanceRequirement, 0, len(transaction.BalanceRequirements)),
 			Postings:            make([]wirePosting, 0, len(transaction.Postings)),
 		}
@@ -425,11 +433,13 @@ func prepareKeys(balances []accounting.BalanceSnapshot, resolved resolvedExecuti
 	keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection}
 	for _, balance := range balances {
 		pair, exists := resolved.Balances[balance.BalanceRef]
-		if !exists || pair.Deleted != pair.Balance+cachepolicy.DeletionMarkerSuffix {
+		expectedMarker, validBalanceKey := cachepolicy.DeletionMarkerKey(pair.Balance)
+		if !exists || !validBalanceKey || pair.Deleted != expectedMarker ||
+			pair.LegacyDeleted != pair.Balance+cachepolicy.DeletionMarkerSuffix {
 			return nil, fmt.Errorf("invalid resolved accounting balance keys")
 		}
 
-		keys = append(keys, pair.Balance, pair.Deleted)
+		keys = append(keys, pair.Balance, pair.Deleted, pair.LegacyDeleted)
 	}
 
 	seen := make(map[string]bool, len(keys))
@@ -466,7 +476,8 @@ func prepareSnapshot(balance accounting.BalanceSnapshot, maxBytes int) (wireBala
 		ID: balance.ID.String(), AccountID: balance.AccountID.String(), AccountType: balance.AccountType, AssetCode: balance.AssetCode,
 		Alias: balance.Alias, Key: balance.Key, Direction: balance.Direction, BalanceScope: balance.BalanceScope,
 		Available: values[0], OnHold: values[1], OverdraftUsed: values[2], OverdraftLimit: values[3], Version: strconv.FormatInt(balance.Version, 10),
-		AllowSending: balance.AllowSending, AllowReceiving: balance.AllowReceiving, AllowOverdraft: balance.AllowOverdraft, OverdraftLimitEnabled: balance.OverdraftLimitEnabled,
+		AllowSending: balance.AllowSending, AllowReceiving: balance.AllowReceiving, Blocked: balance.Blocked,
+		AllowOverdraft: balance.AllowOverdraft, OverdraftLimitEnabled: balance.OverdraftLimitEnabled,
 	}, nil
 }
 

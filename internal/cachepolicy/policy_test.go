@@ -29,6 +29,11 @@ func TestPolicyConstants(t *testing.T) {
 	if cachepolicy.DeletionMarkerSuffix != ":deleted" {
 		t.Fatalf("DeletionMarkerSuffix = %q, want %q", cachepolicy.DeletionMarkerSuffix, ":deleted")
 	}
+
+	marker, ok := cachepolicy.DeletionMarkerKey("tenant:a:balance:{transactions}:org:ledger:@source#default")
+	if !ok || marker != "tenant:a:balance_delete_marker:{transactions}:org:ledger:@source#default" {
+		t.Fatalf("DeletionMarkerKey() = %q, %v", marker, ok)
+	}
 }
 
 func TestLuaSource(t *testing.T) {
@@ -37,6 +42,8 @@ func TestLuaSource(t *testing.T) {
 	source := "return {ARGV[1], '\u2603'}\n"
 	want := "local balance_cache_ttl_seconds = 86400\n" +
 		"local balance_deletion_marker_suffix = \":deleted\"\n" +
+		"local balance_cache_namespace_prefix = \"balance:{transactions}:\"\n" +
+		"local balance_deletion_marker_namespace_prefix = \"balance_delete_marker:{transactions}:\"\n" +
 		"local transaction_hash_tag = \"{transactions}\"\n" +
 		source
 

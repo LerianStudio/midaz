@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
-	tmpostgres "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/postgres"
-	"github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/tenantcache"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
+	"github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/tenantcache"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"

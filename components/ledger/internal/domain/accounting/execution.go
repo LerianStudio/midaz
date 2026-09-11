@@ -12,9 +12,13 @@ import "github.com/google/uuid"
 
 // Transaction groups postings in their execution order.
 type Transaction struct {
-	ID                  uuid.UUID            `json:"id"`
-	BalanceRequirements []BalanceRequirement `json:"balanceRequirements"`
-	Postings            []Posting            `json:"postings"`
+	ID uuid.UUID `json:"id"`
+	// RejectBlockedBalances applies the live account-level barrier to every
+	// balance this transaction touches. Cancellation disables the barrier so
+	// held funds can always be returned.
+	RejectBlockedBalances bool                 `json:"rejectBlockedBalances"`
+	BalanceRequirements   []BalanceRequirement `json:"balanceRequirements"`
+	Postings              []Posting            `json:"postings"`
 }
 
 // Execution is one ordered accounting operation within an authenticated ledger

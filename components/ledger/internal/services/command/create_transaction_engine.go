@@ -11,8 +11,8 @@ import (
 	"reflect"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v6/commons"
-	tmcore "github.com/LerianStudio/lib-commons/v6/commons/tenant-manager/core"
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
@@ -290,6 +290,7 @@ func confirmedPrecommitEngineFailure(request accounting.Execution, err error) bo
 			accounting.FailureOverdraftNotEligible,
 			accounting.FailureOverdraftCompanionMissing,
 			accounting.FailureBalanceDeleted,
+			accounting.FailureAccountBlocked,
 			accounting.FailureOnHoldUnderflow,
 			accounting.FailureBalanceMissing,
 			accounting.FailureAssetMismatch,

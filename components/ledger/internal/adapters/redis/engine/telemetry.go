@@ -149,6 +149,7 @@ func executionOutcome(err error) (string, string) {
 		case accounting.FailureInsufficientFunds, accounting.FailureOverdraftLimitExceeded,
 			accounting.FailureOverdraftNotEligible, accounting.FailureOverdraftCompanionMissing,
 			accounting.FailureBalanceDeleted, accounting.FailureOnHoldUnderflow,
+			accounting.FailureAccountBlocked,
 			accounting.FailureBalanceMissing, accounting.FailureAssetMismatch,
 			accounting.FailureSendingNotAllowed, accounting.FailureReceivingNotAllowed,
 			accounting.FailureExternalHoldNotAllowed:

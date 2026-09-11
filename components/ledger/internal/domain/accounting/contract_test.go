@@ -136,6 +136,7 @@ func TestFailureContract(t *testing.T) {
 		FailureOverdraftNotEligible:      "overdraft_not_eligible",
 		FailureOverdraftCompanionMissing: "overdraft_companion_missing",
 		FailureBalanceDeleted:            "balance_deleted",
+		FailureAccountBlocked:            "account_blocked",
 		FailureOnHoldUnderflow:           "onhold_underflow",
 		FailureBalanceMissing:            "balance_missing",
 		FailureAssetMismatch:             "asset_mismatch",
@@ -143,7 +144,7 @@ func TestFailureContract(t *testing.T) {
 		FailureReceivingNotAllowed:       "receiving_not_allowed",
 		FailureExternalHoldNotAllowed:    "external_hold_not_allowed",
 	}
-	if len(codes) != 11 {
+	if len(codes) != 12 {
 		t.Fatal("failure codes must remain distinct")
 	}
 	for code, want := range codes {
@@ -188,6 +189,7 @@ func contractSnapshot() BalanceSnapshot {
 		Version:               9007199254740993,
 		AllowSending:          true,
 		AllowReceiving:        true,
+		Blocked:               true,
 		AllowOverdraft:        true,
 		OverdraftLimitEnabled: true,
 	}

@@ -5,7 +5,7 @@ local cacheCompatibilityFieldNames = {
     assetCode = "AssetCode", alias = "Alias", key = "Key", direction = "Direction",
     balanceScope = "BalanceScope", available = "Available", onHold = "OnHold",
     overdraftUsed = "OverdraftUsed", overdraftLimit = "OverdraftLimit",
-    version = "Version", allowSending = "AllowSending", allowReceiving = "AllowReceiving",
+    version = "Version", allowSending = "AllowSending", allowReceiving = "AllowReceiving", blocked = "Blocked",
     allowOverdraft = "AllowOverdraft", overdraftLimitEnabled = "OverdraftLimitEnabled"
 }
 
@@ -76,6 +76,7 @@ local function validateSnapshot(snapshot)
     integerText(snapshot.version, "9223372036854775807")
     bool(snapshot.allowSending)
     bool(snapshot.allowReceiving)
+    bool(snapshot.blocked)
     bool(snapshot.allowOverdraft)
     bool(snapshot.overdraftLimitEnabled)
 end
@@ -101,6 +102,7 @@ local function decodeBalance(blob, seed, ref)
         overdraftUsed = cachedField(blob, "overdraftUsed", "0"),
         overdraftLimit = cachedField(blob, "overdraftLimit", "0"), version = version,
         allowSending = cachedBool(blob, "allowSending", false), allowReceiving = cachedBool(blob, "allowReceiving", false),
+        blocked = cachedBool(blob, "blocked", false),
         allowOverdraft = cachedBool(blob, "allowOverdraft", false), overdraftLimitEnabled = cachedBool(blob, "overdraftLimitEnabled", false),
         balanceRef = ref
     }

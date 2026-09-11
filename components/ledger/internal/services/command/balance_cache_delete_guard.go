@@ -27,7 +27,7 @@ const (
 	// balanceCacheSnapshotTTLSeconds must stay in lock-step with the 86400-second TTL
 	// used by balance_atomic_operation.lua and update_balance_settings.lua. A cache
 	// snapshot can be stale for this entire period when post-commit eviction fails.
-	balanceCacheSnapshotTTLSeconds = int64(cachepolicy.BalanceTTL / time.Second)
+	balanceCacheSnapshotTTLSeconds = int(cachepolicy.BalanceTTL / time.Second)
 
 	// balanceDeleteMarkerTTLSeconds is the lifetime, in whole seconds, of a balance
 	// delete marker key. It covers one complete balance snapshot lifetime plus an
@@ -51,8 +51,8 @@ const (
 	// characters, so appending a suffix to a balance key could collide with a valid sibling balance
 	// key. The {transactions} hash tag keeps markers colocated with their balance keys in Redis
 	// Cluster. The same prefix is used by the transaction Lua scripts.
-	deleteMarkerNamespacePrefix = "balance_delete_marker:" + cachepolicy.HashTag + ":"
-	balanceCacheNamespacePrefix = "balance:" + cachepolicy.HashTag + ":"
+	deleteMarkerNamespacePrefix = cachepolicy.DeletionMarkerNamespacePrefix
+	balanceCacheNamespacePrefix = cachepolicy.BalanceNamespacePrefix
 	deleteMarkerLegacySuffix    = cachepolicy.DeletionMarkerSuffix
 
 	// balanceDeleteMarkerCleanupTimeout bounds every best-effort Redis cleanup that runs after

@@ -75,7 +75,7 @@ local function decodeRequest(raw)
     end
     requireArray(request.balances)
     requireArray(request.transactions)
-    if #request.transactions == 0 or #KEYS ~= 5 + 2 * #request.balances then technical("invalid_protocol", "invalid execution cardinality") end
+    if #request.transactions == 0 or #KEYS ~= 5 + 3 * #request.balances then technical("invalid_protocol", "invalid execution cardinality") end
     -- All physical keys must be unique and use the same transaction hash tag so
     -- the complete execution belongs to one Redis Cluster slot.
     local seenKeys = {}
@@ -94,10 +94,13 @@ local function decodeRequest(raw)
         requireObject(balance)
         logicalRef(balance.balanceRef)
         if refs[balance.balanceRef] then technical("invalid_protocol", "duplicate balance reference") end
-        if smallInteger(balance.keyIndex, #KEYS) ~= 4 + 2 * i or smallInteger(balance.deleteKeyIndex, #KEYS) ~= 5 + 2 * i then
+        if smallInteger(balance.keyIndex, #KEYS) ~= 3 + 3 * i or smallInteger(balance.deleteKeyIndex, #KEYS) ~= 4 + 3 * i or smallInteger(balance.legacyDeleteKeyIndex, #KEYS) ~= 5 + 3 * i then
             technical("invalid_protocol", "invalid balance key indices")
         end
-        if KEYS[5 + 2 * i] ~= KEYS[4 + 2 * i] .. balance_deletion_marker_suffix then technical("invalid_protocol", "invalid deletion marker key") end
+        local expectedMarker, replacements = KEYS[3 + 3 * i]:gsub(balance_cache_namespace_prefix, balance_deletion_marker_namespace_prefix, 1)
+        if replacements ~= 1 or KEYS[4 + 3 * i] ~= expectedMarker or KEYS[5 + 3 * i] ~= KEYS[3 + 3 * i] .. balance_deletion_marker_suffix then
+            technical("invalid_protocol", "invalid deletion marker key")
+        end
         local seed = balance.snapshot
         requireObject(seed)
         canonicalMoney(seed.available)
@@ -123,6 +126,7 @@ local function decodeRequest(raw)
             technical("invalid_protocol", "invalid transaction correlation")
         end
         transactions[transaction.id] = true
+        bool(transaction.rejectBlockedBalances)
         text(transaction.expectedGuard, true)
         text(transaction.nextGuard, false)
         if transaction.expectedGuard == transaction.nextGuard then technical("invalid_protocol", "execution guard must advance") end
