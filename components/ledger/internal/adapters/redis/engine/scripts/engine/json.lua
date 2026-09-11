@@ -8,23 +8,33 @@ local nullValue = {}
 local commitStarted = false
 local MAX_JSON_DEPTH = 128
 
+-- object creates a table that is intentionally encoded as a JSON object.
 local function object() return {} end
+
+-- array creates a table and records its JSON array identity. Lua tables do not
+-- otherwise distinguish an empty object from an empty array.
 local function array()
     local value = {}
     arrayKinds[value] = true
     return value
 end
 
+-- numberToken wraps raw JSON numeric text so large integers and exact decimals
+-- survive decoding and encoding without an IEEE-754 conversion.
 local function numberToken(value)
     local token = {}
     numberTokens[token] = value
     return token
 end
 
+-- technical aborts before commit with a closed engine error that represents an
+-- invalid protocol, corrupt state, or another non-business failure.
 local function technical(code, message)
     error({ kind = "technical", code = code, message = message }, 0)
 end
 
+-- refuse aborts before commit with a deterministic business refusal correlated
+-- to the transaction, posting, and balance that caused it.
 local function refuse(code, transactionIndex, postingIndex, balanceRef)
     error({
         kind = "failure", code = code, transactionIndex = transactionIndex,
@@ -32,6 +42,8 @@ local function refuse(code, transactionIndex, postingIndex, balanceRef)
     }, 0)
 end
 
+-- validUTF8 rejects malformed UTF-8, overlong sequences, surrogate code points,
+-- and values outside the Unicode range before text enters the engine protocol.
 local function validUTF8(value)
     local i = 1
     while i <= #value do
@@ -55,13 +67,19 @@ local function validUTF8(value)
     return true
 end
 
+-- decodeJSON parses the wire payload while preserving every JSON number as raw
+-- text. The dedicated parser also rejects duplicate keys and excessive nesting,
+-- properties that the generic Redis cjson decoder cannot safely guarantee here.
 local function decodeJSON(raw)
     if type(raw) ~= "string" then technical("invalid_json", "JSON must be text") end
     local position = 1
     local parseValue
+    -- skipWhitespace advances the shared cursor across JSON whitespace only.
     local function skipWhitespace()
         while position <= #raw and raw:sub(position, position):match("[ \t\r\n]") do position = position + 1 end
     end
+    -- parseString finds one complete JSON string, delegates escape decoding to
+    -- cjson, and validates the decoded UTF-8 before returning it.
     local function parseString()
         local start = position
         position = position + 1
@@ -91,6 +109,8 @@ local function decodeJSON(raw)
         end
         technical("invalid_json", "unterminated JSON string")
     end
+    -- parseNumber validates JSON number grammar and returns the original token
+    -- instead of coercing it to a Lua number.
     local function parseNumber()
         local start = position
         if raw:sub(position, position) == "-" then position = position + 1 end
@@ -113,11 +133,15 @@ local function decodeJSON(raw)
         end
         return numberToken(raw:sub(start, position - 1))
     end
+    -- parseValue recursively decodes one JSON value from the current cursor.
+    -- The depth argument provides a hard bound against pathological nesting.
     parseValue = function(depth)
         if depth > MAX_JSON_DEPTH then technical("invalid_json", "JSON nesting limit exceeded") end
         skipWhitespace()
         local char = raw:sub(position, position)
         if char == '"' then return parseString() end
+        -- Objects reject duplicate keys so later fields cannot silently replace
+        -- identities, amounts, or execution controls validated earlier.
         if char == "{" then
             local value = object()
             position = position + 1
@@ -139,6 +163,7 @@ local function decodeJSON(raw)
                 skipWhitespace()
             end
         end
+        -- Arrays retain explicit type metadata even when they contain no items.
         if char == "[" then
             local value = array()
             position = position + 1
@@ -153,6 +178,7 @@ local function decodeJSON(raw)
                 if delimiter ~= "," then technical("invalid_json", "invalid JSON array delimiter") end
             end
         end
+        -- Match the three nonnumeric JSON literals before attempting a number.
         for literal, value in pairs({ ["true"] = true, ["false"] = false, ["null"] = nullValue }) do
             if raw:sub(position, position + #literal - 1) == literal then
                 position = position + #literal
@@ -168,6 +194,9 @@ local function decodeJSON(raw)
     return value
 end
 
+-- encodeJSON serializes engine values deterministically. Object keys are sorted,
+-- number tokens retain their original text, and unsafe native numbers are
+-- rejected so receipts and comparisons remain stable across executions.
 local function encodeJSON(value, depth)
     depth = depth or 0
     if depth > MAX_JSON_DEPTH then technical("serialization_failed", "JSON nesting limit exceeded") end
@@ -188,6 +217,8 @@ local function encodeJSON(value, depth)
         for i = 1, #value do parts[i] = encodeJSON(value[i], depth + 1) end
         return "[" .. table.concat(parts, ",") .. "]"
     end
+    -- Stable object ordering makes receipt bytes and structural comparisons
+    -- deterministic even though Lua table iteration order is unspecified.
     local keys = {}
     for key, _ in pairs(value) do
         if type(key) ~= "string" then technical("serialization_failed", "invalid JSON object key") end

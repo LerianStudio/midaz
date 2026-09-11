@@ -1,14 +1,21 @@
+-- prepareExecutionProtection establishes replay and concurrency safety before
+-- reading balances. It returns a saved response when this exact execution is
+-- complete; otherwise it validates guards and prepares coordinator updates in memory.
 local function prepareExecutionProtection(request)
     expectRedisType(KEYS[3], "hash")
     local replay = storedReceipt(request)
     if replay then return replay end
 
+    -- A replay needs only the receipt hash. A new execution validates every
+    -- shared key type before it can calculate or publish accounting state.
     expectRedisType(KEYS[1], "zset")
     expectRedisType(KEYS[2], "hash")
     expectRedisType(KEYS[4], "hash")
     local protectionKey = KEYS[5]
     expectRedisType(protectionKey, "hash")
 
+    -- Guard comparison prevents competing lifecycle transitions. Existing
+    -- recovery without a receipt means a prior outcome cannot be safely replayed.
     local preparedProtection = {}
     for _, transaction in ipairs(request.transactions) do
         local current = redis.call("HGET", KEYS[4], transaction.guardField)
@@ -18,6 +25,8 @@ local function prepareExecutionProtection(request)
         if redis.call("HEXISTS", KEYS[2], transaction.recoveryField) == 1 then
             technical("execution_outcome_unknown", "recovery exists without a complete execution receipt")
         end
+        -- Extend the transaction coordinator in memory. It is written only after
+        -- all request, balance, calculation, and serialization work succeeds.
         local rawCoordinator = redis.call("HGET", protectionKey, transaction.id)
         local coordinator
         if rawCoordinator then
@@ -40,6 +49,9 @@ local function prepareExecutionProtection(request)
     return nil, preparedProtection, protectionKey
 end
 
+-- loadBalancePool resolves the authoritative live accounting state. Redis values
+-- supersede request seeds after identity validation; seeds are used only for cache
+-- misses. Deletion markers and overdraft companion balances are captured together.
 local function loadBalancePool(request)
     local pool, companions = {}, {}
     local normalization = array()
@@ -55,6 +67,8 @@ local function loadBalancePool(request)
             current, repair = decodeBalance(blob, balance.snapshot, balance.balanceRef)
             if repair then normalization[#normalization + 1] = KEYS[keyIndex] end
         else
+            -- A cache miss is seeded only in working memory. The balance is not
+            -- published until the complete execution reaches the commit phase.
             current = clone(balance.snapshot)
             current.balanceRef = balance.balanceRef
         end
@@ -63,16 +77,23 @@ local function loadBalancePool(request)
             deleted = redis.call("EXISTS", KEYS[markerIndex]) == 1
         }
         pool[balance.balanceRef] = item
+        -- Index the single internal overdraft companion for later draw or repay
+        -- movements generated from a primary account posting.
         if current.key == "overdraft" then
             if companions[current.accountId] then technical("invalid_balance", "multiple overdraft companions for one account") end
             companions[current.accountId] = item
         end
     end
+    -- Limit repair is a separate precommit operation. Mixing repair with a money
+    -- mutation would make the execution result and retry boundary ambiguous.
     if #normalization > 0 then error({ kind = "normalization", keys = normalization }, 0) end
 
     return pool, companions
 end
 
+-- validateLiveBalanceAvailability rejects every requirement or posting that
+-- targets a balance currently protected by a deletion marker. This check uses
+-- live Redis state inside the same atomic execution as the eventual mutation.
 local function validateLiveBalanceAvailability(request, pool)
     for txIndex, transaction in ipairs(request.transactions) do
         for _, requirement in ipairs(transaction.balanceRequirements) do
@@ -88,14 +109,22 @@ local function validateLiveBalanceAvailability(request, pool)
     end
 end
 
+-- applyTransactionsInMemory evaluates ordered transactions against a shared
+-- working pool without issuing Redis writes. Later transactions observe state
+-- produced by earlier transactions in the same execution.
 local function applyTransactionsInMemory(request, pool, companions)
     local movements, touched, touchedSet, transactionResults = array(), {}, {}, {}
+    -- touch repeats deletion protection at the exact mutation site, including
+    -- companion movements generated internally rather than declared as postings.
     local function touch(item, txIndex, postingIndex)
         if item.deleted then refuse("balance_deleted", txIndex, postingIndex, item.current.balanceRef) end
     end
 
     for txIndex, transaction in ipairs(request.transactions) do
         local txMovements, txTouched, txTouchedSet = array(), {}, {}
+        -- record materializes one real state transition. No-op calculations do
+        -- not create movements or versions; changed balances advance exactly once
+        -- and are tracked globally and for the current transaction.
         local function record(item, nextState, posting, role, postingType, amount, delta)
             local previous = item.current
             if cmp_decimal(previous.available, nextState.available) == 0 and cmp_decimal(previous.onHold, nextState.onHold) == 0 and cmp_decimal(previous.overdraftUsed, nextState.overdraftUsed) == 0 then return end
@@ -112,6 +141,8 @@ local function applyTransactionsInMemory(request, pool, companions)
             if not touchedSet[item] then touchedSet[item], touched[#touched + 1] = true, item end
             if not txTouchedSet[item] then txTouchedSet[item], txTouched[#txTouched + 1] = true, item end
         end
+        -- Validate nonmonetary requirements against the live working state before
+        -- applying any posting belonging to this transaction.
         for _, requirement in ipairs(transaction.balanceRequirements) do
             local current = pool[requirement.balanceRef].current
             if current.assetCode ~= requirement.assetCode then
@@ -127,6 +158,8 @@ local function applyTransactionsInMemory(request, pool, companions)
                 refuse("external_hold_not_allowed", txIndex - 1, -1, requirement.balanceRef)
             end
         end
+        -- Apply the closed posting algebra first, then resolve any debt created or
+        -- repaid by that primary transition.
         for postingIndex, posting in ipairs(transaction.postings) do
             local item = pool[posting.balanceRef]
             touch(item, txIndex - 1, postingIndex - 1)
@@ -135,6 +168,9 @@ local function applyTransactionsInMemory(request, pool, companions)
             local amount = posting.amount
             local postingType = posting.type
             local primaryAmount, delta = postingAlgebra[postingType](current, nextState, posting, txIndex - 1, postingIndex - 1)
+            -- A negative internal available value is either a deterministic
+            -- refusal or an authorized overdraft draw. The primary balance never
+            -- persists negative: authorized debt moves into overdraftUsed.
             if cmp_decimal(nextState.available, "0") < 0 and not external then
                 if postingType == "hold" or posting.drawPolicy == "forbidden" or current.direction ~= "credit" or not current.allowOverdraft then
                     refuse("insufficient_funds", txIndex - 1, postingIndex - 1, posting.balanceRef)
@@ -151,6 +187,8 @@ local function applyTransactionsInMemory(request, pool, companions)
                 nextState.available, primaryAmount, delta = "0", sub_decimal(amount, draw), draw
             end
 
+            -- Mirror every overdraft draw or repayment on the account's dedicated
+            -- companion balance so both sides of the debt remain explicit.
             local companion, companionNext, companionAmount, companionType
             if cmp_decimal(delta, "0") ~= 0 then
                 companion = companions[current.accountId]
@@ -174,6 +212,8 @@ local function applyTransactionsInMemory(request, pool, companions)
             record(item, nextState, posting, "primary", postingType, primaryAmount, delta)
             if companion then record(companion, companionNext, posting, "overdraft_companion", companionType, companionAmount, "0") end
         end
+        -- Freeze the state reached by this transaction for its correlated recovery
+        -- record before a later transaction can mutate the shared working pool.
         local txFinal = array()
         for _, item in ipairs(txTouched) do txFinal[#txFinal + 1] = snapshotCopy(item.current, false) end
         transactionResults[#transactionResults + 1] = { movements = txMovements, final = txFinal }
@@ -182,14 +222,21 @@ local function applyTransactionsInMemory(request, pool, companions)
     return movements, touched, transactionResults
 end
 
+-- prepareExecutionWrites serializes every value and accounts for its byte cost
+-- before the first Redis write. This keeps all predictable allocation, encoding,
+-- and size failures on the safe precommit side of the execution boundary.
 local function prepareExecutionWrites(request, maximumPrepared, preparedProtection, movements, touched, transactionResults)
     local final = array()
     for _, item in ipairs(touched) do final[#final + 1] = snapshotCopy(item.current, false) end
     local response = encodeJSON({ protocolVersion = 1, movements = movements, final = final })
     local preparedBytes = #response
     if preparedBytes > maximumPrepared then technical("prepared_bytes_exceeded", "response exceeds prepared byte budget") end
+    -- A true no-op has no state to protect or recover and therefore publishes no
+    -- balance, guard, recovery, coordinator, or receipt writes.
     if #movements == 0 then return response, nil end
 
+    -- charge accumulates every prepared string against one global response and
+    -- persistence budget before that string may reach a Redis command.
     local function charge(value)
         if #value > maximumPrepared - preparedBytes then technical("prepared_bytes_exceeded", "execution exceeds prepared byte budget") end
         preparedBytes = preparedBytes + #value
@@ -199,10 +246,13 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
         charge(coordinator.field)
         charge(coordinator.value)
     end
+    -- Encode the final cache documents from the fully evaluated working state.
     local preparedBalances, preparedRecoverRecords = {}, {}
     for _, item in ipairs(touched) do
         preparedBalances[#preparedBalances + 1] = { key = KEYS[item.keyIndex], value = charge(encodeBalance(item)) }
     end
+    -- Build one immutable recovery envelope per transaction, using numeric JSON
+    -- version tokens only in the persisted evidence format.
     for i, transaction in ipairs(request.transactions) do
         local txResult = transactionResults[i]
         local recoveryMovements, recoveryFinal = array(), array()
@@ -223,6 +273,8 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
             }))
         }
     end
+    -- The receipt records the exact replay response and the ordered artifacts that
+    -- must remain protected until durable completion and retention are satisfied.
     local protectedTransactions, protectedRecoveryFields = array(), array()
     for _, transaction in ipairs(request.transactions) do
         protectedTransactions[#protectedTransactions + 1] = transaction.id
@@ -247,6 +299,9 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
     return response, preparedBalances, preparedRecoverRecords, receipt
 end
 
+-- commitPreparedExecution is the only money-changing publication phase. Every
+-- argument has already been validated and serialized. Once commitStarted is set,
+-- any unexpected failure is indeterminate because Redis does not roll writes back.
 local function commitPreparedExecution(request, protectionKey, preparedBalances, preparedRecoverRecords, preparedProtection, receipt)
     local now = redis.call("TIME")
     local score = tonumber(now[1]) + tonumber(now[2]) / 1000000
@@ -254,6 +309,9 @@ local function commitPreparedExecution(request, protectionKey, preparedBalances,
     -- Only prepared commands remain. Runtime failures here are indeterminate;
     -- Redis script execution does not roll back earlier successful writes.
     commitStarted = true
+    -- Publish live balances first, then the synchronization and recovery evidence,
+    -- lifecycle guards, and cleanup coordinators. The receipt is written last so
+    -- its presence proves that the complete prepared command sequence ran.
     for _, balance in ipairs(preparedBalances) do redis.call("SET", balance.key, balance.value, "EX", balance_cache_ttl_seconds) end
     for _, balance in ipairs(preparedBalances) do redis.call("ZADD", KEYS[1], score, balance.key) end
     for _, recoverRecord in ipairs(preparedRecoverRecords) do redis.call("HSET", KEYS[2], recoverRecord.field, recoverRecord.value) end
@@ -262,6 +320,8 @@ local function commitPreparedExecution(request, protectionKey, preparedBalances,
     redis.call("HSET", KEYS[3], request.receiptField, receipt)
 end
 
+-- execute tells the complete engine story: replay or protect, load live balances,
+-- evaluate in memory, prepare every output, and finally publish the prepared state.
 local function execute(request, maximumPrepared)
     local replay, preparedProtection, protectionKey = prepareExecutionProtection(request)
     if replay then return replay end

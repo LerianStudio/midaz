@@ -2,6 +2,9 @@
 -- Use of this source code is governed by the Elastic License 2.0
 -- that can be found in the LICENSE file.
 
+-- split_decimal separates a decimal string into its signed integer part,
+-- fractional digits, and a negative-sign flag without converting the amount
+-- to a Lua number.
 local function split_decimal(s)
     local sign = ""
 
@@ -18,6 +21,8 @@ local function split_decimal(s)
     end
 end
 
+-- rtrim_zeros removes insignificant trailing fractional zeros and represents
+-- an empty fraction as "0" so callers can compare it explicitly.
 local function rtrim_zeros(frac)
     frac = frac:gsub("0+$", "")
     return (frac == "" and "0") or frac
@@ -32,6 +37,7 @@ local function cmp_decimal(a, b)
     local ai, af, a_negative = split_decimal(a)
     local bi, bf, b_negative = split_decimal(b)
 
+    -- Compare normalized magnitudes after separating their signs.
     if a_negative then ai = ai:sub(2) end
     if b_negative then bi = bi:sub(2) end
 
@@ -49,6 +55,7 @@ local function cmp_decimal(a, b)
         return 1
     end
 
+    -- Equalize the fractional scales before the lexicographical comparison.
     local maxFrac = math.max(#af, #bf)
     local afPadded = af .. string.rep("0", maxFrac - #af)
     local bfPadded = bf .. string.rep("0", maxFrac - #bf)
@@ -70,8 +77,12 @@ local function cmp_decimal(a, b)
     return unsigned
 end
 
+-- Forward declaration is required because addition delegates mixed-sign input
+-- to subtraction, while subtraction delegates negative input back to addition.
 local sub_decimal
 
+-- add_decimal adds two arbitrary-precision decimal strings. Sign handling is
+-- resolved first; same-sign positive magnitudes are then added digit by digit.
 local function add_decimal(a, b)
     a = tostring(a)
     b = tostring(b)
@@ -94,12 +105,15 @@ local function add_decimal(a, b)
     if ai:sub(1, 1) == "-" then ai = ai:sub(2) end
     if bi:sub(1, 1) == "-" then bi = bi:sub(2) end
 
+    -- Align fractional scales so every digit position has a matching operand.
     if #af < #bf then
         af = af .. string.rep("0", #bf - #af)
     elseif #bf < #af then
         bf = bf .. string.rep("0", #af - #bf)
     end
 
+    -- Add the fractional digits from right to left and carry into the integer
+    -- portion when necessary.
     local carry = 0
     local frac_sum = {}
     for i = #af, 1, -1 do
@@ -110,6 +124,8 @@ local function add_decimal(a, b)
         frac_sum[#af - i + 1] = tostring(s % 10)
     end
 
+    -- Reverse integer digits to reuse the same least-significant-first carry
+    -- algorithm without ever converting the full magnitude to a Lua number.
     local rii = ai:reverse()
     local rbi = bi:reverse()
     local max_i = math.max(#rii, #rbi)
@@ -135,6 +151,9 @@ local function add_decimal(a, b)
     return int_res .. "." .. frac_res
 end
 
+-- sub_decimal subtracts b from a using arbitrary-precision decimal strings.
+-- Sign cases are reduced recursively until the digit-borrow path receives two
+-- nonnegative magnitudes with a >= b.
 sub_decimal = function(a, b)
     a = tostring(a)
     b = tostring(b)
@@ -162,12 +181,14 @@ sub_decimal = function(a, b)
     if ai:sub(1, 1) == "-" then ai = ai:sub(2) end
     if bi:sub(1, 1) == "-" then bi = bi:sub(2) end
 
+    -- Align fractional scales before borrowing across decimal positions.
     if #af < #bf then
         af = af .. string.rep("0", #bf - #af)
     elseif #bf < #af then
         bf = bf .. string.rep("0", #af - #bf)
     end
 
+    -- Subtract the fraction first so its final borrow feeds the integer part.
     local borrow = 0
     local frac_res_tbl = {}
     for i = #af, 1, -1 do
@@ -183,6 +204,8 @@ sub_decimal = function(a, b)
         frac_res_tbl[#af - i + 1] = tostring(diff)
     end
 
+    -- Process integer digits from least to most significant while propagating
+    -- the borrow produced by the fractional subtraction.
     local rii = ai:reverse()
     local rbi = bi:reverse()
     local max_i = math.max(#rii, #rbi)
@@ -221,6 +244,7 @@ sub_decimal = function(a, b)
     return res_int .. "." .. frac_normal
 end
 
+-- min_decimal returns the smaller decimal value without losing precision.
 local function min_decimal(a, b)
     if cmp_decimal(a, b) < 0 then return a end
     return b

@@ -1,9 +1,13 @@
+-- redisType normalizes the different TYPE reply shapes returned by supported
+-- Redis and Valkey clients into one type name.
 local function redisType(key)
     local result = redis.call("TYPE", key)
     if type(result) == "table" then return result.ok end
     return result
 end
 
+-- expectRedisType permits an absent key but rejects an existing key whose Redis
+-- data type would make the planned command unsafe or ambiguous.
 local function expectRedisType(key, expected)
     local actual = redisType(key)
     if actual ~= "none" and actual ~= expected then
@@ -11,6 +15,8 @@ local function expectRedisType(key, expected)
     end
 end
 
+-- positiveBudget validates a trusted byte ceiling as a bounded positive integer
+-- before converting the small value for arithmetic inside the script.
 local function positiveBudget(raw)
     integerText(raw, "2147483647")
     local value = tonumber(raw)
@@ -18,6 +24,8 @@ local function positiveBudget(raw)
     return value
 end
 
+-- validPosting validates one declarative accounting mutation. It accepts only
+-- the closed posting and draw-policy vocabularies and canonical positive money.
 local function validPosting(posting)
     requireObject(posting)
     text(posting.ref, false)
@@ -35,6 +43,8 @@ local function validPosting(posting)
     end
 end
 
+-- validBalanceRequirement validates a nonmonetary precondition attached to a
+-- transaction, such as asset identity, permission direction, or external ban.
 local function validBalanceRequirement(requirement)
     requireObject(requirement)
     logicalRef(requirement.balanceRef)
@@ -45,9 +55,13 @@ local function validBalanceRequirement(requirement)
     bool(requirement.forbidExternal)
 end
 
+-- decodeRequest validates the entire Go-to-Lua contract before live state is
+-- read or mutated. It proves scope, key inventory, balance identity, transaction
+-- correlation, and that every requirement and posting references the declared pool.
 local function decodeRequest(raw)
     local request = decodeJSON(raw)
     requireObject(request)
+    -- Validate the execution envelope and the fixed positions of shared keys.
     if smallInteger(request.protocolVersion, 1) ~= 1 then technical("invalid_protocol", "unsupported protocol version") end
     text(request.tenantId, true)
     uuid(request.organizationId)
@@ -62,6 +76,8 @@ local function decodeRequest(raw)
     requireArray(request.balances)
     requireArray(request.transactions)
     if #request.transactions == 0 or #KEYS ~= 5 + 2 * #request.balances then technical("invalid_protocol", "invalid execution cardinality") end
+    -- All physical keys must be unique and use the same transaction hash tag so
+    -- the complete execution belongs to one Redis Cluster slot.
     local seenKeys = {}
     for _, key in ipairs(KEYS) do
         local _, opens = key:gsub("{", "")
@@ -71,6 +87,8 @@ local function decodeRequest(raw)
         end
         seenKeys[key] = true
     end
+    -- Validate immutable balance seeds and build lookup sets used to constrain
+    -- every later transaction reference to this request's declared pool.
     local refs, ids, accounts, aliases = {}, {}, {}, {}
     for i, balance in ipairs(request.balances) do
         requireObject(balance)
@@ -95,6 +113,8 @@ local function decodeRequest(raw)
         end
         refs[balance.balanceRef], ids[seed.id], accounts[seed.accountId], aliases[seed.alias] = true, true, seed, seed.accountId
     end
+    -- Validate transaction correlation, guard advancement, recovery payloads,
+    -- and the closed set of balance references used by requirements and postings.
     local transactions = {}
     for _, transaction in ipairs(request.transactions) do
         requireObject(transaction)

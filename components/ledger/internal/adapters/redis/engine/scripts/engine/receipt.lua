@@ -1,3 +1,6 @@
+-- validateStoredResponse proves that a saved accounting result could have been
+-- produced by the current immutable request. A receipt is replay evidence, so
+-- malformed or uncorrelated contents must never be returned as trusted success.
 local function validateStoredResponse(raw, request)
     local response = decodeJSON(raw)
     requireObject(response)
@@ -7,6 +10,8 @@ local function validateStoredResponse(raw, request)
     if #response.movements == 0 or #response.final == 0 then
         technical("invalid_receipt", "stored execution receipt has no accounting movements")
     end
+    -- Index the requested postings and balance seeds before validating the saved
+    -- movement graph against their immutable identities.
     local postings, seeds = {}, {}
     for _, transaction in ipairs(request.transactions) do
         local refs = {}
@@ -14,6 +19,8 @@ local function validateStoredResponse(raw, request)
         postings[transaction.id] = refs
     end
     for _, balance in ipairs(request.balances) do seeds[balance.balanceRef] = balance.snapshot end
+    -- Rebuild each balance's ordered version chain from the recorded movements.
+    -- Every transition must advance exactly once and start where the prior one ended.
     local movementRefs, finalRefs, last = {}, {}, {}
     for index, movement in ipairs(response.movements) do
         requireObject(movement)
@@ -31,6 +38,8 @@ local function validateStoredResponse(raw, request)
         end
         local expectedRef = movement.transactionId .. ":" .. #movement.postingRef .. ":" .. movement.postingRef .. ":" .. movement.role .. ":0"
         if movement.ref ~= expectedRef then technical("invalid_receipt", "invalid saved movement reference") end
+        -- A companion movement is valid only immediately after its primary
+        -- overdraft movement and on that account's reserved overdraft balance.
         if movement.role == "overdraft_companion" then
             local primary = response.movements[index - 1]
             local seed = seeds[posting.balanceRef]
@@ -60,6 +69,8 @@ local function validateStoredResponse(raw, request)
         end
         last[movement.balanceRef] = movement.after
     end
+    -- Final snapshots must preserve seed identity and exactly match the last
+    -- reconstructed state for every balance changed by the execution.
     for _, final in ipairs(response.final) do
         validateSnapshot(final)
         logicalRef(final.balanceRef)
@@ -79,6 +90,8 @@ local function validateStoredResponse(raw, request)
     end
 end
 
+-- decodeStoredReceipt validates receipt scope, intent, cleanup protection, and
+-- the embedded accounting response before returning the exact saved response bytes.
 local function decodeStoredReceipt(raw, request)
     local receipt = decodeJSON(raw)
     requireObject(receipt)
@@ -88,6 +101,8 @@ local function decodeStoredReceipt(raw, request)
     if receipt.intentFingerprint ~= request.intentFingerprint then
         technical("execution_fingerprint_conflict", "execution identity was reused for a different intent")
     end
+    -- Protection metadata ties cleanup eligibility to the same ordered set of
+    -- transactions and recovery records that the execution originally committed.
     if receipt.protection ~= nil then
         local protection = receipt.protection
         requireObject(protection)
@@ -112,6 +127,9 @@ local function decodeStoredReceipt(raw, request)
     return receipt.response
 end
 
+-- storedReceipt looks up this execution's atomic replay record. A valid receipt
+-- short-circuits all balance work; a fingerprint conflict remains explicit,
+-- while any other corruption becomes an indeterminate invalid-receipt failure.
 local function storedReceipt(request)
     local raw = redis.call("HGET", KEYS[3], request.receiptField)
     if not raw then return nil end
