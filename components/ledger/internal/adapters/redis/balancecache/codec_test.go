@@ -387,6 +387,49 @@ func TestNormalizeLimitDualRepairsAcceptedHistoricalEmptyMoneyDefaults(t *testin
 	require.NoError(t, err)
 }
 
+func TestPatchSettingsDualRepairsHistoricalEmptyOverdraftUsedAndPreservesQualifiedIdentity(t *testing.T) {
+	raw := []byte(`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","alias":"@source#default","key":"@source#default","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"direction":"credit","overdraftUsed":"","allowOverdraft":0,"overdraftLimitEnabled":0,"overdraftLimit":"","balanceScope":""}`)
+
+	patched, err := PatchSettingsDual(raw, SettingsPatch{
+		OverdraftLimit: "0",
+		BalanceScope:   "transactional",
+	})
+	require.NoError(t, err)
+
+	fields, err := decodeObject(patched)
+	require.NoError(t, err)
+	require.Equal(t, `"0"`, string(fields["OverdraftUsed"]))
+	require.Equal(t, `"0"`, string(fields["overdraftUsed"]))
+	require.Equal(t, `"@source#default"`, string(fields["Key"]))
+	require.Equal(t, `"default"`, string(fields["key"]))
+	require.Equal(t, `"@source#default"`, string(fields["Alias"]))
+	require.Equal(t, `"@source"`, string(fields["alias"]))
+
+	decodeRaw, _, err := limitRepairValidationView(patched, fields)
+	require.NoError(t, err)
+	snapshot, err := DecodeForRead(decodeRaw)
+	require.NoError(t, err)
+	require.True(t, snapshot.OverdraftUsed.IsZero())
+	require.Equal(t, "@source", snapshot.Alias)
+	require.Equal(t, "default", snapshot.Key)
+}
+
+func TestPatchSettingsDualRejectsEmptyRequiredMoneyFields(t *testing.T) {
+	for _, field := range []string{"available", "onHold"} {
+		t.Run(field, func(t *testing.T) {
+			raw := []byte(`{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","alias":"@source","key":"default","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"direction":"credit","overdraftUsed":"0"}`)
+			fields, err := decodeObject(raw)
+			require.NoError(t, err)
+			fields[field] = json.RawMessage(`""`)
+
+			malformed, err := json.Marshal(fields)
+			require.NoError(t, err)
+			_, err = PatchSettingsDual(malformed, SettingsPatch{OverdraftLimit: "0", BalanceScope: "transactional"})
+			require.Error(t, err)
+		})
+	}
+}
+
 const legacyBalanceRedisFixture = `{"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","alias":"","key":"","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1,"direction":"","overdraftUsed":"","allowOverdraft":0,"overdraftLimitEnabled":0,"overdraftLimit":"","balanceScope":""}`
 
 func TestCodecDecodeForReadHistoricalBalanceRedisShape(t *testing.T) {

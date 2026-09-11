@@ -1090,11 +1090,18 @@ func mapBalanceAtomicScriptError(span trace.Span, err error) error {
 	return err
 }
 
-func (rr *RedisConsumerRepository) runBalanceAtomicScript(ctx context.Context, rds redis.UniversalClient, keys []string, finalArgs []any) (any, error) {
+func (rr *RedisConsumerRepository) runBalanceAtomicScript(ctx context.Context, rds redis.UniversalClient, keys []string, finalArgs []any, operationOffset int) (any, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.run_balance_atomic_script")
 	defer span.End()
+
+	if operationOffset < 0 || operationOffset > len(finalArgs) ||
+		(len(finalArgs)-operationOffset)%luaArgsPerOperation != 0 {
+		return nil, errors.New("invalid balance operation argument offset")
+	}
+
+	operationArgs := finalArgs[operationOffset:]
 
 	for repairPass := 0; ; repairPass++ {
 		if err := ctx.Err(); err != nil {
@@ -1106,7 +1113,7 @@ func (rr *RedisConsumerRepository) runBalanceAtomicScript(ctx context.Context, r
 			return result, nil
 		}
 
-		repairKeys, repairRequired, decodeErr := decodeBalanceLimitRepairKeys(err, finalArgs)
+		repairKeys, repairRequired, decodeErr := decodeBalanceLimitRepairKeys(err, operationArgs)
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
@@ -1121,7 +1128,7 @@ func (rr *RedisConsumerRepository) runBalanceAtomicScript(ctx context.Context, r
 			return nil, fmt.Errorf("balance limit normalization did not converge after %d passes", maxBalanceLimitRepairPasses)
 		}
 
-		if err := repairBalanceLimits(ctx, rds, repairKeys, finalArgs); err != nil {
+		if err := repairBalanceLimits(ctx, rds, repairKeys, operationArgs); err != nil {
 			return nil, err
 		}
 	}
@@ -1436,7 +1443,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	finalArgs := plan.args
 
-	result, err := rr.runBalanceAtomicScript(ctx, rds, prefixedKeys, finalArgs)
+	result, err := rr.runBalanceAtomicScript(ctx, rds, prefixedKeys, finalArgs, exceptionEval.headerWidth())
 	if err != nil {
 		// A lost response is not proof the script did not run. The marker is the
 		// only thing that can tell the two apart, and when it proves the
@@ -2490,7 +2497,7 @@ func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Contex
 			return invalidJSONErr
 		}
 
-		replacement, _, _, _, err = normalizeQualifiedBalanceReadKey(replacement)
+		_, _, _, _, err = normalizeQualifiedBalanceReadKey(replacement)
 		if err != nil {
 			invalidKeyErr := fmt.Errorf("normalize cached balance key for settings update: %w", err)
 			libOpentelemetry.HandleSpanError(span, "Cached balance key is invalid", invalidKeyErr)

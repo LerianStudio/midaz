@@ -66,6 +66,11 @@ func PatchSettingsDual(raw []byte, patch SettingsPatch) ([]byte, error) {
 		return nil, err
 	}
 
+	qualifiedKey, err := settingsPatchQualifiedKey(fields)
+	if err != nil {
+		return nil, err
+	}
+
 	settings, err := encodeSettingsPatch(patch)
 	if err != nil {
 		return nil, err
@@ -91,21 +96,9 @@ func PatchSettingsDual(raw []byte, patch SettingsPatch) ([]byte, error) {
 			continue
 		}
 
-		legacyRepresentation := uppercase || legacyLowerShape
-
-		var legacy, modern json.RawMessage
-
-		switch name {
-		case "AllowSending", "AllowReceiving", "Blocked":
-			legacy, modern, err = dualFlagField(name, source, legacyRepresentation)
-		case "Available", "OnHold", "OverdraftUsed":
-			legacy, modern, err = dualMoneyField(name, source, legacyRepresentation)
-		case "Version":
-			legacy, modern, err = dualVersionField(source, legacyRepresentation)
-		default:
-			legacy, modern, err = dualTextField(name, source)
-		}
-
+		legacy, modern, err := settingsPatchDualField(
+			name, source, uppercase, legacyLowerShape, qualifiedKey,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -126,4 +119,69 @@ func PatchSettingsDual(raw []byte, patch SettingsPatch) ([]byte, error) {
 	}
 
 	return encoded, nil
+}
+
+func settingsPatchQualifiedKey(fields map[string]json.RawMessage) (*qualifiedLimitRepairKey, error) {
+	keyRaw, keyExists, _ := authoritativeField(fields, "Key")
+	if !keyExists {
+		return nil, nil
+	}
+
+	qualifiedKey, qualified, err := parseQualifiedLimitRepairKey(keyRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	if !qualified {
+		return nil, nil
+	}
+
+	qualifiedKey.originalAlias, err = validateQualifiedLimitRepairAlias(fields, qualifiedKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return qualifiedKey, nil
+}
+
+func settingsPatchDualField(
+	name string,
+	source json.RawMessage,
+	uppercase, legacyLowerShape bool,
+	qualifiedKey *qualifiedLimitRepairKey,
+) (json.RawMessage, json.RawMessage, error) {
+	legacyRepresentation := uppercase || legacyLowerShape
+
+	switch name {
+	case "AllowSending", "AllowReceiving", "Blocked":
+		return dualFlagField(name, source, legacyRepresentation)
+	case "Available", "OnHold":
+		return dualMoneyField(name, source, legacyRepresentation)
+	case "OverdraftUsed":
+		if legacyLowerShape && !uppercase && string(source) == `""` {
+			return quotedDualField(name, "0")
+		}
+
+		return dualMoneyField(name, source, legacyRepresentation)
+	case "Version":
+		return dualVersionField(source, legacyRepresentation)
+	case "Key":
+		if qualifiedKey != nil {
+			_, modern, err := quotedDualField(name, qualifiedKey.domainKey)
+
+			return source, modern, err
+		}
+
+		return dualTextField(name, source)
+	case "Alias":
+		if qualifiedKey != nil && qualifiedKey.originalAlias == qualifiedKey.originalKey {
+			_, modern, err := quotedDualField(name, qualifiedKey.alias)
+
+			return source, modern, err
+		}
+
+		return dualTextField(name, source)
+	default:
+		return dualTextField(name, source)
+	}
 }

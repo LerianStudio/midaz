@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
@@ -141,20 +140,23 @@ func TestIntegration_UpdateBalanceCacheSettings_ResultRemainsConsumableByAtomicO
 	require.NoError(t, err)
 	var persistedFields map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(persisted, &persistedFields))
+	require.JSONEq(t, `"@settings-process#default"`, string(persistedFields["Key"]))
+	require.JSONEq(t, `"default"`, string(persistedFields["key"]))
 	t.Logf("persisted identity tokens: Key=%s Alias=%s key=%s alias=%s",
 		persistedFields["Key"], persistedFields["Alias"], persistedFields["key"], persistedFields["alias"])
-	snapshot, err := balancecache.DecodeForRead(persisted)
+	snapshot, err := decodeBalanceRedisForRead(persisted)
 	require.NoError(t, err, "persisted identity tokens: Key=%s Alias=%s key=%s alias=%s",
 		persistedFields["Key"], persistedFields["Alias"], persistedFields["key"], persistedFields["alias"])
 	require.Equal(t, "119", snapshot.Available.String())
 	require.Equal(t, int64(8), snapshot.Version)
+	require.Equal(t, cacheKey, snapshot.Key)
 
 	updatedLimit := "2000"
 	op.Balance.Settings.OverdraftLimit = &updatedLimit
 	require.NoError(t, infra.repo.UpdateBalanceCacheSettings(ctx, orgID, ledgerID, cacheKey, op.Balance.Settings))
 	persistedAfterSettings, err := infra.redisContainer.Client.Get(ctx, op.InternalKey).Bytes()
 	require.NoError(t, err)
-	snapshotAfterSettings, err := balancecache.DecodeForRead(persistedAfterSettings)
+	snapshotAfterSettings, err := decodeBalanceRedisForRead(persistedAfterSettings)
 	require.NoError(t, err)
 	require.Equal(t, "119", snapshotAfterSettings.Available.String())
 	require.Equal(t, int64(8), snapshotAfterSettings.Version)

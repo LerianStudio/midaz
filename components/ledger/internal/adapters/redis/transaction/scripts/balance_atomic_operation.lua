@@ -1254,7 +1254,6 @@ local function main()
             if not currentBalance then
                 return redis.error_reply("0139")
             end
-            balance = cjson.decode(currentBalance)
             local validCurrent, currentVersion, invalidCurrentVersion, currentSchemaVersion,
                 duplicateLowerVersion =
                 hasValidJSONTokens(currentBalance)
@@ -1262,6 +1261,13 @@ local function main()
                 rollback(rollbackBalances, ttl)
                 return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
             end
+            local decodeOK, decodedCurrent = pcall(cjson.decode, currentBalance)
+            if not decodeOK or type(decodedCurrent) ~= "table" or
+                not string.match(currentBalance, "^%s*{") then
+                rollback(rollbackBalances, ttl)
+                return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+            end
+            balance = decodedCurrent
             rollbackBalance = currentBalance
             balance = decode_cached_balance(balance, currentVersion, currentSchemaVersion,
                 duplicateLowerVersion, balance_from_args(i), alias)

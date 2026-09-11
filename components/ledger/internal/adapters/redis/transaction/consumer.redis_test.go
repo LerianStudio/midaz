@@ -159,7 +159,7 @@ func TestBalanceLimitRepairWholeBatchBound(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			client := &limitRepairClient{requestRepairs: tc.requests, atomicError: tc.failure, replyPrefix: tc.replyPrefix}
-			result, err := (&RedisConsumerRepository{}).runBalanceAtomicScript(context.Background(), client, nil, args)
+			result, err := (&RedisConsumerRepository{}).runBalanceAtomicScript(context.Background(), client, nil, args, 0)
 			if tc.wantError {
 				require.Error(t, err)
 				if tc.failure != nil {
@@ -183,9 +183,38 @@ func TestBalanceLimitRepairWholeBatchBound(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	client := &limitRepairClient{}
-	_, err := (&RedisConsumerRepository{}).runBalanceAtomicScript(ctx, client, nil, args)
+	_, err := (&RedisConsumerRepository{}).runBalanceAtomicScript(ctx, client, nil, args, 0)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Zero(t, client.atomicCalls)
+}
+
+func TestBalanceLimitRepairSkipsPrefixedArgumentHeader(t *testing.T) {
+	const bypassedBalanceCount = 2
+	operationOffset := luaArgsHeaderFixedSize + bypassedBalanceCount
+	args := make([]any, operationOffset+2*luaArgsPerOperation)
+	args[0] = "@source"
+	args[1] = "10"
+	args[2] = "2"
+	args[3] = "transaction-apply-marker"
+	args[4] = "balance:bypass-a"
+	args[5] = "balance:bypass-b"
+	args[operationOffset] = "balance:a"
+	args[operationOffset+5] = "@a"
+	args[operationOffset+luaArgsPerOperation] = "balance:b"
+	args[operationOffset+luaArgsPerOperation+5] = "@b"
+
+	client := &limitRepairClient{requestRepairs: 1}
+	result, err := (&RedisConsumerRepository{}).runBalanceAtomicScript(
+		context.Background(), client, nil, args, operationOffset,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "done", result)
+	assert.Equal(t, 2, client.atomicCalls)
+	assert.Equal(t, 2, client.repairCalls)
+	assert.Equal(t, []string{"balance:a", "balance:b"}, client.repairedKeys)
+	for _, batch := range client.atomicArgs {
+		assert.Equal(t, args, batch, "Lua execution must retain the complete header-prefixed payload")
+	}
 }
 
 func TestBalanceLimitRepairReplyValidation(t *testing.T) {
