@@ -169,7 +169,7 @@ func TestIntegration_UpdateBalanceCacheSettings_UpgradesNewOnlyBalanceToCoherent
 	ledgerID := uuid.MustParse("82222222-2222-2222-2222-222222222222")
 	cacheKey := "@settings-new-only#default"
 	internalKey := utils.BalanceInternalKey(orgID, ledgerID, cacheKey)
-	raw := `{"SchemaVersion":2,"id":"83333333-3333-3333-3333-333333333333","accountId":"84444444-4444-4444-4444-444444444444","alias":"@settings-new-only","available":"321.000000001","onHold":"2.5","overdraftUsed":"0.000000009","version":"17","accountType":"deposit","assetCode":"USD","key":"@settings-new-only#default","allowSending":true,"allowReceiving":false,"direction":"credit","allowOverdraft":true,"overdraftLimitEnabled":false,"overdraftLimit":"25","balanceScope":"transactional"}`
+	raw := `{"SchemaVersion":2,"id":"83333333-3333-3333-3333-333333333333","accountId":"84444444-4444-4444-4444-444444444444","alias":"@settings-new-only","available":"321.000000001","onHold":"2.5","overdraftUsed":"0.000000009","version":"17","accountType":"deposit","assetCode":"USD","key":"default","allowSending":true,"allowReceiving":false,"direction":"credit","allowOverdraft":true,"overdraftLimitEnabled":false,"overdraftLimit":"25","balanceScope":"transactional"}`
 	require.NoError(t, infra.redisContainer.Client.Set(ctx, internalKey, raw, time.Hour).Err())
 
 	limit := "750.125"
@@ -187,6 +187,28 @@ func TestIntegration_UpdateBalanceCacheSettings_UpgradesNewOnlyBalanceToCoherent
 	require.True(t, decodeSettingsUpdateField[bool](t, cached, "allowOverdraft"))
 	require.Equal(t, "750.125", decodeSettingsUpdateField[string](t, cached, "OverdraftLimit"))
 	require.Equal(t, "750.125", decodeSettingsUpdateField[string](t, cached, "overdraftLimit"))
+}
+
+func TestIntegration_UpdateBalanceCacheSettings_RejectsQualifiedNewOnlyKeyWithoutMutation(t *testing.T) {
+	infra := setupRedisIntegrationInfra(t)
+	ctx := t.Context()
+	orgID := uuid.MustParse("85111111-1111-1111-1111-111111111111")
+	ledgerID := uuid.MustParse("85222222-2222-2222-2222-222222222222")
+	cacheKey := "@settings-qualified-new-only#default"
+	internalKey := utils.BalanceInternalKey(orgID, ledgerID, cacheKey)
+	raw := `{"SchemaVersion":2,"id":"85333333-3333-3333-3333-333333333333","accountId":"85444444-4444-4444-4444-444444444444","alias":"@settings-qualified-new-only","available":"321","onHold":"2","overdraftUsed":"0","version":"17","accountType":"deposit","assetCode":"USD","key":"@settings-qualified-new-only#default","allowSending":true,"allowReceiving":false,"direction":"credit","allowOverdraft":true,"overdraftLimitEnabled":false,"overdraftLimit":"25","balanceScope":"transactional"}`
+	require.NoError(t, infra.redisContainer.Client.Set(ctx, internalKey, raw, time.Hour).Err())
+
+	limit := "750"
+	err := infra.repo.UpdateBalanceCacheSettings(ctx, orgID, ledgerID, cacheKey, &mmodel.BalanceSettings{
+		AllowOverdraft: true, OverdraftLimitEnabled: true, OverdraftLimit: &limit,
+		BalanceScope: mmodel.BalanceScopeTransactional,
+	})
+	require.ErrorContains(t, err, "qualified key is not permitted in new-only cached balance")
+
+	cached, getErr := infra.redisContainer.Client.Get(ctx, internalKey).Result()
+	require.NoError(t, getErr)
+	require.Equal(t, raw, cached)
 }
 
 func TestIntegration_UpdateBalanceCacheSettings_DivergentDualBalanceUsesLegacyAuthority(t *testing.T) {

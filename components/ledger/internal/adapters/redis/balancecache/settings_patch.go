@@ -122,7 +122,7 @@ func PatchSettingsDual(raw []byte, patch SettingsPatch) ([]byte, error) {
 }
 
 func settingsPatchQualifiedKey(fields map[string]json.RawMessage) (*qualifiedLimitRepairKey, error) {
-	keyRaw, keyExists, _ := authoritativeField(fields, "Key")
+	keyRaw, keyExists, uppercase := authoritativeField(fields, "Key")
 	if !keyExists {
 		return nil, nil
 	}
@@ -134,6 +134,10 @@ func settingsPatchQualifiedKey(fields map[string]json.RawMessage) (*qualifiedLim
 
 	if !qualified {
 		return nil, nil
+	}
+
+	if !uppercase && fields["SchemaVersion"] != nil {
+		return nil, errors.New("qualified key is not permitted in new-only cached balance")
 	}
 
 	qualifiedKey.originalAlias, err = validateQualifiedLimitRepairAlias(fields, qualifiedKey)

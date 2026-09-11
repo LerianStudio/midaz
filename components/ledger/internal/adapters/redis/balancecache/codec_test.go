@@ -414,6 +414,16 @@ func TestPatchSettingsDualRepairsHistoricalEmptyOverdraftUsedAndPreservesQualifi
 	require.Equal(t, "default", snapshot.Key)
 }
 
+func TestPatchSettingsDualRejectsQualifiedNewOnlyKey(t *testing.T) {
+	raw := []byte(`{"SchemaVersion":2,"id":"820b976d-2fae-42eb-a20c-ca482c9a4a1e","alias":"@source","key":"@source#default","accountId":"6fd82a96-2858-41bb-8c4c-99e0ae69acee","assetCode":"USD","available":"100","onHold":"0","version":"1","accountType":"deposit","allowSending":true,"allowReceiving":true,"direction":"credit","overdraftUsed":"0"}`)
+
+	_, err := PatchSettingsDual(raw, SettingsPatch{
+		OverdraftLimit: "0",
+		BalanceScope:   "transactional",
+	})
+	require.ErrorContains(t, err, "qualified key is not permitted in new-only cached balance")
+}
+
 func TestPatchSettingsDualRejectsEmptyRequiredMoneyFields(t *testing.T) {
 	for _, field := range []string{"available", "onHold"} {
 		t.Run(field, func(t *testing.T) {
