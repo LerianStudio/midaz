@@ -54,36 +54,29 @@ func loadEngineBalances(
 	}
 
 	explicitAliases = sortedUniqueBalanceAliases(explicitAliases)
+	lookupAliases := engineLookupAliases(explicitAliases)
 
-	explicitBalances, err := loader(ctx, organizationID, ledgerID, explicitAliases)
+	loadedBalances, err := loader(ctx, organizationID, ledgerID, lookupAliases)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load explicit balances: %w", err)
+		return nil, nil, fmt.Errorf("load engine balance pool: %w", err)
 	}
 
-	explicitByRef, err := indexExplicitBalances(explicitAliases, explicitBalances)
+	loadedByRef, err := indexEngineBalances(lookupAliases, loadedBalances)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	explicitBalances := selectEngineBalances(explicitAliases, loadedByRef)
+	explicitByRef := selectEngineBalanceIndex(explicitAliases, loadedByRef)
 
 	companionAliases, companionAccounts, err := engineCompanionAliases(explicitByRef)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	companions := make([]*mmodel.Balance, 0, len(companionAliases))
-	if len(companionAliases) > 0 {
-		if err := ctx.Err(); err != nil {
-			return nil, nil, fmt.Errorf("load engine balances: %w", err)
-		}
-
-		companions, err = loader(ctx, organizationID, ledgerID, companionAliases)
-		if err != nil {
-			return nil, nil, fmt.Errorf("load optional overdraft companion balances: %w", err)
-		}
-
-		if err := validateEngineCompanions(companions, companionAccounts); err != nil {
-			return nil, nil, err
-		}
+	companions := selectEngineBalances(companionAliases, loadedByRef)
+	if err := validateEngineCompanions(companions, companionAccounts); err != nil {
+		return nil, nil, err
 	}
 
 	sortBalancesByReference(explicitBalances)
@@ -93,7 +86,26 @@ func loadEngineBalances(
 	return explicitBalances, executionBalances, nil
 }
 
-func indexExplicitBalances(aliases []string, balances []*mmodel.Balance) (map[string]*mmodel.Balance, error) {
+func engineLookupAliases(explicitAliases []string) []string {
+	lookupAliases := append([]string(nil), explicitAliases...)
+	for _, ref := range explicitAliases {
+		if strings.HasSuffix(ref, "#"+constant.OverdraftBalanceKey) {
+			continue
+		}
+
+		alias := ref
+		if separator := strings.LastIndex(ref, "#"); separator >= 0 {
+			alias = ref[:separator]
+		}
+
+		lookupAliases = append(lookupAliases,
+			mtransaction.AliasKey(alias, constant.OverdraftBalanceKey))
+	}
+
+	return sortedUniqueBalanceAliases(lookupAliases)
+}
+
+func indexEngineBalances(aliases []string, balances []*mmodel.Balance) (map[string]*mmodel.Balance, error) {
 	requested := make(map[string]struct{}, len(aliases))
 	for _, alias := range aliases {
 		requested[alias] = struct{}{}
@@ -107,17 +119,39 @@ func indexExplicitBalances(aliases []string, balances []*mmodel.Balance) (map[st
 		}
 
 		if _, ok := requested[ref]; !ok {
-			return nil, fmt.Errorf("load engine balances: explicit loader returned unrequested balance %q", ref)
+			return nil, fmt.Errorf("load engine balances: loader returned unrequested balance %q", ref)
 		}
 
 		if _, exists := indexed[ref]; exists {
-			return nil, fmt.Errorf("load engine balances: duplicate explicit balance %q", ref)
+			return nil, fmt.Errorf("load engine balances: duplicate balance %q", ref)
 		}
 
 		indexed[ref] = balance
 	}
 
 	return indexed, nil
+}
+
+func selectEngineBalances(aliases []string, indexed map[string]*mmodel.Balance) []*mmodel.Balance {
+	balances := make([]*mmodel.Balance, 0, len(aliases))
+	for _, alias := range aliases {
+		if balance, exists := indexed[alias]; exists {
+			balances = append(balances, balance)
+		}
+	}
+
+	return balances
+}
+
+func selectEngineBalanceIndex(aliases []string, indexed map[string]*mmodel.Balance) map[string]*mmodel.Balance {
+	selected := make(map[string]*mmodel.Balance, len(aliases))
+	for _, alias := range aliases {
+		if balance, exists := indexed[alias]; exists {
+			selected[alias] = balance
+		}
+	}
+
+	return selected
 }
 
 func engineCompanionAliases(explicit map[string]*mmodel.Balance) ([]string, map[string]string, error) {

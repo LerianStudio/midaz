@@ -39,14 +39,11 @@ func TestLoadEngineBalancesSeparatesExplicitBalancesFromExecutionBalances(t *tes
 		[]string{"@alice#default", "@alice#default"},
 		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 			calls = append(calls, append([]string(nil), aliases...))
-			if len(calls) == 1 {
-				return []*mmodel.Balance{primary}, nil
-			}
-			return []*mmodel.Balance{companion}, nil
+			return []*mmodel.Balance{primary, companion}, nil
 		})
 
 	require.NoError(t, err)
-	assert.Equal(t, [][]string{{"@alice#default"}, {"@alice#overdraft"}}, calls)
+	assert.Equal(t, [][]string{{"@alice#default", "@alice#overdraft"}}, calls)
 	assert.Equal(t, []*mmodel.Balance{primary}, explicitBalances)
 	assert.Equal(t, []*mmodel.Balance{primary, companion}, executionBalances)
 	assert.Equal(t, mmodel.BalanceScopeInternal, executionBalances[1].Settings.BalanceScope)
@@ -88,15 +85,38 @@ func TestLoadEngineBalancesRejectsAnInconsistentCompanion(t *testing.T) {
 	calls := 0
 
 	_, _, err := loadEngineBalances(t.Context(), organizationID, ledgerID, []string{"@alice#default"},
-		func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
+		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 			calls++
-			if calls == 1 {
-				return []*mmodel.Balance{primary}, nil
-			}
-			return []*mmodel.Balance{companion}, nil
+			assert.Equal(t, []string{"@alice#default", "@alice#overdraft"}, aliases)
+			return []*mmodel.Balance{primary, companion}, nil
 		})
 
 	assert.ErrorContains(t, err, "inconsistent account identity")
+	assert.Equal(t, 1, calls)
+}
+
+func TestLoadEngineBalancesTreatsMissingCompanionAsEmptyInSingleLookup(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("c47fd4d0-1b64-4c4e-a4fd-8b96558d6a96")
+	ledgerID := uuid.MustParse("c3210bdf-d5f3-4b66-8b36-2b44936605e8")
+	accountID := uuid.MustParse("c315045e-1ba4-42af-8b12-a27651c2f379")
+	primary := engineBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
+	calls := 0
+
+	explicitBalances, executionBalances, err := loadEngineBalances(t.Context(), organizationID, ledgerID,
+		[]string{"@alice#default"},
+		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+			calls++
+			assert.Equal(t, []string{"@alice#default", "@alice#overdraft"}, aliases)
+
+			return []*mmodel.Balance{primary}, nil
+		})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, []*mmodel.Balance{primary}, explicitBalances)
+	assert.Equal(t, []*mmodel.Balance{primary}, executionBalances)
 }
 
 func engineBalance(organizationID, ledgerID, accountID uuid.UUID, alias, key, scope string) *mmodel.Balance {
