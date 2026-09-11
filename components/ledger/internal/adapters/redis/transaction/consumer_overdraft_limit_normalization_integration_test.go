@@ -214,7 +214,7 @@ func TestIntegration_OverdraftLimitNormalization_ColdAndWarmBoundary(t *testing.
 					seedLimitNormalizationCache(t, infra, op, "1E+3")
 				}
 
-				result, err := infra.repo.ProcessBalanceAtomicOperation(context.Background(), orgID, ledgerID,
+				result, err := infra.processBalanceAtomicOperationWithoutBlockException(context.Background(), orgID, ledgerID,
 					uuid.New(), "ACTIVE", false, []mmodel.BalanceOperation{op})
 				if excess {
 					require.Nil(t, result)
@@ -264,7 +264,7 @@ func TestIntegration_OverdraftLimitNormalization_RepairsWholeBatch(t *testing.T)
 		ops = append(ops, op)
 	}
 
-	result, err := infra.repo.ProcessBalanceAtomicOperation(context.Background(), orgID, ledgerID,
+	result, err := infra.processBalanceAtomicOperationWithoutBlockException(context.Background(), orgID, ledgerID,
 		uuid.New(), "ACTIVE", false, ops)
 	require.NoError(t, err, "more anomalous keys than repair passes must still repair together")
 	require.Len(t, result.After, len(ops))
@@ -307,7 +307,7 @@ func TestIntegration_OverdraftLimitNormalization_ContinuousCASConflictsExhaustRe
 	}
 	newLimitNormalizationHookedClient(t, infra, hook)
 
-	result, err := infra.repo.ProcessBalanceAtomicOperation(
+	result, err := infra.processBalanceAtomicOperationWithoutBlockException(
 		t.Context(), orgID, ledgerID, uuid.New(), "ACTIVE", false, []mmodel.BalanceOperation{op},
 	)
 	require.Nil(t, result)
@@ -353,7 +353,7 @@ func TestIntegration_OverdraftLimitNormalization_InvalidBatchIsReadOnly(t *testi
 			}
 			before := captureLimitNormalizationRedisState(t, infra)
 
-			result, err := infra.repo.ProcessBalanceAtomicOperation(context.Background(), orgID, ledgerID,
+			result, err := infra.processBalanceAtomicOperationWithoutBlockException(context.Background(), orgID, ledgerID,
 				uuid.New(), "ACTIVE", false, []mmodel.BalanceOperation{cold, repairable, invalid})
 			require.Error(t, err)
 			require.Nil(t, result)
@@ -399,7 +399,7 @@ func TestIntegration_OverdraftLimitNormalization_CanonicalLimitMalformedBatchIsR
 			_, coldWasPresent := before[cold.InternalKey]
 			require.False(t, coldWasPresent)
 
-			result, err := infra.repo.ProcessBalanceAtomicOperation(t.Context(), orgID, ledgerID,
+			result, err := infra.processBalanceAtomicOperationWithoutBlockException(t.Context(), orgID, ledgerID,
 				uuid.New(), "ACTIVE", false, ops)
 			require.Nil(t, result)
 			require.Error(t, err)

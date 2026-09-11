@@ -68,7 +68,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_NormalizesExistingDualLimit(t
 	}
 	newLimitNormalizationHookedClient(t, infra, hook)
 
-	result, err := infra.repo.ProcessBalanceAtomicOperation(
+	result, err := infra.processBalanceAtomicOperationWithoutBlockException(
 		ctx, orgID, ledgerID, transactionID, "ACTIVE", false,
 		[]mmodel.BalanceOperation{op},
 	)

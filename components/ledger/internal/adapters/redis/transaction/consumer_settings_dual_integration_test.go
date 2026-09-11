@@ -122,7 +122,7 @@ func TestIntegration_UpdateBalanceCacheSettings_ResultRemainsConsumableByAtomicO
 
 	require.NoError(t, infra.repo.UpdateBalanceCacheSettings(ctx, orgID, ledgerID, cacheKey, op.Balance.Settings))
 
-	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+	result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 		transactionID, "ACTIVE", false, []mmodel.BalanceOperation{op})
 	require.NoError(t, err)
 	require.NotNil(t, result)

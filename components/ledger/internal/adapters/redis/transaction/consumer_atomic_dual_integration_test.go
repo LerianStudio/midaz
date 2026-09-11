@@ -37,7 +37,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_UpgradesLegacyBalanceToCohere
 	op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
 	seedLimitNormalizationCache(t, infra, op, "1000")
 
-	result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+	result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 		transactionID, "ACTIVE", false, []mmodel.BalanceOperation{op})
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -119,9 +119,9 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 	ctx := t.Context()
 	orgID := uuid.MustParse("e1111111-1111-1111-1111-111111111111")
 	ledgerID := uuid.MustParse("e2222222-2222-2222-2222-222222222222")
-	transactionID := uuid.MustParse("e7777777-7777-7777-7777-777777777777")
 
 	t.Run("cold successful mutation writes dual cache and decodable recovery", func(t *testing.T) {
+		transactionID := uuid.New()
 		alias := "@dual-cold-success"
 		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
 		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
@@ -132,7 +132,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		exists, err := infra.redisContainer.Client.Exists(ctx, op.InternalKey).Result()
 		require.NoError(t, err)
 		require.Zero(t, exists)
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			transactionID, "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Len(t, result.Before, 1)
@@ -159,6 +159,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 	})
 
 	t.Run("later invalid legacy flag rejects before cold seed or mutation", func(t *testing.T) {
+		transactionID := uuid.New()
 		cold := newLimitNormalizationOperation(orgID, ledgerID, "@dual-flag-cold", 1)
 		cold.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, "@dual-flag-cold#default")
 		later := newLimitNormalizationOperation(orgID, ledgerID, "@dual-flag-invalid", 1)
@@ -170,7 +171,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, err)
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, later.InternalKey, encoded, time.Hour).Err())
 		before := captureLimitNormalizationRedisState(t, infra)
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			transactionID, "ACTIVE", false, []mmodel.BalanceOperation{cold, later})
 		require.Error(t, err)
 		require.Nil(t, result)
@@ -178,6 +179,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 	})
 
 	t.Run("warm stale lower shadows are refreshed from legacy authority", func(t *testing.T) {
+		transactionID := uuid.New()
 		alias := "@dual-stale"
 		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
 		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
@@ -197,7 +199,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		encoded, err := json.Marshal(cached)
 		require.NoError(t, err)
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			transactionID, "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Equal(t, "119", result.After[0].Available.String())
@@ -218,7 +220,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, err)
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777794"), "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Equal(t, int64(9007199254740992), result.Before[0].Version)
@@ -257,7 +259,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, err)
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777789"), "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Len(t, result.Before, 1)
@@ -320,7 +322,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
 		before := captureLimitNormalizationRedisState(t, infra)
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777790"), "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Empty(t, result.Before)
@@ -348,7 +350,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, later.InternalKey, encoded, time.Hour).Err())
 		before := captureLimitNormalizationRedisState(t, infra)
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777791"), "ACTIVE", false,
 			[]mmodel.BalanceOperation{cold, later})
 		require.Error(t, err)
@@ -393,7 +395,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 			require.NoError(t, infra.redisContainer.Client.Set(ctx, later.InternalKey, encoded, time.Hour).Err())
 			before := captureLimitNormalizationRedisState(t, infra)
 
-			result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 				uuid.New(), "ACTIVE", false, []mmodel.BalanceOperation{cold, later})
 			require.Error(t, err)
 			require.Nil(t, result)
@@ -423,7 +425,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 			require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, tc.raw(seed), time.Hour).Err())
 			before := captureLimitNormalizationRedisState(t, infra)
 
-			result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 				uuid.New(), "ACTIVE", false, []mmodel.BalanceOperation{op})
 			require.Error(t, err)
 			require.Nil(t, result)
@@ -452,7 +454,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, err)
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777795"), "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Equal(t, "0", result.After[0].Available.String())
@@ -478,7 +480,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
 		before := captureLimitNormalizationRedisState(t, infra)
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777796"), "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Empty(t, result.Before)
@@ -513,7 +515,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, err)
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, refused.InternalKey, encodedRefused, time.Hour).Err())
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777792"), "ACTIVE", false,
 			[]mmodel.BalanceOperation{first, refused})
 		require.Error(t, err)
@@ -538,7 +540,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, err)
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777793"), "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Equal(t, "0", result.After[0].Available.String())
@@ -589,7 +591,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 			require.NoError(t, infra.redisContainer.Client.Set(ctx, later.InternalKey, encoded, time.Hour).Err())
 			before := captureLimitNormalizationRedisState(t, infra)
 
-			result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 				uuid.New(), "ACTIVE", false, []mmodel.BalanceOperation{cold, later})
 			require.ErrorContains(t, err, "BALANCE_CACHE_SHAPE_UNSUPPORTED")
 			require.Nil(t, result)
@@ -598,6 +600,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 	}
 
 	t.Run("later incomplete new-only balance rejects before cold seed or mutation", func(t *testing.T) {
+		transactionID := uuid.New()
 		cold := newLimitNormalizationOperation(orgID, ledgerID, "@dual-cold", 1)
 		cold.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, "@dual-cold#default")
 		later := newLimitNormalizationOperation(orgID, ledgerID, "@dual-new-only", 1)
@@ -605,7 +608,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, later.InternalKey,
 			`{"SchemaVersion":2,"id":"e3333333-3333-3333-3333-333333333333","available":"120","version":"7"}`, time.Hour).Err())
 		before := captureLimitNormalizationRedisState(t, infra)
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			transactionID, "ACTIVE", false, []mmodel.BalanceOperation{cold, later})
 		require.ErrorContains(t, err, "BALANCE_CACHE_SHAPE_UNSUPPORTED")
 		require.Nil(t, result)
@@ -613,12 +616,13 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 	})
 
 	t.Run("warm zero amount preserves cache bytes and expiry", func(t *testing.T) {
+		transactionID := uuid.New()
 		alias := "@dual-noop"
 		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 0)
 		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
 		seedLimitNormalizationCache(t, infra, op, "1000")
 		before := captureLimitNormalizationRedisState(t, infra)
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			transactionID, "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -629,6 +633,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 	})
 
 	t.Run("warm pending credit preserves stale dual shadows", func(t *testing.T) {
+		transactionID := uuid.New()
 		alias := "@dual-pending-noop"
 		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
 		op.Amount.Operation = "CREDIT"
@@ -641,7 +646,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, err)
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
 		before := captureLimitNormalizationRedisState(t, infra)
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			transactionID, "PENDING", true, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -651,6 +656,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 
 	for _, shape := range []string{"legacy", "dual", "mixed", "cold"} {
 		t.Run("financial refusal restores "+shape+" preprojection image", func(t *testing.T) {
+			transactionID := uuid.New()
 			alias := "@dual-rollback-" + shape
 			first := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
 			first.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
@@ -686,7 +692,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 			require.NoError(t, infra.redisContainer.Client.Set(ctx, refused.InternalKey, encodedRefused, time.Hour).Err())
 			refusedBefore, err := infra.redisContainer.Client.Get(ctx, refused.InternalKey).Bytes()
 			require.NoError(t, err)
-			result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 				transactionID, "ACTIVE", false, []mmodel.BalanceOperation{first, refused})
 			require.Error(t, err)
 			require.Nil(t, result)
@@ -716,6 +722,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 	}
 
 	t.Run("high version remains an exact integer across the public result and dual cache", func(t *testing.T) {
+		transactionID := uuid.New()
 		alias := "@dual-exponent"
 		op := newLimitNormalizationOperation(orgID, ledgerID, alias, 1)
 		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
@@ -725,7 +732,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		encoded, err := json.Marshal(cached)
 		require.NoError(t, err)
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			transactionID, "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Equal(t, int64(9007199254740992), result.Before[0].Version)
@@ -756,7 +763,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		before, err := infra.redisContainer.Client.Get(ctx, op.InternalKey).Bytes()
 		require.NoError(t, err)
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777778"), "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.ErrorContains(t, err, "0174")
 		require.Nil(t, result)
@@ -772,7 +779,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, alias+"#default")
 		op.Balance.Version = 9007199254740992
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			txID, "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Equal(t, int64(9007199254740992), result.Before[0].Version)
@@ -801,7 +808,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, first.InternalKey, encoded, time.Hour).Err())
 		second := first
 
-		_, err = infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		_, err = infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777784"), "ACTIVE", false,
 			[]mmodel.BalanceOperation{first, second})
 		require.NoError(t, err)
@@ -838,7 +845,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		credit.Balance.OnHold = decimal.Zero
 		credit.Balance.OverdraftUsed = decimal.NewFromInt(10)
 		txID := uuid.MustParse("e7777777-7777-7777-7777-777777777785")
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			txID, constant.CANCELED, true, []mmodel.BalanceOperation{release, credit})
 		require.NoError(t, err)
 		require.Len(t, result.Before, 2)
@@ -887,8 +894,8 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 				seed := seedLimitNormalizationCache(t, infra, op, "1000")
 				require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, tc.raw(seed), time.Hour).Err())
 				op.Balance.Version = 9007199254740992
-				result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
-					uuid.MustParse("e7777777-7777-7777-7777-777777777787"), "ACTIVE", false, []mmodel.BalanceOperation{op})
+				result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
+					uuid.New(), "ACTIVE", false, []mmodel.BalanceOperation{op})
 				require.NoError(t, err)
 				require.Equal(t, int64(9007199254740992), result.Before[0].Version)
 				require.Equal(t, int64(9007199254740993), result.After[0].Version)
@@ -906,7 +913,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 			require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, raw, time.Hour).Err())
 			before := captureLimitNormalizationRedisState(t, infra)
 			op.Balance.Version = 9007199254740992
-			result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+			result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 				uuid.MustParse("e7777777-7777-7777-7777-777777777788"), "ACTIVE", false, []mmodel.BalanceOperation{op})
 			require.Error(t, err)
 			require.Nil(t, result)
@@ -925,7 +932,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, err)
 		require.NoError(t, infra.redisContainer.Client.Set(ctx, op.InternalKey, encoded, time.Hour).Err())
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777780"), "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Equal(t, int64(9223372036854775806), result.Before[0].Version)
@@ -948,7 +955,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		before, err := infra.redisContainer.Client.Get(ctx, op.InternalKey).Bytes()
 		require.NoError(t, err)
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777781"), "ACTIVE", false, []mmodel.BalanceOperation{op})
 		require.NoError(t, err)
 		require.Empty(t, result.Before)
@@ -982,7 +989,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		lastBefore, err := infra.redisContainer.Client.Get(ctx, last.InternalKey).Bytes()
 		require.NoError(t, err)
 		txID := uuid.MustParse("e7777777-7777-7777-7777-777777777782")
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			txID, "ACTIVE", false, []mmodel.BalanceOperation{first, last})
 		require.ErrorContains(t, err, "BALANCE_VERSION_OVERFLOW")
 		require.Nil(t, result)
@@ -1011,7 +1018,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		lastBefore, err := infra.redisContainer.Client.Get(ctx, last.InternalKey).Bytes()
 		require.NoError(t, err)
 
-		result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID,
+		result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID,
 			uuid.MustParse("e7777777-7777-7777-7777-777777777783"), "ACTIVE", false,
 			[]mmodel.BalanceOperation{first, last})
 		require.ErrorContains(t, err, "BALANCE_DUAL_PROJECTION_INVALID")

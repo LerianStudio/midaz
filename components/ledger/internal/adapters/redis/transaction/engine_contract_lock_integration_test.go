@@ -213,7 +213,7 @@ func TestIntegration_AccountingExecutionGoldens(t *testing.T) {
 			if status == "" {
 				status = "APPROVED"
 			}
-			result, err := infra.repo.ProcessBalanceAtomicOperation(ctx, orgID, ledgerID, transactionID, status, tc.Input.Pending, operations)
+			result, err := infra.processBalanceAtomicOperationWithoutBlockException(ctx, orgID, ledgerID, transactionID, status, tc.Input.Pending, operations)
 			if tc.Input.Deleted {
 				assert.Equal(t, beforeDeletionRefusal, captureLimitNormalizationRedisState(t, infra), "a deletion marker must reject before any bytes, expiry, schedule or backup changes")
 			}

@@ -61,7 +61,7 @@ func newRealPersistenceFixture(t *testing.T) realPersistenceFixture {
 	dsn := pgtestutil.BuildConnectionString(pg.Host, pg.Port, pg.Config)
 	pgConnection := pgtestutil.CreatePostgresClient(t, dsn, dsn, pg.Config.DBName, pgtestutil.FindMigrationsPath(t, "transaction"))
 	store := completion.NewStore(
-		postgresTransaction.NewTransactionPostgreSQLRepository(pgConnection),
+		postgresTransaction.NewTransactionPostgreSQLRepository(pgConnection, false),
 		operation.NewOperationPostgreSQLRepository(pgConnection),
 	)
 	mongoConfig := mongotestutil.DefaultContainerConfig()
