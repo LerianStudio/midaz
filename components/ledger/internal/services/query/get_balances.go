@@ -89,12 +89,12 @@ func loadEngineBalances(
 func engineLookupAliases(explicitAliases []string) []string {
 	lookupAliases := append([]string(nil), explicitAliases...)
 	for _, ref := range explicitAliases {
-		if strings.HasSuffix(ref, "#"+constant.OverdraftBalanceKey) {
+		if strings.HasSuffix(ref, mtransaction.AliasSeparatorString+constant.OverdraftBalanceKey) {
 			continue
 		}
 
 		alias := ref
-		if separator := strings.LastIndex(ref, "#"); separator >= 0 {
+		if separator := strings.LastIndex(ref, mtransaction.AliasSeparatorString); separator >= 0 {
 			alias = ref[:separator]
 		}
 
