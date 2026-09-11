@@ -418,7 +418,7 @@ unit: "1"
 ### engine_cas_attempts_total / engine_indeterminate_total
 
 ```yaml
-declared_at: components/ledger/internal/adapters/redis/engine/adapter.go:216 / components/ledger/internal/adapters/redis/engine/telemetry.go:105
+declared_at: components/ledger/internal/adapters/redis/engine/adapter.go:212 / components/ledger/internal/adapters/redis/engine/telemetry.go:105
 description: Accounting script attempts (under the historical CAS metric name) and invocations whose accounting outcome is unknown.
 labels: []
 label_cardinality_estimate: none
@@ -429,10 +429,12 @@ unit: "1"
 ### engine_recovery_total
 
 ```yaml
-declared_at: components/ledger/internal/bootstrap/redis.consumer_recovery_metrics.go:24
-description: Bounded engine recovery finalization outcomes.
-labels: [outcome]
-label_values: [completed, context_canceled, not_configured, finalization_failed, ack_failed, record_changed, invalid_ack]
+declared_at: components/ledger/internal/bootstrap/redis.consumer_recovery_metrics.go:26-29
+description: Bounded completion outcomes for already-applied transaction recovery records.
+labels: [source, outcome]
+label_values:
+  source: [legacy_backup, engine_recover]
+  outcome: [completed, context_canceled, not_configured, finalization_failed, ack_failed, record_changed, invalid_ack]
 label_cardinality_estimate: low
 live_observed: unknown
 unit: "1"
@@ -492,9 +494,9 @@ unit: ms
 ### engine_recovery_duration_ms_milliseconds
 
 ```yaml
-declared_at: components/ledger/internal/bootstrap/redis.consumer_recovery_metrics.go:25
-description: Recovery finalization duration in milliseconds.
-labels: [outcome]
+declared_at: components/ledger/internal/bootstrap/redis.consumer_recovery_metrics.go:27-29
+description: Applied-transaction recovery completion duration in milliseconds.
+labels: [source, outcome]
 label_cardinality_estimate: low
 live_observed: unknown
 unit: ms

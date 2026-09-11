@@ -40,6 +40,29 @@ Services split into:
 - `services/command/` - Write operations (mutations)
 - `services/query/` - Read operations (projections)
 
+### Accounting Engine Boundary
+
+Executable ledger transactions use the private `command.Engine` boundary by
+default. Its storage-independent contract lives in
+`components/ledger/internal/domain/accounting`; the Redis/Lua implementation
+lives in `components/ledger/internal/adapters/redis/engine`.
+
+- Go owns API/version policy, route resolution, declarative posting composition,
+  and immutable completion context.
+- Live balance checks, overdraft arithmetic, monetary movements, and version
+  increments MUST remain inside the same Lua execution as the writes. Database
+  snapshots are cache-miss seeds, never authority for a Go-side funds decision.
+- Accounting execution MUST NOT be retried after timeout, connection loss,
+  malformed response, or another indeterminate outcome. Receipt replay,
+  confirmed NOSCRIPT fallback, precommit format normalization, and recovery of
+  durable projection are separate mechanisms and MUST NOT reapply postings.
+- `AppliedTransactionCompleter` persists or verifies an engine result that may
+  already be applied. Recovery consumers may call the completer and acknowledge
+  exact records; they MUST NOT depend on or call `Engine.Execute`.
+- The engine is configured during production bootstrap without an activation
+  environment variable. Legacy cache and recovery readers coexist only for
+  rollout compatibility. See `docs/architecture/engine.md`.
+
 ### Deploy Units
 
 | Deploy unit | Description | Port |
@@ -171,7 +194,7 @@ The `ledger` binary composes four route surfaces in-process (no gRPC). Capabilit
 | Surface | PostgreSQL | MongoDB | Valkey/Redis | RabbitMQ | Migrations |
 |---------|------------|---------|--------------|----------|------------|
 | onboarding | Yes | Yes (metadata) | Yes (cache) | No | Yes (onboarding) |
-| transaction | Yes | Yes (metadata) | Yes (cache/sync) | Yes (async balance) | Yes (transaction) |
+| transaction | Yes | Yes (metadata) | Yes (engine, cache/sync, recovery) | Yes (async balance) | Yes (transaction) |
 | CRM (`midaz`) | No | Yes (holders, instruments; + keysets/registry/audit in envelope mode) | No | No | None |
 | fees (`plugin-fees`) | No | Yes (packages, billing) | No | No | None |
 

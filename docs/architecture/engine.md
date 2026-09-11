@@ -1,5 +1,14 @@
 # Engine
 
+Related operational references:
+
+- [`engine/scripts/engine/README.md`](../../components/ledger/internal/adapters/redis/engine/scripts/engine/README.md)
+  explains the assembled Lua call chain and maintenance rules.
+- [`transaction-recovery-inventory.md`](../runbooks/transaction-recovery-inventory.md)
+  defines safe drain/inventory evidence for both recovery generations.
+- [`engine-report.md`](../performance/engine-report.md) records the bounded local
+  performance characterization and its evidence limits.
+
 ## Status and scope
 
 The ledger defines a storage-independent accounting contract in
@@ -32,6 +41,114 @@ The boundary separates transaction processing from balance arithmetic while
 preserving the observable rows, amounts, versions, and public errors of valid
 transaction flows. Explicit integrity corrections are described separately.
 
+## Core invariants and terminology
+
+The **engine** is a private ledger module, not a deploy unit and not a synonym
+for the whole transaction use case. It is the replaceable accounting-mutation
+boundary represented by `command.Engine`; the Redis/Lua implementation is one
+adapter for that boundary. "Engine" without a qualifier refers to this module.
+
+The boundary is intentionally strict:
+
+| Phase | May decide | Must not decide |
+| --- | --- | --- |
+| Before the engine | API/version policy, fees, tracer, transaction shape, route resolution, posting composition, static identity and scope | Whether the current live balance can fund a posting; the real overdraft split; resulting balance versions |
+| Inside the engine | Live asset and permission checks, deletion markers, available/on-hold arithmetic, overdraft draw/repayment, movements, versions, guards, receipts, and recovery evidence | HTTP policy, route DSL interpretation, SQL/MongoDB projection, event publication |
+| After the engine | Durable transaction/operation projection, metadata verification, response shaping, events, and recovery acknowledgment | Re-running accounting or changing the movement result to fit a historical row shape |
+
+All balance-dependent approval happens against live Redis state inside the same
+Lua invocation that publishes the mutation. Go may validate static intent and
+load a database seed for a cache miss, but it must not approve funds or compare a
+snapshot version and then retry on conflict. This is the concurrency property the
+engine exists to preserve.
+
+`commitPreparedExecution` is the point of no automatic return. Before it starts,
+a recognized refusal is known not to have changed monetary state. After it starts,
+an unexpected error is indeterminate because Redis script errors do not roll back
+earlier commands. A successful execution has applied its movements permanently;
+later change requires an explicit ledger action (commit/cancel for a pending
+transaction or a new revert transaction for an approved one). Neither the command
+layer nor recovery may compensate by silently applying the opposite movement.
+
+The names around durable projection describe intent rather than implementation:
+
+- A **completion plan** is immutable, nonmonetary context captured before engine
+  execution so the returned movements can later be projected identically during
+  the request or recovery. It is not a predicted balance projection and contains
+  no authoritative split or final balance.
+- The **applied transaction completer** implements
+  `command.AppliedTransactionCompleter`. It persists or verifies SQL rows and
+  MongoDB metadata for movements that the engine may already have applied. It has
+  no engine execution capability and never mutates balances.
+- An **engine recovery record** is the durable handoff between those boundaries.
+  It is written by Lua with the monetary mutation and consumed only to finish the
+  same completion plan, never to execute the postings again.
+
+## Executable transaction story
+
+The following sequence is the shortest reliable path for debugging a create,
+revert, commit, or cancel that reaches the engine:
+
+1. The version-specific command (`CreateTransactionV1`, `CreateTransactionV2`,
+   `createRevertV1`, `createRevertV2`, `transitionPendingV1`, or
+   `transitionPendingV2`) performs, as applicable, API policy, normalization,
+   idempotency claim, fees/tracer policy, and static transaction validation.
+2. `prepareEngineTransaction` calls `TransactionReader.GetEngineBalances`. The
+   query implementation checks Redis first and reads PostgreSQL only for cache
+   misses. It returns explicit transaction balances separately from optional
+   overdraft companions, then resolves accounting routes and calls
+   `TranslateEngineTransaction` to build ordered postings.
+3. The create/revert or pending builder captures a `TransactionCompletionPlan`,
+   execution ID, lifecycle guard, and immutable intent fingerprint. The plan
+   freezes row attribution, metadata, and timestamps, but deliberately leaves all
+   monetary outcomes to the engine.
+4. `ExecutePreparedEngine` validates that the in-memory plan and embedded plan are
+   canonical and correlated, then invokes `Engine.Execute` exactly once. It does
+   not implement stale-balance or conflict retry.
+5. `redis/engine.Adapter.Execute` resolves tenant-scoped physical keys, builds the
+   bounded wire request, obtains a supported standalone/Sentinel client, and sends
+   the assembled Lua script with Redis client retries disabled.
+6. Lua `main` decodes the protocol and calls `execute`, which checks for a valid
+   receipt replay, validates guards/key types, loads authoritative live balances,
+   evaluates ordered postings in memory, serializes every output, and finally
+   calls `commitPreparedExecution` to publish balances plus recovery evidence.
+7. On a confirmed result, `AppliedTransactionCompleter.Complete` projects or
+   verifies the transaction, operations, and metadata. Completion failure returns
+   an error to the request but does not undo accounting.
+8. If normal completion did not finish, `EngineRecoveryConsumer` reads the exact
+   version-2 recovery record and invokes the same completer. Successful durable
+   completion is followed by exact-value acknowledgment and retention cleanup;
+   the consumer never calls `Engine.Execute`.
+
+```mermaid
+flowchart LR
+    A[Versioned transaction command] --> B[Prepare balances, routes, and postings]
+    B --> C[Capture completion plan, guard, and fingerprint]
+    C --> D[ExecutePreparedEngine: one submission]
+    D --> E[Lua receipt and preflight]
+    E -->|recognized refusal| F[Return with no monetary writes]
+    E --> G[Apply in memory and prepare all output]
+    G --> H[commitPreparedExecution]
+    H --> I[Balances plus guard, recovery record, and receipt]
+    I --> J[Return or receipt-replay result]
+    J --> K[AppliedTransactionCompleter]
+    I --> L[EngineRecoveryConsumer]
+    L --> K
+    K --> M[SQL and MongoDB confirmed]
+    M -->|recovery consumer only| N[Exact recovery ACK and retention schedule]
+```
+
+The ACK edge belongs only to the recovery consumer. Normal request completion
+does not delete recovery evidence, receipts, or guards; the scheduled consumer
+later verifies the same durable outcome and owns acknowledgment/cleanup.
+
+Annotation/NOTED transactions intentionally do not enter this story. The legacy
+balance and backup paths remain readable during rollout, but production bootstrap
+configures the engine as the default and fails startup if it cannot wire the engine
+and applied-transaction completer. There is no engine activation environment
+variable. Nil-engine branches in command code preserve compatibility and test
+seams; they are not an operational rollout switch.
+
 ## Ownership and package boundaries
 
 | Responsibility | Owner |
@@ -42,7 +159,7 @@ transaction flows. Explicit integrity corrections are described separately.
 | Declarative posting-plan composition and route draw policy | Go command layer |
 | Live balance arithmetic, overdraft split/repayment, movement versions | Accounting engine |
 | Physical keys, cache codec, script transport, execution receipts and guards | Redis engine adapter |
-| Accounting rows, metadata, route attribution and historical row compatibility | Go projection shared by normal finalization and recovery |
+| Accounting rows, metadata, route attribution and historical row compatibility | Go projection shared by normal completion and recovery |
 | Recovery scheduling, tenant dispatch, and distributed cycle lock | Redis recovery runner |
 | Legacy write-behind replay and poison-record quarantine | Legacy backup consumer |
 | Completion of already-applied engine executions | Engine recovery consumer |
@@ -193,17 +310,23 @@ separate business change explicitly changes that behavior.
 Validated cancellation with repayment has a historical row projection that can
 differ from the actual Lua monetary state. Preserve its observable Amount and
 BalanceAfter in a named Go compatibility projection; never overwrite truthful
-movement state to imitate a row. Normal finalization and recovery use the same
+movement state to imitate a row. Normal completion and recovery use the same
 projector and must produce identical operation IDs, rows, and versions.
 
-The engine transaction paths compose two preparation functions:
+The production engine transaction paths compose three preparation boundaries:
 
-- `LoadEngineSnapshotPool` reads explicit targets and deduplicated optional
-  overdraft candidates within the same organization and ledger. Candidate loading
-  does not depend on a snapshot's overdraft permission or predicted deficit.
-  Missing optional rows are omitted; read errors and inconsistent identities are
-  rejected. Explicit targets remain separate for existing targeting validation;
-  an available internal companion must not become a user-requested leg.
+- `TransactionReader.GetEngineBalances`, implemented by
+  `query.UseCase.GetEngineBalances`, reads explicit targets and deduplicated
+  optional overdraft candidates within the same organization and ledger through
+  the existing cache-aside reader. Candidate loading does not depend on a
+  snapshot's overdraft permission or predicted deficit. Missing optional rows are
+  omitted; read errors and inconsistent identities are rejected.
+- `BuildEngineSnapshotPool` validates scope, identity, uniqueness, and complete
+  pool coverage, then converts the loaded balances into domain snapshots while
+  keeping explicit targets separate. An available internal companion must not
+  become a user-requested leg. `LoadEngineSnapshotPool` remains a standalone
+  composition/test helper over an injected loader; production commands use the
+  narrower `TransactionReader` operation.
 - `TranslateEngineTransaction` walks ordered source and destination legs,
   not validation-map or pool order. Origin references identify the original leg;
   posting references add its accounting mutation. The ledger-level route decision
@@ -416,6 +539,17 @@ Before the first write, the engine must:
 5. Serialize all final blobs, per-transaction recovery envelopes, receipts,
    guards, and the response, and prepare all command arguments.
 
+The earlier Go cache-aside read and this Lua read have different jobs. Go needs a
+complete, scoped seed and account identity to compose and validate the request;
+`query.GetBalances` uses cached data when valid and falls back to primary
+PostgreSQL for misses. Lua then reads Redis again because only that read is
+serialized with the mutation. If the key exists, its live money, settings, and
+version override the seed after identity validation. If it is still absent, the
+PostgreSQL snapshot seeds working memory and is written only with a successful
+commit. A concurrent cache fill between the two reads is safe because the Lua
+read wins. The 24-hour cache TTL makes database fallback practical; it is not a
+recovery-retention guarantee and does not justify moving live validation to Go.
+
 Only then may the script publish prepared writes. Update each changed balance's
 schedule score with overwrite semantics, retaining the worker's fractional-second
 precision. Do not use `ZADD NX`. Refusals before commit leave key values, TTLs,
@@ -452,16 +586,34 @@ legacy path.
 Unknown or indeterminate execution failures, malformed results, and failures
 after confirmed accounting retain the idempotency claim and recovery evidence.
 Only confirmed precommit failures permit compensation. Normal completion uses
-the stable completion plan and durable finalizer, without invoking legacy
+the stable completion plan and applied transaction completer, without invoking legacy
 queue seeds, recover rewrites, or BTO persistence. The normal response preserves
 CREATED while SQL stores APPROVED. The recovery consumer owns exact-byte recover
-acknowledgment; successful normal finalization does not delete receipts or guards.
+acknowledgment; successful normal completion does not delete receipts or guards.
 
 Accounting `EVALSHA`/`EVAL` and repair calls use a command wrapper with
 `NoRetry=true`, without changing the shared client's settings. `EVALSHA` to
 `EVAL` fallback occurs only after confirmed NOSCRIPT, never after timeout or
 connection loss. Standalone lost-response integration tests verify a single
 application; explicit replay uses the same execution receipt.
+
+The word "retry" must stay qualified in code and operations:
+
+- **Forbidden accounting retry:** resubmitting a posting because Go observed a
+  version conflict, timeout, connection loss, malformed response, or unknown Lua
+  failure. The execution may already have changed balances.
+- **Permitted receipt replay:** intentionally submitting the same execution ID and
+  fingerprint to retrieve a validated stored response. Lua returns before balance
+  loading or posting evaluation.
+- **Permitted NOSCRIPT fallback:** sending the same command as `EVAL` only after
+  Redis conclusively reports that `EVALSHA` did not execute because the script is
+  absent.
+- **Bounded normalization pass:** conditionally repairing a noncanonical cached
+  overdraft limit before commit, then submitting the same immutable execution.
+  This is format convergence, not a stale-balance or accounting retry.
+- **Recovery retry:** re-running `AppliedTransactionCompleter.Complete` for an exact
+  recovery record. It may retry SQL/metadata completion and exact acknowledgment,
+  but it never submits postings to the engine.
 
 The service selects Sentinel when `REDIS_MASTER_NAME` is set, Cluster when
 `REDIS_HOST` contains multiple addresses without a master name, and standalone
@@ -519,6 +671,23 @@ Code-like digits embedded in descriptive runtime errors remain technical.
 
 ## Execution guards, receipts, and recovery
 
+Idempotency exists at more than one boundary because each boundary closes a
+different failure window:
+
+| Mechanism | Checked/created | Protects against | Does not prove |
+| --- | --- | --- | --- |
+| HTTP transaction idempotency claim | Command layer before preparation | A client resubmitting the same API operation and expecting its first outcome | That an attempted engine call did or did not mutate balances |
+| Engine receipt | Read first and written last by the accounting Lua execution | Re-executing the same execution ID after a lost response; replay returns the exact recorded result | SQL/MongoDB projection or event delivery |
+| Execution guard | Compared and advanced by Lua with the mutation | Competing lifecycle actions, especially commit versus cancel | Durable completion of the winning action |
+| Recovery record | Written by Lua with balance changes, then exact-ACKed by recovery | Losing the information needed to complete an already-applied result | Permission to invoke the engine again |
+
+The receipt is therefore not redundant with the HTTP claim. The HTTP claim is a
+request/API contract and may outlive or fail independently of an engine call. The
+receipt is the accounting boundary's proof: it is consulted while live balances
+and their mutation are isolated by Redis. Recovery trusts neither mechanism by
+name alone; it validates scope, fingerprint, transaction correlation, movement
+chains, and the exact stored record before completion or acknowledgment.
+
 The command-owned `EngineExecution` combines the accounting request with an
 immutable intent fingerprint, one `ExecutionGuard` per transaction, and one
 opaque completion plan per transaction. A guard contains transaction ID,
@@ -556,7 +725,7 @@ use this capability for transactions that predate engine guards. Its mutating
 command disables client retries, and transport failures remain indeterminate
 even though repeating this conditional seed would be idempotent.
 
-### Recovery envelope
+### Completion plan and recovery envelope
 
 The implemented outer envelope has `formatVersion=2`, tenant/organization/ledger scope,
 ExecutionID, fingerprint, TransactionID, the opaque payload, and the real result
@@ -564,7 +733,7 @@ restricted to that transaction, including its intermediate before/after states.
 Validate one-to-one correlation between request transactions and recovery intents
 before EVAL. Use typed, versioned payloads rather than ad hoc maps.
 
-The frozen Go payload preserves `header_id`, `transaction_id`, `organization_id`,
+The completion plan preserves `header_id`, `transaction_id`, `organization_id`,
 `ledger_id`, normalized `parserDSL` including resolved fees, `ttl`, `validate`,
 `transaction_status`, `action`, `transaction_date`, and projection context keyed
 by stable PostingRef. It also preserves `parentTransactionId`, `feesSkipped`, and
@@ -576,7 +745,7 @@ original creation date during commitment or cancellation. A backdated action doe
 not imply a backdated operation update timestamp.
 The payload is an opaque JSON string in the outer envelope;
 strict decoding rejects duplicate keys, unknown fields, and scope drift.
-Freeze route decisions and metadata required for replay;
+Capture route decisions and metadata required for replay;
 do not make current route/settings lookups prerequisites for recovery. Do not
 store a precomputed split as accounting authority.
 
@@ -599,7 +768,7 @@ identical field in the other hash remains independent.
 
 Receipt and guard retention is not balance-cache TTL. The 30-second deletion-marker
 TTL is a separate, unchanged delete-operation guard and is not the balance-cache
-TTL either. Receipts and guards survive pending finalization and, after confirmed
+TTL either. Receipts and guards survive pending completion and, after confirmed
 persistence, must cover the full replay/idempotency window measured from durable
 terminal completion.
 
@@ -633,7 +802,7 @@ eligibility. Pending, partially acknowledged, and durably incomplete executions
 also remain unscheduled. Finite cleanup is independent of transaction execution
 and does not relax recovery or retention guarantees.
 
-### Finalization outcomes
+### Completion outcomes
 
 - Confirmed pre-write refusal: cleanup may remove only that execution's
   uncommitted recovery preparation.
@@ -678,15 +847,16 @@ been verified empty across the rollout window, the legacy consumer can be
 removed from the runner without changing engine recovery.
 
 Version 2 validates envelope scope and the exact raw
-`transactionUUID:executionUUID` field before finalization. It uses frozen context
+`transactionUUID:executionUUID` field before completion. It uses captured context
 and real movements through the shared projector, never EVAL or current balance,
 route, or settings queries. In multi-tenant operation, only this path resolves
 MongoDB under the existing per-message deadline and binds both generic and
 transaction-module database contexts. Missing tenant, resolver, or database and
-resolution failures stop before durable finalization; they never select a
+resolution failures stop before durable completion; they never select a
 single-tenant metadata fallback. Legacy tenant-readiness rules remain unchanged.
 
-The concrete finalizer persists or verifies transaction and operation rows
+The concrete `TransactionCompletionService` implements the
+`AppliedTransactionCompleter` port and persists or verifies transaction and operation rows
 atomically in the existing PostgreSQL tables, then creates or verifies metadata
 in MongoDB. Existing metadata is never overwritten to force replay equivalence.
 A late pending-hold record after terminal completion is accepted only when every
@@ -694,18 +864,18 @@ historical row already exists exactly; it cannot insert old rows or regress the
 terminal transaction. Persistence conflicts retain the recovery record.
 
 `NewTransactionCompletionServiceWithEvents` optionally dispatches the existing
-transaction, overdraft, and balance-change emitters after SQL and frozen metadata
+transaction, overdraft, and balance-change emitters after SQL and captured metadata
 have both been confirmed. It requires a store reporting the actual committed
 `created`, `updated`, or `noop` lifecycle phase; an absent or unknown phase fails
-without dispatch. The original finalizer constructor remains persistence-only.
+without dispatch. The original service constructor remains persistence-only.
 Both paths project the same deterministic rows and preserve the legacy public
 source/destination aliases without balance keys or generated companions.
-Bootstrap supplies the same tenant-aware, event-enabled finalizer to command and
+Bootstrap supplies the same tenant-aware, event-enabled completer to command and
 the recovery consumer before wiring the engine execution port.
 
 Event dispatch retains the existing independent emitter timeouts and cancellation
 detachment. It remains best-effort: this capability adds no outbox or delivery
-guarantee, and a successful finalizer return does not prove event delivery.
+guarantee, and a successful completer return does not prove event delivery.
 
 Only after SQL and metadata verification succeeds does the consumer request an
 atomic comparison of the exact original envelope bytes and deletion of its raw
@@ -928,19 +1098,19 @@ or payload-size sample.
 
 The version-two consumer uses its injected `MetricsFactory` to emit
 `engine_recovery_total` and `engine_recovery_duration_ms` once
-per finalization attempt, including rejection before persistence. Both use a
+per completion attempt, including rejection before persistence. Both use a
 closed `source` label (`legacy_backup` or `engine_recover`) and the closed
 `outcome` label: `completed`, `context_canceled`, `not_configured`,
 `finalization_failed`, `ack_failed`, `record_changed`, or `invalid_ack`.
 Duration buckets are 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000,
 and 30000 ms. Metric-emission failures are Debug-only and cannot change the
-finalizer's return value or acknowledgment behavior.
+completer's return value or acknowledgment behavior.
 
-`completed` means durable finalization succeeded and conditional acknowledgment
+`completed` means durable completion succeeded and conditional acknowledgment
 reported deletion or an already-absent record. It does not prove a terminal
 transaction state and never authorizes receipt or guard expiration. Replacement
 records, persistence failures, and acknowledgment failures retain their existing
-protection. Invalid envelopes rejected before finalization do not enter these
+protection. Invalid envelopes rejected before completion do not enter these
 metrics; they retain the consumer's existing handling.
 
 ## Tentative alternative-engine mapping

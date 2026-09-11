@@ -39,9 +39,10 @@ components/ledger/internal/
   adapters/http/in/   → HTTP handlers (one per entity)
   adapters/postgres/  → PostgreSQL repositories
   adapters/mongodb/   → MongoDB metadata repos
-  adapters/redis/     → Cache repos
+  adapters/redis/     → Cache repos + the default accounting engine adapter
   adapters/rabbitmq/  → Message queue adapters
   bootstrap/          → Config, DI, server lifecycle
+  domain/accounting/  → Storage-independent engine contract and monetary results
   services/command/   → Write use cases (one file per operation)
   services/query/     → Read use cases (one file per operation)
 
@@ -83,6 +84,10 @@ pkg/
 6. **Context**: Always first param; check `ctx.Err()` before expensive work
 7. **IDs**: `uuid.UUID` type, not strings
 8. **HTTP methods**: Use `http.MethodGet` constants, never string literals
+9. **Engine boundary**: Go composes postings and completion context; live balance
+   approval, overdraft arithmetic, and versions stay inside the atomic Lua execution.
+   Never retry accounting after a timeout/unknown outcome. Recovery completes
+   already-applied projections and must not invoke the engine.
 
 ## Per-Call Control Skips
 
@@ -124,6 +129,7 @@ design: [docs/architecture/crm-field-encryption.md](docs/architecture/crm-field-
 |------|-----|
 | `components/ledger/internal/bootstrap/config.go` | Composition root, all env vars, init sequence |
 | `components/ledger/internal/adapters/http/in/routes.go` | All API routes registered here |
+| `docs/architecture/engine.md` | Accounting engine boundary, execution, recovery, compatibility, and rollout invariants |
 | `pkg/mmodel/account.go` | Account model (representative of all models) |
 | `pkg/constant/errors.go` | All error codes |
 | `pkg/errors.go` | Error types + ValidateBusinessError factory |
@@ -150,3 +156,4 @@ design: [docs/architecture/crm-field-encryption.md](docs/architecture/crm-field-
 - **[docs/auth/RBAC-NAMESPACES.md](docs/auth/RBAC-NAMESPACES.md)** — The three authz namespaces in the unified binary (R9)
 - **[docs/api/SCOPING.md](docs/api/SCOPING.md)** — Path vs `X-Organization-Id` header scoping (R22)
 - **[docs/architecture/crm-field-encryption.md](docs/architecture/crm-field-encryption.md)** — CRM PII field encryption + Vault/Tink KMS subsystem (legacy vs envelope modes, key management, provisioning)
+- **[docs/architecture/engine.md](docs/architecture/engine.md)** — Default accounting engine, live-state Lua boundary, receipts, completion, recovery, and rollout compatibility

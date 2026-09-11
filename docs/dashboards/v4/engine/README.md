@@ -16,3 +16,5 @@ amount, or request payload.
 
 The reproducible measurement procedure and blank result template live in
 [`docs/performance/engine-report.md`](../../../performance/engine-report.md).
+Metric semantics and the execution/recovery boundaries they observe are defined
+in [`docs/architecture/engine.md`](../../../architecture/engine.md).

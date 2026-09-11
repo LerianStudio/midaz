@@ -1,8 +1,13 @@
-# Balance recovery inventory
+# Transaction recovery inventory
 
 This inventory is read-only. It counts persisted transaction and recovery
 artifacts by record family, format, and lifecycle action. It does not delete,
 rewrite, replay, migrate, or activate anything.
+
+Engine recovery means completing SQL/MongoDB projection for movements already
+applied by the accounting engine. It never recalculates, reapplies, or reverses
+balances. A recovery record is safe to retry only through the
+`AppliedTransactionCompleter`; it is not input to `Engine.Execute`.
 
 ## Record families
 

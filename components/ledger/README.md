@@ -44,6 +44,14 @@ Composition and ports are wired in [`internal/bootstrap/config.go`](internal/boo
 and the unified server in [`internal/bootstrap/unified-server.go`](internal/bootstrap/unified-server.go);
 route registration lives in [`internal/adapters/http/in/routes.go`](internal/adapters/http/in/routes.go).
 
+Executable create, revert, commit, and cancel flows use the private accounting
+**engine** by default. Go validates transaction intent and composes ordered
+postings; the Redis/Lua adapter alone reads authoritative live balances and
+publishes monetary mutations, versions, execution receipts, and recovery
+evidence. The engine is a module inside this binary, not a fifth domain or a
+separate service. See
+[`docs/architecture/engine.md`](../../docs/architecture/engine.md).
+
 ### Why unified?
 
 - **One deploy unit** — onboarding, transaction, CRM, and fees ship and scale together on :3002.
@@ -78,6 +86,12 @@ Flow: **HTTP handlers → command/query use cases → repository interfaces → 
 flow inward; inner layers never import outer layers. Domain logic stays out of handlers and
 repositories. Domain models live in `pkg/mmodel`.
 
+The storage-independent accounting contract is the service-private exception at
+`internal/domain/accounting`. The command layer owns the `Engine` port and the
+`AppliedTransactionCompleter`; bootstrap wires the Redis implementation without
+an activation flag. A confirmed engine result is never automatically reversed,
+and an unknown execution outcome is never blindly retried.
+
 - **HTTP layer:** [Huma v2](https://github.com/danielgtaylor/huma) (OAS 3.1) mounted over
   **Fiber v3**. Fiber remains the runtime router, auth chain, and middleware host; Huma sits on
   top to generate the API contract and validate typed request/response structs.
@@ -92,7 +106,7 @@ repositories. Domain models live in `pkg/mmodel`.
 |-------|---------|
 | **PostgreSQL 17** | Onboarding and transaction data (primary + replica; separate `onboarding` and `transaction` databases) |
 | **MongoDB 8** | Metadata, CRM holders/instruments, fee configuration, CRM keysets/registry |
-| **Valkey/Redis 8** | Cache and balance-sync (the balance-sync collector/worker and Redis consumer) |
+| **Valkey/Redis 8** | Authoritative live accounting execution, balance cache/sync, receipts, guards, and transaction recovery queues |
 | **RabbitMQ 4.1.x** | Async transaction processing (gated by `RABBITMQ_TRANSACTION_ASYNC`) |
 
 TLS is enforced per connection by the security tier derived from `DEPLOYMENT_MODE` /`ENV_NAME`; the
@@ -114,10 +128,12 @@ ledger/
 │   ├── adapters/
 │   │   ├── http/in/            # Huma-over-Fiber handlers, routes, middleware
 │   │   ├── postgres/           # Onboarding + transaction repositories
-│   │   └── mongodb/            # Metadata, CRM, and fees repositories
+│   │   ├── mongodb/            # Metadata, CRM, and fees repositories
+│   │   └── redis/engine/       # Default accounting engine adapter + Lua fragments
 │   ├── crm/                    # CRM package tree (holders, instruments, encryption)
 │   │   ├── adapters/
 │   │   └── services/
+│   ├── domain/accounting/      # Storage-independent engine contract
 │   └── services/
 │       ├── command/            # Write use cases
 │       ├── query/              # Read use cases
@@ -300,6 +316,7 @@ not look for a component `CLAUDE.md` or `AGENTS.md` here; the root ones cover th
 | [`../../docs/PROJECT_RULES.md`](../../docs/PROJECT_RULES.md) | Architecture patterns, domain model, testing standards |
 | [`../../docs/standards/`](../../docs/standards/) | Binding telemetry (T1–T13) and error-handling (E1–E14) standards |
 | [`../../docs/auth/RBAC-NAMESPACES.md`](../../docs/auth/RBAC-NAMESPACES.md) | RBAC namespace map |
+| [`../../docs/architecture/engine.md`](../../docs/architecture/engine.md) | Accounting engine, completion/recovery, cache compatibility, and rollout invariants |
 | [`../../docs/architecture/ledger-tracer-topology.md`](../../docs/architecture/ledger-tracer-topology.md) | Ledger ↔ tracer reservation seam |
 | [`../../llms-full.txt`](../../llms-full.txt) | Full API and environment reference |
 

@@ -57,8 +57,9 @@ framing in §1.
 > no `podAffinity`, and no sidecar config — this is guidance, not deployed fact.
 
 **Why co-schedule (soft affinity):** the reservation reserve RPC is **synchronous and on the hot path**
-— called inline immediately before `ProcessBalanceOperations` in the transaction-create use case
-(`services/command/create_transaction_v2.go`; anchor doc at `transaction_reservation_anchor.go:72-85`).
+— called by `createTransactionWithEngine` immediately before `ExecutePreparedEngine` on the
+default transaction path (`services/command/create_transaction_engine.go`; reservation mechanics at
+`transaction_reservation_anchor.go`).
 Co-locating ledger and tracer on the same node trims that round-trip's network latency without
 collapsing the two into one failure/scale unit.
 
@@ -93,15 +94,19 @@ collapsing the two into one failure/scale unit.
 **What is grounded — the hot-path vs. off-path split that makes independent scaling safe:**
 
 - **Reserve is synchronous, pre-commit, hot-path.** `reserveTransaction` is called inline right before
-  the balance commit; a reject returns *before* any balance moves (`create_transaction_v2.go`).
+  `ExecutePreparedEngine`; a reject returns *before* any balance moves
+  (`create_transaction_engine.go`).
   The tracer must therefore be **low-latency**, but each reservation's work is bounded per transaction.
 
-- **Confirm / Release are post-commit and non-blocking.** After a successful balance
-  commit, `confirmReservations` runs for non-PENDING transactions; on a commit failure
-  `releaseReservations` runs (`services/command/create_transaction_v2.go`); PENDING defers confirm to
+- **Confirm / Release are post-decision and non-blocking.** After a confirmed engine
+  result, `confirmReservations` runs for non-PENDING transactions. Only a known
+  precommit rejection, or a request that never reached the engine, releases the
+  reservation; an indeterminate engine outcome does not assume that no balance moved
+  (`services/command/create_transaction_engine.go`). PENDING defers confirm to
   `/commit` and release to `/cancel`, which the versioned transition use case answers
-  (`services/command/commit_transaction.go`, `transitionPendingV2`, which names
-  `confirmReservationsByTransaction` / `releaseReservationsByTransaction`).
+  (`services/command/commit_transaction.go`, `transitionPendingV2`, which enables
+  `transitionPendingWithEngine` to call `confirmReservationsByTransaction` /
+  `releaseReservationsByTransaction`).
   Transport failures on confirm/release are logged at Warn, span-recorded and **never propagated**,
   so a tracer outage during this window never fails a transaction whose balances already moved.
   They are **not dropped**, though: the failed transition is handed to
