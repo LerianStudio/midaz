@@ -389,21 +389,29 @@ func validateFailure(failure accounting.Failure, request accounting.Execution) e
 		return errors.New("invalid accounting refusal transaction")
 	}
 
-	postings := request.Transactions[failure.TransactionIndex].Postings
 	if failure.PostingIndex == -1 {
-		switch failure.Code {
-		case accounting.FailureAssetMismatch, accounting.FailureSendingNotAllowed, accounting.FailureReceivingNotAllowed,
-			accounting.FailureExternalHoldNotAllowed, accounting.FailureBalanceDeleted:
-			for _, requirement := range request.Transactions[failure.TransactionIndex].BalanceRequirements {
-				if requirement.BalanceRef == failure.BalanceRef {
-					return nil
-				}
-			}
-		}
-
-		return errors.New("invalid accounting refusal requirement")
+		return validateRequirementFailure(failure, request)
 	}
 
+	return validatePostingFailure(failure, request)
+}
+
+func validateRequirementFailure(failure accounting.Failure, request accounting.Execution) error {
+	switch failure.Code {
+	case accounting.FailureAssetMismatch, accounting.FailureSendingNotAllowed, accounting.FailureReceivingNotAllowed,
+		accounting.FailureExternalHoldNotAllowed, accounting.FailureBalanceDeleted:
+		for _, requirement := range request.Transactions[failure.TransactionIndex].BalanceRequirements {
+			if requirement.BalanceRef == failure.BalanceRef {
+				return nil
+			}
+		}
+	}
+
+	return errors.New("invalid accounting refusal requirement")
+}
+
+func validatePostingFailure(failure accounting.Failure, request accounting.Execution) error {
+	postings := request.Transactions[failure.TransactionIndex].Postings
 	if failure.PostingIndex < 0 || failure.PostingIndex >= len(postings) || failure.BalanceRef == "" {
 		return errors.New("invalid accounting refusal posting")
 	}

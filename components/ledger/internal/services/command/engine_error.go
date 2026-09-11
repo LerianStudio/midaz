@@ -46,42 +46,7 @@ func MapEngineError(request accounting.Execution, err error) error {
 	}
 
 	if failure.PostingIndex == -1 {
-		requirement, balance, ok := engineFailureRequirement(request, failure)
-		if !ok {
-			return fmt.Errorf("malformed engine requirement failure: %w", err)
-		}
-
-		switch failure.Code {
-		case accounting.FailureAssetMismatch:
-			entity := "validateFromAccounts"
-			if requirement.Permission == accounting.BalancePermissionReceive {
-				entity = "validateToAccounts"
-			}
-
-			return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, entity)
-		case accounting.FailureSendingNotAllowed:
-			if requirement.Permission != accounting.BalancePermissionSend {
-				return fmt.Errorf("malformed engine sending requirement failure: %w", err)
-			}
-
-			return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
-		case accounting.FailureReceivingNotAllowed:
-			if requirement.Permission != accounting.BalancePermissionReceive {
-				return fmt.Errorf("malformed engine receiving requirement failure: %w", err)
-			}
-
-			return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
-		case accounting.FailureExternalHoldNotAllowed:
-			if !requirement.ForbidExternal {
-				return fmt.Errorf("malformed engine external hold requirement failure: %w", err)
-			}
-
-			return pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, balanceValidationEntity, balance.Alias)
-		case accounting.FailureBalanceDeleted:
-			return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
-		default:
-			return fmt.Errorf("unexpected engine requirement failure: %w", err)
-		}
+		return mapEngineRequirementFailure(request, failure, err)
 	}
 
 	posting, ok := engineFailurePosting(request, failure)
@@ -89,6 +54,49 @@ func MapEngineError(request accounting.Execution, err error) error {
 		return fmt.Errorf("malformed engine failure: %w", err)
 	}
 
+	return mapEnginePostingFailure(posting, failure, err)
+}
+
+func mapEngineRequirementFailure(request accounting.Execution, failure *accounting.Failure, cause error) error {
+	requirement, balance, ok := engineFailureRequirement(request, failure)
+	if !ok {
+		return fmt.Errorf("malformed engine requirement failure: %w", cause)
+	}
+
+	switch failure.Code {
+	case accounting.FailureAssetMismatch:
+		entity := "validateFromAccounts"
+		if requirement.Permission == accounting.BalancePermissionReceive {
+			entity = "validateToAccounts"
+		}
+
+		return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, entity)
+	case accounting.FailureSendingNotAllowed:
+		if requirement.Permission != accounting.BalancePermissionSend {
+			return fmt.Errorf("malformed engine sending requirement failure: %w", cause)
+		}
+
+		return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
+	case accounting.FailureReceivingNotAllowed:
+		if requirement.Permission != accounting.BalancePermissionReceive {
+			return fmt.Errorf("malformed engine receiving requirement failure: %w", cause)
+		}
+
+		return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
+	case accounting.FailureExternalHoldNotAllowed:
+		if !requirement.ForbidExternal {
+			return fmt.Errorf("malformed engine external hold requirement failure: %w", cause)
+		}
+
+		return pkg.ValidateBusinessError(constant.ErrOnHoldExternalAccount, balanceValidationEntity, balance.Alias)
+	case accounting.FailureBalanceDeleted:
+		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
+	default:
+		return fmt.Errorf("unexpected engine requirement failure: %w", cause)
+	}
+}
+
+func mapEnginePostingFailure(posting accounting.Posting, failure *accounting.Failure, cause error) error {
 	switch failure.Code {
 	case "insufficient_funds":
 		return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, balanceValidationEntity)
@@ -101,18 +109,18 @@ func MapEngineError(request accounting.Execution, err error) error {
 		case accounting.DrawForbidden:
 			return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, balanceValidationEntity)
 		default:
-			return fmt.Errorf("unexpected draw policy for engine failure: %w", err)
+			return fmt.Errorf("unexpected draw policy for engine failure: %w", cause)
 		}
 	case "overdraft_companion_missing":
-		return fmt.Errorf("overdraft companion missing: %w", err)
+		return fmt.Errorf("overdraft companion missing: %w", cause)
 	case "balance_deleted":
 		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
 	case "balance_missing":
 		return pkg.ValidateBusinessError(constant.ErrTransactionBackupCacheRetrievalFailed, balanceValidationEntity)
 	case "onhold_underflow":
-		return fmt.Errorf("on-hold balance underflow: %w", err)
+		return fmt.Errorf("on-hold balance underflow: %w", cause)
 	default:
-		return fmt.Errorf("unknown engine failure: %w", err)
+		return fmt.Errorf("unknown engine failure: %w", cause)
 	}
 }
 
@@ -122,6 +130,7 @@ func engineFailureRequirement(request accounting.Execution, failure *accounting.
 	}
 
 	var requirement *accounting.BalanceRequirement
+
 	for i := range request.Transactions[failure.TransactionIndex].BalanceRequirements {
 		candidate := &request.Transactions[failure.TransactionIndex].BalanceRequirements[i]
 		if candidate.BalanceRef == failure.BalanceRef {

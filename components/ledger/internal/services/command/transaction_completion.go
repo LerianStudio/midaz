@@ -188,48 +188,12 @@ func ComputeEngineIntentFingerprint(intent EngineIntent) (string, error) {
 	seen := make(map[uuid.UUID]bool, len(intent.Transactions))
 
 	for index, transaction := range intent.Transactions {
-		if transaction.TransactionID == uuid.Nil || seen[transaction.TransactionID] || transaction.Action == "" {
-			return "", invalidTransactionCompletionRecord("invalid transaction intention")
+		normalized, err := normalizeEngineTransactionIntent(transaction, seen)
+		if err != nil {
+			return "", err
 		}
 
-		if !validFrozenTimestamps(transaction.TransactionDate, transaction.TransactionCreatedAt, transaction.TransactionUpdatedAt, transaction.OperationUpdatedAt) {
-			return "", invalidTransactionCompletionRecord("missing frozen intention timestamps")
-		}
-
-		if !validCompletionParent(transaction.TransactionID, transaction.ParentTransactionID) {
-			return "", invalidTransactionCompletionRecord("invalid parent transaction identity")
-		}
-
-		seen[transaction.TransactionID] = true
-
-		refs := make(map[string]bool, len(transaction.PostingRefs))
-		for _, ref := range transaction.PostingRefs {
-			if ref == "" || refs[ref] {
-				return "", invalidTransactionCompletionRecord("invalid intent posting reference")
-			}
-
-			refs[ref] = true
-		}
-
-		for _, requirement := range transaction.BalanceRequirements {
-			if requirement.BalanceRef == "" || requirement.AssetCode == "" ||
-				(requirement.Permission != accounting.BalancePermissionSend && requirement.Permission != accounting.BalancePermissionReceive) {
-				return "", invalidTransactionCompletionRecord("invalid intent balance requirement")
-			}
-		}
-
-		primaryProjection := make([]OperationRecordIntent, 0, len(transaction.OperationSpecs))
-		for _, spec := range transaction.OperationSpecs {
-			if !validOperationRecordRole(spec.Role) {
-				return "", invalidTransactionCompletionRecord("invalid intent spec role")
-			}
-
-			if spec.Role == accounting.RolePrimary {
-				primaryProjection = append(primaryProjection, spec)
-			}
-		}
-
-		intent.Transactions[index].OperationSpecs = primaryProjection
+		intent.Transactions[index] = normalized
 	}
 
 	encoded, err := json.Marshal(intent)
@@ -240,6 +204,78 @@ func ComputeEngineIntentFingerprint(intent EngineIntent) (string, error) {
 	hash := sha256.Sum256(append([]byte("midaz.balance-accounting.intent.v1\x00"), encoded...))
 
 	return hex.EncodeToString(hash[:]), nil
+}
+
+func normalizeEngineTransactionIntent(transaction EngineTransactionIntent, seen map[uuid.UUID]bool) (EngineTransactionIntent, error) {
+	if transaction.TransactionID == uuid.Nil || seen[transaction.TransactionID] || transaction.Action == "" {
+		return EngineTransactionIntent{}, invalidTransactionCompletionRecord("invalid transaction intention")
+	}
+
+	if !validFrozenTimestamps(transaction.TransactionDate, transaction.TransactionCreatedAt, transaction.TransactionUpdatedAt, transaction.OperationUpdatedAt) {
+		return EngineTransactionIntent{}, invalidTransactionCompletionRecord("missing frozen intention timestamps")
+	}
+
+	if !validCompletionParent(transaction.TransactionID, transaction.ParentTransactionID) {
+		return EngineTransactionIntent{}, invalidTransactionCompletionRecord("invalid parent transaction identity")
+	}
+
+	seen[transaction.TransactionID] = true
+
+	if err := validateEngineIntentPostingRefs(transaction.PostingRefs); err != nil {
+		return EngineTransactionIntent{}, err
+	}
+
+	if err := validateEngineIntentBalanceRequirements(transaction.BalanceRequirements); err != nil {
+		return EngineTransactionIntent{}, err
+	}
+
+	primaryProjection, err := engineIntentPrimaryProjection(transaction.OperationSpecs)
+	if err != nil {
+		return EngineTransactionIntent{}, err
+	}
+
+	transaction.OperationSpecs = primaryProjection
+
+	return transaction, nil
+}
+
+func validateEngineIntentPostingRefs(postingRefs []string) error {
+	refs := make(map[string]bool, len(postingRefs))
+	for _, ref := range postingRefs {
+		if ref == "" || refs[ref] {
+			return invalidTransactionCompletionRecord("invalid intent posting reference")
+		}
+
+		refs[ref] = true
+	}
+
+	return nil
+}
+
+func validateEngineIntentBalanceRequirements(requirements []accounting.BalanceRequirement) error {
+	for _, requirement := range requirements {
+		if requirement.BalanceRef == "" || requirement.AssetCode == "" ||
+			(requirement.Permission != accounting.BalancePermissionSend && requirement.Permission != accounting.BalancePermissionReceive) {
+			return invalidTransactionCompletionRecord("invalid intent balance requirement")
+		}
+	}
+
+	return nil
+}
+
+func engineIntentPrimaryProjection(specs []OperationRecordIntent) ([]OperationRecordIntent, error) {
+	primaryProjection := make([]OperationRecordIntent, 0, len(specs))
+	for _, spec := range specs {
+		if !validOperationRecordRole(spec.Role) {
+			return nil, invalidTransactionCompletionRecord("invalid intent spec role")
+		}
+
+		if spec.Role == accounting.RolePrimary {
+			primaryProjection = append(primaryProjection, spec)
+		}
+	}
+
+	return primaryProjection, nil
 }
 
 // DeterministicOperationID derives a UUIDv5 from an immutable namespace and
