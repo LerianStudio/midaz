@@ -226,7 +226,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.Equal(t, int64(9007199254740992), result.Before[0].Version)
 		require.Equal(t, int64(9007199254740993), result.After[0].Version)
 		cached = readLimitNormalizationCache(t, infra, op.InternalKey)
-		require.JSONEq(t, `9007199254740993`, string(cached["Version"]))
+		require.Equal(t, `9007199254740993`, string(cached["Version"]))
 		require.Equal(t, "9007199254740993", decodeSettingsUpdateField[string](t, cached, "version"))
 	})
 
@@ -303,7 +303,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 			require.Equal(t, decodeSettingsUpdateField[int](t, cached, pair[0]) == 1,
 				decodeSettingsUpdateField[bool](t, cached, pair[1]), "%s and %s must be coherent", pair[0], pair[1])
 		}
-		require.JSONEq(t, `9007199254740993`, string(cached["Version"]))
+		require.Equal(t, `9007199254740993`, string(cached["Version"]))
 		require.Equal(t, "9007199254740993", decodeSettingsUpdateField[string](t, cached, "version"))
 	})
 
@@ -738,7 +738,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.Equal(t, int64(9007199254740992), result.Before[0].Version)
 		require.Equal(t, int64(9007199254740993), result.After[0].Version)
 		cached = readLimitNormalizationCache(t, infra, op.InternalKey)
-		require.JSONEq(t, `9007199254740993`, string(cached["Version"]))
+		require.Equal(t, `9007199254740993`, string(cached["Version"]))
 		require.Equal(t, "9007199254740993", decodeSettingsUpdateField[string](t, cached, "version"))
 		require.Equal(t, "119", decodeSettingsUpdateField[string](t, cached, "Available"))
 		messages, err := infra.repo.ReadAllMessagesFromQueue(ctx)
@@ -785,7 +785,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.Equal(t, int64(9007199254740992), result.Before[0].Version)
 		require.Equal(t, int64(9007199254740993), result.After[0].Version)
 		cached := readLimitNormalizationCache(t, infra, op.InternalKey)
-		require.JSONEq(t, `9007199254740993`, string(cached["Version"]))
+		require.Equal(t, `9007199254740993`, string(cached["Version"]))
 		require.Equal(t, "9007199254740993", decodeSettingsUpdateField[string](t, cached, "version"))
 
 		messages, err := infra.repo.ReadAllMessagesFromQueue(ctx)
@@ -814,7 +814,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.NoError(t, err)
 		cached = readLimitNormalizationCache(t, infra, first.InternalKey)
 		require.Equal(t, "118", decodeSettingsUpdateField[string](t, cached, "Available"))
-		require.JSONEq(t, `9007199254740994`, string(cached["Version"]))
+		require.Equal(t, `9007199254740994`, string(cached["Version"]))
 		require.Equal(t, "9007199254740994", decodeSettingsUpdateField[string](t, cached, "version"))
 	})
 
@@ -861,7 +861,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.Equal(t, "0", result.After[1].OnHold.String())
 		require.Equal(t, "9", result.After[1].OverdraftUsed.String())
 		cached = readLimitNormalizationCache(t, infra, release.InternalKey)
-		require.JSONEq(t, `9007199254740994`, string(cached["Version"]))
+		require.Equal(t, `9007199254740994`, string(cached["Version"]))
 		require.Equal(t, "9007199254740994", decodeSettingsUpdateField[string](t, cached, "version"))
 		messages, err := infra.repo.ReadAllMessagesFromQueue(ctx)
 		require.NoError(t, err)
@@ -900,7 +900,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 				require.Equal(t, int64(9007199254740992), result.Before[0].Version)
 				require.Equal(t, int64(9007199254740993), result.After[0].Version)
 				cached := readLimitNormalizationCache(t, infra, op.InternalKey)
-				require.JSONEq(t, `9007199254740993`, string(cached["Version"]))
+				require.Equal(t, `9007199254740993`, string(cached["Version"]))
 			})
 		}
 
@@ -938,7 +938,7 @@ func TestIntegration_ProcessBalanceAtomicOperation_DualCacheCompatibility(t *tes
 		require.Equal(t, int64(9223372036854775806), result.Before[0].Version)
 		require.Equal(t, int64(9223372036854775807), result.After[0].Version)
 		cached = readLimitNormalizationCache(t, infra, op.InternalKey)
-		require.JSONEq(t, `9223372036854775807`, string(cached["Version"]))
+		require.Equal(t, `9223372036854775807`, string(cached["Version"]))
 		require.Equal(t, "9223372036854775807", decodeSettingsUpdateField[string](t, cached, "version"))
 	})
 
