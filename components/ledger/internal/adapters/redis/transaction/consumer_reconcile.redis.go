@@ -147,11 +147,28 @@ func (rr *RedisConsumerRepository) reconcileFromApplyMarker(
 		return nil, false
 	}
 
-	result, _, err := decodeBalanceAtomicResult(ctx, stored, mapBalances)
+	result, _, missingAliases, err := decodeBalanceAtomicResult(ctx, stored, mapBalances)
 	if err != nil {
 		logger.Log(
 			ctx, libLog.LevelWarn, "Failed to decode the apply marker after a lost balance script response",
 			libLog.String("transaction_id", transactionID), libLog.Err(err),
+		)
+
+		recordBalanceScriptIdempotency(ctx, metricsFactory, logger, balanceScriptIdempotencyReconcileMiss)
+
+		return nil, false
+	}
+
+	// The marker was written by an earlier execution's plan; mapBalances here
+	// is rebuilt fresh for THIS retry and can legitimately disagree on which
+	// aliases participate (see ErrBalanceApplyMarkerMissingAliases). A dropped
+	// alias is treated exactly like a decode failure: the original lost-response
+	// error must propagate rather than a truncated success.
+	if len(missingAliases) > 0 {
+		logger.Log(
+			ctx, libLog.LevelWarn, "Apply marker response missing balance aliases after a lost balance script response",
+			libLog.String("transaction_id", transactionID),
+			libLog.Any("missing_aliases", missingAliases),
 		)
 
 		recordBalanceScriptIdempotency(ctx, metricsFactory, logger, balanceScriptIdempotencyReconcileMiss)

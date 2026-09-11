@@ -146,11 +146,12 @@ const decodeTestPayload = `{"before":[{"id":"balance-1","alias":"@decode","avail
 func TestDecodeBalanceAtomicResult_WithoutReplayFlag(t *testing.T) {
 	t.Parallel()
 
-	result, replayed, err := decodeBalanceAtomicResult(context.Background(), decodeTestPayload, decodeTestMapBalances())
+	result, replayed, missingAliases, err := decodeBalanceAtomicResult(context.Background(), decodeTestPayload, decodeTestMapBalances())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.False(t, replayed, "a first execution carries no flag")
+	assert.Empty(t, missingAliases, "every alias in the payload resolves against the fixture map")
 	require.Len(t, result.Before, 1)
 	require.Len(t, result.After, 1)
 	assert.Equal(t, "500", result.Before[0].Available.String())
@@ -164,11 +165,12 @@ func TestDecodeBalanceAtomicResult_WithReplayFlag(t *testing.T) {
 	// Exactly the splice the Lua replay path performs on the stored payload.
 	replayedPayload := `{"replayed":true,` + decodeTestPayload[1:]
 
-	result, replayed, err := decodeBalanceAtomicResult(context.Background(), replayedPayload, decodeTestMapBalances())
+	result, replayed, missingAliases, err := decodeBalanceAtomicResult(context.Background(), replayedPayload, decodeTestMapBalances())
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.True(t, replayed, "the spliced flag must reach the adapter")
+	assert.Empty(t, missingAliases)
 	require.Len(t, result.After, 1)
 	assert.Equal(t, "300", result.After[0].Available.String(),
 		"a replay must decode to the same posting as the original")
@@ -177,19 +179,49 @@ func TestDecodeBalanceAtomicResult_WithReplayFlag(t *testing.T) {
 func TestDecodeBalanceAtomicResult_MalformedPayload(t *testing.T) {
 	t.Parallel()
 
-	result, replayed, err := decodeBalanceAtomicResult(context.Background(), `{"before":`, decodeTestMapBalances())
+	result, replayed, missingAliases, err := decodeBalanceAtomicResult(context.Background(), `{"before":`, decodeTestMapBalances())
 
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.False(t, replayed)
+	assert.Empty(t, missingAliases)
 }
 
 func TestDecodeBalanceAtomicResult_UnexpectedResultType(t *testing.T) {
 	t.Parallel()
 
-	result, replayed, err := decodeBalanceAtomicResult(context.Background(), 42, decodeTestMapBalances())
+	result, replayed, missingAliases, err := decodeBalanceAtomicResult(context.Background(), 42, decodeTestMapBalances())
 
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.False(t, replayed)
+	assert.Empty(t, missingAliases)
+}
+
+// TestDecodeBalanceAtomicResult_MissingAliasReportedNotDropped pins Fix 1's
+// contract at the decode level: an alias the payload names but mapBalances
+// cannot resolve is surfaced to the caller instead of being silently absorbed
+// into a truncated Before/After. The caller (ProcessBalanceAtomicOperation for
+// a Lua replay, reconcileFromApplyMarker for a Go-side reconciliation) is what
+// decides whether that miss is tolerable — decode itself never fails on it.
+func TestDecodeBalanceAtomicResult_MissingAliasReportedNotDropped(t *testing.T) {
+	t.Parallel()
+
+	// @gone is not in decodeTestMapBalances(): a stand-in for a companion an
+	// earlier plan produced (e.g. via enrichOverdraftOperations) that the
+	// CURRENT mapBalances no longer carries.
+	payload := `{"before":[` +
+		`{"id":"balance-1","alias":"@decode","available":"500","onHold":"0","version":1},` +
+		`{"id":"balance-2","alias":"@gone","available":"100","onHold":"0","version":1}` +
+		`],"after":[` +
+		`{"id":"balance-1","alias":"@decode","available":"300","onHold":"0","version":2}` +
+		`]}`
+
+	result, replayed, missingAliases, err := decodeBalanceAtomicResult(context.Background(), payload, decodeTestMapBalances())
+
+	require.NoError(t, err, "decode itself never fails on a missing alias")
+	require.NotNil(t, result)
+	assert.False(t, replayed)
+	require.Len(t, result.Before, 1, "the resolvable balance is still collected")
+	assert.Equal(t, []string{"@gone"}, missingAliases, "the unresolved alias is reported, not silently dropped")
 }

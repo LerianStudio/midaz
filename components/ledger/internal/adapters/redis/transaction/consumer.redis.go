@@ -1054,10 +1054,19 @@ func normalizeBalanceAtomicResult(result any) ([]byte, error) {
 	}
 }
 
-func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string) []*mmodel.Balance {
+// collectBalanceSnapshots resolves each entry through mapBalances and reports,
+// alongside the resolved snapshots, the aliases that mapBalances could not
+// resolve. The Warn log fires for every drop regardless of caller: whether a
+// miss is tolerable is a decision only the caller can make (see
+// decodeBalanceAtomicResult), because only the caller knows whether the
+// payload is marker-derived.
+func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, mapBalances map[string]*mmodel.Balance, phase string) ([]*mmodel.Balance, []string) {
 	logger := libObservability.NewLoggerFromContext(ctx)
 
 	collected := make([]*mmodel.Balance, 0, len(balances))
+
+	var missingAliases []string
+
 	for _, balanceRedis := range balances {
 		balance := balanceRedisToBalance(balanceRedis, mapBalances)
 		if balance == nil {
@@ -1068,13 +1077,15 @@ func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, map
 				libLog.String("balance_id", balanceRedis.ID),
 			)
 
+			missingAliases = append(missingAliases, balanceRedis.Alias)
+
 			continue
 		}
 
 		collected = append(collected, balance)
 	}
 
-	return collected
+	return collected, missingAliases
 }
 
 // decodeBalanceAtomicResult turns the script's single JSON string into the
@@ -1082,7 +1093,20 @@ func collectBalanceSnapshots(ctx context.Context, balances balanceRedisList, map
 // response was re-reported from the idempotency marker instead of computed. It
 // stays here, out of mmodel.BalanceAtomicResult, because it describes how the
 // adapter obtained the answer, not the posting itself.
-func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[string]*mmodel.Balance) (*mmodel.BalanceAtomicResult, bool, error) {
+//
+// The third return is every alias collectBalanceSnapshots could not resolve
+// against mapBalances, across both Before and After. Decoding itself never
+// fails on a miss — only the caller knows whether this payload is
+// marker-derived (the Lua script's own replay, or a Go-side reconciliation
+// read from the apply marker) and therefore whether a miss is tolerable:
+//   - A normal (non-replayed) execution decodes the SAME mapBalances that
+//     produced the plan the script just ran, so a miss there is impossible by
+//     construction and stays a Warn.
+//   - A marker-derived decode can name an alias from an EARLIER execution's
+//     plan against the CURRENT mapBalances, which can legitimately differ
+//     (see ErrBalanceApplyMarkerMissingAliases). The caller MUST treat any
+//     reported alias there as a hard failure rather than a truncated success.
+func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[string]*mmodel.Balance) (*mmodel.BalanceAtomicResult, bool, []string, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "redis.decode_balance_atomic_result")
@@ -1092,7 +1116,7 @@ func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[
 	if err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Unexpected result type from Lua script", libLog.Err(err))
 
-		return nil, false, err
+		return nil, false, nil, err
 	}
 
 	var atomicResp balanceAtomicResponse
@@ -1100,13 +1124,20 @@ func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[
 		libOpentelemetry.HandleSpanError(span, "Failed to deserialize Lua script response", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to deserialize Lua script response", libLog.Err(err))
 
-		return nil, false, err
+		return nil, false, nil, err
 	}
 
+	before, missingBefore := collectBalanceSnapshots(ctx, atomicResp.Before, mapBalances, "before")
+	after, missingAfter := collectBalanceSnapshots(ctx, atomicResp.After, mapBalances, "after")
+
+	missingAliases := make([]string, 0, len(missingBefore)+len(missingAfter))
+	missingAliases = append(missingAliases, missingBefore...)
+	missingAliases = append(missingAliases, missingAfter...)
+
 	return &mmodel.BalanceAtomicResult{
-		Before: collectBalanceSnapshots(ctx, atomicResp.Before, mapBalances, "before"),
-		After:  collectBalanceSnapshots(ctx, atomicResp.After, mapBalances, "after"),
-	}, atomicResp.Replayed, nil
+		Before: before,
+		After:  after,
+	}, atomicResp.Replayed, missingAliases, nil
 }
 
 func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation, binding *mtransaction.AccountBlockExceptionBinding) (*mmodel.BalanceAtomicResult, error) {
@@ -1213,9 +1244,27 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		libLog.String("transaction_key", prefixedKeys[1]),
 	)
 
-	atomicResult, replayed, err := decodeBalanceAtomicResult(ctx, result, plan.mapBalances)
+	atomicResult, replayed, missingAliases, err := decodeBalanceAtomicResult(ctx, result, plan.mapBalances)
 	if err != nil {
 		return nil, err
+	}
+
+	// A dropped alias is impossible on a non-replayed decode: mapBalances here
+	// is the very map that produced the plan the script just ran. On a
+	// replayed decode it is a marker-derived response, so a dropped alias
+	// means the Before/After sets are truncated relative to what actually
+	// posted — a truncated success would persist a transaction missing an
+	// Operation record for a balance mutation that DID happen.
+	if replayed && len(missingAliases) > 0 {
+		markerErr := newBalanceApplyMarkerMissingAliasesError(transactionID.String(), missingAliases)
+		libOpentelemetry.HandleSpanError(span, "Balance apply marker response missing balance aliases", markerErr)
+		logger.Log(
+			ctx, libLog.LevelError, "Balance apply marker response missing balance aliases",
+			libLog.String("transaction_id", transactionID.String()),
+			libLog.Any("missing_aliases", missingAliases),
+		)
+
+		return nil, markerErr
 	}
 
 	if replayed {
@@ -1223,6 +1272,15 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	}
 
 	return atomicResult, nil
+}
+
+// newBalanceApplyMarkerMissingAliasesError reports that a marker-derived
+// balance atomic result (a Lua replay, or a Go-side reconciliation from the
+// apply marker) named aliases the current mapBalances could not resolve. See
+// ErrBalanceApplyMarkerMissingAliases and decodeBalanceAtomicResult.
+func newBalanceApplyMarkerMissingAliasesError(transactionID string, missingAliases []string) error {
+	return fmt.Errorf("%w: transaction %s: aliases %v absent from the current balance map",
+		constant.ErrBalanceApplyMarkerMissingAliases, transactionID, missingAliases)
 }
 
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {

@@ -173,6 +173,36 @@ func TestIntegration_Reconcile_UnreadableMarkerKeepsFailure(t *testing.T) {
 	})
 }
 
+// TestIntegration_Reconcile_MarkerHitMissingAliasKeepsFailure covers Fix 1's
+// strict decode path for a marker-derived response: a repeated pending-transition
+// can rebuild mapBalances from a companion set that no longer agrees with the
+// plan that wrote the marker. Even though the marker DOES prove the application,
+// an alias it names but the current mapBalances cannot resolve must not convert
+// into a truncated success — the caller's original lost-response error has to
+// survive so a retry never persists a transaction missing an Operation record
+// for a balance mutation that already happened.
+func TestIntegration_Reconcile_MarkerHitMissingAliasKeepsFailure(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupRedisIntegrationInfra(t)
+	ctx := context.Background()
+
+	_, markerKey, _ := applyMarkerAppliedFixture(t, infra, ctx, "@reconcile-missing-alias")
+
+	// The retry's mapBalances is rebuilt WITHOUT the plan's alias, unlike the
+	// fixture's own map — the shape a diverging enrichOverdraftOperations
+	// companion set produces on a repeated pending-transition.
+	result, ok := infra.repo.reconcileFromApplyMarker(
+		ctx, reconcileTestSpan(), reconcileTestClient(t, infra), markerKey, uuid.New().String(),
+		map[string]*mmodel.Balance{},
+	)
+
+	assert.False(t, ok, "a marker response naming an alias absent from mapBalances must not convert")
+	assert.Nil(t, result)
+}
+
 // TestIntegration_Reconcile_SurvivesDeadCallerContext is the reason the lookup
 // runs on a detached context. The expired or cancelled caller deadline is
 // typically the very thing that produced the lost response, so a reconciliation
