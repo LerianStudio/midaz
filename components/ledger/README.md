@@ -157,14 +157,14 @@ Shared code lives at the repo root: `pkg/mmodel` (domain models), `pkg/mtransact
 | Layer | Technology |
 |-------|------------|
 | **Language** | Go 1.27.0 |
-| **HTTP framework** | Fiber v3.4.0 (runtime) + Huma v2.38.0 (OAS 3.1 contract) |
+| **HTTP framework** | Fiber v3.5.0 (runtime) + Huma v2.39.1 (OAS 3.1 contract) |
 | **Relational store** | PostgreSQL 17 (`jackc/pgx`, `Masterminds/squirrel`) |
 | **Document store** | MongoDB 8 (`go.mongodb.org/mongo-driver/v2`) |
 | **Cache / balance-sync** | Valkey/Redis 8 |
 | **Messaging** | RabbitMQ 4.1.x |
 | **Decimals** | `shopspring/decimal` (never float64) |
-| **Auth** | lib-auth v3.4.0 (Access Manager plugin) |
-| **Shared platform** | lib-commons v6.8.1, lib-observability v2.1.3, lib-streaming v3.1.0 |
+| **Auth** | lib-auth v4.0.0 (Access Manager plugin) |
+| **Shared platform** | lib-commons v7.1.0, lib-observability v4.0.4, lib-streaming v4.0.0 |
 | **Observability** | OpenTelemetry via lib-observability; otel-lgtm / Grafana stack from `components/infra` |
 
 ---

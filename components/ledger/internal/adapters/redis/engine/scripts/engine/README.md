@@ -39,9 +39,10 @@ The entrypoint tells one ordered story:
 3. `loadBalancePool` reads live cache values. A valid Redis value is
    authoritative; a request snapshot is only an in-memory seed for a cache miss.
    Noncanonical legacy limits request a separate precommit repair.
-4. `validateLiveBalanceAvailability` checks deletion markers for declared
-   requirements and postings. Generated companions are checked again at their
-   exact mutation site.
+4. `validateLiveBalanceAvailability` checks both deletion-marker namespaces
+   and the live account-block control for declared requirements and postings.
+   Cancellation explicitly disables the block control; generated companions
+   repeat both protections at their exact mutation site.
 5. `applyTransactionsInMemory` validates live asset/permission requirements,
    runs the closed `postingAlgebra`, resolves real overdraft draws or repayments,
    and builds truthful movements and version chains without writing Redis.

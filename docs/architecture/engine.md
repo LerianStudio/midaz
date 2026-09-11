@@ -53,7 +53,7 @@ The boundary is intentionally strict:
 | Phase | May decide | Must not decide |
 | --- | --- | --- |
 | Before the engine | API/version policy, fees, tracer, transaction shape, route resolution, posting composition, static identity and scope | Whether the current live balance can fund a posting; the real overdraft split; resulting balance versions |
-| Inside the engine | Live asset and permission checks, deletion markers, available/on-hold arithmetic, overdraft draw/repayment, movements, versions, guards, receipts, and recovery evidence | HTTP policy, route DSL interpretation, SQL/MongoDB projection, event publication |
+| Inside the engine | Live asset, permission, account-block, and deletion-marker checks; available/on-hold arithmetic; overdraft draw/repayment; movements; versions; guards; receipts; and recovery evidence | HTTP policy, route DSL interpretation, SQL/MongoDB projection, event publication |
 | After the engine | Durable transaction/operation projection, metadata verification, response shaping, events, and recovery acknowledgment | Re-running accounting or changing the movement result to fit a historical row shape |
 
 All balance-dependent approval happens against live Redis state inside the same
@@ -441,8 +441,9 @@ asset, permission, alias, and key fields for Go validation. Cache TTL, deletion
 marker construction, and hash tag must have a shared definition.
 
 The private root package `internal/cachepolicy` owns the shared balance-cache
-constants: a 24-hour balance TTL, the `{transactions}` Redis hash tag, and the
-`:deleted` deletion-marker suffix. Utility key builders, schedule and lock
+constants: a 24-hour balance TTL, the `{transactions}` Redis hash tag, the
+dedicated deletion-marker namespace, and the compatibility `:deleted` suffix.
+Utility key builders, schedule and lock
 constants, command-layer marker construction, settings-related cache paths, and
 both legacy and new-engine code derive these values from that package. This is
 an internal ownership boundary, not a new public engine package.
@@ -460,7 +461,7 @@ missing cache entry. Uppercase legacy `OverdraftLimit` remains authoritative whe
 present; lower-case `overdraftLimit` is used only when the uppercase field is absent.
 
 Go validates every reported live blob before constructing the batch. The shared
-codec prepares all 17 legacy/new field pairs and `SchemaVersion: 2`, normalizing
+codec prepares all 18 legacy/new field pairs and `SchemaVersion: 2`, normalizing
 the authoritative limit without changing monetary state or Version. Existing
 uppercase values remain authoritative; missing legacy aliases may use only the
 request-scoped identity. Unknown field values and exact numeric tokens survive;
@@ -505,7 +506,7 @@ accepted. Similar text inside runtime or transport errors remains technical.
 
 The engine adapter sends one versioned envelope in `ARGV[1]` containing the
 accounting DTO, opaque completion plans, and indices into `KEYS`. Every physical
-balance, deletion marker, schedule, recover, receipt, and guard key must appear in
+balance, both deletion markers, schedule, recover, receipt, and guard key must appear in
 `KEYS`; hash field names belong in ARGV. Preserve the existing `{transactions}`
 hash tag. Tenant namespacing comes only from authenticated context.
 
@@ -521,8 +522,10 @@ adds no imports, commands, round trips, or atomicity boundaries. Production and
 integration tests use the same assembled source. Raw Lua assets consume the
 fixed local policy values prepended by `LuaSource` and are not standalone
 definitions of cache policy. The legacy script retains its three top-level KEYS
-and its 24-argument stride per balance; the engine retains exactly three ARGV
-values. Physical key bytes and the 24-hour balance-cache TTL are unchanged.
+and its 25-argument stride per balance; the engine retains exactly three ARGV
+values. Balance-key bytes and the 24-hour balance-cache TTL are unchanged; each
+balance contributes both the dedicated marker key and the compatibility suffix
+key to the declared Redis key inventory.
 
 Before the first write, the engine must:
 
@@ -530,10 +533,12 @@ Before the first write, the engine must:
    recovery correlation, receipt/guard state, and expected Redis key types.
 2. Resolve touched balances and use live data when present; use cache-miss seeds
    only in working memory. Do not seed Redis early with `SET NX`.
-3. Check deletion markers for every explicitly required or posted balance and
-   for companions discovered during calculation. An unused pool balance with a
-   marker must not block the request. Live cached money, settings, and version
-   supersede the request seed after identity validation.
+3. Check both deletion-marker namespaces and, unless the lifecycle action is a
+   cancellation, the live account-block flag for every explicitly required or
+   posted balance. Generated companions repeat both protections at their
+   exact mutation site. An unused pool balance with a marker must not block the
+   request. Live cached money, settings, block state, and version supersede the
+   request seed after identity validation.
 4. Execute transactions and postings in stable order against working state.
    Later transactions observe earlier intermediate results.
 5. Serialize all final blobs, per-transaction recovery envelopes, receipts,
@@ -652,6 +657,7 @@ automatically repair a partially executed commit.
 | overdraft_limit_exceeded | 0167 |
 | overdraft_not_eligible | 0492 only for eligible-account route denial; 0018 for forbidden/ineligible paths, preserving validation precedence |
 | balance_deleted | 0019 |
+| account_blocked | 0502; evaluated from the live cache value inside Lua |
 | balance_missing | 0139 for the corresponding retrieval failure |
 | overdraft_companion_missing | Technical invariant failure, generic 0046 |
 | onhold_underflow | Technical invariant failure, generic 0046; not external-hold code 0098 |
@@ -666,7 +672,7 @@ paths apply. Fingerprint reuse with conflicting intent is a protocol failure,
 not a balance refusal and not a newly invented public numeric code.
 
 The existing adapter's numeric replies remain an independent legacy protocol:
-exact 0018, 0019, 0139, 0167, and 0174, optionally preceded by one `ERR ` prefix.
+exact 0018, 0019, 0139, 0167, 0174, 0502, and 0508, optionally preceded by one `ERR ` prefix.
 Code-like digits embedded in descriptive runtime errors remain technical.
 
 ## Execution guards, receipts, and recovery
@@ -903,7 +909,7 @@ readers and both recovery consumers until legacy in-flight work has drained.
 
 The active `GetBalances` query, Redis transaction `ListBalanceByKey`, and
 `GetBalancesByKeys` use the shared read-only `DecodeForRead` projection. The
-batch reader preserves all 17 `BalanceRedis` fields; `ListBalanceByKey` keeps
+batch reader preserves all 18 `BalanceRedis` fields; `ListBalanceByKey` keeps
 its existing limited domain projection. Cache keys remain scoped to
 organization and ledger, and alias/key identity is verified.
 
@@ -928,6 +934,14 @@ canonical-string decoding and existing validation rules.
 The legacy accounting path remains only where the flow intentionally bypasses
 the engine and for compatibility with work created by older instances. Both paths
 retain dual-compatible cache parsing and repair handling.
+
+A V2 create, revert, or pending commit that presents an
+`accountBlockExceptionId` is one intentional compatibility bypass: the legacy
+atomic path currently owns validation and single-use consumption of that grant.
+Requests without a grant still enforce the live account-block flag inside the
+engine, and cancellation remains exempt. Moving grants into the engine requires
+extending the engine protocol so validation, monetary mutation, and grant
+consumption remain one atomic Redis operation.
 
 ### Cache writer compatibility
 
