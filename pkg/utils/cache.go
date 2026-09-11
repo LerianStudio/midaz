@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 const (
@@ -79,6 +81,37 @@ func TransactionApplyMarkerKey(organizationID, ledgerID uuid.UUID, transactionID
 	builder.WriteString(strings.ToUpper(status))
 
 	return builder.String()
+}
+
+// OppositeTerminalStatus returns the terminal status that contradicts the given
+// one: APPROVED for CANCELED and CANCELED for APPROVED. Any other status —
+// PENDING, CREATED, NOTED — has no opposite and yields an empty string, because
+// only the two terminal transitions of a pending can re-execute each other.
+//
+// Comparison is case-insensitive so callers holding either casing resolve the
+// same pair, matching TransactionApplyMarkerKey's own uppercasing.
+func OppositeTerminalStatus(status string) string {
+	switch strings.ToUpper(status) {
+	case constant.APPROVED:
+		return constant.CANCELED
+	case constant.CANCELED:
+		return constant.APPROVED
+	default:
+		return ""
+	}
+}
+
+// TransactionApplyMarkerOppositeKey returns the apply marker key of the terminal
+// status that contradicts the given one, or an empty string when the status has
+// no opposite. The key is the evidence a commit uses to detect that the same
+// transaction was already canceled, and vice versa.
+func TransactionApplyMarkerOppositeKey(organizationID, ledgerID uuid.UUID, transactionID, status string) string {
+	opposite := OppositeTerminalStatus(status)
+	if opposite == "" {
+		return ""
+	}
+
+	return TransactionApplyMarkerKey(organizationID, ledgerID, transactionID, opposite)
 }
 
 // BalanceInternalKey returns a key with the following format to be used on redis cluster:

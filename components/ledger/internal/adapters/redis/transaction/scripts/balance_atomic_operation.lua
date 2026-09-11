@@ -221,6 +221,21 @@ local function startsWithMinus(s)
     return s:sub(1, 1) == "-"
 end
 
+-- sub_on_hold subtracts from OnHold and reports whether the subtraction breached
+-- the zero floor. OnHold is held capacity: it can only be released by the same
+-- transition that placed it, so a result below zero means this batch is
+-- releasing a hold that is no longer there — a commit re-applied after a cancel,
+-- or a transition re-executed past its own marker. The caller aborts the whole
+-- batch instead of writing the negative value.
+--
+-- It reuses the same sign test the Available floor uses, so no new decimal
+-- arithmetic enters the money path.
+local function sub_on_hold(current, amount)
+    local result = sub_decimal(current, amount)
+
+    return result, startsWithMinus(result)
+end
+
 -- isPositive checks if a decimal string represents a value greater than zero
 -- Returns true if the value is positive (not negative and not zero)
 local function isPositive(s)
@@ -343,18 +358,21 @@ local function main()
     --   ARGV[3] -> how many bypassed balance keys follow ("0" when none)
     --   ARGV[4] -> the idempotency marker key of this execution, already
     --              tenant-namespaced by Go ("" only if a caller omits it)
-    --   ARGV[5 .. 4+N] -> those N balance keys
+    --   ARGV[5] -> the marker key of the OPPOSITE terminal status ("" for every
+    --              status that has no opposite, which turns the gate below off)
+    --   ARGV[6 .. 5+N] -> those N balance keys
     --
     -- The count makes the header self-describing, so the stride of every loop
     -- below is derived once here and no loop has to know whether a grant exists.
     -- This layout is a lock-step contract with luaArgsHeaderFixedSize in
     -- consumer.redis.go; the script ships embedded in the binary, so the two
     -- always travel together.
-    local argvHeaderFixed = 4
+    local argvHeaderFixed = 5
     local expectedGrantAlias = ARGV[1] or ""
     local expectedGrantAmount = ARGV[2] or ""
     local grantedKeyCount = tonumber(ARGV[3]) or 0
     local applyMarkerKey = ARGV[4] or ""
+    local oppositeApplyMarkerKey = ARGV[5] or ""
     local argvHeader = argvHeaderFixed + grantedKeyCount
 
     -- Replay gate. This is the FIRST thing the script does, ahead of the grant
@@ -378,6 +396,23 @@ local function main()
         if storedResponse then
             return '{"replayed":true,' .. string.sub(storedResponse, 2)
         end
+    end
+
+    -- Cross-transition gate. A commit and a cancel of the same pending are
+    -- mutually exclusive: whichever landed first stamped its own marker, and the
+    -- other one arriving afterwards would post a SECOND movement on balances the
+    -- first already settled — the on-hold goes negative and money is created.
+    --
+    -- It runs AFTER the replay gate on purpose: a resend of the SAME transition
+    -- is a replay to be re-reported, not a conflict, and only the marker of THIS
+    -- status can tell the two apart. It runs BEFORE every other guard and before
+    -- any mutation, so a rejection here leaves no side effect and needs no
+    -- rollback.
+    --
+    -- An empty slot 5 turns the gate off: the status has no opposite (a create,
+    -- an annotation), so there is nothing to contradict.
+    if oppositeApplyMarkerKey ~= "" and redis.call("EXISTS", oppositeApplyMarkerKey) == 1 then
+        return redis.error_reply("0511")
     end
 
     -- One logical debit can touch MORE THAN ONE balance of the granted account:
@@ -628,6 +663,11 @@ local function main()
         local result = balance.Available
         local resultOnHold = balance.OnHold
 
+        -- Set by every branch below that subtracts from OnHold, and read once
+        -- after the ladder. Declared per operation so one group's breach never
+        -- carries into the next.
+        local onHoldUnderflow = false
+
         -- Direction-aware arithmetic on Available:
         -- For direction=debit balances (e.g., overdraft tracking), DEBIT
         -- increases Available and CREDIT decreases it. For direction=credit
@@ -667,9 +707,9 @@ local function main()
             elseif operation == "RELEASE" and transactionStatus == "CANCELED" and routeValidationEnabled == 1 then
                 -- Double-entry: RELEASE only decrements OnHold.
                 -- The Available++ will be a separate CREDIT operation.
-                resultOnHold = sub_decimal(balance.OnHold, amount)
+                resultOnHold, onHoldUnderflow = sub_on_hold(balance.OnHold, amount)
             elseif operation == "RELEASE" and transactionStatus == "CANCELED" then
-                resultOnHold = sub_decimal(balance.OnHold, amount)
+                resultOnHold, onHoldUnderflow = sub_on_hold(balance.OnHold, amount)
                 if isDebitDirection then
                     result = sub_decimal(balance.Available, amount)
                 else
@@ -690,10 +730,10 @@ local function main()
             elseif operation == "ON_HOLD" and transactionStatus == "APPROVED" and routeValidationEnabled == 1 then
                 -- Double-entry: ON_HOLD in APPROVED only decrements OnHold.
                 -- The Available++ will be a separate CREDIT operation.
-                resultOnHold = sub_decimal(balance.OnHold, amount)
+                resultOnHold, onHoldUnderflow = sub_on_hold(balance.OnHold, amount)
             elseif transactionStatus == "APPROVED" then
                 if operation == "DEBIT" then
-                    resultOnHold = sub_decimal(balance.OnHold, amount)
+                    resultOnHold, onHoldUnderflow = sub_on_hold(balance.OnHold, amount)
                 else
                     if isDebitDirection then
                         result = sub_decimal(balance.Available, amount)
@@ -718,6 +758,15 @@ local function main()
             end
         end
 
+        -- OnHold floor. Released capacity that was never held means the batch is
+        -- re-applying a transition that already settled, so it is rejected with
+        -- the same stale-state code the overdraft guards use and the groups
+        -- already applied in this batch are rolled back. A hold that lands
+        -- exactly on zero is legitimate and passes: the floor is `< 0`.
+        if onHoldUnderflow then
+            rollback(rollbackBalances, ttl)
+            return redis.error_reply("0174")
+        end
 
         -- newOverdraftUsed holds the post-operation OverdraftUsed candidate.
         -- It is written back to `balance.OverdraftUsed` only AFTER the
