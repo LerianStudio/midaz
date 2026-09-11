@@ -99,7 +99,7 @@ func TestFeeProof_T25_AsyncFeeInclusive(t *testing.T) {
 	redisConn := redistestutil.CreateConnection(t, redisContainer.Addr)
 	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
-	transactionRepo := transaction.NewTransactionPostgreSQLRepository(pgConn)
+	transactionRepo := transaction.NewTransactionPostgreSQLRepository(pgConn, false)
 	operationRepo := operation.NewOperationPostgreSQLRepository(pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(pgConn, false)
 	metaRepo := mongotxn.NewMetadataMongoDBRepository(mongoConn)

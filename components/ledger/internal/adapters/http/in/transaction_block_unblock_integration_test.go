@@ -83,7 +83,7 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
 	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
 
-	transactionRepo := transaction.NewTransactionPostgreSQLRepository(pgConn)
+	transactionRepo := transaction.NewTransactionPostgreSQLRepository(pgConn, false)
 	operationRepo := operation.NewOperationPostgreSQLRepository(pgConn)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(pgConn, false)
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)

@@ -29,8 +29,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -134,16 +136,18 @@ var transactionColumns = strings.Join(transactionColumnList, ", ")
 
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
 type TransactionPostgreSQLRepository struct {
-	connection    *libPostgres.Client
-	tableName     string
-	requireTenant bool
+	connection            *libPostgres.Client
+	tableName             string
+	requireTenant         bool
+	routeTxReadsToPrimary bool
 }
 
 // NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given Postgres connection.
-func NewTransactionPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...bool) *TransactionPostgreSQLRepository {
+func NewTransactionPostgreSQLRepository(pc *libPostgres.Client, routeTxReadsToPrimary bool, requireTenant ...bool) *TransactionPostgreSQLRepository {
 	c := &TransactionPostgreSQLRepository{
-		connection: pc,
-		tableName:  "transaction",
+		connection:            pc,
+		tableName:             "transaction",
+		routeTxReadsToPrimary: routeTxReadsToPrimary,
 	}
 	if len(requireTenant) > 0 {
 		c.requireTenant = requireTenant[0]
@@ -175,6 +179,35 @@ func (r *TransactionPostgreSQLRepository) getDB(ctx context.Context) (dbresolver
 	}
 
 	return r.connection.Resolver(ctx)
+}
+
+// acquireRead resolves the read handle for the current request and a release
+// func that MUST be deferred by the caller. The routing decision (direct replica
+// read vs. read-only transaction pinned to the primary) lives in the readseam
+// package; this method only supplies the resolved connection and the flag.
+func (r *TransactionPostgreSQLRepository) acquireRead(ctx context.Context) (repository.DBReader, func() error, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// The read-source signal is emitted inside the seam; transaction keeps its
+	// 3-return so the read call sites stay untouched.
+	reader, release, _, err := readseam.AcquireReadFrom(ctx, db, r.routeTxReadsToPrimary)
+
+	return reader, release, err
+}
+
+// releaseRead runs the acquire-seam release func and records any finalize error
+// on the span. Read methods defer this so a read-only tx is always finalized.
+func releaseRead(span trace.Span, release func() error) {
+	if release == nil {
+		return
+	}
+
+	if err := release(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to release read", err)
+	}
 }
 
 // BeginTx starts a new database transaction for atomic multi-table operations.
@@ -904,12 +937,13 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	findOne := squirrel.Select(transactionColumns).
 		From(r.tableName).
@@ -984,12 +1018,13 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	findOne := squirrel.Select(transactionColumns).
 		From(r.tableName).
@@ -1178,12 +1213,13 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction_with_operations")
 	defer span.End()
 
-	db, err := r.getDB(ctx)
+	db, release, err := r.acquireRead(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
 		return nil, err
 	}
+	defer releaseRead(span, release)
 
 	selectColumns := append(transactionColumnListPrefixed, operationColumnListPrefixed...)
 
