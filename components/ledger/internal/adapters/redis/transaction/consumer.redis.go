@@ -1240,7 +1240,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 
 	// The exception key is appended as KEYS[4] ONLY when a grant was presented,
 	// which is how the script tells "validate and consume a grant" from "there is
-	// none" — the header's four fixed ARGV slots are always there, the key is not.
+	// none" — the header's five fixed ARGV slots are always there, the key is not.
 	if exceptionEval != nil {
 		prefixedKeys = append(prefixedKeys, exceptionEval.key)
 	}

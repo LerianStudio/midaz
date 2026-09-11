@@ -261,7 +261,7 @@ func resolveAccountBlockExceptionEval(ctx context.Context, organizationID, ledge
 // bypassed balance key.
 //
 // A nil receiver is the no-grant case and still occupies the five fixed slots,
-// so the script always reads its header from the same four positions and never
+// so the script always reads its header from the same five positions and never
 // has to branch on whether a grant exists before it can compute its own stride.
 func (e *accountBlockExceptionEval) headerWidth() int {
 	if e == nil {
