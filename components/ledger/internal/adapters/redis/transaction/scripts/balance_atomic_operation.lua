@@ -251,6 +251,432 @@ local function min_decimal(a, b)
     return b
 end
 
+-- canonical_decimal_text converts a trusted decimal representation to the
+-- canonical string shape used by the lower-camel cache contract. Numeric
+-- inputs are first encoded by cjson so the projection reflects the value that
+-- the legacy uppercase field will actually serialize, including any rounding
+-- that already occurred in Lua. This is deliberately not a precision repair.
+local function canonical_decimal_text(value)
+    local text
+    if type(value) == "string" then
+        text = value
+    elseif type(value) == "number" then
+        text = cjson.encode(value)
+    else
+        return nil
+    end
+
+    local mantissa, exponentText = text:match("^([^eE]+)[eE]([+-]?%d+)$")
+    local exponent = 0
+    if mantissa then
+        exponent = tonumber(exponentText)
+        -- cjson-produced IEEE-754 exponents are tiny; cap externally supplied
+        -- legacy text so projection validation cannot allocate unbounded padding.
+        if not exponent or math.abs(exponent) > 10000 then
+            return nil
+        end
+    else
+        mantissa = text
+    end
+
+    local negative = false
+    if mantissa:sub(1, 1) == "-" then
+        negative = true
+        mantissa = mantissa:sub(2)
+    end
+
+    local integer, fraction = mantissa:match("^(%d+)%.(%d+)$")
+    if not integer then
+        integer = mantissa:match("^(%d+)$")
+        fraction = ""
+    end
+    if not integer then
+        return nil
+    end
+
+    local digits = integer .. fraction
+    local decimalPosition = #integer + exponent
+    if decimalPosition <= 0 then
+        fraction = string.rep("0", -decimalPosition) .. digits
+        integer = "0"
+    elseif decimalPosition >= #digits then
+        integer = digits .. string.rep("0", decimalPosition - #digits)
+        fraction = ""
+    else
+        integer = digits:sub(1, decimalPosition)
+        fraction = digits:sub(decimalPosition + 1)
+    end
+
+    integer = integer:gsub("^0+", "")
+    if integer == "" then
+        integer = "0"
+    end
+    fraction = fraction:gsub("0+$", "")
+
+    local canonical = integer
+    if fraction ~= "" then
+        canonical = canonical .. "." .. fraction
+    end
+    if negative and canonical ~= "0" then
+        canonical = "-" .. canonical
+    end
+
+    return canonical
+end
+
+local function canonical_version_text(version)
+    if type(version) ~= "string" or not version:match("^%d+$") then
+        return nil
+    end
+    if #version > 1 and version:sub(1, 1) == "0" then
+        return nil
+    end
+    local maxInt64 = "9223372036854775807"
+    if #version > #maxInt64 or (#version == #maxInt64 and version > maxInt64) then
+        return nil
+    end
+    return version
+end
+
+local function increment_version(version)
+    if not canonical_version_text(version) then
+        return nil
+    end
+    return canonical_version_text(add_decimal(version, "1"))
+end
+
+-- Redis Lua numbers cannot represent every int64. Keep Version as validated
+-- decimal text in memory, then splice it into the JSON object as a number.
+local function encode_balance(balance)
+    local version = canonical_version_text(balance.Version)
+    if not version then
+        return nil
+    end
+
+    local encodable = {}
+    for key, value in pairs(balance) do
+        if key ~= "Version" then
+            encodable[key] = value
+        end
+    end
+    local ok, encoded = pcall(cjson.encode, encodable)
+    if not ok or encoded:sub(-1) ~= "}" then
+        return nil
+    end
+    return encoded:sub(1, -2) .. ',"Version":' .. version .. "}"
+end
+
+local function encode_balance_array(balances)
+    local encoded = {}
+    for i, balance in ipairs(balances) do
+        encoded[i] = encode_balance(balance)
+        if not encoded[i] then
+            return nil
+        end
+    end
+    return "[" .. table.concat(encoded, ",") .. "]"
+end
+
+local function modern_flag(value)
+    if value == 0 then
+        return false
+    end
+    if value == 1 then
+        return true
+    end
+    return nil
+end
+
+local function legacy_flag(value)
+    if value == false then
+        return 0
+    end
+    if value == true then
+        return 1
+    end
+    return nil
+end
+
+-- normalize_modern_identity keeps the uppercase Alias/Key pair untouched for
+-- legacy response correlation while making the lower-camel identity suitable
+-- for strict new-schema readers.
+local function normalize_modern_identity(alias, key)
+    if type(alias) ~= "string" or type(key) ~= "string" then
+        return nil, nil
+    end
+
+    if key == "" then
+        key = "default"
+    end
+
+    local keyAlias, logicalKey = key:match("^([^#]+)#([^#]+)$")
+    if keyAlias then
+        if alias ~= keyAlias and alias ~= key then
+            return nil, nil
+        end
+        return keyAlias, logicalKey
+    end
+    if key:find("#") then
+        return nil, nil
+    end
+
+    local aliasBase, aliasKey = alias:match("^([^#]+)#([^#]+)$")
+    if aliasBase then
+        if aliasKey ~= key then
+            return nil, nil
+        end
+        return aliasBase, key
+    end
+    if alias == "" or alias:find("#") then
+        return nil, nil
+    end
+
+    return alias, key
+end
+
+-- project_dual_fields derives every lower-camel field from the authoritative
+-- uppercase state. It never changes the uppercase financial representation.
+local function project_dual_fields(balance, alias)
+    local textFields = {
+        "ID", "AccountID", "AccountType", "AssetCode", "Key", "Direction", "BalanceScope"
+    }
+    for _, name in ipairs(textFields) do
+        if type(balance[name]) ~= "string" then
+            return false
+        end
+    end
+
+    local modernAlias, modernKey = normalize_modern_identity(alias, balance.Key)
+    if not modernAlias then
+        return false
+    end
+
+    local available = canonical_decimal_text(balance.Available)
+    local onHold = canonical_decimal_text(balance.OnHold)
+    local overdraftUsed = canonical_decimal_text(balance.OverdraftUsed)
+    local overdraftLimit = canonical_decimal_text(balance.OverdraftLimit)
+    local version = canonical_version_text(balance.Version)
+    local allowSending = modern_flag(balance.AllowSending)
+    local allowReceiving = modern_flag(balance.AllowReceiving)
+    local blocked = modern_flag(balance.Blocked)
+    local allowOverdraft = modern_flag(balance.AllowOverdraft)
+    local overdraftLimitEnabled = modern_flag(balance.OverdraftLimitEnabled)
+    if not available or not onHold or not overdraftUsed or not overdraftLimit or not version
+        or allowSending == nil or allowReceiving == nil or blocked == nil or allowOverdraft == nil
+        or overdraftLimitEnabled == nil then
+        return false
+    end
+
+    balance.SchemaVersion = 2
+    balance.id = balance.ID
+    balance.accountId = balance.AccountID
+    balance.accountType = balance.AccountType
+    balance.assetCode = balance.AssetCode
+    balance.alias = modernAlias
+    balance.key = modernKey
+    balance.direction = balance.Direction
+    balance.balanceScope = balance.BalanceScope
+    balance.available = available
+    balance.onHold = onHold
+    balance.overdraftUsed = overdraftUsed
+    balance.overdraftLimit = overdraftLimit
+    balance.version = version
+    balance.allowSending = allowSending
+    balance.allowReceiving = allowReceiving
+    balance.blocked = blocked
+    balance.allowOverdraft = allowOverdraft
+    balance.overdraftLimitEnabled = overdraftLimitEnabled
+
+    return true
+end
+
+local function apply_legacy_defaults(balance)
+    if balance.Direction == nil then balance.Direction = "" end
+    if balance.OverdraftUsed == nil then balance.OverdraftUsed = "0" end
+    if balance.AllowOverdraft == nil then balance.AllowOverdraft = 0 end
+    if balance.OverdraftLimitEnabled == nil then balance.OverdraftLimitEnabled = 0 end
+    if balance.OverdraftLimit == nil then balance.OverdraftLimit = "0" end
+    if balance.BalanceScope == nil then balance.BalanceScope = "transactional" end
+    if balance.Blocked == nil then balance.Blocked = 0 end
+end
+
+local isCanonicalLimit
+
+local function is_uuid_text(value)
+    if type(value) ~= "string" then return false end
+    local a, b, c, d, e = value:match("^(%x+)%-(%x+)%-(%x+)%-(%x+)%-(%x+)$")
+    return a ~= nil and #a == 8 and #b == 4 and #c == 4 and #d == 4 and #e == 12
+end
+
+-- decode_cached_balance promotes strict lower-camel fields into the legacy
+-- in-memory shape field by field. Presence of an uppercase field is
+-- authoritative, even when its value is null or malformed; only absence may
+-- select the lower field. This lets the financial path remain unchanged.
+local function decode_cached_balance(cached, exactUpperVersion, exactSchemaVersion,
+    duplicateLowerVersion, incoming, expectedAlias)
+    local hadUpperID = cached.ID ~= nil
+    local selectedLower = false
+    local selectedLowerKey = false
+    local aliasMissing = false
+
+    if cached.SchemaVersion ~= nil and exactSchemaVersion ~= "2" then
+        return nil
+    end
+
+    local function select_text(upper, lower, required, default)
+        if cached[upper] ~= nil then return true end
+        if cached[lower] == nil then
+            if required then return false end
+            cached[upper] = default
+            return true
+        end
+        selectedLower = true
+        if type(cached[lower]) ~= "string" or (required and cached[lower] == "") then return false end
+        cached[upper] = cached[lower]
+        return true
+    end
+
+    local function select_money(upper, lower, required, default, nonnegative)
+        if cached[upper] ~= nil then return true end
+        if cached[lower] == nil then
+            if required then return false end
+            cached[upper] = default
+            return true
+        end
+        selectedLower = true
+        if not isCanonicalLimit(cached[lower]) or (nonnegative and startsWithMinus(cached[lower])) then
+            return false
+        end
+        cached[upper] = cached[lower]
+        return true
+    end
+
+    local function select_flag(upper, lower, required, default)
+        if cached[upper] ~= nil then return true end
+        if cached[lower] == nil then
+            if required then return false end
+            cached[upper] = default
+            return true
+        end
+        selectedLower = true
+        local promoted = legacy_flag(cached[lower])
+        if promoted == nil then return false end
+        cached[upper] = promoted
+        return true
+    end
+
+    if not select_text("ID", "id", true)
+        or not select_text("AccountID", "accountId", true)
+        or not select_money("Available", "available", true, nil, false)
+        or not select_money("OnHold", "onHold", true, nil, true)
+        or not select_money("OverdraftUsed", "overdraftUsed", false, "0", true)
+        or not select_text("AccountType", "accountType", true)
+        or not select_text("AssetCode", "assetCode", true)
+        or not select_flag("AllowSending", "allowSending", true)
+        or not select_flag("AllowReceiving", "allowReceiving", true)
+        or not select_flag("Blocked", "blocked", false, 0)
+        or not select_text("Direction", "direction", false, "")
+        or not select_flag("AllowOverdraft", "allowOverdraft", false, 0)
+        or not select_flag("OverdraftLimitEnabled", "overdraftLimitEnabled", false, 0)
+        or not select_money("OverdraftLimit", "overdraftLimit", false, "0", true)
+        or not select_text("BalanceScope", "balanceScope", false, "transactional") then
+        return nil
+    end
+
+    if cached.Alias == nil then
+        if cached.alias == nil then
+            aliasMissing = true
+        else
+            selectedLower = true
+            if type(cached.alias) ~= "string" or cached.alias == "" then return nil end
+            cached.Alias = cached.alias
+        end
+    elseif type(cached.Alias) ~= "string" then
+        return nil
+    end
+    if cached.Key == nil then
+        if cached.key == nil then
+            cached.Key = "default"
+        else
+            selectedLower = true
+            selectedLowerKey = true
+            if type(cached.key) ~= "string" or cached.key:find("#") then return nil end
+            cached.Key = cached.key
+        end
+    end
+
+    if cached.Version == nil then
+        selectedLower = true
+        if duplicateLowerVersion then return nil end
+        cached.Version = canonical_version_text(cached.version)
+        if not cached.Version then return nil end
+    else
+        cached.Version = exactUpperVersion
+        if not cached.Version then return nil end
+    end
+
+    if selectedLower then
+        if (not hadUpperID and exactSchemaVersion ~= "2")
+            or (aliasMissing and not hadUpperID)
+            or selectedLowerKey and cached.Key:find("#") then return nil end
+        if type(cached.ID) ~= "string" or type(cached.AccountID) ~= "string"
+            or not is_uuid_text(cached.ID) or not is_uuid_text(cached.AccountID) then
+            return nil
+        end
+        cached.ID = string.lower(cached.ID)
+        cached.AccountID = string.lower(cached.AccountID)
+        if cached.ID ~= incoming.ID or cached.AccountID ~= incoming.AccountID
+            or cached.AccountType ~= incoming.AccountType or cached.AssetCode ~= incoming.AssetCode then
+            return nil
+        end
+        if cached.Direction ~= "" and cached.Direction ~= "credit" and cached.Direction ~= "debit" then
+            return nil
+        end
+        if cached.BalanceScope ~= "transactional" and cached.BalanceScope ~= "internal" then
+            return nil
+        end
+
+        local identityAlias = cached.Alias
+        if aliasMissing and hadUpperID then
+            identityAlias = expectedAlias
+        end
+        local modernAlias, modernKey = normalize_modern_identity(identityAlias, cached.Key)
+        local expectedModernAlias, expectedModernKey = normalize_modern_identity(expectedAlias, incoming.Key)
+        if not modernAlias or not expectedModernAlias or modernAlias ~= expectedModernAlias
+            or modernKey ~= expectedModernKey then
+            return nil
+        end
+        cached.Alias = expectedAlias
+        cached.Key = incoming.Key
+    else
+        apply_legacy_defaults(cached)
+    end
+
+    return cached
+end
+
+local function balance_from_args(i)
+    return {
+        ID = ARGV[i + 7],
+        Available = ARGV[i + 8],
+        OnHold = ARGV[i + 9],
+        Version = ARGV[i + 10],
+        AccountType = ARGV[i + 11],
+        AccountID = ARGV[i + 12],
+        AssetCode = ARGV[i + 13],
+        AllowSending = tonumber(ARGV[i + 14]),
+        AllowReceiving = tonumber(ARGV[i + 15]),
+        Key = ARGV[i + 16],
+        Direction = ARGV[i + 17],
+        OverdraftUsed = ARGV[i + 18],
+        AllowOverdraft = tonumber(ARGV[i + 19]),
+        OverdraftLimitEnabled = tonumber(ARGV[i + 20]),
+        OverdraftLimit = ARGV[i + 21],
+        BalanceScope = ARGV[i + 22],
+        Blocked = tonumber(ARGV[i + 24]),
+    }
+end
+
 local function updateTransactionHash(transactionBackupQueue, transactionKey, balances, balancesAfter)
     local transaction
 
@@ -268,7 +694,28 @@ local function updateTransactionHash(transactionBackupQueue, transactionKey, bal
         end
     end
 
-    local updated = cjson.encode(transaction)
+    local encodedBalances = encode_balance_array(balances)
+    local encodedBalancesAfter = encode_balance_array(balancesAfter)
+    if not encodedBalances or not encodedBalancesAfter then
+        return nil
+    end
+
+    local encodable = {}
+    for key, value in pairs(transaction) do
+        if key ~= "balances" and key ~= "balancesAfter" then
+            encodable[key] = value
+        end
+    end
+    local ok, encodedTransaction = pcall(cjson.encode, encodable)
+    if not ok or encodedTransaction:sub(-1) ~= "}" then
+        return nil
+    end
+    local updated = encodedTransaction:sub(1, -2)
+    if updated ~= "{" then
+        updated = updated .. ","
+    end
+    updated = updated .. '"balances":' .. encodedBalances
+        .. ',"balancesAfter":' .. encodedBalancesAfter .. "}"
     redis.call("HSET", transactionBackupQueue, transactionKey, updated)
 
     return updated
@@ -304,12 +751,157 @@ local function rollback(rollbackBalances, ttl)
   end
 end
 
+isCanonicalLimit = function(value)
+    if type(value) ~= "string" or value == "" then
+        return false
+    end
+
+    local unsigned = value
+    if string.sub(unsigned, 1, 1) == "-" then
+        unsigned = string.sub(unsigned, 2)
+        if unsigned == "0" then
+            return false
+        end
+    end
+
+    local integer, fraction = string.match(unsigned, "^(%d+)%.(%d+)$")
+    if integer then
+        if string.sub(fraction, -1) == "0" then
+            return false
+        end
+    else
+        integer = string.match(unsigned, "^(%d+)$")
+    end
+
+    return integer ~= nil and (#integer == 1 or string.sub(integer, 1, 1) ~= "0")
+end
+
+local function isJSONNumber(value)
+    local mantissa = value
+    if value:find("[eE]") then
+        mantissa = value:match("^(.+)[eE][+-]?%d+$")
+        if not mantissa then
+            return false
+        end
+    end
+    if mantissa:sub(1, 1) == "-" then
+        mantissa = mantissa:sub(2)
+    end
+    local whole = mantissa:match("^(%d+)%.%d+$") or mantissa:match("^%d+$")
+    return whole ~= nil and (#whole == 1 or whole:sub(1, 1) ~= "0")
+end
+
+-- cjson accepts non-JSON scalar syntax. Check tokens before any batch write,
+-- including blobs whose limit already has a canonical representation.
+local function hasValidJSONTokens(raw)
+    local depth = 0
+    local cursor = 1
+    local sawLimit = false
+    local sawVersion = false
+    local sawSchemaVersion = false
+    local sawLowerVersion = false
+    local duplicateLowerVersion = false
+    local exactVersion
+    local exactSchemaVersion
+    while cursor <= #raw do
+        local char = raw:sub(cursor, cursor)
+        if char == '"' then
+            local tokenStart = cursor
+            cursor = cursor + 1
+            while cursor <= #raw do
+                local tokenChar = raw:sub(cursor, cursor)
+                if tokenChar:byte() < 32 then
+                    return false
+                elseif tokenChar == "\\" then
+                    cursor = cursor + 2
+                elseif tokenChar == '"' then
+                    break
+                else
+                    cursor = cursor + 1
+                end
+            end
+            if depth == 1 then
+                local following = cursor + 1
+                while raw:sub(following, following):match("%s") do
+                    following = following + 1
+                end
+                if raw:sub(following, following) == ":" then
+                    local field = cjson.decode(raw:sub(tokenStart, cursor))
+                    if field == "OverdraftLimit" then
+                        if sawLimit then
+                            return false
+                        end
+                        sawLimit = true
+                    elseif field == "Version" then
+                        if sawVersion then
+                            return false, nil, true
+                        end
+                        sawVersion = true
+                        following = following + 1
+                        while raw:sub(following, following):match("%s") do
+                            following = following + 1
+                        end
+                        local valueEnd = following
+                        while valueEnd <= #raw and not raw:sub(valueEnd, valueEnd):match("[%s,%]}]") do
+                            valueEnd = valueEnd + 1
+                        end
+                        exactVersion = raw:sub(following, valueEnd - 1)
+                        if not canonical_version_text(exactVersion) then
+                            return false, nil, true
+                        end
+                    elseif field == "version" then
+                        if sawLowerVersion then duplicateLowerVersion = true end
+                        sawLowerVersion = true
+                    elseif field == "SchemaVersion" then
+                        if sawSchemaVersion then
+                            exactSchemaVersion = "duplicate"
+                        end
+                        sawSchemaVersion = true
+                        following = following + 1
+                        while raw:sub(following, following):match("%s") do
+                            following = following + 1
+                        end
+                        local valueEnd = following
+                        while valueEnd <= #raw and not raw:sub(valueEnd, valueEnd):match("[%s,%]}]") do
+                            valueEnd = valueEnd + 1
+                        end
+                        local exactValue = raw:sub(following, valueEnd - 1)
+                        if exactSchemaVersion ~= "duplicate" then
+                            exactSchemaVersion = exactValue
+                        end
+                    end
+                end
+            end
+        elseif char == "{" or char == "[" then
+            depth = depth + 1
+        elseif char == "}" or char == "]" then
+            depth = depth - 1
+        elseif char:match("%s") then
+            if char ~= " " and char ~= "\t" and char ~= "\r" and char ~= "\n" then
+                return false
+            end
+        elseif char ~= ":" and char ~= "," then
+            local tokenStart = cursor
+            while cursor <= #raw and not raw:sub(cursor, cursor):match("[%s,%]}]") do
+                cursor = cursor + 1
+            end
+            local token = raw:sub(tokenStart, cursor - 1)
+            if token ~= "true" and token ~= "false" and token ~= "null" and not isJSONNumber(token) then
+                return false
+            end
+            cursor = cursor - 1
+        end
+        cursor = cursor + 1
+    end
+    return true, exactVersion, false, exactSchemaVersion, duplicateLowerVersion
+end
+
 local function main()
-    -- Balance snapshots live for 86400 seconds. The command-layer delete marker
-    -- deliberately lives longer than this snapshot lifetime, so a failed
+    -- The command-layer delete marker deliberately lives longer than the shared
+    -- balance snapshot lifetime, so a failed
     -- post-commit cache eviction cannot expose a deleted balance to a later
     -- atomic operation after the marker expires.
-    local ttl = 86400 -- 1 day; keep in sync with balanceCacheSnapshotTTLSeconds
+    local ttl = balance_cache_ttl_seconds
 
     -- Lifetime of the idempotency marker written by finalizeSuccess. It is the
     -- snapshot lifetime, not a copy of it: the marker has to outlive the
@@ -452,14 +1044,14 @@ local function main()
     -- Delete marker guard: reject the whole batch before any mutation if any balance
     -- in it carries a live deletion marker. New writers use a dedicated top-level namespace,
     -- while the legacy :deleted marker remains honored during one rolling-deploy release.
-    -- The namespace shares the balance key's {transactions} hash slot. Running this pre-pass
+    -- Both namespaces share the balance key's transaction hash slot. Running this pre-pass
     -- ahead of the first SET below means a rejection here leaves zero side
     -- effects across the batch, so no rollback is required. The stride mirrors
     -- the main loop below (groupSize=25; ARGV[i] is the balance key). A bounded
     -- per-key EXISTS check early-returns on the first delete marker found, so the
     -- whole batch is rejected without unpacking a client-influenced number of keys.
-    local deleteMarkerNamespacePrefix = "balance_delete_marker:{transactions}:"
-    local balanceNamespacePrefix = "balance:{transactions}:"
+    local deleteMarkerNamespacePrefix = "balance_delete_marker:" .. transaction_hash_tag .. ":"
+    local balanceNamespacePrefix = "balance:" .. transaction_hash_tag .. ":"
     for i = argvHeader + 1, #ARGV, groupSize do
         local markerKey, replacements = string.gsub(ARGV[i], balanceNamespacePrefix, deleteMarkerNamespacePrefix, 1)
         if replacements == 0 then
@@ -468,7 +1060,7 @@ local function main()
 
         -- Keep this legacy check until all old binaries are retired. New writers dual-write both
         -- markers so old Lua, which only checks this suffix, remains safe in the mixed fleet.
-        if redis.call("EXISTS", markerKey) == 1 or redis.call("EXISTS", ARGV[i] .. ":deleted") == 1 then
+        if redis.call("EXISTS", markerKey) == 1 or redis.call("EXISTS", ARGV[i] .. balance_deletion_marker_suffix) == 1 then
             return redis.error_reply("0019")
         end
     end
@@ -499,13 +1091,98 @@ local function main()
             if cur then
                 local ok, decoded = pcall(cjson.decode, cur)
                 if ok and type(decoded) == "table" then
-                    blocked = tonumber(decoded.Blocked) or 0
+                    if decoded.Blocked ~= nil then
+                        blocked = tonumber(decoded.Blocked) or 0
+                    elseif decoded.blocked == true then
+                        blocked = 1
+                    elseif decoded.blocked == false then
+                        blocked = 0
+                    end
                 end
             end
 
             if blocked == 1 and not (grantValidated and grantedBalanceKeys[ARGV[i]]) then
                 return redis.error_reply("0502")
             end
+        end
+    end
+
+    -- Check the entire warm-cache batch before any SET NX or monetary write.
+    -- Go canonicalizes decimals; Lua never converts monetary strings to numbers.
+    local limitsToNormalize = {}
+    local checkedKeys = {}
+    local cachedVersions = {}
+    local cachedSchemaVersions = {}
+    local cachedDuplicateLowerVersions = {}
+    local cachedRawBalances = {}
+    for i = argvHeader + 1, #ARGV, groupSize do
+        local key = ARGV[i]
+        if not checkedKeys[key] then
+            checkedKeys[key] = true
+            local raw = redis.call("GET", key)
+            if raw then
+                cachedRawBalances[key] = raw
+                local ok, cached = pcall(cjson.decode, raw)
+                if not ok or type(cached) ~= "table" or not string.match(raw, "^%s*{") then
+                    return redis.error_reply("BALANCE_LIMIT_INVALID")
+                end
+                local validTokens, exactVersion, invalidVersion, exactSchemaVersion, duplicateLowerVersion =
+                    hasValidJSONTokens(raw)
+                if invalidVersion then
+                    return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+                end
+                if not validTokens then
+                    return redis.error_reply("BALANCE_LIMIT_INVALID")
+                end
+                cachedVersions[key] = exactVersion
+                cachedSchemaVersions[key] = exactSchemaVersion
+                cachedDuplicateLowerVersions[key] = duplicateLowerVersion
+                if cached.OverdraftLimit ~= nil then
+                    if type(cached.OverdraftLimit) ~= "string" then
+                        return redis.error_reply("BALANCE_LIMIT_INVALID")
+                    end
+                    if not isCanonicalLimit(cached.OverdraftLimit) then
+                        table.insert(limitsToNormalize, key)
+                    end
+                end
+            end
+        end
+    end
+    if #limitsToNormalize > 0 then
+        return redis.error_reply("BALANCE_LIMIT_NORMALIZATION_REQUIRED:" .. cjson.encode(limitsToNormalize))
+    end
+
+    -- Validate every prospective dual projection before the first SET NX. A
+    -- malformed later operation must not turn a serializer failure into a
+    -- partially-seeded batch. Pure lower-camel entries are validated and
+    -- promoted in memory; mixed entries retain legacy field authority.
+    for i = argvHeader + 1, #ARGV, groupSize do
+        if not canonical_version_text(ARGV[i + 10]) then
+            return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+        end
+        local candidate
+        local raw = cachedRawBalances[ARGV[i]]
+        if raw then
+            local ok, decoded = pcall(cjson.decode, raw)
+            if not ok or type(decoded) ~= "table" then
+                return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
+            end
+            candidate = decode_cached_balance(decoded, cachedVersions[ARGV[i]],
+                cachedSchemaVersions[ARGV[i]], cachedDuplicateLowerVersions[ARGV[i]],
+                balance_from_args(i), ARGV[i + 5])
+            if not candidate then
+                return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
+            end
+        else
+            candidate = balance_from_args(i)
+        end
+
+        candidate.Alias = ARGV[i + 5]
+        if not project_dual_fields(candidate, candidate.Alias) then
+            return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+        end
+        if not encode_balance(candidate) then
+            return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
         end
     end
 
@@ -540,38 +1217,15 @@ local function main()
         --   - Blocked:              Account-block flag read by the pre-mutation guard above
         --
         -- Fields NOT used by Lua, but required in cache for Go pre-validation:
-        --   - AssetCode:      Used by ValidateIfBalanceExistsOnRedis for validation 0034
-        --   - AllowSending:   Used by ValidateIfBalanceExistsOnRedis for validation 0024
-        --   - AllowReceiving: Used by ValidateIfBalanceExistsOnRedis for validation 0024
-        --   - Key:            Used by ValidateIfBalanceExistsOnRedis for balance identification
+        --   - AssetCode:      Asset compatibility validation (0034)
+        --   - AllowSending:   Sending permission validation (0024)
+        --   - AllowReceiving: Receiving permission validation (0024)
+        --   - Key:            Balance identification
         --
         -- WARNING: Do NOT remove the "cache-only" fields. They are essential for the
         -- transaction validation flow that reads balances from cache before calling Lua.
-        -- See: get-balances.go ValidateIfBalanceExistsOnRedis()
-        local balance = {
-            -- Fields used by Lua
-            ID = ARGV[i + 7],
-            Available = ARGV[i + 8],
-            OnHold = ARGV[i + 9],
-            Version = tonumber(ARGV[i + 10]),
-            AccountType = ARGV[i + 11],
-            AccountID = ARGV[i + 12],
-            -- Fields for cache only (used by Go pre-validation, not by Lua)
-            AssetCode = ARGV[i + 13],
-            AllowSending = tonumber(ARGV[i + 14]),
-            AllowReceiving = tonumber(ARGV[i + 15]),
-            Key = ARGV[i + 16],
-            -- Overdraft fields
-            Direction = ARGV[i + 17],
-            OverdraftUsed = ARGV[i + 18],
-            AllowOverdraft = tonumber(ARGV[i + 19]),
-            OverdraftLimitEnabled = tonumber(ARGV[i + 20]),
-            OverdraftLimit = ARGV[i + 21],
-            BalanceScope = ARGV[i + 22],
-            -- Account-block flag (cache-only mirror of accounts.blocked;
-            -- enforced by the account-block guard pre-pass above)
-            Blocked = tonumber(ARGV[i + 24]),
-        }
+        -- The query cache-aside validation contract requires these fields.
+        local balance = balance_from_args(i)
 
         -- Exact overdraft delta supplied by Go for pending-cancel reversals.
         -- Normal transaction paths pass zero and keep Lua's live-state split
@@ -582,38 +1236,46 @@ local function main()
         -- Used for stale-version detection on overdraft-relevant operations.
         local incomingVersion = balance.Version
 
-        local redisBalance = cjson.encode(balance)
+        -- Keep the failure image in the legacy shape. If a later operation
+        -- rejects the batch, rollback must not leave a schema-only upgrade
+        -- behind as a side effect of a failed financial operation.
+        local rollbackBalance = encode_balance(balance)
+        if not rollbackBalance then
+            return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+        end
+
+        balance.Alias = alias
+        project_dual_fields(balance, alias)
+        local redisBalance = encode_balance(balance)
+        if not redisBalance then
+            return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+        end
         local ok = redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl, "NX")
         if not ok then
             local currentBalance = redis.call("GET", redisBalanceKey)
             if not currentBalance then
-                return redis.error_reply("0061")
+                return redis.error_reply("0139")
             end
-            balance = cjson.decode(currentBalance)
-
-            -- Backwards compatibility: legacy cache entries may lack the new
-            -- overdraft fields. Fill in safe defaults so subsequent logic does
-            -- not reference nil values.
-            if balance.Direction == nil then
-                balance.Direction = ""
+            local validCurrent, currentVersion, invalidCurrentVersion, currentSchemaVersion,
+                duplicateLowerVersion =
+                hasValidJSONTokens(currentBalance)
+            if not validCurrent or invalidCurrentVersion then
+                rollback(rollbackBalances, ttl)
+                return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
             end
-            if balance.OverdraftUsed == nil then
-                balance.OverdraftUsed = "0"
+            local decodeOK, decodedCurrent = pcall(cjson.decode, currentBalance)
+            if not decodeOK or type(decodedCurrent) ~= "table" or
+                not string.match(currentBalance, "^%s*{") then
+                rollback(rollbackBalances, ttl)
+                return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
             end
-            if balance.AllowOverdraft == nil then
-                balance.AllowOverdraft = 0
-            end
-            if balance.OverdraftLimitEnabled == nil then
-                balance.OverdraftLimitEnabled = 0
-            end
-            if balance.OverdraftLimit == nil then
-                balance.OverdraftLimit = "0"
-            end
-            if balance.BalanceScope == nil then
-                balance.BalanceScope = "transactional"
-            end
-            if balance.Blocked == nil then
-                balance.Blocked = 0
+            balance = decodedCurrent
+            rollbackBalance = currentBalance
+            balance = decode_cached_balance(balance, currentVersion, currentSchemaVersion,
+                duplicateLowerVersion, balance_from_args(i), alias)
+            if not balance then
+                rollback(rollbackBalances, ttl)
+                return redis.error_reply("BALANCE_CACHE_SHAPE_UNSUPPORTED")
             end
         end
 
@@ -622,7 +1284,7 @@ local function main()
         local originalOverdraftUsed = balance.OverdraftUsed
 
         if not rollbackBalances[redisBalanceKey] then
-            rollbackBalances[redisBalanceKey] = cjson.encode(balance)
+            rollbackBalances[redisBalanceKey] = rollbackBalance
         end
 
         local result = balance.Available
@@ -768,7 +1430,7 @@ local function main()
             not isDeferredCreditLeg and
             isPositive(balance.OverdraftUsed) then
             local sameBatchCancelCredit = operation == "CREDIT" and transactionStatus == "CANCELED" and
-                routeValidationEnabled == 1 and tonumber(balance.Version) == (tonumber(incomingVersion) + 1)
+                routeValidationEnabled == 1 and balance.Version == increment_version(incomingVersion)
             if balance.Version ~= incomingVersion and not sameBatchCancelCredit then
                 rollback(rollbackBalances, ttl)
                 return redis.error_reply("0174")
@@ -881,6 +1543,10 @@ local function main()
 
         if hasChange then
             balance.Alias = alias
+            if not project_dual_fields(balance, alias) then
+                rollback(rollbackBalances, ttl)
+                return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+            end
             -- Snapshot the pre-mutation state first so the "before" payload
             -- reflects what the caller read (especially OverdraftUsed).
             table.insert(returnBalances, cloneBalance(balance))
@@ -888,11 +1554,25 @@ local function main()
             balance.Available = result
             balance.OnHold = resultOnHold
             balance.OverdraftUsed = newOverdraftUsed
-            balance.Version = balance.Version + 1
+            local nextVersion = increment_version(balance.Version)
+            if not nextVersion then
+                rollback(rollbackBalances, ttl)
+                return redis.error_reply("BALANCE_VERSION_OVERFLOW")
+            end
+            balance.Version = nextVersion
+
+            if not project_dual_fields(balance, alias) then
+                rollback(rollbackBalances, ttl)
+                return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+            end
 
             table.insert(returnBalancesAfter, cloneBalance(balance))
 
-            redisBalance = cjson.encode(balance)
+            redisBalance = encode_balance(balance)
+            if not redisBalance then
+                rollback(rollbackBalances, ttl)
+                return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+            end
             redis.call("SET", redisBalanceKey, redisBalance, "EX", ttl)
 
             redis.call("ZADD", scheduleKey, dueAt, redisBalanceKey)
@@ -911,7 +1591,10 @@ local function main()
     -- for both the transaction hash and the return value
     if #returnBalances == 0 then
         local emptyArray = cjson.decode("[]")
-        updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray, emptyArray)
+        if not updateTransactionHash(transactionBackupQueue, transactionKey, emptyArray, emptyArray) then
+            rollback(rollbackBalances, ttl)
+            return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+        end
 
         -- A batch that changed nothing is still a completed execution: marking it
         -- is what makes a resend of it a replay instead of a re-evaluation.
@@ -919,10 +1602,20 @@ local function main()
             cjson.encode({ before = cjson.decode("[]"), after = cjson.decode("[]") }), markerTTL)
     end
 
-    updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances, returnBalancesAfter)
+    if not updateTransactionHash(transactionBackupQueue, transactionKey, returnBalances, returnBalancesAfter) then
+        rollback(rollbackBalances, ttl)
+        return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+    end
+
+    local encodedBefore = encode_balance_array(returnBalances)
+    local encodedAfter = encode_balance_array(returnBalancesAfter)
+    if not encodedBefore or not encodedAfter then
+        rollback(rollbackBalances, ttl)
+        return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
+    end
 
     return finalizeSuccess(applyMarkerKey,
-        cjson.encode({ before = returnBalances, after = returnBalancesAfter }), markerTTL)
+        '{"before":' .. encodedBefore .. ',"after":' .. encodedAfter .. "}", markerTTL)
 end
 
 return main()

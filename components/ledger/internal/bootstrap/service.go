@@ -134,9 +134,9 @@ func (s *Service) launcherApps() []launcherApp {
 		})
 	}
 
-	// Redis queue consumer
+	// Redis recovery runner
 	if s.RedisQueueConsumer != nil {
-		apps = append(apps, launcherApp{"Redis Queue Consumer", s.RedisQueueConsumer})
+		apps = append(apps, launcherApp{"Redis Recovery Runner", s.RedisQueueConsumer})
 	}
 
 	// Balance sync worker (optional, started when configured)

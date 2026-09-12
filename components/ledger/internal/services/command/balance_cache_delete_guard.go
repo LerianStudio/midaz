@@ -13,6 +13,8 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -25,7 +27,7 @@ const (
 	// balanceCacheSnapshotTTLSeconds must stay in lock-step with the 86400-second TTL
 	// used by balance_atomic_operation.lua and update_balance_settings.lua. A cache
 	// snapshot can be stale for this entire period when post-commit eviction fails.
-	balanceCacheSnapshotTTLSeconds = 24 * 60 * 60
+	balanceCacheSnapshotTTLSeconds = int(cachepolicy.BalanceTTL / time.Second)
 
 	// balanceDeleteMarkerTTLSeconds is the lifetime, in whole seconds, of a balance
 	// delete marker key. It covers one complete balance snapshot lifetime plus an
@@ -49,9 +51,9 @@ const (
 	// characters, so appending a suffix to a balance key could collide with a valid sibling balance
 	// key. The {transactions} hash tag keeps markers colocated with their balance keys in Redis
 	// Cluster. The same prefix is used by the transaction Lua scripts.
-	deleteMarkerNamespacePrefix = "balance_delete_marker:{transactions}:"
-	balanceCacheNamespacePrefix = "balance:{transactions}:"
-	deleteMarkerLegacySuffix    = ":deleted"
+	deleteMarkerNamespacePrefix = cachepolicy.DeletionMarkerNamespacePrefix
+	balanceCacheNamespacePrefix = cachepolicy.BalanceNamespacePrefix
+	deleteMarkerLegacySuffix    = cachepolicy.DeletionMarkerSuffix
 
 	// balanceDeleteMarkerCleanupTimeout bounds every best-effort Redis cleanup that runs after
 	// the delete decision is made: marker rollback, cache eviction and marker shortening.

@@ -5,13 +5,14 @@
 package mmodel
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -439,21 +440,17 @@ type Balances struct {
 //
 // This is an internal model not exposed via API.
 //
-// CACHE JSON CASING CONTRACT: the Redis balance entry is a JSON string whose
-// keys are CamelCase (e.g. "Available", "Direction", "AllowOverdraft") because
-// the original writer is the Lua atomic script (cjson.encode on a table with
-// CamelCase keys) and Lua table access is case-sensitive. Every Go writer to
-// the same key MUST emit CamelCase. If a Go writer uses the default BalanceRedis
-// struct tags (which are camelCase: "available", "direction", etc.), the next
-// Lua cjson.decode will see balance.Available == nil and arithmetic helpers
-// will fail with "attempt to compare nil with number".
+// CACHE JSON CASING CONTRACT: the shared Go balance-cache codec owns lossless
+// dual encoding and decoding. CamelCase keys (e.g. "Available", "Direction",
+// "AllowOverdraft") remain the legacy representation consumed by the active
+// Lua atomic writer; lowerCamel keys are its dual representation. Do not
+// marshal BalanceRedis directly into the cache: its JSON tags are the new
+// lowerCamel representation, not the complete dual wire format.
 //
-// The canonical Go writer that respects this contract is
-// UpdateBalanceCacheSettings in adapters/redis/transaction/consumer.redis.go,
-// which operates on map[string]any with explicit CamelCase keys and uses the
-// luaBalanceSettingKey helper to purge legacy camelCase aliases. Any new Go
-// writer to the balance cache MUST follow the same pattern — do NOT marshal
-// BalanceRedis directly; use map[string]any with CamelCase keys.
+// Settings writes use scripts/update_balance_settings.lua through
+// UpdateBalanceCacheSettings in adapters/redis/transaction/consumer.redis.go.
+// They preserve live monetary state and emit the legacy fields required by the
+// accounting script. The shared codec owns the dual wire format.
 type BalanceRedis struct {
 	// Unique identifier for the balance (UUID format)
 	ID string `json:"id"`
@@ -517,84 +514,35 @@ type BalanceRedis struct {
 
 // UnmarshalJSON is a custom unmarshal function for BalanceRedis
 func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
-	type Alias BalanceRedis
-
-	aux := struct {
-		Available     any `json:"available"`
-		OnHold        any `json:"onHold"`
-		OverdraftUsed any `json:"overdraftUsed"`
-		*Alias
-	}{
-		Alias: (*Alias)(b),
-	}
-
-	if err := json.Unmarshal(data, &aux); err != nil {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
 
-	switch v := aux.Available.(type) {
-	case float64:
-		b.Available = decimal.NewFromFloat(v)
-	case string:
-		decimalValue, err := decimal.NewFromString(v)
-		if err != nil {
-			return fmt.Errorf("err to converter available field from string to decimal: %v", err)
-		}
-
-		b.Available = decimalValue
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			f, err := v.Float64()
-			if err != nil {
-				return fmt.Errorf("err to converter available field from json.Number: %v", err)
-			}
-
-			b.Available = decimal.NewFromFloat(f)
-		} else {
-			b.Available = decimal.NewFromInt(i)
-		}
-	default:
-		f, ok := v.(float64)
-		if !ok {
-			return fmt.Errorf("type unsuported to available: %T", v)
-		}
-
-		b.Available = decimal.NewFromFloat(f)
+	if fields == nil {
+		return fmt.Errorf("type unsuported to available: <nil>")
 	}
 
-	switch v := aux.OnHold.(type) {
-	case float64:
-		b.OnHold = decimal.NewFromFloat(v)
-	case string:
-		decimalValue, err := decimal.NewFromString(v)
-		if err != nil {
-			return fmt.Errorf("err to converter onHold field from string to decimal: %v", err)
-		}
-
-		b.OnHold = decimalValue
-	case json.Number:
-		i, err := v.Int64()
-		if err != nil {
-			f, err := v.Float64()
-			if err != nil {
-				return fmt.Errorf("err to converter onHold field from json.Number: %v", err)
-			}
-
-			b.OnHold = decimal.NewFromFloat(f)
-		} else {
-			b.OnHold = decimal.NewFromInt(i)
-		}
-	default:
-		f, ok := v.(float64)
-		if !ok {
-			return fmt.Errorf("type unsuported to  onHold: %T", v)
-		}
-
-		b.OnHold = decimal.NewFromFloat(f)
+	schemaVersion, err := decodeBalanceRedisSchemaVersion(fields)
+	if err != nil {
+		return err
 	}
 
-	b.OverdraftUsed = utils.ParseDecimalString(aux.OverdraftUsed, "0")
+	if err := decodeBalanceRedisTextFields(fields, b); err != nil {
+		return err
+	}
+
+	if err := decodeBalanceRedisDecimals(fields, b); err != nil {
+		return err
+	}
+
+	if err := decodeBalanceRedisVersion(fields, schemaVersion, b); err != nil {
+		return err
+	}
+
+	if err := decodeBalanceRedisFlags(fields, schemaVersion, b); err != nil {
+		return err
+	}
 
 	if b.OverdraftLimit == "" {
 		b.OverdraftLimit = "0"
@@ -606,6 +554,220 @@ func (b *BalanceRedis) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+func decodeBalanceRedisSchemaVersion(fields map[string]json.RawMessage) (int64, error) {
+	raw, _ := selectBalanceRedisField(fields, "SchemaVersion", "schemaVersion")
+	if raw == nil {
+		return 0, nil
+	}
+
+	var schemaVersion int64
+	if err := json.Unmarshal(raw, &schemaVersion); err != nil {
+		return 0, fmt.Errorf("invalid balance schema version: %w", err)
+	}
+
+	return schemaVersion, nil
+}
+
+func decodeBalanceRedisTextFields(fields map[string]json.RawMessage, balance *BalanceRedis) error {
+	for _, field := range []struct {
+		upper string
+		lower string
+		dst   any
+	}{
+		{upper: "ID", lower: "id", dst: &balance.ID},
+		{upper: "Alias", lower: "alias", dst: &balance.Alias},
+		{upper: "Key", lower: "key", dst: &balance.Key},
+		{upper: "AccountID", lower: "accountId", dst: &balance.AccountID},
+		{upper: "AssetCode", lower: "assetCode", dst: &balance.AssetCode},
+		{upper: "AccountType", lower: "accountType", dst: &balance.AccountType},
+		{upper: "Direction", lower: "direction", dst: &balance.Direction},
+		{upper: "OverdraftLimit", lower: "overdraftLimit", dst: &balance.OverdraftLimit},
+		{upper: "BalanceScope", lower: "balanceScope", dst: &balance.BalanceScope},
+	} {
+		raw, _ := selectBalanceRedisField(fields, field.upper, field.lower)
+		if raw == nil {
+			continue
+		}
+
+		if err := json.Unmarshal(raw, field.dst); err != nil {
+			return fmt.Errorf("invalid %s field: %w", field.lower, err)
+		}
+	}
+
+	return nil
+}
+
+func decodeBalanceRedisDecimals(fields map[string]json.RawMessage, balance *BalanceRedis) error {
+	available, err := decodeRequiredBalanceRedisDecimal(fields, "Available", "available")
+	if err != nil {
+		return err
+	}
+
+	onHold, err := decodeRequiredBalanceRedisDecimal(fields, "OnHold", "onHold")
+	if err != nil {
+		return err
+	}
+
+	overdraftRaw, _ := selectBalanceRedisField(fields, "OverdraftUsed", "overdraftUsed")
+
+	overdraftUsed, err := parseBalanceRedisDecimalString(overdraftRaw, "overdraftUsed")
+	if err != nil {
+		return err
+	}
+
+	balance.Available = available
+	balance.OnHold = onHold
+	balance.OverdraftUsed = overdraftUsed
+
+	return nil
+}
+
+func decodeRequiredBalanceRedisDecimal(fields map[string]json.RawMessage, upper, lower string) (decimal.Decimal, error) {
+	raw, _ := selectBalanceRedisField(fields, upper, lower)
+	if raw == nil {
+		return decimal.Zero, fmt.Errorf("type unsuported to %s: <nil>", lower)
+	}
+
+	return parseBalanceRedisDecimal(raw, lower)
+}
+
+func decodeBalanceRedisVersion(fields map[string]json.RawMessage, schemaVersion int64, balance *BalanceRedis) error {
+	raw, isUpper := selectBalanceRedisField(fields, "Version", "version")
+	if raw == nil {
+		return nil
+	}
+
+	if schemaVersion != 2 || isUpper {
+		if err := json.Unmarshal(raw, &balance.Version); err != nil {
+			return fmt.Errorf("invalid version field: %w", err)
+		}
+
+		return nil
+	}
+
+	var version string
+	if err := json.Unmarshal(raw, &version); err != nil {
+		return fmt.Errorf("invalid version field: %w", err)
+	}
+
+	parsed, err := strconv.ParseInt(version, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid version field: %w", err)
+	}
+
+	balance.Version = parsed
+
+	return nil
+}
+
+func decodeBalanceRedisFlags(fields map[string]json.RawMessage, schemaVersion int64, balance *BalanceRedis) error {
+	for _, flag := range []struct {
+		upper string
+		lower string
+		dst   *int
+	}{
+		{upper: "AllowSending", lower: "allowSending", dst: &balance.AllowSending},
+		{upper: "AllowReceiving", lower: "allowReceiving", dst: &balance.AllowReceiving},
+		{upper: "Blocked", lower: "blocked", dst: &balance.Blocked},
+		{upper: "AllowOverdraft", lower: "allowOverdraft", dst: &balance.AllowOverdraft},
+		{upper: "OverdraftLimitEnabled", lower: "overdraftLimitEnabled", dst: &balance.OverdraftLimitEnabled},
+	} {
+		if err := decodeBalanceRedisFlag(fields, schemaVersion, flag.upper, flag.lower, flag.dst); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func decodeBalanceRedisFlag(fields map[string]json.RawMessage, schemaVersion int64, upper, lower string, dst *int) error {
+	raw, isUpper := selectBalanceRedisField(fields, upper, lower)
+	if raw == nil {
+		return nil
+	}
+
+	if schemaVersion != 2 || isUpper {
+		if err := json.Unmarshal(raw, dst); err != nil {
+			return fmt.Errorf("invalid %s field: %w", lower, err)
+		}
+
+		return nil
+	}
+
+	var value *bool
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return fmt.Errorf("invalid %s field: %w", lower, err)
+	}
+
+	if value == nil {
+		return fmt.Errorf("invalid %s field: null", lower)
+	}
+
+	*dst = 0
+	if *value {
+		*dst = 1
+	}
+
+	return nil
+}
+
+func selectBalanceRedisField(fields map[string]json.RawMessage, upper, lower string) (json.RawMessage, bool) {
+	if raw, ok := fields[upper]; ok {
+		return raw, true
+	}
+
+	return fields[lower], false
+}
+
+func parseBalanceRedisDecimal(raw json.RawMessage, field string) (decimal.Decimal, error) {
+	var value string
+	if len(raw) > 0 && raw[0] == '"' {
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return decimal.Zero, fmt.Errorf("err to converter %s field from string to decimal: %w", field, err)
+		}
+	} else {
+		value = string(raw)
+	}
+
+	parsed, err := decimal.NewFromString(value)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("err to converter %s field to decimal: %w", field, err)
+	}
+
+	return parsed, nil
+}
+
+func parseBalanceRedisDecimalString(raw json.RawMessage, field string) (string, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return "0", nil
+	}
+
+	if trimmed[0] == '"' {
+		var value string
+		if err := json.Unmarshal(trimmed, &value); err != nil {
+			return "", fmt.Errorf("err to converter %s field from string to decimal: %w", field, err)
+		}
+
+		if value == "" {
+			return "0", nil
+		}
+
+		if _, err := decimal.NewFromString(value); err != nil {
+			return "", fmt.Errorf("err to converter %s field to decimal: %w", field, err)
+		}
+
+		return value, nil
+	}
+
+	value, err := decimal.NewFromString(string(trimmed))
+	if err != nil {
+		return "", fmt.Errorf("err to converter %s field to decimal: %w", field, err)
+	}
+
+	return value.String(), nil
 }
 
 // BalanceErrorResponse represents an error response for balance operations.

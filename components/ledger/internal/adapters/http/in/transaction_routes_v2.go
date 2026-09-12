@@ -19,7 +19,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -133,7 +132,7 @@ var v2LifecycleBodyOperationIDs = []string{"commitTransactionV2", "revertTransac
 // so, which is what keeps a generated client from sending a body the ops never needed.
 func publishV2LifecycleBodySchema(api huma.API) {
 	for _, operationID := range v2LifecycleBodyOperationIDs {
-		attachTypedRequestBody[mtransaction.LifecycleV2Input](api, operationID)
+		attachTypedRequestBody[LifecycleV2Request](api, operationID)
 		markRequestBodyOptional(api, operationID)
 	}
 }
@@ -297,7 +296,7 @@ func publishV2CreateBodySchema(api huma.API) {
 		return
 	}
 
-	inputType := reflect.TypeFor[mtransaction.CreateTransactionV2Input]()
+	inputType := reflect.TypeFor[CreateTransactionV2Request]()
 
 	// Registering is idempotent for a given type; each call hands back a fresh $ref
 	// so the ops never share one schema value. Every one of them names the same component, so
@@ -311,7 +310,7 @@ func publishV2CreateBodySchema(api huma.API) {
 
 	describeV2Component(oapi, bodyRef, v2CreateBodyDescription)
 
-	legRef := oapi.Components.Schemas.Schema(reflect.TypeFor[mtransaction.V2LegInput](), true, "").Ref
+	legRef := oapi.Components.Schemas.Schema(reflect.TypeFor[TransactionV2LegRequest](), true, "").Ref
 	describeV2Component(oapi, legRef, v2LegDescription)
 }
 

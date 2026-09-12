@@ -13,6 +13,8 @@ import (
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -158,6 +160,47 @@ func TestQuarantine_NoRepoConfigured_LeavesRecord(t *testing.T) {
 	// No Redis calls at all when quarantine repo is nil.
 	consumer.quarantinePoisonRecord(context.Background(), noopSpan(), newTestLogger(),
 		"transaction:{transactions}:org:ledger:tx", uuid.New(), uuid.New(), uuid.New(), []byte(`{}`), "nil_validate")
+}
+
+func TestProcessMessageProjectionFailuresAdvanceQuarantineAttempts(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name          string
+		failureReason string
+		message       mmodel.TransactionRedisQueue
+	}{
+		{
+			name:          "before balance",
+			failureReason: "balance_projection_failure",
+			message: mmodel.TransactionRedisQueue{
+				Balances: []mmodel.BalanceRedis{{OverdraftUsed: "invalid"}},
+			},
+		},
+		{
+			name:          "after balance",
+			failureReason: "after_balance_projection_failure",
+			message: mmodel.TransactionRedisQueue{
+				BalancesAfter: []mmodel.BalanceRedis{{OverdraftLimit: "invalid"}},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			consumer, mockRedis, _ := newQuarantineConsumer(t)
+			key := "transaction:{transactions}:org:ledger:tx"
+			rawPayload := `{"payload":"preserved"}`
+			tc.message.OrganizationID = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+			tc.message.LedgerID = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+			tc.message.TransactionID = uuid.MustParse("33333333-3333-3333-3333-333333333333")
+			tc.message.Validate = &mtransaction.Responses{}
+
+			mockRedis.EXPECT().IncrementBackupAttempt(gomock.Any(), key).Return(int64(1), nil)
+
+			consumer.processMessage(context.Background(), key, rawPayload, tc.message)
+		})
+	}
 }
 
 // TestParsePoisonKeyIDs covers the unmarshal-failure key parser: the org/ledger/

@@ -47,11 +47,30 @@ func legacyDeleteMarkerKeyForIntegration(balanceKey string) string {
 func readCachedBalance(t *testing.T, infra *integrationTestInfra, key string) cachedBalance {
 	t.Helper()
 
-	raw, err := infra.redisContainer.Client.Get(context.Background(), key).Result()
-	require.NoError(t, err, "balance cache key %q must exist", key)
-
+	fields := readCachedBalanceFields(t, infra, key)
 	var cb cachedBalance
-	require.NoError(t, json.Unmarshal([]byte(raw), &cb))
+	decode := func(name string, target any) {
+		raw, exists := fields[name]
+		require.True(t, exists, "balance cache field %q must exist", name)
+		require.NoError(t, json.Unmarshal(raw, target), "decode balance cache field %q", name)
+	}
+
+	decode("ID", &cb.ID)
+	decode("Available", &cb.Available)
+	decode("OnHold", &cb.OnHold)
+	decode("Version", &cb.Version)
+	decode("AccountType", &cb.AccountType)
+	decode("AccountID", &cb.AccountID)
+	decode("AssetCode", &cb.AssetCode)
+	decode("AllowSending", &cb.AllowSending)
+	decode("AllowReceiving", &cb.AllowReceiving)
+	decode("Key", &cb.Key)
+	decode("Direction", &cb.Direction)
+	decode("OverdraftUsed", &cb.OverdraftUsed)
+	decode("AllowOverdraft", &cb.AllowOverdraft)
+	decode("OverdraftLimitEnabled", &cb.OverdraftLimitEnabled)
+	decode("OverdraftLimit", &cb.OverdraftLimit)
+	decode("BalanceScope", &cb.BalanceScope)
 
 	return cb
 }

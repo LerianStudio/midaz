@@ -44,7 +44,7 @@ Both Go units build from the single root module (`github.com/LerianStudio/midaz/
 
 | Unit | Port | Role | Stores |
 | --- | --- | --- | --- |
-| Ledger | :3002 | Unified binary: onboarding + transaction + CRM + fees, in-process | PostgreSQL, MongoDB |
+| Ledger | :3002 | Unified binary: onboarding + transaction + CRM + fees, in-process | PostgreSQL, MongoDB, Valkey, RabbitMQ |
 | Tracer | :4020 | Real-time validation/fraud: CEL rules, spending limits, hash-chained audit | PostgreSQL |
 | Infra | — | docker-compose stack | — |
 
@@ -53,6 +53,12 @@ Infrastructure: PostgreSQL 17 (primary/replica), MongoDB replica set, RabbitMQ, 
 The ledger reaches Tracer over an opt-in reservation seam, enabled by setting `TRACER_BASE_URL`. The transport is gRPC by default with a selectable REST fallback (`TRACER_TRANSPORT`), authenticated by mutual TLS (`TRACER_TLS_MODE=mtls`) or delegated to a service-mesh sidecar (`mesh`), forwarding a trusted `x-tenant-id` for per-tenant pool resolution. See [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
 
 CRM routes register under the `midaz` authorization namespace; the coordinated tenant-manager RBAC policy migration is the X1 release gate (see [docs/auth/RBAC-NAMESPACES.md](docs/auth/RBAC-NAMESPACES.md)).
+
+Executable ledger transactions use the private accounting engine by default:
+Go composes declarative postings and the Redis/Lua adapter performs live balance
+validation and mutation in one isolated execution. Receipts and a dedicated
+recovery queue allow durable SQL/MongoDB completion without reapplying accounting.
+See [docs/architecture/engine.md](docs/architecture/engine.md).
 
 ### Domain Hierarchy
 
@@ -72,7 +78,7 @@ CRM routes register under the `midaz` authorization namespace; the coordinated t
 - **Complex transactions** — n:n operations (multiple sources to multiple destinations).
 - **Immutable records** — every transaction is permanently recorded for audit.
 - **Async processing** — event-driven transaction handling via RabbitMQ.
-- **Optimistic-concurrency balances** — version-based concurrency control for balance updates.
+- **Atomic live-state accounting** — balance validation, overdraft arithmetic, mutations, versions, receipts, and recovery evidence execute in one Redis/Lua boundary without stale-state retries.
 - **Hexagonal + CQRS** — domain logic isolated from adapters; commands and queries separated.
 - **OpenAPI docs** — RESTful endpoints with generated OpenAPI specifications.
 

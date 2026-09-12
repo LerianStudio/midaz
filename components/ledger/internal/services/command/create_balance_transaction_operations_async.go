@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -144,36 +143,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	// Send events asynchronously with context that preserves trace but survives parent cancellation.
-	// Each emitter gets its own timeout budget so a slow earlier emitter cannot starve later ones.
-	go func() {
-		base := context.WithoutCancel(ctx)
-
-		runWithTimeout := func(fn func(context.Context)) {
-			emitCtx, cancel := context.WithTimeout(base, asyncOperationTimeout)
-			defer cancel()
-
-			fn(emitCtx)
-		}
-
-		var wg sync.WaitGroup
-
-		wg.Add(3)
-
-		go func() {
-			defer wg.Done()
-
-			runWithTimeout(func(c context.Context) { uc.SendTransactionEvents(c, tran, phase) })
-		}()
-		go func() { defer wg.Done(); runWithTimeout(func(c context.Context) { uc.SendOverdraftEvents(c, tran) }) }()
-		go func() {
-			defer wg.Done()
-
-			runWithTimeout(func(c context.Context) { uc.SendBalanceChangedEvents(c, tran) })
-		}()
-
-		wg.Wait()
-	}()
+	uc.dispatchTransactionEvents(ctx, tran, phase)
 
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
 		if backupStatusForCleanup == "" {

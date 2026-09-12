@@ -51,6 +51,25 @@ type integrationTestInfra struct {
 	repo           *RedisConsumerRepository
 }
 
+func (infra *integrationTestInfra) processBalanceAtomicOperationWithoutBlockException(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	status string,
+	pending bool,
+	operations []mmodel.BalanceOperation,
+) (*mmodel.BalanceAtomicResult, error) {
+	return infra.repo.ProcessBalanceAtomicOperation(
+		ctx,
+		organizationID,
+		ledgerID,
+		transactionID,
+		status,
+		pending,
+		operations,
+		nil,
+	)
+}
+
 // chaosTestInfra holds the infrastructure needed for Redis chaos tests.
 type chaosTestInfra struct {
 	redisContainer *redistestutil.ContainerResult

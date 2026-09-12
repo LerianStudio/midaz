@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -268,9 +269,31 @@ func recordRevertReplay(ctx context.Context, span trace.Span, logger libLog.Logg
 // createRevertV1 posts a reversal under the /v1 contract: no fee engine, no tracer
 // reservation, no per-call skip controls.
 func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger libLog.Logger, run *createTransactionRun) (*transaction.Transaction, bool, error) {
-	if err := uc.prepareCreateTransaction(ctx, span, logger, run); err != nil {
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
 		return nil, false, err
 	}
+
+	run.transactionID = transactionID
+
+	transactionDate, err := formatTransactionDate(ctx, span, run.input, run.status)
+	if err != nil {
+		return nil, false, err
+	}
+
+	run.transactionDate = transactionDate
+
+	spanattr.RecordSafePayloadAttributes(span, run.input)
+
+	if err := validatePositiveTransactionValue(ctx, span, logger, run.input.Send.Value); err != nil {
+		return nil, false, err
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
 
 	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "")
 	if err != nil {
@@ -342,6 +365,12 @@ func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger l
 		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
 	}
 
+	if uc.Engine != nil {
+		tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, false)
+
+		return tran, false, err
+	}
+
 	ctx, err = uc.stageBalances(ctx, span, logger, run)
 	if err != nil {
 		return nil, false, err
@@ -376,9 +405,31 @@ func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger l
 // createRevertV2 posts a reversal under the /v2 contract: the per-call skip controls
 // and the tracer reservation lifecycle apply, the fee engine does not.
 func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger libLog.Logger, run *createTransactionRun) (*transaction.Transaction, bool, error) {
-	if err := uc.prepareCreateTransaction(ctx, span, logger, run); err != nil {
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
 		return nil, false, err
 	}
+
+	run.transactionID = transactionID
+
+	transactionDate, err := formatTransactionDate(ctx, span, run.input, run.status)
+	if err != nil {
+		return nil, false, err
+	}
+
+	run.transactionDate = transactionDate
+
+	spanattr.RecordSafePayloadAttributes(span, run.input)
+
+	if err := validatePositiveTransactionValue(ctx, span, logger, run.input.Send.Value); err != nil {
+		return nil, false, err
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
 
 	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "")
 	if err != nil {
@@ -452,16 +503,7 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 
 	run.validate = validate
 
-	run.fromTo = append(run.fromTo, mtransaction.MutateConcatAliases(run.input.Send.Source.From)...)
-	to := mtransaction.MutateConcatAliases(run.input.Send.Distribute.To)
-
-	if run.status != constant.PENDING {
-		run.fromTo = append(run.fromTo, to...)
-	}
-
-	if run.ledgerSettings.Accounting.ValidateRoutes {
-		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
-	}
+	prepareRevertV2Aliases(ctx, run)
 
 	// Account-block exception: the /v2 revert accepts a grant, so resolve the
 	// presented identifier before balances are staged. createRevertV1 names this
@@ -472,6 +514,14 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 		uc.rollbackCreateClaim(ctx, run)
 
 		return nil, false, err
+	}
+
+	// Keep exception-bearing requests on the compatibility path until the engine
+	// can validate and consume the single-use grant atomically with the reversal.
+	if uc.Engine != nil && run.accountBlockExceptionGrant == nil {
+		tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, true)
+
+		return tran, false, err
 	}
 
 	ctx, err = uc.stageBalances(ctx, span, logger, run)
@@ -523,4 +573,17 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 	}
 
 	return tran, false, nil
+}
+
+func prepareRevertV2Aliases(ctx context.Context, run *createTransactionRun) {
+	run.fromTo = append(run.fromTo, mtransaction.MutateConcatAliases(run.input.Send.Source.From)...)
+	to := mtransaction.MutateConcatAliases(run.input.Send.Distribute.To)
+
+	if run.status != constant.PENDING {
+		run.fromTo = append(run.fromTo, to...)
+	}
+
+	if run.ledgerSettings.Accounting.ValidateRoutes {
+		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
+	}
 }

@@ -510,6 +510,8 @@ func ParseIdempotencyTTL(headerValue string) time.Duration {
 	t, err := strconv.Atoi(headerValue)
 	if err != nil || t <= 0 {
 		t = 300
+	} else if t > 604800 {
+		t = 604800
 	}
 
 	return time.Duration(t)

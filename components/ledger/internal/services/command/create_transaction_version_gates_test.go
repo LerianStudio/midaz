@@ -128,6 +128,32 @@ func TestCreateTransactionV2_ReferencesVersionedSeamsInOrder(t *testing.T) {
 	}
 }
 
+func TestTransactionVersionsOwnTheirPreparationFlow(t *testing.T) {
+	for _, tc := range []struct {
+		file string
+		fn   string
+	}{
+		{file: "create_transaction_v1.go", fn: "CreateTransactionV1"},
+		{file: "create_transaction_v2.go", fn: "CreateTransactionV2"},
+		{file: "revert_transaction.go", fn: "createRevertV1"},
+		{file: "revert_transaction.go", fn: "createRevertV2"},
+	} {
+		names := calledNames(t, readTransportSource(t, tc.file, "func (uc *UseCase) "+tc.fn), tc.fn)
+
+		for _, step := range []string{
+			"GenerateUUIDv7",
+			"formatTransactionDate",
+			"RecordSafePayloadAttributes",
+			"validatePositiveTransactionValue",
+			"ApplyDefaultBalanceKeys",
+		} {
+			if !containsName(names, step) {
+				t.Errorf("%s does not own preparation step %s", tc.fn, step)
+			}
+		}
+	}
+}
+
 // TestRevertV2_NeverAppliesFees locks the one way the revert pipeline differs from the
 // create pipeline on the same contract: the reverse transaction already carries the
 // reversed fee legs reconstructed by TransactionRevert, so charging again would double
