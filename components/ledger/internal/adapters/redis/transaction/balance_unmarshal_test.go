@@ -18,8 +18,8 @@ import (
 
 func TestBalanceRedisList_UnmarshalJSON_StandardArray(t *testing.T) {
 	input := `[
-		{"id":"b1","alias":"@src","accountId":"a1","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1},
-		{"id":"b2","alias":"@dst","accountId":"a2","available":"200","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}
+		{"id":"11111111-1111-4111-8111-111111111111","alias":"@src","accountId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1},
+		{"id":"22222222-2222-4222-8222-222222222222","alias":"@dst","accountId":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","assetCode":"USD","available":"200","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}
 	]`
 
 	var list balanceRedisList
@@ -27,21 +27,21 @@ func TestBalanceRedisList_UnmarshalJSON_StandardArray(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, list, 2)
-	assert.Equal(t, "b1", list[0].ID)
+	assert.Equal(t, "11111111-1111-4111-8111-111111111111", list[0].ID)
 	assert.Equal(t, "@src", list[0].Alias)
-	assert.Equal(t, "b2", list[1].ID)
+	assert.Equal(t, "22222222-2222-4222-8222-222222222222", list[1].ID)
 	assert.Equal(t, "@dst", list[1].Alias)
 }
 
 func TestBalanceRedisList_UnmarshalJSON_SingleElementArray(t *testing.T) {
-	input := `[{"id":"b1","alias":"@src","accountId":"a1","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}]`
+	input := `[{"id":"11111111-1111-4111-8111-111111111111","alias":"@src","accountId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}]`
 
 	var list balanceRedisList
 	err := json.Unmarshal([]byte(input), &list)
 
 	require.NoError(t, err)
 	require.Len(t, list, 1)
-	assert.Equal(t, "b1", list[0].ID)
+	assert.Equal(t, "11111111-1111-4111-8111-111111111111", list[0].ID)
 }
 
 func TestBalanceRedisList_UnmarshalJSON_EmptyArray(t *testing.T) {
@@ -53,14 +53,14 @@ func TestBalanceRedisList_UnmarshalJSON_EmptyArray(t *testing.T) {
 }
 
 func TestBalanceRedisList_UnmarshalJSON_ArrayWithNulls(t *testing.T) {
-	input := `[null, {"id":"b1","alias":"@src","accountId":"a1","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}, null]`
+	input := `[null, {"id":"11111111-1111-4111-8111-111111111111","alias":"@src","accountId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}, null]`
 
 	var list balanceRedisList
 	err := json.Unmarshal([]byte(input), &list)
 
 	require.NoError(t, err)
 	require.Len(t, list, 1, "null entries should be skipped")
-	assert.Equal(t, "b1", list[0].ID)
+	assert.Equal(t, "11111111-1111-4111-8111-111111111111", list[0].ID)
 }
 
 func TestBalanceRedisList_UnmarshalJSON_Null(t *testing.T) {
@@ -91,14 +91,14 @@ func TestBalanceRedisList_UnmarshalJSON_EmptyObject(t *testing.T) {
 
 // cjson quirk: single balance returned as bare object instead of 1-element array.
 func TestBalanceRedisList_UnmarshalJSON_SingleObject(t *testing.T) {
-	input := `{"id":"b1","alias":"@src","accountId":"a1","available":"500","onHold":"10","version":3,"accountType":"deposit","allowSending":1,"allowReceiving":0}`
+	input := `{"id":"11111111-1111-4111-8111-111111111111","alias":"@src","accountId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","assetCode":"USD","available":"500","onHold":"10","version":3,"accountType":"deposit","allowSending":1,"allowReceiving":0}`
 
 	var list balanceRedisList
 	err := json.Unmarshal([]byte(input), &list)
 
 	require.NoError(t, err)
 	require.Len(t, list, 1, "bare object should be treated as single-element list")
-	assert.Equal(t, "b1", list[0].ID)
+	assert.Equal(t, "11111111-1111-4111-8111-111111111111", list[0].ID)
 	assert.Equal(t, "@src", list[0].Alias)
 	assert.Equal(t, int64(3), list[0].Version)
 }
@@ -106,8 +106,8 @@ func TestBalanceRedisList_UnmarshalJSON_SingleObject(t *testing.T) {
 // cjson quirk: Lua array-table encoded as {"1":{...},"2":{...}}.
 func TestBalanceRedisList_UnmarshalJSON_NestedNumericKeys(t *testing.T) {
 	input := `{
-		"1": {"id":"b1","alias":"@src","accountId":"a1","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1},
-		"2": {"id":"b2","alias":"@dst","accountId":"a2","available":"200","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}
+		"1": {"id":"11111111-1111-4111-8111-111111111111","alias":"@src","accountId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","assetCode":"USD","available":"100","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1},
+		"2": {"id":"22222222-2222-4222-8222-222222222222","alias":"@dst","accountId":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","assetCode":"USD","available":"200","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}
 	}`
 
 	var list balanceRedisList
@@ -117,8 +117,8 @@ func TestBalanceRedisList_UnmarshalJSON_NestedNumericKeys(t *testing.T) {
 	require.Len(t, list, 2, "numeric-keyed object should produce 2 balances")
 
 	ids := map[string]bool{list[0].ID: true, list[1].ID: true}
-	assert.True(t, ids["b1"], "should contain b1")
-	assert.True(t, ids["b2"], "should contain b2")
+	assert.True(t, ids["11111111-1111-4111-8111-111111111111"], "should contain first balance")
+	assert.True(t, ids["22222222-2222-4222-8222-222222222222"], "should contain second balance")
 }
 
 func TestBalanceRedisList_UnmarshalJSON_InvalidJSON(t *testing.T) {
@@ -142,8 +142,8 @@ func TestBalanceRedisList_UnmarshalJSON_UnexpectedToken(t *testing.T) {
 
 func TestBalanceAtomicResponse_UnmarshalJSON_StandardArrays(t *testing.T) {
 	input := `{
-		"before": [{"id":"b1","alias":"@src","accountId":"a1","available":"1000","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}],
-		"after":  [{"id":"b1","alias":"@src","accountId":"a1","available":"900","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}]
+		"before": [{"id":"11111111-1111-4111-8111-111111111111","alias":"@src","accountId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","assetCode":"USD","available":"1000","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}],
+		"after":  [{"id":"11111111-1111-4111-8111-111111111111","alias":"@src","accountId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","assetCode":"USD","available":"900","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}]
 	}`
 
 	var resp balanceAtomicResponse
@@ -152,8 +152,8 @@ func TestBalanceAtomicResponse_UnmarshalJSON_StandardArrays(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Before, 1)
 	require.Len(t, resp.After, 1)
-	assert.Equal(t, "b1", resp.Before[0].ID)
-	assert.Equal(t, "b1", resp.After[0].ID)
+	assert.Equal(t, "11111111-1111-4111-8111-111111111111", resp.Before[0].ID)
+	assert.Equal(t, "11111111-1111-4111-8111-111111111111", resp.After[0].ID)
 	assert.Equal(t, int64(1), resp.Before[0].Version)
 	assert.Equal(t, int64(2), resp.After[0].Version)
 }
@@ -185,7 +185,7 @@ func TestBalanceAtomicResponse_UnmarshalJSON_EmptyArrays(t *testing.T) {
 // Mixed: before is a proper array, after is a cjson empty object.
 func TestBalanceAtomicResponse_UnmarshalJSON_MixedArrayAndEmptyObject(t *testing.T) {
 	input := `{
-		"before": [{"id":"b1","alias":"@src","accountId":"a1","available":"500","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}],
+		"before": [{"id":"11111111-1111-4111-8111-111111111111","alias":"@src","accountId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","assetCode":"USD","available":"500","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}],
 		"after":  {}
 	}`
 
@@ -257,12 +257,12 @@ func TestBalanceAtomicResponse_UnmarshalJSON_InvalidJSON(t *testing.T) {
 func TestBalanceAtomicResponse_UnmarshalJSON_MultipleBalances(t *testing.T) {
 	input := `{
 		"before": [
-			{"id":"b1","alias":"@src","accountId":"a1","available":"1000","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1},
-			{"id":"b2","alias":"@dst","accountId":"a2","available":"0","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}
+			{"id":"11111111-1111-4111-8111-111111111111","alias":"@src","accountId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","assetCode":"USD","available":"1000","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1},
+			{"id":"22222222-2222-4222-8222-222222222222","alias":"@dst","accountId":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","assetCode":"USD","available":"0","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}
 		],
 		"after": [
-			{"id":"b1","alias":"@src","accountId":"a1","available":"500","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1},
-			{"id":"b2","alias":"@dst","accountId":"a2","available":"500","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}
+			{"id":"11111111-1111-4111-8111-111111111111","alias":"@src","accountId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","assetCode":"USD","available":"500","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1},
+			{"id":"22222222-2222-4222-8222-222222222222","alias":"@dst","accountId":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","assetCode":"USD","available":"500","onHold":"0","version":2,"accountType":"deposit","allowSending":1,"allowReceiving":1}
 		]
 	}`
 

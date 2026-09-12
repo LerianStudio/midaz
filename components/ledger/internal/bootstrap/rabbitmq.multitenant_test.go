@@ -20,7 +20,7 @@ func goleakIgnores() []goleak.Option {
 	return []goleak.Option{
 		goleak.IgnoreTopFunction("github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/cache.(*InMemoryCache).cleanupLoop"),
 		goleak.IgnoreTopFunction("go.opencensus.io/stats/view.(*worker).start"),
-		// lib-commons v6.8.1 instruments the Redis client with OTel metrics, so
+		// lib-commons v7 instruments the Redis client with OTel metrics, so
 		// InitServers spawns redisotel's background metrics reporter. It only
 		// stops when the meter-provider close channel fires, not on redis client
 		// Close, so a Service built without Run() keeps it alive.

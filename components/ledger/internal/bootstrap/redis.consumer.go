@@ -6,11 +6,10 @@ package bootstrap
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -22,9 +21,10 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
-	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -52,34 +52,98 @@ const (
 	// the next cycle (a poison record is the only durable copy of an authorized
 	// transaction, so it is never deleted or skipped silently forever).
 	QuarantineThreshold = 3
-
-	// redisBackupConsumerComponent scopes panic-observability signals (the
-	// panic_recovered_total counter, structured logs, span events) emitted by
-	// the per-record replay goroutines to this subsystem in dashboards.
-	redisBackupConsumerComponent = "ledger.redis-backup-consumer"
 )
 
+// RedisQueueConsumer is the recovery runner. It owns scheduling, tenant
+// dispatch, and the shared distributed cycle lock; record-format behavior lives
+// in LegacyBackupConsumer and EngineRecoveryConsumer.
 type RedisQueueConsumer struct {
 	Logger  libLog.Logger
 	Command *command.UseCase
 	Query   *query.UseCase
-	// queue is the backup-queue repository the consumer drives directly for the
-	// queue mechanics it owns: cycle lock, reads, attempt counters, removal. It
-	// is always the same repository Command holds.
-	queue              txRedis.RedisRepository
-	quarantineRepo     transactionquarantine.Repository
-	metricsFactory     *metrics.MetricsFactory
+	// queue is the Redis repository the runner and both recovery consumers share.
+	// It is always the same repository Command holds.
+	queue                       txRedis.RedisRepository
+	quarantineRepo              transactionquarantine.Repository
+	metricsFactory              *metrics.MetricsFactory
+	multiTenantEnabled          bool
+	tenantCache                 *tenantcache.TenantCache
+	pgManager                   *tmpostgres.Manager
+	appliedTransactionCompleter command.AppliedTransactionCompleter
+	recoveryClock               func() time.Time
+}
+
+type recoveryMongoResolver interface {
+	GetDatabaseForTenant(context.Context, string) (*mongo.Database, error)
+}
+
+// tenantAppliedTransactionCompleter resolves metadata storage inside the
+// existing recovery timeout. Legacy records do not use this completer or
+// acquire Mongo connections.
+type tenantAppliedTransactionCompleter struct {
+	delegate           command.AppliedTransactionCompleter
+	mongoResolver      recoveryMongoResolver
 	multiTenantEnabled bool
-	tenantCache        *tenantcache.TenantCache
-	pgManager          *tmpostgres.Manager
+}
+
+func (completer *tenantAppliedTransactionCompleter) Complete(ctx context.Context, record *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
+	ctx, err := completer.resolveContext(ctx, record)
+	if err != nil {
+		return command.TransactionCompletionResult{}, err
+	}
+
+	result, err := completer.delegate.Complete(ctx, record)
+	if err != nil {
+		return command.TransactionCompletionResult{}, err
+	}
+
+	return result, nil
+}
+
+func (completer *tenantAppliedTransactionCompleter) resolveContext(ctx context.Context, record *command.TransactionCompletionRecord) (context.Context, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if completer.delegate == nil {
+		return nil, fmt.Errorf("applied transaction completer is not configured")
+	}
+
+	if !completer.multiTenantEnabled {
+		return ctx, nil
+	}
+
+	tenantID := tmcore.GetTenantIDContext(ctx)
+	if tenantID == "" || record == nil || record.TenantID != tenantID {
+		return nil, fmt.Errorf("balance recovery requires matching authenticated tenant context")
+	}
+
+	if completer.mongoResolver == nil {
+		return nil, fmt.Errorf("balance recovery tenant Mongo resolver is not configured")
+	}
+
+	database, err := completer.mongoResolver.GetDatabaseForTenant(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve balance recovery tenant Mongo database: %w", err)
+	}
+
+	if database == nil {
+		return nil, fmt.Errorf("balance recovery tenant Mongo database is unavailable")
+	}
+
+	ctx = tmcore.ContextWithMB(ctx, database)
+	ctx = tmcore.ContextWithMB(ctx, database, constant.ModuleTransaction)
+
+	return ctx, nil
 }
 
 func NewRedisQueueConsumer(logger libLog.Logger, cmd *command.UseCase, qry *query.UseCase) *RedisQueueConsumer {
 	return &RedisQueueConsumer{
-		Logger:  logger,
-		Command: cmd,
-		Query:   qry,
-		queue:   cmd.TransactionRedisRepo,
+		Logger:        logger,
+		Command:       cmd,
+		Query:         qry,
+		queue:         cmd.TransactionRedisRepo,
+		recoveryClock: time.Now,
 	}
 }
 
@@ -92,7 +156,7 @@ func (r *RedisQueueConsumer) WithQuarantineRepository(repo transactionquarantine
 	return r
 }
 
-// WithMetricsFactory sets the metrics factory used to emit backup-queue
+// WithMetricsFactory sets the metrics factory used to emit combined recovery
 // observability metrics each cycle. A nil factory disables metric emission.
 func (r *RedisQueueConsumer) WithMetricsFactory(factory *metrics.MetricsFactory) *RedisQueueConsumer {
 	r.metricsFactory = factory
@@ -146,12 +210,12 @@ func (r *RedisQueueConsumer) runSingleTenant() error {
 	ticker := time.NewTicker(CronTimeToRun)
 	defer ticker.Stop()
 
-	r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer started (single-tenant mode)")
+	r.Logger.Log(ctx, libLog.LevelInfo, "Redis recovery runner started (single-tenant mode)")
 
 	for {
 		select {
 		case <-ctx.Done():
-			r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer: shutting down...")
+			r.Logger.Log(ctx, libLog.LevelInfo, "Redis recovery runner shutting down")
 			return nil
 
 		case <-ticker.C:
@@ -161,7 +225,7 @@ func (r *RedisQueueConsumer) runSingleTenant() error {
 }
 
 // executeCycle acquires the cycle-level distributed lock and, if this pod is the
-// leader, processes all backup queue messages. Extracted from the ticker case to
+// leader, invokes both recovery consumers. Extracted from the ticker case to
 // scope the defer-based lock release correctly (defer inside a for-select does not
 // run at the end of each iteration).
 func (r *RedisQueueConsumer) executeCycle(ctx context.Context) {
@@ -186,12 +250,12 @@ func (r *RedisQueueConsumer) runMultiTenant() error {
 	ticker := time.NewTicker(CronTimeToRun)
 	defer ticker.Stop()
 
-	r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer started (multi-tenant mode)")
+	r.Logger.Log(ctx, libLog.LevelInfo, "Redis recovery runner started (multi-tenant mode)")
 
 	for {
 		select {
 		case <-ctx.Done():
-			r.Logger.Log(ctx, libLog.LevelInfo, "RedisQueueConsumer: shutting down...")
+			r.Logger.Log(ctx, libLog.LevelInfo, "Redis recovery runner shutting down")
 			return nil
 
 		case <-ticker.C:
@@ -201,7 +265,7 @@ func (r *RedisQueueConsumer) runMultiTenant() error {
 }
 
 // executeMultiTenantCycle acquires the cycle-level distributed lock and, if this
-// pod is the leader, processes backup queue messages for every active tenant.
+// pod is the leader, invokes both recovery consumers for every active tenant.
 // Extracted from the ticker case to scope the defer-based lock release correctly.
 func (r *RedisQueueConsumer) executeMultiTenantCycle(ctx context.Context) {
 	acquired, release := r.acquireCycleLock(ctx)
@@ -213,14 +277,14 @@ func (r *RedisQueueConsumer) executeMultiTenantCycle(ctx context.Context) {
 
 	tenantIDs := r.tenantCache.TenantIDs()
 	if len(tenantIDs) == 0 {
-		r.Logger.Log(ctx, libLog.LevelDebug, "RedisQueueConsumer: no tenants in cache, skipping cycle")
+		r.Logger.Log(ctx, libLog.LevelDebug, "Redis recovery runner has no tenants in cache; skipping cycle")
 
 		return
 	}
 
 	for _, tenantID := range tenantIDs {
 		if ctx.Err() != nil {
-			r.Logger.Log(ctx, libLog.LevelDebug, "RedisQueueConsumer: context cancelled, stopping tenant iteration")
+			r.Logger.Log(ctx, libLog.LevelDebug, "Redis recovery runner context canceled; stopping tenant iteration")
 
 			return
 		}
@@ -229,14 +293,14 @@ func (r *RedisQueueConsumer) executeMultiTenantCycle(ctx context.Context) {
 
 		conn, err := r.pgManager.GetConnection(tenantCtx, tenantID)
 		if err != nil {
-			r.Logger.Log(ctx, libLog.LevelError, "RedisQueueConsumer: failed to get PG connection for tenant", libLog.String("tenant_id", tenantID), libLog.Err(err))
+			r.Logger.Log(ctx, libLog.LevelError, "Redis recovery runner failed to get PG connection for tenant", libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 			continue
 		}
 
 		db, err := conn.GetDB()
 		if err != nil {
-			r.Logger.Log(ctx, libLog.LevelError, "RedisQueueConsumer: failed to get DB for tenant", libLog.String("tenant_id", tenantID), libLog.Err(err))
+			r.Logger.Log(ctx, libLog.LevelError, "Redis recovery runner failed to get DB for tenant", libLog.String("tenant_id", tenantID), libLog.Err(err))
 
 			continue
 		}
@@ -258,13 +322,13 @@ func (r *RedisQueueConsumer) acquireCycleLock(ctx context.Context) (bool, func()
 
 	success, err := r.queue.SetNX(ctx, cycleLockKey, podID, CycleLockTTL)
 	if err != nil {
-		r.Logger.Log(ctx, libLog.LevelWarn, "Failed to acquire backup consumer cycle lock", libLog.Err(err))
+		r.Logger.Log(ctx, libLog.LevelWarn, "Failed to acquire Redis recovery cycle lock", libLog.Err(err))
 
 		return false, nil
 	}
 
 	if !success {
-		r.Logger.Log(ctx, libLog.LevelDebug, "Another pod holds the backup consumer lock, skipping cycle")
+		r.Logger.Log(ctx, libLog.LevelDebug, "Another pod holds the Redis recovery cycle lock; skipping cycle")
 
 		return false, nil
 	}
@@ -273,7 +337,7 @@ func (r *RedisQueueConsumer) acquireCycleLock(ctx context.Context) (bool, func()
 
 	release := func() {
 		if delErr := r.queue.Del(ctx, cycleLockKey); delErr != nil {
-			r.Logger.Log(ctx, libLog.LevelWarn, "Failed to release backup consumer cycle lock", libLog.Err(delErr))
+			r.Logger.Log(ctx, libLog.LevelWarn, "Failed to release Redis recovery cycle lock", libLog.Err(delErr))
 		}
 	}
 
@@ -291,6 +355,13 @@ func podIdentifier() string {
 	return hostname
 }
 
+type recoveryOriginStats struct {
+	read         bool
+	messageCount int
+	tooYoung     int
+	oldestTTL    time.Time
+}
+
 func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -299,101 +370,45 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 
 	r.Logger.Log(ctx, libLog.LevelDebug, "Init cron to read messages from redis...")
 
-	messages, err := r.queue.ReadAllMessagesFromQueue(ctx)
-	if err != nil {
-		r.Logger.Log(ctx, libLog.LevelError, "Failed to read messages from redis", libLog.Err(err))
-		return
+	// Keep one runner and one distributed lock while both generations coexist.
+	// The consumers remain logically separate so the legacy replay path can be
+	// removed without changing engine recovery or introducing concurrent
+	// completion of a record temporarily present in both hashes.
+	consumers := []recoveryOriginConsumer{
+		r.newLegacyBackupConsumer(),
+		r.newEngineRecoveryConsumer(),
 	}
 
-	r.Logger.Log(ctx, libLog.LevelDebug, "Read messages from queue", libLog.Int("message_count", len(messages)))
+	var aggregate recoveryOriginStats
 
-	// Emit the queue-depth gauge once per cycle (best-effort, nil-factory safe).
-	// Computed from the records already in hand so no extra Redis round-trip is
-	// needed. Depth is reported even on an empty cycle.
-	r.emitDepthGauge(ctx, int64(len(messages)))
+	successfulOriginReads := 0
 
-	if len(messages) == 0 {
-		return
-	}
-
-	sem := make(chan struct{}, MaxWorkers)
-
-	var wg sync.WaitGroup
-
-	totalMessagesLessThanOneHour := 0
-
-	// oldestTTL tracks the earliest record TTL across successfully-parsed
-	// records, computed in the SAME pass that dispatches processing so each
-	// record is unmarshalled exactly once per cycle. Records that fail to parse
-	// are routed to quarantine and excluded from the age computation.
-	var oldestTTL time.Time
-
-Outer:
-	for key, message := range messages {
-		if ctx.Err() != nil {
-			r.Logger.Log(ctx, libLog.LevelWarn, "Shutdown in progress: skipping remaining messages")
-			break Outer
-		}
-
-		var transaction mmodel.TransactionRedisQueue
-		if err := json.Unmarshal([]byte(message), &transaction); err != nil {
-			// Unmarshal failure: the payload did not parse, so the org/ledger/tx
-			// IDs must come from the field key. The raw string is the financial
-			// copy to quarantine.
-			r.Logger.Log(ctx, libLog.LevelWarn, "Error unmarshalling message from Redis", libLog.String("key", key), libLog.Err(err))
-
-			orgID, ledgerID, txID, parsed := parsePoisonKeyIDs(key)
-			if !parsed {
-				r.Logger.Log(ctx, libLog.LevelError, "Unparseable backup record with unparseable key; cannot quarantine, left in backup queue",
-					libLog.String("redis_key", key))
-
-				continue
-			}
-
-			r.quarantinePoisonRecord(ctx, span, r.Logger, key, orgID, ledgerID, txID, []byte(message), "unmarshal_failure")
-
+	for _, consumer := range consumers {
+		stats := consumer.Consume(ctx)
+		if !stats.read {
 			continue
 		}
 
-		if oldestTTL.IsZero() || transaction.TTL.Before(oldestTTL) {
-			oldestTTL = transaction.TTL
+		successfulOriginReads++
+		aggregate.messageCount += stats.messageCount
+		aggregate.tooYoung += stats.tooYoung
+
+		if aggregate.oldestTTL.IsZero() || (!stats.oldestTTL.IsZero() && stats.oldestTTL.Before(aggregate.oldestTTL)) {
+			aggregate.oldestTTL = stats.oldestTTL
 		}
-
-		if transaction.TTL.Unix() > time.Now().Add(-MessageTimeOfLife*time.Minute).Unix() {
-			totalMessagesLessThanOneHour++
-			continue
-		}
-
-		sem <- struct{}{}
-
-		wg.Add(1)
-
-		// Route any panic through the lib-observability trident (recover +
-		// structured log + span event + panic_recovered_total counter). The
-		// semaphore release and WaitGroup.Done stay in this func's defer so they
-		// run even when processMessage panics. Loop variables are per-iteration
-		// (Go 1.22+), so the closure captures them directly.
-		libRuntime.SafeGoWithContextAndComponent(ctx, r.Logger, redisBackupConsumerComponent,
-			"ledger-redis-backup-consumer", libRuntime.KeepRunning,
-			func(ctx context.Context) {
-				defer func() {
-					<-sem
-					wg.Done()
-				}()
-
-				r.processMessage(ctx, key, message, transaction)
-			})
 	}
 
-	wg.Wait()
+	// The existing depth and age gauges continue to represent all Redis-backed
+	// transaction recovery records. If either read fails, the healthy origin is
+	// still processed but no misleading partial aggregate is emitted.
+	if successfulOriginReads == 2 {
+		r.emitDepthGauge(ctx, int64(aggregate.messageCount))
+		r.emitOldestAgeGauge(ctx, aggregate.oldestTTL)
+	}
 
-	// Emit the oldest-age gauge from the TTL tracked during the dispatch pass.
-	// Deterministic: derived from the pre-fan-out parse, not from the concurrent
-	// workers (which would be racy).
-	r.emitOldestAgeGauge(ctx, oldestTTL)
-
-	r.Logger.Log(ctx, libLog.LevelDebug, "Messages under time-of-life threshold", libLog.Int("threshold_minutes", MessageTimeOfLife), libLog.Int("message_count", totalMessagesLessThanOneHour))
-	r.Logger.Log(ctx, libLog.LevelDebug, "Finished processing eligible messages", libLog.Int("eligible_count", len(messages)-totalMessagesLessThanOneHour))
+	r.cleanupEngineRecovery(ctx)
+	r.Logger.Log(ctx, libLog.LevelDebug, "Messages under time-of-life threshold", libLog.Int("threshold_minutes", MessageTimeOfLife), libLog.Int("message_count", aggregate.tooYoung))
+	r.Logger.Log(ctx, libLog.LevelDebug, "Finished processing eligible messages", libLog.Int("eligible_count", aggregate.messageCount-aggregate.tooYoung))
 }
 
 // processMessage handles a single Redis backup queue message: rebuilds balances
@@ -436,26 +451,17 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 	balances := make([]*mmodel.Balance, 0, len(m.Balances))
 	for _, balance := range m.Balances {
-		balanceKey := balance.Key
-		if balanceKey == "" {
-			balanceKey = constant.DefaultBalanceKey
+		projected, err := balanceRedisToBalance(balance, m.OrganizationID.String(), m.LedgerID.String())
+		if err != nil {
+			projectionErr := fmt.Errorf("project legacy replay balance: %w", err)
+			libOpentelemetry.HandleSpanError(msgSpan, "Failed to project legacy replay balance", projectionErr)
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to project legacy replay balance", libLog.Err(projectionErr))
+			r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "balance_projection_failure")
+
+			return
 		}
 
-		balances = append(balances, &mmodel.Balance{
-			Alias:          balance.Alias,
-			ID:             balance.ID,
-			AccountID:      balance.AccountID,
-			Key:            balanceKey,
-			Available:      balance.Available,
-			OnHold:         balance.OnHold,
-			Version:        balance.Version,
-			AccountType:    balance.AccountType,
-			AllowSending:   balance.AllowSending == 1,
-			AllowReceiving: balance.AllowReceiving == 1,
-			AssetCode:      balance.AssetCode,
-			OrganizationID: m.OrganizationID.String(),
-			LedgerID:       m.LedgerID.String(),
-		})
+		balances = append(balances, projected)
 	}
 
 	// Parse AFTER balances from backup queue (nil for legacy entries written by old pods)
@@ -463,26 +469,17 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	if len(m.BalancesAfter) > 0 {
 		balancesAfter = make([]*mmodel.Balance, 0, len(m.BalancesAfter))
 		for _, balance := range m.BalancesAfter {
-			balanceKey := balance.Key
-			if balanceKey == "" {
-				balanceKey = constant.DefaultBalanceKey
+			projected, err := balanceRedisToBalance(balance, m.OrganizationID.String(), m.LedgerID.String())
+			if err != nil {
+				projectionErr := fmt.Errorf("project legacy replay after-balance: %w", err)
+				libOpentelemetry.HandleSpanError(msgSpan, "Failed to project legacy replay after-balance", projectionErr)
+				logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to project legacy replay after-balance", libLog.Err(projectionErr))
+				r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "after_balance_projection_failure")
+
+				return
 			}
 
-			balancesAfter = append(balancesAfter, &mmodel.Balance{
-				Alias:          balance.Alias,
-				ID:             balance.ID,
-				AccountID:      balance.AccountID,
-				Key:            balanceKey,
-				Available:      balance.Available,
-				OnHold:         balance.OnHold,
-				Version:        balance.Version,
-				AccountType:    balance.AccountType,
-				AllowSending:   balance.AllowSending == 1,
-				AllowReceiving: balance.AllowReceiving == 1,
-				AssetCode:      balance.AssetCode,
-				OrganizationID: m.OrganizationID.String(),
-				LedgerID:       m.LedgerID.String(),
-			})
+			balancesAfter = append(balancesAfter, projected)
 		}
 
 		logger.Log(ctx, libLog.LevelDebug, "Using AFTER balances from backup for direct persistence", libLog.Int("balance_count", len(balancesAfter)))
@@ -643,6 +640,59 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	r.clearBackupAttempt(msgCtxWithSpan, logger, key)
 }
 
+func balanceRedisToBalance(balance mmodel.BalanceRedis, organizationID, ledgerID string) (*mmodel.Balance, error) {
+	overdraftUsed := decimal.Zero
+
+	if balance.OverdraftUsed != "" {
+		parsed, err := decimal.NewFromString(balance.OverdraftUsed)
+		if err != nil {
+			return nil, fmt.Errorf("parse overdraft used: %w", err)
+		}
+
+		overdraftUsed = parsed
+	}
+
+	var overdraftLimit *string
+
+	if balance.OverdraftLimit != "" {
+		_, err := decimal.NewFromString(balance.OverdraftLimit)
+		if err != nil {
+			return nil, fmt.Errorf("parse overdraft limit: %w", err)
+		}
+
+		overdraftLimit = &balance.OverdraftLimit
+	}
+
+	balanceKey := balance.Key
+	if balanceKey == "" {
+		balanceKey = constant.DefaultBalanceKey
+	}
+
+	return &mmodel.Balance{
+		Alias:          balance.Alias,
+		ID:             balance.ID,
+		AccountID:      balance.AccountID,
+		Key:            balanceKey,
+		Available:      balance.Available,
+		OnHold:         balance.OnHold,
+		Version:        balance.Version,
+		AccountType:    balance.AccountType,
+		AllowSending:   balance.AllowSending == 1,
+		AllowReceiving: balance.AllowReceiving == 1,
+		AssetCode:      balance.AssetCode,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		Direction:      balance.Direction,
+		OverdraftUsed:  overdraftUsed,
+		Settings: &mmodel.BalanceSettings{
+			AllowOverdraft:        balance.AllowOverdraft == 1,
+			OverdraftLimitEnabled: balance.OverdraftLimitEnabled == 1,
+			OverdraftLimit:        overdraftLimit,
+			BalanceScope:          balance.BalanceScope,
+		},
+	}, nil
+}
+
 // quarantinePoisonRecord enforces THE INVARIANT for poison backup records: a
 // poison record (the only durable copy of an authorized transaction) is never
 // deleted from Redis without prior confirmed persistence to the Postgres
@@ -773,9 +823,9 @@ func parsePoisonKeyIDs(key string) (organizationID, ledgerID, transactionID uuid
 	return found[0], found[1], found[2], true
 }
 
-// emitDepthGauge sets the backup-queue depth gauge from the record count read
-// this cycle. Best-effort: a nil factory or a metric emit error never affects
-// processing (emit errors logged at Debug per T11).
+// emitDepthGauge sets the combined legacy-backup and engine-recover depth gauge
+// only after both origins were read this cycle. Best-effort: a nil factory or a
+// metric emit error never affects processing.
 func (r *RedisQueueConsumer) emitDepthGauge(ctx context.Context, depth int64) {
 	if r.metricsFactory == nil {
 		return

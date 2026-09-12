@@ -70,6 +70,22 @@ func NewDefaultBalanceSettings() *BalanceSettings {
 	}
 }
 
+// Normalize canonicalizes a parseable overdraft limit without changing other
+// settings. Invalid values are preserved for Validate to reject.
+func (s *BalanceSettings) Normalize() {
+	if s == nil || s.OverdraftLimit == nil {
+		return
+	}
+
+	limit, err := decimal.NewFromString(*s.OverdraftLimit)
+	if err != nil {
+		return
+	}
+
+	canonical := limit.String()
+	s.OverdraftLimit = &canonical
+}
+
 // Validate enforces the balance settings contract.
 //
 // Rules:

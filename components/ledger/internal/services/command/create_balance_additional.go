@@ -73,6 +73,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	// Settings validation also runs pre-persistence to keep the repository
 	// free of corrupt payloads.
 	if cbi.Settings != nil {
+		cbi.Settings.Normalize()
+
 		if err := cbi.Settings.Validate(); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid balance settings", err)
 			logger.Log(ctx, libLog.LevelWarn, "Rejected invalid balance settings", libLog.Err(err))
