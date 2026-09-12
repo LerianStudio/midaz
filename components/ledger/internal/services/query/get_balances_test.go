@@ -8,12 +8,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
@@ -22,6 +24,108 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
+
+func TestLoadEngineBalancesSeparatesExplicitBalancesFromExecutionBalances(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("d47fd4d0-1b64-4c4e-a4fd-8b96558d6a96")
+	ledgerID := uuid.MustParse("93210bdf-d5f3-4b66-8b36-2b44936605e8")
+	accountID := uuid.MustParse("3315045e-1ba4-42af-8b12-a27651c2f379")
+	primary := engineBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
+	companion := engineBalance(organizationID, ledgerID, accountID, "@alice", constant.OverdraftBalanceKey, mmodel.BalanceScopeInternal)
+
+	var calls [][]string
+	explicitBalances, executionBalances, err := loadEngineBalances(t.Context(), organizationID, ledgerID,
+		[]string{"@alice#default", "@alice#default"},
+		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+			calls = append(calls, append([]string(nil), aliases...))
+			return []*mmodel.Balance{primary, companion}, nil
+		})
+
+	require.NoError(t, err)
+	assert.Equal(t, [][]string{{"@alice#default", "@alice#overdraft"}}, calls)
+	assert.Equal(t, []*mmodel.Balance{primary}, explicitBalances)
+	assert.Equal(t, []*mmodel.Balance{primary, companion}, executionBalances)
+	assert.Equal(t, mmodel.BalanceScopeInternal, executionBalances[1].Settings.BalanceScope)
+}
+
+func TestLoadEngineBalancesDoesNotRefetchAnExplicitInternalBalance(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("547db4ae-f3fc-4db4-86a1-2bfc94dc32df")
+	ledgerID := uuid.MustParse("e39c8754-171d-48b9-9808-42b7dcc995ed")
+	accountID := uuid.MustParse("fc96409c-351a-4bc0-84f3-b7094ade51cd")
+	primary := engineBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
+	companion := engineBalance(organizationID, ledgerID, accountID, "@alice", constant.OverdraftBalanceKey, mmodel.BalanceScopeInternal)
+	calls := 0
+
+	explicitBalances, executionBalances, err := loadEngineBalances(t.Context(), organizationID, ledgerID,
+		[]string{"@alice#overdraft", "@alice#default"},
+		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+			calls++
+			assert.Equal(t, []string{"@alice#default", "@alice#overdraft"}, aliases)
+			return []*mmodel.Balance{companion, primary}, nil
+		})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, []*mmodel.Balance{primary, companion}, explicitBalances)
+	assert.Equal(t, explicitBalances, executionBalances)
+}
+
+func TestLoadEngineBalancesRejectsAnInconsistentCompanion(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("b8e120f1-47a3-482d-a555-a2b8121257a9")
+	ledgerID := uuid.MustParse("4d3cd4fa-5bf5-47c6-b9b8-d9315ad12b6c")
+	primary := engineBalance(organizationID, ledgerID,
+		uuid.MustParse("50919fd5-6ea5-4ec7-baa1-4bb009b1c1da"), "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
+	companion := engineBalance(organizationID, ledgerID,
+		uuid.MustParse("78566a27-b05a-421b-a5c5-8706095a9405"), "@alice", constant.OverdraftBalanceKey, mmodel.BalanceScopeInternal)
+	calls := 0
+
+	_, _, err := loadEngineBalances(t.Context(), organizationID, ledgerID, []string{"@alice#default"},
+		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+			calls++
+			assert.Equal(t, []string{"@alice#default", "@alice#overdraft"}, aliases)
+			return []*mmodel.Balance{primary, companion}, nil
+		})
+
+	assert.ErrorContains(t, err, "inconsistent account identity")
+	assert.Equal(t, 1, calls)
+}
+
+func TestLoadEngineBalancesTreatsMissingCompanionAsEmptyInSingleLookup(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("c47fd4d0-1b64-4c4e-a4fd-8b96558d6a96")
+	ledgerID := uuid.MustParse("c3210bdf-d5f3-4b66-8b36-2b44936605e8")
+	accountID := uuid.MustParse("c315045e-1ba4-42af-8b12-a27651c2f379")
+	primary := engineBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey, mmodel.BalanceScopeTransactional)
+	calls := 0
+
+	explicitBalances, executionBalances, err := loadEngineBalances(t.Context(), organizationID, ledgerID,
+		[]string{"@alice#default"},
+		func(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+			calls++
+			assert.Equal(t, []string{"@alice#default", "@alice#overdraft"}, aliases)
+
+			return []*mmodel.Balance{primary}, nil
+		})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, []*mmodel.Balance{primary}, explicitBalances)
+	assert.Equal(t, []*mmodel.Balance{primary}, executionBalances)
+}
+
+func engineBalance(organizationID, ledgerID, accountID uuid.UUID, alias, key, scope string) *mmodel.Balance {
+	return &mmodel.Balance{
+		ID: uuid.New().String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+		AccountID: accountID.String(), Alias: alias, Key: key, AssetCode: "USD",
+		AllowSending: true, AllowReceiving: true, Settings: &mmodel.BalanceSettings{BalanceScope: scope},
+	}
+}
 
 func TestGetBalances(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -187,6 +291,122 @@ func TestGetBalances(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, allBalances, 2)
 	})
+}
+
+func TestGetBalances_CacheProjection(t *testing.T) {
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	balanceID := uuid.New()
+	accountID := uuid.New()
+	alias := "@alice#default"
+
+	legacy := func(extra string) string {
+		return fmt.Sprintf(`{"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@alice","Key":"default","Available":"120","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1%s}`,
+			balanceID, accountID, extra)
+	}
+
+	tests := []struct {
+		name              string
+		cached            string
+		wantDatabase      bool
+		wantAvailable     decimal.Decimal
+		wantSettings      bool
+		wantLimit         string
+		wantLimitDisabled bool
+		wantBlocked       bool
+	}{
+		{
+			name: "legacy lower camel hit with missing logical identity",
+			cached: fmt.Sprintf(`{"id":%q,"alias":"","key":"","accountId":%q,"assetCode":"BRL","available":"120","onHold":"0","version":3,"accountType":"deposit","allowSending":1,"allowReceiving":1,"direction":"","overdraftUsed":"","allowOverdraft":0,"overdraftLimitEnabled":0,"overdraftLimit":"","balanceScope":""}`,
+				balanceID, accountID),
+			wantAvailable: decimal.NewFromInt(120),
+		},
+		{
+			name: "dual cache uses authoritative legacy fields",
+			cached: fmt.Sprintf(`{"SchemaVersion":2,"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@alice","Key":"default","Available":"120","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1,"id":%q,"accountId":%q,"accountType":"deposit","assetCode":"BRL","alias":"wrong","key":"other","available":"999","onHold":"9","version":"8","allowSending":false,"allowReceiving":false}`,
+				balanceID, accountID, uuid.New(), uuid.New()),
+			wantAvailable: decimal.NewFromInt(120),
+		},
+		{
+			name: "new only cache hit",
+			cached: fmt.Sprintf(`{"SchemaVersion":2,"id":%q,"accountId":%q,"accountType":"deposit","assetCode":"BRL","alias":"@alice","key":"default","direction":"credit","balanceScope":"transactional","available":"120","onHold":"0","overdraftUsed":"10","overdraftLimit":"0","version":"3","allowSending":true,"allowReceiving":true,"blocked":true,"allowOverdraft":false,"overdraftLimitEnabled":false}`,
+				balanceID, accountID),
+			wantAvailable: decimal.NewFromInt(120),
+			wantBlocked:   true,
+		},
+		{
+			name:          "valid noncanonical live limit is projected without fallback",
+			cached:        legacy(`,"Direction":"credit","OverdraftUsed":"10","AllowOverdraft":1,"OverdraftLimitEnabled":1,"OverdraftLimit":"1E3","BalanceScope":"transactional"`),
+			wantAvailable: decimal.NewFromInt(120),
+			wantSettings:  true,
+			wantLimit:     "1000",
+		},
+		{
+			name: "cached alias mismatch falls back",
+			cached: fmt.Sprintf(`{"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@mallory","Key":"default","Available":"120","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1}`,
+				balanceID, accountID),
+			wantDatabase:  true,
+			wantAvailable: decimal.NewFromInt(999),
+		},
+		{
+			name: "invalid authoritative decimal falls back",
+			cached: fmt.Sprintf(`{"SchemaVersion":2,"ID":%q,"AccountID":%q,"AccountType":"deposit","AssetCode":"BRL","Alias":"@alice","Key":"default","Available":"invalid","OnHold":"0","Version":3,"AllowSending":1,"AllowReceiving":1,"id":%q,"accountId":%q,"accountType":"deposit","assetCode":"BRL","alias":"@alice","key":"default","available":"120","onHold":"0","version":"3","allowSending":true,"allowReceiving":true}`,
+				balanceID, accountID, balanceID, accountID),
+			wantDatabase:  true,
+			wantAvailable: decimal.NewFromInt(999),
+		},
+		{
+			name:              "disabled limit is omitted from settings",
+			cached:            legacy(`,"Direction":"credit","OverdraftUsed":"0","AllowOverdraft":1,"OverdraftLimitEnabled":0,"OverdraftLimit":"100","BalanceScope":"transactional"`),
+			wantAvailable:     decimal.NewFromInt(120),
+			wantSettings:      true,
+			wantLimitDisabled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockBalanceRepo := balance.NewMockRepository(ctrl)
+			mockAccountRepo := account.NewMockRepository(ctrl)
+			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+			uc := &UseCase{BalanceRepo: mockBalanceRepo, AccountRepo: mockAccountRepo, TransactionRedisRepo: mockRedisRepo}
+
+			internalKey := utils.BalanceInternalKey(organizationID, ledgerID, alias)
+			mockRedisRepo.EXPECT().Get(gomock.Any(), internalKey).Return(tt.cached, nil)
+
+			if tt.wantDatabase {
+				blocked := false
+				mockBalanceRepo.EXPECT().ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{alias}).
+					Return([]*mmodel.Balance{{Alias: "@alice", Key: "default", AccountID: accountID.String(), Available: decimal.NewFromInt(999)}}, nil)
+				mockAccountRepo.EXPECT().ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{accountID}).
+					Return([]*mmodel.Account{{ID: accountID.String(), Blocked: &blocked}}, nil)
+			}
+
+			balances, err := uc.GetBalances(context.Background(), organizationID, ledgerID, []string{alias})
+			assert.NoError(t, err)
+			if !assert.Len(t, balances, 1) {
+				return
+			}
+
+			got := balances[0]
+			assert.True(t, got.Available.Equal(tt.wantAvailable))
+			assert.Equal(t, tt.wantBlocked, got.Blocked)
+			if !tt.wantSettings {
+				assert.Nil(t, got.Settings)
+				return
+			}
+
+			if assert.NotNil(t, got.Settings) {
+				if tt.wantLimitDisabled {
+					assert.False(t, got.Settings.OverdraftLimitEnabled)
+					assert.Nil(t, got.Settings.OverdraftLimit)
+				} else if assert.NotNil(t, got.Settings.OverdraftLimit) {
+					assert.Equal(t, tt.wantLimit, *got.Settings.OverdraftLimit)
+				}
+			}
+		})
+	}
 }
 
 func TestGetBalancesFromCache(t *testing.T) {

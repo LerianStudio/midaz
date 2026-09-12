@@ -49,6 +49,11 @@ func (r *pendingReader) GetBalances(context.Context, uuid.UUID, uuid.UUID, []str
 	return nil, r.balancesErr
 }
 
+func (r *pendingReader) GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+	balances, err := r.GetBalances(ctx, organizationID, ledgerID, aliases)
+	return balances, balances, err
+}
+
 func (r *pendingReader) ValidateAccountingRules(context.Context, uuid.UUID, uuid.UUID, []mmodel.BalanceOperation, *mtransaction.Responses, string) (*mmodel.TransactionRouteCache, error) {
 	return nil, nil
 }
@@ -322,7 +327,8 @@ func TestPendingTransition_GrantMissRejectsAndReleasesLock(t *testing.T) {
 	).Times(0)
 
 	reader := &pendingReader{pending: tran}
-	uc := &UseCase{TransactionRedisRepo: redisRepo, TransactionReader: reader}
+	executor := &transitionEngineExecutor{t: t}
+	uc := &UseCase{TransactionRedisRepo: redisRepo, TransactionReader: reader, Engine: executor}
 
 	in := pendingTransitionInputFor(tran)
 	exceptionID := uuid.New()
@@ -333,6 +339,10 @@ func TestPendingTransition_GrantMissRejectsAndReleasesLock(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), constant.ErrAccountBlockExceptionInvalid.Error(),
 		"an unreadable grant must reject with the exception code")
+	assert.Empty(t, executor.guardCalls,
+		"a commit carrying an account-block exception must use the legacy atomic grant path")
+	assert.Empty(t, executor.requests,
+		"the engine cannot execute until its protocol can consume the grant atomically")
 }
 
 // TestPendingTransition_V1CommitNeverReadsAGrant is the version guard's runtime

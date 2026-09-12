@@ -130,7 +130,7 @@ type CreateTransactionJSONRequest struct {
 // http.DecodeAndValidate over CreateTransactionInput, builds the transaction, and
 // delegates to the shared createTransaction core.
 func (handler *TransactionHandler) CreateTransactionJSON(ctx context.Context, in *CreateTransactionJSONRequest) (*CreateTransactionResponse, error) {
-	payload := new(mtransaction.CreateTransactionInput)
+	payload := new(CreateTransactionRequest)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -145,7 +145,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(ctx context.Context, in
 // CreateTransactionAnnotation mirrors CreateTransactionJSON but forces the
 // NOTED status (annotation-only, no balance changes).
 func (handler *TransactionHandler) CreateTransactionAnnotation(ctx context.Context, in *CreateTransactionJSONRequest) (*CreateTransactionResponse, error) {
-	payload := new(mtransaction.CreateTransactionInput)
+	payload := new(CreateTransactionRequest)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -170,7 +170,7 @@ type CreateTransactionInflowRequest struct {
 // CreateTransactionInflow decodes CreateTransactionInflowInput, builds the inflow
 // entry, and delegates to the shared createTransaction core.
 func (handler *TransactionHandler) CreateTransactionInflow(ctx context.Context, in *CreateTransactionInflowRequest) (*CreateTransactionResponse, error) {
-	payload := new(mtransaction.CreateTransactionInflowInput)
+	payload := new(CreateTransactionInflowRequestBody)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -194,7 +194,7 @@ type CreateTransactionOutflowRequest struct {
 // CreateTransactionOutflow decodes CreateTransactionOutflowInput, builds the outflow
 // entry, and delegates to the shared createTransaction core.
 func (handler *TransactionHandler) CreateTransactionOutflow(ctx context.Context, in *CreateTransactionOutflowRequest) (*CreateTransactionResponse, error) {
-	payload := new(mtransaction.CreateTransactionOutflowInput)
+	payload := new(CreateTransactionOutflowRequestBody)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -221,7 +221,7 @@ type CreateTransactionBlockRequest struct {
 // with the BLOCK operation-type override (Pending forced false), and delegates to
 // the shared createTransaction core.
 func (handler *TransactionHandler) CreateTransactionBlock(ctx context.Context, in *CreateTransactionBlockRequest) (*CreateTransactionResponse, error) {
-	payload := new(mtransaction.CreateTransactionInput)
+	payload := new(CreateTransactionRequest)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -237,7 +237,7 @@ func (handler *TransactionHandler) CreateTransactionBlock(ctx context.Context, i
 // with the UNBLOCK operation-type override (Pending forced false), and delegates to
 // the shared createTransaction core.
 func (handler *TransactionHandler) CreateTransactionUnblock(ctx context.Context, in *CreateTransactionBlockRequest) (*CreateTransactionResponse, error) {
-	payload := new(mtransaction.CreateTransactionInput)
+	payload := new(CreateTransactionRequest)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

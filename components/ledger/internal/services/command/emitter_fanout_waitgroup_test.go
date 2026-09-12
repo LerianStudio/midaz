@@ -181,7 +181,7 @@ func TestCreateBalanceTransactionOperationsAsync_EmitterFanOutDrains(t *testing.
 
 	require.NoError(t, uc.CreateBalanceTransactionOperationsAsync(context.Background(), queue))
 
-	requireFanOutDrains(t, "CreateBalanceTransactionOperationsAsync")
+	requireFanOutDrains(t, "dispatchTransactionEvents")
 }
 
 // TestCreateBulkTransactionOperationsAsync_EmitterFanOutDrains pins the same

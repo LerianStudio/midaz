@@ -153,9 +153,10 @@ const transactionPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/i
 // "Transaction". The type documents its own contract name (`// @name TransactionInput`),
 // so it is published under that name — additive, since mtransaction.Transaction was
 // never schema-generated before typed request bodies. Only the "Transaction" name is
-// remapped: every other mtransaction type (CreateTransactionV2Input, V2LegInput, and the
-// v1 create-input graph — Send/Source/FromTo/Amount/Share/Rate/…) keeps its bare name,
-// which is what the already-published v2 contract binds to. Matched as a STRING for the
+// remapped. The transport request types formerly declared by mtransaction now live in the
+// inbound ledger adapter and are mapped back to their established schema names there. The
+// remaining mtransaction graph (Send/Source/FromTo/Amount/Share/Rate/…) keeps its bare name,
+// which is what the already-published contracts bind to. Matched as a STRING for the
 // same layering reason as operationPkgPath.
 const mtransactionPkgPath = "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 
@@ -175,6 +176,21 @@ const ledgerHTTPInPkgPath = "github.com/LerianStudio/midaz/v4/components/ledger/
 var v1ProjectionNames = map[string]string{
 	"TransactionV1": "Transaction",
 	"AccountV1":     "Account",
+}
+
+// transactionRequestNames preserves the public OpenAPI component names while the Go transport
+// types follow adapter-owned Request naming. This is a wire-compatibility map, not an alias facade:
+// callers compile against the adapter types and only the generated schema keeps the historical name.
+var transactionRequestNames = map[string]string{
+	"CreateTransactionRequest":            "CreateTransactionInput",
+	"TransactionInflowSendRequest":        "SendInflow",
+	"CreateTransactionInflowRequestBody":  "CreateTransactionInflowInput",
+	"TransactionOutflowSendRequest":       "SendOutflow",
+	"CreateTransactionOutflowRequestBody": "CreateTransactionOutflowInput",
+	"CreateTransactionV2Request":          "CreateTransactionV2Input",
+	"TransactionV2LegRequest":             "V2LegInput",
+	"TransactionV2ShareRequest":           "V2ShareInput",
+	"LifecycleV2Request":                  "LifecycleV2Input",
 }
 
 // mmodelPkgPath is the import path of the shared domain-model package. Matched as a
@@ -243,6 +259,10 @@ func ledgerSchemaNamer(t reflect.Type, hint string) string {
 	}
 
 	if dt.PkgPath() == ledgerHTTPInPkgPath {
+		if canonical, ok := transactionRequestNames[name]; ok {
+			return canonical
+		}
+
 		if canonical, ok := v1ProjectionNames[name]; ok {
 			return canonical
 		}

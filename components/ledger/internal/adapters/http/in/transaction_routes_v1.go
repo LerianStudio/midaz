@@ -12,7 +12,6 @@ import (
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
@@ -39,7 +38,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate) — see file header.
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionJSON)
-	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionJSON")
+	attachTypedRequestBody[CreateTransactionRequest](api, "createTransactionJSON")
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionInflow",
@@ -51,7 +50,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionInflow)
-	attachTypedRequestBody[mtransaction.CreateTransactionInflowInput](api, "createTransactionInflow")
+	attachTypedRequestBody[CreateTransactionInflowRequestBody](api, "createTransactionInflow")
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionOutflow",
@@ -63,7 +62,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionOutflow)
-	attachTypedRequestBody[mtransaction.CreateTransactionOutflowInput](api, "createTransactionOutflow")
+	attachTypedRequestBody[CreateTransactionOutflowRequestBody](api, "createTransactionOutflow")
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionAnnotation",
@@ -75,7 +74,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionAnnotation)
-	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionAnnotation")
+	attachTypedRequestBody[CreateTransactionRequest](api, "createTransactionAnnotation")
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionBlock",
@@ -87,7 +86,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionBlock)
-	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionBlock")
+	attachTypedRequestBody[CreateTransactionRequest](api, "createTransactionBlock")
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "createTransactionUnblock",
@@ -99,7 +98,7 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		SkipValidateBody: true,
 		DefaultStatus:    http.StatusCreated,
 	}, h.CreateTransactionUnblock)
-	attachTypedRequestBody[mtransaction.CreateTransactionInput](api, "createTransactionUnblock")
+	attachTypedRequestBody[CreateTransactionRequest](api, "createTransactionUnblock")
 
 	huma.Register(api, huma.Operation{
 		OperationID: "commitTransaction",

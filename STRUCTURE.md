@@ -30,8 +30,10 @@ MIDAZ
  |   |   |   |   |---   mongodb    # metadata + fees repositories
  |   |   |   |   |---   postgres   # onboarding + transaction repositories
  |   |   |   |   |---   rabbitmq
- |   |   |   |   |---   redis
+ |   |   |   |   |---   redis       # caches, recovery queues, and the default accounting engine adapter
  |   |   |   |---   bootstrap      # composition root (initCRM, fee wiring)
+ |   |   |   |---   domain
+ |   |   |   |   |---   accounting # storage-independent engine contract and monetary results
  |   |   |   |---   services
  |   |   |   |   |---   command
  |   |   |   |   |---   query
@@ -91,7 +93,8 @@ The unified ledger binary folds four domains into one process:
 
 * **Onboarding + Transaction**: the original midaz ledger (organizations, ledgers, assets,
   portfolios, segments, accounts, transactions, operations, balances; routing via
-  account-types / operation-routes / transaction-routes).
+  account-types / operation-routes / transaction-routes). Executable transaction flows use
+  the private Redis/Lua accounting engine by default; see `docs/architecture/engine.md`.
 * **CRM (folded)**: holder/instrument routes registered from the `components/ledger/internal/crm` package tree.
   See below.
 * **Fees (embedded)**: fee engine at `components/ledger/pkg/fee`, shared types at
@@ -158,8 +161,8 @@ Cross-component Go libraries (root module; non-exhaustive — additional package
 
 > Logging, telemetry, tracing, panic recovery, HTTP toolkit, and tenant-manager symbols
 > (`libLog`, `libHTTP`, etc.) come from the external libraries
-> `github.com/LerianStudio/lib-commons/v6` (v6.2.0) and
-> `github.com/LerianStudio/lib-observability/v4` (v4.0.0-beta.1) — they are **not** subpackages of `./pkg`.
+> `github.com/LerianStudio/lib-commons/v7` (v7.1.0) and
+> `github.com/LerianStudio/lib-observability/v4` (v4.0.4) — they are **not** subpackages of `./pkg`.
 
 #### Miscellaneous
 

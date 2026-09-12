@@ -9,6 +9,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestResolveBalanceSettingsArgs_FullSettings pins the happy path: every
@@ -19,16 +20,17 @@ func TestResolveBalanceSettingsArgs_FullSettings(t *testing.T) {
 
 	limit := "1000.00"
 
-	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope := resolveBalanceSettingsArgs(&mmodel.BalanceSettings{
+	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope, err := resolveBalanceSettingsArgs(&mmodel.BalanceSettings{
 		BalanceScope:          mmodel.BalanceScopeInternal,
 		AllowOverdraft:        true,
 		OverdraftLimitEnabled: true,
 		OverdraftLimit:        &limit,
 	})
+	require.NoError(t, err)
 
 	assert.Equal(t, 1, allowOverdraft)
 	assert.Equal(t, 1, overdraftLimitEnabled)
-	assert.Equal(t, "1000.00", overdraftLimit)
+	assert.Equal(t, "1000", overdraftLimit)
 	assert.Equal(t, mmodel.BalanceScopeInternal, balanceScope)
 }
 
@@ -38,12 +40,13 @@ func TestResolveBalanceSettingsArgs_FullSettings(t *testing.T) {
 func TestResolveBalanceSettingsArgs_PartialSettings(t *testing.T) {
 	t.Parallel()
 
-	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope := resolveBalanceSettingsArgs(&mmodel.BalanceSettings{
+	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope, err := resolveBalanceSettingsArgs(&mmodel.BalanceSettings{
 		AllowOverdraft:        true,
 		OverdraftLimitEnabled: false,
 		OverdraftLimit:        nil,
 		BalanceScope:          "",
 	})
+	require.NoError(t, err)
 
 	assert.Equal(t, 1, allowOverdraft)
 	assert.Equal(t, 0, overdraftLimitEnabled)
@@ -59,10 +62,55 @@ func TestResolveBalanceSettingsArgs_PartialSettings(t *testing.T) {
 func TestResolveBalanceSettingsArgs_NilSettingsResetsToDefaults(t *testing.T) {
 	t.Parallel()
 
-	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope := resolveBalanceSettingsArgs(nil)
+	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope, err := resolveBalanceSettingsArgs(nil)
+	require.NoError(t, err)
 
 	assert.Equal(t, 0, allowOverdraft)
 	assert.Equal(t, 0, overdraftLimitEnabled)
 	assert.Equal(t, "0", overdraftLimit)
 	assert.Equal(t, mmodel.BalanceScopeTransactional, balanceScope)
+}
+
+func TestResolveBalanceSettingsArgs_CanonicalLimit(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "scientific", input: "1e3", want: "1000"},
+		{name: "fractional scientific", input: "1.2500e-2", want: "0.0125"},
+		{name: "canonical", input: "12.5", want: "12.5"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			limit := test.input
+			_, _, got, _, err := resolveBalanceSettingsArgs(&mmodel.BalanceSettings{
+				AllowOverdraft:        true,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        &limit,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+			assert.Equal(t, test.input, limit, "serialization must not mutate the caller's settings")
+		})
+	}
+}
+
+func TestResolveBalanceSettingsArgs_InvalidLimit(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{"", "not-a-number", "1e"} {
+		t.Run(input, func(t *testing.T) {
+			limit := input
+			_, _, _, _, err := resolveBalanceSettingsArgs(&mmodel.BalanceSettings{
+				AllowOverdraft:        true,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        &limit,
+			})
+			require.Error(t, err)
+		})
+	}
 }

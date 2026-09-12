@@ -20,7 +20,7 @@
 > `ledger/` or `tracer/` prefix disambiguates. The ledger reservation seam itself lives in the
 > transaction create use cases (`components/ledger/internal/services/command/`:
 > `create_transaction_v2.go`, `revert_transaction.go`, `commit_transaction.go`,
-> `transaction_ports.go`, `transaction_reservation_anchor.go`); the tracer
+> `transaction_control_ports.go`, `transaction_reservation_anchor.go`); the tracer
 > client it depends on is injected at bootstrap through the narrow `command.TracerReserver` port, so
 > the use case never learns the transport. Line ranges are accurate at time of writing but rot; the
 > cited function/const symbols are the durable anchors.
@@ -57,8 +57,9 @@ framing in §1.
 > no `podAffinity`, and no sidecar config — this is guidance, not deployed fact.
 
 **Why co-schedule (soft affinity):** the reservation reserve RPC is **synchronous and on the hot path**
-— called inline immediately before `ProcessBalanceOperations` in the transaction-create use case
-(`services/command/create_transaction_v2.go`; anchor doc at `transaction_reservation_anchor.go:72-85`).
+— called by `createTransactionWithEngine` immediately before `ExecutePreparedEngine` on the
+default transaction path (`services/command/create_transaction_engine.go`; reservation mechanics at
+`transaction_reservation_anchor.go`).
 Co-locating ledger and tracer on the same node trims that round-trip's network latency without
 collapsing the two into one failure/scale unit.
 
@@ -93,15 +94,19 @@ collapsing the two into one failure/scale unit.
 **What is grounded — the hot-path vs. off-path split that makes independent scaling safe:**
 
 - **Reserve is synchronous, pre-commit, hot-path.** `reserveTransaction` is called inline right before
-  the balance commit; a reject returns *before* any balance moves (`create_transaction_v2.go`).
+  `ExecutePreparedEngine`; a reject returns *before* any balance moves
+  (`create_transaction_engine.go`).
   The tracer must therefore be **low-latency**, but each reservation's work is bounded per transaction.
 
-- **Confirm / Release are post-commit and non-blocking.** After a successful balance
-  commit, `confirmReservations` runs for non-PENDING transactions; on a commit failure
-  `releaseReservations` runs (`services/command/create_transaction_v2.go`); PENDING defers confirm to
+- **Confirm / Release are post-decision and non-blocking.** After a confirmed engine
+  result, `confirmReservations` runs for non-PENDING transactions. Only a known
+  precommit rejection, or a request that never reached the engine, releases the
+  reservation; an indeterminate engine outcome does not assume that no balance moved
+  (`services/command/create_transaction_engine.go`). PENDING defers confirm to
   `/commit` and release to `/cancel`, which the versioned transition use case answers
-  (`services/command/commit_transaction.go`, `transitionPendingV2`, which names
-  `confirmReservationsByTransaction` / `releaseReservationsByTransaction`).
+  (`services/command/commit_transaction.go`, `transitionPendingV2`, which enables
+  `transitionPendingWithEngine` to call `confirmReservationsByTransaction` /
+  `releaseReservationsByTransaction`).
   Transport failures on confirm/release are logged at Warn, span-recorded and **never propagated**,
   so a tracer outage during this window never fails a transaction whose balances already moved.
   They are **not dropped**, though: the failed transition is handed to
@@ -157,7 +162,7 @@ transaction-create path is then byte-for-byte unchanged.
 
 A `nil` reserver is treated as "tracer disabled" at every call site via explicit nil guards, mirroring
 the streaming nil-emitter pattern: `reserveTransaction` returns *proceed* with an empty handle, and
-confirm/release are no-ops (`transaction_ports.go`,
+confirm/release are no-ops (`transaction_control_ports.go`,
 `transaction_reservation_anchor.go:98-101, 252-254, 266-268`). So the create path runs identically with
 or without a tracer wired.
 
@@ -225,7 +230,7 @@ and the insecure default is gated off (`len(conf.dialOptions)==0`) so it cannot 
 **ledger's** client leaf (`tracer/config.go:68-72`, `tls_seam.go:83-86`).
 
 **Rotation / hot-reload:** both sides load their cert/key through the lib-commons
-`certificate.Manager` (`libCert "github.com/LerianStudio/lib-commons/v6/commons/certificate"`, both
+`certificate.Manager` (`libCert "github.com/LerianStudio/lib-commons/v7/commons/certificate"`, both
 `tls_seam.go:14`). The seam therefore inherits **cert rotation without restart**: the ledger serves the
 latest cert via `GetClientCertificate → certManager.TLSCertificate()`
 (`ledger/tls_seam.go:82-102`), the tracer via `GetCertificate → certManager.GetCertificateFunc()`

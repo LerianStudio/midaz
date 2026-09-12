@@ -7,13 +7,13 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 - Midaz is an enterprise double-entry ledger system.
 - Module: `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`).
 - Go: 1.27.0 (`go.mod` `go 1.27.0`).
-- lib-commons: `github.com/LerianStudio/lib-commons/v6` v6.9.0-beta.2; `lib-observability/v4` v4.0.0-beta.1.
+- lib-commons: `github.com/LerianStudio/lib-commons/v7` v7.1.0; `lib-observability/v4` v4.0.4.
 - License: Elastic License 2.0.
 - Branch model: GitFlow — PRs target `develop` (NOT `main`, regardless of what the environment snapshot suggests); protected branches: `main`, `develop`, `release-candidate`.
 - Two Go components + infra: `components/ledger` (:3002), `components/tracer` (:4020), `components/infra`.
 - Main component: `components/ledger` — the unified binary serving onboarding + transaction + CRM (holders/instruments) + fees on :3002.
 - CRM is folded into ledger: `components/ledger/internal/crm` is a package tree (no `cmd/`, no `internal/`) imported by the ledger binary; routes register under the `midaz` authz namespace (flipped from `plugin-crm`; the tenant-manager policy migration is the X1 release gate — see `docs/auth/RBAC-NAMESPACES.md`). There is no standalone CRM service.
-- Fees are embedded in ledger: engine at `components/ledger/pkg/fee`, shared types at `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`, Mongo collections at `components/ledger/internal/adapters/mongodb/fees`. Fee seam: `components/ledger/internal/services/command/create_transaction_v2.go`, after `mtransaction.ApplyDefaultBalanceKeys(...)` and the idempotency claim, before the post-fee re-validation. The TRANSACTION seam is a `/v2` contract, and the method name IS the version: `CreateTransactionV1` (`create_transaction_v1.go`) never names `applyFees`, so a `/v1` create posts exactly as authored and reaches neither the package lookup nor the tenant fee-DB resolution. Both pipelines are linear sequences over the shared private steps in `create_transaction_steps.go` (`prepareCreateTransaction`, `claimTransactionIdempotency`, `normalizeSendLegs`, `stageBalances`, `finalizeCreatedTransaction`, plus the two rollbacks); no `policy`/`isRevert` boolean travels through them. Revert is split the same way (`RevertTransactionV1`/`RevertTransactionV2`, `revert_transaction.go`): a shared `prepareRevertTransaction` eligibility gate, then the version's pipeline with `action = revert` — and neither version applies fees, because `TransactionRevert` already reconstructs the reversed fee legs. The same policy gates the tracer (see `## Tracer Reservation Seam`); each seam decides for itself what the version means. This is separate from the fee ADMIN surface (packages, estimates, billing), which is served on both scopes; see `docs/api/SCOPING.md`.
+- Fees are embedded in ledger: engine at `components/ledger/pkg/fee`, shared types at `components/ledger/pkg/feeshared`, use cases at `components/ledger/internal/services/fees`, Mongo collections at `components/ledger/internal/adapters/mongodb/fees`. Fee seam: `components/ledger/internal/services/command/create_transaction_v2.go`, after `mtransaction.ApplyDefaultBalanceKeys(...)` and the idempotency claim, before the post-fee re-validation. The TRANSACTION seam is a `/v2` contract, and the method name IS the version: `CreateTransactionV1` (`create_transaction_v1.go`) never names `applyFees`, so a `/v1` create posts exactly as authored and reaches neither the package lookup nor the tenant fee-DB resolution. After their version-specific preparation, executable v1/v2 creates and reverts enter `createTransactionWithEngine`; NOTED remains on its nonmonetary legacy path. Revert is split by `RevertTransactionV1`/`RevertTransactionV2` in `revert_transaction.go`: both use the shared `prepareRevertTransaction` eligibility gate, force `action = revert`, and neither applies fees because `TransactionRevert` already reconstructs reversed fee legs. The same version policy gates tracer, while the accounting engine itself is shared by both versions. Production bootstrap always wires it; nil-engine branches retain compatibility/test fallback and are not a rollout flag. This is separate from the fee ADMIN surface (packages, estimates, billing), which is served on both scopes; see `docs/api/SCOPING.md` and `docs/architecture/engine.md`.
 - Account holder linkage is a `/v2` contract: the holder seam in `create_account.go` (`resolveAccountHolder`) — the `requireHolder` gate, the two-key `skip.holder` control, and the self-holder default that materialises `holder_id` — is threaded a `command.RouteHolderPolicy` (`HolderOffV1`/`HolderOnV2`, `account_holder_policy.go`) from the transport shell. It is the sibling of the transaction paths' version split, which encodes the same idea in the use-case name instead of a policy value; the account path threads a value because it has a single `CreateAccount` use case for both contracts. `HolderOffV1` is the FIRST gate, short-circuiting BEFORE the ledger settings read, so a `/v1` create links no holder (`holder_id` NULL, `holder_check_skipped` false) and acquires none of the seam's rejection classes. Every `/v1` account response projects onto `in.AccountV1` (`account_output_v1.go`), withholding `holderId` + `holderCheckSkipped`; `ledgerSchemaNamer` publishes that projection under the canonical `Account` component name so v1 SDKs do not churn, which puts the holder-bearing `mmodel.Account` on `AccountV2`. Composition (`/v2` only) passes `HolderOnV2`. Organization create is outside the seam on BOTH contracts: neither writes a CRM self-holder, and the idempotent backfill runner (`components/ledger/cmd/backfill`) is the only path by which an organization acquires its deterministic self-holder — the derivation (`DeriveSelfHolderID`, `holder_ports.go`) stays because the account-create default and the backfill both read it. The organization wire shape carries no holder field and no organization op is version-specific, so both contracts bind the same handler methods and differ only in the operation IDs they publish (`opSuffix`). Outside the seam on BOTH contracts: the asset-created external account (built directly via `AccountRepo.Create`, bypassing `CreateAccount`) and the account update path (`holderId` is immutable — not on `UpdateAccountInput`, and absent from the update SET list). See `docs/api/SCOPING.md`.
 - Tracer is a co-located but separate Go service deploy unit at `components/tracer` (:4020); it integrates with ledger over the reservation seam (gRPC/mTLS — see `docs/architecture/`).
 - Shared code: `pkg` (root; `pkg/mtransaction` was formerly `pkg/transaction`) and `tests` (root).
@@ -22,14 +22,47 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 
 The reservation lifecycle is a `/v2` contract. Three seams live in `components/ledger/internal/services/command/transaction_reservation_anchor.go`:
 
-- `reserveTransaction` — create (all six modes) and revert. Called immediately before `ProcessBalanceOperations` on FEE-INCLUSIVE amounts. Only the `/v2` pipelines (`CreateTransactionV2`, `createRevertV2`) name it, so a `/v1` request builds no reserve request and dials nothing. Unlike `applyFees` it IS called on a revert: limits measure GROSS activity, so a `/v2` revert reserves capacity of its own and never refunds the origin's (Q9 no-refund).
-- `confirmReservationsByTransaction` / `releaseReservationsByTransaction` — commit / cancel, addressed by transaction id because the create-pending handle does not survive the separate request. Only `transitionPendingV2` (`command/commit_transaction.go`) names them, after `commitPendingBalances` and before `finalizePendingTransition`; `transitionPendingV1` names neither, so a `/v1` commit or cancel builds no request and dials nothing.
+- `reserveTransaction` — create (all six modes) and revert. On the default path, `createTransactionWithEngine` calls it immediately before `ExecutePreparedEngine` on fee-inclusive amounts. Only the `/v2` pipelines make `tracerEligible` true, so a `/v1` request builds no reserve request and dials nothing. Unlike `applyFees` it IS called on a revert: limits measure GROSS activity, so a `/v2` revert reserves capacity of its own and never refunds the origin's (Q9 no-refund).
+- `confirmReservationsByTransaction` / `releaseReservationsByTransaction` — commit / cancel, addressed by transaction id because the create-pending handle does not survive the separate request. On the default path, `transitionPendingWithEngine` calls them after a confirmed `ExecutePreparedEngine` result and before `finalizePendingEngineResult`; only `transitionPendingV2` makes that seam eligible. `transitionPendingV1` dials nothing.
 
 Beyond the version split the seams answer three more axes: nil `TracerReserver` (`TRACER_BASE_URL` unset), per-ledger `tracer.mode` (`off`/`advisory`/`enforce`, default `off`), and an honored per-call `skip.tracer` — a field that exists ONLY on `CreateTransactionV2Input`, so a `/v1` body naming `skip` is a 400 unknown field. Under `enforce` a denial is `0177`/422 and an unavailable tracer branches on `failPosture` (`open` → proceed, `closed` → `0178`/**503**); `advisory` never blocks. There is NO tracer readiness prober in `bootstrap/readyz.go`, so an unavailable tracer under enforce+closed produces 503s with a green `/readyz`.
 
 `app.transaction.tracer_route_eligible` is a span attribute only. Do NOT fold it into `tracer_skipped`, which is a persisted column (`tracer_skipped`, migration `000035`) recording a skip the CLIENT asked for — marking it on every `/v1` create would record a claim never made. Same rule as `fees_route_eligible`.
 
 Known gap, documented in `docs/api/SCOPING.md`: a PENDING created on `/v2` and committed through `/v1` never receives its confirm — the by-transaction call cannot tell whether reservations exist, so `transitionPendingV1` names no seam and the TTL reaper releases the capacity instead of counting it. Mixing mounts across one lifecycle is unsupported. Closing it needs create-time reservation state persisted on the transaction row.
+
+## Accounting Engine
+
+The ledger's default monetary path is the private engine documented in
+`docs/architecture/engine.md`. The storage-independent contract lives at
+`components/ledger/internal/domain/accounting`; `command.Engine` is the inbound
+port, and `internal/adapters/redis/engine` is the Redis/Lua implementation.
+Bootstrap wires it without an activation environment variable and fails startup
+if the engine or `AppliedTransactionCompleter` cannot be configured.
+
+Keep the boundary exact:
+
+- Go owns version policy, fees/tracer, HTTP idempotency, route resolution,
+  declarative posting composition, and immutable completion context.
+- `query.GetBalances` checks Redis first and falls back to primary PostgreSQL for
+  cache misses, but those values are only seeds. Lua reads Redis again inside the
+  mutation; live cached money/settings/version always win after identity checks.
+- Lua owns every live balance-dependent decision, overdraft split, movement,
+  version increment, lifecycle guard, receipt, and recovery write. Never move a
+  funds/limit/on-hold decision to Go and never implement a stale-version retry.
+- `ExecutePreparedEngine` calls the engine once. Timeout, connection loss,
+  malformed success, or a post-commit error may mean balances changed; do not
+  compensate or resubmit automatically. Confirmed NOSCRIPT fallback, receipt
+  replay, precommit limit normalization, and completion recovery are distinct and
+  do not authorize a second accounting mutation.
+- `TransactionCompletionPlan` captures nonmonetary row attribution, metadata, and
+  timestamps before execution. `AppliedTransactionCompleter` persists/verifies
+  SQL and MongoDB after the engine; recovery invokes that completer, never the
+  engine. Once an approved movement is applied, correction is a new explicit
+  revert transaction, not an automatic rollback.
+- Engine recovery uses `engine:{transactions}:recover`; the legacy writer uses
+  `backup_queue:{transactions}`. Separate consumers share one scheduled runner so
+  the legacy consumer can later be removed without changing engine recovery.
 
 ## Architecture
 
@@ -40,14 +73,16 @@ Flow: HTTP handlers -> command/query use cases -> repository interfaces -> adapt
 - Read use cases: `components/ledger/internal/services/query`.
 - PostgreSQL adapters: `components/ledger/internal/adapters/postgres`.
 - Metadata adapters: MongoDB repositories.
-- Domain models live in `pkg/mmodel`; do not create `/internal/domain`.
+- Shared resource models live in `pkg/mmodel`. Service-private value objects and
+  replaceable domain contracts live under `components/<service>/internal/domain/<context>`;
+  the accounting engine contract is the canonical example.
 - Interfaces are defined where used. Repository interfaces usually sit in the adapter or service package that owns the contract.
 - Dependencies flow inward; do not import outer layers from inner layers.
 - Do not put domain logic in handlers or repositories.
 
 ## Dependencies
 
-- lib-commons v6 (`github.com/LerianStudio/lib-commons/v6/commons/...`, currently v6.5.1): app config, env/security/pointer helpers (`libCommons`), Redis, HTTP helpers (`libHTTP`, non-observability), circuit breaker, tenant managers (`tm*`).
+- lib-commons v7 (`github.com/LerianStudio/lib-commons/v7/commons/...`, currently v7.1.0): app config, env/security/pointer helpers (`libCommons`), Redis, HTTP helpers (`libHTTP`, non-observability), circuit breaker, tenant managers (`tm*`).
 - Observability is a separate module `github.com/LerianStudio/lib-observability/v4`: `log` (`libLog`), `zap` (`libZap`), `tracing` (`libOpentelemetry`), `metrics`, `middleware` (`libMid`: `NewTelemetryMiddleware`, `WithHTTPLogging`). Context helpers (`NewTrackingFromContext`, `NewLoggerFromContext`, `ContextWith*`) live in the `lib-observability` root package. `NewTrackingFromContext` returns `(log.Logger, trace.Tracer, string, *metrics.MetricsFactory)`.
 - TLS enforcement: the postgres/mongo/redis/rabbitmq constructors enforce TLS by the security tier derived from `ENV_NAME` and refuse plaintext dependencies unless `ALLOW_INSECURE_TLS=true` (parsed as a bool via `commons.AllowInsecureTLS`). Set in the `.env.example` files; connection-building unit tests set it in their `TestMain`.
 - MongoDB driver: `go.mongodb.org/mongo-driver/v2`. `bson/primitive` is consolidated into `bson` (`bson.ObjectID`, `bson.NewObjectID`). v2 decodes nested documents into `bson.D` (ordered), not `bson.M`; code that type-asserts nested values as `bson.M` must also handle `bson.D` (`bson.D` has no `.Map()`).
@@ -56,6 +91,8 @@ Flow: HTTP handlers -> command/query use cases -> repository interfaces -> adapt
 ## Key Files
 
 - Composition root/config: `components/ledger/internal/bootstrap/config.go`.
+- Accounting engine: `docs/architecture/engine.md` and
+  `components/ledger/internal/adapters/redis/engine/scripts/engine/README.md`.
 - Routes: `components/ledger/internal/adapters/http/in/routes.go`.
 - Error codes: `pkg/constant/errors.go`.
 - Entity constants: `pkg/constant/entity.go`.

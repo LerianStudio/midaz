@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -16,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -60,9 +62,31 @@ func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransaction
 		idempotencyTTL: in.IdempotencyTTL,
 	}
 
-	if err := uc.prepareCreateTransaction(ctx, span, logger, run); err != nil {
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
 		return nil, false, err
 	}
+
+	run.transactionID = transactionID
+
+	transactionDate, err := formatTransactionDate(ctx, span, run.input, run.status)
+	if err != nil {
+		return nil, false, err
+	}
+
+	run.transactionDate = transactionDate
+
+	spanattr.RecordSafePayloadAttributes(span, run.input)
+
+	if err := validatePositiveTransactionValue(ctx, span, logger, run.input.Send.Value); err != nil {
+		return nil, false, err
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
 
 	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, "")
 	if err != nil {
@@ -156,6 +180,11 @@ func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransaction
 	}
 
 	run.action = mtransaction.StatusToAction(run.status)
+
+	if uc.Engine != nil && run.status != constant.NOTED {
+		tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, false)
+		return tran, false, err
+	}
 
 	ctx, err = uc.stageBalances(ctx, span, logger, run)
 	if err != nil {

@@ -30,6 +30,99 @@ func TestBalanceSettings_Defaults(t *testing.T) {
 	assert.Nil(t, got.OverdraftLimit, "default OverdraftLimit must be nil")
 }
 
+func TestBalanceSettings_Normalize(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "scientific notation", input: "1E+3", want: "1000"},
+		{name: "explicit positive sign", input: "+1000", want: "1000"},
+		{name: "trailing zeros", input: "1000.00", want: "1000"},
+		{name: "canonical fraction", input: "0.5", want: "0.5"},
+		{name: "leading zeros", input: "001000.00", want: "1000"},
+		{name: "leading decimal point", input: ".5", want: "0.5"},
+		{name: "trailing decimal point", input: "1000.", want: "1000"},
+		{name: "small exponent", input: "5e-8", want: "0.00000005"},
+		{name: "large precise amount", input: "12345678901234567890.1234567890", want: "12345678901234567890.123456789"},
+		{name: "invalid preserved", input: "not-a-number", want: "not-a-number"},
+		{name: "empty preserved", input: "", want: ""},
+		{name: "whitespace preserved", input: " 1000 ", want: " 1000 "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			limit := tt.input
+			settings := &BalanceSettings{
+				BalanceScope:          BalanceScopeInternal,
+				AllowOverdraft:        true,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        &limit,
+			}
+
+			settings.Normalize()
+
+			require.NotNil(t, settings.OverdraftLimit)
+			assert.Equal(t, tt.want, *settings.OverdraftLimit)
+			assert.Equal(t, tt.input, limit, "normalization must not mutate a shared string")
+			assert.Equal(t, BalanceScopeInternal, settings.BalanceScope)
+			assert.True(t, settings.AllowOverdraft)
+			assert.True(t, settings.OverdraftLimitEnabled)
+
+			settings.Normalize()
+			assert.Equal(t, tt.want, *settings.OverdraftLimit, "normalization must be idempotent")
+		})
+	}
+}
+
+func TestBalanceSettings_Normalize_Nil(t *testing.T) {
+	t.Parallel()
+
+	var settings *BalanceSettings
+	settings.Normalize()
+	assert.Nil(t, settings)
+
+	settings = NewDefaultBalanceSettings()
+	settings.Normalize()
+	assert.Equal(t, NewDefaultBalanceSettings(), settings)
+}
+
+func TestBalanceSettings_Normalize_PreservesValidation(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{"", "invalid", " 1000 ", "0", "-100"} {
+		t.Run(raw, func(t *testing.T) {
+			t.Parallel()
+
+			limit := raw
+			settings := &BalanceSettings{OverdraftLimitEnabled: true, OverdraftLimit: &limit}
+			before := settings.Validate()
+			require.Error(t, before)
+
+			settings.Normalize()
+
+			require.EqualError(t, settings.Validate(), before.Error())
+		})
+	}
+
+	t.Run("disabled limit remains invalid", func(t *testing.T) {
+		t.Parallel()
+
+		limit := "1E+3"
+		settings := &BalanceSettings{OverdraftLimit: &limit}
+		before := settings.Validate()
+		require.Error(t, before)
+
+		settings.Normalize()
+
+		require.EqualError(t, settings.Validate(), before.Error())
+	})
+}
+
 // TestBalanceSettings_Validate_ValidCombinations covers the 4 valid combinations
 // from the balance settings contract.
 func TestBalanceSettings_Validate_ValidCombinations(t *testing.T) {
