@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // strPtr returns a pointer to s for building scoped Package fixtures.
@@ -97,20 +98,25 @@ func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 			wantRoute:   strPtr(routeA),
 		},
 		{
+			// The combo package is still dropped for the segment the transaction
+			// does not carry, and the unscoped package coexisting with it is now
+			// charged instead of nothing being charged at all.
 			name: "combined route+segment requires BOTH: route matches but segment nil -> no early return, combo dropped",
 			packages: []*pack.Package{
 				{ID: uuid.New(), TransactionRoute: strPtr(routeA), SegmentID: uuidPtr(segA), MinimumAmount: min0, MaximumAmount: max},
-				{ID: uuid.New(), MinimumAmount: min0, MaximumAmount: max}, // unscoped, but nil-route so dropped by route filter
+				{ID: uuid.New(), MinimumAmount: min0, MaximumAmount: max}, // unscoped: carries no constraint, so it survives any route
 			},
-			route:     routeA,
-			segmentID: nil,
-			wantNil:   true,
+			route:       routeA,
+			segmentID:   nil,
+			wantNil:     false,
+			wantSegment: nil,
+			wantRoute:   nil,
 		},
 		{
 			name: "route-only package still matches on route alone (segment nil)",
 			packages: []*pack.Package{
 				{ID: uuid.New(), TransactionRoute: strPtr(routeA), MinimumAmount: min0, MaximumAmount: max},
-				{ID: uuid.New(), MinimumAmount: min0, MaximumAmount: max}, // unscoped, dropped by route filter
+				{ID: uuid.New(), MinimumAmount: min0, MaximumAmount: max}, // unscoped, dropped by the specificity tiebreak
 			},
 			route:       routeA,
 			segmentID:   nil,
@@ -138,7 +144,10 @@ func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 				return
 			}
 
-			assert.NotNil(t, got)
+			// require, not assert: the assertions below dereference the selected
+			// package, so a regression that selects nothing would panic the whole
+			// test binary and hide every other case in this package.
+			require.NotNil(t, got)
 
 			if tc.wantSegment == nil {
 				assert.Nil(t, got.SegmentID)
@@ -159,13 +168,13 @@ func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 
 // routeHandedToFilter returns the route string the fee service hands to
 // FindPackageToCalculateFee for this payment. Both selection paths in
-// components/ledger/internal/services/fees/calculate-fee.go pass the deprecated
-// Route field, while the only create pipeline that charges a fee populates
-// RouteID and leaves Route empty. That gap is the defect the routed cases below
-// pin: the repair repoints this single expression at the canonical route
-// accessor, and reverting it here is the mutant those cases kill.
+// components/ledger/internal/services/fees/calculate-fee.go pass this value,
+// and they now read the canonical route accessor: the only create pipeline that
+// charges a fee populates RouteID and leaves the deprecated Route empty, so
+// passing Route selected nothing on every routed payment. Reverting this
+// expression to payment.Route is the mutant the routed cases below kill.
 func routeHandedToFilter(payment transaction.Transaction) string {
-	return payment.Route
+	return payment.EffectiveRouteID()
 }
 
 // TestFindPackageToCalculateFee_RouteScoping pins which fee package is charged

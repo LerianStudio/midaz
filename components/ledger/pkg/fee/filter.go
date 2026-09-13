@@ -35,7 +35,7 @@ func FindPackageToCalculateFee(packages []*pack.Package, transactionRoute string
 		return bySegment[0], nil
 	}
 
-	byAmount := filterByAmount(bySegment, amount)
+	byAmount := preferMostSpecificRoute(filterByAmount(bySegment, amount))
 	if len(byAmount) == 1 {
 		return byAmount[0], nil
 	} else if byAmount == nil {
@@ -45,18 +45,49 @@ func FindPackageToCalculateFee(packages []*pack.Package, transactionRoute string
 	return nil, errors.New("more than one package was found")
 }
 
-// filterByTransactionRoute Filters the packages by transaction route
+// filterByTransactionRoute Filters the packages by transaction route.
+//
+// A package applies only when every constraint it carries matches the
+// transaction, so a package carrying no route constraint survives whatever
+// route the transaction carries, including none, and a package carrying one
+// survives an exact match only.
 func filterByTransactionRoute(packages []*pack.Package, transactionRoute string) []*pack.Package {
 	var filtered []*pack.Package
 
 	for _, packValue := range packages {
-		if (packValue.TransactionRoute == nil && transactionRoute == "") ||
-			(packValue.TransactionRoute != nil && *packValue.TransactionRoute == transactionRoute) {
+		if packValue.TransactionRoute == nil || *packValue.TransactionRoute == transactionRoute {
 			filtered = append(filtered, packValue)
 		}
 	}
 
 	return filtered
+}
+
+// preferMostSpecificRoute resolves a collision between packages that all match
+// the transaction: the most specific one wins, so a package a client restricted
+// to this transaction route is charged rather than one the client restricted to
+// nothing. With no route-restricted package among the survivors it changes
+// nothing.
+//
+// It runs on the survivors of every filter, and nowhere else. Applied at the
+// route stage instead, a package scoped to this route AND to a segment would
+// shut the unrestricted package out before the segment filter drops it for a
+// segment the transaction does not carry, leaving no package selected and no
+// fee applied to a transaction that should have been charged one.
+func preferMostSpecificRoute(survivors []*pack.Package) []*pack.Package {
+	var routeScoped []*pack.Package
+
+	for _, packValue := range survivors {
+		if packValue.TransactionRoute != nil {
+			routeScoped = append(routeScoped, packValue)
+		}
+	}
+
+	if routeScoped == nil {
+		return survivors
+	}
+
+	return routeScoped
 }
 
 // filterBySegmentID Filters the packages by segment id

@@ -195,7 +195,7 @@ func (uc *UseCase) calculateFeeForSinglePackage(
 	// path uses so a single SCOPED package (route and/or segment) is applied only
 	// when its scope matches the transaction. An unscoped single package (nil
 	// route, nil segment) still survives every filter and is selected as before.
-	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee([]*pack.Package{feePackage}, cf.Transaction.Route, cf.SegmentID, sendModel.Value) //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
+	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee([]*pack.Package{feePackage}, cf.Transaction.EffectiveRouteID(), cf.SegmentID, sendModel.Value)
 	if errFilterPack != nil {
 		return pkg.ValidateBusinessError(constant.ErrFilterPackage, "")
 	}
@@ -236,7 +236,7 @@ func (uc *UseCase) calculateFeeForMultiplePackages(
 	validationResultFromSize, validationResultToSize int,
 	organizationID uuid.UUID,
 ) error {
-	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, cf.Transaction.Route, cf.SegmentID, sendModel.Value) //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
+	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, cf.Transaction.EffectiveRouteID(), cf.SegmentID, sendModel.Value)
 	if errFilterPack != nil {
 		return pkg.ValidateBusinessError(constant.ErrFilterPackage, "")
 	}
