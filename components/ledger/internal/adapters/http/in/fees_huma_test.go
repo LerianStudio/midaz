@@ -432,6 +432,27 @@ func TestHuma_EstimateFee_ContentTypeIsJSON(t *testing.T) {
 		"a successful estimate must declare JSON, body: %s", string(respBody))
 }
 
+// TestHuma_EstimateFee_ContentTypeStaysOutOfTheContract pins the other half: the header
+// field exists to reach the wire, not the contract. OpenAPI 3.1 ignores a Content-Type
+// entry under response headers (the media type is the content map's key), so publishing
+// one only confuses generated clients. The field is hidden from the spec and still written
+// at runtime (the test above).
+func TestHuma_EstimateFee_ContentTypeStaysOutOfTheContract(t *testing.T) {
+	_, api := buildUnifiedHumaAPI()
+
+	const estimatePath = "/v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates"
+
+	item := api.OpenAPI().Paths[estimatePath]
+	require.NotNil(t, item, "estimate path missing from the spec")
+	require.NotNil(t, item.Post, "estimate POST missing from the spec")
+
+	ok := item.Post.Responses["200"]
+	require.NotNil(t, ok, "estimate 200 response missing from the spec")
+
+	assert.NotContains(t, ok.Headers, "Content-Type",
+		"Content-Type is not a response header in OpenAPI 3.1; the content map already says JSON")
+}
+
 func TestHuma_EstimateFee_NoRules_EmptyMessage(t *testing.T) {
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 

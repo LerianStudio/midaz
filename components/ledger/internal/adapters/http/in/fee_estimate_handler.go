@@ -91,10 +91,12 @@ func decodeFeeBodyInSpan(ctx context.Context, rawBody []byte, payload any) error
 // loop runs first and honours a string field tagged Content-Type (:1268-1272), so
 // ContentType is the field that actually makes the response say JSON. Without it Fiber
 // sniffs the bytes and answers text/plain, which a client reading the header takes for an
-// outage rather than a quote.
+// outage rather than a quote. The field is hidden from the generated spec: OpenAPI 3.1
+// ignores a Content-Type entry under response headers (the content map's key already
+// carries the media type), and Huma keeps writing a hidden header at runtime.
 type EstimateFeeResponse struct {
 	Status      int
-	ContentType string `header:"Content-Type"`
+	ContentType string `header:"Content-Type" hidden:"true"`
 	Body        []byte `contentType:"application/json"`
 }
 

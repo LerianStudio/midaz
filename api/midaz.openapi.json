@@ -14979,14 +14979,7 @@
                 }
               }
             },
-            "description": "OK",
-            "headers": {
-              "Content-Type": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
+            "description": "OK"
           },
           "422": {
             "content": {
