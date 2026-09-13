@@ -17,6 +17,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 // v2TransactionSchemaName is the component name the /v2 response envelope publishes its
@@ -314,7 +315,7 @@ func TestV2MetadataContractPublishesFeeKeys(t *testing.T) {
 		schemaName string
 		wantKeys   []string
 	}{
-		{v2OperationSchemaName, []string{"feeLeg"}},
+		{v2OperationSchemaName, []string{constant.MetadataKeyFeeLeg}},
 		{v2TransactionSchemaName, []string{"feeApplied", "packageAppliedID", "feeExemption"}},
 	}
 
@@ -335,6 +336,121 @@ func TestV2MetadataContractPublishesFeeKeys(t *testing.T) {
 					"the published %q metadata description must name the reserved %q key, "+
 						"so a client reads the contract instead of the ledger source",
 					tc.schemaName, key)
+			}
+		})
+	}
+}
+
+// TestV2ResponseBodyCarriesTheFeeMark is the gate on the read seam the console actually consumes:
+// the mark must survive the mapping from the stored transaction into the /v2 response body. The
+// published description proves a client was TOLD about the key; only this proves the key arrives.
+//
+// Both directions are asserted on one transaction, because a mapper that copies metadata onto
+// every operation and a mapper that drops it are equally wrong: the fee movement must carry the
+// mark, the operator's own movement must not.
+func TestV2ResponseBodyCarriesTheFeeMark(t *testing.T) {
+	t.Parallel()
+
+	stored := &transaction.Transaction{
+		ID: "11111111-1111-1111-1111-111111111111",
+		Operations: []*operation.Operation{
+			{
+				ID:           "22222222-2222-2222-2222-222222222222",
+				AccountAlias: "@payer",
+				Metadata:     map[string]any{"invoice": "INV-12345"},
+			},
+			{
+				ID:           "33333333-3333-3333-3333-333333333333",
+				AccountAlias: "@collector",
+				Metadata: map[string]any{
+					constant.MetadataKeyFeeLeg: constant.MetadataValueFeeLeg,
+					"source":                   "@payer",
+				},
+			},
+		},
+	}
+
+	body := newTransactionV2(stored)
+	require.NotNil(t, body)
+	require.Len(t, body.Operations, 2)
+
+	byAlias := map[string]*OperationV2{}
+	for _, op := range body.Operations {
+		byAlias[op.AccountAlias] = op
+	}
+
+	operatorMovement, ok := byAlias["@payer"]
+	require.True(t, ok, "the operator's own movement must reach the response body")
+	_, marked := operatorMovement.Metadata[constant.MetadataKeyFeeLeg]
+	assert.False(t, marked, "the operator's own movement must reach the client unmarked")
+	assert.Equal(t, "INV-12345", operatorMovement.Metadata["invoice"],
+		"an operator key on an unpriced movement must survive the mapping")
+
+	feeMovement, ok := byAlias["@collector"]
+	require.True(t, ok, "the engine's fee movement must reach the response body")
+	assert.Equal(t, constant.MetadataValueFeeLeg, feeMovement.Metadata[constant.MetadataKeyFeeLeg],
+		"the mark the ledger wrote must reach the client, which is the whole contract")
+}
+
+// TestV2MetadataContractMakesNoFalseClaim pins the two published sentences that were measurably
+// false against the ledger's own behaviour, so a rewrite cannot quietly reintroduce either.
+//
+// A contract a client is told to trust is worse than no contract when it is wrong: an integrator
+// who reads "preserved unchanged" builds reconciliation on a per-movement reference that the fee
+// engine silently replaces, and one who reads "whenever a package was selected" concludes no
+// package is configured for a route that in fact has one.
+func TestV2MetadataContractMakesNoFalseClaim(t *testing.T) {
+	t.Parallel()
+
+	_, api := buildUnifiedHumaAPI()
+	schemas := api.OpenAPI().Components.Schemas.Map()
+
+	cases := []struct {
+		schemaName string
+		// forbidden is a claim the ledger does not keep, with why it does not.
+		forbidden map[string]string
+		// required is a phrase the description must carry to describe what actually happens.
+		required []string
+	}{
+		{
+			schemaName: v2OperationSchemaName,
+			forbidden: map[string]string{
+				"preserved unchanged": "the fee engine rebuilds both sides of a fee-priced " +
+					"payment from a map that carries no per-movement metadata, so a caller key " +
+					"on a leg does not survive",
+			},
+			required: []string{"refus"},
+		},
+		{
+			schemaName: v2TransactionSchemaName,
+			forbidden: map[string]string{
+				"whenever a package was selected": "the key is written only when a fee was " +
+					"charged or an exemption was recorded; a package excluded by its amount " +
+					"bounds is selected and writes nothing",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.schemaName, func(t *testing.T) {
+			t.Parallel()
+
+			schema, ok := schemas[tc.schemaName]
+			require.Truef(t, ok, "the unified document must register the %q component", tc.schemaName)
+
+			metadata, ok := schema.Properties["metadata"]
+			require.Truef(t, ok, "%q must publish a metadata property", tc.schemaName)
+
+			for claim, why := range tc.forbidden {
+				assert.NotContainsf(t, metadata.Description, claim,
+					"the published %q metadata description must not claim %q: %s",
+					tc.schemaName, claim, why)
+			}
+
+			for _, phrase := range tc.required {
+				assert.Containsf(t, metadata.Description, phrase,
+					"the published %q metadata description must say what the ledger does instead",
+					tc.schemaName)
 			}
 		})
 	}

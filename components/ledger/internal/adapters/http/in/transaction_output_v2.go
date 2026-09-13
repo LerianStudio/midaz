@@ -107,8 +107,13 @@ type TransactionV2 struct {
 	// Additional custom attributes. Three keys are reserved by the ledger and documented on
 	// the published field so a client never has to read ledger source to recognise them; the
 	// doc tag, not this comment, is what the OpenAPI generator publishes.
+	//
+	// packageAppliedID is published under the condition the ledger actually writes it under,
+	// which is narrower than package selection: a package whose amount bounds exclude the
+	// transaction IS selected and writes no key at all, so a client treating an absent key as
+	// no package configured would read a configured route as an unconfigured one.
 	// example: {"purpose": "Monthly payment", "category": "Utility"}
-	Metadata map[string]any `json:"metadata,omitempty" doc:"Additional custom attributes. The ledger reserves three fee keys on this field and writes them itself: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package that priced it, present whenever a package was selected, including when every account was exempt; feeExemption is an object carrying exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched. Caller-supplied keys are preserved unchanged alongside them."`
+	Metadata map[string]any `json:"metadata,omitempty" doc:"Additional custom attributes. The ledger reserves three fee keys on this field and writes them itself: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is an object carrying exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside them."`
 
 	// List of operations associated with this transaction
 	Operations []*OperationV2 `json:"operations"`
@@ -230,8 +235,15 @@ type OperationV2 struct {
 	// published field, because a client that has to read ledger source to tell a fee movement
 	// from an operator movement does not have a contract; the doc tag, not this comment, is
 	// what the OpenAPI generator publishes.
+	//
+	// Two halves of the published sentence are load-bearing and each is enforced somewhere
+	// else in this binary. The mark is the ledger's alone because the fee engine records the
+	// legs it mints as it mints them, and because a request body carrying the key is refused
+	// rather than stripped. What happens to a caller key on a priced movement is published
+	// too, and it is NOT preservation: the engine rebuilds both sides of a fee-priced payment
+	// from an amounts map that carries no per-movement metadata.
 	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
-	Metadata map[string]any `json:"metadata" doc:"Additional custom attributes. The ledger reserves the feeLeg key on this field and writes it itself: feeLeg is the string true on every operation the fee engine created, and is never written on an operation the caller authored, so a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Caller-supplied keys are preserved unchanged alongside it."`
+	Metadata map[string]any `json:"metadata" doc:"Additional custom attributes. The ledger reserves the feeLeg key on this field and writes it itself: feeLeg is the string true on every operation the fee engine created, and never appears on an operation the caller authored, because a request body that carries the key is refused rather than silently stripped. So a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Caller-supplied keys on an operation are returned as sent on a transaction the fee engine did not price; on a fee-priced transaction the engine rebuilds every movement of both sides, and the rebuilt movements carry only the ledger keys, so do not rely on a per-movement caller reference surviving a payment that is charged a fee."`
 }
 
 // newTransactionV2 converts the canonical transaction.Transaction into its /v2 wire shape,
