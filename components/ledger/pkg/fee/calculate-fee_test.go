@@ -2605,3 +2605,59 @@ func TestCalculateFee_DeductibleFitsAmount_Applied(t *testing.T) {
 	assert.True(t, feeLeg.Value.Equal(decimal.NewFromInt(10)),
 		"fee account should receive 10, got %s", feeLeg.Value.String())
 }
+
+// TestUpdatedAmountsFromFee_FeeLegMark pins which movements of one payment carry the ledger's own
+// fee mark. Every movement the engine mints enters the amounts map under a decorated key; an
+// operator-authored movement enters under its bare account alias. The operator case is the mutant
+// target: an implementation that marks every entry passes the three engine cases and fails only
+// that one.
+func TestUpdatedAmountsFromFee_FeeLegMark(t *testing.T) {
+	t.Parallel()
+
+	// One payment: the payer's own movement, a deductible fee leg, a non-deductible debit leg and
+	// its collector mirror. The values are distinct because the engine decoration is trimmed off
+	// the alias before the movement is returned, so two movements can share an alias.
+	amounts := map[string]transaction.Amount{
+		"@payer": {Asset: "BRL", Value: decimal.NewFromInt(1000)},
+		"@collector->fee_source0->@payer->route_to": {Asset: "BRL", Value: decimal.NewFromInt(20)},
+		"@payer->fee1->route_from":                  {Asset: "BRL", Value: decimal.NewFromInt(30)},
+		"@collector->fee_source1->@payer->route_to": {Asset: "BRL", Value: decimal.NewFromInt(31)},
+	}
+
+	type expectation struct {
+		alias  string
+		feeLeg bool
+		source string
+	}
+
+	expected := map[string]expectation{
+		"1000": {alias: "@payer"},                                     // operator authored it
+		"20":   {alias: "@collector", feeLeg: true, source: "@payer"}, // deductible fee leg
+		"30":   {alias: "@payer", feeLeg: true},                       // non-deductible debit leg
+		"31":   {alias: "@collector", feeLeg: true, source: "@payer"}, // its collector mirror
+	}
+
+	result := updatedAmountsFromFee(amounts)
+	assert.Len(t, result, len(expected))
+
+	for _, fromTo := range result {
+		value := fromTo.Amount.Value.String()
+
+		want, known := expected[value]
+		assert.True(t, known, "unexpected movement of %s", value)
+		assert.Equal(t, want.alias, fromTo.AccountAlias)
+
+		mark, marked := fromTo.Metadata["feeLeg"]
+		assert.Equal(t, want.feeLeg, marked, "feeLeg presence on the movement of %s", value)
+
+		if want.feeLeg {
+			assert.Equal(t, "true", mark, "feeLeg value on the movement of %s", value)
+		}
+
+		// The mark says the engine wrote the movement; metadata.source says where the money came
+		// from. Neither replaces the other.
+		if want.source != "" {
+			assert.Equal(t, want.source, fromTo.Metadata["source"])
+		}
+	}
+}

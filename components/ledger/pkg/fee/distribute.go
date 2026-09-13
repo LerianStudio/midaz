@@ -154,7 +154,20 @@ func setFeeExemptionMetadata(f *model.FeeCalculate, reason string) {
 	}
 }
 
-// updatedAmountsFromFee updates the amounts from the fee
+// updatedAmountsFromFee rebuilds one whole side of the payment from the amounts map. That map
+// holds the movements the fee engine minted and the movements the operator authored together, so
+// the function also marks the engine ones, and only those, with feeLeg.
+//
+// The map key is what separates them, never the account alias. An operator movement enters the
+// map under its bare account alias (mtransaction.Validate). Every movement this package mints
+// enters under a key it decorated itself with the -> segments carrying the fee index, the payer
+// and the route, which is the same decoration trimFeeSuffix and the route split below already
+// read. The alias is the operator's and repeats across both kinds of movement; the key is the
+// engine's and cannot be forged through the payment payload.
+//
+// ponytail: an account alias that itself contains -> is read as an engine key and gets marked.
+// The ceiling is pre-existing rather than introduced here, since trimFeeSuffix already truncates
+// such an alias today; closing it needs an alias charset rule this function does not have.
 func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.FromTo {
 	newFromTo := make([]transaction.FromTo, 0, len(amounts))
 
@@ -167,6 +180,12 @@ func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.
 
 		if strings.Contains(account, feeconstant.SuffixFeeSource) {
 			cleanAccount, metadata = processAccount(account)
+		}
+
+		// More than one part means the key carries the engine decoration. Set after
+		// processAccount, which replaces the metadata map rather than adding to it.
+		if len(parts) > 1 {
+			metadata["feeLeg"] = "true"
 		}
 
 		if len(parts) > 2 && parts[len(parts)-1] != "" {
