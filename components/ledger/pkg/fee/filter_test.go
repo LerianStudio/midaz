@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -152,6 +153,108 @@ func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 				assert.NotNil(t, got.TransactionRoute)
 				assert.Equal(t, *tc.wantRoute, *got.TransactionRoute)
 			}
+		})
+	}
+}
+
+// routeHandedToFilter returns the route string the fee service hands to
+// FindPackageToCalculateFee for this payment. Both selection paths in
+// components/ledger/internal/services/fees/calculate-fee.go pass the deprecated
+// Route field, while the only create pipeline that charges a fee populates
+// RouteID and leaves Route empty. That gap is the defect the routed cases below
+// pin: the repair repoints this single expression at the canonical route
+// accessor, and reverting it here is the mutant those cases kill.
+func routeHandedToFilter(payment transaction.Transaction) string {
+	return payment.Route
+}
+
+// TestFindPackageToCalculateFee_RouteScoping pins which fee package is charged
+// on a payment that carries the canonical transaction route identifier, the
+// only route a payment on the fee-charging create path carries. It holds both
+// halves of the money outcome: a package a client restricted to one route must
+// be charged on that route, and a package a client restricted to nothing must
+// go on being charged on every payment, routed ones included.
+func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
+	t.Parallel()
+
+	routeID := uuid.NewString()
+	segX := uuid.New()
+	min0 := decimal.Zero
+	max := decimal.NewFromInt(1_000_000)
+	amount := decimal.NewFromInt(100)
+
+	// The create pipeline that charges fees populates RouteID only, so this is
+	// the shape every chargeable payment reaches the selector with.
+	routed := transaction.Transaction{RouteID: &routeID}
+	unrouted := transaction.Transaction{}
+
+	routeScoped := &pack.Package{ID: uuid.New(), TransactionRoute: &routeID, MinimumAmount: min0, MaximumAmount: max}
+	unscoped := &pack.Package{ID: uuid.New(), MinimumAmount: min0, MaximumAmount: max}
+	routeAndSegmentScoped := &pack.Package{ID: uuid.New(), TransactionRoute: &routeID, SegmentID: uuidPtr(segX), MinimumAmount: min0, MaximumAmount: max}
+
+	tests := []struct {
+		name      string
+		packages  []*pack.Package
+		payment   transaction.Transaction
+		segmentID *uuid.UUID
+		want      *pack.Package
+	}{
+		{
+			// The defect: a client restricts a package to one route and is never charged it.
+			name:     "route-scoped package is charged on a payment carrying that route",
+			packages: []*pack.Package{routeScoped},
+			payment:  routed,
+			want:     routeScoped,
+		},
+		{
+			// The regression guard: feeding the canonical route in must not stop
+			// charging clients who run one flat package on everything.
+			name:     "unscoped package is still charged on a routed payment",
+			packages: []*pack.Package{unscoped},
+			payment:  routed,
+			want:     unscoped,
+		},
+		{
+			// The ceiling: a payment with no route at all keeps behaving as today.
+			name:     "route-scoped package is not charged on a payment carrying no route",
+			packages: []*pack.Package{routeScoped},
+			payment:  unrouted,
+			want:     nil,
+		},
+		{
+			// The collision rule: the most specific package wins.
+			name:     "the route-scoped package wins over the unscoped one on a routed payment",
+			packages: []*pack.Package{unscoped, routeScoped},
+			payment:  routed,
+			want:     routeScoped,
+		},
+		{
+			// The money hole the specificity tiebreak opens if it runs at the route
+			// stage instead of on the packages that survived every filter: the
+			// route-scoped package is dropped one stage later for a segment this
+			// payment does not carry, and the payment would be charged nothing.
+			name:     "unscoped package is charged when the route-scoped one demands a segment the payment does not carry",
+			packages: []*pack.Package{routeAndSegmentScoped, unscoped},
+			payment:  routed,
+			want:     unscoped,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := FindPackageToCalculateFee(tc.packages, routeHandedToFilter(tc.payment), tc.segmentID, amount)
+
+			assert.NoError(t, err)
+
+			if tc.want == nil {
+				assert.Nil(t, got)
+				return
+			}
+
+			assert.NotNil(t, got)
+			assert.Same(t, tc.want, got)
 		})
 	}
 }
