@@ -226,6 +226,8 @@ func ValidateStruct(s any) error {
 				return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
 			case "nonested":
 				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
+			case "noreservedkey":
+				return pkg.ValidateBusinessError(cn.ErrReservedMetadataKey, "", fieldError.Value())
 			case "singletransactiontype":
 				return pkg.ValidateTransactionTypeError("", cn.TransactionTypeOptionsDetailed, fieldError.Translate(trans))
 			case "invalidaliascharacters":
@@ -299,6 +301,7 @@ func newValidator() (*validator.Validate, ut.Translator, error) {
 	})
 
 	_ = v.RegisterValidation("keymax", validateMetadataKeyMaxLength)
+	_ = v.RegisterValidation("noreservedkey", validateMetadataKeyNotReserved)
 	_ = v.RegisterValidation("nonested", validateMetadataNestedValues)
 	_ = v.RegisterValidation("valuemax", validateMetadataValueMaxLength)
 	_ = v.RegisterValidation("singletransactiontype", validateSingleTransactionType)
@@ -423,6 +426,19 @@ func validateMetadataNestedValues(fl validator.FieldLevel) bool {
 }
 
 // validateMetadataKeyMaxLength checks if metadata key (always a string) length is allowed
+// validateMetadataKeyNotReserved rejects a metadata key the ledger reserves for its own
+// writes. It is a key-level rule, so it belongs between keys and endkeys on a metadata tag.
+//
+// The reserved set is small and closed on purpose: a key only belongs here once the ledger
+// publishes it as its own word about a record, which is what makes a caller-written copy a
+// lie rather than a collision. Refusing beats stripping, because a stripped key looks
+// identical on the wire to a key that was stored.
+func validateMetadataKeyNotReserved(fl validator.FieldLevel) bool {
+	_, reserved := cn.ReservedMetadataKeys[fl.Field().String()]
+
+	return !reserved
+}
+
 func validateMetadataKeyMaxLength(fl validator.FieldLevel) bool {
 	limitParam := fl.Param()
 

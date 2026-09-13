@@ -76,7 +76,7 @@ type CreateTransactionV2Request struct {
 
 	// Metadata holds flat custom key-value attributes. Values must be flat
 	// (string, number, boolean) — no nested objects.
-	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,noreservedkey,endkeys,omitempty,nonested,valuemax=2000"`
 
 	// Skip carries the per-call control opt-outs. Each flag is honored only when the
 	// matching per-ledger override is enabled; otherwise the request is rejected with 422.

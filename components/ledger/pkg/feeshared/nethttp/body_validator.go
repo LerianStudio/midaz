@@ -63,6 +63,10 @@ func ValidateStruct(s any) error {
 				return pkg.ValidateTransactionTypeError("",
 					constant.TransactionTypeOptionsDetailed, fieldError.Translate(trans))
 			}
+
+			if fieldError.Tag() == "noreservedkey" {
+				return pkg.ValidateBusinessError(constant.ErrReservedMetadataKey, "", fieldError.Value())
+			}
 		}
 
 		errPtr := malformedRequestErr(validationErrors, trans)
@@ -142,6 +146,10 @@ func initValidator() {
 	}
 
 	if err := v.RegisterValidation("nonested", validateMetadataNestedValues); err != nil {
+		registrationErrors = append(registrationErrors, err)
+	}
+
+	if err := v.RegisterValidation("noreservedkey", validateMetadataKeyNotReserved); err != nil {
 		registrationErrors = append(registrationErrors, err)
 	}
 
@@ -256,6 +264,15 @@ func validateMetadataNestedValues(fl validator.FieldLevel) bool {
 }
 
 // validateMetadataKeyMaxLength checks if metadata key (always a string) length is allowed
+// validateMetadataKeyNotReserved rejects a metadata key the ledger reserves for its own writes.
+// It mirrors the rule of the same name on the shared body validator: both instances validate the
+// canonical transaction, and a rule present on one and absent on the other panics this one.
+func validateMetadataKeyNotReserved(fl validator.FieldLevel) bool {
+	_, reserved := constant.ReservedMetadataKeys[fl.Field().String()]
+
+	return !reserved
+}
+
 func validateMetadataKeyMaxLength(fl validator.FieldLevel) bool {
 	limitParam := fl.Param()
 
