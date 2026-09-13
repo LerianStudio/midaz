@@ -104,9 +104,11 @@ type TransactionV2 struct {
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Additional custom attributes
+	// Additional custom attributes. Three keys are reserved by the ledger and documented on
+	// the published field so a client never has to read ledger source to recognise them; the
+	// doc tag, not this comment, is what the OpenAPI generator publishes.
 	// example: {"purpose": "Monthly payment", "category": "Utility"}
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty" doc:"Additional custom attributes. The ledger reserves three fee keys on this field and writes them itself: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package that priced it, present whenever a package was selected, including when every account was exempt; feeExemption is an object carrying exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched. Caller-supplied keys are preserved unchanged alongside them."`
 
 	// List of operations associated with this transaction
 	Operations []*OperationV2 `json:"operations"`
@@ -224,9 +226,12 @@ type OperationV2 struct {
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Additional custom attributes
+	// Additional custom attributes. feeLeg is reserved by the ledger and documented on the
+	// published field, because a client that has to read ledger source to tell a fee movement
+	// from an operator movement does not have a contract; the doc tag, not this comment, is
+	// what the OpenAPI generator publishes.
 	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata" doc:"Additional custom attributes. The ledger reserves the feeLeg key on this field and writes it itself: feeLeg is the string true on every operation the fee engine created, and is never written on an operation the caller authored, so a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Caller-supplied keys are preserved unchanged alongside it."`
 }
 
 // newTransactionV2 converts the canonical transaction.Transaction into its /v2 wire shape,

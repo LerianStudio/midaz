@@ -297,3 +297,45 @@ func wireFieldNames(t *testing.T, v any) map[string]struct{} {
 
 	return names
 }
+
+// TestV2MetadataContractPublishesFeeKeys locks the reserved fee keys into the PUBLISHED
+// contract, not into a Go comment. A reader of the payment contract must be able to learn
+// that the ledger writes feeLeg on every movement its fee engine creates, and that the
+// three transaction-level fee keys exist, without reading ledger source. The assertion runs
+// against the same in-memory document the committed OpenAPI dump is serialized from, so a
+// description that lives only in a Go comment (which the generator does not read) fails here.
+func TestV2MetadataContractPublishesFeeKeys(t *testing.T) {
+	t.Parallel()
+
+	_, api := buildUnifiedHumaAPI()
+	schemas := api.OpenAPI().Components.Schemas.Map()
+
+	cases := []struct {
+		schemaName string
+		wantKeys   []string
+	}{
+		{v2OperationSchemaName, []string{"feeLeg"}},
+		{v2TransactionSchemaName, []string{"feeApplied", "packageAppliedID", "feeExemption"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.schemaName, func(t *testing.T) {
+			t.Parallel()
+
+			schema, ok := schemas[tc.schemaName]
+			require.Truef(t, ok, "the unified document must register the %q component", tc.schemaName)
+			require.NotNilf(t, schema, "%q must resolve to a non-nil schema", tc.schemaName)
+
+			metadata, ok := schema.Properties["metadata"]
+			require.Truef(t, ok, "%q must publish a metadata property", tc.schemaName)
+			require.NotNilf(t, metadata, "%q metadata property must carry a schema", tc.schemaName)
+
+			for _, key := range tc.wantKeys {
+				require.Containsf(t, metadata.Description, key,
+					"the published %q metadata description must name the reserved %q key, "+
+						"so a client reads the contract instead of the ledger source",
+					tc.schemaName, key)
+			}
+		})
+	}
+}

@@ -17363,6 +17363,14 @@ components:
           type: string
         metadata:
           additionalProperties: {}
+          description: >-
+            Additional custom attributes. The ledger reserves the feeLeg key on
+            this field and writes it itself: feeLeg is the string true on every
+            operation the fee engine created, and is never written on an
+            operation the caller authored, so a client names a fee movement from
+            the ledger mark instead of inferring one from account names or from
+            the caller metadata. Caller-supplied keys are preserved unchanged
+            alongside it.
           type: object
         organizationId:
           examples:
@@ -18285,6 +18293,17 @@ components:
           type: string
         metadata:
           additionalProperties: {}
+          description: >-
+            Additional custom attributes. The ledger reserves three fee keys on
+            this field and writes them itself: feeApplied is the string true
+            when the fee engine actually charged this transaction;
+            packageAppliedID is the identifier of the fee package that priced
+            it, present whenever a package was selected, including when every
+            account was exempt; feeExemption is an object carrying exempt,
+            reason and message, present when every account on one side of the
+            transaction is exempt from fees, which is how a caller tells an
+            exemption apart from no package having matched. Caller-supplied keys
+            are preserved unchanged alongside them.
           type: object
         operations:
           items:
