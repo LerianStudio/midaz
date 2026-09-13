@@ -24,8 +24,7 @@ func uuidPtr(id uuid.UUID) *uuid.UUID { return &id }
 
 // TestFindPackageToCalculateFee_Scoping locks the segment- and combined-scope
 // semantics fixed in the fee-scoping cluster: scope is an AND of route, segment,
-// and amount, and the route-filter short-circuit must not skip an unverified
-// segment constraint.
+// and amount, and no package is selected on a constraint that was not checked.
 func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 	t.Parallel()
 
@@ -166,23 +165,20 @@ func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 	}
 }
 
-// routeHandedToFilter returns the route string the fee service hands to
-// FindPackageToCalculateFee for this payment. Both selection paths in
-// components/ledger/internal/services/fees/calculate-fee.go pass this value,
-// and they now read the canonical route accessor: the only create pipeline that
-// charges a fee populates RouteID and leaves the deprecated Route empty, so
-// passing Route selected nothing on every routed payment. Reverting this
-// expression to payment.Route is the mutant the routed cases below kill.
-func routeHandedToFilter(payment transaction.Transaction) string {
-	return payment.EffectiveRouteID()
-}
-
 // TestFindPackageToCalculateFee_RouteScoping pins which fee package is charged
 // on a payment that carries the canonical transaction route identifier, the
 // only route a payment on the fee-charging create path carries. It holds both
 // halves of the money outcome: a package a client restricted to one route must
 // be charged on that route, and a package a client restricted to nothing must
 // go on being charged on every payment, routed ones included.
+//
+// Each case derives the selector argument from the payment through the same
+// accessor the fee service reads, so reverting that accessor to the deprecated
+// route string fails the routed cases here. What this table does NOT guard is
+// the two production call sites that read it: reverting those to the deprecated
+// field leaves this whole package green. They are guarded one stage out, by
+// TestCalculateFee_RouteScoping in
+// components/ledger/internal/services/fees/calculate-fee_test.go.
 func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 	t.Parallel()
 
@@ -322,7 +318,7 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := FindPackageToCalculateFee(tc.packages, routeHandedToFilter(tc.payment), tc.segmentID, amount)
+			got, err := FindPackageToCalculateFee(tc.packages, tc.payment.EffectiveRouteID(), tc.segmentID, amount)
 
 			if tc.wantErr {
 				assert.Error(t, err)
