@@ -16,7 +16,7 @@ type CreatePackageInput struct {
 	FeeGroupLabel    string         `json:"feeGroupLabel" validate:"required" example:"Pacote Padrão"`
 	Description      *string        `json:"description,omitempty" example:"Pacote de taxas administrativas padrão"`
 	SegmentID        *string        `json:"segmentId" example:"00000000-0000-0000-0000-000000000000"`
-	TransactionRoute *string        `json:"transactionRoute,omitempty" example:"debitoted"`
+	TransactionRoute *string        `json:"transactionRoute,omitempty" example:"00000000-0000-0000-0000-000000000000" doc:"Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. Omit it, or send it empty, to apply the package to every payment."`
 	MinAmount        string         `json:"minimumAmount" validate:"required" example:"100.00" minimum:"0"`
 	MaxAmount        string         `json:"maximumAmount" validate:"required" example:"1000.20" minimum:"0"`
 	WaivedAccounts   *[]string      `json:"waivedAccounts,omitempty" example:"[\"acc001\", \"acc002\"]"`
