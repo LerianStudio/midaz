@@ -403,6 +403,35 @@ func TestHuma_EstimateFee_Success(t *testing.T) {
 	assert.NotNil(t, got["feesApplied"])
 }
 
+// TestHuma_EstimateFee_ContentTypeIsJSON pins the header on the wire, not the struct
+// field: the estimate body is a pre-serialized []byte, and Huma short-circuits a []byte
+// body before it applies the contentType struct tag, so only an explicit Content-Type
+// header field survives to the client. Without one, Fiber sniffs the bytes and answers
+// text/plain, which a client that reads the header treats as an outage rather than a quote.
+func TestHuma_EstimateFee_ContentTypeIsJSON(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	result := &model.FeeEstimateResult{Transaction: model.FeeAdjustedTransaction{Metadata: map[string]any{"packageAppliedID": "abc"}}}
+
+	stub := &stubFeeService{result: result}
+	handler := &FeeHandler{Service: stub}
+
+	app := buildHumaFeeEstimateApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodPost, feePkgV2Base+orgID.String()+"/ledgers/"+validLedgerUUID()+"/estimates", bytes.NewBufferString(estimateBodyJSON()))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"),
+		"a successful estimate must declare JSON, body: %s", string(respBody))
+}
+
 func TestHuma_EstimateFee_NoRules_EmptyMessage(t *testing.T) {
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 

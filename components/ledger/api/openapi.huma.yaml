@@ -14158,6 +14158,10 @@ paths:
                 contentEncoding: base64
                 type: string
           description: OK
+          headers:
+            Content-Type:
+              schema:
+                type: string
         "422":
           content:
             application/problem+json:
