@@ -17,32 +17,30 @@ import (
 // FindPackageToCalculateFee returns the Package to calculate Fee or an error if not exactly one Package is found.
 //
 // Scope is an AND of route, segment, and amount: a package applies only when
-// every constraint it carries matches the transaction. The early returns after
-// the route and segment filters are short-circuits that must not skip an
-// unverified constraint — a lone route survivor that still carries a segment
-// constraint must fall through to the segment filter, otherwise a package scoped
-// to route=A AND segment=X would be selected on the route match alone.
+// every constraint it carries matches the transaction. Every filter runs on
+// every package, including the last one standing, so a package is never charged
+// on a constraint that was not checked: a package that survives the route filter
+// alone must still fall inside the amount band its client configured and inside
+// the segment the transaction carries.
+//
+// When more than one package still matches after all three filters and the
+// specificity tiebreak, the transaction is refused rather than charged an
+// arbitrary one of them.
 func FindPackageToCalculateFee(packages []*pack.Package, transactionRoute string,
 	segmentID *uuid.UUID, amount decimal.Decimal,
 ) (*pack.Package, error) {
 	byRoute := filterByTransactionRoute(packages, transactionRoute)
-	if len(byRoute) == 1 && byRoute[0].SegmentID == nil {
-		return byRoute[0], nil
-	}
-
 	bySegment := filterBySegmentID(byRoute, segmentID)
-	if len(bySegment) == 1 {
-		return bySegment[0], nil
-	}
+	survivors := preferMostSpecificRoute(filterByAmount(bySegment, amount))
 
-	byAmount := preferMostSpecificRoute(filterByAmount(bySegment, amount))
-	if len(byAmount) == 1 {
-		return byAmount[0], nil
-	} else if byAmount == nil {
+	switch len(survivors) {
+	case 0:
 		return nil, nil
+	case 1:
+		return survivors[0], nil
+	default:
+		return nil, errors.New("more than one package was found")
 	}
-
-	return nil, errors.New("more than one package was found")
 }
 
 // filterByTransactionRoute Filters the packages by transaction route.
@@ -51,11 +49,17 @@ func FindPackageToCalculateFee(packages []*pack.Package, transactionRoute string
 // transaction, so a package carrying no route constraint survives whatever
 // route the transaction carries, including none, and a package carrying one
 // survives an exact match only.
+//
+// Carrying no route constraint means an empty stored route as well as an absent
+// one: the create contract accepts a blank transaction route and stores it, so
+// the packages clients saved without choosing a route hold the empty string,
+// and they applied to every transaction before route selection was repaired.
 func filterByTransactionRoute(packages []*pack.Package, transactionRoute string) []*pack.Package {
 	var filtered []*pack.Package
 
 	for _, packValue := range packages {
-		if packValue.TransactionRoute == nil || *packValue.TransactionRoute == transactionRoute {
+		packageRoute := packValue.GetTransactionRoute()
+		if packageRoute == "" || packageRoute == transactionRoute {
 			filtered = append(filtered, packValue)
 		}
 	}
@@ -74,11 +78,20 @@ func filterByTransactionRoute(packages []*pack.Package, transactionRoute string)
 // shut the unrestricted package out before the segment filter drops it for a
 // segment the transaction does not carry, leaving no package selected and no
 // fee applied to a transaction that should have been charged one.
+//
+// It separates route-restricted packages from unrestricted ones and ranks
+// nothing beyond that, so two packages a client restricted to the SAME route
+// remain equally specific and the transaction is refused by the caller. That
+// refusal is newly reachable: before route selection was repaired both such
+// packages were dropped and the transaction posted with no fee at all.
+//
+// A package holding an empty stored route is unrestricted, matching the route
+// filter, so it never outranks a package holding no route at all.
 func preferMostSpecificRoute(survivors []*pack.Package) []*pack.Package {
 	var routeScoped []*pack.Package
 
 	for _, packValue := range survivors {
-		if packValue.TransactionRoute != nil {
+		if packValue.GetTransactionRoute() != "" {
 			routeScoped = append(routeScoped, packValue)
 		}
 	}

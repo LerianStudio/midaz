@@ -11,6 +11,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	mongoPack "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -1798,143 +1799,202 @@ func outOfBandPackage(packEntity *pack.Package) *pack.Package {
 	return packEntity
 }
 
-// assertFeeCharged asserts the money outcome rather than a call count: the send
-// value grew by the flat fee and the transaction carries the ledger record of
-// which package was charged. A mock recording the route string handed to the
-// selector would still pass if the selector stopped selecting.
-func assertFeeCharged(t *testing.T, feeInput *model.FeeCalculate, packID uuid.UUID, msg string) {
-	t.Helper()
-
-	assert.Greater(t, feeInput.Transaction.Send.Value.IntPart(), int64(1000), msg)
-	assert.Equal(t, packID.String(), feeInput.Transaction.Metadata["packageAppliedID"], msg)
-	assert.Equal(t, "true", feeInput.Transaction.Metadata["feeApplied"], msg)
-}
-
-// TestCalculateFee_SinglePackage_RouteScoped_ChargedOnRoutedTransaction proves
-// the defect is fixed on the sole-package selection path, at the seam the
-// payment travels: a package a client restricted to one transaction route is
-// charged on a payment carrying that route. Before the fix the service handed
-// the selector the deprecated route string, which the create seam leaves empty,
-// so the restricted package was never selected and the payment was charged
-// nothing.
-func TestCalculateFee_SinglePackage_RouteScoped_ChargedOnRoutedTransaction(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID := uuid.New()
-	routeID := uuid.New().String()
-
-	feeSvc := &UseCase{packageRepo: mockPackRepo}
-
-	feeInput := routedFeeInput(ledgerID, routeID)
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{routeScopedFlatPackage(packID, routeID)}, nil)
-
-	err := feeSvc.CalculateFee(context.Background(), feeInput, orgID)
-	assert.NoError(t, err)
-
-	assertFeeCharged(t, feeInput, packID, "a package restricted to this route must be charged on a routed transaction")
-}
-
-// TestCalculateFee_MultiplePackages_RouteScoped_ChargedOnRoutedTransaction
-// proves the same repair on the multi-package selection path, which is a
-// separate call into the selector and carried the same defect. The second
-// stored package sits outside the amount band, so it forces the multi-package
-// path without making the selection ambiguous.
-func TestCalculateFee_MultiplePackages_RouteScoped_ChargedOnRoutedTransaction(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID := uuid.New()
-	otherPackID := uuid.New()
-	routeID := uuid.New().String()
-
-	feeSvc := &UseCase{packageRepo: mockPackRepo}
-
-	feeInput := routedFeeInput(ledgerID, routeID)
-
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{
-			routeScopedFlatPackage(packID, routeID),
-			outOfBandPackage(routeScopedFlatPackage(otherPackID, routeID)),
-		}, nil)
-
-	err := feeSvc.CalculateFee(context.Background(), feeInput, orgID)
-	assert.NoError(t, err)
-
-	assertFeeCharged(t, feeInput, packID, "a package restricted to this route must be charged on the multi-package path too")
-}
-
-// TestCalculateFee_SinglePackage_Unrestricted_StillChargedOnRoutedTransaction
-// is the regression guard at the seam: a client charging one flat package on
-// everything must go on being charged it once routed payments reach the
-// selector. Feeding the canonical route in without making an unrestricted
-// package unconstrained would silently stop charging every such client.
+// TestCalculateFee_RouteScoping proves at the fee service entry point, the seam
+// every payment travels, which package a routed payment is charged and how much
+// it is charged. Every fixture here is the same flat 100 over a transfer of
+// 1000, so a charged case is pinned to the exact post-fee value of 1100 and to
+// the id of the package the ledger recorded: a fee applied twice, a fee read as
+// a percentage, or a fee landing on the wrong leg all fail here rather than
+// passing a "the value grew" assertion.
 //
-// Mutant target: restore the route filter clause that kept an unrestricted
-// package only against an empty route and this case fails.
-func TestCalculateFee_SinglePackage_Unrestricted_StillChargedOnRoutedTransaction(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+// Mutants each row kills are named on the row.
+func TestCalculateFee_RouteScoping(t *testing.T) {
+	t.Parallel()
 
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID := uuid.New()
+	const (
+		originalValue = int64(1000)
+		chargedValue  = int64(1100)
+	)
+
 	routeID := uuid.New().String()
+	otherRouteID := uuid.New().String()
+	sourceSegment := uuid.New()
 
-	feeSvc := &UseCase{packageRepo: mockPackRepo}
+	tests := []struct {
+		name string
+		// packages is what the ledger holds; one entry drives the sole-package
+		// selection path and more than one drives the multi-package path.
+		packages []*pack.Package
+		// wantChargedIdx indexes packages with the one that must be charged, and
+		// is negative when the payment must be charged nothing.
+		wantChargedIdx int
+		// wantErrCode is the business error code the payment must be refused
+		// with, empty when the payment must succeed.
+		wantErrCode string
+		// segmentOfSource, when set, resolves the payment's source account into
+		// that segment; nil leaves the payment unsegmented and needs no resolver.
+		segmentOfSource *uuid.UUID
+	}{
+		{
+			// The defect this repair closes, on the sole-package path: the
+			// service handed the selector the deprecated route string, which the
+			// create seam leaves empty, so the restricted package was never
+			// selected and the payment was charged nothing.
+			// Mutant: revert the route accessor to the deprecated string.
+			name:           "a package restricted to this route is charged when it is the only one on the ledger",
+			packages:       []*pack.Package{routeScopedFlatPackage(uuid.New(), routeID)},
+			wantChargedIdx: 0,
+		},
+		{
+			// The same repair on the multi-package path, a separate call into
+			// the selector that carried the same defect. The second package sits
+			// outside the amount band, so it forces that path without colliding.
+			// Mutant: revert the route accessor to the deprecated string.
+			name: "a package restricted to this route is charged when the ledger holds several",
+			packages: []*pack.Package{
+				routeScopedFlatPackage(uuid.New(), routeID),
+				outOfBandPackage(routeScopedFlatPackage(uuid.New(), otherRouteID)),
+			},
+			wantChargedIdx: 0,
+		},
+		{
+			// The regression guard: a client charging one flat package on
+			// everything must go on being charged it once routed payments reach
+			// the selector.
+			// Mutant: restore the clause that kept an unrestricted package only
+			// against an empty route.
+			name:           "a package restricted to nothing is still charged on a routed payment",
+			packages:       []*pack.Package{segScopingFlatPackage(uuid.New(), nil)},
+			wantChargedIdx: 0,
+		},
+		{
+			// The same regression guard on the multi-package path.
+			// Mutant: restore the clause that kept an unrestricted package only
+			// against an empty route.
+			name: "a package restricted to nothing is still charged when the ledger holds several",
+			packages: []*pack.Package{
+				segScopingFlatPackage(uuid.New(), nil),
+				outOfBandPackage(segScopingFlatPackage(uuid.New(), nil)),
+			},
+			wantChargedIdx: 0,
+		},
+		{
+			// The collision rule, at the seam the money moves: the package a
+			// client restricted to this route is charged, not the one they left
+			// unrestricted.
+			// Mutant: delete the specificity tiebreak.
+			name: "the package restricted to this route is charged rather than the unrestricted one",
+			packages: []*pack.Package{
+				segScopingFlatPackage(uuid.New(), nil),
+				routeScopedFlatPackage(uuid.New(), routeID),
+			},
+			wantChargedIdx: 1,
+		},
+		{
+			// Two packages a client restricted to the same route are equally
+			// specific, so no tiebreak separates them and the payment is refused
+			// rather than charged an arbitrary one of the two. Before route
+			// selection was repaired both were dropped and the payment posted
+			// with no fee, so this refusal is newly reachable and is pinned as a
+			// decision rather than left to be discovered in production.
+			name: "two packages restricted to the same route refuse the payment",
+			packages: []*pack.Package{
+				routeScopedFlatPackage(uuid.New(), routeID),
+				routeScopedFlatPackage(uuid.New(), routeID),
+			},
+			wantChargedIdx: -1,
+			wantErrCode:    constant.ErrFilterPackage.Error(),
+		},
+		{
+			// A package restricted to this route is charged only inside the
+			// amount band its client configured, even when it is the only
+			// package the ledger holds.
+			name:           "a package restricted to this route is not charged outside its own amount band",
+			packages:       []*pack.Package{outOfBandPackage(routeScopedFlatPackage(uuid.New(), routeID))},
+			wantChargedIdx: -1,
+		},
+		{
+			// The create contract accepts a blank route and stores it, so every
+			// package a client saved without choosing a route carries one. They
+			// applied to every payment before this repair and must go on doing
+			// so after it.
+			// Mutant: compare the stored route pointer instead of its value.
+			name:           "a package saved with a blank route is charged on a routed payment",
+			packages:       []*pack.Package{routeScopedFlatPackage(uuid.New(), "")},
+			wantChargedIdx: 0,
+		},
+		{
+			// The segment dimension is deliberately untouched by this repair and
+			// keeps its own rule: a payment whose source carries a segment keeps
+			// only packages scoped to that same segment. A ledger holding none is
+			// charged nothing, and that holds however many packages it holds.
+			name:            "a package restricted to nothing is not charged on a payment whose source carries a segment",
+			packages:        []*pack.Package{segScopingFlatPackage(uuid.New(), nil)},
+			wantChargedIdx:  -1,
+			segmentOfSource: &sourceSegment,
+		},
+		{
+			name: "no package is charged on a payment whose source carries a segment none of them scopes to",
+			packages: []*pack.Package{
+				segScopingFlatPackage(uuid.New(), nil),
+				routeScopedFlatPackage(uuid.New(), routeID),
+			},
+			wantChargedIdx:  -1,
+			segmentOfSource: &sourceSegment,
+		},
+	}
 
-	feeInput := routedFeeInput(ledgerID, routeID)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{segScopingFlatPackage(packID, nil)}, nil)
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-	err := feeSvc.CalculateFee(context.Background(), feeInput, orgID)
-	assert.NoError(t, err)
+			mockPackRepo := pack.NewMockRepository(ctrl)
+			orgID := uuid.New()
+			ledgerID := uuid.New()
 
-	assertFeeCharged(t, feeInput, packID, "an unrestricted package must still be charged on a routed transaction")
-}
+			feeSvc := &UseCase{packageRepo: mockPackRepo}
 
-// TestCalculateFee_MultiplePackages_Unrestricted_StillChargedOnRoutedTransaction
-// pins the same regression on the multi-package selection path.
-//
-// Mutant target: restore the route filter clause that kept an unrestricted
-// package only against an empty route and this case fails.
-func TestCalculateFee_MultiplePackages_Unrestricted_StillChargedOnRoutedTransaction(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+			if tc.segmentOfSource != nil {
+				mockResolver := feeshared.NewMockMidazResolver(ctrl)
+				mockResolver.EXPECT().
+					GetAccountByAlias(gomock.Any(), orgID, ledgerID, "@src").
+					Return(&feeshared.Account{ID: "acc", Alias: "@src", SegmentID: tc.segmentOfSource}, nil)
 
-	mockPackRepo := pack.NewMockRepository(ctrl)
-	orgID := uuid.New()
-	ledgerID := uuid.New()
-	packID := uuid.New()
-	otherPackID := uuid.New()
-	routeID := uuid.New().String()
+				feeSvc.resolver = mockResolver
+			}
 
-	feeSvc := &UseCase{packageRepo: mockPackRepo}
+			feeInput := routedFeeInput(ledgerID, routeID)
 
-	feeInput := routedFeeInput(ledgerID, routeID)
+			mockPackRepo.EXPECT().
+				FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
+				Return(tc.packages, nil)
 
-	mockPackRepo.EXPECT().
-		FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
-		Return([]*pack.Package{
-			segScopingFlatPackage(packID, nil),
-			outOfBandPackage(segScopingFlatPackage(otherPackID, nil)),
-		}, nil)
+			err := feeSvc.CalculateFee(context.Background(), feeInput, orgID)
 
-	err := feeSvc.CalculateFee(context.Background(), feeInput, orgID)
-	assert.NoError(t, err)
+			if tc.wantErrCode != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErrCode)
+			} else {
+				require.NoError(t, err)
+			}
 
-	assertFeeCharged(t, feeInput, packID, "an unrestricted package must still be charged on the multi-package path too")
+			if tc.wantChargedIdx < 0 {
+				assert.Equal(t, originalValue, feeInput.Transaction.Send.Value.IntPart(),
+					"no package matches this payment, so its value must not move")
+				assert.Nil(t, feeInput.Transaction.Metadata["packageAppliedID"])
+				assert.Nil(t, feeInput.Transaction.Metadata["feeApplied"])
+
+				return
+			}
+
+			assert.Equal(t, chargedValue, feeInput.Transaction.Send.Value.IntPart(),
+				"the charged fee must be the flat 100 the selected package configures")
+			assert.Equal(t, tc.packages[tc.wantChargedIdx].ID.String(), feeInput.Transaction.Metadata["packageAppliedID"],
+				"the ledger must record the package it actually charged")
+			assert.Equal(t, "true", feeInput.Transaction.Metadata["feeApplied"])
+		})
+	}
 }

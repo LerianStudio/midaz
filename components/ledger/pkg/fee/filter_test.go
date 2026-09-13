@@ -198,8 +198,17 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 	unrouted := transaction.Transaction{}
 
 	routeScoped := &pack.Package{ID: uuid.New(), TransactionRoute: &routeID, MinimumAmount: min0, MaximumAmount: max}
+	sameRouteTwin := &pack.Package{ID: uuid.New(), TransactionRoute: &routeID, MinimumAmount: min0, MaximumAmount: max}
 	unscoped := &pack.Package{ID: uuid.New(), MinimumAmount: min0, MaximumAmount: max}
 	routeAndSegmentScoped := &pack.Package{ID: uuid.New(), TransactionRoute: &routeID, SegmentID: uuidPtr(segX), MinimumAmount: min0, MaximumAmount: max}
+	// A package a client saved without choosing a route: the create contract
+	// accepts the blank string and stores it, and it must go on applying to
+	// every payment exactly as a package carrying no route constraint does.
+	blankRoute := &pack.Package{ID: uuid.New(), TransactionRoute: strPtr(""), MinimumAmount: min0, MaximumAmount: max}
+	// A route-scoped package whose client set an amount band the 100 payment
+	// below falls outside of.
+	outOfBand := &pack.Package{ID: uuid.New(), TransactionRoute: &routeID,
+		MinimumAmount: decimal.NewFromInt(1_000), MaximumAmount: decimal.NewFromInt(5_000)}
 
 	tests := []struct {
 		name      string
@@ -207,6 +216,7 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 		payment   transaction.Transaction
 		segmentID *uuid.UUID
 		want      *pack.Package
+		wantErr   bool
 	}{
 		{
 			// The defect: a client restricts a package to one route and is never charged it.
@@ -247,6 +257,65 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 			payment:  routed,
 			want:     unscoped,
 		},
+		{
+			// The create contract accepts a blank route and stores it, so the
+			// packages clients already saved without choosing a route carry one.
+			// They applied to every payment before route selection was repaired
+			// and they must go on applying to every payment after it.
+			name:     "a package saved with a blank route is charged on a routed payment",
+			packages: []*pack.Package{blankRoute},
+			payment:  routed,
+			want:     blankRoute,
+		},
+		{
+			// A blank route is the absence of a route constraint, so it cannot
+			// win the specificity tiebreak against a package carrying none: the
+			// pair is genuinely ambiguous and the payment is refused rather than
+			// charged a fee nobody chose.
+			name:     "a package saved with a blank route does not outrank a package carrying no route",
+			packages: []*pack.Package{blankRoute, unscoped},
+			payment:  unrouted,
+			wantErr:  true,
+		},
+		{
+			// Every constraint the package carries is checked, the amount band
+			// included, even when the package is the only one left standing.
+			name:     "a route-scoped package alone is not charged outside its own amount band",
+			packages: []*pack.Package{outOfBand},
+			payment:  routed,
+			want:     nil,
+		},
+		{
+			// Same rule on the segment dimension: a lone survivor of the route
+			// filter still faces the segment filter, which keeps a package only
+			// when its segment matches the one the payment's source carries.
+			name:      "a route-scoped package alone is not charged on a payment carrying a segment",
+			packages:  []*pack.Package{routeScoped},
+			payment:   routed,
+			segmentID: uuidPtr(segX),
+			want:      nil,
+		},
+		{
+			// Two packages a client scoped to the same route are equally
+			// specific, so the tiebreak cannot separate them: the payment is
+			// refused rather than charged an arbitrary one of the two.
+			name:     "two packages scoped to the same route refuse the payment",
+			packages: []*pack.Package{routeScoped, sameRouteTwin},
+			payment:  routed,
+			wantErr:  true,
+		},
+		{
+			// The segment dimension keeps the asymmetry this repair deliberately
+			// left alone: a payment whose source carries a segment keeps only
+			// packages scoped to that same segment, so a ledger holding none is
+			// charged nothing. Pinned so a later change to that rule is a
+			// decision rather than an accident.
+			name:      "no package is charged on a payment carrying a segment none of them scopes to",
+			packages:  []*pack.Package{unscoped, routeScoped},
+			payment:   routed,
+			segmentID: uuidPtr(segX),
+			want:      nil,
+		},
 	}
 
 	for _, tc := range tests {
@@ -254,6 +323,13 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 			t.Parallel()
 
 			got, err := FindPackageToCalculateFee(tc.packages, routeHandedToFilter(tc.payment), tc.segmentID, amount)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, got)
+
+				return
+			}
 
 			assert.NoError(t, err)
 
