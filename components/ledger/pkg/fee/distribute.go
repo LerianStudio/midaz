@@ -28,7 +28,7 @@ import (
 // the deductible fee is skipped entirely — the transaction initiator's exemption status determines
 // whether the fee is triggered.
 func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waivedAccounts *[]string, segmentIDs []uuid.UUID, segCtx *SegmentContext, feeModel model.Fee,
-	resp *transaction.Responses, result transaction.Amount, f *model.FeeCalculate,
+	resp *transaction.Responses, result transaction.Amount, f *model.FeeCalculate, engineLegKeys map[string]struct{},
 ) error {
 	originalRespToSize := len(resp.To)
 
@@ -59,7 +59,7 @@ func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waive
 
 		var errFee error
 
-		resp.From, resp.To, errFee = applyProportionalFee(feeModel, feeIndex, &resp.From, resp.To, result, waivedAccounts, segmentIDs, segCtx, false)
+		resp.From, resp.To, errFee = applyProportionalFee(feeModel, feeIndex, &resp.From, resp.To, result, waivedAccounts, segmentIDs, segCtx, false, engineLegKeys)
 		if errFee != nil {
 			return errFee
 		}
@@ -94,7 +94,7 @@ func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waive
 
 		var errFee error
 
-		resp.To, _, errFee = applyProportionalFee(feeModel, feeIndex, &resp.To, nil, result, waivedAccounts, segmentIDs, segCtx, true)
+		resp.To, _, errFee = applyProportionalFee(feeModel, feeIndex, &resp.To, nil, result, waivedAccounts, segmentIDs, segCtx, true, engineLegKeys)
 		if errFee != nil {
 			return errFee
 		}
@@ -156,19 +156,18 @@ func setFeeExemptionMetadata(f *model.FeeCalculate, reason string) {
 
 // updatedAmountsFromFee rebuilds one whole side of the payment from the amounts map. That map
 // holds the movements the fee engine minted and the movements the operator authored together, so
-// the function also marks the engine ones, and only those, with feeLeg.
+// the function also marks the engine ones, and only those, with the reserved fee key.
 //
-// The map key is what separates them, never the account alias. An operator movement enters the
-// map under its bare account alias (mtransaction.Validate). Every movement this package mints
-// enters under a key it decorated itself with the -> segments carrying the fee index, the payer
-// and the route, which is the same decoration trimFeeSuffix and the route split below already
-// read. The alias is the operator's and repeats across both kinds of movement; the key is the
-// engine's and cannot be forged through the payment payload.
+// What separates them is engineLegKeys, the set every emit helper records its own leg key in at
+// the moment it mints the leg. Neither the account alias nor the shape of the map key is
+// consulted: an operator movement enters the map under an alias the caller chose, and the create
+// surface accepts an alias carrying the same -> decoration the engine uses, so a mark derived
+// from the key shape is forgeable through the payment payload. A mark derived from what the
+// engine recorded while minting is not.
 //
-// ponytail: an account alias that itself contains -> is read as an engine key and gets marked.
-// The ceiling is pre-existing rather than introduced here, since trimFeeSuffix already truncates
-// such an alias today; closing it needs an alias charset rule this function does not have.
-func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.FromTo {
+// The -> split below is still read for the alias trim and the route, which are display concerns
+// and behave exactly as they did before; only the mark reads the set.
+func updatedAmountsFromFee(amounts map[string]transaction.Amount, engineLegKeys map[string]struct{}) []transaction.FromTo {
 	newFromTo := make([]transaction.FromTo, 0, len(amounts))
 
 	for account, amount := range amounts {
@@ -182,10 +181,9 @@ func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.
 			cleanAccount, metadata = processAccount(account)
 		}
 
-		// More than one part means the key carries the engine decoration. Set after
-		// processAccount, which replaces the metadata map rather than adding to it.
-		if len(parts) > 1 {
-			metadata["feeLeg"] = "true"
+		// Set after processAccount, which replaces the metadata map rather than adding to it.
+		if _, minted := engineLegKeys[account]; minted {
+			metadata[constant.MetadataKeyFeeLeg] = constant.MetadataValueFeeLeg
 		}
 
 		if len(parts) > 2 && parts[len(parts)-1] != "" {
@@ -294,6 +292,7 @@ func calculateProportionalFees(
 	isToStruct bool,
 	maxAccount string,
 	target *feeCorrectionTarget,
+	engineLegKeys map[string]struct{},
 ) (map[string]transaction.Amount, map[string]transaction.Amount, decimal.Decimal, error) {
 	updateAmount := make(map[string]transaction.Amount)
 	updateAmountToStruct := amountsToStruct
@@ -361,9 +360,9 @@ func calculateProportionalFees(
 						pkg.ValidateBusinessError(constant.ErrDeductibleFeeExceedsAmount, "")
 				}
 
-				amount = emitDeductibleLeg(feeModel, feeIndex, key, amount, resultAmount, exemptAccounts, updateAmount, maxAccount, target)
+				amount = emitDeductibleLeg(feeModel, feeIndex, key, amount, resultAmount, exemptAccounts, updateAmount, maxAccount, target, engineLegKeys)
 			} else {
-				updateAmountToStruct = emitNonDeductibleLeg(feeModel, feeIndex, key, resultAmount, exemptAccounts, updateAmount, updateAmountToStruct, maxAccount, target)
+				updateAmountToStruct = emitNonDeductibleLeg(feeModel, feeIndex, key, resultAmount, exemptAccounts, updateAmount, updateAmountToStruct, maxAccount, target, engineLegKeys)
 			}
 
 			newFeeTotalPaying = newFeeTotalPaying.Add(feeApplied)
@@ -388,9 +387,11 @@ func emitDeductibleLeg(
 	updateAmount map[string]transaction.Amount,
 	maxAccount string,
 	target *feeCorrectionTarget,
+	engineLegKeys map[string]struct{},
 ) transaction.Amount {
 	legKey := feeModel.CreditAccount + "->fee_source" + strconv.Itoa(feeIndex) + "->" + key + "->" + feeModel.GetRouteTo()
 	updateAmount[legKey] = resultAmount
+	engineLegKeys[legKey] = struct{}{}
 	amount.Value = amount.Value.Sub(resultAmount.Value)
 
 	*exemptAccounts = append(*exemptAccounts, legKey)
@@ -417,12 +418,15 @@ func emitNonDeductibleLeg(
 	updateAmount, updateAmountToStruct map[string]transaction.Amount,
 	maxAccount string,
 	target *feeCorrectionTarget,
+	engineLegKeys map[string]struct{},
 ) map[string]transaction.Amount {
 	feeKey := key + "->fee" + strconv.Itoa(feeIndex)
 	debitLegKey := feeKey + "->" + feeModel.GetRouteFrom()
 	feeSourceKey := feeModel.CreditAccount + "->fee_source" + strconv.Itoa(feeIndex) + "->" + key + "->" + feeModel.GetRouteTo()
 
 	updateAmount[debitLegKey] = resultAmount
+	engineLegKeys[debitLegKey] = struct{}{}
+	engineLegKeys[feeSourceKey] = struct{}{}
 
 	if updateAmountToStruct == nil {
 		updateAmountToStruct = make(map[string]transaction.Amount)
@@ -527,7 +531,7 @@ func applyFeeCorrection(
 // applyProportionalFee applies the proportional fee
 func applyProportionalFee(feeModel model.Fee, feeIndex int, amounts *map[string]transaction.Amount,
 	amountsToStruct map[string]transaction.Amount, feeValue transaction.Amount, exemptAccounts *[]string,
-	segmentIDs []uuid.UUID, segCtx *SegmentContext, isToStruct bool,
+	segmentIDs []uuid.UUID, segCtx *SegmentContext, isToStruct bool, engineLegKeys map[string]struct{},
 ) (map[string]transaction.Amount, map[string]transaction.Amount, error) {
 	maxAccount, err := findMaxAccount(*amounts, exemptAccounts, segmentIDs, segCtx)
 	if err != nil {
@@ -537,7 +541,7 @@ func applyProportionalFee(feeModel model.Fee, feeIndex int, amounts *map[string]
 	var target feeCorrectionTarget
 
 	updateAmount, updateAmountToStruct, newFeeTotalPaying, err := calculateProportionalFees(
-		feeModel, feeIndex, amounts, amountsToStruct, feeValue, exemptAccounts, segmentIDs, segCtx, isToStruct, maxAccount, &target,
+		feeModel, feeIndex, amounts, amountsToStruct, feeValue, exemptAccounts, segmentIDs, segCtx, isToStruct, maxAccount, &target, engineLegKeys,
 	)
 	if err != nil {
 		return *amounts, amountsToStruct, err

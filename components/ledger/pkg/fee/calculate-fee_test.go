@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	transaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -1725,7 +1726,7 @@ func TestUpdatedAmountsFromFee(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := updatedAmountsFromFee(tt.amounts)
+			result := updatedAmountsFromFee(tt.amounts, map[string]struct{}{})
 			assert.Len(t, result, tt.expected)
 
 			if tt.expected > 0 {
@@ -2637,27 +2638,85 @@ func TestUpdatedAmountsFromFee_FeeLegMark(t *testing.T) {
 		"31":   {alias: "@collector", feeLeg: true, source: "@payer"}, // its collector mirror
 	}
 
-	result := updatedAmountsFromFee(amounts)
+	// The engine records these three keys when it mints the legs; "@payer" is the operator's own
+	// movement and was never minted here.
+	engineLegKeys := map[string]struct{}{
+		"@collector->fee_source0->@payer->route_to": {},
+		"@payer->fee1->route_from":                  {},
+		"@collector->fee_source1->@payer->route_to": {},
+	}
+
+	result := updatedAmountsFromFee(amounts, engineLegKeys)
 	assert.Len(t, result, len(expected))
+
+	// Which expectations were consumed, so a result that returns one movement twice and drops
+	// another cannot satisfy the length check and the per-entry lookups together.
+	seen := map[string]int{}
 
 	for _, fromTo := range result {
 		value := fromTo.Amount.Value.String()
 
 		want, known := expected[value]
-		assert.True(t, known, "unexpected movement of %s", value)
+		// require, not assert: an unknown value would otherwise keep iterating and compare against
+		// a zero-valued expectation, reporting failures that name the wrong defect.
+		require.True(t, known, "unexpected movement of %s", value)
+		seen[value]++
+
 		assert.Equal(t, want.alias, fromTo.AccountAlias)
 
-		mark, marked := fromTo.Metadata["feeLeg"]
+		mark, marked := fromTo.Metadata[constant.MetadataKeyFeeLeg]
 		assert.Equal(t, want.feeLeg, marked, "feeLeg presence on the movement of %s", value)
 
 		if want.feeLeg {
-			assert.Equal(t, "true", mark, "feeLeg value on the movement of %s", value)
+			assert.Equal(t, constant.MetadataValueFeeLeg, mark, "feeLeg value on the movement of %s", value)
 		}
 
 		// The mark says the engine wrote the movement; metadata.source says where the money came
-		// from. Neither replaces the other.
+		// from. Neither replaces the other, so both directions are pinned: source present where
+		// the engine records a payer, and ABSENT everywhere else. The absence matters because
+		// metadata.source is what a client inferring fee legs reads today, so writing it onto an
+		// operator movement mislabels the operator's own money.
+		source, hasSource := fromTo.Metadata["source"]
+		assert.Equal(t, want.source != "", hasSource, "source presence on the movement of %s", value)
+
 		if want.source != "" {
-			assert.Equal(t, want.source, fromTo.Metadata["source"])
+			assert.Equal(t, want.source, source, "source value on the movement of %s", value)
 		}
 	}
+
+	for value := range expected {
+		assert.Equal(t, 1, seen[value], "the movement of %s must appear exactly once", value)
+	}
+}
+
+// TestCalculateFee_EngineMintsTheMark drives the real CalculateFee and reads the mark off the
+// movements the engine actually minted, rather than off hand-written map keys. It asserts the
+// mark in both directions in one run: present on the fee leg the engine created, absent on the
+// recipient's own movement.
+//
+// The recipient alias carries the engine's own "->" decoration on purpose. A caller can put that
+// decoration in an account alias on the create surface, so a mark derived from the shape of the
+// map key is forgeable; a mark the engine records when it mints the leg is not.
+func TestCalculateFee_EngineMintsTheMark(t *testing.T) {
+	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "test"})
+
+	feeCalc, pkg, resp := newDeductibleFlatFeeCalc("100", "10")
+
+	feeCalc.Transaction.Send.Distribute.To[0].AccountAlias = "dst->ops"
+	resp.To = map[string]transaction.Amount{"dst->ops": {Asset: "BRL", Value: decimal.NewFromInt(100)}}
+
+	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
+	require.NoError(t, err)
+
+	rebuilt := feeCalc.Transaction.Send.Distribute.To
+	require.Len(t, rebuilt, 2, "one recipient movement plus one engine fee leg")
+
+	marks := map[string]any{}
+	for _, fromTo := range rebuilt {
+		marks[fromTo.Amount.Value.String()] = fromTo.Metadata["feeLeg"]
+	}
+
+	assert.Equal(t, "true", marks["10"], "the fee leg the engine minted must carry the ledger mark")
+	assert.Nil(t, marks["90"],
+		"the recipient's own movement must carry no mark, even though its alias carries the engine decoration")
 }
