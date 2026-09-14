@@ -1954,6 +1954,21 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 			wantChargedIdx: -1,
 		},
 		{
+			// The same order rule at the seam the money moves: the package a
+			// client restricted to this route sits outside the amount band they
+			// configured, so it is not a candidate and the unrestricted package
+			// is charged. Ranking specificity before the band would put the
+			// out-of-band package first, drop it, and charge the payment nothing.
+			// Mutant: run the specificity tiebreak on what the segment filter
+			// leaves, ahead of the amount band.
+			name: "the unrestricted package is charged when the route-scoped one is out of its own band",
+			packages: []*pack.Package{
+				segScopingFlatPackage(uuid.New(), nil),
+				outOfBandPackage(routeScopedFlatPackage(uuid.New(), routeID)),
+			},
+			wantChargedIdx: 0,
+		},
+		{
 			// The create contract accepts a blank route and stores it, so every
 			// package a client saved without choosing a route carries one. They
 			// applied to every payment before this repair and must go on doing

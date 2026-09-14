@@ -307,6 +307,19 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 			want:     nil,
 		},
 		{
+			// The order the filters run in is money. The amount band must be
+			// applied BEFORE the specificity tiebreak: the package restricted to
+			// this route matches the route, but the payment falls outside the
+			// band its client configured, so it is not a candidate at all and the
+			// unrestricted package is charged. Ranked first and filtered after,
+			// the out-of-band package would win the tiebreak, be dropped by the
+			// band, and the payment would be charged nothing.
+			name:     "the unrestricted package is charged when the route-scoped one is out of its own band",
+			packages: []*pack.Package{unscoped, outOfBand},
+			payment:  routed,
+			want:     unscoped,
+		},
+		{
 			// The package carries no segment constraint, so it survives the
 			// segment filter on a payment whose source carries a segment and
 			// is charged. Charging it is what this repair adds: on
