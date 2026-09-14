@@ -21,13 +21,8 @@ import (
 // not carry constrains nothing. A package scoped to no route applies on every
 // route and a package scoped to no segment applies in every segment.
 //
-// Every package runs every filter. The ledger used to hand a lone survivor of
-// the route filter straight back when it carried no segment constraint, because
-// the segment filter would otherwise have dropped it on a segmented payment;
-// with a package carrying no segment constraint applying in every segment, that
-// short-circuit selects exactly what the filters select, except on a package
-// outside its own amount band, where it selected the package and both callers
-// then charged nothing. Both callers still re-check the band on whatever comes
+// Every package runs every filter, so nothing is selected on a constraint that
+// was not checked. Both callers re-check the amount band on whatever comes
 // back.
 //
 // When more than one package still matches after all three filters, the most
@@ -100,30 +95,41 @@ func filterByTransactionRoute(packages []*pack.Package, transactionRoute string)
 // A package holding an empty stored route carries no route constraint, matching
 // the route filter, so it never outranks a package holding no route at all.
 func preferMostSpecific(survivors []*pack.Package) []*pack.Package {
-	var kept []*pack.Package
-
 	best := 0
 
 	for _, packValue := range survivors {
-		score := 0
-
-		if packValue.GetTransactionRoute() != "" {
-			score++
+		if carried := constraintsCarried(packValue); carried > best {
+			best = carried
 		}
+	}
 
-		if packValue.SegmentID != nil {
-			score++
-		}
+	kept := make([]*pack.Package, 0, len(survivors))
 
-		switch {
-		case score > best:
-			best, kept = score, []*pack.Package{packValue}
-		case score == best:
+	for _, packValue := range survivors {
+		if constraintsCarried(packValue) == best {
 			kept = append(kept, packValue)
 		}
 	}
 
 	return kept
+}
+
+// constraintsCarried counts the scope constraints a package carries: one for a
+// transaction route it is restricted to, one for a segment. A package
+// restricted to nothing carries none and applies everywhere, which is what
+// makes it the least specific of any set of packages that all match.
+func constraintsCarried(packValue *pack.Package) int {
+	carried := 0
+
+	if packValue.GetTransactionRoute() != "" {
+		carried++
+	}
+
+	if packValue.SegmentID != nil {
+		carried++
+	}
+
+	return carried
 }
 
 // filterBySegmentID filters the packages by segment id.
