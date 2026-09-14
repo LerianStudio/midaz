@@ -181,11 +181,10 @@ func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 // TestCalculateFee_RouteScoping in
 // components/ledger/internal/services/fees/calculate-fee_test.go.
 //
-// One package left standing by the route filter and carrying no segment
-// constraint is returned there and then, without the segment and amount
-// filters running on it. Rows below pin that on the routed and on the unrouted
-// payment alike, because it is the selection the ledger already makes and the
-// fee a client running one unrestricted package is already charged.
+// A package carrying no segment constraint is charged on a payment whose source
+// resolves into a segment, routed and unrouted alike, because a constraint a
+// package does not carry constrains nothing. Rows below pin that, because it is
+// the fee a client running one unrestricted package is already charged.
 func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 	t.Parallel()
 
@@ -285,26 +284,26 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			// A package left alone by the route filter, carrying no segment
-			// constraint, is handed back there and then, without the segment
-			// and amount filters running. That is what the ledger does today
-			// and what this repair deliberately keeps. The amount band is
-			// enforced one stage out, by both callers of this function, so no
-			// fee is charged outside it: the seam row
+			// A package outside its own amount band is not selected, even
+			// when it is the only one the route filter leaves standing. The
+			// ledger used to hand that lone survivor back unfiltered and lean
+			// on both callers re-checking the band; the band filter now runs
+			// on it like any other package, and the callers still re-check.
+			// The money was the same either way: the seam row
 			// a_package_restricted_to_this_route_is_not_charged_outside_its_own_amount_band
-			// in components/ledger/internal/services/fees pins the money.
-			name:     "a route-scoped package left alone by the route filter is handed back unfiltered",
+			// in components/ledger/internal/services/fees pins it.
+			name:     "a route-scoped package outside its own amount band is not selected",
 			packages: []*pack.Package{outOfBand},
 			payment:  routed,
-			want:     outOfBand,
+			want:     nil,
 		},
 		{
-			// The lone survivor of the route filter carries no segment
-			// constraint, so the segment filter never runs on it and it is
-			// selected on a payment whose source carries a segment. Charging it
-			// is what this repair adds: on origin/develop the same package is
-			// charged nothing, because the payment route never reached the
-			// route filter and the package was dropped there.
+			// The package carries no segment constraint, so it survives the
+			// segment filter on a payment whose source carries a segment and
+			// is charged. Charging it is what this repair adds: on
+			// origin/develop the same package is charged nothing, because the
+			// payment route never reached the route filter and the package was
+			// dropped there.
 			name:      "a route-scoped package alone is charged on a payment carrying a segment",
 			packages:  []*pack.Package{routeScoped},
 			payment:   routed,
@@ -314,10 +313,8 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 		{
 			// The money the ledger moves today and this repair must not touch:
 			// a client holding one package with no segment constraint is
-			// charged on a payment whose source resolves into a segment. The
-			// route filter leaves that package alone, so it is selected without
-			// the segment filter running, on the legacy payment carrying no
-			// route identifier at all...
+			// charged on a payment whose source resolves into a segment, on the
+			// legacy payment carrying no route identifier at all...
 			name:      "a package restricted to nothing is charged on an unrouted payment carrying a segment",
 			packages:  []*pack.Package{unscoped},
 			payment:   unrouted,

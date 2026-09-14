@@ -21,15 +21,14 @@ import (
 // not carry constrains nothing. A package scoped to no route applies on every
 // route and a package scoped to no segment applies in every segment.
 //
-// One package left standing by the route filter, carrying no segment
-// constraint, is returned there and then: the segment and amount filters do not
-// run on it. That is what the ledger has always done and it is deliberate here,
-// because it is what keeps a client running a single unrestricted package
-// charged on a payment whose source resolves into a segment. A lone survivor
-// that DOES carry a segment constraint falls through, so no package is ever
-// selected on a segment that was not checked. Both callers re-check the amount
-// band on whatever comes back, so nothing is charged outside the band its
-// client configured.
+// Every package runs every filter. The ledger used to hand a lone survivor of
+// the route filter straight back when it carried no segment constraint, because
+// the segment filter would otherwise have dropped it on a segmented payment;
+// with a package carrying no segment constraint applying in every segment, that
+// short-circuit selects exactly what the filters select, except on a package
+// outside its own amount band, where it selected the package and both callers
+// then charged nothing. Both callers still re-check the band on whatever comes
+// back.
 //
 // When more than one package still matches after all three filters, the most
 // specific one wins: the package matching the most constraints is charged, so
@@ -41,10 +40,6 @@ func FindPackageToCalculateFee(packages []*pack.Package, transactionRoute string
 	segmentID *uuid.UUID, amount decimal.Decimal,
 ) (*pack.Package, error) {
 	byRoute := filterByTransactionRoute(packages, transactionRoute)
-	if len(byRoute) == 1 && byRoute[0].SegmentID == nil {
-		return byRoute[0], nil
-	}
-
 	bySegment := filterBySegmentID(byRoute, segmentID)
 	survivors := preferMostSpecific(filterByAmount(bySegment, amount))
 
