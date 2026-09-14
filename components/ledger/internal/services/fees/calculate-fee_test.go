@@ -1789,6 +1789,16 @@ func routeScopedFlatPackage(packID uuid.UUID, routeID string) *pack.Package {
 	return packEntity
 }
 
+// routeAndSegmentScopedFlatPackage builds the flat-100 package a client
+// restricted to one transaction route AND one segment, the most specific scope a
+// package can carry.
+func routeAndSegmentScopedFlatPackage(packID uuid.UUID, routeID string, segmentID *uuid.UUID) *pack.Package {
+	packEntity := segScopingFlatPackage(packID, segmentID)
+	packEntity.TransactionRoute = &routeID
+
+	return packEntity
+}
+
 // outOfBandPackage moves a package out of the routed transfer amount band, so a
 // second stored package forces the multi-package selection path without making
 // the selection ambiguous.
@@ -1824,6 +1834,7 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 	routeID := uuid.New().String()
 	otherRouteID := uuid.New().String()
 	sourceSegment := uuid.New()
+	otherSegment := uuid.New()
 
 	tests := []struct {
 		name string
@@ -1984,21 +1995,88 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 			segmentOfSource: &sourceSegment,
 		},
 		{
-			// Two packages survive the route filter once route selection works,
-			// so the lone-survivor return does not apply and the segment filter
-			// runs: it keeps only packages scoped to the segment the payment
-			// carries, and neither of these carries one. That is the segment
-			// dimension own rule, untouched here. origin/develop charges the
-			// unrestricted package on this shape only because its route filter
-			// dropped the route-scoped one; on the two-package shape that
-			// actually reaches its segment filter it charges nothing, which is
-			// what is pinned here.
-			name: "no package is charged on a payment whose source carries a segment none of them scopes to",
+			// The segment rule now matches the route rule: a package carrying
+			// no segment constraint applies to any segment. Both packages
+			// reach the specificity rule and the one a client restricted to
+			// this route is charged. origin/develop charges the unrestricted
+			// package here, sendValue 1100, because its route filter drops the
+			// route-scoped one and leaves the unrestricted one standing alone.
+			// This branch charged nothing here until the segment rule landed.
+			name: "the package restricted to this route is charged on a segmented payment beside an unrestricted one",
 			packages: []*pack.Package{
 				segScopingFlatPackage(uuid.New(), nil),
 				routeScopedFlatPackage(uuid.New(), routeID),
 			},
+			wantChargedIdx:  1,
+			segmentOfSource: &sourceSegment,
+		},
+		{
+			// The segment half of the specificity rule at the seam the money
+			// moves: the package restricted to the payment segment matches one
+			// more constraint than the package restricted to nothing.
+			// Mutant: delete the specificity preference.
+			name: "the package scoped to this segment is charged rather than the unrestricted one",
+			packages: []*pack.Package{
+				segScopingFlatPackage(uuid.New(), nil),
+				segScopingFlatPackage(uuid.New(), &sourceSegment),
+			},
+			wantChargedIdx:  1,
+			segmentOfSource: &sourceSegment,
+		},
+		{
+			// A package restricted to another segment is dropped and the
+			// unrestricted one is charged. origin/develop charges nothing on
+			// this shape, because its segment filter drops the unrestricted
+			// package too.
+			// Mutant: restore the segment filter that kept only segment-scoped
+			// packages.
+			name: "the unrestricted package is charged when the segment-scoped one belongs to another segment",
+			packages: []*pack.Package{
+				segScopingFlatPackage(uuid.New(), nil),
+				segScopingFlatPackage(uuid.New(), &otherSegment),
+			},
+			wantChargedIdx:  0,
+			segmentOfSource: &sourceSegment,
+		},
+		{
+			// Two packages restricted to nothing are as ambiguous on a
+			// segmented payment as on an unsegmented one, so the payment is
+			// refused rather than charged an arbitrary one of the two.
+			// origin/develop charges nothing here instead: the refusal is a
+			// behaviour change this rule brings.
+			name: "two unrestricted packages refuse a segmented payment",
+			packages: []*pack.Package{
+				segScopingFlatPackage(uuid.New(), nil),
+				segScopingFlatPackage(uuid.New(), nil),
+			},
 			wantChargedIdx:  -1,
+			wantErrCode:     constant.ErrFilterPackage.Error(),
+			segmentOfSource: &sourceSegment,
+		},
+		{
+			// Specificity counts constraints matched, so the package
+			// restricted to this route AND this segment beats the one
+			// restricted to the route alone.
+			// Mutant: delete the specificity preference.
+			name: "the package restricted to this route and this segment is charged rather than the route-only one",
+			packages: []*pack.Package{
+				routeScopedFlatPackage(uuid.New(), routeID),
+				routeAndSegmentScopedFlatPackage(uuid.New(), routeID, &sourceSegment),
+			},
+			wantChargedIdx:  1,
+			segmentOfSource: &sourceSegment,
+		},
+		{
+			// One constraint each and both matched: nothing separates them, so
+			// the payment is refused rather than charged whichever of the two
+			// storage returned first.
+			name: "a route-scoped and a segment-scoped package refuse the payment",
+			packages: []*pack.Package{
+				routeScopedFlatPackage(uuid.New(), routeID),
+				segScopingFlatPackage(uuid.New(), &sourceSegment),
+			},
+			wantChargedIdx:  -1,
+			wantErrCode:     constant.ErrFilterPackage.Error(),
 			segmentOfSource: &sourceSegment,
 		},
 	}

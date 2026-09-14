@@ -191,6 +191,7 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 
 	routeID := uuid.NewString()
 	segX := uuid.New()
+	segY := uuid.New()
 	min0 := decimal.Zero
 	max := decimal.NewFromInt(1_000_000)
 	amount := decimal.NewFromInt(100)
@@ -203,6 +204,9 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 	routeScoped := &pack.Package{ID: uuid.New(), TransactionRoute: &routeID, MinimumAmount: min0, MaximumAmount: max}
 	sameRouteTwin := &pack.Package{ID: uuid.New(), TransactionRoute: &routeID, MinimumAmount: min0, MaximumAmount: max}
 	unscoped := &pack.Package{ID: uuid.New(), MinimumAmount: min0, MaximumAmount: max}
+	unscopedTwin := &pack.Package{ID: uuid.New(), MinimumAmount: min0, MaximumAmount: max}
+	segmentScoped := &pack.Package{ID: uuid.New(), SegmentID: uuidPtr(segX), MinimumAmount: min0, MaximumAmount: max}
+	otherSegmentScoped := &pack.Package{ID: uuid.New(), SegmentID: uuidPtr(segY), MinimumAmount: min0, MaximumAmount: max}
 	routeAndSegmentScoped := &pack.Package{ID: uuid.New(), TransactionRoute: &routeID, SegmentID: uuidPtr(segX), MinimumAmount: min0, MaximumAmount: max}
 	// A package a client saved without choosing a route: the create contract
 	// accepts the blank string and stores it, and it must go on applying to
@@ -338,19 +342,82 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			// Two packages survive the route filter, so the lone-survivor
-			// return does not apply and the segment filter runs: it keeps only
-			// packages scoped to the segment the payment carries, and neither
-			// of these carries one. That is the segment dimension own rule,
-			// untouched by this repair and measured unchanged on
-			// origin/develop for the same two-package shape, where both are
-			// dropped and the payment is charged nothing. Pinned so changing
-			// that rule is a decision rather than an accident.
-			name:      "no package is charged on a payment carrying a segment none of them scopes to",
+			// The segment dimension now answers the constraint question the
+			// way the route dimension does: a package carrying no segment
+			// constraint applies to any segment, so it is no longer dropped
+			// here, and the specificity rule picks the package a client
+			// restricted to this route over the one they restricted to
+			// nothing.
+			//
+			// origin/develop charges a package on this shape either way it is
+			// read. Handed the empty route string its production caller
+			// passes, its route filter drops the route-scoped package, leaves
+			// the unrestricted one standing alone and hands it back. Handed
+			// the payment route instead, it drops the unrestricted one and
+			// hands back the route-scoped one. It never charges nothing here,
+			// and this branch charged nothing here until this rule landed.
+			name:      "the route-scoped package is charged beside an unrestricted one on a segmented payment",
 			packages:  []*pack.Package{unscoped, routeScoped},
 			payment:   routed,
 			segmentID: uuidPtr(segX),
-			want:      nil,
+			want:      routeScoped,
+		},
+		{
+			// The segment half of the specificity rule: a package restricted
+			// to this payment segment matches one more constraint than a
+			// package restricted to nothing, so it is the one charged.
+			name:      "the package scoped to this segment wins over the unrestricted one",
+			packages:  []*pack.Package{unscoped, segmentScoped},
+			payment:   unrouted,
+			segmentID: uuidPtr(segX),
+			want:      segmentScoped,
+		},
+		{
+			// A package restricted to a DIFFERENT segment carries a
+			// constraint the payment does not match, so it is dropped, and
+			// the package restricted to nothing is charged. origin/develop
+			// charges nothing on this shape: its segment filter drops both.
+			name:      "the unrestricted package is charged when the only segment-scoped one belongs elsewhere",
+			packages:  []*pack.Package{unscoped, otherSegmentScoped},
+			payment:   unrouted,
+			segmentID: uuidPtr(segX),
+			want:      unscoped,
+		},
+		{
+			// Two packages restricted to nothing are as ambiguous on a
+			// segmented payment as they are on an unsegmented one, so the
+			// payment is refused rather than charged an arbitrary one of the
+			// two. origin/develop charges nothing here instead, because its
+			// segment filter drops both: the refusal is a behaviour change
+			// this rule brings and it is pinned rather than discovered.
+			name:      "two unrestricted packages refuse a segmented payment",
+			packages:  []*pack.Package{unscoped, unscopedTwin},
+			payment:   unrouted,
+			segmentID: uuidPtr(segX),
+			wantErr:   true,
+		},
+		{
+			// Specificity counts constraints matched: the package restricted
+			// to this route AND this segment matches two, the one restricted
+			// to the route alone matches one.
+			name:      "the route-and-segment package wins over the route-only one",
+			packages:  []*pack.Package{routeScoped, routeAndSegmentScoped},
+			payment:   routed,
+			segmentID: uuidPtr(segX),
+			want:      routeAndSegmentScoped,
+		},
+		{
+			// One constraint each and both matched: nothing separates a
+			// package restricted to this route from one restricted to this
+			// segment, so the payment is refused rather than charged
+			// whichever of the two storage happened to return first. Ranking
+			// the route dimension above the segment dimension would be a
+			// pricing decision nobody has made.
+			name:      "a route-scoped and a segment-scoped package are equally specific and refuse the payment",
+			packages:  []*pack.Package{routeScoped, segmentScoped},
+			payment:   routed,
+			segmentID: uuidPtr(segX),
+			wantErr:   true,
 		},
 	}
 
