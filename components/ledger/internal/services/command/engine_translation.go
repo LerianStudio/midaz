@@ -34,11 +34,12 @@ type EngineTranslationInput struct {
 	TransactionStatus string
 	// RouteValidationEnabled is the ledger-level path decision. It is separate
 	// from Amount.RouteValidationEnabled, which selects composed source postings.
-	RouteValidationEnabled bool
-	TransactionInput       mtransaction.Transaction
-	Validate               *mtransaction.Responses
-	Balances               []*mmodel.Balance
-	RouteCache             *mmodel.TransactionRouteCache
+	RouteValidationEnabled     bool
+	TransactionInput           mtransaction.Transaction
+	Validate                   *mtransaction.Responses
+	AccountBlockExceptionGrant *mtransaction.AccountBlockExceptionGrant
+	Balances                   []*mmodel.Balance
+	RouteCache                 *mmodel.TransactionRouteCache
 }
 
 // TranslateEngineTransaction converts command-layer transaction intent
@@ -85,6 +86,16 @@ func TranslateEngineTransaction(input EngineTranslationInput) (accounting.Transa
 		if err := appendLegTranslation(&transaction, &projection, input, balances, leg, amount, OperationSpecSideTo, index); err != nil {
 			return accounting.Transaction{}, nil, err
 		}
+	}
+
+	transaction.AccountBlockException, err = bindEngineAccountBlockException(
+		input.Action,
+		input.AccountBlockExceptionGrant,
+		transaction.Postings,
+		balances,
+	)
+	if err != nil {
+		return accounting.Transaction{}, nil, err
 	}
 
 	return transaction, projection, nil

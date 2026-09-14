@@ -172,7 +172,18 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 		return nil, err
 	}
 
-	if uc.Engine != nil && run.accountBlockExceptionID == nil {
+	// Resolve the optional commit grant immediately after acquiring the pending
+	// lock. Both the engine and the nil-engine fallback receive the same live
+	// grant, and a miss releases the lock before either balance path begins.
+	run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(ctx, span, logger,
+		run.organizationID, run.ledgerID, run.accountBlockExceptionID)
+	if err != nil {
+		unlock()
+
+		return nil, err
+	}
+
+	if uc.Engine != nil {
 		tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, unlock, true)
 		if err != nil {
 			recordCommandError(ctx, span, logger, "Failed to transition transaction with engine", err)
@@ -182,19 +193,6 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 	}
 
 	if err := uc.preparePendingTransition(ctx, span, logger, run, unlock); err != nil {
-		return nil, err
-	}
-
-	// Account-block exception: a pending created before its source account was
-	// blocked is only released by a grant presented on the commit, and only the
-	// /v2 commit carries one. transitionPendingV1 names this resolver nowhere.
-	// An identifier with no live key rejects here, before any balance moves —
-	// the lock is released, and the pending is left untouched for a retry.
-	run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(ctx, span, logger,
-		run.organizationID, run.ledgerID, run.accountBlockExceptionID)
-	if err != nil {
-		unlock()
-
 		return nil, err
 	}
 

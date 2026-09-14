@@ -33,6 +33,7 @@ func TestCreateTransactionEngineLeavesAnnotationsOnLegacyPath(t *testing.T) {
 			input.TransactionDate = (*mtransaction.TransactionDate)(&date)
 			organizationID := uuid.MustParse("91111111-1111-4111-8111-111111111111")
 			ledgerID := uuid.MustParse("92222222-2222-4222-8222-222222222222")
+			exceptionID := uuid.MustParse("93333333-3333-4333-8333-333333333333")
 			var err error
 			if version == "v1" {
 				_, _, err = uc.CreateTransactionV1(context.Background(), CreateTransactionV1Input{
@@ -40,9 +41,13 @@ func TestCreateTransactionEngineLeavesAnnotationsOnLegacyPath(t *testing.T) {
 					TransactionStatus: constant.NOTED, IdempotencyTTL: time.Minute,
 				})
 			} else {
+				redisRepo.EXPECT().GetAccountBlockException(gomock.Any(), organizationID, ledgerID, exceptionID).
+					Return(&mmodel.AccountBlockExceptionRedis{Alias: "@source", Amount: "10"}, nil).
+					Times(1)
 				_, _, err = uc.CreateTransactionV2(context.Background(), CreateTransactionV2Input{
 					OrganizationID: organizationID, LedgerID: ledgerID, Transaction: input,
 					TransactionStatus: constant.NOTED, IdempotencyTTL: time.Minute,
+					AccountBlockExceptionID: &exceptionID,
 				})
 			}
 			require.ErrorIs(t, err, errBalancesUnavailable)

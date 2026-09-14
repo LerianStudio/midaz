@@ -119,22 +119,22 @@ func TestAccountBlockExceptionSeam_V1CreateNamesNoResolver(t *testing.T) {
 		"the /v1 create input must not carry the identifier at all")
 }
 
-// TestAccountBlockExceptionSeam_GrantReachesTheScriptThroughOneSeam proves the
-// resolved grant is handed to the balance step and nothing else does the handing:
-// exactly the three /v2 pipelines populate the field, and the shared balance step
-// reads it.
+// TestAccountBlockExceptionSeam_GrantReachesEachAtomicStepThroughOneSeam proves
+// the resolved grant is handed to each eligible atomic implementation and nothing
+// else does the handing. Executable v2 reversals have no legacy implementation.
 //
 // Without this, a fourth call site could pass a grant assembled some other way and
 // bypass the single read the version gate above guards.
-func TestAccountBlockExceptionSeam_GrantReachesTheScriptThroughOneSeam(t *testing.T) {
+func TestAccountBlockExceptionSeam_GrantReachesEachAtomicStepThroughOneSeam(t *testing.T) {
 	t.Parallel()
 
 	const grantField = "AccountBlockExceptionGrant:"
 
 	populating := map[string]string{
-		"create":             "create_transaction_v2.go",
-		"revert":             "revert_transaction.go",
-		"pending transition": "transition_pending_steps.go",
+		"create fallback":             "create_transaction_v2.go",
+		"pending transition fallback": "transition_pending_steps.go",
+		"create engine":               "create_transaction_engine.go",
+		"pending transition engine":   "transition_pending_engine.go",
 	}
 
 	for name, path := range populating {
@@ -157,5 +157,14 @@ func TestAccountBlockExceptionSeam_GrantReachesTheScriptThroughOneSeam(t *testin
 
 		assert.Contains(t, src, "input.AccountBlockExceptionGrant",
 			"the balance step must forward the grant to the atomic script")
+	})
+
+	t.Run("the engine translation binds it to one posting", func(t *testing.T) {
+		t.Parallel()
+
+		src := readPipelineSource(t, "engine_translation.go")
+
+		assert.Contains(t, src, "input.AccountBlockExceptionGrant")
+		assert.Contains(t, src, "bindEngineAccountBlockException")
 	})
 }
