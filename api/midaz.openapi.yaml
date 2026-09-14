@@ -16276,8 +16276,13 @@ components:
             - string
             - 'null'
         transactionRoute:
+          description: >-
+            Transaction route identifier this package is scoped to. It must
+            equal the routeId the payment carries, so it is a route UUID and not
+            a free-form name. Omit it, or send it empty, to apply the package to
+            every payment.
           examples:
-            - debitoted
+            - 00000000-0000-0000-0000-000000000000
           type: string
         waivedAccounts:
           examples:
@@ -16394,8 +16399,13 @@ components:
             - 00000000-0000-0000-0000-000000000000
           type: string
         transactionRoute:
+          description: >-
+            Transaction route identifier this package is scoped to. It must
+            equal the routeId the payment carries, so it is a route UUID and not
+            a free-form name. An absent or empty value applies the package to
+            every payment.
           examples:
-            - debitoted
+            - 00000000-0000-0000-0000-000000000000
           type:
             - string
             - 'null'
