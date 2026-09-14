@@ -528,6 +528,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Unavailable Error",
 			Message:    "The transaction could not be completed because the usage-limit service is temporarily unavailable and this ledger is configured to reject transactions when it cannot be reached. Please retry shortly.",
 		},
+		constant.ErrBalanceSeedRebuildInconsistent: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrBalanceSeedRebuildInconsistent.Error(),
+			Title:      "Balance Seed Rebuild Inconsistent Error",
+			Message:    "The request could not be completed because the current state of this balance could not be established from its operation history. Please retry shortly.",
+		},
 		constant.ErrOverdraftRouteNotConfigured: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrOverdraftRouteNotConfigured.Error(),
