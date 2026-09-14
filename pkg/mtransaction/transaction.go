@@ -293,11 +293,14 @@ type Distribute struct {
 
 // Transaction structure for marshaling/unmarshalling JSON.
 type Transaction struct {
-	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"FUNDING"`
-	Description              string         `json:"description,omitempty" example:"Description"`
-	Code                     string         `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Pending                  bool           `json:"pending,omitempty" example:"false"`
-	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" example:"FUNDING"`
+	Description              string `json:"description,omitempty" example:"Description"`
+	Code                     string `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	Pending                  bool   `json:"pending,omitempty" example:"false"`
+	// Metadata carries the same reserved-key rule as the transaction leg. This struct is the
+	// request body of the fee estimate, which reads the fee statements back off the map it was
+	// handed, so a caller-written one changes the answer the estimate gives.
+	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,noreservedkey,endkeys,nonested,valuemax=2000"`
 	// Deprecated: legacy route identifier, contains the transaction route UUID as a string. Use routeId instead.
 	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 	// UUID of the transaction route. Primary field replacing the deprecated Route string.

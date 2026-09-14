@@ -18311,12 +18311,13 @@ components:
             account on one side of the transaction is exempt from fees, which is
             how a caller tells an exemption apart from no package having
             matched. A request body carrying feeApplied, packageAppliedID or
-            feeExemption is refused with 400 naming the offending key, on a
-            create and on a metadata update alike, so a value present here is
-            always the ledger's own word about the charge and never one a caller
-            supplied. feeLeg, on operation metadata, is reserved the same way.
-            Transaction-level metadata is additive, so caller-supplied keys on
-            this field are preserved alongside the ledger keys.
+            feeExemption is refused with 400 naming the offending key, on every
+            body that carries transaction metadata: a create, a metadata update
+            and a fee estimate. So a value present here is always the ledger's
+            own word about the charge and never one a caller supplied. feeLeg,
+            on operation metadata, is reserved the same way. Transaction-level
+            metadata is additive, so caller-supplied keys on this field are
+            preserved alongside the ledger keys.
           type: object
         operations:
           items:
