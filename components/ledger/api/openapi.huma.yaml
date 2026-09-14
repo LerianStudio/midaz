@@ -2321,6 +2321,7 @@ components:
           description: Transaction route identifier this package is scoped to. It must equal the routeId the payment carries, so it is a route UUID and not a free-form name. Omit it, or send it empty, to apply the package to every payment.
           examples:
             - 00000000-0000-0000-0000-000000000000
+          format: uuid
           type: string
         waivedAccounts:
           examples:
