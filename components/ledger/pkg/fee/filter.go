@@ -92,8 +92,9 @@ func filterByTransactionRoute(packages []*pack.Package, transactionRoute string)
 // It separates route-restricted packages from unrestricted ones and ranks
 // nothing beyond that, so two packages a client restricted to the SAME route
 // remain equally specific and the transaction is refused by the caller. That
-// refusal is newly reachable: before route selection was repaired both such
-// packages were dropped and the transaction posted with no fee at all.
+// refusal is newly reachable: before route selection was repaired the route
+// filter dropped both such packages, so the transaction posted charged nothing,
+// or charged whatever unrestricted package the ledger also held.
 //
 // A package holding an empty stored route is unrestricted, matching the route
 // filter, so it never outranks a package holding no route at all.

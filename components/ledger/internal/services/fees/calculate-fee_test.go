@@ -1926,6 +1926,19 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 			wantChargedIdx: -1,
 		},
 		{
+			// The same band, on the other selection path. The second package is
+			// scoped to another route, so the route filter leaves the
+			// out-of-band one standing alone and hands it back unfiltered; the
+			// band re-check in this path is the only thing between that package
+			// and a fee charged outside the band its client configured.
+			name: "a package restricted to this route is not charged outside its own amount band when the ledger holds several",
+			packages: []*pack.Package{
+				outOfBandPackage(routeScopedFlatPackage(uuid.New(), routeID)),
+				routeScopedFlatPackage(uuid.New(), otherRouteID),
+			},
+			wantChargedIdx: -1,
+		},
+		{
 			// The create contract accepts a blank route and stores it, so every
 			// package a client saved without choosing a route carries one. They
 			// applied to every payment before this repair and must go on doing
