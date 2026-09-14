@@ -7,8 +7,6 @@ package http
 import (
 	"encoding/json"
 	"reflect"
-	"regexp"
-	"sync"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 
@@ -17,18 +15,6 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/shopspring/decimal"
 )
-
-// sanitizeTypeCache caches field indices for struct types to avoid repeated reflection
-var sanitizeTypeCache sync.Map
-
-// sanitizeCacheEntry holds cached information about a struct type for sanitization
-type sanitizeCacheEntry struct {
-	stringFields  []int // indices of string fields
-	structFields  []int // indices of struct fields
-	pointerFields []int // indices of pointer fields
-	sliceFields   []int // indices of slice fields
-	mapFields     []int // indices of map fields
-}
 
 // DecodeHandlerFunc is a handler which works with withBody decorator.
 // It receives a struct which was decoded by withBody decorator before.
@@ -46,159 +32,6 @@ type decoderHandler struct {
 	handler      DecodeHandlerFunc
 	constructor  ConstructorFunc
 	structSource any
-}
-
-// Regex for special characters
-// Allow letters, numbers, dash, underscore, space, @, dot, comma, slash and backslash
-var specialCharsRegex = regexp.MustCompile(`[^a-zA-Z0-9\\/\-_ @.,]`)
-
-// sanitizeString remove all special characters from a string
-func sanitizeString(input string) string {
-	return specialCharsRegex.ReplaceAllString(input, "")
-}
-
-// getSanitizeCacheEntry returns cached field indices for a struct type, computing them if not cached
-func getSanitizeCacheEntry(t reflect.Type) *sanitizeCacheEntry {
-	if cached, ok := sanitizeTypeCache.Load(t); ok {
-		return cached.(*sanitizeCacheEntry)
-	}
-
-	entry := &sanitizeCacheEntry{}
-
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		if !field.IsExported() {
-			continue
-		}
-
-		switch field.Type.Kind() {
-		case reflect.String:
-			entry.stringFields = append(entry.stringFields, i)
-		case reflect.Struct:
-			entry.structFields = append(entry.structFields, i)
-		case reflect.Pointer:
-			entry.pointerFields = append(entry.pointerFields, i)
-		case reflect.Slice:
-			entry.sliceFields = append(entry.sliceFields, i)
-		case reflect.Map:
-			entry.mapFields = append(entry.mapFields, i)
-		}
-	}
-
-	sanitizeTypeCache.Store(t, entry)
-
-	return entry
-}
-
-// sanitizeStruct remove all special characters from a struct using cached field indices
-func sanitizeStruct(s any) {
-	v := reflect.ValueOf(s)
-	if v.Kind() == reflect.Pointer {
-		v = v.Elem()
-	}
-
-	if v.Kind() != reflect.Struct {
-		return
-	}
-
-	t := v.Type()
-	cache := getSanitizeCacheEntry(t)
-
-	// Process string fields
-	for _, i := range cache.stringFields {
-		field := v.Field(i)
-		if field.CanSet() {
-			sanitizeStringField(field)
-		}
-	}
-
-	// Process struct fields
-	for _, i := range cache.structFields {
-		field := v.Field(i)
-		if field.CanSet() {
-			sanitizeStruct(field.Addr().Interface())
-		}
-	}
-
-	// Process pointer fields
-	for _, i := range cache.pointerFields {
-		field := v.Field(i)
-		if field.CanSet() {
-			sanitizePointerField(field)
-		}
-	}
-
-	// Process slice fields
-	for _, i := range cache.sliceFields {
-		field := v.Field(i)
-		if field.CanSet() {
-			sanitizeSliceField(field)
-		}
-	}
-
-	// Process map fields
-	for _, i := range cache.mapFields {
-		field := v.Field(i)
-		if field.CanSet() {
-			sanitizeMapField(field)
-			// If the field is a map with struct values, sanitize each value
-			valType := field.Type().Elem()
-			if valType.Kind() == reflect.Struct {
-				for _, key := range field.MapKeys() {
-					val := field.MapIndex(key)
-					valCopy := reflect.New(valType).Elem()
-					valCopy.Set(val)
-					sanitizeStruct(valCopy.Addr().Interface())
-					field.SetMapIndex(key, valCopy)
-				}
-			}
-		}
-	}
-}
-
-// sanitizeStringField remove all special characters from a string
-func sanitizeStringField(field reflect.Value) {
-	sanitized := sanitizeString(field.String())
-	field.SetString(sanitized)
-}
-
-// sanitizePointerField remove all special characters from a pointer
-func sanitizePointerField(field reflect.Value) {
-	if field.IsNil() {
-		return
-	}
-
-	switch field.Type().Elem().Kind() {
-	case reflect.String:
-		sanitized := sanitizeString(field.Elem().String())
-		field.Elem().SetString(sanitized)
-	case reflect.Struct:
-		sanitizeStruct(field.Interface())
-	}
-}
-
-// sanitizeSliceField remove all special characters from a slice
-func sanitizeSliceField(field reflect.Value) {
-	for j := 0; j < field.Len(); j++ {
-		elem := field.Index(j)
-		switch elem.Kind() {
-		case reflect.String:
-			sanitized := sanitizeString(elem.String())
-			elem.SetString(sanitized)
-		case reflect.Struct:
-			sanitizeStruct(elem.Addr().Interface())
-		}
-	}
-}
-
-// sanitizeMapField remove all special characters from a map
-func sanitizeMapField(field reflect.Value) {
-	if field.Type().Key().Kind() == reflect.String && field.Type().Elem().Kind() == reflect.String {
-		for _, key := range field.MapKeys() {
-			sanitized := sanitizeString(field.MapIndex(key).String())
-			field.SetMapIndex(key, reflect.ValueOf(sanitized))
-		}
-	}
 }
 
 func newOfType(s any) any {
@@ -255,8 +88,6 @@ func (d *decoderHandler) FiberHandlerFunc(c fiber.Ctx) error {
 		err := pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
 		return commonsHttp.Respond(c, fiber.StatusBadRequest, err)
 	}
-
-	sanitizeStruct(s)
 
 	if err := ValidateStruct(s); err != nil {
 		return commonsHttp.Respond(c, fiber.StatusBadRequest, err)
