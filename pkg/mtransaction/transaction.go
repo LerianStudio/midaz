@@ -311,20 +311,6 @@ type TransactionSkip struct {
 	Tracer bool `json:"tracer,omitempty" example:"false"`
 }
 
-// EffectiveRouteID returns the transaction route identifier callers must scope
-// on: the canonical RouteID when it carries a value, and the deprecated Route
-// string otherwise. Both fields hold the same route UUID on the legacy
-// contract, while the current create path populates only the canonical one, so
-// the precedence between them is stated once here, beside the two fields it
-// reconciles, rather than at every consumer.
-func (t Transaction) EffectiveRouteID() string {
-	if t.RouteID != nil && *t.RouteID != "" {
-		return *t.RouteID
-	}
-
-	return t.Route
-}
-
 // InitialStatus returns the transaction status derived from the Pending flag.
 // PENDING when the transaction is held for later commit/cancel, CREATED otherwise.
 // Callers may override this for special cases (e.g. NOTED for annotations).

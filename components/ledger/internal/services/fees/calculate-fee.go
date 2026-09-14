@@ -180,6 +180,25 @@ func (uc *UseCase) resolveSourceSegment(
 	return resolved
 }
 
+// routeIDOf returns the transaction route identifier a fee package is scoped
+// by: the canonical route identifier the payment carries, and the empty string
+// when it carries none.
+//
+// The deprecated route string the transaction model still publishes is not read
+// here, on any surface. The create path that charges a fee declares the
+// canonical identifier alone and refuses an unknown field, so a posted payment
+// never carries the string; the fee estimate embeds the whole transaction model,
+// whose published contract still carries it. Scoping on whichever field held a
+// value would let one caller be quoted against a route the payment it previews
+// cannot carry, and charged against another.
+func routeIDOf(t transaction.Transaction) string {
+	if t.RouteID == nil {
+		return ""
+	}
+
+	return *t.RouteID
+}
+
 // calculateFeeForSinglePackage calculate the fee for a single package
 func (uc *UseCase) calculateFeeForSinglePackage(
 	ctx context.Context,
@@ -196,7 +215,7 @@ func (uc *UseCase) calculateFeeForSinglePackage(
 	// applied only on that route, and a package carrying no segment constraint
 	// goes on being charged on a payment whose source resolves into a segment.
 	// The amount band is re-checked below on whatever comes back.
-	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee([]*pack.Package{feePackage}, cf.Transaction.EffectiveRouteID(), cf.SegmentID, sendModel.Value)
+	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee([]*pack.Package{feePackage}, routeIDOf(cf.Transaction), cf.SegmentID, sendModel.Value)
 	if errFilterPack != nil {
 		return pkg.ValidateBusinessError(constant.ErrFilterPackage, "")
 	}
@@ -237,7 +256,7 @@ func (uc *UseCase) calculateFeeForMultiplePackages(
 	validationResultFromSize, validationResultToSize int,
 	organizationID uuid.UUID,
 ) error {
-	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, cf.Transaction.EffectiveRouteID(), cf.SegmentID, sendModel.Value)
+	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, routeIDOf(cf.Transaction), cf.SegmentID, sendModel.Value)
 	if errFilterPack != nil {
 		return pkg.ValidateBusinessError(constant.ErrFilterPackage, "")
 	}

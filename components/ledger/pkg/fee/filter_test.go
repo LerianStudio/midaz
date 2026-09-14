@@ -173,12 +173,12 @@ func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 // be charged on that route, and a package a client restricted to nothing must
 // go on being charged on every payment, routed ones included.
 //
-// Each case derives the selector argument from the payment through the same
-// accessor the fee service reads, so reverting that accessor to the deprecated
-// route string fails the routed cases here. What this table does NOT guard is
-// the two production call sites that read it: reverting those to the deprecated
-// field leaves this whole package green. They are guarded one stage out, by
-// TestCalculateFee_RouteScoping in
+// Each case derives the selector argument from the canonical route identifier
+// the payment carries, the one value the fee service scopes on. What this table
+// does NOT guard is the two production call sites that read it: scoping those on
+// the deprecated route string instead leaves this whole package green. They are
+// guarded one stage out, by TestCalculateFee_RouteScoping and
+// TestCalculateFee_DeprecatedRouteStringCarriesNoFeeScope in
 // components/ledger/internal/services/fees/calculate-fee_test.go.
 //
 // A package carrying no segment constraint is charged on a payment whose source
@@ -431,7 +431,15 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := FindPackageToCalculateFee(tc.packages, tc.payment.EffectiveRouteID(), tc.segmentID, amount)
+			// Derived from the canonical route identifier the payment carries,
+			// the only route value the fee service scopes on, so a change that
+			// scopes on anything else fails the routed cases here.
+			var routeOfPayment string
+			if tc.payment.RouteID != nil {
+				routeOfPayment = *tc.payment.RouteID
+			}
+
+			got, err := FindPackageToCalculateFee(tc.packages, routeOfPayment, tc.segmentID, amount)
 
 			if tc.wantErr {
 				assert.Error(t, err)
