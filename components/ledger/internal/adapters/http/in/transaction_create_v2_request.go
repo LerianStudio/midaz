@@ -113,7 +113,12 @@ type CreateTransactionV2Request struct {
 type TransactionV2LegRequest struct {
 	// Alias is the leg's account alias. The obligation is enforced BOTH by this tag and by
 	// an imperative check in Translate; see buildLeg for why the two are complementary.
-	Alias string `json:"alias" validate:"required"`
+	//
+	// The accepted SPELLINGS are enforced by validateV2Alias rather than by a tag, because the
+	// fee routes decode through a second validator instance that panics on a tag it does not
+	// know. The doc tag publishes the rule so a client reads it instead of discovering it by
+	// rejection.
+	Alias string `json:"alias" validate:"required" example:"@person1" doc:"The leg's account alias. Accepts letters, digits and the characters @ : _ and -, or an external account alias spelled @external/ followed by the uppercase asset code. Any other spelling is refused with 400 before the transaction is calculated."`
 
 	// Description is the leg's own operation description, persisted on the operation this leg
 	// produces. A leg that omits it produces an operation carrying the TRANSACTION-level

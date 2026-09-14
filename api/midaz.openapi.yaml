@@ -18723,6 +18723,13 @@ components:
         transaction total. A leg carrying both, or neither, is rejected.
       properties:
         alias:
+          description: >-
+            The leg's account alias. Accepts letters, digits and the characters
+            @ : _ and -, or an external account alias spelled @external/
+            followed by the uppercase asset code. Any other spelling is refused
+            with 400 before the transaction is calculated.
+          examples:
+            - '@person1'
           type: string
         amount:
           type: string
