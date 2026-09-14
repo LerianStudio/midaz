@@ -395,12 +395,18 @@ func newAuthzProductCapture(t *testing.T, product *string) *httptest.Server {
 	t.Helper()
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]string
+		// Typed rather than map[string]string: the payload also carries the route's
+		// scope attributes, which are a nested object, and a flat string map cannot
+		// decode one. Only the member this helper captures is named.
+		var body struct {
+			Product string `json:"product"`
+		}
+
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("authz capture: decode request body: %v", err)
 		}
 
-		*product = body["product"]
+		*product = body.Product
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

@@ -109,11 +109,11 @@ func registerHolderRoutesToApp(group fiber.Router, api huma.API, auth *middlewar
 
 	holderParse := pkgHTTP.ParseUUIDPathParameters("holder")
 
-	routePost(group, holdersPath, protectedMidaz(auth, "holders", "post", routeOptions, holderParse))
-	routeGet(group, holderIDPath, protectedMidaz(auth, "holders", "get", routeOptions, holderParse))
-	routePatch(group, holderIDPath, protectedMidaz(auth, "holders", "patch", routeOptions, holderParse))
-	routeDelete(group, holderIDPath, protectedMidaz(auth, "holders", "delete", routeOptions, holderParse))
-	routeGet(group, holdersPath, protectedMidaz(auth, "holders", "get", routeOptions, holderParse))
+	routePost(group, holdersPath, protectedMidaz(auth, holdersPath, "holders", "post", routeOptions, holderParse))
+	routeGet(group, holderIDPath, protectedMidaz(auth, holderIDPath, "holders", "get", routeOptions, holderParse))
+	routePatch(group, holderIDPath, protectedMidaz(auth, holderIDPath, "holders", "patch", routeOptions, holderParse))
+	routeDelete(group, holderIDPath, protectedMidaz(auth, holderIDPath, "holders", "delete", routeOptions, holderParse))
+	routeGet(group, holdersPath, protectedMidaz(auth, holdersPath, "holders", "get", routeOptions, holderParse))
 
 	RegisterHolderRoutes(api, h, opSuffix)
 }

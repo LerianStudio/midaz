@@ -125,12 +125,12 @@ func registerInstrumentRoutesToApp(group fiber.Router, api huma.API, auth *middl
 
 	instrumentParse := pkgHTTP.ParseUUIDPathParameters("instruments")
 
-	routeGet(group, instrumentsPath, protectedMidaz(auth, "instruments", "get", routeOptions, instrumentParse))
-	routePost(group, holderInstruments, protectedMidaz(auth, "instruments", "post", routeOptions, instrumentParse))
-	routeGet(group, instrumentIDPath, protectedMidaz(auth, "instruments", "get", routeOptions, instrumentParse))
-	routePatch(group, instrumentIDPath, protectedMidaz(auth, "instruments", "patch", routeOptions, instrumentParse))
-	routeDelete(group, instrumentIDPath, protectedMidaz(auth, "instruments", "delete", routeOptions, instrumentParse))
-	routeDelete(group, relatedPartyPath, protectedMidaz(auth, "instruments", "delete", routeOptions, pkgHTTP.ParseUUIDPathParameters("related-parties")))
+	routeGet(group, instrumentsPath, protectedMidaz(auth, instrumentsPath, "instruments", "get", routeOptions, instrumentParse))
+	routePost(group, holderInstruments, protectedMidaz(auth, holderInstruments, "instruments", "post", routeOptions, instrumentParse))
+	routeGet(group, instrumentIDPath, protectedMidaz(auth, instrumentIDPath, "instruments", "get", routeOptions, instrumentParse))
+	routePatch(group, instrumentIDPath, protectedMidaz(auth, instrumentIDPath, "instruments", "patch", routeOptions, instrumentParse))
+	routeDelete(group, instrumentIDPath, protectedMidaz(auth, instrumentIDPath, "instruments", "delete", routeOptions, instrumentParse))
+	routeDelete(group, relatedPartyPath, protectedMidaz(auth, relatedPartyPath, "instruments", "delete", routeOptions, pkgHTTP.ParseUUIDPathParameters("related-parties")))
 
 	RegisterInstrumentRoutes(api, h, opSuffix)
 }

@@ -39,7 +39,7 @@ func RegisterCompositionV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 func registerCompositionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
 	const path = "/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts"
 
-	routePost(group, path, protectedMidaz(auth, "accounts", "post", routeOptions, http.ParseUUIDPathParameters("holder")))
+	routePost(group, path, protectedMidaz(auth, path, "accounts", "post", routeOptions, http.ParseUUIDPathParameters("holder")))
 
 	RegisterCompositionRoutes(api, ch, opSuffix)
 }

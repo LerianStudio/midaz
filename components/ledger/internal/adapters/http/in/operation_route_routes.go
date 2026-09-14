@@ -120,11 +120,11 @@ func registerOperationRouteRoutesToApp(group fiber.Router, api huma.API, auth *m
 
 	parse := pkgHTTP.ParseUUIDPathParameters("operation_route")
 
-	routePost(group, listPath, protectedMidaz(auth, "operation-routes", "post", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "operation-routes", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "operation-routes", "get", routeOptions, parse))
-	routePatch(group, idPath, protectedMidaz(auth, "operation-routes", "patch", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, "operation-routes", "delete", routeOptions, parse))
+	routePost(group, listPath, protectedMidaz(auth, listPath, "operation-routes", "post", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "operation-routes", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, idPath, "operation-routes", "get", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, idPath, "operation-routes", "patch", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, idPath, "operation-routes", "delete", routeOptions, parse))
 
 	RegisterOperationRouteRoutes(api, orh, opSuffix)
 }

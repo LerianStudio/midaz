@@ -62,7 +62,7 @@ func registerBillingCalculateRoutesToApp(group fiber.Router, api huma.API, auth 
 
 	billingCalculateParse := pkgHTTP.ParseUUIDPathParameters("billing-calculate")
 
-	routePost(group, billingCalculatePath, protectedMidaz(auth, "billing-calculate", "post", routeOptions, billingCalculateParse))
+	routePost(group, billingCalculatePath, protectedMidaz(auth, billingCalculatePath, "billing-calculate", "post", routeOptions, billingCalculateParse))
 
 	RegisterBillingCalculateRoutes(api, h, opSuffix)
 }

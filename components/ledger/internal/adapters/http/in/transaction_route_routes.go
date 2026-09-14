@@ -121,11 +121,11 @@ func registerTransactionRouteRoutesToApp(group fiber.Router, api huma.API, auth 
 
 	parse := pkgHTTP.ParseUUIDPathParameters("transaction_route")
 
-	routePost(group, listPath, protectedMidaz(auth, "transaction-routes", "post", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "transaction-routes", "get", routeOptions, parse))
-	routeGet(group, idPath, protectedMidaz(auth, "transaction-routes", "get", routeOptions, parse))
-	routePatch(group, idPath, protectedMidaz(auth, "transaction-routes", "patch", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, "transaction-routes", "delete", routeOptions, parse))
+	routePost(group, listPath, protectedMidaz(auth, listPath, "transaction-routes", "post", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "transaction-routes", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, idPath, "transaction-routes", "get", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, idPath, "transaction-routes", "patch", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, idPath, "transaction-routes", "delete", routeOptions, parse))
 
 	RegisterTransactionRouteRoutes(api, trh, opSuffix)
 }

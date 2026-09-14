@@ -177,24 +177,24 @@ func RegisterTransactionHumaRoutesToApp(group fiber.Router, api huma.API, auth *
 	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
 
 	// Six CREATE ops — ("transactions","post").
-	routePost(group, listPath+"/json", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, listPath+"/inflow", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, listPath+"/outflow", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, listPath+"/annotation", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, listPath+"/block", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, listPath+"/unblock", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/json", protectedMidaz(auth, listPath+"/json", "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/inflow", protectedMidaz(auth, listPath+"/inflow", "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/outflow", protectedMidaz(auth, listPath+"/outflow", "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/annotation", protectedMidaz(auth, listPath+"/annotation", "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/block", protectedMidaz(auth, listPath+"/block", "transactions", "post", routeOptions, parse))
+	routePost(group, listPath+"/unblock", protectedMidaz(auth, listPath+"/unblock", "transactions", "post", routeOptions, parse))
 
 	// Three STATE ops (id-only, bodiless) — ("transactions","post").
-	routePost(group, idPath+"/commit", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, idPath+"/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, idPath+"/revert", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, idPath+"/commit", protectedMidaz(auth, idPath+"/commit", "transactions", "post", routeOptions, parse))
+	routePost(group, idPath+"/cancel", protectedMidaz(auth, idPath+"/cancel", "transactions", "post", routeOptions, parse))
+	routePost(group, idPath+"/revert", protectedMidaz(auth, idPath+"/revert", "transactions", "post", routeOptions, parse))
 
 	// PATCH — ("transactions","patch").
-	routePatch(group, idPath, protectedMidaz(auth, "transactions", "patch", routeOptions, parse))
+	routePatch(group, idPath, protectedMidaz(auth, idPath, "transactions", "patch", routeOptions, parse))
 
 	// Two READ ops — ("transactions","get").
-	routeGet(group, idPath, protectedMidaz(auth, "transactions", "get", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "transactions", "get", routeOptions, parse))
+	routeGet(group, idPath, protectedMidaz(auth, idPath, "transactions", "get", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "transactions", "get", routeOptions, parse))
 
 	RegisterTransactionRoutes(api, th)
 }

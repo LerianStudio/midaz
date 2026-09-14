@@ -178,16 +178,16 @@ func registerBalanceRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 
 	parse := pkgHTTP.ParseUUIDPathParameters("balance")
 
-	routeGet(group, balancesPath, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routeGet(group, balanceIDPath, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routePatch(group, balanceIDPath, protectedMidaz(auth, "balances", "patch", routeOptions, parse))
-	routeDelete(group, balanceIDPath, protectedMidaz(auth, "balances", "delete", routeOptions, parse))
-	routeGet(group, balanceHistory, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routeGet(group, acctBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routePost(group, acctBalances, protectedMidaz(auth, "balances", "post", routeOptions, parse))
-	routeGet(group, acctHistory, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routeGet(group, aliasBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
-	routeGet(group, codeBalances, protectedMidaz(auth, "balances", "get", routeOptions, parse))
+	routeGet(group, balancesPath, protectedMidaz(auth, balancesPath, "balances", "get", routeOptions, parse))
+	routeGet(group, balanceIDPath, protectedMidaz(auth, balanceIDPath, "balances", "get", routeOptions, parse))
+	routePatch(group, balanceIDPath, protectedMidaz(auth, balanceIDPath, "balances", "patch", routeOptions, parse))
+	routeDelete(group, balanceIDPath, protectedMidaz(auth, balanceIDPath, "balances", "delete", routeOptions, parse))
+	routeGet(group, balanceHistory, protectedMidaz(auth, balanceHistory, "balances", "get", routeOptions, parse))
+	routeGet(group, acctBalances, protectedMidaz(auth, acctBalances, "balances", "get", routeOptions, parse))
+	routePost(group, acctBalances, protectedMidaz(auth, acctBalances, "balances", "post", routeOptions, parse))
+	routeGet(group, acctHistory, protectedMidaz(auth, acctHistory, "balances", "get", routeOptions, parse))
+	routeGet(group, aliasBalances, protectedMidaz(auth, aliasBalances, "balances", "get", routeOptions, parse))
+	routeGet(group, codeBalances, protectedMidaz(auth, codeBalances, "balances", "get", routeOptions, parse))
 
 	RegisterBalanceRoutes(api, bh, opSuffix)
 }

@@ -54,12 +54,20 @@ func newAuthzTupleCapture(t *testing.T, call *authzCall, authorized bool) *httpt
 	t.Helper()
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]string
+		// Typed rather than map[string]string: the payload also carries the route's
+		// scope attributes, which are a nested object, and a flat string map cannot
+		// decode one. Only the three members this helper captures are named.
+		var body struct {
+			Product  string `json:"product"`
+			Resource string `json:"resource"`
+			Action   string `json:"action"`
+		}
+
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("authz capture: decode request body: %v", err)
 		}
 
-		*call = authzCall{product: body["product"], resource: body["resource"], action: body["action"]}
+		*call = authzCall{product: body.Product, resource: body.Resource, action: body.Action}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

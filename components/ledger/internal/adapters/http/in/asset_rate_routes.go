@@ -95,9 +95,9 @@ func registerAssetRateRoutesToApp(group fiber.Router, api huma.API, auth *middle
 
 	parse := pkgHTTP.ParseUUIDPathParameters("asset-rate")
 
-	routePut(group, basePath, protectedMidaz(auth, "asset-rates", "put", routeOptions, parse))
-	routeGet(group, externalPath, protectedMidaz(auth, "asset-rates", "get", routeOptions, parse))
-	routeGet(group, fromPath, protectedMidaz(auth, "asset-rates", "get", routeOptions, parse))
+	routePut(group, basePath, protectedMidaz(auth, basePath, "asset-rates", "put", routeOptions, parse))
+	routeGet(group, externalPath, protectedMidaz(auth, externalPath, "asset-rates", "get", routeOptions, parse))
+	routeGet(group, fromPath, protectedMidaz(auth, fromPath, "asset-rates", "get", routeOptions, parse))
 
 	RegisterAssetRateRoutes(api, h, opSuffix)
 }

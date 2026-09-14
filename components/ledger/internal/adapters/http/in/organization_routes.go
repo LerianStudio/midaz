@@ -153,12 +153,12 @@ func registerOrganizationRoutesToApp(group fiber.Router, api huma.API, auth *mid
 
 	parse := pkgHTTP.ParseUUIDPathParameters("organization")
 
-	routePost(group, listPath, protectedMidaz(auth, "organizations", "post", routeOptions))
-	routePatch(group, idPath, protectedMidaz(auth, "organizations", "patch", routeOptions, parse))
-	routeGet(group, listPath, protectedMidaz(auth, "organizations", "get", routeOptions))
-	routeGet(group, idPath, protectedMidaz(auth, "organizations", "get", routeOptions, parse))
-	routeDelete(group, idPath, protectedMidaz(auth, "organizations", "delete", routeOptions, parse))
-	routeHead(group, countPath, protectedMidaz(auth, "organizations", "head", routeOptions))
+	routePost(group, listPath, protectedMidaz(auth, listPath, "organizations", "post", routeOptions))
+	routePatch(group, idPath, protectedMidaz(auth, idPath, "organizations", "patch", routeOptions, parse))
+	routeGet(group, listPath, protectedMidaz(auth, listPath, "organizations", "get", routeOptions))
+	routeGet(group, idPath, protectedMidaz(auth, idPath, "organizations", "get", routeOptions, parse))
+	routeDelete(group, idPath, protectedMidaz(auth, idPath, "organizations", "delete", routeOptions, parse))
+	routeHead(group, countPath, protectedMidaz(auth, countPath, "organizations", "head", routeOptions))
 
 	registerOrganizationRoutes(api, h, opSuffix)
 }

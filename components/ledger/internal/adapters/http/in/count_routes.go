@@ -68,7 +68,7 @@ func registerCountTransactionRoutesToApp(group fiber.Router, api huma.API, auth 
 
 	parse := pkgHTTP.ParseUUIDPathParameters("transaction")
 
-	routeHead(group, countPath, protectedMidaz(auth, "transactions", "head", routeOptions, parse))
+	routeHead(group, countPath, protectedMidaz(auth, countPath, "transactions", "head", routeOptions, parse))
 
 	RegisterCountTransactionRoutes(api, th, opSuffix)
 }

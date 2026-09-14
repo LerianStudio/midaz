@@ -414,12 +414,12 @@ func RegisterTransactionV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 	// how large a body this endpoint accepts.
 	for _, action := range v2CreateActions {
 		routePost(group, v2CreateBasePath+action.suffix,
-			protectedMidaz(auth, "transactions", "post", routeOptions, v2CreateBodyLimit))
+			protectedMidaz(auth, v2CreateBasePath+action.suffix, "transactions", "post", routeOptions, v2CreateBodyLimit))
 	}
 
-	routePost(group, transactionsIDChainPath+"/commit", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, transactionsIDChainPath+"/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
-	routePost(group, transactionsIDChainPath+"/revert", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
+	routePost(group, transactionsIDChainPath+"/commit", protectedMidaz(auth, transactionsIDChainPath+"/commit", "transactions", "post", routeOptions, parse))
+	routePost(group, transactionsIDChainPath+"/cancel", protectedMidaz(auth, transactionsIDChainPath+"/cancel", "transactions", "post", routeOptions, parse))
+	routePost(group, transactionsIDChainPath+"/revert", protectedMidaz(auth, transactionsIDChainPath+"/revert", "transactions", "post", routeOptions, parse))
 
 	RegisterTransactionV2Routes(api, th)
 }

@@ -298,7 +298,7 @@ func buildHumaV2ActionApp(t *testing.T, action string, op func(context.Context, 
 
 	actionPath := "/transactions/" + action
 
-	routePost(apiV2, actionPath, protectedMidaz(&middleware.AuthClient{Enabled: false}, "transactions", "post", nil))
+	routePost(apiV2, actionPath, protectedMidaz(&middleware.AuthClient{Enabled: false}, actionPath, "transactions", "post", nil))
 
 	huma.Register(humaAPI, huma.Operation{
 		OperationID:      "createTransaction" + strings.ToUpper(action[:1]) + action[1:] + "V2",
