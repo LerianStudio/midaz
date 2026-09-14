@@ -87,6 +87,49 @@ func TestUpdatePackageByIDRefusesMinimumUnderStoredDeductibleFee(t *testing.T) {
 	require.ErrorContains(t, err, constant.ErrCalculationValueFlatFee.Error())
 }
 
+// Dropping the minimum and the fee that stood in its way is one legitimate edit, so
+// the update applies it instead of refusing the pair.
+func TestUpdatePackageByIDAcceptsALoweredMinimumWhenThePatchRemovesTheFee(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPackageRepo := pack.NewMockRepository(ctrl)
+	mockResolver := feeshared.NewMockMidazResolver(ctrl)
+
+	ledgerID := uuid.New()
+	packageID := uuid.New()
+
+	amountData := &model.AmountData{
+		MinAmount: decimal.NewFromInt(100),
+		MaxAmount: decimal.NewFromInt(1000),
+		Fees:      storedDeductibleFlatFee("25"),
+		LedgerID:  ledgerID,
+	}
+
+	mockPackageRepo.EXPECT().
+		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(amountData, nil)
+	mockPackageRepo.EXPECT().
+		FindList(gomock.Any(), gomock.Any()).
+		Return([]*pack.Package{}, nil).
+		AnyTimes()
+	mockPackageRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+		Return(&pack.Package{ID: packageID, LedgerID: ledgerID}, nil)
+
+	svc := &UseCase{packageRepo: mockPackageRepo, resolver: mockResolver}
+
+	newMinimum := "1"
+	input := &model.UpdatePackageInput{
+		MinAmount: &newMinimum,
+		Fee:       map[string]model.Fee{"fee1": {}},
+	}
+
+	require.NoError(t, svc.UpdatePackageByID(context.Background(), packageID, uuid.New(), uuid.Nil, input))
+}
+
 // A fee the patch restates is measured against the minimum the package will carry,
 // not the one it carried before, in both directions.
 func TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum(t *testing.T) {

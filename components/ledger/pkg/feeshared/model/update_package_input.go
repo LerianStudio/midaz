@@ -96,19 +96,23 @@ func (up *UpdatePackageInput) EffectiveMinimumAmount(storedMinAmount decimal.Dec
 // the minimum this patch sets. A deductible fee is taken out of the payment, so
 // lowering the minimum under one leaves the package accepting payments too small to
 // charge it on, which the create path refuses and until now the update path did not.
-// Fees whose amounts this patch restates are skipped: those are validated against the
-// same new minimum as they are applied.
+// A fee the patch itself settles is skipped, so lowering the minimum and clearing what
+// stood in its way in one call is applied rather than refused.
 func (up *UpdatePackageInput) ValidateStoredFeesAgainstMinimum(storedFees map[string]Fee) error {
 	if up.MinAmount == nil {
 		return nil
 	}
 
-	for key, fee := range storedFees {
-		if fee.CalculationModel == nil || up.restatesCalculations(key) {
+	for key, storedFee := range storedFees {
+		if storedFee.CalculationModel == nil {
 			continue
 		}
 
-		if err := validateCalculationValues(fee.CalculationModel, *up.MinAmount, key, fee.GetIsDeductibleFrom()); err != nil {
+		if patch, patched := up.patchFor(key); patched && patch.settlesTheMinimumCheck() {
+			continue
+		}
+
+		if err := validateCalculationValues(storedFee.CalculationModel, *up.MinAmount, key, storedFee.GetIsDeductibleFrom()); err != nil {
 			return err
 		}
 	}
@@ -116,21 +120,40 @@ func (up *UpdatePackageInput) ValidateStoredFeesAgainstMinimum(storedFees map[st
 	return nil
 }
 
-// restatesCalculations reports whether this patch replaces the amounts of the named
-// stored fee. Patch keys are matched the way the update applies them, by their lower
-// camel form, so a key that differs only in case is the same fee.
-func (up *UpdatePackageInput) restatesCalculations(storedKey string) bool {
+// patchFor returns this patch's entry for a stored fee. Keys are matched the way the
+// update applies them, by their lower camel form, so a key that differs only in case
+// is the same fee.
+func (up *UpdatePackageInput) patchFor(storedKey string) (Fee, bool) {
 	for key, fee := range up.Fee {
-		if strcase.ToLowerCamel(key) != storedKey {
-			continue
-		}
-
-		if fee.CalculationModel != nil && len(fee.CalculationModel.Calculations) > 0 {
-			return true
+		if strcase.ToLowerCamel(key) == storedKey {
+			return fee, true
 		}
 	}
 
-	return false
+	return Fee{}, false
+}
+
+// settlesTheMinimumCheck reports whether this patch entry already decides the fee's
+// standing against the new minimum, in any of the three ways it can: the fee is
+// removed, it stops being deducted from the payment, or its amounts are restated and
+// validated against that same new minimum as they are applied.
+func (f *Fee) settlesTheMinimumCheck() bool {
+	if f.removesTheFee() {
+		return true
+	}
+
+	if f.IsDeductibleFrom != nil && !*f.IsDeductibleFrom {
+		return true
+	}
+
+	return f.CalculationModel != nil && len(f.CalculationModel.Calculations) > 0
+}
+
+// removesTheFee reports whether this patch entry deletes the fee rather than editing
+// it. The update removes a fee whose entry sets no field at all, which is every field
+// ValidateIfFeeIsNil covers plus the two routes it does not.
+func (f *Fee) removesTheFee() bool {
+	return f.ValidateIfFeeIsNil() && commons.IsNilOrEmpty(f.RouteFrom) && commons.IsNilOrEmpty(f.RouteTo)
 }
 
 // ValidateMinAndMaxAmount Validating if minimum amount value is greater than maximum amount value

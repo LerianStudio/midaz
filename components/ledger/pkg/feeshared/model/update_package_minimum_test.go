@@ -54,6 +54,32 @@ func TestUpdatePackageInputValidateStoredFeesAgainstMinimum(t *testing.T) {
 			wantCode:   constant.ErrCalculationValueFlatFee.Error(),
 		},
 		{
+			name:       "patch removes the offending fee in the same call",
+			newMinimum: stringPtr("1"),
+			storedFees: map[string]Fee{"fee1": deductibleFee(Flat, "25", true)},
+			patch:      map[string]Fee{"fee1": {}},
+		},
+		{
+			name:       "patch stops the offending fee being deducted from the payment",
+			newMinimum: stringPtr("1"),
+			storedFees: map[string]Fee{"fee1": deductibleFee(Flat, "25", true)},
+			patch:      map[string]Fee{"fee1": {IsDeductibleFrom: boolPtr(false)}},
+		},
+		{
+			name:       "patch confirms the fee stays deducted from the payment",
+			newMinimum: stringPtr("1"),
+			storedFees: map[string]Fee{"fee1": deductibleFee(Flat, "25", true)},
+			patch:      map[string]Fee{"fee1": {IsDeductibleFrom: boolPtr(true)}},
+			wantCode:   constant.ErrCalculationValueFlatFee.Error(),
+		},
+		{
+			name:       "patch sets only a route on the offending fee, which keeps it",
+			newMinimum: stringPtr("1"),
+			storedFees: map[string]Fee{"fee1": deductibleFee(Flat, "25", true)},
+			patch:      map[string]Fee{"fee1": {RouteFrom: stringPtr("taxa_debito")}},
+			wantCode:   constant.ErrCalculationValueFlatFee.Error(),
+		},
+		{
 			name:       "patch key differs in case from the stored key",
 			newMinimum: stringPtr("1"),
 			storedFees: map[string]Fee{"feeOne": deductibleFee(Flat, "25", true)},
