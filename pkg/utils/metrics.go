@@ -175,6 +175,17 @@ var (
 		Description: "Age in seconds of the oldest balance key still waiting to be flushed to the database.",
 	}
 
+	// BalanceSeedRebuilt counts balances whose cache-miss seed was rebuilt from the
+	// operation trail because the balance row was behind it, by organization_id,
+	// ledger_id and tenant_id (empty in single-tenant). Every increment is one
+	// balance that would otherwise have forked, so a nonzero rate means cached
+	// balances are being lost while deltas are still pending.
+	BalanceSeedRebuilt = metrics.Metric{
+		Name:        "balance_seed_rebuilt_total",
+		Unit:        "1",
+		Description: "Total cache-miss balance seeds rebuilt from the operation trail because the balance row was stale.",
+	}
+
 	// Redis backup-queue (poison record) observability metrics.
 
 	// RedisBackupQueueDepth is the number of records currently in the backup queue.
