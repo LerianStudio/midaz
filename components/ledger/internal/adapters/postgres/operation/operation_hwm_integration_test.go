@@ -149,6 +149,42 @@ func TestIntegration_ListLatestByBalances_SnapshotIsCarried(t *testing.T) {
 	assert.True(t, decimal.NewFromInt(20).Equal(hwm.BalanceAfter.OverdraftUsed))
 }
 
+// TestIntegration_ListLatestByBalances_VersionWinsOverCreatedAt pins which field decides
+// the high-water mark. created_at is stamped in Go before the engine runs and
+// balance_version_after is assigned inside it, so two concurrent transactions on one
+// balance can land inverted in the two fields. Electing by created_at would then return an
+// intermediate version as the mark and rebuild the seed permanently short.
+func TestIntegration_ListLatestByBalances_VersionWinsOverCreatedAt(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	ctx := context.Background()
+
+	// The newer version carries the EARLIER timestamp — the inversion itself.
+	_, err := repo.Create(ctx, hwmOperation(ids, ids.BalanceID, 3,
+		decimal.NewFromInt(300), decimal.Zero, "0", hwmBaseTime))
+	require.NoError(t, err)
+
+	_, err = repo.Create(ctx, hwmOperation(ids, ids.BalanceID, 2,
+		decimal.NewFromInt(200), decimal.Zero, "0", hwmBaseTime.Add(time.Minute)))
+	require.NoError(t, err)
+
+	result, err := repo.ListLatestByBalances(ctx, ids.OrgID, ids.LedgerID, []BalanceHWMRef{
+		{AccountID: ids.AccountID, BalanceID: ids.BalanceID},
+	})
+
+	require.NoError(t, err)
+
+	hwm := result[ids.BalanceID.String()]
+	require.NotNil(t, hwm)
+	require.NotNil(t, hwm.BalanceAfter.Version)
+	assert.Equal(t, int64(3), *hwm.BalanceAfter.Version,
+		"the highest version is the high-water mark, whatever created_at says")
+	assert.True(t, decimal.NewFromInt(300).Equal(*hwm.BalanceAfter.Available),
+		"the after-values must come from the winning version's operation")
+}
+
 // TestIntegration_ListLatestByBalances_EmptyRefs proves an empty batch never reaches
 // the database.
 func TestIntegration_ListLatestByBalances_EmptyRefs(t *testing.T) {

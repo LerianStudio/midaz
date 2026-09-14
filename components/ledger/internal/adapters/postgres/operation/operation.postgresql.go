@@ -1218,11 +1218,18 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 
 // ListLatestByBalances resolves the high-water-mark operation of each requested balance.
 //
-// Ordering caveat: created_at is stamped before execution (the completion plan captures
-// it), so among operations sharing an instant the first row by created_at is not
-// necessarily the one with the highest balance_version_after. The deviation is bounded by
-// that instantaneous race, and ordering by version instead would force a sort over the
-// balance's whole history on every seed.
+// The high-water mark is decided by balance_version_after, the only field that grows
+// monotonically with the balance: it is assigned inside the serialized Lua execution,
+// while created_at is stamped in Go BEFORE that execution. Two concurrent transactions on
+// one balance can therefore land in the opposite order in the two fields, and picking the
+// newest created_at would then elect an intermediate version as the mark — which reads as
+// "the row is only slightly behind" and rebuilds the seed short, permanently.
+//
+// Cost of that choice, accepted deliberately: idx_operation_account_balance_pit orders by
+// created_at, so the balance's entries under the (organization, ledger, account, balance)
+// prefix are scanned and sorted for a top-1 instead of being read in index order. The
+// query runs only on a cache miss, and a dedicated index would need a migration, which
+// this work explicitly rules out.
 func (r *OperationPostgreSQLRepository) ListLatestByBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, refs []BalanceHWMRef) (hwm map[string]*Operation, err error) {
 	if len(refs) == 0 {
 		return map[string]*Operation{}, nil
@@ -1244,7 +1251,19 @@ func (r *OperationPostgreSQLRepository) ListLatestByBalances(ctx context.Context
 	}
 
 	defer func() {
-		if commitErr := tx.Commit(); commitErr != nil && err == nil {
+		// A failed read ends the transaction by rolling it back: committing work that
+		// produced nothing is the habit this closure would teach whoever copies it. A
+		// rollback that itself fails joins the error it could not undo, so the caller
+		// still sees the original failure.
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				err = errors.Join(err, fmt.Errorf("rollback read-only primary transaction for balance high-water marks: %w", rollbackErr))
+			}
+
+			return
+		}
+
+		if commitErr := tx.Commit(); commitErr != nil {
 			err = fmt.Errorf("close read-only primary transaction for balance high-water marks: %w", commitErr)
 		}
 	}()
@@ -1293,9 +1312,11 @@ func (r *OperationPostgreSQLRepository) ListLatestByBalances(ctx context.Context
 	return result, nil
 }
 
-// buildBalanceHWMQuery assembles the high-water-mark lookup. DISTINCT ON keeps the
-// first row per balance, and the ORDER BY that decides which row that is mirrors the
-// column order of idx_operation_account_balance_pit.
+// buildBalanceHWMQuery assembles the high-water-mark lookup. DISTINCT ON keeps the first
+// row per balance, and the ORDER BY that decides which row that is leads with
+// balance_version_after — deliberately diverging from idx_operation_account_balance_pit,
+// which leads with created_at. See ListLatestByBalances for why the version has to win
+// and what that ordering costs.
 func buildBalanceHWMQuery(tableName string, organizationID, ledgerID uuid.UUID, refs []BalanceHWMRef) (string, []any, error) {
 	pairs := make(squirrel.Or, 0, len(refs))
 	for _, ref := range refs {
@@ -1313,7 +1334,10 @@ func buildBalanceHWMQuery(tableName string, organizationID, ledgerID uuid.UUID, 
 		Where(squirrel.Eq{"deleted_at": nil}).
 		// Annotation rows move no money, so they hold no balance state to compare against.
 		Where(squirrel.Eq{"balance_affected": true}).
-		OrderBy("balance_id", "created_at DESC", "balance_version_after DESC", "id DESC").
+		// Version first: it is the balance's monotonic clock. created_at and id only
+		// break a tie, which distinct operations of one balance can reach solely on an
+		// already-forked trail.
+		OrderBy("balance_id", "balance_version_after DESC", "created_at DESC", "id DESC").
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 }
