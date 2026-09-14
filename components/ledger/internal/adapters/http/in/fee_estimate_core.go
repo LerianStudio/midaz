@@ -87,13 +87,15 @@ func (handler *FeeHandler) estimateFeeCalculation(ctx context.Context, organizat
 // transaction would cost while hiding that the transaction cannot exist. It is the create-side
 // defect one step earlier, so it answers to the same rule, called rather than restated.
 //
-// Two limits are deliberate. An empty alias is left alone: a leg naming no account at all is a
-// different obligation with a different owner, and answering it here would add a rejection this
-// rule was not asked for. And the fee decode path sanitizes every string before this runs,
-// stripping characters outside its own allow-list, so an alias spelled dst->ops arrives here as
-// dst-ops and one spelled acc:01 arrives as acc01; neither reaches this guard as the caller spelled
-// it. That rewriting is a separate defect on the fee input surface, not something this guard can
-// close from here.
+// One limit is deliberate: an empty alias is left alone, because a leg naming no account at all
+// is a different obligation with a different owner, and answering it here would add a rejection
+// this rule was not asked for.
+//
+// This guard judges the alias the CALLER submitted. The fee decode path used to strip every
+// character outside its own allow-list first, which kept the slash and the backslash but removed
+// the colon, the angle bracket and the hash; a leg spelled dst->ops therefore arrived as dst-ops
+// and slipped past a rule its real spelling fails. That rewriting is gone, so what this function
+// reads is what the body carried.
 func validateEstimateLegAliases(payload *model.FeeEstimate) error {
 	for _, leg := range payload.Transaction.Send.Source.From {
 		if leg.AccountAlias == "" {

@@ -135,63 +135,6 @@ func FuzzValidateStruct_ValueMax(f *testing.F) {
 	})
 }
 
-// FuzzSanitizeString_Input fuzzes the sanitizeString function which removes special
-// characters from input strings. It verifies that the output never contains
-// disallowed characters and never panics, regardless of input.
-func FuzzSanitizeString_Input(f *testing.F) {
-	// Seed corpus: valid, empty, boundary, unicode, security
-	f.Add("")                                 // empty string
-	f.Add("hello world")                      // normal string (all allowed)
-	f.Add("test@example.com")                 // allowed special chars (@, .)
-	f.Add("path/to\\file-name_here")          // slashes, dash, underscore
-	f.Add("!@#$%^&*()+=[]{}|;':\"<>?`~")      // all special chars
-	f.Add(strings.Repeat("\U0001f600", 50))   // repeated emoji
-	f.Add("\u0000\u0001\u0002\u007f")         // control characters
-	f.Add("<script>alert('xss')</script>")    // XSS payload
-	f.Add("Robert'); DROP TABLE students;--") // SQL injection
-	f.Add(strings.Repeat("a", 10000))         // very long valid string
-
-	f.Fuzz(func(t *testing.T, input string) {
-		if len(input) > 2048 {
-			input = input[:2048]
-		}
-
-		// Property: sanitizeString must not panic.
-		result := sanitizeString(input)
-
-		// Property: output must only contain allowed characters.
-		// Allowed: letters, numbers, dash, underscore, space, @, dot, comma, slash, backslash
-		for _, r := range result {
-			if !isAllowedChar(r) {
-				t.Errorf("sanitizeString(%q) produced output containing disallowed char %q (U+%04X)", input, string(r), r)
-			}
-		}
-
-		// Property: output length must be <= input length (can only remove, not add).
-		if len(result) > len(input) {
-			t.Errorf("sanitizeString output length (%d) > input length (%d)", len(result), len(input))
-		}
-	})
-}
-
-// isAllowedChar checks if a rune matches the allowed character set from specialCharsRegex.
-func isAllowedChar(r rune) bool {
-	if r >= 'a' && r <= 'z' {
-		return true
-	}
-	if r >= 'A' && r <= 'Z' {
-		return true
-	}
-	if r >= '0' && r <= '9' {
-		return true
-	}
-	switch r {
-	case '/', '\\', '-', '_', ' ', '@', '.', ',':
-		return true
-	}
-	return false
-}
-
 // FuzzFormatErrorFieldName_Input fuzzes the formatErrorFieldName function
 // which extracts field names from dotted namespace strings.
 // It verifies the function never panics and returns consistent results.
