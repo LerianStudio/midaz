@@ -93,9 +93,11 @@ type UpdateTransactionInput struct {
 	// maxLength: 256
 	Description string `json:"description" validate:"max=256" example:"Transaction description" maxLength:"256"`
 
-	// Additional custom attributes
+	// Additional custom attributes. The ledger reserves its own fee statements on transaction
+	// metadata and refuses a body that carries one, so an operator cannot record a fee charge
+	// the ledger never made on a transaction it had already written.
 	// example: {"purpose": "Monthly payment", "category": "Utility"}
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,noreservedkey,endkeys,omitempty,nonested,valuemax=2000"`
 }
 
 // Transaction is a struct designed to encapsulate response payload data.

@@ -35,7 +35,7 @@ type CreateTransactionRequest struct {
 
 	// Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,noreservedkey,endkeys,omitempty,nonested,valuemax=2000"`
 
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: "00000000-0000-0000-0000-000000000000"
@@ -111,7 +111,7 @@ type CreateTransactionInflowRequestBody struct {
 
 	// Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,noreservedkey,endkeys,omitempty,nonested,valuemax=2000"`
 
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000
@@ -196,7 +196,7 @@ type CreateTransactionOutflowRequestBody struct {
 
 	// Additional custom key-value attributes. Values must be flat (string, number, boolean) — no nested objects.
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,noreservedkey,endkeys,omitempty,nonested,valuemax=2000"`
 
 	// Deprecated: legacy route identifier, use routeId instead. Contains the transaction route UUID as a free-form string for backwards compatibility.
 	// example: 00000000-0000-0000-0000-000000000000

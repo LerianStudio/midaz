@@ -717,9 +717,11 @@ type UpdateOperationInput struct {
 	// maxLength: 256
 	Description string `json:"description" validate:"max=256" example:"Credit card operation" maxLength:"256"`
 
-	// Additional custom attributes
+	// Additional custom attributes. The ledger reserves its own fee mark on operation metadata
+	// and refuses a body that carries it, so an operator cannot label their own movement a fee
+	// after the fact.
 	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,noreservedkey,endkeys,omitempty,nonested,valuemax=2000"`
 }
 
 // OperationResponse represents a success response containing a single operation.
