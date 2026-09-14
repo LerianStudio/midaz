@@ -1822,6 +1822,12 @@ func outOfBandPackage(packEntity *pack.Package) *pack.Package {
 // source resolves into a segment, is charged on the legacy unrouted payment and
 // on the routed one alike, exactly as the ledger charges them today.
 //
+// Six more carry the segment rule and what it costs: a package carrying no
+// segment constraint is charged in every segment rather than dropped, the
+// package matching the most constraints wins, and packages matching the same
+// number refuse the payment. Each row that moves money against origin/develop
+// says what origin/develop charges on that shape.
+//
 // Mutants each row kills are named on the row.
 func TestCalculateFee_RouteScoping(t *testing.T) {
 	t.Parallel()

@@ -184,7 +184,16 @@ func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 // A package carrying no segment constraint is charged on a payment whose source
 // resolves into a segment, routed and unrouted alike, because a constraint a
 // package does not carry constrains nothing. Rows below pin that, because it is
-// the fee a client running one unrestricted package is already charged.
+// the fee a client running one unrestricted package is already charged, and
+// they pin the rule it generalises to: when several packages match everything
+// they carry, the one matching the most constraints is charged, and an equal
+// count refuses the payment rather than charging whichever one storage returned
+// first.
+//
+// The rows that carry a behaviour change against origin/develop name what
+// origin/develop does on that shape, measured rather than assumed, because a
+// comment claiming parity where there is none is how the decision gets reversed
+// by accident.
 func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 	t.Parallel()
 
