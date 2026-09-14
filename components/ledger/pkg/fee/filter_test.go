@@ -24,7 +24,8 @@ func uuidPtr(id uuid.UUID) *uuid.UUID { return &id }
 
 // TestFindPackageToCalculateFee_Scoping locks the segment- and combined-scope
 // semantics fixed in the fee-scoping cluster: scope is an AND of route, segment,
-// and amount, and no package is selected on a constraint that was not checked.
+// and amount, and a package carrying a segment constraint is never selected
+// without that constraint being checked.
 func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 	t.Parallel()
 
@@ -179,6 +180,12 @@ func TestFindPackageToCalculateFee_Scoping(t *testing.T) {
 // field leaves this whole package green. They are guarded one stage out, by
 // TestCalculateFee_RouteScoping in
 // components/ledger/internal/services/fees/calculate-fee_test.go.
+//
+// One package left standing by the route filter and carrying no segment
+// constraint is returned there and then, without the segment and amount
+// filters running on it. Rows below pin that on the routed and on the unrouted
+// payment alike, because it is the selection the ledger already makes and the
+// fee a client running one unrestricted package is already charged.
 func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 	t.Parallel()
 
@@ -274,22 +281,52 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			// Every constraint the package carries is checked, the amount band
-			// included, even when the package is the only one left standing.
-			name:     "a route-scoped package alone is not charged outside its own amount band",
+			// A package left alone by the route filter, carrying no segment
+			// constraint, is handed back there and then, without the segment
+			// and amount filters running. That is what the ledger does today
+			// and what this repair deliberately keeps. The amount band is
+			// enforced one stage out, by both callers of this function, so no
+			// fee is charged outside it: the seam row
+			// a_package_restricted_to_this_route_is_not_charged_outside_its_own_amount_band
+			// in components/ledger/internal/services/fees pins the money.
+			name:     "a route-scoped package left alone by the route filter is handed back unfiltered",
 			packages: []*pack.Package{outOfBand},
 			payment:  routed,
-			want:     nil,
+			want:     outOfBand,
 		},
 		{
-			// Same rule on the segment dimension: a lone survivor of the route
-			// filter still faces the segment filter, which keeps a package only
-			// when its segment matches the one the payment's source carries.
-			name:      "a route-scoped package alone is not charged on a payment carrying a segment",
+			// The lone survivor of the route filter carries no segment
+			// constraint, so the segment filter never runs on it and it is
+			// selected on a payment whose source carries a segment. Charging it
+			// is what this repair adds: on origin/develop the same package is
+			// charged nothing, because the payment route never reached the
+			// route filter and the package was dropped there.
+			name:      "a route-scoped package alone is charged on a payment carrying a segment",
 			packages:  []*pack.Package{routeScoped},
 			payment:   routed,
 			segmentID: uuidPtr(segX),
-			want:      nil,
+			want:      routeScoped,
+		},
+		{
+			// The money the ledger moves today and this repair must not touch:
+			// a client holding one package with no segment constraint is
+			// charged on a payment whose source resolves into a segment. The
+			// route filter leaves that package alone, so it is selected without
+			// the segment filter running, on the legacy payment carrying no
+			// route identifier at all...
+			name:      "a package restricted to nothing is charged on an unrouted payment carrying a segment",
+			packages:  []*pack.Package{unscoped},
+			payment:   unrouted,
+			segmentID: uuidPtr(segX),
+			want:      unscoped,
+		},
+		{
+			// ...and on a routed one.
+			name:      "a package restricted to nothing is charged on a routed payment carrying a segment",
+			packages:  []*pack.Package{unscoped},
+			payment:   routed,
+			segmentID: uuidPtr(segX),
+			want:      unscoped,
 		},
 		{
 			// Two packages a client scoped to the same route are equally
@@ -301,11 +338,14 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			// The segment dimension keeps the asymmetry this repair deliberately
-			// left alone: a payment whose source carries a segment keeps only
-			// packages scoped to that same segment, so a ledger holding none is
-			// charged nothing. Pinned so a later change to that rule is a
-			// decision rather than an accident.
+			// Two packages survive the route filter, so the lone-survivor
+			// return does not apply and the segment filter runs: it keeps only
+			// packages scoped to the segment the payment carries, and neither
+			// of these carries one. That is the segment dimension own rule,
+			// untouched by this repair and measured unchanged on
+			// origin/develop for the same two-package shape, where both are
+			// dropped and the payment is charged nothing. Pinned so changing
+			// that rule is a decision rather than an accident.
 			name:      "no package is charged on a payment carrying a segment none of them scopes to",
 			packages:  []*pack.Package{unscoped, routeScoped},
 			payment:   routed,

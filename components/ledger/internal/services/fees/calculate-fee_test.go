@@ -1807,6 +1807,11 @@ func outOfBandPackage(packEntity *pack.Package) *pack.Package {
 // a percentage, or a fee landing on the wrong leg all fail here rather than
 // passing a "the value grew" assertion.
 //
+// Three rows carry the payment shapes whose money must not move at all: a
+// client running one package with no segment constraint, on a payment whose
+// source resolves into a segment, is charged on the legacy unrouted payment and
+// on the routed one alike, exactly as the ledger charges them today.
+//
 // Mutants each row kills are named on the row.
 func TestCalculateFee_RouteScoping(t *testing.T) {
 	t.Parallel()
@@ -1834,6 +1839,10 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 		// segmentOfSource, when set, resolves the payment's source account into
 		// that segment; nil leaves the payment unsegmented and needs no resolver.
 		segmentOfSource *uuid.UUID
+		// unroutedPayment builds the legacy payment that carries no route
+		// identifier at all, the shape whose selection must stay exactly what
+		// the ledger selects today.
+		unroutedPayment bool
 	}{
 		{
 			// The defect this repair closes, on the sole-package path: the
@@ -1908,7 +1917,10 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 		{
 			// A package restricted to this route is charged only inside the
 			// amount band its client configured, even when it is the only
-			// package the ledger holds.
+			// package the ledger holds. The selector hands that lone route
+			// survivor back unfiltered, exactly as it does today; the band
+			// re-check both selection paths run on whatever comes back is what
+			// stops the money.
 			name:           "a package restricted to this route is not charged outside its own amount band",
 			packages:       []*pack.Package{outOfBandPackage(routeScopedFlatPackage(uuid.New(), routeID))},
 			wantChargedIdx: -1,
@@ -1924,16 +1936,50 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 			wantChargedIdx: 0,
 		},
 		{
-			// The segment dimension is deliberately untouched by this repair and
-			// keeps its own rule: a payment whose source carries a segment keeps
-			// only packages scoped to that same segment. A ledger holding none is
-			// charged nothing, and that holds however many packages it holds.
-			name:            "a package restricted to nothing is not charged on a payment whose source carries a segment",
+			// The money the ledger moves today and this repair must not touch,
+			// on the legacy payment that carries no route identifier: a client
+			// running one package with no segment constraint is charged on a
+			// payment whose source resolves into a segment. Measured on
+			// origin/develop at ab7708be9: sendValue 1100, packageAppliedID
+			// set, feeApplied true.
+			name:            "a package restricted to nothing is charged on an unrouted payment whose source carries a segment",
 			packages:        []*pack.Package{segScopingFlatPackage(uuid.New(), nil)},
-			wantChargedIdx:  -1,
+			wantChargedIdx:  0,
+			segmentOfSource: &sourceSegment,
+			unroutedPayment: true,
+		},
+		{
+			// The same client, the same package, on a routed payment. Also
+			// 1100 on origin/develop, and it stays 1100 here: the package is
+			// the only one the route filter leaves standing and it carries no
+			// segment constraint, so it is selected before the segment filter
+			// runs.
+			name:            "a package restricted to nothing is charged on a routed payment whose source carries a segment",
+			packages:        []*pack.Package{segScopingFlatPackage(uuid.New(), nil)},
+			wantChargedIdx:  0,
 			segmentOfSource: &sourceSegment,
 		},
 		{
+			// What this repair adds on a segmented payment: the package a
+			// client restricted to this route is now the survivor of the route
+			// filter and is charged. origin/develop charges nothing here,
+			// because the payment route never reached the filter and the
+			// package was dropped by it.
+			name:            "a package restricted to this route is charged on a payment whose source carries a segment",
+			packages:        []*pack.Package{routeScopedFlatPackage(uuid.New(), routeID)},
+			wantChargedIdx:  0,
+			segmentOfSource: &sourceSegment,
+		},
+		{
+			// Two packages survive the route filter once route selection works,
+			// so the lone-survivor return does not apply and the segment filter
+			// runs: it keeps only packages scoped to the segment the payment
+			// carries, and neither of these carries one. That is the segment
+			// dimension own rule, untouched here. origin/develop charges the
+			// unrestricted package on this shape only because its route filter
+			// dropped the route-scoped one; on the two-package shape that
+			// actually reaches its segment filter it charges nothing, which is
+			// what is pinned here.
 			name: "no package is charged on a payment whose source carries a segment none of them scopes to",
 			packages: []*pack.Package{
 				segScopingFlatPackage(uuid.New(), nil),
@@ -1967,6 +2013,9 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 			}
 
 			feeInput := routedFeeInput(ledgerID, routeID)
+			if tc.unroutedPayment {
+				feeInput = segScopingFeeInput(ledgerID, "@src")
+			}
 
 			mockPackRepo.EXPECT().
 				FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
