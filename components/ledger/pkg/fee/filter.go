@@ -17,11 +17,17 @@ import (
 // FindPackageToCalculateFee returns the Package to calculate Fee or an error if not exactly one Package is found.
 //
 // Scope is an AND of route, segment, and amount: a package applies only when
-// every constraint it carries matches the transaction. Every filter runs on
-// every package, including the last one standing, so a package is never charged
-// on a constraint that was not checked: a package that survives the route filter
-// alone must still fall inside the amount band its client configured and inside
-// the segment the transaction carries.
+// every constraint it carries matches the transaction.
+//
+// One package left standing by the route filter, carrying no segment
+// constraint, is returned there and then: the segment and amount filters do not
+// run on it. That is what the ledger has always done and it is deliberate here,
+// because it is what keeps a client running a single unrestricted package
+// charged on a payment whose source resolves into a segment. A lone survivor
+// that DOES carry a segment constraint falls through, so no package is ever
+// selected on a segment that was not checked. Both callers re-check the amount
+// band on whatever comes back, so nothing is charged outside the band its
+// client configured.
 //
 // When more than one package still matches after all three filters and the
 // specificity tiebreak, the transaction is refused rather than charged an
@@ -30,6 +36,10 @@ func FindPackageToCalculateFee(packages []*pack.Package, transactionRoute string
 	segmentID *uuid.UUID, amount decimal.Decimal,
 ) (*pack.Package, error) {
 	byRoute := filterByTransactionRoute(packages, transactionRoute)
+	if len(byRoute) == 1 && byRoute[0].SegmentID == nil {
+		return byRoute[0], nil
+	}
+
 	bySegment := filterBySegmentID(byRoute, segmentID)
 	survivors := preferMostSpecificRoute(filterByAmount(bySegment, amount))
 

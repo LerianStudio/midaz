@@ -192,9 +192,12 @@ func (uc *UseCase) calculateFeeForSinglePackage(
 	organizationID uuid.UUID,
 ) error {
 	// Route the sole package through the same scope filter the multi-package
-	// path uses so a single SCOPED package (route and/or segment) is applied only
-	// when its scope matches the transaction. An unscoped single package (nil
-	// route, nil segment) still survives every filter and is selected as before.
+	// path uses, so a package a client restricted to one transaction route is
+	// applied only on that route. A package the route filter leaves standing and
+	// that carries no segment constraint is selected there, without the segment
+	// filter running on it, which is what keeps an unrestricted package charged
+	// on a payment whose source resolves into a segment. The amount band is
+	// re-checked below on whatever comes back.
 	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee([]*pack.Package{feePackage}, cf.Transaction.EffectiveRouteID(), cf.SegmentID, sendModel.Value)
 	if errFilterPack != nil {
 		return pkg.ValidateBusinessError(constant.ErrFilterPackage, "")
