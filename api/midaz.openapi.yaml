@@ -17371,11 +17371,12 @@ components:
             refused rather than silently stripped. So a client names a fee
             movement from the ledger mark instead of inferring one from account
             names or from the caller metadata. Caller-supplied keys on an
-            operation are returned as sent on a transaction the fee engine did
-            not price; on a fee-priced transaction the engine rebuilds every
-            movement of both sides, and the rebuilt movements carry only the
-            ledger keys, so do not rely on a per-movement caller reference
-            surviving a payment that is charged a fee.
+            operation are returned as sent on a transaction no fee package was
+            applied to; once a package is applied the engine rebuilds every
+            movement of both sides, including when it prices the transaction at
+            zero because every account is exempt, and the rebuilt movements
+            carry only the ledger keys, so do not rely on a per-movement caller
+            reference surviving a payment a fee package was applied to.
           type: object
         organizationId:
           examples:
@@ -18299,18 +18300,23 @@ components:
         metadata:
           additionalProperties: {}
           description: >-
-            Additional custom attributes. The ledger reserves three fee keys on
-            this field and writes them itself: feeApplied is the string true
-            when the fee engine actually charged this transaction;
-            packageAppliedID is the identifier of the fee package the engine
-            applied, written when that package charged a fee or recorded an
-            exemption, and absent when a package matched but priced nothing, for
-            instance because the amount fell outside its bounds; feeExemption is
-            an object carrying exempt, reason and message, present when every
-            account on one side of the transaction is exempt from fees, which is
-            how a caller tells an exemption apart from no package having
-            matched. Transaction-level metadata is additive, so caller-supplied
-            keys on this field are preserved alongside them.
+            Additional custom attributes. The ledger writes three fee keys on
+            this field itself: feeApplied is the string true when the fee engine
+            actually charged this transaction; packageAppliedID is the
+            identifier of the fee package the engine applied, written when that
+            package charged a fee or recorded an exemption, and absent when a
+            package matched but priced nothing, for instance because the amount
+            fell outside its bounds; feeExemption is an object carrying exempt,
+            reason and message, present when every account on one side of the
+            transaction is exempt from fees, which is how a caller tells an
+            exemption apart from no package having matched. These three keys are
+            written by the ledger but are NOT reserved from callers: a request
+            body carrying one is accepted and stored as sent, so do not read
+            them as proof the ledger wrote them on a transaction you supplied
+            them on. The one reserved fee key is feeLeg, on operation metadata,
+            and it is the only one a request body is refused for.
+            Transaction-level metadata is additive, so caller-supplied keys on
+            this field are preserved alongside the ledger keys.
           type: object
         operations:
           items:

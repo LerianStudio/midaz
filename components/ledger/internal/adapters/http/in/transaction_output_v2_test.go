@@ -418,6 +418,10 @@ func TestV2MetadataContractMakesNoFalseClaim(t *testing.T) {
 				"preserved unchanged": "the fee engine rebuilds both sides of a fee-priced " +
 					"payment from a map that carries no per-movement metadata, so a caller key " +
 					"on a leg does not survive",
+				"the fee engine did not price": "the engine rebuilds both sides whenever a " +
+					"package is applied, including an all-exempt payment it prices at zero, so " +
+					"the condition a caller key survives under is no package applied, not no " +
+					"fee charged",
 			},
 			required: []string{"refus"},
 		},
@@ -427,7 +431,12 @@ func TestV2MetadataContractMakesNoFalseClaim(t *testing.T) {
 				"whenever a package was selected": "the key is written only when a fee was " +
 					"charged or an exemption was recorded; a package excluded by its amount " +
 					"bounds is selected and writes nothing",
+				"reserves three fee keys": "ReservedMetadataKeys holds feeLeg alone, so a " +
+					"request body carrying feeApplied, packageAppliedID or feeExemption is " +
+					"accepted and stored as sent; publishing them as reserved would tell a " +
+					"client the ledger guards a key it does not guard",
 			},
+			required: []string{"NOT reserved"},
 		},
 	}
 
