@@ -29,8 +29,18 @@ const MetadataValueFeeLeg = "true"
 //
 // The set is deliberately narrow. A key earns a place here only once the ledger publishes it as
 // its own word about a record, which is what makes a caller-written copy a lie rather than a
-// collision; the transaction-level fee markers are not here, because they predate this rule and
-// removing them from an existing caller's body would break a shipped contract.
+// collision.
+//
+// Four keys qualify. MetadataKeyFeeLeg is the operation-level fee mark. The other three are the
+// transaction-level statements the fee engine writes about a charge: whether a fee was actually
+// charged, which fee package the engine applied, and which exemption it recorded. They are spelled
+// literally here because the wire spelling is the contract a client reads, and this refusal has to
+// match what the client can send rather than what the engine happens to name its writes.
 func IsReservedMetadataKey(key string) bool {
-	return key == MetadataKeyFeeLeg
+	switch key {
+	case MetadataKeyFeeLeg, "feeApplied", "packageAppliedID", "feeExemption":
+		return true
+	default:
+		return false
+	}
 }
