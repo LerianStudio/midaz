@@ -17,7 +17,9 @@ import (
 // FindPackageToCalculateFee returns the Package to calculate Fee or an error if not exactly one Package is found.
 //
 // Scope is an AND of route, segment, and amount: a package applies only when
-// every constraint it carries matches the transaction.
+// every constraint it carries matches the transaction, and a constraint it does
+// not carry constrains nothing. A package scoped to no route applies on every
+// route and a package scoped to no segment applies in every segment.
 //
 // One package left standing by the route filter, carrying no segment
 // constraint, is returned there and then: the segment and amount filters do not
@@ -29,9 +31,12 @@ import (
 // band on whatever comes back, so nothing is charged outside the band its
 // client configured.
 //
-// When more than one package still matches after all three filters and the
-// specificity tiebreak, the transaction is refused rather than charged an
-// arbitrary one of them.
+// When more than one package still matches after all three filters, the most
+// specific one wins: the package matching the most constraints is charged, so
+// route and segment beats route alone or segment alone, and either beats a
+// package restricted to nothing. Packages matching the same number of
+// constraints are genuinely ambiguous, and the transaction is refused rather
+// than charged an arbitrary one of them.
 func FindPackageToCalculateFee(packages []*pack.Package, transactionRoute string,
 	segmentID *uuid.UUID, amount decimal.Decimal,
 ) (*pack.Package, error) {
@@ -41,7 +46,7 @@ func FindPackageToCalculateFee(packages []*pack.Package, transactionRoute string
 	}
 
 	bySegment := filterBySegmentID(byRoute, segmentID)
-	survivors := preferMostSpecificRoute(filterByAmount(bySegment, amount))
+	survivors := preferMostSpecific(filterByAmount(bySegment, amount))
 
 	switch len(survivors) {
 	case 0:
@@ -77,61 +82,75 @@ func filterByTransactionRoute(packages []*pack.Package, transactionRoute string)
 	return filtered
 }
 
-// preferMostSpecificRoute resolves a collision between packages that all match
-// the transaction: the most specific one wins, so a package a client restricted
-// to this transaction route is charged rather than one the client restricted to
-// nothing. With no route-restricted package among the survivors it changes
+// preferMostSpecific resolves a collision between packages that all match the
+// transaction: the most specific one wins, so a package a client restricted to
+// this transaction route and this segment is charged rather than one restricted
+// to the route alone, and either is charged rather than one restricted to
 // nothing.
 //
-// It runs on the survivors of every filter, and nowhere else. Applied at the
-// route stage instead, a package scoped to this route AND to a segment would
-// shut the unrestricted package out before the segment filter drops it for a
-// segment the transaction does not carry, leaving no package selected and no
-// fee applied to a transaction that should have been charged one.
+// It runs on the survivors of every filter, and nowhere else. Every survivor
+// matches every constraint it carries by then, so counting the constraints a
+// package carries counts the constraints it matched. Applied at the route stage
+// instead, a package scoped to this route AND to a segment would shut the
+// unrestricted package out before the segment filter drops it for a segment the
+// transaction does not carry, leaving no package selected and no fee applied to
+// a transaction that should have been charged one.
 //
-// It separates route-restricted packages from unrestricted ones and ranks
-// nothing beyond that, so two packages a client restricted to the SAME route
-// remain equally specific and the transaction is refused by the caller. That
-// refusal is newly reachable: before route selection was repaired the route
-// filter dropped both such packages, so the transaction posted charged nothing,
-// or charged whatever unrestricted package the ledger also held.
+// Packages tied on the count stay tied: a package scoped to this route and one
+// scoped to this segment are equally specific, as are two packages scoped to the
+// same route, and the caller refuses the transaction rather than charging
+// whichever one storage returned first. Ranking one dimension above the other
+// would be a pricing decision nobody has taken.
 //
-// A package holding an empty stored route is unrestricted, matching the route
-// filter, so it never outranks a package holding no route at all.
-func preferMostSpecificRoute(survivors []*pack.Package) []*pack.Package {
-	var routeScoped []*pack.Package
+// A package holding an empty stored route carries no route constraint, matching
+// the route filter, so it never outranks a package holding no route at all.
+func preferMostSpecific(survivors []*pack.Package) []*pack.Package {
+	var kept []*pack.Package
+
+	best := 0
 
 	for _, packValue := range survivors {
+		score := 0
+
 		if packValue.GetTransactionRoute() != "" {
-			routeScoped = append(routeScoped, packValue)
+			score++
+		}
+
+		if packValue.SegmentID != nil {
+			score++
+		}
+
+		switch {
+		case score > best:
+			best, kept = score, []*pack.Package{packValue}
+		case score == best:
+			kept = append(kept, packValue)
 		}
 	}
 
-	if routeScoped == nil {
-		return survivors
-	}
-
-	return routeScoped
+	return kept
 }
 
-// filterBySegmentID Filters the packages by segment id
+// filterBySegmentID filters the packages by segment id.
+//
+// A package carrying no segment constraint applies in every segment, which is
+// the rule the route filter applies on its own dimension: a constraint a package
+// does not carry constrains nothing. So it survives whatever segment the
+// transaction carries, including none. A package carrying a segment constraint
+// survives an exact match only, so no package is ever selected on a segment that
+// was not checked.
 func filterBySegmentID(packages []*pack.Package, segmentID *uuid.UUID) []*pack.Package {
 	var filtered []*pack.Package
 
 	for _, packValue := range packages {
-		if segmentID == nil && packValue.SegmentID != nil {
-			continue
-		}
-
-		if segmentID == nil && packValue.SegmentID == nil {
+		if packValue.SegmentID == nil {
 			filtered = append(filtered, packValue)
+
 			continue
 		}
 
-		if segmentID != nil && packValue.SegmentID != nil {
-			if *segmentID == *packValue.SegmentID {
-				filtered = append(filtered, packValue)
-			}
+		if segmentID != nil && *segmentID == *packValue.SegmentID {
+			filtered = append(filtered, packValue)
 		}
 	}
 
