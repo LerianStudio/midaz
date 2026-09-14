@@ -18,13 +18,21 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// recordingFeeService stands in for the fee engine and records whether the estimate reached it.
-// Whether the engine was called is the whole assertion: an estimate refused on input must never
-// price anything.
-type recordingFeeService struct{ called bool }
+// recordingFeeService stands in for the fee engine and records whether the estimate reached it and
+// which source alias it was asked to price. Whether the engine was called answers the refusal
+// rows; which alias it saw answers the rewriting ones, because an estimate priced for a string the
+// caller never sent is wrong even when it succeeds.
+type recordingFeeService struct {
+	called          bool
+	seenSourceAlias string
+}
 
-func (s *recordingFeeService) EstimateFeeCalculation(_ context.Context, _ *model.FeeEstimate, _, _ uuid.UUID) (*model.FeeEstimateResult, error) {
+func (s *recordingFeeService) EstimateFeeCalculation(_ context.Context, cf *model.FeeEstimate, _, _ uuid.UUID) (*model.FeeEstimateResult, error) {
 	s.called = true
+
+	if legs := cf.Transaction.Send.Source.From; len(legs) > 0 {
+		s.seenSourceAlias = legs[0].AccountAlias
+	}
 
 	return &model.FeeEstimateResult{}, nil
 }
@@ -43,13 +51,9 @@ func estimateBodyWithSourceAlias(alias string) []byte {
 // for an alias that can never resolve is the create-side defect moved one step earlier: the
 // caller is told what a transaction would cost without being told the transaction cannot exist.
 //
-// KNOWN GAP, deliberately not asserted here. The fee decode path sanitizes every string field
-// before this guard runs, stripping any character outside its own allow-list, so an alias spelled
-// dst->ops arrives as dst-ops and an alias spelled acc:01 arrives as acc01. Those two never reach
-// this rule as the caller spelled them, so this guard cannot refuse them, and the aliases below
-// are exactly the ones that survive the sanitizer intact. The sanitizer rewriting a legal alias
-// onto a different account is a separate defect on the fee surface, reported rather than closed
-// here, because changing that allow-list is a decision about the whole fee input surface.
+// Every row is checked against the alias the CALLER submitted, not a rewritten one: the decode
+// path must hand validation the exact string the body carried, so a refusal is about what the
+// caller wrote rather than about what decoding turned it into.
 func TestFeeEstimate_RefusesLegAliasNoAccountCanCarry(t *testing.T) {
 	t.Parallel()
 
@@ -57,11 +61,14 @@ func TestFeeEstimate_RefusesLegAliasNoAccountCanCarry(t *testing.T) {
 		alias string
 		why   string
 	}{
+		{"dst->ops", "the fee engine cuts a leg alias at the first arrow, so this would price against dst"},
+		{"@payer->fee0->", "spells a movement the fee engine itself mints"},
 		{"dst ops", "a space is outside the registered account alias charset"},
 		{"dst/ops", "a slash is outside the charset and this is not the external account shape"},
 		{"@external/", "the external shape with no asset code names no account"},
 		{"@external/brl", "an asset code is uppercase, so no account carries this alias"},
 		{"a_b-c.", "a dot is outside the registered account alias charset"},
+		{"@a#x", "the composite separator, which keys the funnel's per-entry maps"},
 	}
 
 	for _, row := range refused {
@@ -73,7 +80,7 @@ func TestFeeEstimate_RefusesLegAliasNoAccountCanCarry(t *testing.T) {
 			_, err := feehttp.DecodeValidateBody(estimateBodyWithSourceAlias(row.alias), payload)
 			require.NoError(t, err, "the row must reach the guard, not be refused at decode")
 			require.Equal(t, row.alias, payload.Transaction.Send.Source.From[0].AccountAlias,
-				"the sanitizer must leave this alias intact, or the row is testing a different string")
+				"decoding must not rewrite the submitted alias, or the guard is judging a different string")
 
 			service := &recordingFeeService{}
 			handler := &FeeHandler{Service: service}
@@ -85,8 +92,60 @@ func TestFeeEstimate_RefusesLegAliasNoAccountCanCarry(t *testing.T) {
 			require.ErrorAs(t, err, &vErr, "an alias no account can carry is a request-shape error (400)")
 			assert.Equal(t, constant.ErrAccountAliasInvalid.Error(), vErr.Code)
 			assert.False(t, service.called, "a refused estimate must never reach the fee engine")
+			assert.Equal(t, row.alias, payload.Transaction.Send.Source.From[0].AccountAlias,
+				"the refused alias must still read as the caller spelled it after the refusal")
 		})
 	}
+}
+
+// TestFeeEstimate_DecodeLeavesTheSubmittedAliasIntact is the rule the refusal rows above depend
+// on: a fee body is never rewritten on the way in.
+//
+// The fee decode path used to strip every character outside its own allow-list, which kept the
+// slash and the backslash but removed the colon, the angle bracket and the hash. Two consequences
+// made it a money-path defect rather than a cosmetic one. An alias spelled acc:01, which an
+// account CAN carry, arrived as acc01 and was priced against a different account, silently and
+// with a 200. And an alias spelled dst->ops arrived as dst-ops, which matches the account charset,
+// so it slipped past the guard the caller's actual string would have failed.
+//
+// Validation, not rewriting, is what answers a character a field may not carry.
+func TestFeeEstimate_DecodeLeavesTheSubmittedAliasIntact(t *testing.T) {
+	t.Parallel()
+
+	for _, alias := range []string{"acc:01", "dst->ops", "@a#x", "@external/BRL", "a;b", "a.b,c"} {
+		t.Run(alias, func(t *testing.T) {
+			t.Parallel()
+
+			payload := new(model.FeeEstimate)
+
+			_, err := feehttp.DecodeValidateBody(estimateBodyWithSourceAlias(alias), payload)
+			require.NoError(t, err)
+			assert.Equal(t, alias, payload.Transaction.Send.Source.From[0].AccountAlias,
+				"decoding must hand validation the exact alias the body carried")
+		})
+	}
+}
+
+// TestFeeEstimate_LegalColonAliasReachesTheEngineIntact is the defect CodeRabbit named, pinned end
+// to end: acc:01 is an alias an account can carry, so the estimate must be priced for it and the
+// engine must receive it spelled exactly that way.
+func TestFeeEstimate_LegalColonAliasReachesTheEngineIntact(t *testing.T) {
+	t.Parallel()
+
+	payload := new(model.FeeEstimate)
+
+	_, err := feehttp.DecodeValidateBody(estimateBodyWithSourceAlias("acc:01"), payload)
+	require.NoError(t, err)
+
+	service := &recordingFeeService{}
+	handler := &FeeHandler{Service: service}
+
+	_, err = handler.estimateFeeCalculation(context.Background(), uuid.New(), uuid.New(), payload)
+	require.NoError(t, err, "a legal alias must not be refused")
+
+	require.True(t, service.called, "the estimate must reach the fee engine")
+	assert.Equal(t, "acc:01", service.seenSourceAlias,
+		"the engine must be asked to price the alias the caller submitted, not a rewritten one")
 }
 
 // TestFeeEstimate_AcceptsLegAliasAnAccountCanCarry is the other half of the guard: refusing what
