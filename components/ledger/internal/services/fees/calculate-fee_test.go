@@ -1977,11 +1977,12 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 			unroutedPayment: true,
 		},
 		{
-			// The same client, the same package, on a routed payment. Also
-			// 1100 on origin/develop, and it stays 1100 here: the package is
-			// the only one the route filter leaves standing and it carries no
-			// segment constraint, so it is selected before the segment filter
-			// runs.
+			// The same client, the same package, on a payment carrying the
+			// canonical route identifier. Also 1100 on origin/develop, and it
+			// stays 1100 here: the package carries no segment constraint, so
+			// it survives the segment filter on its own merit, the way a
+			// package carrying no route constraint survives the route filter.
+			// Nothing short-circuits it past a filter that was not run.
 			name:            "a package restricted to nothing is charged on a routed payment whose source carries a segment",
 			packages:        []*pack.Package{segScopingFlatPackage(uuid.New(), nil)},
 			wantChargedIdx:  0,
