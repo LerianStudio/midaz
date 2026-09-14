@@ -123,16 +123,20 @@ func TestResolveAccountBlockExceptionEval_NoBindingIsNoEval(t *testing.T) {
 // TestAccountBlockExceptionEval_HeaderLayout locks the ARGV header on both sides
 // of the presented/absent split.
 //
-// The four fixed slots are ALWAYS occupied — the third carries the bypass count,
+// The five fixed slots are ALWAYS occupied — the third carries the bypass count,
 // which is what lets the script derive its own stride without branching on
-// whether a grant exists, and the fourth carries the idempotency marker key,
-// which the script's replay gate reads before any grant concern. A header that
-// shrank when no grant was presented would shift every balance operation and
-// silently mis-parse the whole batch.
+// whether a grant exists, and the fourth and fifth carry the idempotency marker
+// key of this execution and the marker key of the opposite terminal status,
+// which the script's replay and cross-transition gates read before any grant
+// concern. A header that shrank when no grant was presented would shift every
+// balance operation and silently mis-parse the whole batch.
 func TestAccountBlockExceptionEval_HeaderLayout(t *testing.T) {
 	t.Parallel()
 
-	const markerKey = "transaction_apply_marker:{transactions}:o:l:t:APPROVED"
+	const (
+		markerKey         = "transaction_apply_marker:{transactions}:o:l:t:APPROVED"
+		oppositeMarkerKey = "transaction_apply_marker:{transactions}:o:l:t:CANCELED"
+	)
 
 	t.Run("no grant occupies the fixed slots and declares a zero count", func(t *testing.T) {
 		t.Parallel()
@@ -142,9 +146,9 @@ func TestAccountBlockExceptionEval_HeaderLayout(t *testing.T) {
 		require.Equal(t, luaArgsHeaderFixedSize, absent.headerWidth())
 
 		args := make([]any, absent.headerWidth())
-		absent.writeHeader(args, markerKey)
+		absent.writeHeader(args, markerKey, oppositeMarkerKey)
 
-		assert.Equal(t, []any{"", "", "0", markerKey}, args)
+		assert.Equal(t, []any{"", "", "0", markerKey, oppositeMarkerKey}, args)
 	})
 
 	t.Run("a grant declares its count and lists its keys", func(t *testing.T) {
@@ -163,16 +167,17 @@ func TestAccountBlockExceptionEval_HeaderLayout(t *testing.T) {
 		require.Equal(t, luaArgsHeaderFixedSize+2, eval.headerWidth())
 
 		args := make([]any, eval.headerWidth())
-		eval.writeHeader(args, markerKey)
+		eval.writeHeader(args, markerKey, oppositeMarkerKey)
 
 		assert.Equal(t, []any{
 			"@source",
 			"150.5",
 			"2",
 			markerKey,
+			oppositeMarkerKey,
 			"balance:{transactions}:o:l:@source#default",
 			"balance:{transactions}:o:l:@source#overdraft",
-		}, args, "the header must be alias, amount, count, marker key, then one slot per bypassed key")
+		}, args, "the header must be alias, amount, count, marker key, opposite marker key, then one slot per bypassed key")
 	})
 }
 
@@ -192,7 +197,9 @@ func TestAccountBlockExceptionEval_WriteHeaderLeavesTheBatchAlone(t *testing.T) 
 	args := make([]any, eval.headerWidth(), eval.headerWidth()+2)
 	args = append(args, "first-operation-slot", "second-operation-slot")
 
-	eval.writeHeader(args, "transaction_apply_marker:{transactions}:o:l:t:APPROVED")
+	eval.writeHeader(args,
+		"transaction_apply_marker:{transactions}:o:l:t:APPROVED",
+		"transaction_apply_marker:{transactions}:o:l:t:CANCELED")
 
 	assert.Equal(t, "first-operation-slot", args[eval.headerWidth()])
 	assert.Equal(t, "second-operation-slot", args[eval.headerWidth()+1])

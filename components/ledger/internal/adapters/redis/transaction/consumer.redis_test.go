@@ -50,6 +50,7 @@ func TestBalanceAtomicScriptErrorContract(t *testing.T) {
 		"0174": {constant.ErrStaleBalanceVersion, "validateBalance"},
 		"0502": {constant.ErrAccountBlocked, "validateBalance"},
 		"0508": {constant.ErrAccountBlockExceptionInvalid, constant.EntityTransaction},
+		"0511": {constant.ErrTransactionAlreadyTransitioned, constant.EntityTransaction},
 	}
 	actual := map[string]bool{}
 	for _, match := range regexp.MustCompile(`redis\.error_reply\("([0-9]{4})"\)`).FindAllStringSubmatch(balanceAtomicOperationLua, -1) {

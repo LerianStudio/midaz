@@ -905,14 +905,20 @@ const luaArgsPerOperation = 25
 
 // luaArgsHeaderFixedSize is the number of ARGV entries that ALWAYS precede the
 // first balance operation group: the expected grant alias, the expected debited
-// amount, the count of bypassed balance keys that follow, and the idempotency
-// marker key of this execution.
+// amount, the count of bypassed balance keys that follow, the idempotency marker
+// key of this execution, and the marker key of the OPPOSITE terminal status.
 //
-// All four slots are unconditional — empty strings and a "0" count when no
-// account-block exception was presented — so the script reads its header from
-// fixed positions and derives its own stride from the count without ever
-// branching on whether a grant exists. The bypassed balance keys follow the
-// fourth slot.
+// All five slots are unconditional — empty strings and a "0" count when no
+// account-block exception was presented, an empty opposite-marker slot for every
+// status that has no opposite — so the script reads its header from fixed
+// positions and derives its own stride from the count without ever branching on
+// whether a grant exists. The bypassed balance keys follow the fifth slot.
+//
+// Both marker keys ride in ARGV rather than KEYS for the same reason: they are
+// built by Go under the {transactions} hash tag the balance keys already carry,
+// so they resolve to the slot this EVAL is already pinned to, and a fixed ARGV
+// position keeps them unambiguous next to the ONE genuinely optional KEY the
+// script takes (the account-block exception at KEYS[4]).
 //
 // It must match `argvHeaderFixed` in balance_atomic_operation.lua.
 //
@@ -926,7 +932,7 @@ const luaArgsPerOperation = 25
 // recognize is an unread key with a TTL. No cross-version bridge is required
 // here, unlike the delete marker, whose namespace is read by the command layer
 // of one pod and written by the Lua of another.
-const luaArgsHeaderFixedSize = 4
+const luaArgsHeaderFixedSize = 5
 
 // buildBalanceAtomicOperationPlan assembles the ARGV payload. headerWidth leading
 // slots are RESERVED (left as nil) for the caller to fill in place, so the header
@@ -1031,11 +1037,20 @@ func (rr *RedisConsumerRepository) buildBalanceAtomicOperationPlan(ctx context.C
 //   - "0174" → ErrStaleBalanceVersion (balance changed between Go read and Lua execution)
 //   - "0502" → ErrAccountBlocked (a balance in the batch belongs to a blocked account; rejected before any mutation)
 //   - "0508" → ErrAccountBlockExceptionInvalid (the presented exception is absent/expired or does not match the transaction; rejected before any mutation and WITHOUT consuming it)
+//   - "0511" → ErrTransactionAlreadyTransitioned (the opposite terminal transition of this transaction is already stamped; rejected before any mutation)
 //
 // Only exact replies are business codes. Runtime and transport errors may
 // contain the same digits and must remain technical errors.
 func mapBalanceAtomicScriptError(span trace.Span, err error) error {
 	code := strings.TrimPrefix(err.Error(), "ERR ")
+
+	if code == constant.ErrTransactionAlreadyTransitioned.Error() {
+		mappedErr := pkg.ValidateBusinessError(constant.ErrTransactionAlreadyTransitioned, constant.EntityTransaction)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Opposite terminal transition already applied: batch rejected before any mutation", mappedErr)
+
+		return mappedErr
+	}
+
 	if code == constant.ErrOverdraftLimitExceeded.Error() {
 		mappedErr := pkg.ValidateBusinessError(constant.ErrOverdraftLimitExceeded, "validateBalance")
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft limit exceeded", mappedErr)
@@ -1424,9 +1439,30 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 		return nil, err
 	}
 
+	// The marker of the OPPOSITE terminal transition. A commit reads the cancel's
+	// marker and a cancel reads the commit's, so a transition that finds the
+	// other one already stamped refuses to move money instead of re-applying the
+	// batch on top of a transaction that is already terminal. Every status with
+	// no opposite — PENDING, CREATED, NOTED — yields an empty key, which the
+	// script reads as "gate off" and answers with no extra EXISTS.
+	oppositeApplyMarkerKey := ""
+
+	if rawOppositeKey := utils.TransactionApplyMarkerOppositeKey(
+		organizationID, ledgerID, transactionID.String(), transactionStatus); rawOppositeKey != "" {
+		oppositeApplyMarkerKey, err = tenantKeyFromContextOrError(ctx, rawOppositeKey)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to namespace opposite transaction apply marker key", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to namespace opposite transaction apply marker key", libLog.Err(err))
+
+			return nil, err
+		}
+	}
+
+	span.SetAttributes(attribute.Bool("app.transition_cross_gate_armed", oppositeApplyMarkerKey != ""))
+
 	// The exception key is appended as KEYS[4] ONLY when a grant was presented,
 	// which is how the script tells "validate and consume a grant" from "there is
-	// none" — the header's four fixed ARGV slots are always there, the key is not.
+	// none" — the header's five fixed ARGV slots are always there, the key is not.
 	if exceptionEval != nil {
 		prefixedKeys = append(prefixedKeys, exceptionEval.key)
 	}
@@ -1439,7 +1475,7 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	// The header occupies slots the plan builder already reserved, and nothing reads
 	// plan.args after this point, so writing in place is safe and keeps the no-grant
 	// path free of any extra allocation or copy.
-	exceptionEval.writeHeader(plan.args, applyMarkerKey)
+	exceptionEval.writeHeader(plan.args, applyMarkerKey, oppositeApplyMarkerKey)
 
 	finalArgs := plan.args
 

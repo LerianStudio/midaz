@@ -222,8 +222,10 @@ func TestFindPackageToCalculateFee_RouteScoping(t *testing.T) {
 	blankRoute := &pack.Package{ID: uuid.New(), TransactionRoute: strPtr(""), MinimumAmount: min0, MaximumAmount: max}
 	// A route-scoped package whose client set an amount band the 100 payment
 	// below falls outside of.
-	outOfBand := &pack.Package{ID: uuid.New(), TransactionRoute: &routeID,
-		MinimumAmount: decimal.NewFromInt(1_000), MaximumAmount: decimal.NewFromInt(5_000)}
+	outOfBand := &pack.Package{
+		ID: uuid.New(), TransactionRoute: &routeID,
+		MinimumAmount: decimal.NewFromInt(1_000), MaximumAmount: decimal.NewFromInt(5_000),
+	}
 
 	tests := []struct {
 		name      string
