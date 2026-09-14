@@ -516,63 +516,9 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 		return nil, false, err
 	}
 
-	// Keep exception-bearing requests on the compatibility path until the engine
-	// can validate and consume the single-use grant atomically with the reversal.
-	if uc.Engine != nil && run.accountBlockExceptionGrant == nil {
-		tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, true)
+	tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, true)
 
-		return tran, false, err
-	}
-
-	ctx, err = uc.stageBalances(ctx, span, logger, run)
-	if err != nil {
-		return nil, false, err
-	}
-
-	// A revert is itself a chargeable transaction: limits measure GROSS activity, so
-	// the reversal reserves capacity of its own. The ORIGINAL transaction's
-	// reservation is never released or confirmed here.
-	reservation := uc.reserveTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.transactionID,
-		run.input.Send.Value, run.input.Send.Asset, firstSourceAccountID(run.validate.Sources, run.balances),
-		run.transactionDate, reservationTTLForStatus(run.status), run.honoredTracerSkip)
-	if reservation.Kind == reservationReject {
-		uc.rollbackCreateSeed(ctx, logger, run)
-
-		return nil, false, reservation.Err
-	}
-
-	run.result, err = uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
-		OrganizationID:    run.organizationID,
-		LedgerID:          run.ledgerID,
-		TransactionID:     run.transactionID,
-		TransactionInput:  &run.input,
-		Validate:          run.validate,
-		BalanceOperations: run.balanceOps,
-		TransactionStatus: run.status,
-
-		AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
-	})
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to process balance operations", libLog.Err(err))
-
-		uc.rollbackCreateSeed(ctx, logger, run)
-
-		uc.releaseReservations(ctx, span, logger, reservation.Handle)
-
-		return nil, false, err
-	}
-
-	if run.status != constant.PENDING {
-		uc.confirmReservations(ctx, span, logger, reservation.Handle)
-	}
-
-	tran, err := uc.finalizeCreatedTransaction(ctx, span, logger, run)
-	if err != nil {
-		return nil, false, err
-	}
-
-	return tran, false, nil
+	return tran, false, err
 }
 
 func prepareRevertV2Aliases(ctx context.Context, run *createTransactionRun) {

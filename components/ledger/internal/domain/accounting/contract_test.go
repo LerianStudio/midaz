@@ -19,6 +19,7 @@ func TestRequestContractRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	transactionID := uuid.MustParse("1a2cf884-cf82-4520-9833-07d85c73bc14")
+	exceptionID := uuid.MustParse("6e0ebc70-6039-4edf-b039-4bb5d85afafe")
 	snapshot := contractSnapshot()
 	request := Execution{
 		OrganizationID: uuid.MustParse("139c4166-2139-4f17-b282-fba78e8c4c2a"),
@@ -26,6 +27,11 @@ func TestRequestContractRoundTrip(t *testing.T) {
 		ExecutionID:    uuid.MustParse("95b4a433-59b3-4ac8-ad6f-e4be032ebca6"),
 		Transactions: []Transaction{{
 			ID: transactionID,
+			AccountBlockException: &AccountBlockException{
+				ExceptionID: exceptionID, Alias: snapshot.Alias,
+				Amount:            decimal.RequireFromString("12345678901234567890.1234567890123456789"),
+				PrimaryPostingRef: "source-debit",
+			},
 			Postings: []Posting{{
 				Ref:             "source-debit",
 				BalanceRef:      snapshot.BalanceRef,
@@ -45,12 +51,25 @@ func TestRequestContractRoundTrip(t *testing.T) {
 	}
 	identifiers := []uuid.UUID{
 		got.OrganizationID, got.LedgerID, got.ExecutionID, got.Transactions[0].ID,
+		got.Transactions[0].AccountBlockException.ExceptionID,
 		got.Balances[0].ID, got.Balances[0].AccountID,
 	}
 	for i, identifier := range identifiers {
 		if identifier == uuid.Nil {
 			t.Errorf("identifier %d lost its UUID value", i)
 		}
+	}
+}
+
+func TestRequestContractOmitsAbsentAccountBlockException(t *testing.T) {
+	t.Parallel()
+
+	encoded, err := json.Marshal(Transaction{ID: uuid.MustParse("1a2cf884-cf82-4520-9833-07d85c73bc14")})
+	if err != nil {
+		t.Fatalf("marshal transaction: %v", err)
+	}
+	if string(encoded) != `{"id":"1a2cf884-cf82-4520-9833-07d85c73bc14","rejectBlockedBalances":false,"balanceRequirements":null,"postings":null}` {
+		t.Fatalf("absent account-block exception changed contract: %s", encoded)
 	}
 }
 
@@ -131,20 +150,21 @@ func TestFailureContract(t *testing.T) {
 	t.Parallel()
 
 	codes := map[string]string{
-		FailureInsufficientFunds:         "insufficient_funds",
-		FailureOverdraftLimitExceeded:    "overdraft_limit_exceeded",
-		FailureOverdraftNotEligible:      "overdraft_not_eligible",
-		FailureOverdraftCompanionMissing: "overdraft_companion_missing",
-		FailureBalanceDeleted:            "balance_deleted",
-		FailureAccountBlocked:            "account_blocked",
-		FailureOnHoldUnderflow:           "onhold_underflow",
-		FailureBalanceMissing:            "balance_missing",
-		FailureAssetMismatch:             "asset_mismatch",
-		FailureSendingNotAllowed:         "sending_not_allowed",
-		FailureReceivingNotAllowed:       "receiving_not_allowed",
-		FailureExternalHoldNotAllowed:    "external_hold_not_allowed",
+		FailureInsufficientFunds:            "insufficient_funds",
+		FailureOverdraftLimitExceeded:       "overdraft_limit_exceeded",
+		FailureOverdraftNotEligible:         "overdraft_not_eligible",
+		FailureOverdraftCompanionMissing:    "overdraft_companion_missing",
+		FailureBalanceDeleted:               "balance_deleted",
+		FailureAccountBlocked:               "account_blocked",
+		FailureOnHoldUnderflow:              "onhold_underflow",
+		FailureBalanceMissing:               "balance_missing",
+		FailureAssetMismatch:                "asset_mismatch",
+		FailureSendingNotAllowed:            "sending_not_allowed",
+		FailureReceivingNotAllowed:          "receiving_not_allowed",
+		FailureExternalHoldNotAllowed:       "external_hold_not_allowed",
+		FailureAccountBlockExceptionInvalid: "account_block_exception_invalid",
 	}
-	if len(codes) != 12 {
+	if len(codes) != 13 {
 		t.Fatal("failure codes must remain distinct")
 	}
 	for code, want := range codes {

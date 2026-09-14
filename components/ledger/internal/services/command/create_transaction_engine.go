@@ -86,11 +86,15 @@ func (uc *UseCase) executeCreateEngine(
 		guard:    ExecutionGuard{TransactionID: run.transactionID, ExpectedToken: "", NextToken: nextToken},
 	}
 
+	recordEngineAccountBlockExceptionPresented(span, run.accountBlockExceptionGrant != nil)
+
 	engineState, err := uc.prepareCreateEngineExecution(ctx, run)
 	if err != nil {
 		uc.rollbackCreateClaim(ctx, run)
 		return nil, err
 	}
+
+	recordEngineAccountBlockExceptionBypass(span, engineState.transaction.AccountBlockException)
 
 	prepared, err := uc.buildCreateEngineExecution(run, frozen, engineState)
 	if err != nil {
@@ -182,6 +186,7 @@ func (uc *UseCase) prepareCreateEngineExecution(ctx context.Context, run *create
 			TransactionID: run.transactionID, Action: run.action, TransactionStatus: run.status,
 			RouteValidationEnabled: run.ledgerSettings.Accounting.ValidateRoutes,
 			TransactionInput:       run.input, Validate: run.validate,
+			AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
 		},
 	})
 }
@@ -298,9 +303,23 @@ func confirmedPrecommitEngineFailure(request accounting.Execution, err error) bo
 			accounting.FailureAssetMismatch,
 			accounting.FailureSendingNotAllowed,
 			accounting.FailureReceivingNotAllowed,
-			accounting.FailureExternalHoldNotAllowed:
+			accounting.FailureExternalHoldNotAllowed,
+			accounting.FailureAccountBlockExceptionInvalid:
 		default:
 			return false
+		}
+
+		if failure.Code == accounting.FailureAccountBlockExceptionInvalid {
+			if failure.PostingIndex < 0 || failure.TransactionIndex < 0 || failure.TransactionIndex >= len(request.Transactions) {
+				return false
+			}
+
+			engineTransaction := request.Transactions[failure.TransactionIndex]
+			posting, valid := engineFailurePosting(request, failure)
+
+			return valid && engineTransaction.AccountBlockException != nil &&
+				posting.Ref == engineTransaction.AccountBlockException.PrimaryPostingRef &&
+				posting.BalanceRef == failure.BalanceRef
 		}
 
 		if failure.PostingIndex == -1 {

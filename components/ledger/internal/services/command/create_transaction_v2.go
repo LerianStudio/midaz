@@ -234,9 +234,10 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 
 	run.action = mtransaction.StatusToAction(run.status)
 
-	// Account-block exception: read the presented grant before balances are
-	// staged, so the Go pre-validation inside ProcessBalanceOperations can honor
-	// it. An identifier with no live key rejects here, before any balance moves.
+	// Account-block exception: read the presented grant before accounting
+	// preparation. Go uses it only for static posting binding; the engine re-reads
+	// the live key and authoritatively validates and consumes it with the monetary
+	// mutation. An identifier with no live key rejects before either balance path.
 	run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(ctx, span, logger,
 		run.organizationID, run.ledgerID, in.AccountBlockExceptionID)
 	if err != nil {
@@ -245,10 +246,9 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 		return nil, false, err
 	}
 
-	// Keep exception-bearing requests on the compatibility path until the engine
-	// can validate and consume the single-use grant in the same atomic operation
-	// that applies the balances.
-	if uc.Engine != nil && run.status != constant.NOTED && run.accountBlockExceptionGrant == nil {
+	// NOTED remains on the non-monetary compatibility path. Every executable v2
+	// create uses the engine, including a request that presents a grant.
+	if uc.Engine != nil && run.status != constant.NOTED {
 		tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, true)
 		return tran, false, err
 	}

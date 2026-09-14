@@ -152,7 +152,7 @@ func executionOutcome(err error) (string, string) {
 			accounting.FailureAccountBlocked,
 			accounting.FailureBalanceMissing, accounting.FailureAssetMismatch,
 			accounting.FailureSendingNotAllowed, accounting.FailureReceivingNotAllowed,
-			accounting.FailureExternalHoldNotAllowed:
+			accounting.FailureExternalHoldNotAllowed, accounting.FailureAccountBlockExceptionInvalid:
 			return "refused", refusal.Code
 		}
 	}

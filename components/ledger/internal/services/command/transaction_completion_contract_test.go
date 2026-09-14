@@ -345,6 +345,37 @@ func TestEngineCompletionPlanRecordFingerprint(t *testing.T) {
 	withRequirement, err := ComputeEngineIntentFingerprint(withRequirementIntent)
 	require.NoError(t, err)
 	assert.NotEqual(t, before, withRequirement, "live balance requirements are immutable execution intent")
+
+	withoutGrant := recoveryContractIntent(payload)
+	withoutGrant.Transactions[0].AccountBlockExceptionID = nil
+	withoutGrantFingerprint, err := ComputeEngineIntentFingerprint(withoutGrant)
+	require.NoError(t, err)
+	withoutGrantJSON, err := json.Marshal(withoutGrant)
+	require.NoError(t, err)
+	assert.NotContains(t, string(withoutGrantJSON), "accountBlockExceptionId")
+
+	withGrant := withoutGrant
+	withGrant.Transactions = append([]EngineTransactionIntent(nil), withoutGrant.Transactions...)
+	exceptionID := uuid.MustParse("6e0ebc70-6039-4edf-b039-4bb5d85afafe")
+	withGrant.Transactions[0].AccountBlockExceptionID = &exceptionID
+	withGrantFingerprint, err := ComputeEngineIntentFingerprint(withGrant)
+	require.NoError(t, err)
+	assert.NotEqual(t, withoutGrantFingerprint, withGrantFingerprint)
+
+	otherGrant := withGrant
+	otherGrant.Transactions = append([]EngineTransactionIntent(nil), withGrant.Transactions...)
+	otherExceptionID := uuid.MustParse("1935edb9-c953-4f87-bea4-c98f57dff8b4")
+	otherGrant.Transactions[0].AccountBlockExceptionID = &otherExceptionID
+	otherGrantFingerprint, err := ComputeEngineIntentFingerprint(otherGrant)
+	require.NoError(t, err)
+	assert.NotEqual(t, withGrantFingerprint, otherGrantFingerprint)
+
+	zeroGrant := withGrant
+	zeroGrant.Transactions = append([]EngineTransactionIntent(nil), withGrant.Transactions...)
+	zeroExceptionID := uuid.Nil
+	zeroGrant.Transactions[0].AccountBlockExceptionID = &zeroExceptionID
+	_, err = ComputeEngineIntentFingerprint(zeroGrant)
+	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 	for _, scenario := range []struct {
 		name   string
 		mutate func(*TransactionCompletionPlan)

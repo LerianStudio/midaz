@@ -162,12 +162,16 @@ func TestRevertTransactionV2_NeverTouchesOriginReservation(t *testing.T) {
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{uuid.New()}}}
 
 	uc := newRevertUseCase(t, reader)
+	engine := &scriptedEngine{}
+	uc.Engine = engine
+	uc.AppliedTransactionCompleter = &createAppliedTransactionCompleter{}
 	uc.TracerReserver = reserver
 
 	_, _, err := uc.RevertTransactionV2(context.Background(), revertInput())
 
 	require.ErrorIs(t, err, errBalancesUnavailable, "the /v2 revert must reach the balance read")
 	assert.Equal(t, 0, reserver.reserveCalls, "the reserve anchor sits after the balance staging, which failed here")
+	assert.Empty(t, engine.requests, "the failed balance read must stop before engine execution")
 
 	assert.Empty(t, reserver.releasedIDs, "a revert must never release the origin's reservation")
 	assert.Empty(t, reserver.confirmedIDs, "a revert must never confirm the origin's reservation")

@@ -27,10 +27,14 @@ import (
 type grantCompensationMetrics struct {
 	// resolvePos is the statement index of the resolver call (-1 if absent).
 	resolvePos int
-	// stageBalancesPos is the statement index of the balance staging step (-1),
-	// which is what the resolve has to precede: staging seeds the backup queue,
-	// and unwinding after it needs the other compensation.
+	// stageBalancesPos is the statement index of an optional legacy balance staging
+	// step (-1 when the pipeline is engine-only). When present, the resolve has to
+	// precede it: staging seeds the backup queue, and unwinding after it needs the
+	// other compensation.
 	stageBalancesPos int
+	// enginePos is the statement index of the engine call. The grant must be
+	// resolved before accounting execution begins.
+	enginePos int
 	// compensates is true when the branch guarding the resolve releases the
 	// idempotency claim.
 	compensates bool
@@ -45,7 +49,7 @@ func analyzeGrantCompensation(t *testing.T, src, funcName string) grantCompensat
 
 	fn := findFuncDecl(t, src, funcName)
 
-	m := grantCompensationMetrics{resolvePos: -1, stageBalancesPos: -1}
+	m := grantCompensationMetrics{resolvePos: -1, stageBalancesPos: -1, enginePos: -1}
 
 	for i, stmt := range fn.Body.List {
 		if m.resolvePos == -1 && stmtCallsMethod(stmt, grantResolverName) {
@@ -54,6 +58,9 @@ func analyzeGrantCompensation(t *testing.T, src, funcName string) grantCompensat
 
 		if m.stageBalancesPos == -1 && stmtCallsMethod(stmt, "stageBalances") {
 			m.stageBalancesPos = i
+		}
+		if m.enginePos == -1 && stmtCallsMethod(stmt, "createTransactionWithEngine") {
+			m.enginePos = i
 		}
 
 		if m.resolvePos != -1 && i == m.resolvePos+1 {
@@ -69,8 +76,8 @@ func analyzeGrantCompensation(t *testing.T, src, funcName string) grantCompensat
 
 // TestAccountBlockExceptionGrant_CreateSideFailureCompensates asserts both
 // create-side pipelines release the idempotency claim and return when the grant
-// read fails, and that the read happens before the balance staging that would
-// otherwise leave a backup seed behind too.
+// read fails, and that the read happens before accounting execution. A pipeline
+// that still has a nonmonetary legacy path must also resolve before balance staging.
 func TestAccountBlockExceptionGrant_CreateSideFailureCompensates(t *testing.T) {
 	t.Parallel()
 
@@ -90,11 +97,15 @@ func TestAccountBlockExceptionGrant_CreateSideFailureCompensates(t *testing.T) {
 			m := analyzeGrantCompensation(t, src, tt.funcName)
 
 			require.NotEqualf(t, -1, m.resolvePos, "%s must call %s", tt.funcName, grantResolverName)
-			require.NotEqualf(t, -1, m.stageBalancesPos, "%s must call stageBalances", tt.funcName)
+			require.NotEqualf(t, -1, m.enginePos, "%s must call createTransactionWithEngine", tt.funcName)
 
-			assert.Lessf(t, m.resolvePos, m.stageBalancesPos,
-				"%s must read the grant BEFORE staging balances, so a failed read has only the "+
-					"idempotency claim to unwind and no backup seed", tt.funcName)
+			if m.stageBalancesPos != -1 {
+				assert.Lessf(t, m.resolvePos, m.stageBalancesPos,
+					"%s must read the grant BEFORE staging balances, so a failed read has only the "+
+						"idempotency claim to unwind and no backup seed", tt.funcName)
+			}
+			assert.Lessf(t, m.resolvePos, m.enginePos,
+				"%s must resolve the grant before engine execution", tt.funcName)
 
 			assert.Truef(t, m.compensates,
 				"%s must release the idempotency claim when the grant read fails, or the caller "+
@@ -104,6 +115,53 @@ func TestAccountBlockExceptionGrant_CreateSideFailureCompensates(t *testing.T) {
 					"the grant never authorized", tt.funcName)
 		})
 	}
+}
+
+func TestAccountBlockExceptionGrant_PendingFailureUnlocksBeforeEngine(t *testing.T) {
+	t.Parallel()
+
+	src := readTransportSource(t, "commit_transaction.go", "func (uc *UseCase) transitionPendingV2")
+	fn := findFuncDecl(t, src, "transitionPendingV2")
+	resolvePos, enginePos := -1, -1
+	unlocks, returns := false, false
+	for i, stmt := range fn.Body.List {
+		if resolvePos == -1 && stmtCallsMethod(stmt, grantResolverName) {
+			resolvePos = i
+			continue
+		}
+		if resolvePos != -1 && i == resolvePos+1 {
+			if ifStmt, ok := stmt.(*ast.IfStmt); ok {
+				unlocks = blockCallsFunction(ifStmt.Body, "unlock")
+				returns = blockEndsInReturn(ifStmt.Body)
+			}
+		}
+		if enginePos == -1 && stmtCallsMethod(stmt, "transitionPendingWithEngine") {
+			enginePos = i
+		}
+	}
+
+	require.NotEqual(t, -1, resolvePos)
+	require.NotEqual(t, -1, enginePos)
+	assert.Less(t, resolvePos, enginePos)
+	assert.True(t, unlocks)
+	assert.True(t, returns)
+}
+
+func blockCallsFunction(block *ast.BlockStmt, name string) bool {
+	found := false
+	ast.Inspect(block, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		function, ok := call.Fun.(*ast.Ident)
+		if ok && function.Name == name {
+			found = true
+		}
+		return true
+	})
+
+	return found
 }
 
 // TestAccountBlockExceptionGrant_CreateSideCompensationGateBites proves the
@@ -117,8 +175,11 @@ func (uc *UseCase) CreateTransactionV2() error {
 	if err != nil {
 		// BUG: neither releases the claim nor returns
 		_ = err
-	}
-	ctx, err = uc.stageBalances()
+		}
+		if uc.Engine != nil {
+			return uc.createTransactionWithEngine()
+		}
+		ctx, err = uc.stageBalances()
 	return nil
 }
 `

@@ -92,17 +92,61 @@ local function loadBalancePool(request)
     return pool, companions
 end
 
+-- validateAccountBlockExceptions authorizes a transaction-scoped primary
+-- outflow from the live single-use grant. It runs after receipt replay and live
+-- balance loading, but before any monetary calculation or Redis write. The
+-- primary balance and the engine-derived overdraft companion are the only live
+-- controls the grant exempts.
+local function validateAccountBlockExceptions(request, pool, companions)
+    local exemptions, grantKeys = {}, array()
+    for txIndex, transaction in ipairs(request.transactions) do
+        local grant = transaction.accountBlockException
+        if grant then
+            local posting = transaction.postings[grant.primaryPostingIndex]
+            local primary = pool[posting.balanceRef]
+            local key = KEYS[grant.keyIndex]
+            expectRedisType(key, "string")
+            local raw = redis.call("GET", key)
+            local valid, decoded = false, nil
+            if raw then
+                local decodedOK
+                decodedOK, decoded = pcall(cjson.decode, raw)
+                if decodedOK and type(decoded) == "table" and type(decoded.Alias) == "string" then
+                    local amountOK, amount = pcall(money, decoded.Amount)
+                    valid = amountOK and decoded.Alias == grant.alias and cmp_decimal(amount, grant.amount) == 0
+                end
+            end
+            if not valid then
+                refuse("account_block_exception_invalid", txIndex - 1, grant.primaryPostingIndex - 1, posting.balanceRef)
+            end
+
+            local exempt = { [primary.current.balanceRef] = true }
+            local companion = companions[primary.current.accountId]
+            if companion then exempt[companion.current.balanceRef] = true end
+            exemptions[txIndex] = exempt
+            grantKeys[#grantKeys + 1] = key
+        end
+    end
+
+    return exemptions, grantKeys
+end
+
+local function blockedByLiveControl(rejectBlockedBalances, item, exemptions)
+    return rejectBlockedBalances and item.current.blocked and not (exemptions and exemptions[item.current.balanceRef])
+end
+
 -- validateLiveBalanceAvailability rejects every requirement or posting that
 -- targets a balance protected by either deletion marker, or by the live
 -- account-block control when the lifecycle action requires it. These checks use
 -- live Redis state inside the same atomic execution as the eventual mutation.
-local function validateLiveBalanceAvailability(request, pool)
+local function validateLiveBalanceAvailability(request, pool, exemptions)
     for txIndex, transaction in ipairs(request.transactions) do
+        local exempt = exemptions[txIndex]
         for _, requirement in ipairs(transaction.balanceRequirements) do
             if pool[requirement.balanceRef].deleted then
                 refuse("balance_deleted", txIndex - 1, -1, requirement.balanceRef)
             end
-            if transaction.rejectBlockedBalances and pool[requirement.balanceRef].current.blocked then
+            if blockedByLiveControl(transaction.rejectBlockedBalances, pool[requirement.balanceRef], exempt) then
                 refuse("account_blocked", txIndex - 1, -1, requirement.balanceRef)
             end
         end
@@ -110,7 +154,7 @@ local function validateLiveBalanceAvailability(request, pool)
             if pool[posting.balanceRef].deleted then
                 refuse("balance_deleted", txIndex - 1, postingIndex - 1, posting.balanceRef)
             end
-            if transaction.rejectBlockedBalances and pool[posting.balanceRef].current.blocked then
+            if blockedByLiveControl(transaction.rejectBlockedBalances, pool[posting.balanceRef], exempt) then
                 refuse("account_blocked", txIndex - 1, postingIndex - 1, posting.balanceRef)
             end
         end
@@ -120,19 +164,20 @@ end
 -- applyTransactionsInMemory evaluates ordered transactions against a shared
 -- working pool without issuing Redis writes. Later transactions observe state
 -- produced by earlier transactions in the same execution.
-local function applyTransactionsInMemory(request, pool, companions)
+local function applyTransactionsInMemory(request, pool, companions, exemptions)
     local movements, touched, touchedSet, transactionResults = array(), {}, {}, {}
     -- touch repeats deletion and account-block protection at the exact mutation
     -- site, including companion movements generated internally rather than
     -- declared as postings.
-    local function touch(item, txIndex, postingIndex, rejectBlockedBalances)
+    local function touch(item, txIndex, postingIndex, rejectBlockedBalances, exempt)
         if item.deleted then refuse("balance_deleted", txIndex, postingIndex, item.current.balanceRef) end
-        if rejectBlockedBalances and item.current.blocked then
+        if blockedByLiveControl(rejectBlockedBalances, item, exempt) then
             refuse("account_blocked", txIndex, postingIndex, item.current.balanceRef)
         end
     end
 
     for txIndex, transaction in ipairs(request.transactions) do
+        local exempt = exemptions[txIndex]
         local txMovements, txTouched, txTouchedSet = array(), {}, {}
         -- record materializes one real state transition. No-op calculations do
         -- not create movements or versions; changed balances advance exactly once
@@ -160,7 +205,7 @@ local function applyTransactionsInMemory(request, pool, companions)
             if current.assetCode ~= requirement.assetCode then
                 refuse("asset_mismatch", txIndex - 1, -1, requirement.balanceRef)
             end
-            if requirement.permission == "send" and not current.allowSending then
+            if requirement.permission == "send" and not current.allowSending and not (exempt and exempt[requirement.balanceRef]) then
                 refuse("sending_not_allowed", txIndex - 1, -1, requirement.balanceRef)
             end
             if requirement.permission == "receive" and not current.allowReceiving then
@@ -174,7 +219,7 @@ local function applyTransactionsInMemory(request, pool, companions)
         -- repaid by that primary transition.
         for postingIndex, posting in ipairs(transaction.postings) do
             local item = pool[posting.balanceRef]
-            touch(item, txIndex - 1, postingIndex - 1, transaction.rejectBlockedBalances)
+            touch(item, txIndex - 1, postingIndex - 1, transaction.rejectBlockedBalances, exempt)
             local current, nextState = item.current, clone(item.current)
             local external = current.accountType == "external"
             local amount = posting.amount
@@ -208,7 +253,7 @@ local function applyTransactionsInMemory(request, pool, companions)
                 if companion == item or companion.current.direction ~= "debit" or companion.current.balanceScope ~= "internal" or companion.current.accountType == "external" or companion.current.assetCode ~= current.assetCode then
                     technical("invalid_companion", "invalid overdraft companion")
                 end
-                touch(companion, txIndex - 1, postingIndex - 1, transaction.rejectBlockedBalances)
+                touch(companion, txIndex - 1, postingIndex - 1, transaction.rejectBlockedBalances, exempt)
                 companionNext = clone(companion.current)
                 if cmp_decimal(delta, "0") > 0 then
                     companionAmount, companionType = delta, "debit"
@@ -314,7 +359,7 @@ end
 -- commitPreparedExecution is the only money-changing publication phase. Every
 -- argument has already been validated and serialized. Once commitStarted is set,
 -- any unexpected failure is indeterminate because Redis does not roll writes back.
-local function commitPreparedExecution(request, protectionKey, preparedBalances, preparedRecoverRecords, preparedProtection, receipt)
+local function commitPreparedExecution(request, protectionKey, preparedBalances, preparedRecoverRecords, preparedProtection, grantKeys, receipt)
     local now = redis.call("TIME")
     local score = tonumber(now[1]) + tonumber(now[2]) / 1000000
 
@@ -329,6 +374,7 @@ local function commitPreparedExecution(request, protectionKey, preparedBalances,
     for _, recoverRecord in ipairs(preparedRecoverRecords) do redis.call("HSET", KEYS[2], recoverRecord.field, recoverRecord.value) end
     for _, transaction in ipairs(request.transactions) do redis.call("HSET", KEYS[4], transaction.guardField, transaction.nextGuard) end
     for _, coordinator in ipairs(preparedProtection) do redis.call("HSET", protectionKey, coordinator.field, coordinator.value) end
+    for _, grantKey in ipairs(grantKeys) do redis.call("DEL", grantKey) end
     redis.call("HSET", KEYS[3], request.receiptField, receipt)
 end
 
@@ -339,16 +385,20 @@ local function execute(request, maximumPrepared)
     if replay then return replay end
 
     local pool, companions = loadBalancePool(request)
-    validateLiveBalanceAvailability(request, pool)
+    local exemptions, grantKeys = validateAccountBlockExceptions(request, pool, companions)
+    validateLiveBalanceAvailability(request, pool, exemptions)
 
-    local movements, touched, transactionResults = applyTransactionsInMemory(request, pool, companions)
+    local movements, touched, transactionResults = applyTransactionsInMemory(request, pool, companions, exemptions)
     local response, preparedBalances, preparedRecoverRecords, receipt = prepareExecutionWrites(
         request, maximumPrepared, preparedProtection, movements, touched, transactionResults
     )
-    if not preparedBalances then return response end
+    if not preparedBalances then
+        if #grantKeys > 0 then technical("invalid_protocol", "account-block exception execution has no movements") end
+        return response
+    end
 
     commitPreparedExecution(
-        request, protectionKey, preparedBalances, preparedRecoverRecords, preparedProtection, receipt
+        request, protectionKey, preparedBalances, preparedRecoverRecords, preparedProtection, grantKeys, receipt
     )
     return response
 end
