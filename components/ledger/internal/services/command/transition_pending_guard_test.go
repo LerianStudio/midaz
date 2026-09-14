@@ -170,9 +170,9 @@ func TestPendingTransition_BuildOperationsFailureKeepsLock(t *testing.T) {
 }
 
 // TestPendingTransition_StatusCASConflictRejects proves the durable backstop: on
-// the inline status flip the compare-and-set matches no PENDING row — another
-// transition already settled the transaction — and the request is answered 0511
-// instead of writing the second transition through.
+// the inline status flip the compare-and-set matches no PENDING row and the row
+// read back is already terminal — another transition settled the transaction — so
+// the request is answered 0511 instead of writing the second transition through.
 func TestPendingTransition_StatusCASConflictRejects(t *testing.T) {
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
 
@@ -194,6 +194,13 @@ func TestPendingTransition_StatusCASConflictRejects(t *testing.T) {
 	transactionRepo.EXPECT().
 		UpdateStatusFromPending(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, false, nil).Times(1)
+
+	// Zero rows alone does not say which transition lost: the row read back is
+	// what separates a settled transaction from one the async create has not
+	// inserted yet, and only the settled one is a conflict.
+	transactionRepo.EXPECT().
+		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&transaction.Transaction{ID: tran.ID, Status: transaction.Status{Code: constant.APPROVED}}, nil).Times(1)
 
 	// The generic Update keeps its PATCH semantics and is never the transition's
 	// path: a call here would mean the compare-and-set was bypassed.
