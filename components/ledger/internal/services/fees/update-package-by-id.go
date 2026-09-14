@@ -142,6 +142,14 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 		}
 	}
 
+	// A patch that moves the minimum is judged against the fees the package keeps: a
+	// deductible fee larger than the new minimum would leave the package accepting
+	// payments too small to charge it on. The fees this patch restates are validated
+	// below, against this same new minimum.
+	if errStoredFees := up.ValidateStoredFeesAgainstMinimum(feesAmountData.Fees); errStoredFees != nil {
+		return nil, nil, ownerLedgerID, errStoredFees
+	}
+
 	if !commons.IsNilOrEmpty(&up.FeeGroupLabel) {
 		setFields["fee_group_label"] = up.FeeGroupLabel
 	}
@@ -160,7 +168,12 @@ func (uc *UseCase) buildUpdateFields(ctx context.Context, logger libLog.Logger, 
 
 	// Update fee map
 	if up.Fee != nil {
-		errValidationFeesSet := uc.validationFeesSetUnset(ctx, feesAmountData.MinAmount, organizationID, feesAmountData.LedgerID, feesAmountData.Fees, up.Fee, setFields, unsetFields)
+		minAmount, errMinAmount := up.EffectiveMinimumAmount(feesAmountData.MinAmount)
+		if errMinAmount != nil {
+			return nil, nil, ownerLedgerID, errMinAmount
+		}
+
+		errValidationFeesSet := uc.validationFeesSetUnset(ctx, minAmount, organizationID, feesAmountData.LedgerID, feesAmountData.Fees, up.Fee, setFields, unsetFields)
 		if errValidationFeesSet != nil {
 			return nil, nil, ownerLedgerID, errValidationFeesSet
 		}

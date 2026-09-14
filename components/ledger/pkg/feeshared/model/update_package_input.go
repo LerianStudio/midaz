@@ -15,6 +15,7 @@ import (
 
 	"github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/google/uuid"
+	"github.com/iancoleman/strcase"
 	"github.com/shopspring/decimal"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -72,6 +73,64 @@ func (up *UpdatePackageInput) ValidateFees() error {
 	}
 
 	return nil
+}
+
+// EffectiveMinimumAmount returns the minimum the package carries once this update is
+// applied: the patched value when the patch sets one, otherwise the stored value. Fees
+// are measured against it rather than against the stored minimum, so a patch that
+// moves the minimum and restates a fee in one call is judged on where it lands.
+func (up *UpdatePackageInput) EffectiveMinimumAmount(storedMinAmount decimal.Decimal) (decimal.Decimal, error) {
+	if up.MinAmount == nil {
+		return storedMinAmount, nil
+	}
+
+	minAmount, err := parseAmountDecimal(*up.MinAmount)
+	if err != nil {
+		return storedMinAmount, pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "minimumAmount")
+	}
+
+	return minAmount, nil
+}
+
+// ValidateStoredFeesAgainstMinimum checks the fees the package already carries against
+// the minimum this patch sets. A deductible fee is taken out of the payment, so
+// lowering the minimum under one leaves the package accepting payments too small to
+// charge it on, which the create path refuses and until now the update path did not.
+// Fees whose amounts this patch restates are skipped: those are validated against the
+// same new minimum as they are applied.
+func (up *UpdatePackageInput) ValidateStoredFeesAgainstMinimum(storedFees map[string]Fee) error {
+	if up.MinAmount == nil {
+		return nil
+	}
+
+	for key, fee := range storedFees {
+		if fee.CalculationModel == nil || up.restatesCalculations(key) {
+			continue
+		}
+
+		if err := validateCalculationValues(fee.CalculationModel, *up.MinAmount, key, fee.GetIsDeductibleFrom()); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// restatesCalculations reports whether this patch replaces the amounts of the named
+// stored fee. Patch keys are matched the way the update applies them, by their lower
+// camel form, so a key that differs only in case is the same fee.
+func (up *UpdatePackageInput) restatesCalculations(storedKey string) bool {
+	for key, fee := range up.Fee {
+		if strcase.ToLowerCamel(key) != storedKey {
+			continue
+		}
+
+		if fee.CalculationModel != nil && len(fee.CalculationModel.Calculations) > 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ValidateMinAndMaxAmount Validating if minimum amount value is greater than maximum amount value
