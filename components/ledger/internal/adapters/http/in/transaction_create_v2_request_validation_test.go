@@ -634,8 +634,10 @@ var v2AliasPositions = []struct {
 // with digits followed by the separator" — see TestIsConcatedAlias. An alias submitted in that
 // shape therefore keeps the client's own spelling and reaches those maps unmutated, where it can
 // collide with another entry's key or match none of them. Either way an entry is lost, and a
-// transaction that loses one side's entry moves value in one direction only. The separator is the
-// whole vector, so rejecting that single character closes it.
+// transaction that loses one side's entry moves value in one direction only. The separator sits
+// outside the account alias charset, so the charset rule closes this shape as a consequence; this
+// sweep stays because the composite form is the reason the separator must never be admitted, and
+// a future widening of the charset has to answer it explicitly.
 func TestV2Alias_RejectsConcatMarkerOnEveryPosition(t *testing.T) {
 	t.Parallel()
 
@@ -663,15 +665,18 @@ func TestV2Alias_RejectsConcatMarkerOnEveryPosition(t *testing.T) {
 	}
 }
 
-// TestV2Alias_AcceptedAliasReachesTheLegUnchanged pins that the guard is the single forbidden
-// character and NOT the registered `invalidaliascharacters` charset. That charset also excludes
-// `/`, which would reject `@external/<ASSET>` — the alias every ledger's external account
-// carries, and the only way to spell funding or withdrawal on a surface that publishes no
-// inflow/outflow action.
+// TestV2Alias_AcceptedAliasReachesTheLegUnchanged pins the two shapes an account can carry: the
+// registered alias charset, and the external virtual account. The charset alone excludes the
+// slash and would reject @external/ASSET, the alias every ledger's external account carries and
+// the only way to spell funding or withdrawal on a surface that publishes no inflow or outflow
+// action, so the external shape is an explicit second arm rather than a widened charset.
+//
+// These rows are what a rule tightened too far fails on, which is the other half of the guard:
+// refusing an alias no account can carry must not cost the aliases every account does carry.
 func TestV2Alias_AcceptedAliasReachesTheLegUnchanged(t *testing.T) {
 	t.Parallel()
 
-	accepted := []string{"@external/USD", "@alice"}
+	accepted := []string{"@external/USD", "@alice", "payer", "acc:01", "@external/BRL", "@merchant"}
 
 	for _, position := range v2AliasPositions {
 		for _, alias := range accepted {
@@ -793,5 +798,53 @@ func TestTransactionV2LegRequest_ValueExpressionErrorNamesTheLeg(t *testing.T) {
 			assert.Contains(t, vErr.Message, "'amount' or 'share'",
 				"the rejection must name the two expressions a v2 leg accepts")
 		})
+	}
+}
+
+// TestV2Alias_RefusesSpellingNoAccountCanCarry sweeps the alias spellings an account can never
+// carry across both leg positions.
+//
+// An account alias is registered under constant.AccountAliasAcceptedChars, and the ONE shape
+// outside it is the external virtual account, constant.DefaultExternalAccountAliasPrefix followed
+// by an asset code. Anything else names no account that can exist, so it has no business reaching
+// the funnel or the fee engine.
+//
+// The rows carrying the arrow are the reason the rule is not merely tidy. The fee engine builds
+// its internal leg keys with an arrow and cuts a leg alias at the first one, so a caller leg
+// aliased dst->ops posts to the account dst, and a leg aliased @payer->fee0-> names a movement
+// the engine itself mints.
+func TestV2Alias_RefusesSpellingNoAccountCanCarry(t *testing.T) {
+	t.Parallel()
+
+	refused := []struct {
+		alias string
+		why   string
+	}{
+		{"dst->ops", "the fee engine cuts a leg alias at the first arrow, so this would post to the account dst"},
+		{"@payer->fee0->", "spells a movement the fee engine itself mints"},
+		{"dst ops", "a space is outside the registered account alias charset"},
+		{"dst/ops", "a slash is outside the charset and this is not the external account shape"},
+		{"@external/", "the external shape with no asset code names no account"},
+		{"@external/brl", "an asset code is uppercase, so no account carries this alias"},
+		{"@external/BRL1", "an asset code carries no digits, so no account carries this alias"},
+		{"a_b-c.", "a dot is outside the registered account alias charset"},
+		{"dst#1", "the composite separator, refused before this rule and still refused by it"},
+	}
+
+	for _, position := range v2AliasPositions {
+		for _, row := range refused {
+			t.Run(position.name+" "+row.alias, func(t *testing.T) {
+				t.Parallel()
+
+				got, _, err := position.build(row.alias).Translate(false)
+				require.Errorf(t, err, "alias %q must be refused on the %s position: %s",
+					row.alias, position.name, row.why)
+
+				var vErr pkg.ValidationError
+				require.ErrorAs(t, err, &vErr, "an alias no account can carry is a request-shape error (400)")
+				assert.Equal(t, constant.ErrAccountAliasInvalid.Error(), vErr.Code)
+				assert.True(t, got.IsEmpty(), "the error path must not leak a populated transaction")
+			})
+		}
 	}
 }
