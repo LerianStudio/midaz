@@ -5,6 +5,7 @@
 package in
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // CreateTransactionV2Request is the request payload for the Transaction API v2. It
@@ -111,7 +113,12 @@ type CreateTransactionV2Request struct {
 type TransactionV2LegRequest struct {
 	// Alias is the leg's account alias. The obligation is enforced BOTH by this tag and by
 	// an imperative check in Translate; see buildLeg for why the two are complementary.
-	Alias string `json:"alias" validate:"required"`
+	//
+	// The accepted SPELLINGS are enforced by validateV2Alias rather than by a tag, because the
+	// fee routes decode through a second validator instance that panics on a tag it does not
+	// know. The doc tag publishes the rule so a client reads it instead of discovering it by
+	// rejection.
+	Alias string `json:"alias" validate:"required" example:"@person1" doc:"The leg's account alias. Accepts letters, digits and the characters @ : _ and -, or an external account alias spelled @external/ followed by the uppercase asset code. Any other spelling is refused with 400 before the transaction is calculated."`
 
 	// Description is the leg's own operation description, persisted on the operation this leg
 	// produces. A leg that omits it produces an operation carrying the TRANSACTION-level
@@ -219,29 +226,45 @@ func (l TransactionV2LegRequest) scope() TransactionV2Scope {
 	return TransactionV2Scope{OrganizationID: l.OrganizationID, LedgerID: l.LedgerID}
 }
 
-// validateV2Alias rejects a v2 account alias carrying AliasSeparator. Every alias the v2 surface
-// accepts routes through here — both leg arrays — so no leg can reach the funnel with an alias
-// that can be forged onto another entry's map key.
+// accountAliasCharset is the registered account alias charset, compiled once at package level
+// because validateV2Alias runs per leg and a 500-leg body would otherwise recompile it 500 times.
+var accountAliasCharset = regexp.MustCompile(constant.AccountAliasAcceptedChars)
+
+// validateV2Alias refuses a v2 account alias that no account can carry. Every alias the v2 surface
+// accepts routes through here, both leg arrays and the fee estimate, so no leg reaches the funnel
+// or the fee engine spelled as something the ledger can never resolve.
 //
-// An alias is rewritten into a composite separator-joined form before downstream code keys its
-// per-entry maps on it, and isConcatedAlias leaves an alias that already looks composite spelled
-// exactly as the client sent it. A client-supplied composite alias therefore reaches those maps
-// unmutated, where it can collide with another entry's key or match none of them — either way an
-// entry is lost, and a transaction that loses one side's entry moves value in one direction only.
+// An alias an account CAN carry is one of exactly two shapes. The first is the registered charset,
+// AccountAliasAcceptedChars, which is what the account create route enforces on every alias it
+// stores. The second is the external virtual account, DefaultExternalAccountAliasPrefix followed
+// by an asset code, which sits outside that charset because of its slash and is the only way to
+// spell funding or withdrawal on a surface that publishes no inflow or outflow action.
 //
-// The rejected character is AliasSeparator because that is what the composite form is built and
-// parsed with; naming the constant is what keeps this guard and that format from drifting apart.
+// The asset half reuses utils.ValidateCode, the ledger's own asset-code rule, rather than
+// restating it: an asset is created only after that rule passes, so reusing it is what keeps this
+// guard from refusing an external alias the ledger would happily resolve, or admitting one it
+// never could. ValidateCode returns nil on an empty string, which the asset create route answers
+// with its own required tag, so the non-empty obligation is spelled here.
 //
-// The narrow guard is deliberate: the registered alias charset would close this too, but it also
-// excludes `/` and would therefore reject `@external/<ASSET>`, the alias every ledger's external
-// account carries and the only way to spell funding or withdrawal on a surface with no
-// inflow/outflow action.
+// Two classes of damage sit behind the refusal. The fee engine builds its internal leg keys with
+// an arrow and cuts a leg alias at the first one, so a caller leg aliased dst->ops posts to the
+// account dst while the body reads as naming something else. Separately, an alias is rewritten
+// into a composite separator-joined form before downstream code keys its per-entry maps on it,
+// and an alias already spelled in that shape reaches those maps unmutated, where it collides with
+// another entry's key or matches none of them; either way an entry is lost, and a transaction
+// that loses one side's entry moves value in one direction only. The separator is outside the
+// charset, so that older rule is now a consequence of this one rather than a second code path.
 func validateV2Alias(alias string) error {
-	if strings.ContainsRune(alias, mtransaction.AliasSeparator) {
-		return pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, constant.EntityTransaction)
+	if accountAliasCharset.MatchString(alias) {
+		return nil
 	}
 
-	return nil
+	if code, isExternal := strings.CutPrefix(alias, constant.DefaultExternalAccountAliasPrefix); isExternal &&
+		code != "" && utils.ValidateCode(code) == nil {
+		return nil
+	}
+
+	return pkg.ValidateBusinessError(constant.ErrAccountAliasInvalid, constant.EntityTransaction)
 }
 
 // Translate converts the flat v2 request into the canonical Transaction and TransactionV2Scope the
@@ -498,7 +521,7 @@ func legReference(fieldName string, i int) string {
 }
 
 // buildLeg maps one array entry onto a canonical leg. The entry must name an alias, that alias
-// must be free of AliasSeparator, and exactly one of the two value expressions must be filled.
+// must be one an account can carry, and exactly one of the two value expressions must be filled.
 // legRef is the indexed reference to the entry, which the rejections carry so a caller can locate
 // it.
 //

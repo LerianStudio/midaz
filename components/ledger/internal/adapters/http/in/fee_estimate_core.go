@@ -51,6 +51,12 @@ func (handler *FeeHandler) estimateFeeCalculation(ctx context.Context, organizat
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 	)
 
+	if errAlias := validateEstimateLegAliases(payload); errAlias != nil {
+		handleSpanByErrorClass(span, "Failed to estimate fee calculation", errAlias)
+
+		return model.FeeEstimateResponse{}, errAlias
+	}
+
 	feeCalculate, errCreateFee := handler.Service.EstimateFeeCalculation(ctx, payload, organizationID, ledgerID)
 	if errCreateFee != nil {
 		handleSpanByErrorClass(span, "Failed to estimate fee calculation", errCreateFee)
@@ -73,4 +79,43 @@ func (handler *FeeHandler) estimateFeeCalculation(ctx context.Context, organizat
 		Message:     "Successfully estimated fee.",
 		FeesApplied: feeCalculate,
 	}, nil
+}
+
+// validateEstimateLegAliases refuses an estimate whose legs name an alias no account can carry,
+// before the fee engine prices anything. An estimate is a price quoted for the accounts the body
+// names, so quoting one against an alias the ledger can never resolve tells the caller what a
+// transaction would cost while hiding that the transaction cannot exist. It is the create-side
+// defect one step earlier, so it answers to the same rule, called rather than restated.
+//
+// One limit is deliberate: an empty alias is left alone, because a leg naming no account at all
+// is a different obligation with a different owner, and answering it here would add a rejection
+// this rule was not asked for.
+//
+// This guard judges the alias the CALLER submitted. The fee decode path used to strip every
+// character outside its own allow-list first, which kept the slash and the backslash but removed
+// the colon, the angle bracket and the hash; a leg spelled dst->ops therefore arrived as dst-ops
+// and slipped past a rule its real spelling fails. That rewriting is gone, so what this function
+// reads is what the body carried.
+func validateEstimateLegAliases(payload *model.FeeEstimate) error {
+	for _, leg := range payload.Transaction.Send.Source.From {
+		if leg.AccountAlias == "" {
+			continue
+		}
+
+		if err := validateV2Alias(leg.AccountAlias); err != nil {
+			return err
+		}
+	}
+
+	for _, leg := range payload.Transaction.Send.Distribute.To {
+		if leg.AccountAlias == "" {
+			continue
+		}
+
+		if err := validateV2Alias(leg.AccountAlias); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
