@@ -3393,6 +3393,7 @@ components:
           type: string
         metadata:
           additionalProperties: {}
+          description: "Additional custom attributes. The ledger reserves the feeLeg key on this field and writes it itself: feeLeg is the string true on every operation the fee engine created, and never appears on an operation the caller authored, because a request body that carries the key is refused rather than silently stripped. So a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Caller-supplied keys on an operation are returned as sent on a transaction no fee package was applied to; once a package is applied the engine rebuilds every movement of both sides, including when it prices the transaction at zero because every account is exempt, and the rebuilt movements carry only the ledger keys, so do not rely on a per-movement caller reference surviving a payment a fee package was applied to."
           type: object
         organizationId:
           examples:
@@ -4315,6 +4316,7 @@ components:
           type: string
         metadata:
           additionalProperties: {}
+          description: "Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is an object carrying exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
           type: object
         operations:
           items:
@@ -4713,6 +4715,9 @@ components:
       description: "One leg of a transaction side. Fill EXACTLY ONE value expression per leg: `amount` for an explicit value, or `share` for a percentage of the transaction total. A leg carrying both, or neither, is rejected."
       properties:
         alias:
+          description: "The leg's account alias. Accepts letters, digits and the characters @ : _ and -, or an external account alias spelled @external/ followed by the uppercase asset code. Any other spelling is refused with 400 before the transaction is calculated."
+          examples:
+            - "@person1"
           type: string
         amount:
           type: string
