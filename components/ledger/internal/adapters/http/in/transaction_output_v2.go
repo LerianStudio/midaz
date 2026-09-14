@@ -104,23 +104,22 @@ type TransactionV2 struct {
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Additional custom attributes. Three fee keys are WRITTEN by the ledger here and
+	// Additional custom attributes. Three fee keys are written by the ledger here and
 	// documented on the published field so a client never has to read ledger source to
 	// recognise them; the doc tag, not this comment, is what the OpenAPI generator publishes.
 	//
-	// Written is not reserved, and the published sentence says so. IsReservedMetadataKey answers
-	// only feeLeg, which lives on operation metadata; a request body carrying one of these
-	// three is accepted and stored verbatim. Reserving them would 400 an existing client that
-	// already sends one, which is a shipped-contract break and a product decision, so the
-	// contract states the weaker guarantee the ledger actually keeps rather than the stronger
-	// one a reader would otherwise assume.
+	// All three are reserved, so what a client reads here is the ledger's own word about the
+	// charge. IsReservedMetadataKey answers all four fee keys, and the guard runs on every body
+	// that carries transaction metadata, the creates and the metadata update alike. Refusing
+	// beats stripping for the same reason it does on the operation mark: a stripped key looks
+	// identical on the wire to a stored one.
 	//
 	// packageAppliedID is published under the condition the ledger actually writes it under,
 	// which is narrower than package selection: a package whose amount bounds exclude the
 	// transaction IS selected and writes no key at all, so a client treating an absent key as
 	// no package configured would read a configured route as an unconfigured one.
 	// example: {"purpose": "Monthly payment", "category": "Utility"}
-	Metadata map[string]any `json:"metadata,omitempty" doc:"Additional custom attributes. The ledger writes three fee keys on this field itself: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is an object carrying exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched. These three keys are written by the ledger but are NOT reserved from callers: a request body carrying one is accepted and stored as sent, so do not read them as proof the ledger wrote them on a transaction you supplied them on. The one reserved fee key is feeLeg, on operation metadata, and it is the only one a request body is refused for. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."`
+	Metadata map[string]any `json:"metadata,omitempty" doc:"Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is an object carrying exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on a create and on a metadata update alike, so a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."`
 
 	// List of operations associated with this transaction
 	Operations []*OperationV2 `json:"operations"`

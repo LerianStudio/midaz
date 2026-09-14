@@ -431,12 +431,12 @@ func TestV2MetadataContractMakesNoFalseClaim(t *testing.T) {
 				"whenever a package was selected": "the key is written only when a fee was " +
 					"charged or an exemption was recorded; a package excluded by its amount " +
 					"bounds is selected and writes nothing",
-				"reserves three fee keys": "IsReservedMetadataKey answers feeLeg alone, so a " +
-					"request body carrying feeApplied, packageAppliedID or feeExemption is " +
-					"accepted and stored as sent; publishing them as reserved would tell a " +
-					"client the ledger guards a key it does not guard",
+				"NOT reserved": "IsReservedMetadataKey answers all three transaction-level fee " +
+					"keys, so a request body carrying feeApplied, packageAppliedID or " +
+					"feeExemption is refused; publishing them as unreserved would tell a client " +
+					"a value it reads here might be one it supplied itself",
 			},
-			required: []string{"NOT reserved"},
+			required: []string{"reserves all three", "refused with 400"},
 		},
 	}
 
