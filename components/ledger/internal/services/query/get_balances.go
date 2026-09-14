@@ -308,6 +308,13 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 // Only the monetary fields are taken from the operation; identity, flags and settings
 // stay as the row has them. A row at or ahead of the trail is left untouched: a
 // completion or recovery that landed after the last operation is not a fork.
+//
+// Residual window: the trail is written after the engine runs, by the completer or by
+// recovery. If the process stalls between the two and the cached balance is evicted in
+// that same instant, the mark is one version behind the live state and the seed is
+// rebuilt one version short. That window is narrow, it heals when recovery persists the
+// operation, and it leaves the seed no worse than the pre-guard behavior, which used the
+// stale row unconditionally.
 func (uc *UseCase) rebuildStaleBalanceSeeds(
 	ctx context.Context,
 	span trace.Span,
@@ -358,6 +365,11 @@ func (uc *UseCase) rebuildStaleBalanceSeeds(
 			continue
 		}
 
+		// A mark with no after-version is a row behind a trail that cannot be rebuilt
+		// from, which applyBalanceHighWaterMark refuses (0513) — deliberately, and not
+		// the same case as having no mark at all, which passes through. The schema keeps
+		// the column NOT NULL, so this is a guard against a future shape, not a live one:
+		// do not turn it into a passthrough.
 		if hwm.BalanceAfter.Version != nil && *hwm.BalanceAfter.Version <= b.Version {
 			continue
 		}
@@ -399,19 +411,20 @@ func applyBalanceHighWaterMark(balance *mmodel.Balance, hwm *operation.Operation
 		return pkg.ValidateBusinessError(constant.ErrBalanceSeedRebuildInconsistent, constant.EntityBalance)
 	}
 
-	overdraftUsed, err := decimal.NewFromString(hwm.Snapshot.OverdraftUsedAfter)
-	if err != nil {
-		return pkg.ValidateBusinessError(constant.ErrBalanceSeedRebuildInconsistent, constant.EntityBalance)
-	}
-
 	balance.Available = *hwm.BalanceAfter.Available
 	balance.OnHold = *hwm.BalanceAfter.OnHold
 	balance.Version = *hwm.BalanceAfter.Version
 
 	// The overdraft companion's operations carry the DEFAULT balance's overdraft
 	// snapshot, mirrored onto them at write time, so that value describes another
-	// balance. The companion keeps what its own row holds.
+	// balance. The companion keeps what its own row holds — and never has to read the
+	// snapshot, so an unreadable one cannot fail a rebuild that would ignore it.
 	if balance.Key != constant.OverdraftBalanceKey {
+		overdraftUsed, err := decimal.NewFromString(hwm.Snapshot.OverdraftUsedAfter)
+		if err != nil {
+			return pkg.ValidateBusinessError(constant.ErrBalanceSeedRebuildInconsistent, constant.EntityBalance)
+		}
+
 		balance.OverdraftUsed = overdraftUsed
 	}
 
