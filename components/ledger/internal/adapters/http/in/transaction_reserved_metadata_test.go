@@ -28,8 +28,8 @@ const reservedMetadataJSON = `"metadata":{"` + constant.MetadataKeyFeeLeg + `":"
 //
 // Every body a caller can put operation metadata in is covered: the /v2 create, the /v1 create
 // (both the transaction envelope and an individual leg, which is the one that actually reaches an
-// operation) and the operation metadata update, which can add the mark to an operation the ledger
-// already wrote.
+// operation), the /v1 inflow and outflow bodies, and the operation metadata update, which can add
+// the mark to an operation the ledger already wrote.
 func TestReservedFeeMetadataKeyIsRefused(t *testing.T) {
 	t.Parallel()
 
@@ -39,6 +39,18 @@ func TestReservedFeeMetadataKeyIsRefused(t *testing.T) {
 			`"distribute":{"to":[{"accountAlias":"@dst","amount":{"asset":"BRL","value":"100"}}]}}`
 
 		return body + transactionMetadata + `}`
+	}
+
+	inflowBody := func(transactionMetadata string) string {
+		return `{"send":{"asset":"BRL","value":"100","distribute":{"to":[` +
+			`{"accountAlias":"@dst","amount":{"asset":"BRL","value":"100"}}]}}` +
+			transactionMetadata + `}`
+	}
+
+	outflowBody := func(transactionMetadata string) string {
+		return `{"send":{"asset":"BRL","value":"100","source":{"from":[` +
+			`{"accountAlias":"@src","amount":{"asset":"BRL","value":"100"}}]}}` +
+			transactionMetadata + `}`
 	}
 
 	v2Body := func(transactionMetadata string) string {
@@ -67,6 +79,16 @@ func TestReservedFeeMetadataKeyIsRefused(t *testing.T) {
 			name: "v1 create, transaction metadata",
 			body: v1Body(``, `,`+reservedMetadataJSON),
 			into: &CreateTransactionRequest{},
+		},
+		{
+			name: "v1 inflow, transaction metadata",
+			body: inflowBody(`,` + reservedMetadataJSON),
+			into: &CreateTransactionInflowRequestBody{},
+		},
+		{
+			name: "v1 outflow, transaction metadata",
+			body: outflowBody(`,` + reservedMetadataJSON),
+			into: &CreateTransactionOutflowRequestBody{},
 		},
 		{
 			name: "operation metadata update",
@@ -100,6 +122,18 @@ func TestReservedFeeMetadataKeyIsRefused(t *testing.T) {
 			name: "v1 create, ordinary leg metadata",
 			body: v1Body(`,"metadata":{"invoice":"INV-12345"}`, ``),
 			into: &CreateTransactionRequest{},
+		},
+		{
+			// The refused inflow and outflow rows above are only proof of the reserved-key rule
+			// if the same body without the reserved key is accepted, so each carries its twin.
+			name: "v1 inflow, ordinary caller metadata",
+			body: inflowBody(`,"metadata":{"invoice":"INV-12345"}`),
+			into: &CreateTransactionInflowRequestBody{},
+		},
+		{
+			name: "v1 outflow, ordinary caller metadata",
+			body: outflowBody(`,"metadata":{"invoice":"INV-12345"}`),
+			into: &CreateTransactionOutflowRequestBody{},
 		},
 		{
 			name: "operation metadata update, ordinary caller metadata",

@@ -144,6 +144,11 @@ func (r Rate) IsEmpty() bool {
 }
 
 // FromTo structure for marshaling/unmarshalling JSON.
+//
+// Metadata carries midaz custom go-playground rules (keymax, noreservedkey, nonested, valuemax).
+// A validator instance PANICS on a tag it does not know rather than failing the field, so any
+// instance that validates this struct must register all four. Both instances inside this
+// repository do; a service adopting this type brings the same obligation with it.
 type FromTo struct {
 	AccountAlias    string         `json:"accountAlias,omitempty" example:"@person1"`
 	BalanceKey      string         `json:"balanceKey,omitempty" example:"asset-freeze"`

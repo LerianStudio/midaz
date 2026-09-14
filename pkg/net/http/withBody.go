@@ -425,7 +425,6 @@ func validateMetadataNestedValues(fl validator.FieldLevel) bool {
 	return fl.Field().Kind() != reflect.Map
 }
 
-// validateMetadataKeyMaxLength checks if metadata key (always a string) length is allowed
 // validateMetadataKeyNotReserved rejects a metadata key the ledger reserves for its own
 // writes. It is a key-level rule, so it belongs between keys and endkeys on a metadata tag.
 //
@@ -434,11 +433,10 @@ func validateMetadataNestedValues(fl validator.FieldLevel) bool {
 // lie rather than a collision. Refusing beats stripping, because a stripped key looks
 // identical on the wire to a key that was stored.
 func validateMetadataKeyNotReserved(fl validator.FieldLevel) bool {
-	_, reserved := cn.ReservedMetadataKeys[fl.Field().String()]
-
-	return !reserved
+	return !cn.IsReservedMetadataKey(fl.Field().String())
 }
 
+// validateMetadataKeyMaxLength checks if metadata key (always a string) length is allowed
 func validateMetadataKeyMaxLength(fl validator.FieldLevel) bool {
 	limitParam := fl.Param()
 

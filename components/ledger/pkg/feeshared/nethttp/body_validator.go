@@ -263,16 +263,14 @@ func validateMetadataNestedValues(fl validator.FieldLevel) bool {
 	return fl.Field().Kind() != reflect.Map
 }
 
-// validateMetadataKeyMaxLength checks if metadata key (always a string) length is allowed
 // validateMetadataKeyNotReserved rejects a metadata key the ledger reserves for its own writes.
 // It mirrors the rule of the same name on the shared body validator: both instances validate the
 // canonical transaction, and a rule present on one and absent on the other panics this one.
 func validateMetadataKeyNotReserved(fl validator.FieldLevel) bool {
-	_, reserved := constant.ReservedMetadataKeys[fl.Field().String()]
-
-	return !reserved
+	return !constant.IsReservedMetadataKey(fl.Field().String())
 }
 
+// validateMetadataKeyMaxLength checks if metadata key (always a string) length is allowed
 func validateMetadataKeyMaxLength(fl validator.FieldLevel) bool {
 	limitParam := fl.Param()
 

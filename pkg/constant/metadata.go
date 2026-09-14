@@ -18,14 +18,19 @@ const MetadataKeyFeeLeg = "feeLeg"
 // type for both.
 const MetadataValueFeeLeg = "true"
 
-// ReservedMetadataKeys are the metadata keys the ledger writes itself and refuses from a caller.
+// IsReservedMetadataKey reports whether the ledger reserves a metadata key for its own writes.
 // A request body naming one is rejected with ErrReservedMetadataKey rather than stripped, because
 // a stripped key is indistinguishable on the wire from a key that was stored.
+//
+// It is a function rather than an exported map on purpose. A package-level map in a published
+// module is writable from every package that imports it, inside midaz and downstream, so one
+// stray delete would switch the refusal off on every route at once with nothing failing at build
+// time, and the published contract would silently stop being true.
 //
 // The set is deliberately narrow. A key earns a place here only once the ledger publishes it as
 // its own word about a record, which is what makes a caller-written copy a lie rather than a
 // collision; the transaction-level fee markers are not here, because they predate this rule and
 // removing them from an existing caller's body would break a shipped contract.
-var ReservedMetadataKeys = map[string]struct{}{
-	MetadataKeyFeeLeg: {},
+func IsReservedMetadataKey(key string) bool {
+	return key == MetadataKeyFeeLeg
 }
