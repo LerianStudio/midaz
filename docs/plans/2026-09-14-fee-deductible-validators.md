@@ -8,8 +8,8 @@ that rule differently, and one package update skipped it entirely.
 `components/ledger/internal/services/fees` (the update use case, where the stored package is
 already loaded). No schema change, no API shape change, no new error code.
 
-**Status:** both defects closed on `fix/fee-deductible-validators`, measured at
-`1e1181c477594de6d8a1e67f5fbbfde2ee4dddf9`.
+**Status:** both defects closed on `fix/fee-deductible-validators`, plus one review round,
+measured at `7bc74b1753a3b19d7d7875258dea3325e795fad7`.
 
 ## Phase overview
 
@@ -17,6 +17,7 @@ already loaded). No schema change, no API shape change, no new error code.
 |---|---|---|
 | P1 | A deductible percentage above 100 is refused whether or not the package declares a minimum | Complete, commit `c70f62af3` |
 | P2 | A package update is judged against the minimum it will carry, for the fees it keeps and the fees it restates | Complete, commit `1e1181c47` |
+| P3 | A fee the same patch settles does not block the minimum change | Complete, commit `7bc74b175`, from review |
 
 ## P1 - The percentage cap no longer waits for a minimum
 
@@ -83,6 +84,32 @@ have let the check above be evaded by restating the offending fee in the same ca
   of editing entirely.
 - The transaction-time guard `0233` stays. It is the last line for a payment whose amount sits
   between the minimum and the fee, which package-level validation cannot see.
+
+## P3 - A fee the same patch settles does not block the minimum change
+
+### P3.1 What was wrong
+
+P2 skipped a stored fee only when the patch restated its amounts. Two other patches leave
+no conflict behind and were refused anyway:
+
+- the patch removes the fee, which is an entry that sets no field at all;
+- the patch sets `isDeductibleFrom` to `false`, after which the fee is charged on top of
+  the payment and no cap applies to it.
+
+Both are legitimate single-call edits: lower the minimum and clear what stood in its way.
+
+### P3.2 What changed
+
+- [x] A stored fee is skipped when its patch entry settles it, in any of the three ways:
+      removal, stopping the deduction, or restating the amounts.
+- [x] Removal is recognised exactly as the update applies it, every field empty including
+      the two routes `ValidateIfFeeIsNil` does not cover, so a patch that only sets a route
+      keeps the fee and still faces the check.
+- [x] A patch that only renames the fee, or that confirms `isDeductibleFrom: true`, leaves
+      the fee in place and is still refused.
+
+Raised by CodeRabbit on PR #2494 and confirmed against the code before fixing: both cases
+were refusals the operator did not deserve, not accepted bad states.
 
 ## Found by
 
@@ -194,7 +221,43 @@ ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	4
 The second case passes at both commits: a minimum of 30, still above the stored fee of 25, is
 applied before and after. The fix refuses the invalid move, not the valid one.
 
-### Gates at `1e1181c477594de6d8a1e67f5fbbfde2ee4dddf9`
+### RED, P3, at `d89f3794ed432da0543671553cc50eecc886a407`
+
+```
+$ go test -count=1 ./components/ledger/pkg/feeshared/model/ -run 'ValidateStoredFeesAgainstMinimum'
+rc=1
+--- FAIL: .../patch_removes_the_offending_fee_in_the_same_call (0.00s)
+        Received unexpected error
+--- FAIL: .../patch_stops_the_offending_fee_being_deducted_from_the_payment (0.00s)
+        Received unexpected error
+FAIL
+
+$ go test -count=1 ./components/ledger/internal/services/fees/ -run 'AcceptsALoweredMinimumWhenThePatchRemovesTheFee' -v
+rc=1
+--- FAIL: TestUpdatePackageByIDAcceptsALoweredMinimumWhenThePatchRemovesTheFee (0.00s)
+        Received unexpected error
+FAIL
+```
+
+The two guard cases added in the same round, a route-only patch and a patch confirming the
+fee stays deductible, passed at this commit and still pass: the skip must not widen into
+them.
+
+### GREEN, P3, at `7bc74b1753a3b19d7d7875258dea3325e795fad7`
+
+```
+$ go test -count=1 ./components/ledger/pkg/feeshared/model/ -run 'ValidateStoredFeesAgainstMinimum' -v
+rc=0
+--- PASS: TestUpdatePackageInputValidateStoredFeesAgainstMinimum (0.00s)  [13/13 cases]
+
+$ go test -count=1 ./components/ledger/internal/services/fees/ -run 'AcceptsALoweredMinimumWhenThePatchRemovesTheFee|MinimumUnderStoredDeductibleFee|MeasuresPatchedFees' -v
+rc=0
+--- PASS: TestUpdatePackageByIDAcceptsALoweredMinimumWhenThePatchRemovesTheFee (0.00s)
+--- PASS: TestUpdatePackageByIDRefusesMinimumUnderStoredDeductibleFee (0.00s)
+--- PASS: TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum (0.00s)  [2/2 cases]
+```
+
+### Gates at `7bc74b1753a3b19d7d7875258dea3325e795fad7`
 
 ```
 $ go test -count=1 ./components/ledger/pkg/feeshared/... ./components/ledger/internal/services/fees/... ./components/ledger/internal/adapters/http/in/...
@@ -223,10 +286,10 @@ rc=0   ok=71 fail=0
 $ ALLOW_INSECURE_TLS=true go test -tags integration -p=1 -count=1 \
     ./components/ledger/internal/adapters/mongodb/fees/... ./components/ledger/internal/services/fees/...
 rc=0
-ok  	.../adapters/mongodb/fees	14.203s
-ok  	.../adapters/mongodb/fees/billing_package	24.296s
-ok  	.../adapters/mongodb/fees/pack	33.318s
-ok  	.../services/fees	5.723s
+ok  	.../adapters/mongodb/fees	19.761s
+ok  	.../adapters/mongodb/fees/billing_package	30.854s
+ok  	.../adapters/mongodb/fees/pack	39.671s
+ok  	.../services/fees	4.368s
 ok  	.../services/fees/midaz	0.017s
 ```
 
