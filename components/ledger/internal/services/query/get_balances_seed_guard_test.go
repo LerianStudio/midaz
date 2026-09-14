@@ -8,8 +8,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -191,7 +194,10 @@ func TestSeedGuard_StaleRowIsRebuiltFromTheTrail(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	balances, err := mocks.uc.GetBalances(context.Background(), seedGuardOrgID, seedGuardLedgerID, []string{"@alice#default"})
+	logs := &recordingLogger{}
+	ctx := libObservability.ContextWithLogger(context.Background(), logs)
+
+	balances, err := mocks.uc.GetBalances(ctx, seedGuardOrgID, seedGuardLedgerID, []string{"@alice#default"})
 
 	require.NoError(t, err)
 	require.Len(t, balances, 1)
@@ -216,6 +222,14 @@ func TestSeedGuard_StaleRowIsRebuiltFromTheTrail(t *testing.T) {
 	assert.Equal(t, mmodel.BalanceScopeTransactional, got.Settings.BalanceScope)
 
 	assert.Equal(t, int64(1), seedRebuiltCount(t, mocks.reader), "each rebuilt balance must be counted")
+
+	// The warning has to say how far behind the row was, which means reporting the
+	// version the row carried BEFORE the rebuild — reading it afterwards would print
+	// the high-water mark twice and hide the size of the gap.
+	warning := logs.entryWith(t, "Rebuilt stale balance seed from the operation trail")
+	assert.Equal(t, seedGuardBalanceID.String(), warning.fields["balance_id"])
+	assert.Equal(t, 1, warning.fields["row_version"], "row_version must be the pre-rebuild version")
+	assert.Equal(t, 2, warning.fields["hwm_version"])
 }
 
 func TestSeedGuard_RowAheadOfTheTrailPassesThrough(t *testing.T) {
@@ -501,6 +515,53 @@ func seedRebuiltCount(t *testing.T, reader *sdkmetric.ManualReader) int64 {
 	}
 
 	return total
+}
+
+// recordingLogger captures what the use case logged. It satisfies log.Universal
+// (one method), which is all ContextWithLogger needs.
+type recordingLogger struct {
+	mu      sync.Mutex
+	entries []loggedEntry
+}
+
+type loggedEntry struct {
+	msg    string
+	fields map[string]any
+}
+
+func (r *recordingLogger) Log(_ context.Context, _ int, msg string, fields ...any) {
+	entry := loggedEntry{msg: msg, fields: make(map[string]any, len(fields))}
+
+	for _, f := range fields {
+		if field, ok := f.(libLog.Field); ok {
+			entry.fields[field.Key] = field.Value
+		}
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.entries = append(r.entries, entry)
+}
+
+// entryWith returns the single captured entry carrying msg.
+func (r *recordingLogger) entryWith(t *testing.T, msg string) loggedEntry {
+	t.Helper()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var found []loggedEntry
+
+	for _, e := range r.entries {
+		if e.msg == msg {
+			found = append(found, e)
+		}
+	}
+
+	require.Len(t, found, 1, "expected exactly one %q log line, got %d", msg, len(found))
+
+	return found[0]
 }
 
 func decimalPtr(d decimal.Decimal) *decimal.Decimal { return &d }

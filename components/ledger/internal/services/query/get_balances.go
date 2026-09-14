@@ -362,6 +362,10 @@ func (uc *UseCase) rebuildStaleBalanceSeeds(
 			continue
 		}
 
+		// Read before the rebuild overwrites it: how far behind the row was is the
+		// whole point of the warning.
+		rowVersion := b.Version
+
 		if err := applyBalanceHighWaterMark(b, hwm); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to rebuild stale balance seed", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to rebuild stale balance seed",
@@ -372,7 +376,7 @@ func (uc *UseCase) rebuildStaleBalanceSeeds(
 
 		logger.Log(ctx, libLog.LevelWarn, "Rebuilt stale balance seed from the operation trail",
 			libLog.String("balance_id", b.ID),
-			libLog.Int("row_version", int(b.Version)),
+			libLog.Int("row_version", int(rowVersion)),
 			libLog.Int("hwm_version", int(*hwm.BalanceAfter.Version)))
 
 		rebuilt++
