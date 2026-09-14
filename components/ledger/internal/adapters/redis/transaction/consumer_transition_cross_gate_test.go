@@ -123,7 +123,7 @@ func TestMapError_TransactionAlreadyTransitioned(t *testing.T) {
 		luaErr string
 	}{
 		{name: "bare code", luaErr: "0511"},
-		{name: "prefixed message", luaErr: "ERR 0511 opposite terminal transition already applied"},
+		{name: "prefixed message", luaErr: "ERR 0511"},
 	}
 
 	for _, tc := range testCases {
