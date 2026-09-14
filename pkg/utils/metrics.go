@@ -158,6 +158,23 @@ var (
 		Description: "Total scheduled balance sync keys dropped without persisting (value expired or unparseable).",
 	}
 
+	// BalanceSyncOldestPendingAge is how long the oldest unflushed balance delta has
+	// been waiting, by tenant_id (empty in single-tenant). It is emitted on every TTL
+	// keepalive pass and reads 0 while nothing is scheduled, so a backlog that stops
+	// draining is visible even though no operation is failing.
+	//
+	// The age is the process clock minus the Redis-issued due score, so it carries a
+	// few seconds of clock drift — irrelevant for an alert measured in minutes.
+	//
+	// The declared name carries NO unit suffix: the OTLP-to-Prometheus translation
+	// appends one from Unit, so this reaches Mimir as
+	// `balance_sync_oldest_pending_age_seconds`.
+	BalanceSyncOldestPendingAge = metrics.Metric{
+		Name:        "balance_sync_oldest_pending_age",
+		Unit:        "s",
+		Description: "Age in seconds of the oldest balance key still waiting to be flushed to the database.",
+	}
+
 	// Redis backup-queue (poison record) observability metrics.
 
 	// RedisBackupQueueDepth is the number of records currently in the backup queue.
