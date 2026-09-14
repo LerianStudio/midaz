@@ -190,6 +190,16 @@ type RedisRepository interface {
 	// GetBalanceSyncKeysLegacy claims due keys from the legacy ZSET (balance-sync, pre-v3.6.2).
 	// Used by the legacy drainer to process entries written by v3.5.x (seconds) or v3.6.0 (microseconds).
 	GetBalanceSyncKeysLegacy(ctx context.Context, limit int64) ([]SyncKey, error)
+	// RefreshBalanceSyncKeyTTLs re-applies ttl to every balance key still scheduled
+	// for sync, across the current and the legacy ZSET. A scheduled key carries a
+	// delta that PostgreSQL has not received yet, so letting it expire loses money
+	// silently; EXPIRE on a balance key is harmless by construction, since every
+	// mutation already refreshes it.
+	//
+	// Returns the number of keys whose expiry was actually reset and the smallest
+	// score (the oldest due time) still present in either schedule — 0 when both
+	// are empty. Members whose key no longer exists are counted as neither.
+	RefreshBalanceSyncKeyTTLs(ctx context.Context, ttl time.Duration) (refreshed int64, oldestScore float64, err error)
 	// ListBalanceByKey retrieves a single balance from Redis by its internal key
 	// and converts it from the cache format (BalanceRedis) to the domain model (Balance).
 	// An empty cached OverdraftUsed reads as zero (pre-overdraft snapshot shape), while a
@@ -2225,6 +2235,116 @@ func (rr *RedisConsumerRepository) GetBalanceSyncKeysLegacy(ctx context.Context,
 	}
 
 	return out, nil
+}
+
+func (rr *RedisConsumerRepository) RefreshBalanceSyncKeyTTLs(ctx context.Context, ttl time.Duration) (int64, float64, error) {
+	logger := libObservability.NewLoggerFromContext(ctx)
+
+	if ttl <= 0 {
+		return 0, 0, fmt.Errorf("balance sync TTL keepalive requires a positive ttl, got %s", ttl)
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	scheduleKeys, err := tenantKeysFromContext(ctx, []string{utils.BalanceSyncScheduleKey, utils.BalanceSyncScheduleKeyLegacy})
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var (
+		totalRefreshed int64
+		oldestScore    float64
+		haveOldest     bool
+	)
+
+	for _, scheduleKey := range scheduleKeys {
+		refreshed, oldest, found, refreshErr := refreshScheduleKeyTTLs(ctx, rds, scheduleKey, ttl)
+
+		totalRefreshed += refreshed
+
+		if found && (!haveOldest || oldest < oldestScore) {
+			oldestScore = oldest
+			haveOldest = true
+		}
+
+		if refreshErr != nil {
+			return totalRefreshed, oldestScore, refreshErr
+		}
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "Refreshed TTL of scheduled balance keys",
+		libLog.Int("refreshed", int(totalRefreshed)))
+
+	return totalRefreshed, oldestScore, nil
+}
+
+// refreshScheduleKeyTTLs walks one schedule ZSET by index, in pages of
+// maxRedisBatchSize, and pipelines an EXPIRE for every member. It reports how many
+// keys had their expiry reset and the score of the first member of the first page,
+// which is the oldest due time in that schedule (the ZSET is score-ordered).
+//
+// Paging by index tolerates concurrent ZADD/ZREM: a member that shifts across a page
+// boundary is skipped or seen twice, and both outcomes are harmless for a best-effort
+// keepalive that runs again on the next tick.
+func refreshScheduleKeyTTLs(
+	ctx context.Context,
+	rds redis.UniversalClient,
+	scheduleKey string,
+	ttl time.Duration,
+) (refreshed int64, oldestScore float64, found bool, err error) {
+	for start := int64(0); ; start += maxRedisBatchSize {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return refreshed, oldestScore, found, ctxErr
+		}
+
+		members, rangeErr := rds.ZRangeWithScores(ctx, scheduleKey, start, start+maxRedisBatchSize-1).Result()
+		if rangeErr != nil {
+			return refreshed, oldestScore, found, rangeErr
+		}
+
+		if len(members) == 0 {
+			return refreshed, oldestScore, found, nil
+		}
+
+		if !found {
+			oldestScore = members[0].Score
+			found = true
+		}
+
+		pipe := rds.Pipeline()
+		cmds := make([]*redis.BoolCmd, 0, len(members))
+
+		for _, member := range members {
+			key, ok := member.Member.(string)
+			if !ok || key == "" {
+				continue
+			}
+
+			cmds = append(cmds, pipe.Expire(ctx, key, ttl))
+		}
+
+		if len(cmds) > 0 {
+			// A member whose key expired between the ZRANGE and the EXPIRE reports
+			// false, not an error, so redis.Nil never reaches here; anything else is
+			// a transport failure worth reporting.
+			if _, execErr := pipe.Exec(ctx); execErr != nil && !errors.Is(execErr, redis.Nil) {
+				return refreshed, oldestScore, found, execErr
+			}
+
+			for _, cmd := range cmds {
+				if cmd.Err() == nil && cmd.Val() {
+					refreshed++
+				}
+			}
+		}
+
+		if int64(len(members)) < maxRedisBatchSize {
+			return refreshed, oldestScore, found, nil
+		}
+	}
 }
 
 // parseSyncKeysFromLuaResult converts the raw Lua script result (alternating
