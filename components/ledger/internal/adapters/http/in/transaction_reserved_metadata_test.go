@@ -322,3 +322,43 @@ func TestReservedFeeTransactionMetadataKeysScope(t *testing.T) {
 		})
 	}
 }
+
+// TestReservedFeeKeysOnTheFeeEstimateBody covers the one body that carries transaction metadata
+// and is not a create: the fee estimate, which decodes the canonical transaction through the
+// second validator instance in this binary.
+//
+// The estimate is not a write, but it reads the very keys it accepts. The handler decides between
+// "no fee or gratuity rules were found" and "successfully estimated fee" by looking for
+// packageAppliedID on the transaction metadata it hands back, and that map is the caller's own,
+// so a caller that supplies the key is told a fee package applied when none did. Reserving the
+// keys on this body is what makes the published refusal true of every body, not merely of the
+// creates.
+func TestReservedFeeKeysOnTheFeeEstimateBody(t *testing.T) {
+	t.Parallel()
+
+	estimateBody := func(transactionMetadata string) []byte {
+		return []byte(`{"packageId":"` + testLedgerID + `","transaction":{` + transactionMetadata +
+			`"send":{"asset":"BRL","value":"100",` +
+			`"source":{"from":[{"accountAlias":"@src","amount":{"asset":"BRL","value":"100"}}]},` +
+			`"distribute":{"to":[{"accountAlias":"@dst","amount":{"asset":"BRL","value":"100"}}]}}}}`)
+	}
+
+	t.Run("ordinary caller metadata is accepted", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := feehttp.DecodeValidateBody(estimateBody(`"metadata":{"invoice":"INV-12345"},`), new(model.FeeEstimate))
+		require.NoError(t, err)
+	})
+
+	for _, key := range reservedTransactionFeeKeys {
+		t.Run(key+" is refused", func(t *testing.T) {
+			t.Parallel()
+
+			_, err := feehttp.DecodeValidateBody(
+				estimateBody(`"metadata":{"`+key+`":"true"},`), new(model.FeeEstimate))
+			require.Error(t, err,
+				"an estimate body carrying a ledger fee statement must be refused, not priced")
+			assert.Contains(t, err.Error(), key)
+		})
+	}
+}
