@@ -9,13 +9,14 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 const (
-	BalanceSyncScheduleKey       = "schedule:{transactions}:balance-sync-v2"
-	BalanceSyncScheduleKeyLegacy = "schedule:{transactions}:balance-sync"
-	BalanceSyncLockPrefix        = "lock:{transactions}:balance-sync:"
+	BalanceSyncScheduleKey       = "schedule:" + cachepolicy.HashTag + ":balance-sync-v2"
+	BalanceSyncScheduleKeyLegacy = "schedule:" + cachepolicy.HashTag + ":balance-sync"
+	BalanceSyncLockPrefix        = "lock:" + cachepolicy.HashTag + ":balance-sync:"
 )
 
 const (
@@ -33,9 +34,7 @@ func TransactionInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 
 	builder.WriteString("transaction")
 	builder.WriteString(keySeparator)
-	builder.WriteString(beginningKey)
-	builder.WriteString("transactions")
-	builder.WriteString(endKey)
+	builder.WriteString(cachepolicy.HashTag)
 	builder.WriteString(keySeparator)
 	builder.WriteString(organizationID.String())
 	builder.WriteString(keySeparator)
@@ -68,9 +67,7 @@ func TransactionApplyMarkerKey(organizationID, ledgerID uuid.UUID, transactionID
 
 	builder.WriteString("transaction_apply_marker")
 	builder.WriteString(keySeparator)
-	builder.WriteString(beginningKey)
-	builder.WriteString("transactions")
-	builder.WriteString(endKey)
+	builder.WriteString(cachepolicy.HashTag)
 	builder.WriteString(keySeparator)
 	builder.WriteString(organizationID.String())
 	builder.WriteString(keySeparator)
@@ -123,9 +120,7 @@ func BalanceInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 
 	builder.WriteString("balance")
 	builder.WriteString(keySeparator)
-	builder.WriteString(beginningKey)
-	builder.WriteString("transactions")
-	builder.WriteString(endKey)
+	builder.WriteString(cachepolicy.HashTag)
 	builder.WriteString(keySeparator)
 	builder.WriteString(organizationID.String())
 	builder.WriteString(keySeparator)
@@ -277,7 +272,7 @@ func RedisConsumerLockKey(organizationID, ledgerID uuid.UUID, transactionID stri
 // Format: "lock:{transactions}:backup-consumer-cycle"
 // The {transactions} hash tag ensures the key routes to the correct Redis Cluster slot.
 func RedisConsumerCycleLockKey() string {
-	return "lock:{transactions}:backup-consumer-cycle"
+	return "lock:" + cachepolicy.HashTag + ":backup-consumer-cycle"
 }
 
 // LedgerSettingsInternalKey returns a key with the following format to be used on redis cluster:

@@ -104,9 +104,23 @@ type TransactionV2 struct {
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Additional custom attributes
+	// Additional custom attributes. Three fee keys are written by the ledger here and
+	// documented on the published field so a client never has to read ledger source to
+	// recognise them; the doc tag, not this comment, is what the OpenAPI generator publishes.
+	//
+	// All three are reserved, so what a client reads here is the ledger's own word about the
+	// charge. IsReservedMetadataKey answers all four fee keys, and the guard runs on every body
+	// that carries transaction metadata: the creates, the metadata update, and the fee estimate,
+	// which reads the keys back off the map it was handed. Refusing beats stripping for the same
+	// reason it does on the operation mark: a stripped key looks identical on the wire to a
+	// stored one.
+	//
+	// packageAppliedID is published under the condition the ledger actually writes it under,
+	// which is narrower than package selection: a package whose amount bounds exclude the
+	// transaction IS selected and writes no key at all, so a client treating an absent key as
+	// no package configured would read a configured route as an unconfigured one.
 	// example: {"purpose": "Monthly payment", "category": "Utility"}
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty" doc:"Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is an object carrying exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."`
 
 	// List of operations associated with this transaction
 	Operations []*OperationV2 `json:"operations"`
@@ -224,9 +238,21 @@ type OperationV2 struct {
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
-	// Additional custom attributes
+	// Additional custom attributes. feeLeg is reserved by the ledger and documented on the
+	// published field, because a client that has to read ledger source to tell a fee movement
+	// from an operator movement does not have a contract; the doc tag, not this comment, is
+	// what the OpenAPI generator publishes.
+	//
+	// Two halves of the published sentence are load-bearing and each is enforced somewhere
+	// else in this binary. The mark is the ledger's alone because the fee engine records the
+	// legs it mints as it mints them, and because a request body carrying the key is refused
+	// rather than stripped. What happens to a caller key on a priced movement is published
+	// too, and it is NOT preservation: the engine rebuilds both sides from an amounts map that
+	// carries no per-movement metadata, and it does that whenever a package is applied, not only
+	// when the package charges something. An all-exempt payment is priced at zero and still
+	// comes back rebuilt, so the published condition is package applied, not fee charged.
 	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata" doc:"Additional custom attributes. The ledger reserves the feeLeg key on this field and writes it itself: feeLeg is the string true on every operation the fee engine created, and never appears on an operation the caller authored, because a request body that carries the key is refused rather than silently stripped. So a client names a fee movement from the ledger mark instead of inferring one from account names or from the caller metadata. Caller-supplied keys on an operation are returned as sent on a transaction no fee package was applied to; once a package is applied the engine rebuilds every movement of both sides, including when it prices the transaction at zero because every account is exempt, and the rebuilt movements carry only the ledger keys, so do not rely on a per-movement caller reference surviving a payment a fee package was applied to."`
 }
 
 // newTransactionV2 converts the canonical transaction.Transaction into its /v2 wire shape,

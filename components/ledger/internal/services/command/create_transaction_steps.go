@@ -12,54 +12,14 @@ import (
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
-	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
-
-// prepareCreateTransaction mints the transaction id, resolves the transaction
-// date, records the safe payload shape on the span, rejects a non-positive send
-// value and applies the default balance keys to both legs.
-func (uc *UseCase) prepareCreateTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, run *createTransactionRun) error {
-	transactionID, err := libCommons.GenerateUUIDv7()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
-
-		return err
-	}
-
-	transactionDate, err := mtransaction.CheckTransactionDate(ctx, run.input, run.status)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
-
-		return err
-	}
-
-	spanattr.RecordSafePayloadAttributes(span, run.input)
-
-	if run.input.Send.Value.LessThanOrEqual(decimal.Zero) {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction value must be greater than zero", err)
-		logger.Log(ctx, libLog.LevelWarn, "Transaction value must be greater than zero", libLog.Err(err))
-
-		return err
-	}
-
-	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
-	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
-
-	run.transactionID = transactionID
-	run.transactionDate = transactionDate
-
-	return nil
-}
 
 // claimTransactionIdempotency hashes the request identity and claims the Redis
 // idempotency slot. A non-nil first return value is the replayed transaction the
@@ -323,7 +283,7 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 
 	go uc.SetTransactionIdempotencyValue(bgCtx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, *tran, run.idempotencyTTL)
 
-	go uc.SendLogTransactionAuditQueue(bgCtx, operations, run.organizationID, run.ledgerID, tran.IDtoUUID())
+	uc.sendLogTransactionAuditQueueAsync(bgCtx, operations, run.organizationID, run.ledgerID, tran.IDtoUUID())
 
 	return tran, nil
 }

@@ -17,7 +17,6 @@ import (
 	mmodel "github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	mtransaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	uuid "github.com/google/uuid"
-	redis "github.com/redis/go-redis/v9"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -352,20 +351,6 @@ func (m *MockRedisRepository) RemoveMessageFromQueue(ctx context.Context, key st
 func (mr *MockRedisRepositoryMockRecorder) RemoveMessageFromQueue(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMessageFromQueue), ctx, key)
-}
-
-// ScheduleBalanceSyncBatch mocks base method.
-func (m *MockRedisRepository) ScheduleBalanceSyncBatch(ctx context.Context, members []redis.Z) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ScheduleBalanceSyncBatch", ctx, members)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ScheduleBalanceSyncBatch indicates an expected call of ScheduleBalanceSyncBatch.
-func (mr *MockRedisRepositoryMockRecorder) ScheduleBalanceSyncBatch(ctx, members any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScheduleBalanceSyncBatch", reflect.TypeOf((*MockRedisRepository)(nil).ScheduleBalanceSyncBatch), ctx, members)
 }
 
 // Set mocks base method.

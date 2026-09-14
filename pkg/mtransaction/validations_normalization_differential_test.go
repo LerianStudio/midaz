@@ -330,82 +330,55 @@ func differentialCorpus() []differentialCase {
 			},
 		},
 		{
-			name:   "v1 json dto",
+			name:   "v1 json canonical shape",
 			status: pkgConstant.CREATED,
 			build: func() Transaction {
-				input := &CreateTransactionInput{
-					Send: Send{
-						Asset:      "USD",
-						Value:      decimal.NewFromInt(100),
-						Source:     Source{From: []FromTo{leg("@source", "", "USD", 100)}},
-						Distribute: Distribute{To: []FromTo{leg("@destination", "", "USD", 100)}},
-					},
-				}
+				tx := sendOf("USD", 100, []FromTo{leg("@source", "", "USD", 100)}, []FromTo{leg("@destination", "", "USD", 100)})
+				tx.Send.Source.From[0].IsFrom = true
 
-				return *input.BuildTransaction()
+				return tx
 			},
 		},
 		{
-			name:   "v1 json dto with a mismatching total",
+			name:   "v1 json canonical shape with a mismatching total",
 			status: pkgConstant.CREATED,
 			build: func() Transaction {
-				input := &CreateTransactionInput{
-					Send: Send{
-						Asset:      "USD",
-						Value:      decimal.NewFromInt(100),
-						Source:     Source{From: []FromTo{leg("@source", "", "USD", 55)}},
-						Distribute: Distribute{To: []FromTo{leg("@destination", "", "USD", 55)}},
-					},
-				}
+				tx := sendOf("USD", 100, []FromTo{leg("@source", "", "USD", 55)}, []FromTo{leg("@destination", "", "USD", 55)})
+				tx.Send.Source.From[0].IsFrom = true
 
-				return *input.BuildTransaction()
+				return tx
 			},
 		},
 		{
-			name:   "v1 json dto with one alias on both sides",
+			name:   "v1 json canonical shape with one alias on both sides",
 			status: pkgConstant.CREATED,
 			build: func() Transaction {
-				input := &CreateTransactionInput{
-					Send: Send{
-						Asset:      "USD",
-						Value:      decimal.NewFromInt(100),
-						Source:     Source{From: []FromTo{leg("@account", "", "USD", 100)}},
-						Distribute: Distribute{To: []FromTo{leg("@account", "", "USD", 100)}},
-					},
-				}
+				tx := sendOf("USD", 100, []FromTo{leg("@account", "", "USD", 100)}, []FromTo{leg("@account", "", "USD", 100)})
+				tx.Send.Source.From[0].IsFrom = true
 
-				return *input.BuildTransaction()
+				return tx
 			},
 			normalizedAnswersAmbiguous: true,
 		},
 		{
-			name:   "v1 inflow dto",
+			name:   "v1 inflow canonical shape",
 			status: pkgConstant.CREATED,
 			build: func() Transaction {
-				input := &CreateTransactionInflowInput{
-					Send: SendInflow{
-						Asset:      "USD",
-						Value:      decimal.NewFromInt(100),
-						Distribute: Distribute{To: []FromTo{leg("@destination", "", "USD", 100)}},
-					},
-				}
-
-				return *input.BuildInflowEntry()
+				return sendOf("USD", 100,
+					[]FromTo{{IsFrom: true, AccountAlias: pkgConstant.DefaultExternalAccountAliasPrefix + "USD", Amount: &Amount{Asset: "USD", Value: decimal.NewFromInt(100)}}},
+					[]FromTo{leg("@destination", "", "USD", 100)})
 			},
 		},
 		{
-			name:   "v1 outflow dto",
+			name:   "v1 outflow canonical shape",
 			status: pkgConstant.CREATED,
 			build: func() Transaction {
-				input := &CreateTransactionOutflowInput{
-					Send: SendOutflow{
-						Asset:  "USD",
-						Value:  decimal.NewFromInt(100),
-						Source: Source{From: []FromTo{leg("@source", "", "USD", 100)}},
-					},
-				}
+				tx := sendOf("USD", 100,
+					[]FromTo{leg("@source", "", "USD", 100)},
+					[]FromTo{{AccountAlias: pkgConstant.DefaultExternalAccountAliasPrefix + "USD", Amount: &Amount{Asset: "USD", Value: decimal.NewFromInt(100)}}})
+				tx.Send.Source.From[0].IsFrom = true
 
-				return *input.BuildOutflowEntry()
+				return tx
 			},
 		},
 		{

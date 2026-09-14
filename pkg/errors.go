@@ -894,6 +894,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Metadata Nesting",
 			Message:    fmt.Sprintf("The metadata object cannot contain nested values. Please ensure that the value %v is not nested and try again.", args...),
 		},
+		constant.ErrReservedMetadataKey: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservedMetadataKey.Error(),
+			Title:      "Reserved Metadata Key",
+			Message:    fmt.Sprintf("The metadata key %v is reserved by the ledger, which writes it itself. Please remove it from your request and try again.", args...),
+		},
 		constant.ErrOperationIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrOperationIDNotFound.Error(),
@@ -1761,7 +1767,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrFilterPackage.Error(),
 			Title:      "Package filtering error",
-			Message:    "Failed to filter a single package by transactionRoute, segmentID, and maximum/minimum amount. Either no package was found or multiple packages matched the criteria.",
+			Message:    fmt.Sprintf("More than one fee package matches this transaction on transactionRoute, segmentID and the amount range, and they are equally specific, so none of them can be applied. Re-scope one of these packages: %v.", args...),
 		},
 		constant.ErrPackageRange: EntityConflictError{
 			EntityType: entityType,

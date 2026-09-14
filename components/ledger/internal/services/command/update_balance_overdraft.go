@@ -30,6 +30,8 @@ import (
 // internal scope is reserved for system-managed balances (auto-created
 // overdraft balances) and MUST NOT be settable through the public API.
 func validateUpdateSettings(ctx context.Context, logger libLog.Logger, span trace.Span, settings *mmodel.BalanceSettings) error {
+	settings.Normalize()
+
 	if err := settings.Validate(); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid balance settings payload", err)
 		logger.Log(ctx, libLog.LevelWarn, "Rejected invalid balance settings", libLog.Err(err))

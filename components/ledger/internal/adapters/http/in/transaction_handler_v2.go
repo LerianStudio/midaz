@@ -78,7 +78,7 @@ func decodeLifecycleV2Body(rawBody []byte) (*uuid.UUID, error) {
 		return nil, nil
 	}
 
-	payload := new(mtransaction.LifecycleV2Input)
+	payload := new(LifecycleV2Request)
 	if _, err := pkgHTTP.DecodeAndValidate(rawBody, payload); err != nil {
 		return nil, err
 	}
@@ -141,20 +141,20 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 // Transaction: it is a per-request authorization, not part of the transaction, and the
 // canonical struct is persisted in the body JSONB and doubles as the read model — a
 // consumed grant has no business surviving in either.
-func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, mtransaction.V2Scope, *uuid.UUID, error) {
-	payload := new(mtransaction.CreateTransactionV2Input)
+func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, TransactionV2Scope, *uuid.UUID, error) {
+	payload := new(CreateTransactionV2Request)
 	if _, err := pkgHTTP.DecodeAndValidate(rawBody, payload); err != nil {
-		return mtransaction.Transaction{}, mtransaction.V2Scope{}, nil, err
+		return mtransaction.Transaction{}, TransactionV2Scope{}, nil, err
 	}
 
 	transactionInput, scope, err := payload.Translate(pending)
 	if err != nil {
-		return mtransaction.Transaction{}, mtransaction.V2Scope{}, nil, err
+		return mtransaction.Transaction{}, TransactionV2Scope{}, nil, err
 	}
 
 	exceptionID, err := payload.AccountBlockException()
 	if err != nil {
-		return mtransaction.Transaction{}, mtransaction.V2Scope{}, nil, err
+		return mtransaction.Transaction{}, TransactionV2Scope{}, nil, err
 	}
 
 	if operationTypeOverride != "" {

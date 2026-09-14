@@ -80,10 +80,11 @@ type Config struct {
 	JWKAddress  string `env:"CASDOOR_JWK_ADDRESS"`
 
 	// Resource-inventory (RI) permission declaration against the IdP (identity, :4001),
-	// distinct from PLUGIN_AUTH_HOST (auth, :4000). RI is OPTIONAL and fail-open: an unset
-	// or invalid IDP_DECLARATION_ENABLED decodes to false (safe), and empty host/credentials
-	// never block boot — the publisher handles incomplete config fail-open. IDPM2MClientSecret
-	// MUST NOT be logged, span-attached, or serialized.
+	// distinct from PLUGIN_AUTH_HOST (auth, :4000). RI is optional: an unset or invalid
+	// IDP_DECLARATION_ENABLED decodes to false. When explicitly enabled, an empty IDP_HOST,
+	// IDP_M2M_CLIENT_ID, or IDP_M2M_CLIENT_SECRET fails closed and aborts startup. Runtime
+	// publication failures remain fail-open. IDPM2MClientSecret MUST NOT be logged,
+	// span-attached, or serialized.
 	DeclarationEnabled bool   `env:"IDP_DECLARATION_ENABLED"`
 	IDPHost            string `env:"IDP_HOST"`
 	IDPM2MClientID     string `env:"IDP_M2M_CLIENT_ID"`
@@ -1144,13 +1145,32 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// === Workers ===
 
-	// RedisQueueConsumer: multi-tenant or single-tenant
+	// Redis recovery runner: multi-tenant or single-tenant
 	var redisConsumer *RedisQueueConsumer
 	if cfg.MultiTenantEnabled && tenantCache != nil {
 		redisConsumer = NewRedisQueueConsumerMultiTenant(logger, commandUseCase, queryUseCase, true, tenantCache, txnPG.pgManager)
 	} else {
 		redisConsumer = NewRedisQueueConsumer(logger, commandUseCase, queryUseCase)
 	}
+
+	var recoveryMongo recoveryMongoResolver
+	if txnMgo.mongoManager != nil {
+		recoveryMongo = txnMgo.mongoManager
+	}
+
+	if err := configureAppliedTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to configure engine finalization: %w", err)
+	}
+
+	if err := configureEngine(commandUseCase, redisConnection); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to configure engine: %w", err)
+	}
+
+	logger.Log(context.Background(), libLog.LevelInfo, "Engine configured as the default accounting path")
 
 	// The quarantine repository is the durable sink for poison backup records;
 	// the metrics factory powers the backup-queue observability gauges/counter.

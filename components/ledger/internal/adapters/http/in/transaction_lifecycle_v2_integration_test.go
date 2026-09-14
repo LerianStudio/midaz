@@ -941,7 +941,7 @@ func TestIntegration_TransactionV2Revert_ConcurrentSingleWinner(t *testing.T) {
 
 	// Losing reverts may only be rejected for LOSING THE CLAIM. 0018/insufficient-funds in
 	// particular must never appear: that would mean the destination ran out of headroom and
-	// the balance engine — not the idempotency claim — is what kept the count at one, which is
+	// the engine — not the idempotency claim — is what kept the count at one, which is
 	// exactly the accidental backstop seedFundedTransfer above exists to remove.
 	allowedLoserCodes := []string{
 		cn.ErrIdempotencyKey.Error(),

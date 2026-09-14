@@ -83,7 +83,7 @@ func TestBuildPlan_IncludesOverdraftFields(t *testing.T) {
 	assert.Equal(t, "50", plan.args[18], "ARGV[i+18] balance.OverdraftUsed")
 	assert.Equal(t, 1, plan.args[19], "ARGV[i+19] AllowOverdraft (1=true)")
 	assert.Equal(t, 1, plan.args[20], "ARGV[i+20] OverdraftLimitEnabled (1=true)")
-	assert.Equal(t, "500.00", plan.args[21], "ARGV[i+21] OverdraftLimit")
+	assert.Equal(t, "500", plan.args[21], "ARGV[i+21] OverdraftLimit")
 	assert.Equal(t, mmodel.BalanceScopeTransactional, plan.args[22], "ARGV[i+22] BalanceScope")
 	assert.Equal(t, "0", plan.args[23], "ARGV[i+23] default OverdraftAmount")
 	assert.Equal(t, 0, plan.args[24], "ARGV[i+24] default Blocked (0=false)")
@@ -234,7 +234,7 @@ func TestBuildPlan_MultipleBalancesOverdraftPositions(t *testing.T) {
 	assert.Equal(t, "75", plan.args[secondBase+18], "2nd balance OverdraftUsed")
 	assert.Equal(t, 1, plan.args[secondBase+19], "2nd balance AllowOverdraft")
 	assert.Equal(t, 1, plan.args[secondBase+20], "2nd balance OverdraftLimitEnabled")
-	assert.Equal(t, "1000.00", plan.args[secondBase+21], "2nd balance OverdraftLimit")
+	assert.Equal(t, "1000", plan.args[secondBase+21], "2nd balance OverdraftLimit")
 	assert.Equal(t, mmodel.BalanceScopeInternal, plan.args[secondBase+22], "2nd balance BalanceScope")
 }
 

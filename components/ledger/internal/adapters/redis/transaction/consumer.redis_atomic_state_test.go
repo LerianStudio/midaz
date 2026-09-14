@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
-	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/redis/go-redis/v9"
@@ -22,10 +21,10 @@ func TestBalanceAtomicResponse_UnmarshalJSON_SingleObjectAfter(t *testing.T) {
 
 	payload := []byte(`{
 		"before": [{
-			"id": "before-id",
+			"id": "11111111-1111-4111-8111-111111111111",
 			"alias": "@before",
 			"key": "default",
-			"accountId": "acc-before",
+			"accountId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
 			"assetCode": "USD",
 			"available": "100.00",
 			"onHold": "0",
@@ -35,10 +34,10 @@ func TestBalanceAtomicResponse_UnmarshalJSON_SingleObjectAfter(t *testing.T) {
 			"allowReceiving": 1
 		}],
 		"after": {
-			"id": "after-id",
+			"id": "22222222-2222-4222-8222-222222222222",
 			"alias": "@after",
 			"key": "default",
-			"accountId": "acc-after",
+			"accountId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
 			"assetCode": "USD",
 			"available": "90.00",
 			"onHold": "10.00",
@@ -103,7 +102,7 @@ func TestGetBalancesByKeys_MultiTenant_NoDoubleNamespacing(t *testing.T) {
 	// Member as written once by balance_atomic_operation.lua: prefixed exactly one time.
 	const namespacedMember = "tenant:acme:balance:{transactions}:org:ledger:@alias#default"
 
-	validJSON := `{"id":"uuid-mt","alias":"@alias","key":"default","accountId":"acc-mt","assetCode":"USD","available":"42.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
+	validJSON := `{"id":"00000000-0000-0000-0000-000000000401","alias":"@alias","key":"default","accountId":"00000000-0000-0000-0000-000000000001","assetCode":"USD","available":"42.00","onHold":"0","version":1,"accountType":"deposit","allowSending":1,"allowReceiving":1}`
 
 	var capturedKeys []string
 
@@ -133,32 +132,13 @@ func TestGetBalancesByKeys_MultiTenant_NoDoubleNamespacing(t *testing.T) {
 
 	// The value must be found (no false orphan) and keyed by the input member.
 	require.NotNil(t, result[namespacedMember], "balance value must be found for the namespaced key")
-	assert.Equal(t, "uuid-mt", result[namespacedMember].ID)
+	assert.Equal(t, "00000000-0000-0000-0000-000000000401", result[namespacedMember].ID)
 }
 
-func TestKeyNamespacing_MalformedTenantID_FailsClosedBatchScheduleAndRemove(t *testing.T) {
+func TestKeyNamespacing_MalformedTenantID_FailsClosedBatchRemove(t *testing.T) {
 	t.Parallel()
 
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant:invalid")
-
-	t.Run("schedule balance sync batch", func(t *testing.T) {
-		t.Parallel()
-
-		mockClient := &mockZAddNXClient{
-			zAddNXFunc: func(_ context.Context, _ string, _ ...redis.Z) *redis.IntCmd {
-				t.Fatal("ScheduleBalanceSyncBatch must fail closed before calling ZAddNX")
-
-				return nil
-			},
-		}
-
-		repo := &RedisConsumerRepository{
-			conn: newMockZAddNXConnection(mockClient),
-		}
-
-		err := repo.ScheduleBalanceSyncBatch(ctx, []redis.Z{{Score: float64(time.Now().Unix()), Member: "balance:key"}})
-		require.Error(t, err)
-	})
 
 	t.Run("remove balance sync keys batch", func(t *testing.T) {
 		t.Parallel()

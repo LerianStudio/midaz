@@ -26,7 +26,7 @@ import (
 // the account read then failed with "tenant postgres connection missing from context". The
 // assertions below are what keeps the route off that instance.
 //
-// The TenantMiddleware fields are unexported in lib-commons v6, so the module maps are read via
+// The TenantMiddleware fields are unexported in lib-commons v7, so the module maps are read via
 // reflect (see mapKeys in fees_tenant_wiring_test.go).
 func TestHolderAccountsTenantMiddlewareWiring(t *testing.T) {
 	t.Parallel()

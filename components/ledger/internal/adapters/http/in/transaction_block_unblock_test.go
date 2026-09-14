@@ -40,8 +40,8 @@ func TestBuildOverriddenTransaction(t *testing.T) {
 	// newInput returns a CreateTransactionInput that populates every field
 	// BuildTransaction copies, with non-zero values, so a regression that drops
 	// any field on the override path is caught by the reference comparison below.
-	newInput := func(pending bool) *mtransaction.CreateTransactionInput {
-		return &mtransaction.CreateTransactionInput{
+	newInput := func(pending bool) *CreateTransactionRequest {
+		return &CreateTransactionRequest{
 			ChartOfAccountsGroupName: "FUNDING",
 			Description:              "block test",
 			Code:                     "TR-BLOCK-1",

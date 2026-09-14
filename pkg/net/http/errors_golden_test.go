@@ -284,6 +284,7 @@ func allSentinels() map[string]error {
 		"ErrAccountBlockExceptionNotSupported":        constant.ErrAccountBlockExceptionNotSupported,
 		"ErrBalanceApplyMarkerMissingAliases":         constant.ErrBalanceApplyMarkerMissingAliases,
 		"ErrTransactionAlreadyTransitioned":           constant.ErrTransactionAlreadyTransitioned,
+		"ErrReservedMetadataKey":                      constant.ErrReservedMetadataKey,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
 		"ErrDuplicatedAliasKeyValue":                  constant.ErrDuplicatedAliasKeyValue,

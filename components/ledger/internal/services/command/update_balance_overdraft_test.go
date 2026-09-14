@@ -107,7 +107,7 @@ func TestUpdateBalance_WithSettings(t *testing.T) {
 		"AllowOverdraft MUST be persisted from the update payload")
 	assert.True(t, result.Settings.OverdraftLimitEnabled)
 	require.NotNil(t, result.Settings.OverdraftLimit)
-	assert.Equal(t, "1000.00", *result.Settings.OverdraftLimit)
+	assert.Equal(t, "1000", *result.Settings.OverdraftLimit)
 }
 
 // TestUpdateBalance_SettingsValidation verifies that invalid settings are

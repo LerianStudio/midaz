@@ -27,7 +27,7 @@ type TransactionHandler struct {
 // buildOverriddenTransaction builds the transaction from the input, forces
 // Pending=false (so InitialStatus resolves to non-pending), and stamps the
 // given OperationTypeOverride.
-func (handler *TransactionHandler) buildOverriddenTransaction(input *mtransaction.CreateTransactionInput, operationType string) mtransaction.Transaction {
+func (handler *TransactionHandler) buildOverriddenTransaction(input *CreateTransactionRequest, operationType string) mtransaction.Transaction {
 	transactionInput := input.BuildTransaction()
 	transactionInput.Pending = false
 	transactionInput.OperationTypeOverride = operationType

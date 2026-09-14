@@ -133,6 +133,15 @@ func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransiti
 		return nil, err
 	}
 
+	if uc.Engine != nil {
+		tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, unlock, false)
+		if err != nil {
+			recordCommandError(ctx, span, logger, "Failed to transition transaction with engine", err)
+		}
+
+		return tran, err
+	}
+
 	if err := uc.preparePendingTransition(ctx, span, logger, run, unlock); err != nil {
 		return nil, err
 	}
@@ -161,6 +170,15 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 	unlock, err := uc.lockPendingTransaction(ctx, span, logger, run)
 	if err != nil {
 		return nil, err
+	}
+
+	if uc.Engine != nil && run.accountBlockExceptionID == nil {
+		tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, unlock, true)
+		if err != nil {
+			recordCommandError(ctx, span, logger, "Failed to transition transaction with engine", err)
+		}
+
+		return tran, err
 	}
 
 	if err := uc.preparePendingTransition(ctx, span, logger, run, unlock); err != nil {

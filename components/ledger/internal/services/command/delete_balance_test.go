@@ -381,7 +381,7 @@ func TestDeleteBalanceBlockThenEvict(t *testing.T) {
 		err := uc.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to parse overdraft used")
+		assert.Contains(t, err.Error(), "failed to decode balance cache value")
 	})
 
 	t.Run("redis cache zero snapshot permits deletion", func(t *testing.T) {

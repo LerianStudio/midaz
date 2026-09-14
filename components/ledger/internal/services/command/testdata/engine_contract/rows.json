@@ -1,0 +1,908 @@
+{
+  "cases": [
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "@source",
+          "Key": "default",
+          "Operation": "DEBIT",
+          "Direction": "debit",
+          "Amount": "30",
+          "From": true,
+          "Before": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "70",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          }
+        }
+      ],
+      "name": "direct debit",
+      "noted": false,
+      "routed": false,
+      "status": "APPROVED",
+      "want": [
+        {
+          "Type": "DEBIT",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "30",
+          "Direction": "debit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "70",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "@source",
+          "Key": "default",
+          "Operation": "CREDIT",
+          "Direction": "credit",
+          "Amount": "30",
+          "From": false,
+          "Before": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "130",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          }
+        }
+      ],
+      "name": "direct credit",
+      "noted": false,
+      "routed": false,
+      "status": "APPROVED",
+      "want": [
+        {
+          "Type": "CREDIT",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "30",
+          "Direction": "credit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "130",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "@source",
+          "Key": "default",
+          "Operation": "ON_HOLD",
+          "Direction": "debit",
+          "Amount": "60",
+          "From": true,
+          "Before": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 1
+          }
+        }
+      ],
+      "name": "pending off",
+      "noted": false,
+      "routed": false,
+      "status": "PENDING",
+      "want": [
+        {
+          "Type": "ON_HOLD",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "60",
+          "Direction": "debit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 1
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "@source",
+          "Key": "default",
+          "Operation": "ON_HOLD",
+          "Direction": "debit",
+          "Amount": "60",
+          "From": true,
+          "Before": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 2
+          }
+        }
+      ],
+      "name": "pending on",
+      "noted": false,
+      "routed": true,
+      "status": "PENDING",
+      "want": [
+        {
+          "Type": "DEBIT",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "60",
+          "Direction": "debit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "40",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        },
+        {
+          "Type": "ON_HOLD",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "60",
+          "Direction": "credit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "40",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          },
+          "After": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 2
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "@source",
+          "Key": "default",
+          "Operation": "DEBIT",
+          "Direction": "debit",
+          "Amount": "60",
+          "From": true,
+          "Before": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 1
+          },
+          "After": {
+            "Available": "40",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 2
+          }
+        }
+      ],
+      "name": "commit off",
+      "noted": false,
+      "routed": false,
+      "status": "APPROVED",
+      "want": [
+        {
+          "Type": "DEBIT",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "60",
+          "Direction": "debit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 1
+          },
+          "After": {
+            "Available": "40",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 2
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "@source",
+          "Key": "default",
+          "Operation": "ON_HOLD",
+          "Direction": "debit",
+          "Amount": "60",
+          "From": true,
+          "Before": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 2
+          },
+          "After": {
+            "Available": "40",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 3
+          }
+        }
+      ],
+      "name": "commit on",
+      "noted": false,
+      "routed": true,
+      "status": "APPROVED",
+      "want": [
+        {
+          "Type": "ON_HOLD",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "60",
+          "Direction": "debit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 2
+          },
+          "After": {
+            "Available": "40",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 3
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "@source",
+          "Key": "default",
+          "Operation": "RELEASE",
+          "Direction": "credit",
+          "Amount": "60",
+          "From": true,
+          "Before": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 1
+          },
+          "After": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 2
+          }
+        }
+      ],
+      "name": "cancel off",
+      "noted": false,
+      "routed": false,
+      "status": "CANCELED",
+      "want": [
+        {
+          "Type": "RELEASE",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "60",
+          "Direction": "credit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 1
+          },
+          "After": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 2
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "@source",
+          "Key": "default",
+          "Operation": "RELEASE",
+          "Direction": "credit",
+          "Amount": "60",
+          "From": true,
+          "Before": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 2
+          },
+          "After": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 4
+          }
+        }
+      ],
+      "name": "cancel on",
+      "noted": false,
+      "routed": true,
+      "status": "CANCELED",
+      "want": [
+        {
+          "Type": "RELEASE",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "60",
+          "Direction": "debit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "40",
+            "OnHold": "60",
+            "Used": "0",
+            "Version": 2
+          },
+          "After": {
+            "Available": "40",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 3
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        },
+        {
+          "Type": "CREDIT",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "60",
+          "Direction": "credit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "40",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 3
+          },
+          "After": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 4
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "@source",
+          "Key": "default",
+          "Operation": "RELEASE",
+          "Direction": "credit",
+          "Amount": "50",
+          "From": true,
+          "Before": {
+            "Available": "0",
+            "OnHold": "50",
+            "Used": "50",
+            "Version": 2
+          },
+          "After": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 4
+          }
+        }
+      ],
+      "name": "cancel on repayment row projection",
+      "noted": false,
+      "routed": true,
+      "status": "CANCELED",
+      "want": [
+        {
+          "Type": "RELEASE",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "50",
+          "Direction": "debit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "0",
+            "OnHold": "50",
+            "Used": "50",
+            "Version": 2
+          },
+          "After": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 3
+          },
+          "SnapshotBefore": "50",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        },
+        {
+          "Type": "CREDIT",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "50",
+          "Direction": "credit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "50",
+            "Version": 3
+          },
+          "After": {
+            "Available": "50",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 4
+          },
+          "SnapshotBefore": "50",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "0#@source#default",
+          "Key": "default",
+          "Operation": "DEBIT",
+          "Direction": "debit",
+          "Amount": "100",
+          "From": true,
+          "Before": {
+            "Available": "50",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "50",
+            "Version": 1
+          }
+        },
+        {
+          "RouteID": "",
+          "Alias": "1#@source#overdraft",
+          "Key": "overdraft",
+          "Operation": "DEBIT",
+          "Direction": "debit",
+          "Amount": "50",
+          "From": true,
+          "Before": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "50",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          }
+        }
+      ],
+      "name": "overdraft draw with companion",
+      "noted": false,
+      "routed": false,
+      "status": "APPROVED",
+      "want": [
+        {
+          "Type": "DEBIT",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "50",
+          "Direction": "debit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "50",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "50",
+            "Version": 1
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "50",
+          "BalanceAffected": true
+        },
+        {
+          "Type": "OVERDRAFT",
+          "Alias": "@source",
+          "Key": "overdraft",
+          "Amount": "50",
+          "Direction": "debit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "50",
+            "OnHold": "0",
+            "Used": "50",
+            "Version": 1
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "50",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "0#@source#default",
+          "Key": "default",
+          "Operation": "CREDIT",
+          "Direction": "credit",
+          "Amount": "50",
+          "From": false,
+          "Before": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "50",
+            "Version": 0
+          },
+          "After": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          }
+        },
+        {
+          "RouteID": "",
+          "Alias": "1#@source#overdraft",
+          "Key": "overdraft",
+          "Operation": "CREDIT",
+          "Direction": "credit",
+          "Amount": "50",
+          "From": false,
+          "Before": {
+            "Available": "50",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          }
+        }
+      ],
+      "name": "repayment with zero primary amount",
+      "noted": false,
+      "routed": false,
+      "status": "APPROVED",
+      "want": [
+        {
+          "Type": "CREDIT",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "0",
+          "Direction": "credit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "50",
+            "Version": 0
+          },
+          "After": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          },
+          "SnapshotBefore": "50",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        },
+        {
+          "Type": "OVERDRAFT",
+          "Alias": "@source",
+          "Key": "overdraft",
+          "Amount": "50",
+          "Direction": "credit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "50",
+            "OnHold": "0",
+            "Used": "50",
+            "Version": 0
+          },
+          "After": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          },
+          "SnapshotBefore": "50",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "0#@source#default",
+          "Key": "default",
+          "Operation": "DEBIT",
+          "Direction": "debit",
+          "Amount": "30",
+          "From": true,
+          "Before": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "70",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          }
+        },
+        {
+          "RouteID": "77777777-7777-4777-8777-777777777777",
+          "Alias": "1#@source#default",
+          "Key": "default",
+          "Operation": "DEBIT",
+          "Direction": "debit",
+          "Amount": "20",
+          "From": true,
+          "Before": {
+            "Available": "70",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          },
+          "After": {
+            "Available": "50",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 2
+          }
+        }
+      ],
+      "name": "repeated alias retains per-leg routes",
+      "noted": false,
+      "routed": false,
+      "status": "APPROVED",
+      "want": [
+        {
+          "Type": "DEBIT",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "30",
+          "Direction": "debit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "70",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        },
+        {
+          "Type": "DEBIT",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "20",
+          "Direction": "debit",
+          "RouteID": "77777777-7777-4777-8777-777777777777",
+          "Before": {
+            "Available": "70",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 1
+          },
+          "After": {
+            "Available": "50",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 2
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": true
+        }
+      ]
+    },
+    {
+      "legs": [
+        {
+          "RouteID": "",
+          "Alias": "@source",
+          "Key": "default",
+          "Operation": "DEBIT",
+          "Direction": "debit",
+          "Amount": "30",
+          "From": true,
+          "Before": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "100",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          }
+        }
+      ],
+      "name": "noted annotation",
+      "noted": true,
+      "routed": false,
+      "status": "NOTED",
+      "want": [
+        {
+          "Type": "DEBIT",
+          "Alias": "@source",
+          "Key": "default",
+          "Amount": "30",
+          "Direction": "debit",
+          "RouteID": "55555555-5555-4555-8555-555555555555",
+          "Before": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "After": {
+            "Available": "0",
+            "OnHold": "0",
+            "Used": "0",
+            "Version": 0
+          },
+          "SnapshotBefore": "0",
+          "SnapshotAfter": "0",
+          "BalanceAffected": false
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 1
+}

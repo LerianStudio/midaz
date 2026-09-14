@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -55,6 +56,8 @@ type CreateTransactionV2Input struct {
 //
 // It returns the created transaction and whether the idempotency slot answered with
 // a replay, so the transport sets X-Idempotency-Replayed itself.
+//
+//nolint:gocyclo // Keeping compensation beside each ordered v2 seam makes the orchestration contract explicit.
 func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransactionV2Input) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -74,9 +77,31 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 		idempotencyTTL: in.IdempotencyTTL,
 	}
 
-	if err := uc.prepareCreateTransaction(ctx, span, logger, run); err != nil {
+	transactionID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to generate transaction id", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate transaction id", libLog.Err(err))
+
 		return nil, false, err
 	}
+
+	run.transactionID = transactionID
+
+	transactionDate, err := formatTransactionDate(ctx, span, run.input, run.status)
+	if err != nil {
+		return nil, false, err
+	}
+
+	run.transactionDate = transactionDate
+
+	spanattr.RecordSafePayloadAttributes(span, run.input)
+
+	if err := validatePositiveTransactionValue(ctx, span, logger, run.input.Send.Value); err != nil {
+		return nil, false, err
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
 
 	replay, err := uc.claimTransactionIdempotency(ctx, span, logger, run, in.IdempotencyHashSource)
 	if err != nil {
@@ -218,6 +243,14 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 		uc.rollbackCreateClaim(ctx, run)
 
 		return nil, false, err
+	}
+
+	// Keep exception-bearing requests on the compatibility path until the engine
+	// can validate and consume the single-use grant in the same atomic operation
+	// that applies the balances.
+	if uc.Engine != nil && run.status != constant.NOTED && run.accountBlockExceptionGrant == nil {
+		tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, true)
+		return tran, false, err
 	}
 
 	ctx, err = uc.stageBalances(ctx, span, logger, run)
