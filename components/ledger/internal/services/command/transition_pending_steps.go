@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -408,17 +410,13 @@ func (uc *UseCase) finalizePendingTransition(ctx context.Context, span trace.Spa
 
 			logger.Log(ctx, libLog.LevelError, "Failed to update transaction status synchronously", libLog.String("transaction_id", run.tran.ID), libLog.Err(statusErr))
 		case !transitioned:
-			// The compare-and-set matched no PENDING row: another transition of
-			// the same transaction already settled it. The balances of this one
-			// moved, so the failure is loud — the backup queue and reconciliation
-			// own the repair, and answering success would hide a double transition.
-			err := pkg.ValidateBusinessError(constant.ErrTransactionAlreadyTransitioned, constant.EntityTransaction)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is no longer pending on status update", err)
-
-			logger.Log(ctx, libLog.LevelError, "Transaction is no longer pending on status update", libLog.String("transaction_id", run.tran.ID), libLog.Err(err))
-
-			return nil, err
+			// The compare-and-set matched no PENDING row, which carries two
+			// opposite meanings: another transition already settled the row, or
+			// the async create has not inserted it yet. Only the first is a
+			// conflict, so the triage reads the row before answering.
+			if triageErr := uc.triageLostStatusTransition(ctx, span, logger, run); triageErr != nil {
+				return nil, triageErr
+			}
 		default:
 			// This call won the transition, so it owns the lifecycle event. The
 			// backup consumer that receives the write below finds the row already
@@ -448,4 +446,80 @@ func (uc *UseCase) finalizePendingTransition(ctx context.Context, span trace.Spa
 	}
 
 	return run.tran, nil
+}
+
+// triageLostStatusTransition resolves what a status compare-and-set that matched
+// no PENDING row means for this transition, reading the row from the primary.
+//
+// A conflict error is returned only when the row exists and is no longer
+// PENDING: that is the transition another writer already settled. Every other
+// outcome carries the run on to the transaction write, where the queued message
+// lets the async pipeline settle the status and own the lifecycle event. The
+// lifecycle event is emitted here only when a retried compare-and-set wins,
+// which keeps the fact on the wire exactly once.
+func (uc *UseCase) triageLostStatusTransition(ctx context.Context, span trace.Span, logger libLog.Logger, run *pendingTransitionRun) error {
+	readCtx := readrouting.WithPrimaryRead(ctx)
+
+	persisted, findErr := uc.TransactionRepo.Find(readCtx, run.organizationID, run.ledgerID, run.tran.IDtoUUID())
+	if findErr != nil {
+		var notFound pkg.EntityNotFoundError
+
+		if errors.As(findErr, &notFound) {
+			// The transition was served from the write-behind cache and the create
+			// has not inserted the row yet, so there is no row to compare against.
+			// The transition message queues behind the create one and the consumer
+			// settles the status.
+			span.SetAttributes(attribute.Bool("app.transaction.status_settle_deferred", true))
+
+			logger.Log(ctx, libLog.LevelWarn, "Transaction row not yet persisted; status settle deferred to async pipeline",
+				libLog.String("transaction_id", run.tran.ID))
+
+			return nil
+		}
+
+		// The read failed, so the row's status is unknown rather than known-settled.
+		// Answering a conflict would report a transition that may not have happened.
+		libOpentelemetry.HandleSpanError(span, "Failed to read transaction status after lost status update", findErr)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to read transaction status after lost status update",
+			libLog.String("transaction_id", run.tran.ID), libLog.Err(findErr))
+
+		return nil
+	}
+
+	if persisted.Status.Code != constant.PENDING {
+		// The balances of this transition moved against a transaction another one
+		// already settled, so the failure is loud: the backup queue and
+		// reconciliation own the repair, and answering success would hide a double
+		// transition.
+		err := pkg.ValidateBusinessError(constant.ErrTransactionAlreadyTransitioned, constant.EntityTransaction)
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is no longer pending on status update", err)
+
+		logger.Log(ctx, libLog.LevelError, "Transaction is no longer pending on status update",
+			libLog.String("transaction_id", run.tran.ID), libLog.Err(err))
+
+		return err
+	}
+
+	// The row landed between the compare-and-set and this read, so the set is
+	// retried once against the row that now exists.
+	_, transitioned, statusErr := uc.UpdateTransactionStatusFromPending(ctx, settledTransactionOf(run.tran))
+
+	switch {
+	case statusErr != nil:
+		libOpentelemetry.HandleSpanError(span, "Failed to retry transaction status update", statusErr)
+
+		logger.Log(ctx, libLog.LevelError, "Failed to retry transaction status update",
+			libLog.String("transaction_id", run.tran.ID), libLog.Err(statusErr))
+	case !transitioned:
+		// No rival can settle the row while this transition holds the lock, so the
+		// status is unknown rather than known-lost and the backup queue reconciles.
+		logger.Log(ctx, libLog.LevelError, "Transaction status update matched no pending row after retry",
+			libLog.String("transaction_id", run.tran.ID))
+	default:
+		uc.SendTransactionEvents(ctx, run.tran, TransactionLifecyclePhaseUpdated)
+	}
+
+	return nil
 }

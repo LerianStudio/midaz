@@ -75,9 +75,9 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 // variant of UpdateTransactionStatus: the repository's compare-and-set is what
 // keeps a commit and a cancel of the same transaction from both settling it.
 //
-// A false return is not an error — the row exists (the transition loaded it) and
-// simply is no longer PENDING, so the caller decides between rejecting the
-// request and treating the transition as already applied.
+// A false return is not an error: the row is either no longer PENDING or not
+// inserted yet, because a transition loaded from the write-behind cache runs
+// before the asynchronous create persists its row. The caller tells those apart.
 func (uc *UseCase) UpdateTransactionStatusFromPending(ctx context.Context, tran *transaction.Transaction) (_ *transaction.Transaction, _ bool, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

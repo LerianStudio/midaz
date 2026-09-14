@@ -131,11 +131,12 @@ type Repository interface {
 	// transition from flipping a transaction that another one already settled.
 	//
 	// The boolean reports whether the row was still PENDING and therefore
-	// transitioned. Zero rows is NOT an error: the caller decides what it means,
-	// because the row's existence was already established when the transition
-	// loaded the transaction — so zero rows here is a lost race, never a missing
-	// transaction. Callers on the request path treat it as a conflict; the
-	// backup consumer treats it as already-applied and carries on.
+	// transitioned. Zero rows is NOT an error, and it carries two meanings the
+	// repository cannot tell apart: a race lost to another transition, or a row
+	// the asynchronous create has not inserted yet — a transition loaded from the
+	// write-behind cache runs before its own row exists. The caller does that
+	// triage. The backup consumer treats zero rows as already-applied and carries
+	// on.
 	UpdateStatusFromPending(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
