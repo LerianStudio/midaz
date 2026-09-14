@@ -606,7 +606,7 @@ func TestCalculateFee_MultiplePackages_Success(t *testing.T) {
 		SegmentID: nil,
 		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
-			Route: route,
+			RouteID: &route,
 			Send: transaction.Send{
 				Asset: "BRL",
 				Value: decimal.NewFromInt(500),
@@ -696,7 +696,7 @@ func TestCalculateFee_MultiplePackages_CalculateFeeError(t *testing.T) {
 		SegmentID: nil,
 		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
-			Route: route,
+			RouteID: &route,
 			Send: transaction.Send{
 				Asset: "BRL",
 				Value: decimal.NewFromInt(500),
@@ -934,7 +934,7 @@ func TestCalculateFee_MultiplePackages_ValueAtMinimum(t *testing.T) {
 		SegmentID: nil,
 		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
-			Route: route,
+			RouteID: &route,
 			Send: transaction.Send{
 				Asset: "BRL",
 				Value: decimal.NewFromInt(100),
@@ -1009,7 +1009,7 @@ func TestCalculateFee_MultiplePackages_ValueAtMaximum(t *testing.T) {
 		SegmentID: nil,
 		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
-			Route: route,
+			RouteID: &route,
 			Send: transaction.Send{
 				Asset: "BRL",
 				Value: decimal.NewFromInt(1000),
@@ -1087,7 +1087,7 @@ func TestCalculateFee_MultiplePackages_WithSegmentID(t *testing.T) {
 		SegmentID: &segmentID1,
 		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
-			Route: route,
+			RouteID: &route,
 			Send: transaction.Send{
 				Asset: "BRL",
 				Value: decimal.NewFromInt(500),
@@ -1181,7 +1181,7 @@ func TestCalculateFee_MultiplePackages_WithMetadataUpdate(t *testing.T) {
 		SegmentID: nil,
 		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
-			Route:    route,
+			RouteID:  &route,
 			Metadata: nil,
 			Send: transaction.Send{
 				Asset: "BRL",
@@ -1409,7 +1409,7 @@ func TestCalculateFee_MultiplePackages(t *testing.T) {
 		SegmentID: nil,
 		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
-			Route: route,
+			RouteID: &route,
 			Send: transaction.Send{
 				Asset: "BRL",
 				Value: decimal.NewFromInt(500),
@@ -1473,7 +1473,7 @@ func TestCalculateFee_MultiplePackages_NoPackageFound(t *testing.T) {
 		SegmentID: nil,
 		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
-			Route: route1,
+			RouteID: &route1,
 			Send: transaction.Send{
 				Asset: "BRL",
 				Value: decimal.NewFromInt(500),
@@ -1536,7 +1536,7 @@ func TestCalculateFee_MultiplePackages_FilterError(t *testing.T) {
 		SegmentID: nil,
 		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
-			Route: route,
+			RouteID: &route,
 			Send: transaction.Send{
 				Asset: "BRL",
 				Value: decimal.NewFromInt(500),
@@ -1599,7 +1599,7 @@ func TestCalculateFee_MultiplePackages_ValueOutOfRange(t *testing.T) {
 		SegmentID: nil,
 		LedgerID:  ledgerID,
 		Transaction: transaction.Transaction{
-			Route: route,
+			RouteID: &route,
 			Send: transaction.Send{
 				Asset: "BRL",
 				Value: decimal.NewFromInt(50),
