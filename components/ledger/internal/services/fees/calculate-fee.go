@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -199,6 +200,30 @@ func routeIDOf(t transaction.Transaction) string {
 	return *t.RouteID
 }
 
+// refuseAmbiguousPackages answers a payment whose fee packages tie on scope, and
+// names the packages that tied everywhere an operator might look: the message
+// the client reads, the service log, and the span, through the business error
+// the entry point records on it.
+//
+// The refusal is reachable only on a ledger whose packages overlap in scope, and
+// the only fix is to re-scope one of them. A refusal naming none of them costs
+// an operator a manual replay of the selection against every package the ledger
+// holds, which is why the ids travel rather than the bare code.
+func refuseAmbiguousPackages(ctx context.Context, logger libLog.Logger, errFilterPack error) error {
+	tied := ""
+
+	var ambiguous feeUtils.AmbiguousPackagesError
+	if errors.As(errFilterPack, &ambiguous) {
+		tied = strings.Join(ambiguous.PackageIDs, ", ")
+	}
+
+	logger.Log(ctx, libLog.LevelWarn,
+		"Fee packages tie on scope, so the payment is refused rather than charged an arbitrary one of them",
+		libLog.String("package_ids", tied))
+
+	return pkg.ValidateBusinessError(constant.ErrFilterPackage, "", tied)
+}
+
 // calculateFeeForSinglePackage calculate the fee for a single package
 func (uc *UseCase) calculateFeeForSinglePackage(
 	ctx context.Context,
@@ -217,7 +242,7 @@ func (uc *UseCase) calculateFeeForSinglePackage(
 	// The amount band is re-checked below on whatever comes back.
 	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee([]*pack.Package{feePackage}, routeIDOf(cf.Transaction), cf.SegmentID, sendModel.Value)
 	if errFilterPack != nil {
-		return pkg.ValidateBusinessError(constant.ErrFilterPackage, "")
+		return refuseAmbiguousPackages(ctx, logger, errFilterPack)
 	}
 
 	if packFilter == nil {
@@ -258,7 +283,7 @@ func (uc *UseCase) calculateFeeForMultiplePackages(
 ) error {
 	packFilter, errFilterPack := feeUtils.FindPackageToCalculateFee(packages, routeIDOf(cf.Transaction), cf.SegmentID, sendModel.Value)
 	if errFilterPack != nil {
-		return pkg.ValidateBusinessError(constant.ErrFilterPackage, "")
+		return refuseAmbiguousPackages(ctx, logger, errFilterPack)
 	}
 
 	if packFilter == nil {

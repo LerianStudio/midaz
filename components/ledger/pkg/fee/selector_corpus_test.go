@@ -52,7 +52,8 @@ import (
 //  3. The most specific package wins, and a tie refuses. The charged package
 //     carries the highest constraint count among the candidates and is the only
 //     one carrying it; when the ledger holds candidates and nothing is charged,
-//     at least two of them are tied at that count.
+//     at least two of them are tied at that count and the refusal names exactly
+//     those, since re-scoping one of them is the only fix.
 func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 	t.Parallel()
 
@@ -242,6 +243,22 @@ func TestFindPackageToCalculateFee_ShapeCorpus(t *testing.T) {
 					"%s: %d package(s) match this payment and none was charged, yet the payment was not refused", shape, len(candidates))
 				require.GreaterOrEqual(t, tiedAtTop, 2,
 					"%s: the payment was refused as ambiguous with only %d candidate(s) at the top constraint count", shape, tiedAtTop)
+
+				var ambiguous AmbiguousPackagesError
+
+				require.ErrorAs(t, err, &ambiguous,
+					"%s: the refusal must carry the packages that tied", shape)
+
+				tiedIDs := make([]string, 0, tiedAtTop)
+
+				for _, n := range candidates {
+					if constraintsCarried(packages[n]) == topCarried {
+						tiedIDs = append(tiedIDs, packages[n].ID.String())
+					}
+				}
+
+				require.ElementsMatch(t, tiedIDs, ambiguous.PackageIDs,
+					"%s: the refusal must name exactly the packages that tied at the top constraint count", shape)
 
 				continue
 			}

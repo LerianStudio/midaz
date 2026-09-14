@@ -6,7 +6,7 @@
 package fee
 
 import (
-	"errors"
+	"strings"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 
@@ -44,8 +44,35 @@ func FindPackageToCalculateFee(packages []*pack.Package, transactionRoute string
 	case 1:
 		return survivors[0], nil
 	default:
-		return nil, errors.New("more than one package was found")
+		return nil, newAmbiguousPackagesError(survivors)
 	}
+}
+
+// AmbiguousPackagesError reports that several stored packages matched a payment
+// on every constraint each of them carries, at the same specificity. None can be
+// charged without picking one arbitrarily, so the payment is refused, and the
+// ids of the packages that tied travel with the refusal: they are what an
+// operator has to re-scope, and recovering them by hand means replaying the
+// selection against every package on the ledger.
+type AmbiguousPackagesError struct {
+	// PackageIDs holds the ids of the packages that tied, in the order storage
+	// returned them.
+	PackageIDs []string
+}
+
+// Error implements the error interface.
+func (e AmbiguousPackagesError) Error() string {
+	return "more than one package was found: " + strings.Join(e.PackageIDs, ", ")
+}
+
+// newAmbiguousPackagesError collects the ids of the packages that tied.
+func newAmbiguousPackagesError(survivors []*pack.Package) error {
+	ids := make([]string, 0, len(survivors))
+	for _, packValue := range survivors {
+		ids = append(ids, packValue.ID.String())
+	}
+
+	return AmbiguousPackagesError{PackageIDs: ids}
 }
 
 // filterByTransactionRoute Filters the packages by transaction route.

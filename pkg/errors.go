@@ -1755,7 +1755,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrFilterPackage.Error(),
 			Title:      "Package filtering error",
-			Message:    "Failed to filter a single package by transactionRoute, segmentID, and maximum/minimum amount. Either no package was found or multiple packages matched the criteria.",
+			Message:    fmt.Sprintf("More than one fee package matches this transaction on transactionRoute, segmentID and the amount range, and they are equally specific, so none of them can be applied. Re-scope one of these packages: %v.", args...),
 		},
 		constant.ErrPackageRange: EntityConflictError{
 			EntityType: entityType,
