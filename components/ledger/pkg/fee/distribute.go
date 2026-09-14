@@ -28,7 +28,7 @@ import (
 // the deductible fee is skipped entirely — the transaction initiator's exemption status determines
 // whether the fee is triggered.
 func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waivedAccounts *[]string, segmentIDs []uuid.UUID, segCtx *SegmentContext, feeModel model.Fee,
-	resp *transaction.Responses, result transaction.Amount, f *model.FeeCalculate, engineLegKeys map[string]struct{},
+	resp *transaction.Responses, result transaction.Amount, f *model.FeeCalculate,
 ) error {
 	originalRespToSize := len(resp.To)
 
@@ -59,7 +59,7 @@ func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waive
 
 		var errFee error
 
-		resp.From, resp.To, errFee = applyProportionalFee(feeModel, feeIndex, &resp.From, resp.To, result, waivedAccounts, segmentIDs, segCtx, false, engineLegKeys)
+		resp.From, resp.To, errFee = applyProportionalFee(feeModel, feeIndex, &resp.From, resp.To, result, waivedAccounts, segmentIDs, segCtx, false)
 		if errFee != nil {
 			return errFee
 		}
@@ -94,7 +94,7 @@ func applyDeductibleAndReferenceAmountRules(_ libLog.Logger, feeIndex int, waive
 
 		var errFee error
 
-		resp.To, _, errFee = applyProportionalFee(feeModel, feeIndex, &resp.To, nil, result, waivedAccounts, segmentIDs, segCtx, true, engineLegKeys)
+		resp.To, _, errFee = applyProportionalFee(feeModel, feeIndex, &resp.To, nil, result, waivedAccounts, segmentIDs, segCtx, true)
 		if errFee != nil {
 			return errFee
 		}
@@ -158,15 +158,16 @@ func setFeeExemptionMetadata(f *model.FeeCalculate, reason string) {
 // holds the movements the fee engine minted and the movements the operator authored together, so
 // the function also marks the engine ones, and only those, with the reserved fee key.
 //
-// What separates them is engineLegKeys, the set every emit helper records its own leg key in at
-// the moment it mints the leg. Neither the account alias nor the shape of the map key is
-// consulted: an operator movement enters the map under an alias the caller chose, and the create
-// surface accepts an alias carrying the same -> decoration the engine uses, so a mark derived
-// from the key shape is forgeable through the payment payload. A mark derived from what the
-// engine recorded while minting is not.
+// What separates them is a field on the movement itself, set by the emit helpers at the moment
+// they mint the leg. Nothing about the map key is consulted. An operator movement enters the map
+// under an alias the caller chose; the create surface accepts an alias carrying the same ->
+// decoration the engine uses; and the two sides are rebuilt from two separate maps whose keys can
+// coincide, so a caller naming its own leg after a key the engine mints on the OTHER side reaches
+// any mark derived from the key. The field is out of reach instead: it is kept off every wire a
+// caller can write, and a movement built from a caller payload carries it false.
 //
 // The -> split below is still read for the alias trim and the route, which are display concerns
-// and behave exactly as they did before; only the mark reads the set.
+// and behave exactly as they did before; only the mark reads the field.
 //
 // ponytail: that trim is a pre-existing ceiling this function keeps. A leg aliased dst->ops comes
 // back as dst, because trimFeeSuffix cuts at the first -> whoever wrote it. No account can be
@@ -174,7 +175,7 @@ func setFeeExemptionMetadata(f *model.FeeCalculate, reason string) {
 // account the trimmed alias names, and the mark is no longer affected either way. Closing the
 // truncation needs an alias rule on the transaction leg, which is a different surface from this
 // one.
-func updatedAmountsFromFee(amounts map[string]transaction.Amount, engineLegKeys map[string]struct{}) []transaction.FromTo {
+func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.FromTo {
 	newFromTo := make([]transaction.FromTo, 0, len(amounts))
 
 	for account, amount := range amounts {
@@ -189,7 +190,7 @@ func updatedAmountsFromFee(amounts map[string]transaction.Amount, engineLegKeys 
 		}
 
 		// Set after processAccount, which replaces the metadata map rather than adding to it.
-		if _, minted := engineLegKeys[account]; minted {
+		if amount.FeeLeg {
 			metadata[constant.MetadataKeyFeeLeg] = constant.MetadataValueFeeLeg
 		}
 
@@ -299,7 +300,6 @@ func calculateProportionalFees(
 	isToStruct bool,
 	maxAccount string,
 	target *feeCorrectionTarget,
-	engineLegKeys map[string]struct{},
 ) (map[string]transaction.Amount, map[string]transaction.Amount, decimal.Decimal, error) {
 	updateAmount := make(map[string]transaction.Amount)
 	updateAmountToStruct := amountsToStruct
@@ -367,9 +367,9 @@ func calculateProportionalFees(
 						pkg.ValidateBusinessError(constant.ErrDeductibleFeeExceedsAmount, "")
 				}
 
-				amount = emitDeductibleLeg(feeModel, feeIndex, key, amount, resultAmount, exemptAccounts, updateAmount, maxAccount, target, engineLegKeys)
+				amount = emitDeductibleLeg(feeModel, feeIndex, key, amount, resultAmount, exemptAccounts, updateAmount, maxAccount, target)
 			} else {
-				updateAmountToStruct = emitNonDeductibleLeg(feeModel, feeIndex, key, resultAmount, exemptAccounts, updateAmount, updateAmountToStruct, maxAccount, target, engineLegKeys)
+				updateAmountToStruct = emitNonDeductibleLeg(feeModel, feeIndex, key, resultAmount, exemptAccounts, updateAmount, updateAmountToStruct, maxAccount, target)
 			}
 
 			newFeeTotalPaying = newFeeTotalPaying.Add(feeApplied)
@@ -394,11 +394,12 @@ func emitDeductibleLeg(
 	updateAmount map[string]transaction.Amount,
 	maxAccount string,
 	target *feeCorrectionTarget,
-	engineLegKeys map[string]struct{},
 ) transaction.Amount {
 	legKey := feeModel.CreditAccount + "->fee_source" + strconv.Itoa(feeIndex) + "->" + key + "->" + feeModel.GetRouteTo()
+	// Minted here, so marked here. The flag rides on the movement rather than on its map key,
+	// which is the caller's own alias for every movement the caller authored.
+	resultAmount.FeeLeg = true
 	updateAmount[legKey] = resultAmount
-	engineLegKeys[legKey] = struct{}{}
 	amount.Value = amount.Value.Sub(resultAmount.Value)
 
 	*exemptAccounts = append(*exemptAccounts, legKey)
@@ -425,15 +426,15 @@ func emitNonDeductibleLeg(
 	updateAmount, updateAmountToStruct map[string]transaction.Amount,
 	maxAccount string,
 	target *feeCorrectionTarget,
-	engineLegKeys map[string]struct{},
 ) map[string]transaction.Amount {
 	feeKey := key + "->fee" + strconv.Itoa(feeIndex)
 	debitLegKey := feeKey + "->" + feeModel.GetRouteFrom()
 	feeSourceKey := feeModel.CreditAccount + "->fee_source" + strconv.Itoa(feeIndex) + "->" + key + "->" + feeModel.GetRouteTo()
 
+	// Both halves of the pair are minted here, so both are marked here, from one flag on the
+	// amount the two writes below copy.
+	resultAmount.FeeLeg = true
 	updateAmount[debitLegKey] = resultAmount
-	engineLegKeys[debitLegKey] = struct{}{}
-	engineLegKeys[feeSourceKey] = struct{}{}
 
 	if updateAmountToStruct == nil {
 		updateAmountToStruct = make(map[string]transaction.Amount)
@@ -538,7 +539,7 @@ func applyFeeCorrection(
 // applyProportionalFee applies the proportional fee
 func applyProportionalFee(feeModel model.Fee, feeIndex int, amounts *map[string]transaction.Amount,
 	amountsToStruct map[string]transaction.Amount, feeValue transaction.Amount, exemptAccounts *[]string,
-	segmentIDs []uuid.UUID, segCtx *SegmentContext, isToStruct bool, engineLegKeys map[string]struct{},
+	segmentIDs []uuid.UUID, segCtx *SegmentContext, isToStruct bool,
 ) (map[string]transaction.Amount, map[string]transaction.Amount, error) {
 	maxAccount, err := findMaxAccount(*amounts, exemptAccounts, segmentIDs, segCtx)
 	if err != nil {
@@ -548,7 +549,7 @@ func applyProportionalFee(feeModel model.Fee, feeIndex int, amounts *map[string]
 	var target feeCorrectionTarget
 
 	updateAmount, updateAmountToStruct, newFeeTotalPaying, err := calculateProportionalFees(
-		feeModel, feeIndex, amounts, amountsToStruct, feeValue, exemptAccounts, segmentIDs, segCtx, isToStruct, maxAccount, &target, engineLegKeys,
+		feeModel, feeIndex, amounts, amountsToStruct, feeValue, exemptAccounts, segmentIDs, segCtx, isToStruct, maxAccount, &target,
 	)
 	if err != nil {
 		return *amounts, amountsToStruct, err

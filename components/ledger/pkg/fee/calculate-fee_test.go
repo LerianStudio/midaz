@@ -1726,7 +1726,7 @@ func TestUpdatedAmountsFromFee(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := updatedAmountsFromFee(tt.amounts, map[string]struct{}{})
+			result := updatedAmountsFromFee(tt.amounts)
 			assert.Len(t, result, tt.expected)
 
 			if tt.expected > 0 {
@@ -2608,10 +2608,10 @@ func TestCalculateFee_DeductibleFitsAmount_Applied(t *testing.T) {
 }
 
 // TestUpdatedAmountsFromFee_FeeLegMark pins which movements of one payment carry the ledger's own
-// fee mark. Every movement the engine mints enters the amounts map under a decorated key; an
-// operator-authored movement enters under its bare account alias. The operator case is the mutant
-// target: an implementation that marks every entry passes the three engine cases and fails only
-// that one.
+// fee mark. Every movement the engine mints carries the engine's own flag on the movement itself;
+// an operator-authored movement carries no flag, whatever its alias looks like. The operator case
+// is the mutant target: an implementation that marks every entry passes the three engine cases and
+// fails only that one.
 func TestUpdatedAmountsFromFee_FeeLegMark(t *testing.T) {
 	t.Parallel()
 
@@ -2620,9 +2620,9 @@ func TestUpdatedAmountsFromFee_FeeLegMark(t *testing.T) {
 	// the alias before the movement is returned, so two movements can share an alias.
 	amounts := map[string]transaction.Amount{
 		"@payer": {Asset: "BRL", Value: decimal.NewFromInt(1000)},
-		"@collector->fee_source0->@payer->route_to": {Asset: "BRL", Value: decimal.NewFromInt(20)},
-		"@payer->fee1->route_from":                  {Asset: "BRL", Value: decimal.NewFromInt(30)},
-		"@collector->fee_source1->@payer->route_to": {Asset: "BRL", Value: decimal.NewFromInt(31)},
+		"@collector->fee_source0->@payer->route_to": {Asset: "BRL", Value: decimal.NewFromInt(20), FeeLeg: true},
+		"@payer->fee1->route_from":                  {Asset: "BRL", Value: decimal.NewFromInt(30), FeeLeg: true},
+		"@collector->fee_source1->@payer->route_to": {Asset: "BRL", Value: decimal.NewFromInt(31), FeeLeg: true},
 	}
 
 	type expectation struct {
@@ -2638,15 +2638,7 @@ func TestUpdatedAmountsFromFee_FeeLegMark(t *testing.T) {
 		"31":   {alias: "@collector", feeLeg: true, source: "@payer"}, // its collector mirror
 	}
 
-	// The engine records these three keys when it mints the legs; "@payer" is the operator's own
-	// movement and was never minted here.
-	engineLegKeys := map[string]struct{}{
-		"@collector->fee_source0->@payer->route_to": {},
-		"@payer->fee1->route_from":                  {},
-		"@collector->fee_source1->@payer->route_to": {},
-	}
-
-	result := updatedAmountsFromFee(amounts, engineLegKeys)
+	result := updatedAmountsFromFee(amounts)
 	assert.Len(t, result, len(expected))
 
 	// Which expectations were consumed, so a result that returns one movement twice and drops
@@ -2689,34 +2681,210 @@ func TestUpdatedAmountsFromFee_FeeLegMark(t *testing.T) {
 	}
 }
 
-// TestCalculateFee_EngineMintsTheMark drives the real CalculateFee and reads the mark off the
-// movements the engine actually minted, rather than off hand-written map keys. It asserts the
-// mark in both directions in one run: present on the fee leg the engine created, absent on the
-// recipient's own movement.
-//
-// The recipient alias carries the engine's own "->" decoration on purpose. A caller can put that
-// decoration in an account alias on the create surface, so a mark derived from the shape of the
-// map key is forgeable; a mark the engine records when it mints the leg is not.
-func TestCalculateFee_EngineMintsTheMark(t *testing.T) {
-	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "test"})
+// markFee builds one flat fee for the mark scenarios below. No route is configured on either
+// side, so the keys the engine mints end in a trailing arrow: that is the cheapest shape for a
+// caller to guess, which is exactly what these cases hand to the engine.
+func markFee(label string, deductible bool, priority int, creditAccount, value string) model.Fee {
+	return model.Fee{
+		FeeLabel: label,
+		CalculationModel: &model.CalculationModel{
+			ApplicationRule: feeconstant.AppRuleFlatFee,
+			Calculations:    []model.Calculation{{Type: feeconstant.FeeTypeFlat, Value: value}},
+		},
+		ReferenceAmount:  "originalAmount",
+		Priority:         priority,
+		IsDeductibleFrom: &deductible,
+		CreditAccount:    creditAccount,
+	}
+}
 
-	feeCalc, pkg, resp := newDeductibleFlatFeeCalc("100", "10")
+// newMarkScenario builds one payment straight from the amounts maps the fee engine reads. A
+// movement the operator authored enters those maps under the account alias the caller wrote, so a
+// case can hand the engine an alias that looks exactly like a key the engine itself mints.
+func newMarkScenario(sendValue string, from, to map[string]string, fees ...model.Fee) (*model.FeeCalculate, *pack.Package, *transaction.Responses) {
+	buildSide := func(side map[string]string) (map[string]transaction.Amount, []transaction.FromTo) {
+		amounts := make(map[string]transaction.Amount, len(side))
+		legs := make([]transaction.FromTo, 0, len(side))
 
-	feeCalc.Transaction.Send.Distribute.To[0].AccountAlias = "dst->ops"
-	resp.To = map[string]transaction.Amount{"dst->ops": {Asset: "BRL", Value: decimal.NewFromInt(100)}}
+		for alias, value := range side {
+			parsed, _ := decimal.NewFromString(value)
+			amounts[alias] = transaction.Amount{Asset: "BRL", Value: parsed}
+			legs = append(legs, transaction.FromTo{
+				AccountAlias: alias,
+				Amount:       &transaction.Amount{Asset: "BRL", Value: parsed},
+			})
+		}
 
-	err := CalculateFee(logger, feeCalc, pkg, resp, nil)
-	require.NoError(t, err)
-
-	rebuilt := feeCalc.Transaction.Send.Distribute.To
-	require.Len(t, rebuilt, 2, "one recipient movement plus one engine fee leg")
-
-	marks := map[string]any{}
-	for _, fromTo := range rebuilt {
-		marks[fromTo.Amount.Value.String()] = fromTo.Metadata["feeLeg"]
+		return amounts, legs
 	}
 
-	assert.Equal(t, "true", marks["10"], "the fee leg the engine minted must carry the ledger mark")
-	assert.Nil(t, marks["90"],
-		"the recipient's own movement must carry no mark, even though its alias carries the engine decoration")
+	fromAmounts, fromLegs := buildSide(from)
+	toAmounts, toLegs := buildSide(to)
+
+	send, _ := decimal.NewFromString(sendValue)
+
+	feesByLabel := make(map[string]model.Fee, len(fees))
+	for _, fee := range fees {
+		feesByLabel[fee.FeeLabel] = fee
+	}
+
+	feeCalc := &model.FeeCalculate{
+		Transaction: transaction.Transaction{
+			Send: transaction.Send{
+				Asset:      "BRL",
+				Value:      send,
+				Source:     transaction.Source{From: fromLegs},
+				Distribute: transaction.Distribute{To: toLegs},
+			},
+		},
+	}
+
+	pkg := &pack.Package{
+		ID:             uuid.New(),
+		Fees:           feesByLabel,
+		WaivedAccounts: &[]string{},
+	}
+
+	return feeCalc, pkg, &transaction.Responses{From: fromAmounts, To: toAmounts}
+}
+
+// feeLegWant is what one rebuilt movement must look like to the client: the alias it carries and
+// whether the ledger claimed it as a movement its own fee engine created.
+type feeLegWant struct {
+	alias  string
+	feeLeg bool
+}
+
+// TestCalculateFee_MarksOnlyWhatTheEngineMinted drives the real CalculateFee and reads the mark
+// off the movements the engine actually minted. This is the whole contract in one test: the mark
+// means the LEDGER wrote this movement, so no payment payload may produce it.
+//
+// Three of the four cases hand the engine an account alias built to look like a key the engine
+// mints, and two of those need nothing beyond the caller's own alias plus the engine decoration.
+// A mark derived from the map key labels the caller's own money in those cases; a mark the engine
+// sets on the movement at the moment it mints it cannot.
+func TestCalculateFee_MarksOnlyWhatTheEngineMinted(t *testing.T) {
+	cases := []struct {
+		name     string
+		send     string
+		from     map[string]string
+		to       map[string]string
+		fees     []model.Fee
+		wantFrom map[string]feeLegWant
+		wantTo   map[string]feeLegWant
+	}{
+		{
+			name: "recipient alias carries the engine decoration",
+			send: "100",
+			from: map[string]string{"src": "100"},
+			to:   map[string]string{"dst->ops": "100"},
+			fees: []model.Fee{markFee("deductible", true, 1, "@fee_account", "10")},
+			wantFrom: map[string]feeLegWant{
+				"100": {alias: "src"},
+			},
+			wantTo: map[string]feeLegWant{
+				"90": {alias: "dst"},
+				"10": {alias: "@fee_account", feeLeg: true},
+			},
+		},
+		{
+			// The caller's own alias plus the engine decoration plus an empty fee route. It
+			// needs no knowledge of the tenant fee configuration, which is what makes it the
+			// cheapest forgery of all and the one that must not work.
+			name: "caller credits a leg aliased as the debit leg the engine will mint",
+			send: "100",
+			from: map[string]string{"@payer": "100"},
+			to:   map[string]string{"@payer->fee0->": "100"},
+			fees: []model.Fee{markFee("nondeductible", false, 1, "@fee_account", "10")},
+			wantFrom: map[string]feeLegWant{
+				"100": {alias: "@payer"},
+				"10":  {alias: "@payer", feeLeg: true},
+			},
+			wantTo: map[string]feeLegWant{
+				"100": {alias: "@payer"},
+				"10":  {alias: "@fee_account", feeLeg: true},
+			},
+		},
+		{
+			// The mirror on the deductible side. This one also needs the collector account
+			// name, so it is the more expensive forgery of the two, and equally refused.
+			name: "caller debits a leg aliased as the collector leg the engine will mint",
+			send: "100",
+			from: map[string]string{"src": "60", "@fee_account->fee_source0->dst->": "40"},
+			to:   map[string]string{"dst": "100"},
+			fees: []model.Fee{markFee("deductible", true, 1, "@fee_account", "10")},
+			wantFrom: map[string]feeLegWant{
+				"60": {alias: "src"},
+				"40": {alias: "@fee_account"},
+			},
+			wantTo: map[string]feeLegWant{
+				"90": {alias: "dst"},
+				"10": {alias: "@fee_account", feeLeg: true},
+			},
+		},
+		{
+			// Two fees in one package is the common shape (a flat charge plus a percentage).
+			// Every collector movement carries the mark, not only the last fee's.
+			name: "two fees in one package mark both collector movements",
+			send: "100",
+			from: map[string]string{"src": "100"},
+			to:   map[string]string{"dst": "100"},
+			fees: []model.Fee{
+				markFee("first", true, 1, "@fee_a", "5"),
+				markFee("second", true, 2, "@fee_b", "3"),
+			},
+			wantFrom: map[string]feeLegWant{
+				"100": {alias: "src"},
+			},
+			wantTo: map[string]feeLegWant{
+				"92": {alias: "dst"},
+				"5":  {alias: "@fee_a", feeLeg: true},
+				"3":  {alias: "@fee_b", feeLeg: true},
+			},
+		},
+	}
+
+	assertMarks := func(t *testing.T, side string, rebuilt []transaction.FromTo, want map[string]feeLegWant) {
+		t.Helper()
+
+		require.Lenf(t, rebuilt, len(want), "%s side movement count", side)
+
+		seen := map[string]int{}
+
+		for _, fromTo := range rebuilt {
+			value := fromTo.Amount.Value.String()
+
+			expected, known := want[value]
+			require.Truef(t, known, "%s side returned an unexpected movement of %s", side, value)
+			seen[value]++
+
+			assert.Equalf(t, expected.alias, fromTo.AccountAlias, "%s side alias of the movement of %s", side, value)
+
+			mark, marked := fromTo.Metadata[constant.MetadataKeyFeeLeg]
+			assert.Equalf(t, expected.feeLeg, marked, "%s side fee mark on the movement of %s", side, value)
+
+			if expected.feeLeg {
+				assert.Equalf(t, constant.MetadataValueFeeLeg, mark, "%s side fee mark value on the movement of %s", side, value)
+			}
+		}
+
+		for value := range want {
+			// Without this a movement that never came back at all would satisfy the absence
+			// assertion above vacuously, and absence is the half these cases exist for.
+			require.Equalf(t, 1, seen[value], "%s side must return the movement of %s exactly once", side, value)
+		}
+	}
+
+	logger, _ := libZap.New(libZap.Config{Environment: libZap.EnvironmentLocal, OTelLibraryName: "test"})
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			feeCalc, pkg, resp := newMarkScenario(tc.send, tc.from, tc.to, tc.fees...)
+
+			require.NoError(t, CalculateFee(logger, feeCalc, pkg, resp, nil))
+
+			assertMarks(t, "source", feeCalc.Transaction.Send.Source.From, tc.wantFrom)
+			assertMarks(t, "destination", feeCalc.Transaction.Send.Distribute.To, tc.wantTo)
+		})
+	}
 }

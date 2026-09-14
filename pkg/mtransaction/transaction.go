@@ -101,6 +101,13 @@ type Amount struct {
 	// reversals. It is zero for normal transactions, where Lua derives the
 	// split from live balance state.
 	OverdraftAmount decimal.Decimal `json:"overdraftAmount,omitempty" swaggerignore:"true"`
+	// FeeLeg records that the fee engine minted this movement. The engine sets it at the moment
+	// it mints the leg and nothing else sets it, and the rebuild that turns these amounts back
+	// into movements reads it to write the reserved fee mark. That is what makes the mark the
+	// word of the ledger rather than a shape a caller can imitate: the JSON tag keeps the field
+	// off every wire a caller can write, and a movement built from a caller payload carries it
+	// false.
+	FeeLeg bool `json:"-" swaggerignore:"true"`
 }
 
 // Share structure for marshaling/unmarshalling JSON.

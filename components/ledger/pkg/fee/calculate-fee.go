@@ -128,13 +128,6 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 
 	directAliasesPtr := &directAliases
 
-	// The keys of every leg the engine is about to mint, recorded at mint time by the emit
-	// helpers. It is the ONLY thing that tells an engine movement from an operator movement when
-	// both sides are rebuilt below: a caller chooses its own account aliases, so nothing read off
-	// the movement itself is the ledger's word. Built once for the whole fee loop, because a leg
-	// minted for one fee stays an engine leg while later fees are applied.
-	engineLegKeys := make(map[string]struct{})
-
 	for feeIndex, fee := range fees {
 		valueToCalculate := selectReferenceAmount(fee, f.Transaction.Send.Value, originalTransactionValue)
 
@@ -162,13 +155,13 @@ func CalculateFee(logger libLog.Logger, f *model.FeeCalculate, p *pack.Package, 
 		// residual-to-max reconciliation in applyFeeCorrection holds sum(legs) ==
 		// fee total exactly without any asset-scale rounding.
 
-		if err := applyDeductibleAndReferenceAmountRules(logger, feeIndex, directAliasesPtr, segmentIDs, segCtx, fee, resp, result, f, engineLegKeys); err != nil {
+		if err := applyDeductibleAndReferenceAmountRules(logger, feeIndex, directAliasesPtr, segmentIDs, segCtx, fee, resp, result, f); err != nil {
 			return err
 		}
 	}
 
-	f.Transaction.Send.Source.From = updatedAmountsFromFee(resp.From, engineLegKeys)
-	f.Transaction.Send.Distribute.To = updatedAmountsFromFee(resp.To, engineLegKeys)
+	f.Transaction.Send.Source.From = updatedAmountsFromFee(resp.From)
+	f.Transaction.Send.Distribute.To = updatedAmountsFromFee(resp.To)
 
 	return nil
 }
