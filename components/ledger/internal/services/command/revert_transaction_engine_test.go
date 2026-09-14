@@ -116,6 +116,10 @@ func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T)
 	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
 	originID := uuid.MustParse("33333333-3333-4333-8333-333333333333")
+	exceptionID := uuid.MustParse("77777777-7777-4777-8777-777777777777")
+	redisRepo.EXPECT().GetAccountBlockException(gomock.Any(), organizationID, ledgerID, exceptionID).
+		Return(&mmodel.AccountBlockExceptionRedis{Alias: "@payee", Amount: "10.0"}, nil).
+		Times(1)
 	origin := revertEngineOrigin(organizationID, ledgerID, originID)
 	settings := mmodel.LedgerSettings{}
 	settings.Tracer.Mode = mmodel.TracerModeEnforce
@@ -141,6 +145,7 @@ func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T)
 
 	got, replayed, err := uc.RevertTransactionV2(ctx, RevertTransactionInput{
 		OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: originID,
+		AccountBlockExceptionID: &exceptionID,
 	})
 	require.NoError(t, err)
 	assert.False(t, replayed)
@@ -156,6 +161,10 @@ func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T)
 	firstExecution := executor.requests[0]
 	assert.NotEqual(t, originID, firstExecution.Execution.Transactions[0].ID)
 	assert.Equal(t, got.ID, firstExecution.Execution.Transactions[0].ID.String())
+	require.NotNil(t, firstExecution.Execution.Transactions[0].AccountBlockException)
+	assert.Equal(t, accounting.AccountBlockException{
+		ExceptionID: exceptionID, Alias: "@payee", Amount: decimal.NewFromInt(10), PrimaryPostingRef: "from:0:debit",
+	}, *firstExecution.Execution.Transactions[0].AccountBlockException)
 	assert.GreaterOrEqual(t, reader.reads, 2)
 
 	require.Len(t, finalizer.envelopes, 1)
@@ -182,6 +191,60 @@ func TestRevertTransactionV2UsesOptInEngineWithStableChildIdentity(t *testing.T)
 	case <-time.After(time.Second):
 		t.Fatal("durable revert did not populate the idempotency value")
 	}
+}
+
+func TestRevertTransactionV2GrantRefusalReleasesClaimAndReservation(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).Return(true, nil).Times(1)
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	organizationID := uuid.MustParse("81111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("82222222-2222-4222-8222-222222222222")
+	originID := uuid.MustParse("83333333-3333-4333-8333-333333333333")
+	exceptionID := uuid.MustParse("84444444-4444-4444-8444-444444444444")
+	redisRepo.EXPECT().GetAccountBlockException(gomock.Any(), organizationID, ledgerID, exceptionID).
+		Return(&mmodel.AccountBlockExceptionRedis{Alias: "@payee", Amount: "10"}, nil).
+		Times(1)
+
+	settings := mmodel.LedgerSettings{}
+	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	reader := &revertEngineReader{
+		revertReader: &revertReader{
+			origin:        revertEngineOrigin(organizationID, ledgerID, originID),
+			versionReader: versionReader{settings: settings},
+		},
+		balances: []*mmodel.Balance{
+			revertEngineBalance(organizationID, ledgerID, "85555555-5555-4555-8555-555555555555", "@payee", 50, 7),
+			revertEngineBalance(organizationID, ledgerID, "86666666-6666-4666-8666-666666666666", "@payer", 20, 3),
+		},
+	}
+	executor := &createEngineErrorExecutor{err: &accounting.Failure{
+		Code: accounting.FailureAccountBlockExceptionInvalid, TransactionIndex: 0, PostingIndex: 0,
+		BalanceRef: "@payee#default",
+	}}
+	reservationID := uuid.MustParse("87777777-7777-4777-8777-777777777777")
+	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+	finalizer := &createAppliedTransactionCompleter{}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo, TransactionReader: reader,
+		Engine: executor, AppliedTransactionCompleter: finalizer, TracerReserver: reserver,
+	}
+
+	got, replayed, err := uc.RevertTransactionV2(context.Background(), RevertTransactionInput{
+		OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: originID,
+		AccountBlockExceptionID: &exceptionID,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), constant.ErrAccountBlockExceptionInvalid.Error())
+	assert.Nil(t, got)
+	assert.False(t, replayed)
+	require.Len(t, executor.requests, 1)
+	require.NotNil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
+	assert.Equal(t, []uuid.UUID{reservationID}, reserver.releasedIDs)
+	assert.Empty(t, reserver.confirmedIDs)
+	assert.Empty(t, finalizer.envelopes)
 }
 
 func TestRevertTransactionEngineIndeterminateFailureRetainsClaim(t *testing.T) {

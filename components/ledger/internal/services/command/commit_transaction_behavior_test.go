@@ -294,17 +294,17 @@ func newCommittingUseCase(t *testing.T, tran *transaction.Transaction) (*UseCase
 	return uc, redisRepo, reserver
 }
 
-// TestPendingTransition_GrantMissRejectsAndReleasesLock proves the /v2 commit
+// TestPendingTransition_GrantMissRejectsBeforeTheEngineAndReleasesLock proves the /v2 commit
 // unwinds its one compensation when the presented account-block exception cannot
 // be read: the Redis lock is released, so the pending stays committable by a
 // retry.
 //
 // The lock is taken before the grant is read, and the read sits before the atomic
 // mutation — so this branch has the lock to release and nothing else. It must also
-// stop there: the mock allows no AddMessageToQueue and no
-// ProcessBalanceAtomicOperation, so a pipeline that fell through to move balances
-// on an unauthorized commit fails here.
-func TestPendingTransition_GrantMissRejectsAndReleasesLock(t *testing.T) {
+// stop there: the engine recorder must remain empty, while the mock allows no
+// AddMessageToQueue or ProcessBalanceAtomicOperation, so falling through to either
+// balance path on an unauthorized commit fails here.
+func TestPendingTransition_GrantMissRejectsBeforeTheEngineAndReleasesLock(t *testing.T) {
 	tran := pendingTransaction(false)
 
 	ctrl := gomock.NewController(t)
@@ -340,9 +340,9 @@ func TestPendingTransition_GrantMissRejectsAndReleasesLock(t *testing.T) {
 	assert.Contains(t, err.Error(), constant.ErrAccountBlockExceptionInvalid.Error(),
 		"an unreadable grant must reject with the exception code")
 	assert.Empty(t, executor.guardCalls,
-		"a commit carrying an account-block exception must use the legacy atomic grant path")
+		"a missing grant must reject before engine guard bootstrap")
 	assert.Empty(t, executor.requests,
-		"the engine cannot execute until its protocol can consume the grant atomically")
+		"a missing grant must reject before engine execution")
 }
 
 // TestPendingTransition_V1CommitNeverReadsAGrant is the version guard's runtime

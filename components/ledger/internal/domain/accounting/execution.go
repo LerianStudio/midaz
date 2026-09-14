@@ -8,7 +8,21 @@
 // storage-specific recovery orchestration.
 package accounting
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+)
+
+// AccountBlockException is the single-use grant one transaction presents to
+// authorize a specific primary outflow while the account is blocked. The
+// engine validates the live Redis grant and consumes it in the same atomic
+// commit that publishes the balance movements.
+type AccountBlockException struct {
+	ExceptionID       uuid.UUID       `json:"exceptionId"`
+	Alias             string          `json:"alias"`
+	Amount            decimal.Decimal `json:"amount"`
+	PrimaryPostingRef string          `json:"primaryPostingRef"`
+}
 
 // Transaction groups postings in their execution order.
 type Transaction struct {
@@ -16,9 +30,10 @@ type Transaction struct {
 	// RejectBlockedBalances applies the live account-level barrier to every
 	// balance this transaction touches. Cancellation disables the barrier so
 	// held funds can always be returned.
-	RejectBlockedBalances bool                 `json:"rejectBlockedBalances"`
-	BalanceRequirements   []BalanceRequirement `json:"balanceRequirements"`
-	Postings              []Posting            `json:"postings"`
+	RejectBlockedBalances bool                   `json:"rejectBlockedBalances"`
+	AccountBlockException *AccountBlockException `json:"accountBlockException,omitempty"`
+	BalanceRequirements   []BalanceRequirement   `json:"balanceRequirements"`
+	Postings              []Posting              `json:"postings"`
 }
 
 // Execution is one ordered accounting operation within an authenticated ledger

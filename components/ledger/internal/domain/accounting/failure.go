@@ -5,18 +5,19 @@
 package accounting
 
 const (
-	FailureInsufficientFunds         = "insufficient_funds"
-	FailureOverdraftLimitExceeded    = "overdraft_limit_exceeded"
-	FailureOverdraftNotEligible      = "overdraft_not_eligible"
-	FailureOverdraftCompanionMissing = "overdraft_companion_missing"
-	FailureBalanceDeleted            = "balance_deleted"
-	FailureAccountBlocked            = "account_blocked"
-	FailureOnHoldUnderflow           = "onhold_underflow"
-	FailureBalanceMissing            = "balance_missing"
-	FailureAssetMismatch             = "asset_mismatch"
-	FailureSendingNotAllowed         = "sending_not_allowed"
-	FailureReceivingNotAllowed       = "receiving_not_allowed"
-	FailureExternalHoldNotAllowed    = "external_hold_not_allowed"
+	FailureInsufficientFunds            = "insufficient_funds"
+	FailureOverdraftLimitExceeded       = "overdraft_limit_exceeded"
+	FailureOverdraftNotEligible         = "overdraft_not_eligible"
+	FailureOverdraftCompanionMissing    = "overdraft_companion_missing"
+	FailureBalanceDeleted               = "balance_deleted"
+	FailureAccountBlocked               = "account_blocked"
+	FailureOnHoldUnderflow              = "onhold_underflow"
+	FailureBalanceMissing               = "balance_missing"
+	FailureAssetMismatch                = "asset_mismatch"
+	FailureSendingNotAllowed            = "sending_not_allowed"
+	FailureReceivingNotAllowed          = "receiving_not_allowed"
+	FailureExternalHoldNotAllowed       = "external_hold_not_allowed"
+	FailureAccountBlockExceptionInvalid = "account_block_exception_invalid"
 )
 
 // Failure is a recognized refusal produced before any accounting write.

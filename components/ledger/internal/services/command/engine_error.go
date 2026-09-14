@@ -93,6 +93,8 @@ func mapEngineRequirementFailure(request accounting.Execution, failure *accounti
 		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
 	case accounting.FailureAccountBlocked:
 		return pkg.ValidateBusinessError(constant.ErrAccountBlocked, balanceValidationEntity)
+	case accounting.FailureAccountBlockExceptionInvalid:
+		return pkg.ValidateBusinessError(constant.ErrAccountBlockExceptionInvalid, constant.EntityTransaction)
 	default:
 		return fmt.Errorf("unexpected engine requirement failure: %w", cause)
 	}
@@ -119,6 +121,8 @@ func mapEnginePostingFailure(posting accounting.Posting, failure *accounting.Fai
 		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, balanceValidationEntity)
 	case accounting.FailureAccountBlocked:
 		return pkg.ValidateBusinessError(constant.ErrAccountBlocked, balanceValidationEntity)
+	case accounting.FailureAccountBlockExceptionInvalid:
+		return pkg.ValidateBusinessError(constant.ErrAccountBlockExceptionInvalid, constant.EntityTransaction)
 	case "balance_missing":
 		return pkg.ValidateBusinessError(constant.ErrTransactionBackupCacheRetrievalFailed, balanceValidationEntity)
 	case "onhold_underflow":

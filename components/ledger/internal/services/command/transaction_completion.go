@@ -119,20 +119,21 @@ type TransactionCompletionRecord struct {
 // EngineTransactionIntent contains only immutable intent, not calculated
 // postings, validation output, balance seeds, guards, or overdraft splits.
 type EngineTransactionIntent struct {
-	TransactionID        uuid.UUID                       `json:"transactionId"`
-	ParentTransactionID  *uuid.UUID                      `json:"parentTransactionId"`
-	FeesSkipped          bool                            `json:"feesSkipped"`
-	TracerSkipped        bool                            `json:"tracerSkipped"`
-	Action               string                          `json:"action"`
-	TransactionStatus    string                          `json:"transactionStatus"`
-	TransactionDate      time.Time                       `json:"transactionDate"`
-	TransactionCreatedAt time.Time                       `json:"transactionCreatedAt"`
-	TransactionUpdatedAt time.Time                       `json:"transactionUpdatedAt"`
-	OperationUpdatedAt   time.Time                       `json:"operationUpdatedAt"`
-	Input                mtransaction.Transaction        `json:"input"`
-	PostingRefs          []string                        `json:"postingRefs"`
-	BalanceRequirements  []accounting.BalanceRequirement `json:"balanceRequirements"`
-	OperationSpecs       []OperationRecordIntent         `json:"projection"`
+	TransactionID           uuid.UUID                       `json:"transactionId"`
+	ParentTransactionID     *uuid.UUID                      `json:"parentTransactionId"`
+	FeesSkipped             bool                            `json:"feesSkipped"`
+	TracerSkipped           bool                            `json:"tracerSkipped"`
+	AccountBlockExceptionID *uuid.UUID                      `json:"accountBlockExceptionId,omitempty"`
+	Action                  string                          `json:"action"`
+	TransactionStatus       string                          `json:"transactionStatus"`
+	TransactionDate         time.Time                       `json:"transactionDate"`
+	TransactionCreatedAt    time.Time                       `json:"transactionCreatedAt"`
+	TransactionUpdatedAt    time.Time                       `json:"transactionUpdatedAt"`
+	OperationUpdatedAt      time.Time                       `json:"operationUpdatedAt"`
+	Input                   mtransaction.Transaction        `json:"input"`
+	PostingRefs             []string                        `json:"postingRefs"`
+	BalanceRequirements     []accounting.BalanceRequirement `json:"balanceRequirements"`
+	OperationSpecs          []OperationRecordIntent         `json:"projection"`
 }
 
 // OperationRecordIntent fingerprints immutable row decisions without carrying
@@ -217,6 +218,10 @@ func normalizeEngineTransactionIntent(transaction EngineTransactionIntent, seen 
 
 	if !validCompletionParent(transaction.TransactionID, transaction.ParentTransactionID) {
 		return EngineTransactionIntent{}, invalidTransactionCompletionRecord("invalid parent transaction identity")
+	}
+
+	if transaction.AccountBlockExceptionID != nil && *transaction.AccountBlockExceptionID == uuid.Nil {
+		return EngineTransactionIntent{}, invalidTransactionCompletionRecord("invalid account-block exception identity")
 	}
 
 	seen[transaction.TransactionID] = true
@@ -484,6 +489,11 @@ func transactionCompletionIntent(transaction accounting.Transaction, payload Tra
 		BalanceRequirements: append([]accounting.BalanceRequirement(nil), transaction.BalanceRequirements...),
 		OperationSpecs:      make([]OperationRecordIntent, 0, len(payload.OperationSpecs)),
 	}
+	if transaction.AccountBlockException != nil {
+		exceptionID := transaction.AccountBlockException.ExceptionID
+		intent.AccountBlockExceptionID = &exceptionID
+	}
+
 	for _, posting := range transaction.Postings {
 		intent.PostingRefs = append(intent.PostingRefs, posting.Ref)
 	}

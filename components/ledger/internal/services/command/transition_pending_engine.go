@@ -69,22 +69,27 @@ func (uc *UseCase) transitionPendingWithEngine(
 		return nil, err
 	}
 
+	recordEngineAccountBlockExceptionPresented(span, run.accountBlockExceptionGrant != nil)
+
 	engineState, err := uc.prepareEngineTransaction(ctx, enginePreparationInput{
 		organizationID: run.organizationID,
 		ledgerID:       run.ledgerID,
 		translation: EngineTranslationInput{
-			TransactionID:          transition.transactionID,
-			Action:                 transition.action,
-			TransactionStatus:      run.status,
-			RouteValidationEnabled: transition.ledgerSettings.Accounting.ValidateRoutes,
-			TransactionInput:       transition.input,
-			Validate:               transition.validate,
+			TransactionID:              transition.transactionID,
+			Action:                     transition.action,
+			TransactionStatus:          run.status,
+			RouteValidationEnabled:     transition.ledgerSettings.Accounting.ValidateRoutes,
+			TransactionInput:           transition.input,
+			Validate:                   transition.validate,
+			AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
 		},
 	})
 	if err != nil {
 		unlock()
 		return nil, err
 	}
+
+	recordEngineAccountBlockExceptionBypass(span, engineState.transaction.AccountBlockException)
 
 	prepared, err := buildPendingEngineExecution(transition.persisted, transition.input, transition.validate, engineState, transition.stableContext, transition.action)
 	if err != nil {
