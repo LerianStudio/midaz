@@ -167,6 +167,13 @@ func setFeeExemptionMetadata(f *model.FeeCalculate, reason string) {
 //
 // The -> split below is still read for the alias trim and the route, which are display concerns
 // and behave exactly as they did before; only the mark reads the set.
+//
+// ponytail: that trim is a pre-existing ceiling this function keeps. A leg aliased dst->ops comes
+// back as dst, because trimFeeSuffix cuts at the first -> whoever wrote it. No account can be
+// CREATED with such an alias (the registered charset excludes >), so the money still lands on the
+// account the trimmed alias names, and the mark is no longer affected either way. Closing the
+// truncation needs an alias rule on the transaction leg, which is a different surface from this
+// one.
 func updatedAmountsFromFee(amounts map[string]transaction.Amount, engineLegKeys map[string]struct{}) []transaction.FromTo {
 	newFromTo := make([]transaction.FromTo, 0, len(amounts))
 
