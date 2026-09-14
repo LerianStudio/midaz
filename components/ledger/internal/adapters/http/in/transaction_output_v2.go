@@ -108,7 +108,7 @@ type TransactionV2 struct {
 	// documented on the published field so a client never has to read ledger source to
 	// recognise them; the doc tag, not this comment, is what the OpenAPI generator publishes.
 	//
-	// Written is not reserved, and the published sentence says so. ReservedMetadataKeys holds
+	// Written is not reserved, and the published sentence says so. IsReservedMetadataKey answers
 	// only feeLeg, which lives on operation metadata; a request body carrying one of these
 	// three is accepted and stored verbatim. Reserving them would 400 an existing client that
 	// already sends one, which is a shipped-contract break and a product decision, so the
