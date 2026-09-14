@@ -16283,7 +16283,6 @@ components:
             every payment.
           examples:
             - 00000000-0000-0000-0000-000000000000
-          format: uuid
           type: string
         waivedAccounts:
           examples:
