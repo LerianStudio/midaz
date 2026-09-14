@@ -2143,3 +2143,108 @@ func TestCalculateFee_RouteScoping(t *testing.T) {
 		})
 	}
 }
+
+// TestCalculateFee_DeprecatedRouteStringCarriesNoFeeScope pins that the
+// deprecated route string a transaction body can still carry selects no fee
+// package. Only the canonical route identifier scopes a package.
+//
+// The two fields can disagree. The create path that charges fees declares the
+// canonical identifier and refuses an unknown field, so a posted payment never
+// carries the string at all; the fee estimate embeds the whole transaction
+// model, whose contract still publishes the deprecated string, so a caller can
+// send one there. Reading whichever field happens to hold a value let the same
+// client be quoted one fee and charged another, and let a payment carrying only
+// the deprecated string be charged a package it was never scoped to.
+//
+// So the string is inert here: a payment carrying it alone is charged what an
+// unrouted payment is charged, and a payment carrying both is scoped by the
+// canonical identifier only.
+func TestCalculateFee_DeprecatedRouteStringCarriesNoFeeScope(t *testing.T) {
+	t.Parallel()
+
+	const (
+		originalValue = int64(1000)
+		chargedValue  = int64(1100)
+	)
+
+	routeID := uuid.New().String()
+	otherRouteID := uuid.New().String()
+
+	tests := []struct {
+		name string
+		// deprecatedRoute is the legacy route string the payment carries.
+		deprecatedRoute string
+		// canonicalRouteID is the route identifier the payment carries; empty
+		// leaves the payment carrying none.
+		canonicalRouteID string
+		// wantCharged says whether the package restricted to routeID is charged.
+		wantCharged bool
+	}{
+		{
+			// The defect: the deprecated string alone selected the package, so a
+			// payment nobody routed was charged a route-scoped fee.
+			name:            "a payment carrying only the deprecated route string is charged nothing",
+			deprecatedRoute: routeID,
+			wantCharged:     false,
+		},
+		{
+			// The canonical identifier is the one that scopes, and it still does.
+			name:             "a payment carrying the canonical route identifier is charged",
+			canonicalRouteID: routeID,
+			wantCharged:      true,
+		},
+		{
+			// The two fields disagreeing: the canonical identifier names another
+			// route, so the package restricted to this one is out of scope and the
+			// deprecated string does not put it back in.
+			name:             "a payment whose canonical identifier names another route is charged nothing",
+			deprecatedRoute:  routeID,
+			canonicalRouteID: otherRouteID,
+			wantCharged:      false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockPackRepo := pack.NewMockRepository(ctrl)
+			orgID := uuid.New()
+			ledgerID := uuid.New()
+			packID := uuid.New()
+
+			feeSvc := &UseCase{packageRepo: mockPackRepo}
+
+			feeInput := segScopingFeeInput(ledgerID, "@src")
+			feeInput.Transaction.Route = tc.deprecatedRoute
+
+			if tc.canonicalRouteID != "" {
+				canonical := tc.canonicalRouteID
+				feeInput.Transaction.RouteID = &canonical
+			}
+
+			mockPackRepo.EXPECT().
+				FindByOrganizationIDAndLedgerID(gomock.Any(), orgID, ledgerID).
+				Return([]*pack.Package{routeScopedFlatPackage(packID, routeID)}, nil)
+
+			err := feeSvc.CalculateFee(context.Background(), feeInput, orgID)
+			require.NoError(t, err)
+
+			if !tc.wantCharged {
+				assert.Equal(t, originalValue, feeInput.Transaction.Send.Value.IntPart(),
+					"the deprecated route string must not put a route-scoped package in scope")
+				assert.Nil(t, feeInput.Transaction.Metadata["packageAppliedID"])
+				assert.Nil(t, feeInput.Transaction.Metadata["feeApplied"])
+
+				return
+			}
+
+			assert.Equal(t, chargedValue, feeInput.Transaction.Send.Value.IntPart(),
+				"the canonical route identifier must go on selecting the package it names")
+			assert.Equal(t, packID.String(), feeInput.Transaction.Metadata["packageAppliedID"])
+		})
+	}
+}
