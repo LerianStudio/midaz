@@ -239,6 +239,7 @@ Every public use-case entrypoint (commands + flagship queries) emits two metric 
 | `create_transaction` | `(command.UseCase).WriteTransaction` |
 | `update_transaction` | `(command.UseCase).UpdateTransaction` |
 | `update_transaction_status` | `(command.UseCase).UpdateTransactionStatus` |
+| `update_transaction_status_from_pending` | `(command.UseCase).UpdateTransactionStatusFromPending` |
 | `get_account` | `(query.UseCase).GetAccountByID` |
 | `list_accounts` | `(query.UseCase).GetAllAccount` |
 | `get_ledger` | `(query.UseCase).GetLedgerByID` |

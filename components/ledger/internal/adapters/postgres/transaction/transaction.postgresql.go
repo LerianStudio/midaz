@@ -125,6 +125,19 @@ type Repository interface {
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
+	// UpdateStatusFromPending writes the same status columns Update does, but only
+	// onto a row that is still PENDING. It is the durable backstop of the
+	// commit/cancel transition: the compare-and-set is what stops a second
+	// transition from flipping a transaction that another one already settled.
+	//
+	// The boolean reports whether the row was still PENDING and therefore
+	// transitioned. Zero rows is NOT an error, and it carries two meanings the
+	// repository cannot tell apart: a race lost to another transition, or a row
+	// the asynchronous create has not inserted yet — a transition loaded from the
+	// write-behind cache runs before its own row exists. The caller does that
+	// triage. The backup consumer treats zero rows as already-applied and carries
+	// on.
+	UpdateStatusFromPending(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
@@ -1091,6 +1104,13 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 }
 
 // Update a Transaction entity into Postgresql and returns the Transaction updated.
+//
+// The body is nulled only by an update that also CARRIES a status. Nulling the
+// body is the terminal transition's doing — a settled transaction replays
+// nothing — so an update that names no status is a field patch and must leave
+// the body alone. Without that condition a description or metadata patch on a
+// PENDING transaction destroys the body its commit replays, and the commit then
+// rejects the transaction as already transitioned while its funds stay held.
 func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -1111,7 +1131,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 	var args []any
 
-	if transaction.Body.IsEmpty() {
+	if !transaction.Status.IsEmpty() && transaction.Body.IsEmpty() {
 		updates = append(updates, "body = $"+strconv.Itoa(len(args)+1))
 		args = append(args, nil)
 	}

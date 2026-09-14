@@ -45,11 +45,13 @@ var TransactionPostedDefinition = Definition{
 // transaction.committed.
 //
 // Emission anchor: same as TransactionPostedDefinition. Fires when a
-// PENDING transaction transitions PENDING → APPROVED via the
-// unique-violation idempotency branch of CreateOrUpdateTransaction
-// (UpdateTransactionStatus call at L198). Discriminated from
-// transaction.posted by the lifecycle phase tracked through
-// CreateOrUpdateTransaction's return value: phase=="updated" + status
+// PENDING transaction transitions PENDING → APPROVED, emitted by
+// whichever writer won the status compare-and-set: the commit request
+// path when it flips the row itself, otherwise the backup consumer's
+// unique-violation idempotency branch. A writer whose compare-and-set
+// matched no PENDING row reports the no-op phase and emits nothing, so
+// the fact reaches the wire exactly once. Discriminated from
+// transaction.posted by the lifecycle phase: phase=="updated" + status
 // APPROVED → committed; phase=="created" + status APPROVED → posted.
 //
 // Same delivery policy as TransactionPostedDefinition.
@@ -63,10 +65,9 @@ var TransactionCommittedDefinition = Definition{
 // transaction.canceled.
 //
 // Emission anchor: same as TransactionCommittedDefinition. Fires when a
-// PENDING transaction transitions PENDING → CANCELED via the
-// unique-violation idempotency branch's UpdateTransactionStatus call.
-// Same anchor as transaction.committed but distinguished by the
-// terminal status code.
+// PENDING transaction transitions PENDING → CANCELED, emitted by the
+// writer that won the status compare-and-set. Same anchor as
+// transaction.committed but distinguished by the terminal status code.
 //
 // Same delivery policy as TransactionPostedDefinition.
 var TransactionCanceledDefinition = Definition{

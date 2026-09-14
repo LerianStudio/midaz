@@ -533,14 +533,22 @@ var (
 	// are built from the mapBalances that produced the plan in the first
 	// place, so every alias resolves by construction.
 	ErrBalanceApplyMarkerMissingAliases = errors.New("0510")
-
+	// ErrTransactionAlreadyTransitioned is returned when a commit or a cancel
+	// finds evidence that the transaction already went through the OPPOSITE
+	// terminal transition: the opposite apply marker exists in Redis, the
+	// status CAS matched no PENDING row, or the persisted body was already
+	// nulled by a terminal transition. Distinct from
+	// ErrCommitTransactionNotPending (0099), which reports the status the
+	// caller can read; this one reports a transition that is already in flight
+	// or landed elsewhere, so the requested one must not re-execute.
+	ErrTransactionAlreadyTransitioned = errors.New("0511")
 	// ErrReservedMetadataKey is returned when a request body carries a metadata key the
 	// ledger reserves for itself. The fee mark the ledger writes on every operation its fee
 	// engine created is such a key: a client is told it can name a fee movement from that
 	// mark alone, which is only true while no caller can write it. The request is refused
 	// rather than silently stripped, so a caller learns its key was rejected instead of
 	// believing it was stored.
-	ErrReservedMetadataKey = errors.New("0511")
+	ErrReservedMetadataKey = errors.New("0512")
 )
 
 // List of CRM domain errors.
