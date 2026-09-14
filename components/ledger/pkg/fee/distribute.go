@@ -154,7 +154,27 @@ func setFeeExemptionMetadata(f *model.FeeCalculate, reason string) {
 	}
 }
 
-// updatedAmountsFromFee updates the amounts from the fee
+// updatedAmountsFromFee rebuilds one whole side of the payment from the amounts map. That map
+// holds the movements the fee engine minted and the movements the operator authored together, so
+// the function also marks the engine ones, and only those, with the reserved fee key.
+//
+// What separates them is a field on the movement itself, set by the emit helpers at the moment
+// they mint the leg. Nothing about the map key is consulted. An operator movement enters the map
+// under an alias the caller chose; the create surface accepts an alias carrying the same ->
+// decoration the engine uses; and the two sides are rebuilt from two separate maps whose keys can
+// coincide, so a caller naming its own leg after a key the engine mints on the OTHER side reaches
+// any mark derived from the key. The field is out of reach instead: it is kept off every wire a
+// caller can write, and a movement built from a caller payload carries it false.
+//
+// The -> split below is still read for the alias trim and the route, which are display concerns
+// and behave exactly as they did before; only the mark reads the field.
+//
+// ponytail: that trim is a pre-existing ceiling this function keeps. A leg aliased dst->ops comes
+// back as dst, because trimFeeSuffix cuts at the first -> whoever wrote it. No account can be
+// CREATED with such an alias (the registered charset excludes >), so the money still lands on the
+// account the trimmed alias names, and the mark is no longer affected either way. Closing the
+// truncation needs an alias rule on the transaction leg, which is a different surface from this
+// one.
 func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.FromTo {
 	newFromTo := make([]transaction.FromTo, 0, len(amounts))
 
@@ -167,6 +187,11 @@ func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.
 
 		if strings.Contains(account, feeconstant.SuffixFeeSource) {
 			cleanAccount, metadata = processAccount(account)
+		}
+
+		// Set after processAccount, which replaces the metadata map rather than adding to it.
+		if amount.FeeLeg {
+			metadata[constant.MetadataKeyFeeLeg] = constant.MetadataValueFeeLeg
 		}
 
 		if len(parts) > 2 && parts[len(parts)-1] != "" {
@@ -371,6 +396,9 @@ func emitDeductibleLeg(
 	target *feeCorrectionTarget,
 ) transaction.Amount {
 	legKey := feeModel.CreditAccount + "->fee_source" + strconv.Itoa(feeIndex) + "->" + key + "->" + feeModel.GetRouteTo()
+	// Minted here, so marked here. The flag rides on the movement rather than on its map key,
+	// which is the caller's own alias for every movement the caller authored.
+	resultAmount.FeeLeg = true
 	updateAmount[legKey] = resultAmount
 	amount.Value = amount.Value.Sub(resultAmount.Value)
 
@@ -403,6 +431,9 @@ func emitNonDeductibleLeg(
 	debitLegKey := feeKey + "->" + feeModel.GetRouteFrom()
 	feeSourceKey := feeModel.CreditAccount + "->fee_source" + strconv.Itoa(feeIndex) + "->" + key + "->" + feeModel.GetRouteTo()
 
+	// Both halves of the pair are minted here, so both are marked here, from one flag on the
+	// amount the two writes below copy.
+	resultAmount.FeeLeg = true
 	updateAmount[debitLegKey] = resultAmount
 
 	if updateAmountToStruct == nil {

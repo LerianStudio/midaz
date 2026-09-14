@@ -894,6 +894,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Metadata Nesting",
 			Message:    fmt.Sprintf("The metadata object cannot contain nested values. Please ensure that the value %v is not nested and try again.", args...),
 		},
+		constant.ErrReservedMetadataKey: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrReservedMetadataKey.Error(),
+			Title:      "Reserved Metadata Key",
+			Message:    fmt.Sprintf("The metadata key %v is reserved by the ledger, which writes it itself. Please remove it from your request and try again.", args...),
+		},
 		constant.ErrOperationIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrOperationIDNotFound.Error(),

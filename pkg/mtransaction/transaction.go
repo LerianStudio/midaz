@@ -101,6 +101,13 @@ type Amount struct {
 	// reversals. It is zero for normal transactions, where Lua derives the
 	// split from live balance state.
 	OverdraftAmount decimal.Decimal `json:"overdraftAmount,omitempty" swaggerignore:"true"`
+	// FeeLeg records that the fee engine minted this movement. The engine sets it at the moment
+	// it mints the leg and nothing else sets it, and the rebuild that turns these amounts back
+	// into movements reads it to write the reserved fee mark. That is what makes the mark the
+	// word of the ledger rather than a shape a caller can imitate: the JSON tag keeps the field
+	// off every wire a caller can write, and a movement built from a caller payload carries it
+	// false.
+	FeeLeg bool `json:"-" swaggerignore:"true"`
 }
 
 // Share structure for marshaling/unmarshalling JSON.
@@ -137,6 +144,11 @@ func (r Rate) IsEmpty() bool {
 }
 
 // FromTo structure for marshaling/unmarshalling JSON.
+//
+// Metadata carries midaz custom go-playground rules (keymax, noreservedkey, nonested, valuemax).
+// A validator instance PANICS on a tag it does not know rather than failing the field, so any
+// instance that validates this struct must register all four. Both instances inside this
+// repository do; a service adopting this type brings the same obligation with it.
 type FromTo struct {
 	AccountAlias    string         `json:"accountAlias,omitempty" example:"@person1"`
 	BalanceKey      string         `json:"balanceKey,omitempty" example:"asset-freeze"`
@@ -146,7 +158,7 @@ type FromTo struct {
 	Rate            *Rate          `json:"rate,omitempty"`
 	Description     string         `json:"description,omitempty" example:"description"`
 	ChartOfAccounts string         `json:"chartOfAccounts" example:"1000"`
-	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,noreservedkey,endkeys,nonested,valuemax=2000"`
 	IsFrom          bool           `json:"isFrom,omitempty" example:"true"`
 	// Deprecated: passive field kept for backward compatibility. Accepted from client and persisted, but not used in any validation or business logic. Use routeId instead.
 	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
@@ -281,11 +293,14 @@ type Distribute struct {
 
 // Transaction structure for marshaling/unmarshalling JSON.
 type Transaction struct {
-	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"FUNDING"`
-	Description              string         `json:"description,omitempty" example:"Description"`
-	Code                     string         `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Pending                  bool           `json:"pending,omitempty" example:"false"`
-	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" example:"FUNDING"`
+	Description              string `json:"description,omitempty" example:"Description"`
+	Code                     string `json:"code,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	Pending                  bool   `json:"pending,omitempty" example:"false"`
+	// Metadata carries the same reserved-key rule as the transaction leg. This struct is the
+	// request body of the fee estimate, which reads the fee statements back off the map it was
+	// handed, so a caller-written one changes the answer the estimate gives.
+	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,noreservedkey,endkeys,nonested,valuemax=2000"`
 	// Deprecated: legacy route identifier, contains the transaction route UUID as a string. Use routeId instead.
 	Route string `json:"route,omitempty" validate:"omitempty,max=250" example:"00000000-0000-0000-0000-000000000000"`
 	// UUID of the transaction route. Primary field replacing the deprecated Route string.
