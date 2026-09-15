@@ -23,6 +23,7 @@ import (
 	workermocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers/mocks"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 )
 
 // splitHostPort returns the host and port segments for a miniredis address.
@@ -139,6 +140,8 @@ func TestBuildMultiTenantComponents_Success(t *testing.T) {
 
 	assert.NotNil(t, components.tmClient, "tenant-manager client must be built")
 	assert.NotNil(t, components.pgManager, "postgres pool manager must be built")
+	assert.Equal(t, constant.ModuleName, components.pgManager.Module(),
+		"pool manager must carry the tracer catalog module so tenant connection settings resolve")
 	assert.NotNil(t, components.supervisor, "worker supervisor must be built")
 	assert.NotNil(t, components.eventListener, "tenant event listener wrapper must be built")
 }
