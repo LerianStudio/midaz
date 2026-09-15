@@ -300,6 +300,7 @@ func (w *BalanceSyncWorker) recordOldestPendingAge(ctx context.Context, oldestSc
 	}
 
 	age := int64(0)
+
 	if oldestScore > 0 {
 		if elapsed := float64(time.Now().Unix()) - oldestScore; elapsed > 0 {
 			age = int64(elapsed)
