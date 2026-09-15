@@ -5,12 +5,17 @@
 package model
 
 import (
+	"context"
 	"testing"
 
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.uber.org/mock/gomock"
 )
 
 // A patch that moves the minimum must leave every fee the package keeps within it.
@@ -60,6 +65,12 @@ func TestUpdatePackageInputValidateStoredFeesAgainstMinimum(t *testing.T) {
 			newMinimum: stringPtr("1"),
 			storedFees: map[string]Fee{"fee1": deductibleFee(Flat, "25", true)},
 			patch:      map[string]Fee{"fee1": {}},
+		},
+		{
+			name:       "patch removes the offending fee with an empty calculation model",
+			newMinimum: stringPtr("1"),
+			storedFees: map[string]Fee{"fee1": deductibleFee(Flat, "25", true)},
+			patch:      map[string]Fee{"fee1": {CalculationModel: &CalculationModel{}}},
 		},
 		{
 			name:       "patch stops the offending fee being deducted from the payment",
@@ -118,6 +129,69 @@ func TestUpdatePackageInputValidateStoredFeesAgainstMinimum(t *testing.T) {
 			}
 
 			require.ErrorContains(t, err, tt.wantCode)
+		})
+	}
+}
+
+// The check that skips a fee its own patch settles and the write that applies that
+// patch must agree on which entries delete the fee. They read one predicate, and
+// this pins the agreement over every field the write looks at, including the two
+// shapes that read as empty only to the writer: an empty calculation model, and the
+// string "null".
+func TestFeeRemovalPredicateAgreesWithTheApplyPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		patch    Fee
+		survives bool
+	}{
+		{name: "an entry with no field at all"},
+		{name: "an entry whose calculation model carries nothing", patch: Fee{CalculationModel: &CalculationModel{}}},
+		{name: "an entry whose only field the writer reads as empty", patch: Fee{FeeLabel: "null"}},
+		{name: "an entry renaming the fee", patch: Fee{FeeLabel: "Novo rotulo"}, survives: true},
+		{name: "an entry setting the route it debits", patch: Fee{RouteFrom: stringPtr("taxa_debito")}, survives: true},
+		{name: "an entry setting the route it credits", patch: Fee{RouteTo: stringPtr("taxa_credito")}, survives: true},
+		{name: "an entry setting a priority", patch: Fee{Priority: 3}, survives: true},
+		{name: "an entry setting a reference amount", patch: Fee{ReferenceAmount: OriginalAmount}, survives: true},
+		{name: "an entry stopping the deduction", patch: Fee{IsDeductibleFrom: boolPtr(false)}, survives: true},
+		{name: "an entry setting a credit account", patch: Fee{CreditAccount: "fee_account"}, survives: true},
+		{
+			name:     "an entry restating the application rule",
+			patch:    Fee{CalculationModel: &CalculationModel{ApplicationRule: FlatFee}},
+			survives: true,
+		},
+		{
+			name:     "an entry restating the calculations",
+			patch:    Fee{CalculationModel: &CalculationModel{Calculations: []Calculation{{Type: Flat, Value: "1"}}}},
+			survives: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			resolver := feeshared.NewMockMidazResolver(ctrl)
+			resolver.EXPECT().
+				AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(nil).
+				AnyTimes()
+
+			stored := map[string]Fee{"fee1": deductibleFee(Flat, "25", true)}
+			patch := tt.patch
+
+			survives, err := patch.SetAndValidateHasFieldsToUpdate(
+				context.Background(), patch.IsDeductibleFrom, decimal.NewFromInt(1),
+				stored, "fee1", uuid.New(), uuid.New(), bson.M{}, resolver,
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, tt.survives, survives, "the write kept the fee but the predicate calls it a removal")
+			require.Equal(t, !tt.survives, patch.removesTheFee(), "the predicate disagrees with the write")
 		})
 	}
 }

@@ -173,10 +173,23 @@ func (f *Fee) settlesTheMinimumCheck() bool {
 }
 
 // removesTheFee reports whether this patch entry deletes the fee rather than editing
-// it. The update removes a fee whose entry sets no field at all, which is every field
-// ValidateIfFeeIsNil covers plus the two routes it does not.
+// it. The update removes a fee whose entry sets no field at all, so this is the exact
+// negation of the eight field writers SetAndValidateHasFieldsToUpdate runs, read
+// through the same emptiness test they use. It is the only place that decision is
+// made: SetAndValidateHasFieldsToUpdate asks it too, so the check that skips a fee
+// its patch settles and the write that applies the patch cannot disagree.
 func (f *Fee) removesTheFee() bool {
-	return f.ValidateIfFeeIsNil() && commons.IsNilOrEmpty(f.RouteFrom) && commons.IsNilOrEmpty(f.RouteTo)
+	if f.CalculationModel != nil && !f.hasNoCalculationModelUpdates() {
+		return false
+	}
+
+	return commons.IsNilOrEmpty(&f.FeeLabel) &&
+		commons.IsNilOrEmpty(&f.ReferenceAmount) &&
+		commons.IsNilOrEmpty(&f.CreditAccount) &&
+		commons.IsNilOrEmpty(f.RouteFrom) &&
+		commons.IsNilOrEmpty(f.RouteTo) &&
+		f.Priority == 0 &&
+		f.IsDeductibleFrom == nil
 }
 
 // ValidateMinAndMaxAmount Validating if minimum amount value is greater than maximum amount value
@@ -270,6 +283,10 @@ func (a *AmountData) GetTransactionRoute() string {
 }
 
 func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeductibleFrom *bool, minAmount decimal.Decimal, existingFees map[string]Fee, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver feeshared.MidazResolver) (bool, error) {
+	if f.removesTheFee() {
+		return false, nil
+	}
+
 	hasValueToUpdate := false
 
 	if updated, err := f.updateCalculationModel(existingFees, updateDeductibleFrom, feeKey, minAmount, upFields); err != nil {
