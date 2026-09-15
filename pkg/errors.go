@@ -906,6 +906,24 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Reserved Metadata Key",
 			Message:    fmt.Sprintf("The metadata key %v is reserved by the ledger, which writes it itself. Please remove it from your request and try again.", args...),
 		},
+		constant.ErrTransactionBatchCardinality: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchCardinality.Error(),
+			Title:      "Invalid Transaction Batch Cardinality",
+			Message:    fmt.Sprintf("The transaction batch contains %v items, but it must contain between 1 and %v items. Please adjust the 'transactions' array and try again.", args...),
+		},
+		constant.ErrTransactionBatchInputLegsLimitExceeded: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchInputLegsLimitExceeded.Error(),
+			Title:      "Transaction Batch Input Leg Limit Exceeded",
+			Message:    fmt.Sprintf("The transaction batch contains %v input debit and credit legs, exceeding the maximum of %v. Please reduce the number of legs and try again.", args...),
+		},
+		constant.ErrTransactionBatchBudgetExceeded: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchBudgetExceeded.Error(),
+			Title:      "Transaction Batch Budget Exceeded",
+			Message:    fmt.Sprintf("The transaction batch exceeds the %v budget at transaction index %v: observed %v, maximum %v. Please reduce the batch work and try again.", args...),
+		},
 		constant.ErrOperationIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrOperationIDNotFound.Error(),

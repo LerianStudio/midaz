@@ -348,6 +348,73 @@ func TestMainlineErrorContract_TransactionLifecycleCodes(t *testing.T) {
 	runErrorContractCases(t, tests)
 }
 
+// TestMainlineErrorContract_AtomicTransactionBatchCodes is the E14 lock for the
+// request-wide admission errors introduced by the atomic direct-v2 batch. It
+// exercises the production WithError boundary so the RFC 9457 media type and
+// the complete code -> status -> title -> detail mapping cannot drift.
+func TestMainlineErrorContract_AtomicTransactionBatchCodes(t *testing.T) {
+	tests := []struct {
+		name           string
+		err            error
+		expectedStatus int
+		expectedCode   string
+		expectedTitle  string
+		expectedDetail string
+	}{
+		{
+			name:           "0513 invalid batch cardinality is 400",
+			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchCardinality, constant.EntityTransaction, 51, 50),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0513",
+			expectedTitle:  "Invalid Transaction Batch Cardinality",
+			expectedDetail: "The transaction batch contains 51 items, but it must contain between 1 and 50 items. Please adjust the 'transactions' array and try again.",
+		},
+		{
+			name:           "0514 aggregate input leg limit is 400",
+			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchInputLegsLimitExceeded, constant.EntityTransaction, 1001, 1000),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0514",
+			expectedTitle:  "Transaction Batch Input Leg Limit Exceeded",
+			expectedDetail: "The transaction batch contains 1001 input debit and credit legs, exceeding the maximum of 1000. Please reduce the number of legs and try again.",
+		},
+		{
+			name:           "0515 derived batch budget is 422",
+			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchBudgetExceeded, constant.EntityTransaction, "expandedPostings", 12, 201, 200),
+			expectedStatus: fiber.StatusUnprocessableEntity,
+			expectedCode:   "0515",
+			expectedTitle:  "Transaction Batch Budget Exceeded",
+			expectedDetail: "The transaction batch exceeds the expandedPostings budget at transaction index 12: observed 201, maximum 200. Please reduce the batch work and try again.",
+		},
+	}
+
+	require.Len(t, tests, 3, "the atomic transaction batch lock set is exactly codes 0513 through 0515")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			capturedErr := tt.err
+			app := fiber.New()
+			app.Get("/probe", func(c fiber.Ctx) error {
+				return http.WithError(c, capturedErr)
+			})
+
+			resp, err := app.Test(httptest.NewRequest("GET", "/probe", nil))
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+			assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var errResp map[string]any
+			require.NoError(t, json.Unmarshal(body, &errResp))
+			assert.Equal(t, float64(tt.expectedStatus), errResp["status"])
+			assert.Equal(t, tt.expectedCode, errResp["code"])
+			assert.Equal(t, tt.expectedTitle, errResp["title"])
+			assert.Equal(t, tt.expectedDetail, errResp["detail"])
+		})
+	}
+}
+
 // v2SideSpellingError runs the v2 request through the production Translate and returns
 // the error it rejected with. Building the error through the real entry point rather
 // than by hand-calling ValidateBusinessError keeps the lock honest: it pins what a
