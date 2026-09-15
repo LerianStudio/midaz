@@ -122,6 +122,83 @@ func TestUpdatePackageInputValidateStoredFeesAgainstMinimum(t *testing.T) {
 	}
 }
 
+// Two patch entries whose keys fold to the same fee leave no way to tell which one
+// the operator meant, and Go map order would otherwise pick one, so the request is
+// refused and the refusal names the key they collide on.
+func TestUpdatePackageInputRefusesAmbiguousFeeKeys(t *testing.T) {
+	t.Parallel()
+
+	ambiguous := func() *UpdatePackageInput {
+		return &UpdatePackageInput{
+			MinAmount: stringPtr("1"),
+			Fee: map[string]Fee{
+				"fee1":  deductibleFee(Flat, "1", true),
+				"Fee_1": {FeeLabel: "Novo rotulo"},
+			},
+		}
+	}
+
+	stored := map[string]Fee{"fee1": deductibleFee(Flat, "25", true)}
+
+	t.Run("at the request boundary", func(t *testing.T) {
+		t.Parallel()
+
+		err := ambiguous().ValidateFees()
+
+		require.ErrorContains(t, err, constant.ErrDuplicateFeeKey.Error())
+		require.ErrorContains(t, err, "fee1")
+	})
+
+	t.Run("when the stored fees are measured against the new minimum", func(t *testing.T) {
+		t.Parallel()
+
+		err := ambiguous().ValidateStoredFeesAgainstMinimum(stored)
+
+		require.ErrorContains(t, err, constant.ErrDuplicateFeeKey.Error())
+		require.ErrorContains(t, err, "fee1")
+	})
+
+	t.Run("a patch carrying no minimum is refused just the same", func(t *testing.T) {
+		t.Parallel()
+
+		up := ambiguous()
+		up.MinAmount = nil
+
+		require.ErrorContains(t, up.ValidateStoredFeesAgainstMinimum(stored), constant.ErrDuplicateFeeKey.Error())
+	})
+
+	// The defect this closes answered the same body two ways across runs, so one
+	// call proves nothing: only a repeat can tell a refusal from a coin toss.
+	t.Run("every call answers the same way", func(t *testing.T) {
+		t.Parallel()
+
+		for range 200 {
+			require.ErrorContains(t, ambiguous().ValidateStoredFeesAgainstMinimum(stored), constant.ErrDuplicateFeeKey.Error())
+		}
+	})
+}
+
+// When more than one stored fee breaks the new minimum, the one the operator is told
+// about is the same on every call, so a retry does not move the diagnostic to a
+// different fee.
+func TestUpdatePackageInputValidateStoredFeesAgainstMinimumNamesOneFee(t *testing.T) {
+	t.Parallel()
+
+	stored := map[string]Fee{
+		"feeB": deductibleFee(Flat, "25", true),
+		"feeA": deductibleFee(Flat, "30", true),
+	}
+
+	for range 200 {
+		up := &UpdatePackageInput{MinAmount: stringPtr("1")}
+
+		err := up.ValidateStoredFeesAgainstMinimum(stored)
+
+		require.ErrorContains(t, err, constant.ErrCalculationValueFlatFee.Error())
+		require.ErrorContains(t, err, "feeA")
+	}
+}
+
 // The minimum a patched fee is measured against is the one the package will carry.
 func TestUpdatePackageInputEffectiveMinimumAmount(t *testing.T) {
 	t.Parallel()
