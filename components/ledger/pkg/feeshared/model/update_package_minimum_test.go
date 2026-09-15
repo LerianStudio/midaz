@@ -250,6 +250,24 @@ func TestUpdatePackageInputRefusesAmbiguousFeeKeys(t *testing.T) {
 		require.ErrorContains(t, up.ValidateStoredFeesAgainstMinimum(stored), constant.ErrDuplicateFeeKey.Error())
 	})
 
+	// The negative control. A guard that over-fires here would refuse every update
+	// carrying more than one fee, which is worse than the defect it closes.
+	t.Run("two fees that are actually different are accepted", func(t *testing.T) {
+		t.Parallel()
+
+		up := &UpdatePackageInput{
+			MinAmount: stringPtr("100"),
+			Fee: map[string]Fee{
+				"fee1":     deductibleFee(Flat, "1", true),
+				"fee_2":    deductibleFee(Flat, "2", true),
+				"feeThree": {FeeLabel: "Novo rotulo"},
+			},
+		}
+
+		require.NoError(t, up.ValidateFees())
+		require.NoError(t, up.ValidateStoredFeesAgainstMinimum(map[string]Fee{"fee1": deductibleFee(Flat, "1", true)}))
+	})
+
 	// The defect this closes answered the same body two ways across runs, so one
 	// call proves nothing: only a repeat can tell a refusal from a coin toss.
 	t.Run("every call answers the same way", func(t *testing.T) {
