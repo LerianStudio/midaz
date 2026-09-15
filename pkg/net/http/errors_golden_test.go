@@ -285,6 +285,7 @@ func allSentinels() map[string]error {
 		"ErrBalanceApplyMarkerMissingAliases":         constant.ErrBalanceApplyMarkerMissingAliases,
 		"ErrTransactionAlreadyTransitioned":           constant.ErrTransactionAlreadyTransitioned,
 		"ErrReservedMetadataKey":                      constant.ErrReservedMetadataKey,
+		"ErrBalanceSeedRebuildInconsistent":           constant.ErrBalanceSeedRebuildInconsistent,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
 		"ErrDuplicatedAliasKeyValue":                  constant.ErrDuplicatedAliasKeyValue,

@@ -550,6 +550,12 @@ var (
 	// rather than silently stripped, so a caller learns its key was rejected instead of
 	// believing it was stored.
 	ErrReservedMetadataKey = errors.New("0512")
+	// ErrBalanceSeedRebuildInconsistent is returned when a cache-miss seed finds the
+	// balance row behind the operation trail, but the operation at the high-water mark
+	// carries no state to rebuild from: an after-value is missing, or its overdraft
+	// snapshot is not a decimal. The request is refused rather than served, because
+	// feeding the engine the stale row is how a balance silently forks.
+	ErrBalanceSeedRebuildInconsistent = errors.New("0513")
 )
 
 // List of CRM domain errors.
