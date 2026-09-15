@@ -341,7 +341,7 @@ func (w *BalanceSyncWorker) startTTLKeepalive(ctx context.Context) <-chan struct
 // immediately — so a restart after downtime rescues keys that are close to expiry —
 // and then on every keepalive tick until ctx is done.
 func (w *BalanceSyncWorker) runTTLKeepalive(ctx context.Context) {
-	w.keepaliveOnce(ctx)
+	w.keepalivePass(ctx)
 
 	ticker := time.NewTicker(w.syncConfig.KeepaliveInterval())
 	defer ticker.Stop()
@@ -351,9 +351,23 @@ func (w *BalanceSyncWorker) runTTLKeepalive(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			w.keepaliveOnce(ctx)
+			w.keepalivePass(ctx)
 		}
 	}
+}
+
+// keepalivePass runs one keepalive pass with panic recovery scoped to that pass, so
+// a panic never terminates the loop: the next tick still runs and TTL refreshes
+// continue for the process lifetime.
+func (w *BalanceSyncWorker) keepalivePass(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			w.logger.Log(ctx, libLog.LevelError, "BalanceSyncWorker: TTL keepalive pass panicked",
+				libLog.String("panic", fmt.Sprint(r)))
+		}
+	}()
+
+	w.keepaliveOnce(ctx)
 }
 
 // keepaliveOnce runs a single keepalive pass. A pass is best-effort: a failure is

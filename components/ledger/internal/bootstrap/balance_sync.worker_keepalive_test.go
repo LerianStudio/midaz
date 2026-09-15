@@ -162,6 +162,45 @@ func TestBalanceSyncWorker_KeepaliveLoop(t *testing.T) {
 		<-done
 	})
 
+	t.Run("a panicked pass never stops the loop", func(t *testing.T) {
+		t.Parallel()
+
+		worker, repo := newKeepaliveWorker(t, 20)
+		probe := newKeepaliveProbe()
+
+		first := true
+
+		repo.EXPECT().
+			RefreshBalanceSyncKeyTTLs(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(context.Context, time.Duration) (int64, float64, error) {
+				probe.record()
+
+				if first {
+					first = false
+					panic("boom")
+				}
+
+				return 1, 0, nil
+			}).
+			AnyTimes()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		done := worker.startTTLKeepalive(ctx)
+
+		probe.awaitPass(t, "the start pass must run, then panic")
+		probe.awaitPass(t, "a pass that panicked must not stop the next one")
+
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			require.FailNow(t, "the keepalive goroutine must end with its context")
+		}
+	})
+
 	t.Run("a cancelled context runs no pass at all", func(t *testing.T) {
 		t.Parallel()
 
