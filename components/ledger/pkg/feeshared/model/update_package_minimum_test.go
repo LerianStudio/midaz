@@ -30,12 +30,17 @@ func TestUpdatePackageInputValidateStoredFeesAgainstMinimum(t *testing.T) {
 		storedFees map[string]Fee
 		patch      map[string]Fee
 		wantCode   string
+		// wantMessage pins the number the operator acts on. The refusal must quote
+		// the minimum the request is setting, not the one the package carried, or
+		// someone lowering a minimum to 1 is told to check it against 100.
+		wantMessage string
 	}{
 		{
-			name:       "minimum lowered below a stored deductible flat fee",
-			newMinimum: stringPtr("1"),
-			storedFees: map[string]Fee{"fee1": deductibleFee(Flat, "25", true)},
-			wantCode:   constant.ErrCalculationValueFlatFee.Error(),
+			name:        "minimum lowered below a stored deductible flat fee",
+			newMinimum:  stringPtr("1"),
+			storedFees:  map[string]Fee{"fee1": deductibleFee(Flat, "25", true)},
+			wantCode:    constant.ErrCalculationValueFlatFee.Error(),
+			wantMessage: "minimum amount 1.",
 		},
 		{
 			name:       "minimum lowered to exactly the stored deductible flat fee",
@@ -129,6 +134,10 @@ func TestUpdatePackageInputValidateStoredFeesAgainstMinimum(t *testing.T) {
 			}
 
 			require.ErrorContains(t, err, tt.wantCode)
+
+			if tt.wantMessage != "" {
+				require.ErrorContains(t, err, tt.wantMessage)
+			}
 		})
 	}
 }
@@ -270,6 +279,7 @@ func TestUpdatePackageInputValidateStoredFeesAgainstMinimumNamesOneFee(t *testin
 
 		require.ErrorContains(t, err, constant.ErrCalculationValueFlatFee.Error())
 		require.ErrorContains(t, err, "feeA")
+		require.ErrorContains(t, err, "minimum amount 1.")
 	}
 }
 
