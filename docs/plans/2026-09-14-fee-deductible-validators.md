@@ -8,7 +8,7 @@ update path measured fees against the wrong minimum.
 `components/ledger/internal/services/fees` (the update use case, where the stored package is
 already loaded), plus one new error code. No schema change, no API shape change.
 
-**Status:** complete, measured at `ca93bf0c0bc20b22065c026f6a1b02008456639a`.
+**Status:** complete, measured at `1eca67b9db56abd23a36c4b05c4cca2df566358b`.
 
 ## What changes for a caller, and what does not
 
@@ -26,7 +26,7 @@ create of a deductible percentage of 150 answered `0207` before this change and 
 | P1 | The update BOUNDARY caps a deductible percentage above 100 when the patch carries no minimum, answering `0207` | Complete, commit `c70f62af3` |
 | P2 | A package update is judged against the minimum it will carry, for the fees it keeps and the fees it restates or adds | Complete, commit `1e1181c47` |
 | P3 | A fee the same patch settles does not block the minimum change | Complete, commit `7bc74b175`, from review |
-| P4 | An ambiguous patch is refused, one predicate decides a removal, and the added-fee branch is pinned | Complete, commits `60b6eb2f4` `20cb502da` `81e3a0dc5` `f2b3267b6` `ca93bf0c0`, from review |
+| P4 | An ambiguous patch is refused, one predicate decides a removal, and the added-fee branch is pinned | Complete, commits `60b6eb2f4` `20cb502da` `81e3a0dc5` `f2b3267b6` `ca93bf0c0` `1eca67b9d`, from review |
 
 ## P1 - The percentage cap no longer waits for a minimum
 
@@ -113,6 +113,11 @@ would have let the check above be evaded by restating the offending fee in the s
 - One shape the create path would refuse is still applied on update: a patch setting a
   `percentage` calculation under an unchanged `flatFee` application rule. That is pre-existing
   on the update path and outside this PR.
+- The ambiguous-key refusal is on the UPDATE payload only. The create-side mapper
+  (`adapters/mongodb/fees/pack/package.go:300`) lower-camels fee keys the same way, so a
+  create body naming one fee twice still collapses into a single stored fee chosen by Go map
+  order. Closing that is a create-side behaviour change, which this PR deliberately does not
+  make; it is left as its own piece of work.
 
 ## P3 - A fee the same patch settles does not block the minimum change
 
@@ -191,9 +196,13 @@ branch had a test. The unpinned branch is the one that wrote the live invalid pa
 ### P4.4 Test hygiene and evidence
 
 - [x] The two model test files call `t.Parallel()` at function and subtest level, matching
-      the service test file added in the same PR. Twenty-six paused tests, four functions and
-      twenty-two subtests.
+      the service test file added in the same PR. Twenty-eight paused tests across the
+      minimum and cap suites: five test functions and their twenty-three subtests.
 - [x] The live proof now reads back the stored fee as well as the minimum and the timestamp.
+- [x] The refusal assertions pin the amount the operator is told, not only the error code.
+      Passing the stored minimum instead of the one the request sets would otherwise leave the
+      suite green while telling someone lowering a minimum to 1 to check it against 100
+      (mutant M5 below).
 - [x] This document's verification section is rebuilt: every block carries the three evidence
       header lines, the outputs are transcripts, and the `golangci-lint` line is the binary
       that was actually invoked.
@@ -274,25 +283,26 @@ FAIL	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.01
 rc=1
 ```
 
-### RED, four mutants at the code-final head
+### RED, five mutants at the code-final head
 
-Each mutant is applied in a detached worktree at `ca93bf0c0`, run, then reverted. The header
-lines are from the start of the block; `git status --porcelain` shows the mutated file at the
-moment each test ran.
-
-**M1 - the added-fee branch reads the stored minimum instead of the effective one.** This is
-the mutant that survived the whole suite before this round.
+Each mutant is applied in a detached worktree at `1eca67b9d`, run, then reverted with
+`git checkout --`. The header lines are from the start of the block; the worktree is clean
+before each mutant and clean again after the last.
 
 ```
 $ date -u
-Tue Sep 15 12:48:09 UTC 2026
+Tue Sep 15 13:00:38 UTC 2026
 $ git rev-parse HEAD
-ca93bf0c0bc20b22065c026f6a1b02008456639a
+1eca67b9db56abd23a36c4b05c4cca2df566358b
 $ git status --porcelain
-(clean before the mutant)
+(no output)
+```
+
+**M1 - the added-fee branch reads the stored minimum instead of the effective one.** This is
+the mutant that survived the whole suite, integration tests included, before this round.
+
+```
 $ sed -i 's|err := fee.ValidateNewFee(key, minAmount)|err := fee.ValidateNewFee(key, decimal.NewFromInt(100))|' components/ledger/internal/services/fees/update-package-by-id.go
-$ grep -n "ValidateNewFee(key," components/ledger/internal/services/fees/update-package-by-id.go
-210:			err := fee.ValidateNewFee(key, decimal.NewFromInt(100))
 $ go test -count=1 ./components/ledger/internal/services/fees/
 --- FAIL: TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum (0.00s)
     --- FAIL: .../minimum_lowered_under_the_fee_the_patch_adds (0.00s)
@@ -302,70 +312,81 @@ FAIL	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	0
 rc=1
 ```
 
-**M2 - the removal predicate goes back to the narrow form.**
+**M2 - the removal predicate goes back to the narrow form**, that is
+`return f.ValidateIfFeeIsNil() && commons.IsNilOrEmpty(f.RouteFrom) && commons.IsNilOrEmpty(f.RouteTo)`.
 
 ```
-$ date -u
-Tue Sep 15 12:48:19 UTC 2026
-$ git rev-parse HEAD
-ca93bf0c0bc20b22065c026f6a1b02008456639a
-$ git status --porcelain
-(clean before the mutant)
-$ grep -n "func (f \*Fee) removesTheFee" -A 3 components/ledger/pkg/feeshared/model/update_package_input.go
-181:func (f *Fee) removesTheFee() bool {
-182-	return f.ValidateIfFeeIsNil() && commons.IsNilOrEmpty(f.RouteFrom) && commons.IsNilOrEmpty(f.RouteTo)
-183-}
 $ go test -count=1 ./components/ledger/pkg/feeshared/model/ ./components/ledger/internal/services/fees/
 --- FAIL: TestFeeRemovalPredicateAgreesWithTheApplyPath (0.01s)
-    --- FAIL: .../an_entry_whose_only_field_the_writer_reads_as_empty (0.00s)
     --- FAIL: .../an_entry_whose_calculation_model_carries_nothing (0.00s)
+    --- FAIL: .../an_entry_whose_only_field_the_writer_reads_as_empty (0.00s)
 --- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimum (0.01s)
     --- FAIL: .../patch_removes_the_offending_fee_with_an_empty_calculation_model (0.00s)
 FAIL
 FAIL	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.062s
---- FAIL: TestUpdatePackageByIDAcceptsALoweredMinimumWhenThePatchRemovesTheFee (0.00s)
+--- FAIL: TestUpdatePackageByIDAcceptsALoweredMinimumWhenThePatchRemovesTheFee (0.01s)
     --- FAIL: .../the_entry_carries_an_empty_calculation_model (0.00s)
 FAIL
 rc=1
 ```
 
-**M3 - colliding patch keys are resolved instead of refused.**
+**M3 - colliding patch keys are resolved instead of refused**, that is the duplicate guard
+inside `normalisedFees` is deleted and the later entry simply overwrites the earlier one.
 
 ```
 $ date -u
-Tue Sep 15 12:48:31 UTC 2026
+Tue Sep 15 13:00:54 UTC 2026
 $ git rev-parse HEAD
-ca93bf0c0bc20b22065c026f6a1b02008456639a
-$ git status --porcelain
-(clean before the mutant; the duplicate guard in normalisedFees is deleted)
+1eca67b9db56abd23a36c4b05c4cca2df566358b
 $ go test -count=1 ./components/ledger/pkg/feeshared/model/
---- FAIL: TestUpdatePackageInputRefusesAmbiguousFeeKeys (0.01s)
-    --- FAIL: .../every_call_answers_the_same_way (0.00s)
+--- FAIL: TestUpdatePackageInputRefusesAmbiguousFeeKeys (0.00s)
     --- FAIL: .../at_the_request_boundary (0.00s)
     --- FAIL: .../a_patch_carrying_no_minimum_is_refused_just_the_same (0.00s)
     --- FAIL: .../when_the_stored_fees_are_measured_against_the_new_minimum (0.00s)
+    --- FAIL: .../every_call_answers_the_same_way (0.00s)
 FAIL
-FAIL	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.056s
+FAIL	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.052s
 rc=1
 ```
 
-**M4 - the stored fees are walked in Go map order again.**
+**M4 - the stored fees are walked in Go map order again**, that is
+`for key, storedFee := range storedFees` with the sort kept only as a discarded call.
 
 ```
 $ go test -count=1 ./components/ledger/pkg/feeshared/model/
 --- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimumNamesOneFee (0.00s)
 FAIL
+FAIL	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.059s
+rc=1
+```
+
+**M5 - the refusal quotes the stored minimum instead of the one the request sets**, that is
+`validateCalculationValues(storedFee.CalculationModel, "100", ...)`. Without the message
+assertion added in this round, four of these five rows stay green.
+
+```
+$ go test -count=1 ./components/ledger/pkg/feeshared/model/
+--- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimumNamesOneFee (0.00s)
+--- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimum (0.01s)
+    --- FAIL: .../minimum_lowered_below_a_stored_deductible_flat_fee (0.00s)
+    --- FAIL: .../patch_names_the_fee_but_changes_only_its_label (0.00s)
+    --- FAIL: .../patch_confirms_the_fee_stays_deducted_from_the_payment (0.00s)
+    --- FAIL: .../patch_sets_only_a_route_on_the_offending_fee,_which_keeps_it (0.00s)
+FAIL
 FAIL	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.056s
 rc=1
+$ git checkout -- components/ledger/pkg/feeshared/model/update_package_input.go
+$ git status --porcelain
+(no output)
 ```
 
 ### GREEN, every test this PR adds, at the code-final head
 
 ```
 $ date -u
-Tue Sep 15 12:48:56 UTC 2026
+Tue Sep 15 12:58:28 UTC 2026
 $ git rev-parse HEAD
-ca93bf0c0bc20b22065c026f6a1b02008456639a
+1eca67b9db56abd23a36c4b05c4cca2df566358b
 $ git status --porcelain
 (no output)
 $ go test -count=1 -v ./components/ledger/pkg/feeshared/model/ ./components/ledger/internal/services/fees/ -run 'CapsDeductiblePercentageWithoutMinimum|ValidateStoredFeesAgainstMinimum|EffectiveMinimumAmount|RefusesAmbiguousFeeKeys|RemovalPredicateAgreesWithTheApplyPath|MinimumUnderStoredDeductibleFee|AcceptsALoweredMinimumWhenThePatchRemovesTheFee|MeasuresPatchedFeesAgainstTheNewMinimum|MeasuresAddedFeesAgainstTheNewMinimum'
@@ -373,16 +394,14 @@ $ go test -count=1 -v ./components/ledger/pkg/feeshared/model/ ./components/ledg
 --- PASS: TestUpdatePackageInputEffectiveMinimumAmount (0.00s)
 --- PASS: TestValidateCalculationValuesCapsDeductiblePercentageWithoutMinimum (0.00s)
 --- PASS: TestFeeRemovalPredicateAgreesWithTheApplyPath (0.00s)
---- PASS: TestUpdatePackageInputValidateStoredFeesAgainstMinimum (0.00s)
---- PASS: TestUpdatePackageInputValidateStoredFeesAgainstMinimumNamesOneFee (0.02s)
+--- PASS: TestUpdatePackageInputValidateStoredFeesAgainstMinimum (0.01s)
 --- PASS: TestUpdatePackageInputRefusesAmbiguousFeeKeys (0.00s)
-PASS
-ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.044s
+--- PASS: TestUpdatePackageInputValidateStoredFeesAgainstMinimumNamesOneFee (0.02s)
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.049s
 --- PASS: TestUpdatePackageByIDRefusesMinimumUnderStoredDeductibleFee (0.00s)
---- PASS: TestUpdatePackageByIDAcceptsALoweredMinimumWhenThePatchRemovesTheFee (0.00s)
 --- PASS: TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum (0.00s)
+--- PASS: TestUpdatePackageByIDAcceptsALoweredMinimumWhenThePatchRemovesTheFee (0.00s)
 --- PASS: TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum (0.00s)
-PASS
 ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	0.032s
 rc=0
 ```
@@ -390,48 +409,51 @@ rc=0
 The refusal tests declare no `Update` expectation on the repository mock, or assert the
 captured payload is nil, so they pass only while nothing is written.
 
-The 22 subtests of the two model test files run in parallel:
+The subtests of the two model test files run in parallel. The run below pauses twenty-eight
+tests: the five test functions its filter selects, and their twenty-three subtests.
 
 ```
+$ date -u
+Tue Sep 15 13:00:23 UTC 2026
+$ git rev-parse HEAD
+1eca67b9db56abd23a36c4b05c4cca2df566358b
 $ go test -count=1 -v ./components/ledger/pkg/feeshared/model/ -run 'CapsDeductiblePercentageWithoutMinimum|ValidateStoredFeesAgainstMinimum|EffectiveMinimumAmount' 2>&1 | grep -c "=== PAUSE"
-26
+28
 ```
 
 ### Live proof against a real MongoDB
 
 The same update runs against a MongoDB testcontainer through the real repository. At
-`origin/develop` the lowered minimum is accepted and persisted; at the code-final head it is
-refused and the stored document keeps its minimum, its fee and its timestamp, all three now
-asserted.
+`origin/develop` the lowered minimum is accepted and persisted, which is the first RED block
+above; at the code-final head it is refused and the stored document keeps its minimum, its
+fee and its timestamp, all three asserted.
 
 ```
 $ date -u
-Tue Sep 15 12:43:42 UTC 2026
+Tue Sep 15 13:00:23 UTC 2026
 $ git rev-parse HEAD
-ca93bf0c0bc20b22065c026f6a1b02008456639a
+1eca67b9db56abd23a36c4b05c4cca2df566358b
 $ git status --porcelain
- M components/ledger/internal/services/fees/update_package_minimum_integration_test.go
+ M docs/plans/2026-09-14-fee-deductible-validators.md
 $ ALLOW_INSECURE_TLS=true go test -tags integration -p=1 -count=1 -v -run 'TestIntegration_UpdatePackage_' ./components/ledger/internal/services/fees/
---- PASS: TestIntegration_UpdatePackage_LoweredMinimumLeavesTheStoredPackageUntouched (1.60s)
---- PASS: TestIntegration_UpdatePackage_MinimumAboveTheStoredFeeIsApplied (0.94s)
+--- PASS: TestIntegration_UpdatePackage_LoweredMinimumLeavesTheStoredPackageUntouched (1.96s)
+--- PASS: TestIntegration_UpdatePackage_MinimumAboveTheStoredFeeIsApplied (1.13s)
 PASS
-ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	3.863s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	4.440s
 rc=0
 ```
 
-The status line shows the assertion being added in that run; it was committed as
-`ca93bf0c0` immediately after, and the integration gate below re-runs it from a clean tree.
+The only modified path in that status line is this plan document; no code or test file was
+dirty. The second case passes at both commits: a minimum of 30, still above the stored fee of
+25, is applied before and after. The fix refuses the invalid move, not the valid one.
 
-The second case passes at both commits: a minimum of 30, still above the stored fee of 25, is
-applied before and after. The fix refuses the invalid move, not the valid one.
-
-### Gates at `ca93bf0c0bc20b22065c026f6a1b02008456639a`
+### Gates at `1eca67b9db56abd23a36c4b05c4cca2df566358b`
 
 ```
 $ date -u
-Tue Sep 15 12:44:01 UTC 2026
+Tue Sep 15 12:58:14 UTC 2026
 $ git rev-parse HEAD
-ca93bf0c0bc20b22065c026f6a1b02008456639a
+1eca67b9db56abd23a36c4b05c4cca2df566358b
 $ git status --porcelain
 (no output)
 
@@ -451,9 +473,9 @@ rc=0
 
 ```
 $ date -u
-Tue Sep 15 12:44:13 UTC 2026
+Tue Sep 15 12:58:28 UTC 2026
 $ git rev-parse HEAD
-ca93bf0c0bc20b22065c026f6a1b02008456639a
+1eca67b9db56abd23a36c4b05c4cca2df566358b
 $ git status --porcelain
 (no output)
 
@@ -464,13 +486,19 @@ $ go test -race -count=1 ./components/ledger/pkg/feeshared/... ./components/ledg
 rc=0   (5 packages ok, 2 with no test files)
 
 $ ALLOW_INSECURE_TLS=true go test -tags integration -p=1 -count=1 ./components/ledger/internal/adapters/mongodb/fees/... ./components/ledger/internal/services/fees/...
-ok  	.../adapters/mongodb/fees	14.894s
-ok  	.../adapters/mongodb/fees/billing_package	32.491s
-ok  	.../adapters/mongodb/fees/pack	31.661s
-ok  	.../services/fees	5.172s
-ok  	.../services/fees/midaz	0.018s
+ok  	.../adapters/mongodb/fees	13.836s
+ok  	.../adapters/mongodb/fees/billing_package	28.366s
+ok  	.../adapters/mongodb/fees/pack	31.687s
+ok  	.../services/fees	3.915s
+ok  	.../services/fees/midaz	0.017s
 rc=0
 ```
+
+The repository's own gates, at the same head: `make check-tests` rc=0, `make check-telemetry`
+rc=0 with all five gates green. `make check-logs` exits 2 on this machine because the Makefile
+invokes the script with `sh` while the script is written in bash; run with `bash` it exits 0
+with 62 advisory warnings, none of them in the files this PR touches, and this branch changes
+nothing under `scripts/`.
 
 `golangci-lint` is invoked by absolute path because the version on `PATH` is `v2.12.2` built
 with `go1.26`, which refuses a module targeting `1.27.0`. The binary at
@@ -479,8 +507,8 @@ with `go1.26`, which refuses a module targeting `1.27.0`. The binary at
 line above is the one that was run, verbatim.
 
 That gate answers `0 issues.` on a clean tree, so it is proved live rather than assumed:
-planting one unused variable in `update_package_input.go`, in a detached worktree at the same
-head, turns it red.
+planting one unused variable in `update_package_input.go`, in a detached worktree, turns it
+red.
 
 ```
 $ date -u
@@ -495,3 +523,7 @@ components/ledger/pkg/feeshared/model/update_package_input.go:623:5: var implUnu
 * unused: 1
 rc=1
 ```
+
+That liveness probe is the one block measured at `ca93bf0c0`, the previous commit, and its
+header says so: the commit after it adds a test assertion only, which cannot change what the
+linter reports about an unused variable.
