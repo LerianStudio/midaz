@@ -82,6 +82,8 @@ func TestIntegration_UpdatePackage_LoweredMinimumLeavesTheStoredPackageUntouched
 		"the refused update must leave the stored minimum at 100, got %s", after.MinimumAmount)
 	require.Equal(t, fixedTime.UTC(), after.UpdatedAt.UTC(),
 		"the refused update must not stamp the document")
+	require.Equal(t, "25", after.Fees["fee1"].CalculationModel.Calculations[0].Value,
+		"the refused update must leave the stored fee alone")
 }
 
 // The same package accepts a minimum it can still charge the stored fee on.
