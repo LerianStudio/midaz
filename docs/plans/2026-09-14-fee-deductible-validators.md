@@ -147,9 +147,13 @@ were refusals the operator did not deserve, not accepted bad states.
 ### P4.1 An ambiguous patch is refused instead of answered at random
 
 Fee keys are applied by their lower camel form, so `fee1` and `Fee_1` in one body name the
-same fee. Both the check and the write picked whichever entry the Go map yielded first, so
-the same request was accepted on some calls and refused on others. Measured before the fix,
-inside one test run, the same body returned `<nil>` in one subtest and `0208` in another.
+same fee. Only the check read the patch by first match, and only inside this branch: measured
+at the pre-guard commit `7bc74b175`, 200 identical calls came back 174 accepted and 26
+refused. The write never picked a winner at all. On every one of those 174 accepted calls, and
+on 200 of 200 at `origin/develop`, it merged both entries into one update document naming
+`fees.fee1` under `$set` (as `fees.fee1.fee_label`) and under `$unset` at the same time, so
+what the stored document kept was decided last-wins by map order. That self-conflicting write
+is the defect that reached `develop`. The accept-or-refuse coin toss never left this branch.
 
 - [x] A body naming one fee twice is refused with the new code `0236`, which names the key
       the entries collide on. The refusal is raised at the request boundary
@@ -200,16 +204,19 @@ branch had a test. The unpinned branch is the one that wrote the live invalid pa
 ### P4.4 Test hygiene and evidence
 
 - [x] The two model test files call `t.Parallel()` at function and subtest level, matching
-      the service test file added in the same PR. Twenty-eight paused tests across the
-      minimum and cap suites: five test functions and their twenty-three subtests.
+      the service test file added in the same PR. Twenty-eight paused tests under the filter
+      the parallel block below runs: the five test functions that filter selects and their
+      twenty-three subtests. The two files hold seven test functions in all.
 - [x] The live proof now reads back the stored fee as well as the minimum and the timestamp.
-- [x] The refusal assertions pin the amount the operator is told, not only the error code.
-      Passing the stored minimum instead of the one the request sets would otherwise leave the
-      suite green while telling someone lowering a minimum to 1 to check it against 100
+- [x] Two refusal assertions pin the amount the operator is told, not only the error code: the
+      lowered-minimum row of the stored-fee table and the single-fee naming test. The other
+      three lowered-minimum refusal rows assert the code alone. A refusal that still refuses
+      while quoting a number the request never set is caught by those two and by nothing else
       (mutant M5 below).
 - [x] This document's verification section is rebuilt: every block carries the three evidence
-      header lines, the outputs are transcripts, and the `golangci-lint` line is the binary
-      that was actually invoked.
+      header lines except the five mutant blocks, which share one header disclosed at the top
+      of that section; the outputs are transcripts rather than counts; and the `golangci-lint`
+      line is the binary that was actually invoked.
 
 ## Found by
 
@@ -221,7 +228,9 @@ PR #2494.
 ## Verification
 
 Every block below carries `date -u`, `git rev-parse HEAD` and `git status --porcelain` before
-the command, then the command, its output and its exit code. The RED evidence has two halves:
+the command, then the command, its output and its exit code. The one exception is the mutant
+section, whose five blocks share the header printed once at its top and say so there. Where
+output is filtered, the filter is on the command line. The RED evidence has two halves:
 the lane's tests against current `develop`, which is what the defect looks like today, and
 mutants applied at the code-final head, which any reader can reproduce.
 
@@ -233,11 +242,12 @@ base RED, which is measured at `origin/develop` on purpose and says so in its ow
 
 ### RED, the lane's tests against `origin/develop`
 
-A detached worktree at `origin/develop` with the lane's test files copied in.
+A detached worktree at `origin/develop` with the lane's three final test files copied in, as
+they stand at the code-final head.
 
 ```
 $ date -u
-Tue Sep 15 12:47:49 UTC 2026
+Tue Sep 15 14:31:08 UTC 2026
 $ git rev-parse HEAD
 753bd40ef85af9da73beb214c698bb10ce713c97
 $ git status --porcelain
@@ -245,27 +255,55 @@ A  components/ledger/internal/services/fees/update_package_minimum_test.go
 A  components/ledger/pkg/feeshared/model/deductible_caps_test.go
 A  components/ledger/pkg/feeshared/model/update_package_minimum_test.go
 $ go test -count=1 ./components/ledger/pkg/feeshared/model/ ./components/ledger/internal/services/fees/
-# github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model [.../model.test]
-components/ledger/pkg/feeshared/model/update_package_minimum_test.go:109:14: up.ValidateStoredFeesAgainstMinimum undefined (type *UpdatePackageInput has no field or method ValidateStoredFeesAgainstMinimum)
-components/ledger/pkg/feeshared/model/update_package_minimum_test.go:128:24: up.EffectiveMinimumAmount undefined (type *UpdatePackageInput has no field or method EffectiveMinimumAmount)
-components/ledger/pkg/feeshared/model/update_package_minimum_test.go:137:24: up.EffectiveMinimumAmount undefined (type *UpdatePackageInput has no field or method EffectiveMinimumAmount)
-components/ledger/pkg/feeshared/model/update_package_minimum_test.go:146:16: up.EffectiveMinimumAmount undefined (type *UpdatePackageInput has no field or method EffectiveMinimumAmount)
+# github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model [github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model.test]
+components/ledger/pkg/feeshared/model/update_package_minimum_test.go:129:14: up.ValidateStoredFeesAgainstMinimum undefined (type *UpdatePackageInput has no field or method ValidateStoredFeesAgainstMinimum)
+components/ledger/pkg/feeshared/model/update_package_minimum_test.go:203:41: patch.removesTheFee undefined (type Fee has no field or method removesTheFee)
+components/ledger/pkg/feeshared/model/update_package_minimum_test.go:231:42: undefined: constant.ErrDuplicateFeeKey
+components/ledger/pkg/feeshared/model/update_package_minimum_test.go:238:22: ambiguous().ValidateStoredFeesAgainstMinimum undefined (type *UpdatePackageInput has no field or method ValidateStoredFeesAgainstMinimum)
+components/ledger/pkg/feeshared/model/update_package_minimum_test.go:240:42: undefined: constant.ErrDuplicateFeeKey
+components/ledger/pkg/feeshared/model/update_package_minimum_test.go:250:31: up.ValidateStoredFeesAgainstMinimum undefined (type *UpdatePackageInput has no field or method ValidateStoredFeesAgainstMinimum)
+components/ledger/pkg/feeshared/model/update_package_minimum_test.go:250:82: undefined: constant.ErrDuplicateFeeKey
+components/ledger/pkg/feeshared/model/update_package_minimum_test.go:268:25: up.ValidateStoredFeesAgainstMinimum undefined (type *UpdatePackageInput has no field or method ValidateStoredFeesAgainstMinimum)
+components/ledger/pkg/feeshared/model/update_package_minimum_test.go:277:41: ambiguous().ValidateStoredFeesAgainstMinimum undefined (type *UpdatePackageInput has no field or method ValidateStoredFeesAgainstMinimum)
+components/ledger/pkg/feeshared/model/update_package_minimum_test.go:277:92: undefined: constant.ErrDuplicateFeeKey
+components/ledger/pkg/feeshared/model/update_package_minimum_test.go:277:92: too many errors
 FAIL	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model [build failed]
 --- FAIL: TestUpdatePackageByIDRefusesMinimumUnderStoredDeductibleFee (0.00s)
-    update-package-by-id.go:73: Unexpected call to *pack.MockRepository.Update([context.Background.WithValue(trace.traceContextKeyType, global.nonRecordingSpan) 5c2322e0-effa-4b7c-806b-858abaf482a1 44b06224-7996-489f-abc2-a87bc0f5331a 00000000-0000-0000-0000-000000000000 {"$set":{"minimum_amount":"1","updated_at":{"$date":{"$numberLong":"1789476472739"}}}}]) at /tmp/rv-feeval-impl-base/components/ledger/internal/services/fees/update-package-by-id.go:73 because: there are no expected calls of the method "Update" for that receiver
---- FAIL: TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum (0.01s)
-    --- FAIL: .../minimum_lowered_under_the_fee_the_patch_sets (0.00s)
+    update-package-by-id.go:73: Unexpected call to *pack.MockRepository.Update([context.Background.WithValue(trace.traceContextKeyType, global.nonRecordingSpan) d2be7d04-2a0d-4e35-b9d1-d2aaefc54366 1f46033b-39ac-424e-8e99-9fedd5de2f06 00000000-0000-0000-0000-000000000000 {"$set":{"minimum_amount":"1","updated_at":{"$date":{"$numberLong":"1789482669297"}}}}]) at /tmp/hand2494-develop/components/ledger/internal/services/fees/update-package-by-id.go:73 because: there are no expected calls of the method "Update" for that receiver
+--- FAIL: TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum (0.00s)
+    --- FAIL: TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum/minimum_lowered_under_the_fee_the_patch_sets (0.00s)
+        update_package_minimum_test.go:354: 
+            	Error Trace:	/tmp/hand2494-develop/components/ledger/internal/services/fees/update_package_minimum_test.go:354
             	Error:      	An error is expected but got nil.
-    --- FAIL: .../minimum_raised_above_the_fee_the_patch_sets (0.00s)
+            	Test:       	TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum/minimum_lowered_under_the_fee_the_patch_sets
+    --- FAIL: TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum/minimum_raised_above_the_fee_the_patch_sets (0.00s)
+        update_package_minimum_test.go:350: 
+            	Error Trace:	/tmp/hand2494-develop/components/ledger/internal/services/fees/update_package_minimum_test.go:350
             	Error:      	Received unexpected error:
             	            	0211 - Can not update deductible value to true. Calculation value is bigger than the minimum amount 100 for Fee fee1.
+            	Test:       	TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum/minimum_raised_above_the_fee_the_patch_sets
+--- FAIL: TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum (0.01s)
+    --- FAIL: TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum/minimum_lowered_under_the_fee_the_patch_adds (0.00s)
+        update_package_minimum_test.go:271: 
+            	Error Trace:	/tmp/hand2494-develop/components/ledger/internal/services/fees/update_package_minimum_test.go:271
+            	Error:      	An error is expected but got nil.
+            	Test:       	TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum/minimum_lowered_under_the_fee_the_patch_adds
+    --- FAIL: TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum/minimum_raised_above_the_fee_the_patch_adds (0.00s)
+        update_package_minimum_test.go:277: 
+            	Error Trace:	/tmp/hand2494-develop/components/ledger/internal/services/fees/update_package_minimum_test.go:277
+            	Error:      	Received unexpected error:
+            	            	0211 - Can not update deductible value to true. Calculation value is bigger than the minimum amount 100 for Fee fee2.
+            	Test:       	TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum/minimum_raised_above_the_fee_the_patch_adds
 FAIL
-FAIL	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	0.039s
+FAIL	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	0.043s
+FAIL
 rc=1
 ```
 
 The first failure is the defect itself: the write went through, carrying
-`minimum_amount: "1"` to a package whose stored deductible fee is 25.
+`minimum_amount: "1"` to a package whose stored deductible fee is 25. The two rows under
+`MeasuresAddedFeesAgainstTheNewMinimum` are the branch that wrote the live invalid packages,
+and they appear here only because this block runs the final test files.
 
 The percentage cap alone, in the same worktree with the model test file removed so the
 package builds:
@@ -397,22 +435,34 @@ rc=1
 ```
 
 **M5 - the refusal quotes a fixed minimum instead of the one the request sets**, that is
-`validateCalculationValues(storedFee.CalculationModel, "100", ...)`. Without the message
-assertion added in this round, four of these five rows stay green.
+`validateCalculationValues(storedFee.CalculationModel, "2", ...)`. The number is wrong but
+still low enough to keep refusing, so on the rows that lower the minimum to 1 the verdict and
+the code are unchanged and only the sentence the operator reads moves. Three rows go red.
+Removing the two message assertions added in this round, in the second run below, leaves two
+of the three green: the only survivor is the row whose verdict itself flips, the one lowering
+the minimum to exactly the stored fee. Without those assertions, a refusal telling someone who
+set a minimum of 1 to check it against 2 ships with the suite green.
 
 ```
 $ go test -count=1 ./components/ledger/pkg/feeshared/model/ 2>&1 | /usr/bin/grep -E 'FAIL|ok |---'
 --- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimumNamesOneFee (0.00s)
 --- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimum (0.01s)
-    --- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimum/patch_names_the_fee_but_changes_only_its_label (0.00s)
+    --- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimum/minimum_lowered_to_exactly_the_stored_deductible_flat_fee (0.00s)
     --- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimum/minimum_lowered_below_a_stored_deductible_flat_fee (0.00s)
-    --- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimum/patch_sets_only_a_route_on_the_offending_fee,_which_keeps_it (0.00s)
-    --- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimum/patch_confirms_the_fee_stays_deducted_from_the_payment (0.00s)
 FAIL
-FAIL	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.054s
+FAIL	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.052s
 FAIL
 rc=1
-$ git checkout -- components/ledger/pkg/feeshared/model/update_package_input.go
+$ sed -i '300d' components/ledger/pkg/feeshared/model/update_package_minimum_test.go
+$ sed -i '43d' components/ledger/pkg/feeshared/model/update_package_minimum_test.go
+$ go test -count=1 ./components/ledger/pkg/feeshared/model/ 2>&1 | /usr/bin/grep -E 'FAIL|ok |---'
+--- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimum (0.01s)
+    --- FAIL: TestUpdatePackageInputValidateStoredFeesAgainstMinimum/minimum_lowered_to_exactly_the_stored_deductible_flat_fee (0.00s)
+FAIL
+FAIL	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.058s
+FAIL
+rc=1
+$ git checkout -- components/ledger/pkg/feeshared/model/update_package_input.go components/ledger/pkg/feeshared/model/update_package_minimum_test.go
 $ git status --porcelain
 (no output)
 ```
@@ -421,25 +471,25 @@ $ git status --porcelain
 
 ```
 $ date -u
-Tue Sep 15 13:10:19 UTC 2026
+Tue Sep 15 14:27:17 UTC 2026
 $ git rev-parse HEAD
 8fac078fb6ae0b82b1ebb35e6903adec001702de
 $ git status --porcelain
 (no output)
-$ go test -count=1 -v ./components/ledger/pkg/feeshared/model/ ./components/ledger/internal/services/fees/ -run 'CapsDeductiblePercentageWithoutMinimum|ValidateStoredFeesAgainstMinimum|EffectiveMinimumAmount|RefusesAmbiguousFeeKeys|RemovalPredicateAgreesWithTheApplyPath|MinimumUnderStoredDeductibleFee|AcceptsALoweredMinimumWhenThePatchRemovesTheFee|MeasuresPatchedFeesAgainstTheNewMinimum|MeasuresAddedFeesAgainstTheNewMinimum'
+$ go test -count=1 -v ./components/ledger/pkg/feeshared/model/ ./components/ledger/internal/services/fees/ -run 'CapsDeductiblePercentageWithoutMinimum|ValidateStoredFeesAgainstMinimum|EffectiveMinimumAmount|RefusesAmbiguousFeeKeys|RemovalPredicateAgreesWithTheApplyPath|MinimumUnderStoredDeductibleFee|AcceptsALoweredMinimumWhenThePatchRemovesTheFee|MeasuresPatchedFeesAgainstTheNewMinimum|MeasuresAddedFeesAgainstTheNewMinimum' 2>&1 | /usr/bin/grep -E '^(--- |ok  |FAIL)'
 --- PASS: TestUpdatePackageInputValidateFeesCapsDeductiblePercentageWithoutMinimum (0.00s)
---- PASS: TestUpdatePackageInputEffectiveMinimumAmount (0.00s)
 --- PASS: TestValidateCalculationValuesCapsDeductiblePercentageWithoutMinimum (0.00s)
+--- PASS: TestUpdatePackageInputEffectiveMinimumAmount (0.00s)
 --- PASS: TestFeeRemovalPredicateAgreesWithTheApplyPath (0.00s)
---- PASS: TestUpdatePackageInputValidateStoredFeesAgainstMinimum (0.01s)
+--- PASS: TestUpdatePackageInputValidateStoredFeesAgainstMinimum (0.00s)
 --- PASS: TestUpdatePackageInputRefusesAmbiguousFeeKeys (0.00s)
 --- PASS: TestUpdatePackageInputValidateStoredFeesAgainstMinimumNamesOneFee (0.02s)
-ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.049s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.045s
 --- PASS: TestUpdatePackageByIDRefusesMinimumUnderStoredDeductibleFee (0.00s)
 --- PASS: TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum (0.00s)
 --- PASS: TestUpdatePackageByIDAcceptsALoweredMinimumWhenThePatchRemovesTheFee (0.00s)
 --- PASS: TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum (0.00s)
-ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	0.032s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	0.031s
 rc=0
 ```
 
@@ -451,38 +501,41 @@ tests: the five test functions its filter selects, and their twenty-three subtes
 
 ```
 $ date -u
-Tue Sep 15 13:10:19 UTC 2026
+Tue Sep 15 14:27:25 UTC 2026
 $ git rev-parse HEAD
 8fac078fb6ae0b82b1ebb35e6903adec001702de
-$ go test -count=1 -v ./components/ledger/pkg/feeshared/model/ -run 'CapsDeductiblePercentageWithoutMinimum|ValidateStoredFeesAgainstMinimum|EffectiveMinimumAmount' 2>&1 | grep -c "=== PAUSE"
+$ git status --porcelain
+(no output)
+$ go test -count=1 -v ./components/ledger/pkg/feeshared/model/ -run 'CapsDeductiblePercentageWithoutMinimum|ValidateStoredFeesAgainstMinimum|EffectiveMinimumAmount' 2>&1 | /usr/bin/grep -c "=== PAUSE"
 28
+rc=0
 ```
 
 ### Live proof against a real MongoDB
 
 The same update runs against a MongoDB testcontainer through the real repository. At
-`origin/develop` the lowered minimum is accepted and persisted, which is the first RED block
-above; at the code-final head it is refused and the stored document keeps its minimum, its
-fee and its timestamp, all three asserted.
+`origin/develop` the lowered minimum is accepted and the write leaves for the repository,
+which is what the first RED block above catches against a mock; at the code-final head it is
+refused and the stored document keeps its minimum, its fee and its timestamp, all three
+asserted against a real database.
 
 ```
 $ date -u
-Tue Sep 15 13:10:19 UTC 2026
+Tue Sep 15 14:27:35 UTC 2026
 $ git rev-parse HEAD
 8fac078fb6ae0b82b1ebb35e6903adec001702de
 $ git status --porcelain
- M docs/plans/2026-09-14-fee-deductible-validators.md
-$ ALLOW_INSECURE_TLS=true go test -tags integration -p=1 -count=1 -v -run 'TestIntegration_UpdatePackage_' ./components/ledger/internal/services/fees/
---- PASS: TestIntegration_UpdatePackage_LoweredMinimumLeavesTheStoredPackageUntouched (2.01s)
---- PASS: TestIntegration_UpdatePackage_MinimumAboveTheStoredFeeIsApplied (1.41s)
+(no output)
+$ ALLOW_INSECURE_TLS=true go test -tags integration -p=1 -count=1 -v -run 'TestIntegration_UpdatePackage_' ./components/ledger/internal/services/fees/ 2>&1 | /usr/bin/grep -E '^(--- |ok  |FAIL|PASS)'
+--- PASS: TestIntegration_UpdatePackage_LoweredMinimumLeavesTheStoredPackageUntouched (1.65s)
+--- PASS: TestIntegration_UpdatePackage_MinimumAboveTheStoredFeeIsApplied (2.36s)
 PASS
-ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	4.766s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	5.314s
 rc=0
 ```
 
-The only modified path in that status line is this plan document; no code or test file was
-dirty. The second case passes at both commits: a minimum of 30, still above the stored fee of
-25, is applied before and after. The fix refuses the invalid move, not the valid one.
+The second case passes at both commits: a minimum of 30, still above the stored fee of 25, is
+applied before and after. The fix refuses the invalid move, not the valid one.
 
 ### Gates at `8fac078fb6ae0b82b1ebb35e6903adec001702de`
 
@@ -498,7 +551,7 @@ $ go build ./...
 rc=0
 
 $ gofmt -l components/ledger/pkg/feeshared/model components/ledger/internal/services/fees pkg
-rc=0   (no output)
+rc=0
 
 $ go vet ./components/ledger/pkg/feeshared/... ./components/ledger/internal/services/fees/... ./pkg/...
 rc=0
@@ -510,24 +563,111 @@ rc=0
 
 ```
 $ date -u
-Tue Sep 15 13:10:19 UTC 2026
+Tue Sep 15 14:27:52 UTC 2026
 $ git rev-parse HEAD
 8fac078fb6ae0b82b1ebb35e6903adec001702de
 $ git status --porcelain
 (no output)
 
 $ go test -count=1 ./components/ledger/... ./pkg/...
-rc=0   ok=71 fail=0
+ok  	github.com/LerianStudio/midaz/v4/components/ledger	0.028s
+?   	github.com/LerianStudio/midaz/v4/components/ledger/cmd/app	[no test files]
+?   	github.com/LerianStudio/midaz/v4/components/ledger/cmd/backfill	[no test files]
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in	1.073s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware	0.017s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees	0.020s
+?   	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package	[no test files]
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack	0.223s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding	0.028s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction	0.026s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account	0.024s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype	0.030s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset	0.029s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate	0.029s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance	0.026s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion	0.045s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger	0.022s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation	0.056s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute	0.026s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization	0.024s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio	0.025s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam	0.022s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment	0.022s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction	0.072s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine	0.022s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute	0.025s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq	0.648s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache	0.033s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/engine	2.697s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding	0.027s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction	0.065s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction/balance	0.033s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer	0.082s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap	1.473s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/audit	0.027s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/dupkey	0.021s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/encryption	0.033s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder	0.040s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/instrument	0.040s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services	0.040s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/services/encryption	0.101s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting	0.023s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services	0.023s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/backfill	0.029s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command	3.507s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/composition	0.033s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	0.057s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz	0.024s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query	0.065s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/migrations/onboarding	0.023s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/migrations/transaction	0.026s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/migrations-image	0.036s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee	0.079s
+?   	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared	[no test files]
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal	0.022s
+?   	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant	[no test files]
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	0.072s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp	0.041s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting	0.017s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr	0.030s
+ok  	github.com/LerianStudio/midaz/v4/pkg	0.022s
+ok  	github.com/LerianStudio/midaz/v4/pkg/buildinfo	0.026s
+ok  	github.com/LerianStudio/midaz/v4/pkg/constant	0.024s
+ok  	github.com/LerianStudio/midaz/v4/pkg/crypto	0.022s
+ok  	github.com/LerianStudio/midaz/v4/pkg/crypto/kms/vault	3.456s
+ok  	github.com/LerianStudio/midaz/v4/pkg/crypto/tink	0.029s
+?   	github.com/LerianStudio/midaz/v4/pkg/mbootstrap	[no test files]
+ok  	github.com/LerianStudio/midaz/v4/pkg/mmodel	0.052s
+ok  	github.com/LerianStudio/midaz/v4/pkg/mongo	0.021s
+ok  	github.com/LerianStudio/midaz/v4/pkg/mtransaction	0.055s
+ok  	github.com/LerianStudio/midaz/v4/pkg/net/http	0.174s
+?   	github.com/LerianStudio/midaz/v4/pkg/pagination	[no test files]
+?   	github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1	[no test files]
+ok  	github.com/LerianStudio/midaz/v4/pkg/rabbitmq	0.026s
+?   	github.com/LerianStudio/midaz/v4/pkg/repository	[no test files]
+ok  	github.com/LerianStudio/midaz/v4/pkg/servicediscovery	0.022s
+ok  	github.com/LerianStudio/midaz/v4/pkg/skip	0.017s
+ok  	github.com/LerianStudio/midaz/v4/pkg/streaming	0.038s
+ok  	github.com/LerianStudio/midaz/v4/pkg/streaming/events	0.036s
+ok  	github.com/LerianStudio/midaz/v4/pkg/utils	0.028s
+rc=0
 
 $ go test -race -count=1 ./components/ledger/pkg/feeshared/... ./components/ledger/internal/services/fees/...
-rc=0   (5 packages ok, 2 with no test files)
+?   	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared	[no test files]
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal	1.036s
+?   	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant	[no test files]
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model	1.240s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp	1.096s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	1.102s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz	1.040s
+rc=0
 
 $ ALLOW_INSECURE_TLS=true go test -tags integration -p=1 -count=1 ./components/ledger/internal/adapters/mongodb/fees/... ./components/ledger/internal/services/fees/...
-ok  	.../adapters/mongodb/fees	15.880s
-ok  	.../adapters/mongodb/fees/billing_package	31.691s
-ok  	.../adapters/mongodb/fees/pack	36.077s
-ok  	.../services/fees	3.771s
-ok  	.../services/fees/midaz	0.017s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees	13.669s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package	24.302s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack	27.807s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees	3.605s
+ok  	github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees/midaz	0.017s
 rc=0
 ```
 
