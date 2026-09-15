@@ -75,7 +75,12 @@ local function decodeRequest(raw)
     end
     requireArray(request.balances)
     requireArray(request.transactions)
-    if #request.transactions == 0 or #KEYS ~= 5 + 3 * #request.balances then technical("invalid_protocol", "invalid execution cardinality") end
+    local grantCount = 0
+    for _, transaction in ipairs(request.transactions) do
+        requireObject(transaction)
+        if transaction.accountBlockException ~= nil then grantCount = grantCount + 1 end
+    end
+    if #request.transactions == 0 or #KEYS ~= 5 + 3 * #request.balances + grantCount then technical("invalid_protocol", "invalid execution cardinality") end
     -- All physical keys must be unique and use the same transaction hash tag so
     -- the complete execution belongs to one Redis Cluster slot.
     local seenKeys = {}
@@ -114,11 +119,11 @@ local function decodeRequest(raw)
         if account and (account.alias ~= seed.alias or account.assetCode ~= seed.assetCode or account.accountType ~= seed.accountType) then
             technical("invalid_protocol", "inconsistent account identity")
         end
-        refs[balance.balanceRef], ids[seed.id], accounts[seed.accountId], aliases[seed.alias] = true, true, seed, seed.accountId
+        refs[balance.balanceRef], ids[seed.id], accounts[seed.accountId], aliases[seed.alias] = seed, true, seed, seed.accountId
     end
     -- Validate transaction correlation, guard advancement, recovery payloads,
     -- and the closed set of balance references used by requirements and postings.
-    local transactions = {}
+    local transactions, grantOrdinal = {}, 0
     for _, transaction in ipairs(request.transactions) do
         requireObject(transaction)
         uuid(transaction.id)
@@ -140,10 +145,32 @@ local function decodeRequest(raw)
             if not refs[requirement.balanceRef] then technical("invalid_protocol", "invalid balance requirement reference") end
         end
         local postingRefs = {}
-        for _, posting in ipairs(transaction.postings) do
+        for postingIndex, posting in ipairs(transaction.postings) do
             validPosting(posting)
             if postingRefs[posting.ref] or not refs[posting.balanceRef] then technical("invalid_protocol", "invalid posting reference") end
-            postingRefs[posting.ref] = true
+            postingRefs[posting.ref] = { posting = posting, index = postingIndex }
+        end
+        if transaction.accountBlockException ~= nil then
+            local grant = transaction.accountBlockException
+            requireObject(grant)
+            grantOrdinal = grantOrdinal + 1
+            uuid(grant.exceptionId)
+            text(grant.alias, false)
+            canonicalMoney(grant.amount)
+            text(grant.primaryPostingRef, false)
+            if cmp_decimal(grant.amount, "0") <= 0 then technical("invalid_protocol", "invalid account-block exception amount") end
+            local primary = postingRefs[grant.primaryPostingRef]
+            if not primary then technical("invalid_protocol", "unknown account-block exception posting") end
+            local seed = refs[primary.posting.balanceRef]
+            if seed.key == "overdraft" or seed.alias ~= grant.alias or cmp_decimal(primary.posting.amount, grant.amount) ~= 0 then
+                technical("invalid_protocol", "account-block exception does not match primary posting")
+            end
+            local expectedKeyIndex = 5 + 3 * #request.balances + grantOrdinal
+            if smallInteger(grant.keyIndex, #KEYS) ~= expectedKeyIndex then technical("invalid_protocol", "invalid account-block exception key index") end
+            local suffix = ":" .. grant.exceptionId
+            if KEYS[expectedKeyIndex]:sub(-#suffix) ~= suffix then technical("invalid_protocol", "invalid account-block exception key") end
+            grant.keyIndex = expectedKeyIndex
+            grant.primaryPostingIndex = primary.index
         end
     end
     return request

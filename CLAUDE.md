@@ -47,9 +47,16 @@ Keep the boundary exact:
 - `query.GetBalances` checks Redis first and falls back to primary PostgreSQL for
   cache misses, but those values are only seeds. Lua reads Redis again inside the
   mutation; live cached money/settings/version always win after identity checks.
-- Lua owns every live balance-dependent decision, overdraft split, movement,
-  version increment, lifecycle guard, receipt, and recovery write. Never move a
-  funds/limit/on-hold decision to Go and never implement a stale-version retry.
+- Lua owns every live balance-dependent decision, including authoritative
+  account-block-exception validation and consumption, overdraft split, movement,
+  version increment, lifecycle guard, receipt, and recovery write. V2 create,
+  revert, and pending commit bind an optional grant to one primary outflow in Go;
+  Lua re-reads it, exempts only that account and its overdraft companion from the
+  blocked/sending controls, and deletes it in the monetary commit before the
+  receipt. Never move a funds/limit/on-hold or live-grant decision to Go and never
+  implement a stale-version retry. Executable v2 reversals call the engine
+  unconditionally; tests must inject the engine dependencies instead of selecting
+  a production legacy branch through a nil port.
 - `ExecutePreparedEngine` calls the engine once. Timeout, connection loss,
   malformed success, or a post-commit error may mean balances changed; do not
   compensate or resubmit automatically. Confirmed NOSCRIPT fallback, receipt

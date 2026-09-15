@@ -6,6 +6,8 @@ package model
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"strings"
 
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/google/uuid"
+	"github.com/iancoleman/strcase"
 	"github.com/shopspring/decimal"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -49,6 +52,10 @@ func (up *UpdatePackageInput) GetMaximumAmount() string {
 }
 
 func (up *UpdatePackageInput) ValidateFees() error {
+	if _, err := up.normalisedFees(); err != nil {
+		return err
+	}
+
 	for key, fee := range up.Fee {
 		if !fee.ValidateIfFeeIsNil() {
 			if fee.Priority != 0 && fee.ReferenceAmount != "" {
@@ -72,6 +79,117 @@ func (up *UpdatePackageInput) ValidateFees() error {
 	}
 
 	return nil
+}
+
+// EffectiveMinimumAmount returns the minimum the package carries once this update is
+// applied: the patched value when the patch sets one, otherwise the stored value. Fees
+// are measured against it rather than against the stored minimum, so a patch that
+// moves the minimum and restates a fee in one call is judged on where it lands.
+func (up *UpdatePackageInput) EffectiveMinimumAmount(storedMinAmount decimal.Decimal) (decimal.Decimal, error) {
+	if up.MinAmount == nil {
+		return storedMinAmount, nil
+	}
+
+	minAmount, err := parseAmountDecimal(*up.MinAmount)
+	if err != nil {
+		return storedMinAmount, pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", "minimumAmount")
+	}
+
+	return minAmount, nil
+}
+
+// ValidateStoredFeesAgainstMinimum checks the fees the package already carries against
+// the minimum this patch sets. A deductible fee is taken out of the payment, so
+// lowering the minimum under one leaves the package accepting payments too small to
+// charge it on, which the create path refuses and until now the update path did not.
+// A fee the patch itself settles is skipped, so lowering the minimum and clearing what
+// stood in its way in one call is applied rather than refused.
+func (up *UpdatePackageInput) ValidateStoredFeesAgainstMinimum(storedFees map[string]Fee) error {
+	patches, err := up.normalisedFees()
+	if err != nil {
+		return err
+	}
+
+	if up.MinAmount == nil {
+		return nil
+	}
+
+	// Stored keys are walked in order so that a package breaking the new minimum in
+	// more than one fee names the same one on every call, rather than moving the
+	// diagnostic around with Go's map order.
+	for _, key := range slices.Sorted(maps.Keys(storedFees)) {
+		storedFee := storedFees[key]
+		if storedFee.CalculationModel == nil {
+			continue
+		}
+
+		if patch, patched := patches[key]; patched && patch.settlesTheMinimumCheck() {
+			continue
+		}
+
+		if err := validateCalculationValues(storedFee.CalculationModel, *up.MinAmount, key, storedFee.GetIsDeductibleFrom()); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// normalisedFees indexes this patch's entries under the key the update applies them
+// to, which is their lower camel form. Two keys that fold to the same one name a
+// single fee twice, leaving no way to tell which entry was meant; Go's map order
+// would otherwise decide it, so the request is refused instead of answered at
+// random, and the refusal names the key they collide on.
+func (up *UpdatePackageInput) normalisedFees() (map[string]Fee, error) {
+	normalised := make(map[string]Fee, len(up.Fee))
+
+	for key, fee := range up.Fee {
+		formatted := strcase.ToLowerCamel(key)
+
+		if _, duplicated := normalised[formatted]; duplicated {
+			return nil, pkg.ValidateBusinessError(constant.ErrDuplicateFeeKey, "", formatted)
+		}
+
+		normalised[formatted] = fee
+	}
+
+	return normalised, nil
+}
+
+// settlesTheMinimumCheck reports whether this patch entry already decides the fee's
+// standing against the new minimum, in any of the three ways it can: the fee is
+// removed, it stops being deducted from the payment, or its amounts are restated and
+// validated against that same new minimum as they are applied.
+func (f *Fee) settlesTheMinimumCheck() bool {
+	if f.removesTheFee() {
+		return true
+	}
+
+	if f.IsDeductibleFrom != nil && !*f.IsDeductibleFrom {
+		return true
+	}
+
+	return f.CalculationModel != nil && len(f.CalculationModel.Calculations) > 0
+}
+
+// removesTheFee reports whether this patch entry deletes the fee rather than editing
+// it. The update removes a fee whose entry sets no field at all, so this is the exact
+// negation of the eight field writers SetAndValidateHasFieldsToUpdate runs, read
+// through the same emptiness test they use. It is the only place that decision is
+// made: SetAndValidateHasFieldsToUpdate asks it too, so the check that skips a fee
+// its patch settles and the write that applies the patch cannot disagree.
+func (f *Fee) removesTheFee() bool {
+	if f.CalculationModel != nil && !f.hasNoCalculationModelUpdates() {
+		return false
+	}
+
+	return commons.IsNilOrEmpty(&f.FeeLabel) &&
+		commons.IsNilOrEmpty(&f.ReferenceAmount) &&
+		commons.IsNilOrEmpty(&f.CreditAccount) &&
+		commons.IsNilOrEmpty(f.RouteFrom) &&
+		commons.IsNilOrEmpty(f.RouteTo) &&
+		f.Priority == 0 &&
+		f.IsDeductibleFrom == nil
 }
 
 // ValidateMinAndMaxAmount Validating if minimum amount value is greater than maximum amount value
@@ -165,6 +283,10 @@ func (a *AmountData) GetTransactionRoute() string {
 }
 
 func (f *Fee) SetAndValidateHasFieldsToUpdate(ctx context.Context, updateDeductibleFrom *bool, minAmount decimal.Decimal, existingFees map[string]Fee, feeKey string, organizationID, ledgerID uuid.UUID, upFields bson.M, resolver feeshared.MidazResolver) (bool, error) {
+	if f.removesTheFee() {
+		return false, nil
+	}
+
 	hasValueToUpdate := false
 
 	if updated, err := f.updateCalculationModel(existingFees, updateDeductibleFrom, feeKey, minAmount, upFields); err != nil {

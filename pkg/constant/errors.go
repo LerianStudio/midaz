@@ -298,6 +298,7 @@ var (
 	ErrMidazRouteNotFound                   = errors.New("0232")
 	ErrDeductibleFeeExceedsAmount           = errors.New("0233")
 	ErrLedgerScopedQueryParameter           = errors.New("0235")
+	ErrDuplicateFeeKey                      = errors.New("0236")
 )
 
 // Tracer platform codes (migrated from TRC-xxxx; see docs/plans/2026-06-07-error-code-migration.md).

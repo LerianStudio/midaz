@@ -206,6 +206,7 @@ func TestPendingTransitionUsesOptInEngineAfterSQLConfirmation(t *testing.T) {
 			require.Len(t, executor.guardCalls, 1)
 			assert.Equal(t, constant.PENDING, executor.guardCalls[0].NextToken)
 			require.Len(t, executor.requests, 1)
+			assert.Nil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
 			assert.Equal(t, ExecutionGuard{TransactionID: in.TransactionID, ExpectedToken: constant.PENDING, NextToken: test.status}, executor.requests[0].Guards[0])
 			require.Len(t, finalizer.envelopes, 1)
 			require.Len(t, acknowledger.completions, 1)
@@ -238,6 +239,12 @@ func TestPendingTransitionUsesOptInEngineAfterSQLConfirmation(t *testing.T) {
 func TestPendingTransitionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, constant.APPROVED)
+	exceptionID := uuid.MustParse("77777777-7777-4777-8777-777777777777")
+	in.AccountBlockExceptionID = &exceptionID
+	uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().
+		GetAccountBlockException(gomock.Any(), in.OrganizationID, in.LedgerID, exceptionID).
+		Return(&mmodel.AccountBlockExceptionRedis{Alias: "@source", Amount: "10.000"}, nil).
+		Times(1)
 	reader.settings.Tracer.Mode = mmodel.TracerModeEnforce
 	reserver := &stubReserver{}
 	uc.TracerReserver = reserver
@@ -247,11 +254,48 @@ func TestPendingTransitionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	require.NotNil(t, got)
 	require.Len(t, executor.requests, 1)
 	assert.Equal(t, int64(1), executor.requests[0].Execution.Balances[0].Version)
+	require.Len(t, executor.requests[0].Execution.Transactions, 1)
+	require.NotNil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
+	assert.Equal(t, accounting.AccountBlockException{
+		ExceptionID: exceptionID, Alias: "@source", Amount: decimal.NewFromInt(10), PrimaryPostingRef: "from:0:unreserve",
+	}, *executor.requests[0].Execution.Transactions[0].AccountBlockException)
 	payload := mustCreateEngineRecovery(t, executor.requests[0])
 	assert.Equal(t, fixedPendingCreatedAt, payload.TransactionCreatedAt)
 	assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.confirmedTxns)
 	assert.Empty(t, reserver.releasedTxns)
 	assert.Len(t, finalizer.envelopes, 1)
+}
+
+func TestPendingCommitGrantBindingFailureUnlocksBeforeEngine(t *testing.T) {
+	uc, _, executor, finalizer, in := newTransitionEngineUseCase(t, constant.APPROVED)
+	exceptionID := uuid.MustParse("99999999-9999-4999-8999-999999999999")
+	in.AccountBlockExceptionID = &exceptionID
+	redisRepo := uc.TransactionRedisRepo.(*txRedis.MockRedisRepository)
+	redisRepo.EXPECT().
+		GetAccountBlockException(gomock.Any(), in.OrganizationID, in.LedgerID, exceptionID).
+		Return(&mmodel.AccountBlockExceptionRedis{Alias: "@target", Amount: "10"}, nil).
+		Times(1)
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	_, err := uc.CommitTransactionV2(context.Background(), in)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), constant.ErrAccountBlockExceptionInvalid.Error())
+	assert.Empty(t, executor.requests)
+	assert.Len(t, executor.guardCalls, 1)
+	assert.Empty(t, finalizer.envelopes)
+}
+
+func TestPendingCancelIgnoresProgrammaticGrantIdentifier(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	uc, _, executor, _, in := newTransitionEngineUseCase(t, constant.CANCELED)
+	exceptionID := uuid.MustParse("aaaaaaaa-9999-4999-8999-999999999999")
+	in.AccountBlockExceptionID = &exceptionID
+
+	got, err := uc.CancelTransactionV2(context.Background(), in)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Len(t, executor.requests, 1)
+	assert.Nil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
 }
 
 func TestPendingCancelUsesPersistedOverdraftCapAndOnlyLoadsSources(t *testing.T) {
@@ -292,9 +336,9 @@ func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
 		wantUnlock  bool
 	}{
 		{
-			name: "confirmed refusal unlocks",
+			name: "confirmed grant refusal unlocks",
 			executorErr: &accounting.Failure{
-				Code: accounting.FailureOnHoldUnderflow, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default",
+				Code: accounting.FailureAccountBlockExceptionInvalid, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default",
 			},
 			wantUnlock: true,
 		},
@@ -303,6 +347,12 @@ func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, constant.APPROVED)
+			exceptionID := uuid.MustParse("88888888-8888-4888-8888-888888888888")
+			in.AccountBlockExceptionID = &exceptionID
+			uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().
+				GetAccountBlockException(gomock.Any(), in.OrganizationID, in.LedgerID, exceptionID).
+				Return(&mmodel.AccountBlockExceptionRedis{Alias: "@source", Amount: "10"}, nil).
+				Times(1)
 			reader.settings.Tracer.Mode = mmodel.TracerModeEnforce
 			reserver := &stubReserver{}
 			uc.TracerReserver = reserver
@@ -316,6 +366,8 @@ func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
 
 			_, err := uc.CommitTransactionV2(tmcore.ContextWithTenantID(context.Background(), "tenant-failure"), in)
 			require.Error(t, err)
+			require.Len(t, executor.requests, 1)
+			require.NotNil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
 			if test.finalizeErr != nil {
 				assert.ErrorIs(t, err, finalizationErr)
 				assert.Len(t, finalizer.envelopes, 1)

@@ -169,8 +169,19 @@ func TestRevertV2_NeverAppliesFees(t *testing.T) {
 		t.Error("createRevertV2 references applyFees — a revert already carries the reversed fee legs, so re-charging would double the fees")
 	}
 
-	if !containsName(names, "reserveTransaction") {
-		t.Error("createRevertV2 must still reserve: limits measure GROSS activity, so a revert is a chargeable transaction of its own")
+	if !containsName(names, "createTransactionWithEngine") {
+		t.Error("createRevertV2 must execute through the accounting engine")
+	}
+
+	for _, legacyStep := range []string{"stageBalances", "ProcessBalanceOperations", "finalizeCreatedTransaction"} {
+		if containsName(names, legacyStep) {
+			t.Errorf("createRevertV2 must not retain legacy step %s", legacyStep)
+		}
+	}
+
+	engineNames := calledNames(t, readTransportSource(t, "create_transaction_engine.go", "func (uc *UseCase) executeCreateEngine"), "executeCreateEngine")
+	if !containsName(engineNames, "reserveTransaction") {
+		t.Error("the engine create path must still reserve: limits measure GROSS activity, so a revert is a chargeable transaction of its own")
 	}
 }
 

@@ -27,14 +27,14 @@ import (
 // staged. Absent, already consumed and expired-by-TTL are one outcome with one
 // error (0508): there is no grant to present. Rejecting this early costs the
 // caller nothing — the identifier could not have been consumed, because only the
-// balance script consumes, and it never runs.
+// selected atomic accounting path consumes, and it never runs.
 //
-// The values read here are advisory: they let the Go pre-validation stop
-// fast-failing a blocked account whose grant plausibly matches. The AUTHORITY is
-// the balance script, which re-reads the same key inside the atomic step, checks
-// it against the transaction's own debit, and deletes it there. So a grant that
-// expires between this read and the script is still refused, and one consumed by
-// a concurrent transaction in that window is refused too.
+// The values read here are advisory: the engine path uses them only to bind the
+// grant to one eligible primary posting. The AUTHORITY is the accounting Lua
+// execution, which re-reads the same key inside the atomic step, checks it against
+// the bound outflow, and deletes it there. The nil-engine compatibility fallback
+// retains the legacy atomic script. A grant that expires or is consumed between
+// this read and either atomic execution is therefore still refused.
 func (uc *UseCase) resolveAccountBlockExceptionGrant(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, exceptionID *uuid.UUID) (*mtransaction.AccountBlockExceptionGrant, error) {
 	if exceptionID == nil {
 		return nil, nil

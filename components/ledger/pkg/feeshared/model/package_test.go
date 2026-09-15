@@ -1446,7 +1446,7 @@ func TestValidateCalculationValues(t *testing.T) {
 			errCode:      constant.ErrCalculationValuePercentage.Error(),
 		},
 		{
-			name: "Empty minAmount - should skip deductible validation",
+			name: "Empty minAmount - deductible flat has no minimum to exceed",
 			model: &CalculationModel{
 				ApplicationRule: FlatFee,
 				Calculations: []Calculation{

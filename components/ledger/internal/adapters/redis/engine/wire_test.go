@@ -287,6 +287,91 @@ func TestPrepareExecutionCarriesBlockedAccountControl(t *testing.T) {
 	require.True(t, wire.Balances[0].Snapshot.Blocked)
 }
 
+func TestPrepareExecutionCarriesAccountBlockExceptionAfterBalanceKeys(t *testing.T) {
+	t.Parallel()
+
+	input, limits, resolved := validWireExecutionWithGrant()
+	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+
+	exception := input.Execution.Transactions[0].AccountBlockException
+	require.NotNil(t, exception)
+	require.Equal(t, []string{
+		resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection,
+		resolved.Balances["@source#default"].Balance,
+		resolved.Balances["@source#default"].Deleted,
+		resolved.Balances["@source#default"].LegacyDeleted,
+		resolved.AccountBlockExceptions[exception.ExceptionID],
+	}, prepared.Keys)
+
+	var wire wireRequest
+	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
+	require.Len(t, wire.Transactions, 1)
+	require.Equal(t, &wireAccountBlockException{
+		KeyIndex: 9, ExceptionID: exception.ExceptionID.String(), Alias: "@source",
+		Amount: "0.0000000000000000001", PrimaryPostingRef: "debit-0",
+	}, wire.Transactions[0].AccountBlockException)
+	require.NotContains(t, string(prepared.Payload), resolved.AccountBlockExceptions[exception.ExceptionID])
+}
+
+func TestPrepareExecutionRejectsInvalidAccountBlockExceptionInputs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mutate func(*command.EngineExecution, *resolvedExecutionKeys)
+	}{
+		{"nil id", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.ExceptionID = uuid.Nil
+		}},
+		{"empty alias", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.Alias = ""
+		}},
+		{"zero amount", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.Amount = decimal.Zero
+		}},
+		{"unknown posting", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.PrimaryPostingRef = "unknown"
+		}},
+		{"overdraft primary", func(input *command.EngineExecution, resolved *resolvedExecutionKeys) {
+			balance := &input.Execution.Balances[0]
+			delete(resolved.Balances, balance.BalanceRef)
+			balance.Key, balance.BalanceRef = "overdraft", "@source#overdraft"
+			input.Execution.Transactions[0].Postings[0].BalanceRef = balance.BalanceRef
+			resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys("tenant:fixture:balance:{transactions}:@source#overdraft")
+		}},
+		{"alias mismatch", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.Alias = "@other"
+		}},
+		{"amount mismatch", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.Amount = decimal.NewFromInt(1)
+		}},
+		{"missing resolved key", func(input *command.EngineExecution, resolved *resolvedExecutionKeys) {
+			delete(resolved.AccountBlockExceptions, input.Execution.Transactions[0].AccountBlockException.ExceptionID)
+		}},
+		{"balance key collision", func(input *command.EngineExecution, resolved *resolvedExecutionKeys) {
+			id := input.Execution.Transactions[0].AccountBlockException.ExceptionID
+			resolved.AccountBlockExceptions[id] = resolved.Balances["@source#default"].Balance
+		}},
+		{"grant key without hash tag", func(input *command.EngineExecution, resolved *resolvedExecutionKeys) {
+			id := input.Execution.Transactions[0].AccountBlockException.ExceptionID
+			resolved.AccountBlockExceptions[id] = "tenant:fixture:account_block_exception:" + id.String()
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			input, limits, resolved := validWireExecutionWithGrant()
+			test.mutate(&input, &resolved)
+			prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+			require.Error(t, err)
+			require.Nil(t, prepared)
+		})
+	}
+}
+
 func TestPrepareExecutionCanceledContext(t *testing.T) {
 	t.Parallel()
 
@@ -334,6 +419,20 @@ func validWireExecution() (command.EngineExecution, Limits, resolvedExecutionKey
 	balanceKey := prefix + "balance:{transactions}:" + scope + ":@source#default"
 	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + cachepolicy.EngineRecoverQueue, Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Protection: prefix + "engine:{transactions}:protection:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": testResolvedBalanceKeys(balanceKey)}}
 	return input, Limits{MaxTransactions: 10, MaxPostings: 100, MaxBalances: 100, MaxCompletionPlanBytes: 4096, MaxRequestBytes: 16384, MaxPreparedBytes: 1048576}, resolved
+}
+
+func validWireExecutionWithGrant() (command.EngineExecution, Limits, resolvedExecutionKeys) {
+	input, limits, resolved := validWireExecution()
+	exceptionID := uuid.MustParse("6e0ebc70-6039-4edf-b039-4bb5d85afafe")
+	posting := input.Execution.Transactions[0].Postings[0]
+	input.Execution.Transactions[0].AccountBlockException = &accounting.AccountBlockException{
+		ExceptionID: exceptionID, Alias: "@source", Amount: posting.Amount, PrimaryPostingRef: posting.Ref,
+	}
+	resolved.AccountBlockExceptions = map[uuid.UUID]string{
+		exceptionID: "tenant:fixture:account_block_exception:{transactions}:" + input.Execution.OrganizationID.String() + ":" + input.Execution.LedgerID.String() + ":" + exceptionID.String(),
+	}
+
+	return input, limits, resolved
 }
 
 func TestWireArraysAreNotNull(t *testing.T) {

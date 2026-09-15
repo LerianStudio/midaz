@@ -91,6 +91,9 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 		for _, pair := range fixture.resolved.Balances {
 			keys = append(keys, pair.Balance, pair.Deleted, pair.LegacyDeleted)
 		}
+		for _, key := range fixture.resolved.AccountBlockExceptions {
+			keys = append(keys, key)
+		}
 		require.NoError(t, client.Del(context.Background(), keys...).Err())
 	})
 	return fixture
@@ -106,6 +109,39 @@ func (f *integrationFixture) addCompanion(available string) {
 	f.input.Execution.Balances = append(f.input.Execution.Balances, balance)
 	key := strings.Replace(f.resolved.Balances["@source#default"].Balance, "#default", "#overdraft", 1)
 	f.resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys(key)
+}
+
+func (f *integrationFixture) configureGrant(t *testing.T) string {
+	t.Helper()
+
+	exceptionID := uuid.MustParse("6e0ebc70-6039-4edf-b039-4bb5d85afafe")
+	posting := f.input.Execution.Transactions[0].Postings[0]
+	f.input.Execution.Transactions[0].AccountBlockException = &accounting.AccountBlockException{
+		ExceptionID: exceptionID, Alias: "@source", Amount: posting.Amount, PrimaryPostingRef: posting.Ref,
+	}
+	prefix, ok := strings.CutSuffix(
+		f.resolved.Balances["@source#default"].Balance,
+		"balance:{transactions}:"+f.input.Execution.OrganizationID.String()+":"+f.input.Execution.LedgerID.String()+":@source#default",
+	)
+	require.True(t, ok)
+	key := prefix + "account_block_exception:{transactions}:" + f.input.Execution.OrganizationID.String() + ":" + f.input.Execution.LedgerID.String() + ":" + exceptionID.String()
+	if f.resolved.AccountBlockExceptions == nil {
+		f.resolved.AccountBlockExceptions = make(map[uuid.UUID]string)
+	}
+	f.resolved.AccountBlockExceptions[exceptionID] = key
+
+	return key
+}
+
+func (f *integrationFixture) addGrant(t *testing.T, alias, amount string) string {
+	t.Helper()
+
+	key := f.configureGrant(t)
+	value, err := json.Marshal(map[string]string{"Alias": alias, "Amount": amount})
+	require.NoError(t, err)
+	require.NoError(t, f.client.Set(context.Background(), key, value, time.Hour).Err())
+
+	return key
 }
 
 func (f *integrationFixture) prepared(t *testing.T) *preparedExecution {
@@ -425,6 +461,280 @@ func TestIntegrationEngineValidatesBalanceRequirementsAgainstLiveState(t *testin
 			require.Equal(t, before, fixture.capture(t), "eligibility refusal must not mutate any key")
 		})
 	}
+}
+
+func TestIntegrationEngineAccountBlockExceptionGrant(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	setSourceRequirement := func(fixture *integrationFixture) {
+		fixture.input.Execution.Transactions[0].RejectBlockedBalances = true
+		fixture.input.Execution.Transactions[0].BalanceRequirements = []accounting.BalanceRequirement{{
+			BalanceRef: "@source#default", AssetCode: "USD", Permission: accounting.BalancePermissionSend,
+		}}
+	}
+	seedBlockedSource := func(t *testing.T, fixture *integrationFixture) {
+		t.Helper()
+		live := fixture.input.Execution.Balances[0]
+		live.Blocked = true
+		fixture.seed(t, 0, live)
+	}
+
+	t.Run("valid grant bypasses a blocked source and is consumed before the receipt", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		setSourceRequirement(fixture)
+		seedBlockedSource(t, fixture)
+		grantKey := fixture.addGrant(t, "@source", "30")
+
+		raw, err := fixture.run(t)
+		require.NoError(t, err)
+		result := decodeIntegrationResult(t, raw)
+		require.Equal(t, "70", result.Final[0].Available)
+		require.Zero(t, fixture.client.Exists(context.Background(), grantKey).Val())
+		require.True(t, fixture.client.HExists(context.Background(), fixture.resolved.Receipts, fixture.input.Execution.ExecutionID.String()).Val())
+		require.Equal(t, fixture.input.Guards[0].NextToken, fixture.client.HGet(context.Background(), fixture.resolved.Guards, fixture.input.Guards[0].TransactionID.String()).Val())
+	})
+
+	for _, test := range []struct {
+		name         string
+		cachedAlias  string
+		cachedAmount string
+		missing      bool
+		succeeds     bool
+	}{
+		{name: "alias mismatch", cachedAlias: "@other", cachedAmount: "30"},
+		{name: "amount mismatch", cachedAlias: "@source", cachedAmount: "31"},
+		{name: "missing", missing: true},
+		{name: "scale-insensitive amount", cachedAlias: "@source", cachedAmount: "30.00", succeeds: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newIntegrationFixture(t, container.Client)
+			setSourceRequirement(fixture)
+			seedBlockedSource(t, fixture)
+			grantKey := fixture.configureGrant(t)
+			if !test.missing {
+				value, err := json.Marshal(map[string]string{"Alias": test.cachedAlias, "Amount": test.cachedAmount})
+				require.NoError(t, err)
+				require.NoError(t, fixture.client.Set(context.Background(), grantKey, value, time.Hour).Err())
+			}
+			before := fixture.capture(t)
+
+			_, err := fixture.run(t)
+			if test.succeeds {
+				require.NoError(t, err)
+				require.Zero(t, fixture.client.Exists(context.Background(), grantKey).Val())
+				return
+			}
+
+			require.ErrorContains(t, err, `"code":"account_block_exception_invalid"`)
+			require.Equal(t, before, fixture.capture(t), "grant refusal must preserve every value and absolute expiration")
+		})
+	}
+
+	t.Run("malformed live grant refuses without mutation", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		setSourceRequirement(fixture)
+		seedBlockedSource(t, fixture)
+		grantKey := fixture.configureGrant(t)
+		require.NoError(t, fixture.client.Set(context.Background(), grantKey, "{", time.Hour).Err())
+		before := fixture.capture(t)
+
+		_, err := fixture.run(t)
+		require.ErrorContains(t, err, `"code":"account_block_exception_invalid"`)
+		require.Equal(t, before, fixture.capture(t))
+	})
+
+	t.Run("grant never bypasses a deletion marker", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		setSourceRequirement(fixture)
+		seedBlockedSource(t, fixture)
+		grantKey := fixture.addGrant(t, "@source", "30")
+		require.NoError(t, fixture.client.Set(
+			context.Background(), fixture.resolved.Balances["@source#default"].Deleted, "1", time.Hour,
+		).Err())
+		before := fixture.capture(t)
+
+		_, err := fixture.run(t)
+		require.ErrorContains(t, err, `"code":"balance_deleted"`)
+		require.Equal(t, before, fixture.capture(t))
+		require.Equal(t, int64(1), fixture.client.Exists(context.Background(), grantKey).Val())
+	})
+
+	t.Run("valid grant is consumed when the source is not blocked", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		grantKey := fixture.addGrant(t, "@source", "30")
+		_, err := fixture.run(t)
+		require.NoError(t, err)
+		require.Zero(t, fixture.client.Exists(context.Background(), grantKey).Val())
+	})
+
+	t.Run("blocked destination still refuses without consuming the source grant", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		setSourceRequirement(fixture)
+		destination := fixture.input.Execution.Balances[0]
+		destination.ID = uuid.MustParse("44444444-4444-4444-8444-444444444444")
+		destination.AccountID = uuid.MustParse("55555555-5555-4555-8555-555555555555")
+		destination.Alias, destination.BalanceRef = "@destination", "@destination#default"
+		destination.Available, destination.Blocked = decimal.Zero, true
+		fixture.input.Execution.Balances = append(fixture.input.Execution.Balances, destination)
+		destinationKey := strings.Replace(fixture.resolved.Balances["@source#default"].Balance, "@source#default", destination.BalanceRef, 1)
+		fixture.resolved.Balances[destination.BalanceRef] = testResolvedBalanceKeys(destinationKey)
+		posting := fixture.input.Execution.Transactions[0].Postings[0]
+		posting.Ref, posting.BalanceRef, posting.Type = "credit-0", destination.BalanceRef, accounting.PostingCredit
+		fixture.input.Execution.Transactions[0].Postings = append(fixture.input.Execution.Transactions[0].Postings, posting)
+		fixture.input.Execution.Transactions[0].BalanceRequirements = append(
+			fixture.input.Execution.Transactions[0].BalanceRequirements,
+			accounting.BalanceRequirement{BalanceRef: destination.BalanceRef, AssetCode: "USD", Permission: accounting.BalancePermissionReceive},
+		)
+		fixture.seed(t, 1, destination)
+		grantKey := fixture.addGrant(t, "@source", "30")
+		before := fixture.capture(t)
+
+		_, err := fixture.run(t)
+		require.ErrorContains(t, err, `"code":"account_blocked"`)
+		require.Equal(t, before, fixture.capture(t))
+		require.Equal(t, int64(1), fixture.client.Exists(context.Background(), grantKey).Val())
+	})
+
+	t.Run("grant exempts the engine-derived blocked overdraft companion", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		fixture.input.Execution.Balances[0].Available = decimal.Zero
+		fixture.addCompanion("0")
+		setSourceRequirement(fixture)
+		primary := fixture.input.Execution.Balances[0]
+		primary.Blocked = true
+		companion := fixture.input.Execution.Balances[1]
+		companion.Blocked = true
+		fixture.seed(t, 0, primary)
+		fixture.seed(t, 1, companion)
+		grantKey := fixture.addGrant(t, "@source", "30")
+
+		raw, err := fixture.run(t)
+		require.NoError(t, err)
+		result := decodeIntegrationResult(t, raw)
+		require.Len(t, result.Movements, 2)
+		require.Equal(t, "overdraft_companion", result.Movements[1].Role)
+		require.Zero(t, fixture.client.Exists(context.Background(), grantKey).Val())
+	})
+
+	t.Run("grant exempts the primary sending permission", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		setSourceRequirement(fixture)
+		live := fixture.input.Execution.Balances[0]
+		live.AllowSending = false
+		fixture.seed(t, 0, live)
+		fixture.addGrant(t, "@source", "30")
+
+		_, err := fixture.run(t)
+		require.NoError(t, err)
+	})
+
+	t.Run("receipt replay succeeds after the grant was consumed without new writes", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		setSourceRequirement(fixture)
+		seedBlockedSource(t, fixture)
+		fixture.addGrant(t, "@source", "30")
+
+		first, err := fixture.run(t)
+		require.NoError(t, err)
+		committed := fixture.capture(t)
+		second, err := fixture.run(t)
+		require.NoError(t, err)
+		require.Equal(t, first, second)
+		require.Equal(t, committed, fixture.capture(t))
+	})
+
+	t.Run("commit unreserve uses the same grant protocol", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		transaction := &fixture.input.Execution.Transactions[0]
+		transaction.Postings[0].Type = accounting.PostingUnreserve
+		transaction.RejectBlockedBalances = true
+		fixture.input.Execution.Balances[0].OnHold = decimal.NewFromInt(30)
+		live := fixture.input.Execution.Balances[0]
+		live.Blocked = true
+		fixture.seed(t, 0, live)
+		grantKey := fixture.addGrant(t, "@source", "30")
+
+		raw, err := fixture.run(t)
+		require.NoError(t, err)
+		result := decodeIntegrationResult(t, raw)
+		require.Equal(t, integrationState{"100", "0", "0", "1"}, finalState(result.Final[0]))
+		require.Zero(t, fixture.client.Exists(context.Background(), grantKey).Val())
+	})
+}
+
+func TestIntegrationEngineRejectsMalformedAccountBlockExceptionProtocol(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	tests := []struct {
+		name   string
+		mutate func(*wireRequest)
+	}{
+		{"key index", func(request *wireRequest) { request.Transactions[0].AccountBlockException.KeyIndex-- }},
+		{"primary posting ref", func(request *wireRequest) {
+			request.Transactions[0].AccountBlockException.PrimaryPostingRef = "unknown"
+		}},
+		{"seed alias", func(request *wireRequest) { request.Transactions[0].AccountBlockException.Alias = "@other" }},
+		{"posting amount", func(request *wireRequest) { request.Transactions[0].AccountBlockException.Amount = "31" }},
+		{"key suffix", func(request *wireRequest) {
+			request.Transactions[0].AccountBlockException.ExceptionID = "1935edb9-c953-4f87-bea4-c98f57dff8b4"
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newIntegrationFixture(t, container.Client)
+			fixture.addGrant(t, "@source", "30")
+			prepared := fixture.prepared(t)
+			var request wireRequest
+			require.NoError(t, json.Unmarshal(prepared.Payload, &request))
+			test.mutate(&request)
+			raw, err := json.Marshal(request)
+			require.NoError(t, err)
+			before := fixture.capture(t)
+
+			_, err = fixture.runRaw(t, string(raw))
+			require.ErrorContains(t, err, `"code":"invalid_protocol"`)
+			require.Equal(t, before, fixture.capture(t))
+		})
+	}
+
+	t.Run("primary posting targets overdraft", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		fixture.addCompanion("0")
+		fixture.addGrant(t, "@source", "30")
+		prepared := fixture.prepared(t)
+		var request wireRequest
+		require.NoError(t, json.Unmarshal(prepared.Payload, &request))
+		overdraft := request.Transactions[0].Postings[0]
+		overdraft.Ref = "overdraft-primary"
+		overdraft.BalanceRef = "@source#overdraft"
+		request.Transactions[0].Postings = append(request.Transactions[0].Postings, overdraft)
+		request.Transactions[0].AccountBlockException.PrimaryPostingRef = overdraft.Ref
+		raw, err := json.Marshal(request)
+		require.NoError(t, err)
+		before := fixture.capture(t)
+
+		_, err = fixture.runRaw(t, string(raw))
+		require.ErrorContains(t, err, `"code":"invalid_protocol"`)
+		require.Equal(t, before, fixture.capture(t))
+	})
+
+	t.Run("missing physical grant key", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		fixture.addGrant(t, "@source", "30")
+		prepared := fixture.prepared(t)
+		before := fixture.capture(t)
+
+		_, err := fixture.client.Eval(context.Background(), integrationEngineLua, prepared.Keys[:len(prepared.Keys)-1], string(prepared.Payload),
+			strconv.Itoa(fixture.limits.MaxRequestBytes), strconv.Itoa(fixture.limits.MaxPreparedBytes)).Text()
+		require.ErrorContains(t, err, `"code":"invalid_protocol"`)
+		require.Equal(t, before, fixture.capture(t))
+	})
 }
 
 func TestIntegrationEngineUsesLivePermissionInsteadOfSeedPermission(t *testing.T) {

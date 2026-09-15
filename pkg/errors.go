@@ -1847,6 +1847,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Query Parameter Not Accepted",
 			Message:    fmt.Sprintf("The query parameter '%v' is not accepted on this endpoint because the request path already names the ledger. Please remove it and try again.", args...),
 		},
+		constant.ErrDuplicateFeeKey: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrDuplicateFeeKey.Error(),
+			Title:      "Duplicate fee key",
+			Message:    fmt.Sprintf("More than one fee in this request resolves to the key '%v', so the fee it applies to is ambiguous. Please send each fee once.", args...),
+		},
 		constant.ErrAccessMidaz: InternalServerError{
 			EntityType: entityType,
 			Code:       constant.ErrAccessMidaz.Error(),
