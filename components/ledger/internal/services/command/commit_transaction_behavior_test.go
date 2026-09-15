@@ -35,6 +35,7 @@ type pendingReader struct {
 	versionReader
 
 	pending          *transaction.Transaction
+	balances         []*mmodel.Balance
 	getBalancesCalls int
 	balancesErr      error
 }
@@ -46,7 +47,7 @@ func (r *pendingReader) GetWriteBehindTransaction(context.Context, uuid.UUID, uu
 func (r *pendingReader) GetBalances(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error) {
 	r.getBalancesCalls++
 
-	return nil, r.balancesErr
+	return r.balances, r.balancesErr
 }
 
 func (r *pendingReader) GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
