@@ -349,6 +349,7 @@ func (uc *UseCase) finalizePendingTransition(ctx context.Context, span trace.Spa
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	balancesBefore, balancesAfter := run.result.Before, run.result.After
+	priorOperations := run.tran.Operations
 
 	run.fromTo = append(run.fromTo, mtransaction.MutateSplitAliases(run.input.Send.Source.From)...)
 	to := mtransaction.MutateSplitAliases(run.input.Send.Distribute.To)
@@ -442,7 +443,10 @@ func (uc *UseCase) finalizePendingTransition(ctx context.Context, span trace.Spa
 	uc.sendLogTransactionAuditQueueAsync(tenantCtx, operations, run.organizationID, run.ledgerID, run.tran.IDtoUUID())
 
 	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
-		go uc.UpdateWriteBehindTransaction(tenantCtx, run.organizationID, run.ledgerID, run.tran)
+		cached := *run.tran
+		cached.Operations = mergeTransactionOperations(priorOperations, operations)
+
+		go uc.UpdateWriteBehindTransaction(tenantCtx, run.organizationID, run.ledgerID, &cached)
 	}
 
 	return run.tran, nil
