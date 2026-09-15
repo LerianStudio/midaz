@@ -641,6 +641,11 @@ are set programmatically by `applyConfigDefaults()`.
 | DB_TRANSACTION_PORT | 5701 | Port |
 | DB_TRANSACTION_SSLMODE | disable | SSL mode |
 
+#### Transaction API limits
+| Variable | Default | Description |
+|----------|---------|-------------|
+| TRANSACTION_BATCH_MAX_SIZE | 50 | Maximum ordered transactions accepted by the atomic direct-v2 batch; valid range 1–50, and startup fails outside it |
+
 #### PostgreSQL — Transaction (Replica)
 | Variable | Default | Description |
 |----------|---------|-------------|
