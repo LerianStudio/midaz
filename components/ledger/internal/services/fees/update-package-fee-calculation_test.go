@@ -64,12 +64,17 @@ func TestUpdatePackageByID_FeeWithoutCalculationIsRefused(t *testing.T) {
 		body     string
 		layer    refusedBy
 		wantCode string
+		// wantRefusal, when set, pins the whole rendered refusal rather than its
+		// code alone. The code says only that something is missing; the half the
+		// caller acts on is the fee name, and a package may carry a dozen fees.
+		wantRefusal string
 	}{
 		{
-			name:     "fee carries only a label, no calculation model at all",
-			body:     `{"fees":{"adminFee":{"feeLabel":"Taxa Administrativa"}}}`,
-			layer:    refusedByService,
-			wantCode: constant.ErrCalculationRequired.Error(),
+			name:        "fee carries only a label, no calculation model at all",
+			body:        `{"fees":{"adminFee":{"feeLabel":"Taxa Administrativa"}}}`,
+			layer:       refusedByService,
+			wantCode:    constant.ErrCalculationRequired.Error(),
+			wantRefusal: "0187 - The calculation model is required for fee adminFee.",
 		},
 		{
 			name:     "fee carries a label and an empty calculation model object",
@@ -147,6 +152,13 @@ func TestUpdatePackageByID_FeeWithoutCalculationIsRefused(t *testing.T) {
 						LedgerID:  uuid.New(),
 					}, nil)
 
+				// Nothing may be written. The expectation is explicit and zero
+				// so the write itself is what fails the case, rather than a
+				// later assertion on an error the write would not have stopped.
+				mockPackageRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+
 				svc := &UseCase{packageRepo: mockPackageRepo, resolver: mockResolver}
 
 				err = svc.UpdatePackageByID(context.Background(), uuid.New(), uuid.New(), uuid.Nil, &input)
@@ -154,6 +166,10 @@ func TestUpdatePackageByID_FeeWithoutCalculationIsRefused(t *testing.T) {
 
 			require.Error(t, err, "the package must be refused, not written")
 			assert.Equal(t, tt.wantCode, businessErrorCode(err), "refusal code, got %q", err.Error())
+
+			if tt.wantRefusal != "" {
+				assert.Equal(t, tt.wantRefusal, err.Error(), "the refusal must name the fee the caller has to fix")
+			}
 		})
 	}
 }

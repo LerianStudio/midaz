@@ -1641,6 +1641,9 @@ func TestFee_ValidateNewFee(t *testing.T) {
 		minAmount decimal.Decimal
 		wantErr   bool
 		errCode   string
+		// errText, when set, pins the whole rendered refusal, so a refusal that
+		// stops naming the fee it is about fails here.
+		errText string
 	}{
 		{
 			name: "Valid new fee",
@@ -1940,6 +1943,37 @@ func TestFee_ValidateNewFee(t *testing.T) {
 			minAmount: decimal.NewFromInt(100),
 			wantErr:   false,
 		},
+		{
+			// The reported defect. A fee being added with a label and no
+			// calculation model used to reach the chained check below and read
+			// through a pointer that was never sent, crashing the request.
+			name: "Nil CalculationModel",
+			fee: Fee{
+				FeeLabel:         "Test Fee",
+				ReferenceAmount:  OriginalAmount,
+				Priority:         1,
+				CreditAccount:    "credit_account",
+				IsDeductibleFrom: boolPtr(true),
+			},
+			minAmount: decimal.NewFromInt(100),
+			wantErr:   true,
+			errCode:   constant.ErrCalculationRequired.Error(),
+			errText:   "0187 - The calculation model is required for fee fee1.",
+		},
+		{
+			// An entry with no label at all never reached the pointer, because
+			// the label check answered first. Its refusal does not move.
+			name: "Nil CalculationModel and no fee label",
+			fee: Fee{
+				ReferenceAmount:  OriginalAmount,
+				Priority:         1,
+				CreditAccount:    "credit_account",
+				IsDeductibleFrom: boolPtr(true),
+			},
+			minAmount: decimal.NewFromInt(100),
+			wantErr:   true,
+			errCode:   constant.ErrFeeFieldsRequired.Error(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -1954,6 +1988,10 @@ func TestFee_ValidateNewFee(t *testing.T) {
 					} else if validationErr, ok := err.(pkg.ValidationError); ok {
 						assert.Contains(t, validationErr.Code, tt.errCode)
 					}
+				}
+
+				if tt.errText != "" {
+					assert.Equal(t, tt.errText, err.Error(), "the refusal must name the fee the caller has to fix")
 				}
 			} else {
 				assert.NoError(t, err)
