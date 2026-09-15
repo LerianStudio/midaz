@@ -2314,37 +2314,54 @@ func refreshScheduleKeyTTLs(
 			found = true
 		}
 
-		pipe := rds.Pipeline()
-		cmds := make([]*redis.BoolCmd, 0, len(members))
-
-		for _, member := range members {
-			key, ok := member.Member.(string)
-			if !ok || key == "" {
-				continue
-			}
-
-			cmds = append(cmds, pipe.Expire(ctx, key, ttl))
+		pageRefreshed, expireErr := expireScheduleMembers(ctx, rds, members, ttl)
+		if expireErr != nil {
+			return refreshed, oldestScore, found, expireErr
 		}
 
-		if len(cmds) > 0 {
-			// A member whose key expired between the ZRANGE and the EXPIRE reports
-			// false, not an error, so redis.Nil never reaches here; anything else is
-			// a transport failure worth reporting.
-			if _, execErr := pipe.Exec(ctx); execErr != nil && !errors.Is(execErr, redis.Nil) {
-				return refreshed, oldestScore, found, execErr
-			}
-
-			for _, cmd := range cmds {
-				if cmd.Err() == nil && cmd.Val() {
-					refreshed++
-				}
-			}
-		}
+		refreshed += pageRefreshed
 
 		if int64(len(members)) < maxRedisBatchSize {
 			return refreshed, oldestScore, found, nil
 		}
 	}
+}
+
+// expireScheduleMembers pipelines an EXPIRE for every string member in one page
+// and reports how many keys had their expiry reset.
+func expireScheduleMembers(ctx context.Context, rds redis.UniversalClient, members []redis.Z, ttl time.Duration) (int64, error) {
+	pipe := rds.Pipeline()
+	cmds := make([]*redis.BoolCmd, 0, len(members))
+
+	for _, member := range members {
+		key, ok := member.Member.(string)
+		if !ok || key == "" {
+			continue
+		}
+
+		cmds = append(cmds, pipe.Expire(ctx, key, ttl))
+	}
+
+	if len(cmds) == 0 {
+		return 0, nil
+	}
+
+	// A member whose key expired between the ZRANGE and the EXPIRE reports
+	// false, not an error, so redis.Nil never reaches here; anything else is
+	// a transport failure worth reporting.
+	if _, execErr := pipe.Exec(ctx); execErr != nil && !errors.Is(execErr, redis.Nil) {
+		return 0, execErr
+	}
+
+	var refreshed int64
+
+	for _, cmd := range cmds {
+		if cmd.Err() == nil && cmd.Val() {
+			refreshed++
+		}
+	}
+
+	return refreshed, nil
 }
 
 // parseSyncKeysFromLuaResult converts the raw Lua script result (alternating
