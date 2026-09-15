@@ -6,6 +6,7 @@ package in
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -19,10 +20,14 @@ import (
 	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
+	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
+	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -72,6 +77,13 @@ func buildHumaPackageApp(t *testing.T, handler *PackageHandler, authOK bool) *fi
 	libProblem.Install()
 
 	apiV2 := f.Group("/v2")
+
+	// The recovery boundary unified-server.go installs process-wide, mirrored here
+	// because it decides what a caller sees when a handler crashes: HTTP 500 with a
+	// problem body, rather than a dropped connection. A fee update that omitted its
+	// calculation model used to take that path, which is the answer
+	// TestUpdatePackage_MissingCalculationModel_Canonical400 exists to keep it off.
+	apiV2.Use(pkgHTTP.WithRecover())
 
 	apiV2.Use(feesAuthShim(authOK))
 
@@ -831,6 +843,73 @@ func TestUpdatePackage_MinGreaterThanMax_422(t *testing.T) {
 
 	assertProblem(t, resp, http.StatusUnprocessableEntity, constant.ErrMinAmountGreaterThanMaxAmount.Error())
 	assert.False(t, stub.updateCalled)
+}
+
+// realFeeUpdateService routes one method, the update, through the production fee
+// service instead of a fake that answers for it. The refusal under test is the
+// service's own, so a stub would only pin an answer this test invented; every other
+// method of the interface stays the shared stub's.
+type realFeeUpdateService struct {
+	*stubPackageService
+
+	service *feesservices.UseCase
+}
+
+func (s *realFeeUpdateService) UpdatePackageByID(ctx context.Context, id, organizationID, ledgerID uuid.UUID, up *model.UpdatePackageInput) error {
+	return s.service.UpdatePackageByID(ctx, id, organizationID, ledgerID, up)
+}
+
+// TestUpdatePackage_MissingCalculationModel_Canonical400 pins what a caller gets back
+// when a PATCH adds a fee carrying a label and no calculation model.
+//
+// That request used to read through a calculation model pointer that was never sent.
+// The crash unwound into the recovery boundary buildHumaPackageApp mirrors, so the
+// caller was answered HTTP 500: a malformed request and a broken service were the
+// same answer, and repeating it repeated the 500. It is now 400, code 0187, naming
+// the fee to fix, and nothing is written.
+func TestUpdatePackage_MissingCalculationModel_Canonical400(t *testing.T) {
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	packID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	packageRepo := pack.NewMockRepository(ctrl)
+
+	packageRepo.EXPECT().
+		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&model.AmountData{
+			MinAmount: decimal.NewFromInt(100),
+			MaxAmount: decimal.NewFromInt(1000),
+			Fees:      map[string]model.Fee{},
+			// The ledger the request names, or the package reads as absent.
+			LedgerID: uuid.MustParse(validLedgerUUID()),
+		}, nil)
+
+	// Nothing may be written on a refusal, and the write is what says so.
+	packageRepo.EXPECT().
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
+
+	service, errService := feesservices.NewUseCase(packageRepo, feeshared.NewMockMidazResolver(ctrl))
+	require.NoError(t, errService)
+
+	handler := &PackageHandler{Service: &realFeeUpdateService{stubPackageService: &stubPackageService{}, service: service}}
+
+	body := `{"fees":{"adminFee":{"feeLabel":"Taxa Administrativa"}}}`
+
+	resp := patchPackage(t, buildHumaPackageApp(t, handler, true), orgID, packID, body)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+
+	assert.Equal(t, constant.ErrCalculationRequired.Error(), got["code"])
+	assert.Contains(t, string(respBody), "The calculation model is required for fee adminFee.",
+		"the refusal must name the fee the caller has to fix: %s", string(respBody))
 }
 
 func TestUpdatePackage_UpdateError_404(t *testing.T) {
