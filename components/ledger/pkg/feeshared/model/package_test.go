@@ -956,6 +956,23 @@ func TestFee_hasNoCalculationModelUpdates(t *testing.T) {
 	}
 }
 
+// TestFee_NilCalculationModelNeverReachesTheUnguardedRead pins why
+// hasNoCalculationModelUpdates may read the calculation model pointer without
+// checking it: both routes into it refuse a nil one first, and nothing else says
+// so. This is the patch of a fee that already exists, where a partial patch may
+// legitimately omit the calculation model, so the answer is to keep the guards
+// rather than refuse the request. Drop either one and this crashes, which is the
+// same dereference the Nil CalculationModel case covers for a fee being added.
+func TestFee_NilCalculationModelNeverReachesTheUnguardedRead(t *testing.T) {
+	f := Fee{FeeLabel: "Taxa Administrativa"}
+
+	assert.False(t, f.removesTheFee(), "a patch that writes a field is not a removal")
+
+	updated, err := f.updateCalculationModel(map[string]Fee{}, nil, "adminFee", decimal.NewFromInt(100), bson.M{})
+	assert.False(t, updated, "a patch that sends no calculation model updates none")
+	assert.NoError(t, err)
+}
+
 func TestUpdatePackageInput_ValidateFees(t *testing.T) {
 	tests := []struct {
 		name      string
