@@ -17,6 +17,8 @@ import (
 // The fees the patch restates are validated as they are applied, against this same
 // new minimum, so they are skipped here.
 func TestUpdatePackageInputValidateStoredFeesAgainstMinimum(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		newMinimum *string
@@ -104,6 +106,8 @@ func TestUpdatePackageInputValidateStoredFeesAgainstMinimum(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			up := &UpdatePackageInput{MinAmount: tt.newMinimum, Fee: tt.patch}
 
 			err := up.ValidateStoredFeesAgainstMinimum(tt.storedFees)
@@ -120,9 +124,13 @@ func TestUpdatePackageInputValidateStoredFeesAgainstMinimum(t *testing.T) {
 
 // The minimum a patched fee is measured against is the one the package will carry.
 func TestUpdatePackageInputEffectiveMinimumAmount(t *testing.T) {
+	t.Parallel()
+
 	stored := decimal.NewFromInt(100)
 
 	t.Run("patch carries a minimum", func(t *testing.T) {
+		t.Parallel()
+
 		up := &UpdatePackageInput{MinAmount: stringPtr("900")}
 
 		effective, err := up.EffectiveMinimumAmount(stored)
@@ -132,6 +140,8 @@ func TestUpdatePackageInputEffectiveMinimumAmount(t *testing.T) {
 	})
 
 	t.Run("patch carries no minimum", func(t *testing.T) {
+		t.Parallel()
+
 		up := &UpdatePackageInput{}
 
 		effective, err := up.EffectiveMinimumAmount(stored)
@@ -141,6 +151,8 @@ func TestUpdatePackageInputEffectiveMinimumAmount(t *testing.T) {
 	})
 
 	t.Run("patch carries an unparseable minimum", func(t *testing.T) {
+		t.Parallel()
+
 		up := &UpdatePackageInput{MinAmount: stringPtr("100,00")}
 
 		_, err := up.EffectiveMinimumAmount(stored)

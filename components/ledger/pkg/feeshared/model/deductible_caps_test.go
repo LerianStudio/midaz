@@ -37,6 +37,8 @@ func deductibleFee(calcType, value string, deductible bool) Fee {
 // than the payment carries. The cap does not depend on the package declaring a
 // minimum: the flat cap does, because it has nothing to compare against without one.
 func TestValidateCalculationValuesCapsDeductiblePercentageWithoutMinimum(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		minAmount    string
@@ -87,6 +89,8 @@ func TestValidateCalculationValuesCapsDeductiblePercentageWithoutMinimum(t *test
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			model := &CalculationModel{
 				ApplicationRule: MaxBetween,
 				Calculations:    []Calculation{tt.calc},
@@ -108,6 +112,8 @@ func TestValidateCalculationValuesCapsDeductiblePercentageWithoutMinimum(t *test
 // and no minimum, instead of letting the refusal happen deeper under the code that
 // describes flipping the deductible flag.
 func TestUpdatePackageInputValidateFeesCapsDeductiblePercentageWithoutMinimum(t *testing.T) {
+	t.Parallel()
+
 	up := &UpdatePackageInput{
 		Fee: map[string]Fee{"fee1": deductibleFee(Percentage, "150", true)},
 	}
