@@ -156,23 +156,30 @@ func validateCalculationValues(model *CalculationModel, minAmount, feeKey string
 			return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".calculationModel.calculations.value")
 		}
 
-		if minAmount != "" && isDeductible {
-			if calc.Type == Percentage {
-				oneHundredPercent := decimal.NewFromInt(100)
-				if valueCalc.GreaterThan(oneHundredPercent) {
-					return pkg.ValidateBusinessError(constant.ErrCalculationValuePercentage, "", feeKey)
-				}
+		if !isDeductible {
+			continue
+		}
+
+		// A deductible fee is taken out of the payment it is charged on, so a
+		// percentage above 100 would take more than the payment carries. That holds
+		// whether or not the package declares a minimum, which is why the cap below
+		// does not wait for one. The flat cap does: without a minimum it has no
+		// amount to measure the fee against.
+		if calc.Type == Percentage {
+			oneHundredPercent := decimal.NewFromInt(100)
+			if valueCalc.GreaterThan(oneHundredPercent) {
+				return pkg.ValidateBusinessError(constant.ErrCalculationValuePercentage, "", feeKey)
+			}
+		}
+
+		if calc.Type == Flat && minAmount != "" {
+			minAmountDecimal, errMinAmt := parseAmountDecimal(minAmount)
+			if errMinAmt != nil {
+				return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".minimumAmount")
 			}
 
-			if calc.Type == Flat {
-				minAmountDecimal, errMinAmt := parseAmountDecimal(minAmount)
-				if errMinAmt != nil {
-					return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".minimumAmount")
-				}
-
-				if valueCalc.GreaterThan(minAmountDecimal) {
-					return pkg.ValidateBusinessError(constant.ErrCalculationValueFlatFee, "", minAmount, feeKey)
-				}
+			if valueCalc.GreaterThan(minAmountDecimal) {
+				return pkg.ValidateBusinessError(constant.ErrCalculationValueFlatFee, "", minAmount, feeKey)
 			}
 		}
 	}
