@@ -19,71 +19,33 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-func TestTransitionAtomicTransactionBatch_WiresStateAndTerminalTTL(t *testing.T) {
+func TestTransitionAtomicTransactionBatch_PreparesWithoutTTL(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	ledgerID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	prepared := atomicBatchPreparedRecord(false)
-	applied := atomicBatchAppliedRecord()
-	complete := atomicBatchIdempotencyComplete("a")
 
-	tests := []struct {
-		name          string
-		expectedState AtomicTransactionBatchIdempotencyState
-		next          AtomicTransactionBatchIdempotencyRecord
-		ttl           time.Duration
-	}{
-		{
-			name:          "claimed to prepared has no TTL",
-			expectedState: AtomicTransactionBatchStateClaimed,
-			next:          prepared,
-		},
-		{
-			name:          "prepared to applied has no TTL",
-			expectedState: AtomicTransactionBatchStatePrepared,
-			next:          applied,
-		},
-		{
-			name:          "applied to complete starts replay TTL",
-			expectedState: AtomicTransactionBatchStateApplied,
-			next:          complete,
-			ttl:           300,
-		},
-	}
+	payload, err := json.Marshal(prepared)
+	require.NoError(t, err)
+	client := &atomicBatchClaimEvalClient{result: []any{
+		string(AtomicTransactionBatchTransitionUpdated), string(payload),
+	}}
+	repository := &RedisConsumerRepository{conn: &staticRedisProvider{client: client}}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			payload, err := json.Marshal(tt.next)
-			require.NoError(t, err)
-			client := &atomicBatchClaimEvalClient{result: []any{
-				string(AtomicTransactionBatchTransitionUpdated), string(payload),
-			}}
-			repository := &RedisConsumerRepository{conn: &staticRedisProvider{client: client}}
-
-			result, err := repository.TransitionAtomicTransactionBatch(
-				context.Background(),
-				organizationID,
-				ledgerID,
-				"effective-key",
-				tt.next.OwnerToken,
-				tt.expectedState,
-				tt.next,
-				tt.ttl,
-			)
-			require.NoError(t, err)
-			require.NotNil(t, result)
-			assert.Equal(t, AtomicTransactionBatchTransitionUpdated, result.Outcome)
-			assert.Equal(t, tt.next, result.Record)
-			assert.Equal(t, transitionAtomicTransactionBatchLua, client.capturedLua)
-			require.Len(t, client.capturedArgs, 4)
-			assert.Equal(t, tt.next.OwnerToken, client.capturedArgs[0])
-			assert.Equal(t, string(tt.expectedState), client.capturedArgs[1])
-			assert.Equal(t, timeDurationSecondsString(tt.ttl), client.capturedArgs[3])
-		})
-	}
+	result, err := repository.TransitionAtomicTransactionBatch(
+		context.Background(), organizationID, ledgerID, "effective-key", prepared.OwnerToken,
+		AtomicTransactionBatchStateClaimed, prepared, 0,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, AtomicTransactionBatchTransitionUpdated, result.Outcome)
+	assert.Equal(t, prepared, result.Record)
+	assert.Equal(t, transitionAtomicTransactionBatchLua, client.capturedLua)
+	require.Len(t, client.capturedArgs, 4)
+	assert.Equal(t, prepared.OwnerToken, client.capturedArgs[0])
+	assert.Equal(t, string(AtomicTransactionBatchStateClaimed), client.capturedArgs[1])
+	assert.Equal(t, timeDurationSecondsString(0), client.capturedArgs[3])
 }
 
 func TestTransitionAtomicTransactionBatch_RejectsInvalidTTLAndOwnerBeforeRedis(t *testing.T) {
@@ -102,13 +64,13 @@ func TestTransitionAtomicTransactionBatch_RejectsInvalidTTLAndOwnerBeforeRedis(t
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "nonterminal")
 
-	complete := atomicBatchIdempotencyComplete("a")
+	applied := atomicBatchAppliedRecord()
 	result, err = repository.TransitionAtomicTransactionBatch(
-		context.Background(), organizationID, ledgerID, "key", complete.OwnerToken,
-		AtomicTransactionBatchStateApplied, complete, 0,
+		context.Background(), organizationID, ledgerID, "key", applied.OwnerToken,
+		AtomicTransactionBatchStatePrepared, applied, 0,
 	)
 	assert.Nil(t, result)
-	assert.ErrorContains(t, err, "positive replay TTL")
+	assert.ErrorContains(t, err, "invalid atomic transaction batch transition")
 
 	result, err = repository.TransitionAtomicTransactionBatch(
 		context.Background(), organizationID, ledgerID, "key", "stale-owner",

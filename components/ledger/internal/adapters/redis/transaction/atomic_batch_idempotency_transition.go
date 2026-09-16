@@ -43,6 +43,7 @@ const (
 	AtomicTransactionBatchTransitionMissing       AtomicTransactionBatchTransitionOutcome = "missing"
 	AtomicTransactionBatchTransitionStaleOwner    AtomicTransactionBatchTransitionOutcome = "stale_owner"
 	AtomicTransactionBatchTransitionStateConflict AtomicTransactionBatchTransitionOutcome = "state_conflict"
+	AtomicTransactionBatchTransitionIndexConflict AtomicTransactionBatchTransitionOutcome = "index_conflict"
 )
 
 type AtomicTransactionBatchTransitionResult struct {
@@ -65,8 +66,9 @@ type AtomicTransactionBatchDeleteResult struct {
 }
 
 // TransitionAtomicTransactionBatch advances one owner-held record with an
-// atomic compare-and-set. replayTTL is the existing seconds-count convention:
-// it must be zero for prepared/applied and positive only for complete.
+// atomic compare-and-set. This generic transition is deliberately restricted
+// to claimed -> prepared; execution handoff and terminal finalization have
+// dedicated two-key operations that maintain the execution index.
 func (rr *RedisConsumerRepository) TransitionAtomicTransactionBatch(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
@@ -243,19 +245,8 @@ func validateAtomicTransactionBatchTransition(
 		return err
 	}
 
-	allowed := expectedState == AtomicTransactionBatchStateClaimed && next.State == AtomicTransactionBatchStatePrepared ||
-		expectedState == AtomicTransactionBatchStatePrepared && next.State == AtomicTransactionBatchStateApplied ||
-		expectedState == AtomicTransactionBatchStateApplied && next.State == AtomicTransactionBatchStateComplete
-	if !allowed {
+	if expectedState != AtomicTransactionBatchStateClaimed || next.State != AtomicTransactionBatchStatePrepared {
 		return fmt.Errorf("invalid atomic transaction batch transition %q -> %q", expectedState, next.State)
-	}
-
-	if next.State == AtomicTransactionBatchStateComplete {
-		if replayTTL <= 0 {
-			return errors.New("complete atomic transaction batch transition requires a positive replay TTL")
-		}
-
-		return nil
 	}
 	if replayTTL != 0 {
 		return errors.New("nonterminal atomic transaction batch transition cannot set a replay TTL")
@@ -275,7 +266,8 @@ func decodeAtomicTransactionBatchTransitionReply(raw any) (AtomicTransactionBatc
 		AtomicTransactionBatchAlreadyTransitioned,
 		AtomicTransactionBatchTransitionMissing,
 		AtomicTransactionBatchTransitionStaleOwner,
-		AtomicTransactionBatchTransitionStateConflict:
+		AtomicTransactionBatchTransitionStateConflict,
+		AtomicTransactionBatchTransitionIndexConflict:
 		return AtomicTransactionBatchTransitionOutcome(outcome), payload, nil
 	default:
 		return "", "", fmt.Errorf("unknown atomic transaction batch transition outcome %q", outcome)

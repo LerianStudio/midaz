@@ -88,6 +88,23 @@ type AtomicTransactionBatchIdempotencyRepository interface {
 		next AtomicTransactionBatchIdempotencyRecord,
 		replayTTL time.Duration,
 	) (*AtomicTransactionBatchTransitionResult, error)
+	HandoffAtomicTransactionBatchExecution(
+		ctx context.Context,
+		organizationID, ledgerID uuid.UUID,
+		effectiveKey, ownerToken string,
+		next AtomicTransactionBatchIdempotencyRecord,
+	) (*AtomicTransactionBatchTransitionResult, error)
+	GetAtomicTransactionBatchByExecutionID(
+		ctx context.Context,
+		organizationID, ledgerID, executionID uuid.UUID,
+	) (*AtomicTransactionBatchExecutionLookupResult, error)
+	FinalizeAtomicTransactionBatch(
+		ctx context.Context,
+		organizationID, ledgerID, executionID uuid.UUID,
+		ownerToken string,
+		transactions map[uuid.UUID]json.RawMessage,
+		replayTTL time.Duration,
+	) (*AtomicTransactionBatchFinalizationResult, error)
 	DeleteAtomicTransactionBatchPrePublication(
 		ctx context.Context,
 		organizationID, ledgerID uuid.UUID,
@@ -222,8 +239,8 @@ func validateAtomicTransactionBatchIdempotencyRecord(record AtomicTransactionBat
 			return errors.New("claimed record contains prepared or terminal fields")
 		}
 	case AtomicTransactionBatchStatePrepared:
-		if len(record.TransactionIDs) == 0 || len(record.Response) > 0 {
-			return errors.New("prepared record requires transaction IDs and no terminal response")
+		if record.ExecutionID != nil || len(record.TransactionIDs) == 0 || len(record.Response) > 0 {
+			return errors.New("prepared record requires transaction IDs and no execution or terminal response")
 		}
 	case AtomicTransactionBatchStateApplied:
 		if record.ExecutionID == nil || len(record.TransactionIDs) == 0 || len(record.Response) > 0 {

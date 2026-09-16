@@ -211,8 +211,15 @@ func AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID uuid.
 	digest := sha256.Sum256([]byte(effectiveKey))
 	hashedKey := hex.EncodeToString(digest[:])
 
+	return AtomicTransactionBatchIdempotencyInternalKeyPrefix(organizationID, ledgerID) + hashedKey
+}
+
+// AtomicTransactionBatchIdempotencyInternalKeyPrefix returns the scoped prefix
+// shared by batch idempotency records. It is exposed for strict execution-index
+// pointer validation; callers must append exactly one lowercase SHA-256 digest.
+func AtomicTransactionBatchIdempotencyInternalKeyPrefix(organizationID, ledgerID uuid.UUID) string {
 	var builder strings.Builder
-	builder.Grow(166) // "idempotency_atomic_batch:{" + 2×UUID + "}:" + SHA-256 hex
+	builder.Grow(102) // "idempotency_atomic_batch:{" + 2×UUID + "}:"
 
 	builder.WriteString("idempotency_atomic_batch")
 	builder.WriteString(keySeparator)
@@ -222,7 +229,26 @@ func AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID uuid.
 	builder.WriteString(ledgerID.String())
 	builder.WriteString(endKey)
 	builder.WriteString(keySeparator)
-	builder.WriteString(hashedKey)
+
+	return builder.String()
+}
+
+// AtomicTransactionBatchExecutionIndexInternalKey maps one accounting
+// execution to its batch idempotency record. Its hash tag matches the record
+// key so handoff and finalization can update both atomically in Redis Cluster.
+func AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, executionID uuid.UUID) string {
+	var builder strings.Builder
+	builder.Grow(139) // "idempotency_atomic_batch_execution:{" + 3×UUID separators + "}"
+
+	builder.WriteString("idempotency_atomic_batch_execution")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(endKey)
+	builder.WriteString(keySeparator)
+	builder.WriteString(executionID.String())
 
 	return builder.String()
 }

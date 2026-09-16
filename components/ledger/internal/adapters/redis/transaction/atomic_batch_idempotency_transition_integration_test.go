@@ -8,6 +8,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -37,7 +38,9 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 	t.Run("state progression starts TTL only at complete", func(t *testing.T) {
 		effectiveKey := "state-progression"
 		redisKey := transitionNamespacedBatchKey(t, ctx, organizationID, ledgerID, effectiveKey)
-		t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), redisKey).Err()) })
+		executionID := uuid.MustParse("00000000-0000-0000-0000-000000000020")
+		indexKey := transitionNamespacedBatchExecutionIndexKey(t, ctx, organizationID, ledgerID, executionID)
+		t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), redisKey, indexKey).Err()) })
 
 		claim := atomicBatchIdempotencyClaim("a")
 		claimed, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim)
@@ -57,46 +60,70 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 		changedIDs := atomicBatchAppliedRecord()
 		changedIDs.TransactionIDs = append([]uuid.UUID(nil), changedIDs.TransactionIDs...)
 		changedIDs.TransactionIDs[0] = uuid.New()
-		_, err = repository.TransitionAtomicTransactionBatch(
-			ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken,
-			AtomicTransactionBatchStatePrepared, changedIDs, 0,
+		_, err = repository.HandoffAtomicTransactionBatchExecution(
+			ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken, changedIDs,
 		)
 		require.ErrorContains(t, err, "ATOMIC_BATCH_IDEMPOTENCY_TRANSACTIONS_CHANGED")
 
 		applied := atomicBatchAppliedRecord()
-		transitioned, err = repository.TransitionAtomicTransactionBatch(
-			ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken,
-			AtomicTransactionBatchStatePrepared, applied, 0,
+		transitioned, err = repository.HandoffAtomicTransactionBatchExecution(
+			ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken, applied,
 		)
 		require.NoError(t, err)
 		require.Equal(t, AtomicTransactionBatchTransitionUpdated, transitioned.Outcome)
 		require.Equal(t, time.Duration(-1), container.Client.TTL(ctx, redisKey).Val())
+		require.Equal(t, time.Duration(-1), container.Client.TTL(ctx, indexKey).Val())
 
-		complete := atomicBatchIdempotencyComplete("a")
-		transitioned, err = repository.TransitionAtomicTransactionBatch(
-			ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken,
-			AtomicTransactionBatchStateApplied, complete, 60,
+		lookup, err := repository.GetAtomicTransactionBatchByExecutionID(
+			ctx, organizationID, ledgerID, executionID,
 		)
 		require.NoError(t, err)
-		require.Equal(t, AtomicTransactionBatchTransitionUpdated, transitioned.Outcome)
+		require.NotNil(t, lookup)
+		require.Equal(t, applied.TransactionIDs, lookup.Record.TransactionIDs)
+
+		responses := map[uuid.UUID]json.RawMessage{
+			applied.TransactionIDs[1]: json.RawMessage(`{"id":"second"}`),
+			applied.TransactionIDs[0]: json.RawMessage(`{"id":"first"}`),
+		}
+		staleResult, err := repository.FinalizeAtomicTransactionBatch(
+			ctx, organizationID, ledgerID, executionID, "stale-owner", responses, 60,
+		)
+		requireAtomicBatchFinalizationConflict(t, staleResult, err, AtomicTransactionBatchFinalizeStale)
+		require.Equal(t, time.Duration(-1), container.Client.TTL(ctx, redisKey).Val())
+		require.Equal(t, time.Duration(-1), container.Client.TTL(ctx, indexKey).Val())
+
+		finalized, err := repository.FinalizeAtomicTransactionBatch(
+			ctx, organizationID, ledgerID, executionID, claim.OwnerToken, responses, 60,
+		)
+		require.NoError(t, err)
+		require.Equal(t, AtomicTransactionBatchFinalized, finalized.Outcome)
+		require.Equal(
+			t,
+			`{"batchId":"00000000-0000-0000-0000-000000000010","transactions":[{"id":"first"},{"id":"second"}]}`,
+			string(finalized.Response),
+		)
 		beforeRetry := container.Client.PTTL(ctx, redisKey).Val()
 		require.Positive(t, beforeRetry)
 		require.LessOrEqual(t, beforeRetry, 60*time.Second)
+		indexBeforeRetry := container.Client.PTTL(ctx, indexKey).Val()
+		require.Positive(t, indexBeforeRetry)
 
-		transitioned, err = repository.TransitionAtomicTransactionBatch(
-			ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken,
-			AtomicTransactionBatchStateApplied, complete, 60,
+		finalized, err = repository.FinalizeAtomicTransactionBatch(
+			ctx, organizationID, ledgerID, executionID, claim.OwnerToken, nil, 60,
 		)
 		require.NoError(t, err)
-		require.Equal(t, AtomicTransactionBatchAlreadyTransitioned, transitioned.Outcome)
+		require.Equal(t, AtomicTransactionBatchAlreadyComplete, finalized.Outcome)
 		afterRetry := container.Client.PTTL(ctx, redisKey).Val()
 		require.Positive(t, afterRetry)
 		require.LessOrEqual(t, afterRetry, beforeRetry, "idempotent retry must not extend replay retention")
+		indexAfterRetry := container.Client.PTTL(ctx, indexKey).Val()
+		require.Positive(t, indexAfterRetry)
+		require.LessOrEqual(t, indexAfterRetry, indexBeforeRetry, "idempotent retry must not extend index retention")
 
 		replay, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim)
 		require.NoError(t, err)
 		require.Equal(t, AtomicTransactionBatchReplayed, replay.Outcome)
-		require.JSONEq(t, string(complete.Response), string(replay.Record.Response))
+		require.Equal(t, string(finalized.Response), string(replay.Record.Response), "replay bytes must be identical")
 	})
 
 	t.Run("cleanup checks owner state handoff and engine evidence", func(t *testing.T) {
@@ -152,13 +179,24 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 		require.Equal(t, int64(0), container.Client.Exists(ctx, redisKey).Val())
 
 		claim, effectiveKey, redisKey = claimAndKey(t, "handoff")
-		preparedWithHandoff := atomicBatchPreparedRecord(true)
-		preparedWithHandoff.BatchID = claim.BatchID
-		preparedWithHandoff.OwnerToken = claim.OwnerToken
-		preparedWithHandoff.RequestFingerprint = claim.RequestFingerprint
+		preparedForHandoff := atomicBatchPreparedRecord(false)
+		preparedForHandoff.BatchID = claim.BatchID
+		preparedForHandoff.OwnerToken = claim.OwnerToken
+		preparedForHandoff.RequestFingerprint = claim.RequestFingerprint
 		_, err = repository.TransitionAtomicTransactionBatch(
 			ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken,
-			AtomicTransactionBatchStateClaimed, preparedWithHandoff, 0,
+			AtomicTransactionBatchStateClaimed, preparedForHandoff, 0,
+		)
+		require.NoError(t, err)
+		applied := preparedForHandoff
+		applied.State = AtomicTransactionBatchStateApplied
+		applied.ExecutionID = uuidPointer(uuid.New())
+		indexKey := transitionNamespacedBatchExecutionIndexKey(
+			t, ctx, organizationID, ledgerID, *applied.ExecutionID,
+		)
+		t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), indexKey).Err()) })
+		_, err = repository.HandoffAtomicTransactionBatchExecution(
+			ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken, applied,
 		)
 		require.NoError(t, err)
 
@@ -179,10 +217,21 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 			_, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim)
 			require.NoError(t, err)
 
-			prepared := atomicBatchPreparedRecord(true)
+			prepared := atomicBatchPreparedRecord(false)
 			prepared.BatchID = claim.BatchID
 			prepared.OwnerToken = claim.OwnerToken
 			prepared.RequestFingerprint = claim.RequestFingerprint
+			_, err = repository.TransitionAtomicTransactionBatch(
+				ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken,
+				AtomicTransactionBatchStateClaimed, prepared, 0,
+			)
+			require.NoError(t, err)
+			applied := prepared
+			applied.State = AtomicTransactionBatchStateApplied
+			applied.ExecutionID = uuidPointer(uuid.New())
+			indexKey := transitionNamespacedBatchExecutionIndexKey(
+				t, ctx, organizationID, ledgerID, *applied.ExecutionID,
+			)
 
 			start := make(chan struct{})
 			var wait sync.WaitGroup
@@ -194,9 +243,8 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 			go func() {
 				defer wait.Done()
 				<-start
-				transitionResult, transitionErr = repository.TransitionAtomicTransactionBatch(
-					ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken,
-					AtomicTransactionBatchStateClaimed, prepared, 0,
+				transitionResult, transitionErr = repository.HandoffAtomicTransactionBatchExecution(
+					ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken, applied,
 				)
 			}()
 			go func() {
@@ -215,15 +263,33 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 			if transitionWon {
 				requireAtomicBatchCleanupConflict(t, deleteResult, deleteErr, AtomicTransactionBatchDeleteProtected)
 				require.Equal(t, int64(1), container.Client.Exists(ctx, redisKey).Val())
+				require.Equal(t, int64(1), container.Client.Exists(ctx, indexKey).Val())
 			} else {
 				var conflict pkg.EntityConflictError
 				require.ErrorAs(t, transitionErr, &conflict)
 				require.Equal(t, AtomicTransactionBatchTransitionMissing, transitionResult.Outcome)
 				require.Equal(t, int64(0), container.Client.Exists(ctx, redisKey).Val())
+				require.Equal(t, int64(0), container.Client.Exists(ctx, indexKey).Val())
 			}
-			require.NoError(t, container.Client.Del(ctx, redisKey).Err())
+			require.NoError(t, container.Client.Del(ctx, redisKey, indexKey).Err())
 		}
 	})
+}
+
+func transitionNamespacedBatchExecutionIndexKey(
+	t *testing.T,
+	ctx context.Context,
+	organizationID, ledgerID, executionID uuid.UUID,
+) string {
+	t.Helper()
+
+	key, err := tenantKeyFromContextOrError(
+		ctx,
+		utils.AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, executionID),
+	)
+	require.NoError(t, err)
+
+	return key
 }
 
 func transitionNamespacedBatchKey(
@@ -248,6 +314,20 @@ func requireAtomicBatchCleanupConflict(
 	result *AtomicTransactionBatchDeleteResult,
 	err error,
 	want AtomicTransactionBatchDeleteOutcome,
+) {
+	t.Helper()
+
+	var conflict pkg.EntityConflictError
+	require.ErrorAs(t, err, &conflict)
+	require.NotNil(t, result)
+	require.Equal(t, want, result.Outcome)
+}
+
+func requireAtomicBatchFinalizationConflict(
+	t *testing.T,
+	result *AtomicTransactionBatchFinalizationResult,
+	err error,
+	want AtomicTransactionBatchFinalizationOutcome,
 ) {
 	t.Helper()
 

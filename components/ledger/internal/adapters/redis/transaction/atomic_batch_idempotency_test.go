@@ -26,9 +26,24 @@ type atomicBatchClaimEvalClient struct {
 	redisclient.UniversalClient
 	result       any
 	err          error
+	getValues    map[string]string
+	getErrors    map[string]error
 	capturedLua  string
 	capturedKeys []string
 	capturedArgs []any
+}
+
+func (client *atomicBatchClaimEvalClient) Get(ctx context.Context, key string) *redisclient.StringCmd {
+	cmd := redisclient.NewStringCmd(ctx)
+	if err, found := client.getErrors[key]; found {
+		cmd.SetErr(err)
+	} else if value, found := client.getValues[key]; found {
+		cmd.SetVal(value)
+	} else {
+		cmd.SetErr(redisclient.Nil)
+	}
+
+	return cmd
 }
 
 func (client *atomicBatchClaimEvalClient) EvalSha(ctx context.Context, _ string, _ []string, _ ...any) *redisclient.Cmd {
@@ -176,6 +191,10 @@ func TestAtomicTransactionBatchIdempotencyRecordValidation(t *testing.T) {
 	invalidClaim := claim
 	invalidClaim.TransactionIDs = atomicBatchTransactionIDs()
 	assert.Error(t, validateAtomicTransactionBatchIdempotencyRecord(invalidClaim))
+
+	invalidPrepared := prepared
+	invalidPrepared.ExecutionID = uuidPointer(uuid.New())
+	assert.Error(t, validateAtomicTransactionBatchIdempotencyRecord(invalidPrepared))
 
 	invalidComplete := complete
 	invalidComplete.Response = json.RawMessage(`null`)

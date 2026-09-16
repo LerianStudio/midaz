@@ -205,6 +205,28 @@ func TestAtomicTransactionBatchIdempotencyInternalKey(t *testing.T) {
 	)
 	assert.NotContains(t, result, clientKey)
 	assert.NotEqual(t, IdempotencyInternalKey(organizationID, ledgerID, clientKey), result)
+	assert.Equal(
+		t,
+		"idempotency_atomic_batch:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8}:",
+		AtomicTransactionBatchIdempotencyInternalKeyPrefix(organizationID, ledgerID),
+	)
+}
+
+func TestAtomicTransactionBatchExecutionIndexInternalKey(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	executionID := uuid.MustParse("7ba7b810-9dad-11d1-80b4-00c04fd430c9")
+
+	result := AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, executionID)
+
+	assert.Equal(
+		t,
+		"idempotency_atomic_batch_execution:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8}:7ba7b810-9dad-11d1-80b4-00c04fd430c9",
+		result,
+	)
+	assert.Contains(t, result, "{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8}")
 }
 
 func TestAccountingRoutesInternalKey(t *testing.T) {
