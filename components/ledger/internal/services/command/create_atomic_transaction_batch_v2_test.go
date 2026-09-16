@@ -22,6 +22,7 @@ import (
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -47,10 +48,21 @@ func (engine *capturingAtomicBatchEquivalenceEngine) Execute(
 	}
 }
 
+type atomicTransactionBatchRouteCall struct {
+	primary    bool
+	operations []mmodel.BalanceOperation
+	validate   *mtransaction.Responses
+	action     string
+}
+
 type atomicTransactionBatchSettingsReader struct {
 	TransactionReader
 	settings       mmodel.LedgerSettings
 	balances       []*mmodel.Balance
+	routeCaches    []*mmodel.TransactionRouteCache
+	engineAliases  [][]string
+	enginePrimary  []bool
+	routeCalls     []atomicTransactionBatchRouteCall
 	err            error
 	calls          int
 	engineReads    int
@@ -75,6 +87,8 @@ func (reader *atomicTransactionBatchSettingsReader) GetEngineBalances(
 	aliases []string,
 ) ([]*mmodel.Balance, []*mmodel.Balance, error) {
 	reader.engineReads++
+	reader.engineAliases = append(reader.engineAliases, append([]string(nil), aliases...))
+	reader.enginePrimary = append(reader.enginePrimary, readrouting.IsPrimaryRead(ctx))
 	pool, err := LoadEngineSnapshotPool(ctx, organizationID, ledgerID, aliases,
 		func(_ context.Context, _, _ uuid.UUID, requested []string) ([]*mmodel.Balance, error) {
 			selected := make([]*mmodel.Balance, 0, len(requested))
@@ -96,13 +110,23 @@ func (reader *atomicTransactionBatchSettingsReader) GetEngineBalances(
 }
 
 func (reader *atomicTransactionBatchSettingsReader) ValidateAccountingRules(
-	context.Context,
-	uuid.UUID,
-	uuid.UUID,
-	[]mmodel.BalanceOperation,
-	*mtransaction.Responses,
-	string,
+	ctx context.Context,
+	_ uuid.UUID,
+	_ uuid.UUID,
+	operations []mmodel.BalanceOperation,
+	validate *mtransaction.Responses,
+	action string,
 ) (*mmodel.TransactionRouteCache, error) {
+	reader.routeCalls = append(reader.routeCalls, atomicTransactionBatchRouteCall{
+		primary:    readrouting.IsPrimaryRead(ctx),
+		operations: append([]mmodel.BalanceOperation(nil), operations...),
+		validate:   validate,
+		action:     action,
+	})
+	if index := len(reader.routeCalls) - 1; index < len(reader.routeCaches) {
+		return reader.routeCaches[index], nil
+	}
+
 	return nil, nil
 }
 
@@ -206,6 +230,112 @@ func TestCreateAtomicTransactionBatchV2_PreservesOrderedResult(t *testing.T) {
 	assert.Equal(t, now, result.Transactions[0].CreatedAt)
 	assert.Equal(t, now, result.Transactions[1].CreatedAt)
 	assert.Equal(t, 1, reader.calls)
+	assert.Equal(t, 1, reader.engineReads)
+}
+
+func TestPrepareAtomicTransactionBatchItems_UsesOneSharedPoolAndIsolatesRoutes(t *testing.T) {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000071")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000072")
+	batchID := uuid.MustParse("01994f13-29b7-7000-8000-000000000073")
+	transactionIDs := []uuid.UUID{
+		uuid.MustParse("01994f13-29b7-7000-8000-000000000074"),
+		uuid.MustParse("01994f13-29b7-7000-8000-000000000075"),
+		uuid.MustParse("01994f13-29b7-7000-8000-000000000076"),
+	}
+	now := time.Date(2026, time.September, 16, 15, 0, 0, 0, time.UTC)
+	routeIDs := []string{"route-0", "route-1", "route-2"}
+	settings := mmodel.LedgerSettings{}
+	settings.Accounting.ValidateRoutes = true
+	reader := &atomicTransactionBatchSettingsReader{
+		settings: settings,
+		balances: []*mmodel.Balance{
+			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-000000000077", "@alpha", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-000000000078", "@shared", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-000000000079", "@gamma", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-00000000007a", "@delta", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-00000000007b", "@epsilon", "BRL"),
+		},
+		routeCaches: []*mmodel.TransactionRouteCache{
+			buildCacheWithEntries(constant.ActionDirect, routeIDs[0], "source", "item 0", "debit-0", "credit-0"),
+			buildCacheWithEntries(constant.ActionDirect, routeIDs[1], "source", "item 1", "debit-1", "credit-1"),
+			buildCacheWithEntries(constant.ActionDirect, routeIDs[2], "source", "item 2", "debit-2", "credit-2"),
+		},
+	}
+	items := []CreateAtomicTransactionBatchV2ItemInput{
+		atomicTransactionBatchItemInput(organizationID, ledgerID, "@alpha", "@shared"),
+		atomicTransactionBatchItemInput(organizationID, ledgerID, "@shared", "@gamma"),
+		atomicTransactionBatchItemInput(organizationID, ledgerID, "@delta", "@epsilon"),
+	}
+	for index := range items {
+		items[index].Transaction.Send.Source.From[0].RouteID = &routeIDs[index]
+	}
+	uc := &UseCase{
+		TransactionReader: reader,
+		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
+			t,
+			batchID,
+			transactionIDs[0],
+			transactionIDs[1],
+			transactionIDs[2],
+		),
+		Clock: func() time.Time { return now },
+	}
+
+	run, err := uc.initializeAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
+		Transactions: items,
+	})
+	require.NoError(t, err)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(context.Background())
+	prepareCtx, span := tracer.Start(context.Background(), "test.prepare_shared_atomic_transaction_batch")
+	t.Cleanup(func() { span.End() })
+	require.NoError(t, uc.prepareAtomicTransactionBatchItems(prepareCtx, span, logger, run))
+
+	assert.Equal(t, 1, reader.engineReads, "the union must cross the balance-read port once")
+	assert.Equal(t, [][]string{{
+		"@alpha#default",
+		"@shared#default",
+		"@gamma#default",
+		"@delta#default",
+		"@epsilon#default",
+	}}, reader.engineAliases, "the union must retain first-seen request order")
+	assert.Equal(t, []bool{true}, reader.enginePrimary)
+
+	require.Len(t, reader.routeCalls, 3)
+	wantOperationRefs := [][]string{
+		{"@alpha#default", "@shared#default"},
+		{"@shared#default", "@gamma#default"},
+		{"@delta#default", "@epsilon#default"},
+	}
+	wantExplicit := [][]string{
+		{"@alpha#default", "@shared#default"},
+		{"@gamma#default", "@shared#default"},
+		{"@delta#default", "@epsilon#default"},
+	}
+	wantRouteCodes := []string{"debit-0", "debit-1", "debit-2"}
+	wantSharedSnapshots := []string{
+		"@alpha#default",
+		"@delta#default",
+		"@epsilon#default",
+		"@gamma#default",
+		"@shared#default",
+	}
+	for index := range run.items {
+		call := reader.routeCalls[index]
+		assert.True(t, call.primary)
+		assert.Same(t, run.items[index].validate, call.validate)
+		assert.Equal(t, constant.ActionDirect, call.action)
+		assert.Equal(t, wantOperationRefs[index], atomicTransactionBatchOperationBalanceRefs(call.operations))
+		assert.Equal(t, wantExplicit[index], atomicTransactionBatchBalanceRefs(run.items[index].prepared.pool.ExplicitBalances))
+		assert.Equal(t, wantSharedSnapshots, atomicTransactionBatchSnapshotRefs(run.items[index].prepared.pool.Snapshots))
+
+		sourceProjection := atomicTransactionBatchSourceProjection(t, run.items[index].prepared.projection)
+		assert.Equal(t, routeIDs[index], *sourceProjection.RouteID)
+		assert.Equal(t, wantRouteCodes[index], sourceProjection.RouteCode)
+	}
+	assert.Equal(t, 1, atomicTransactionBatchStringCount(
+		atomicTransactionBatchSnapshotRefs(run.items[0].prepared.pool.Snapshots),
+		"@shared#default",
+	))
 }
 
 func TestCreateAtomicTransactionBatchV2_RejectsFirstCommonScopeMismatchBeforeExternalWork(t *testing.T) {
@@ -526,6 +656,68 @@ func orderedAtomicTransactionBatchTimes(t *testing.T, values ...time.Time) Clock
 
 		return value
 	}
+}
+
+func atomicTransactionBatchOperationBalanceRefs(operations []mmodel.BalanceOperation) []string {
+	refs := make([]string, len(operations))
+	for index := range operations {
+		refs[index] = atomicTransactionBatchBalanceRef(operations[index].Balance)
+	}
+
+	return refs
+}
+
+func atomicTransactionBatchBalanceRefs(balances []*mmodel.Balance) []string {
+	refs := make([]string, len(balances))
+	for index := range balances {
+		refs[index] = atomicTransactionBatchBalanceRef(balances[index])
+	}
+
+	return refs
+}
+
+func atomicTransactionBatchBalanceRef(balance *mmodel.Balance) string {
+	key := balance.Key
+	if key == "" {
+		key = constant.DefaultBalanceKey
+	}
+
+	return mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), key)
+}
+
+func atomicTransactionBatchSnapshotRefs(snapshots []accounting.BalanceSnapshot) []string {
+	refs := make([]string, len(snapshots))
+	for index := range snapshots {
+		refs[index] = snapshots[index].BalanceRef
+	}
+
+	return refs
+}
+
+func atomicTransactionBatchSourceProjection(t *testing.T, specs []OperationRecordSpec) OperationRecordSpec {
+	t.Helper()
+
+	matches := make([]OperationRecordSpec, 0, 1)
+	for index := range specs {
+		if specs[index].Role == accounting.RolePrimary && specs[index].Side == OperationSpecSideFrom {
+			matches = append(matches, specs[index])
+		}
+	}
+	require.Len(t, matches, 1)
+	require.NotNil(t, matches[0].RouteID)
+
+	return matches[0]
+}
+
+func atomicTransactionBatchStringCount(values []string, target string) int {
+	count := 0
+	for _, value := range values {
+		if value == target {
+			count++
+		}
+	}
+
+	return count
 }
 
 func atomicTransactionBatchTestBalance(

@@ -43,27 +43,44 @@ func (uc *UseCase) prepareEngineTransaction(ctx context.Context, input enginePre
 	}
 
 	ctx = readrouting.WithPrimaryRead(ctx)
-	aliases := input.translation.Validate.Aliases
-
-	// Cancellation restores sources only; destination state must not introduce
-	// an eligibility requirement after the original hold was accepted.
-	if input.translation.Action == constant.ActionCancel {
-		aliases = make([]string, 0, len(input.translation.TransactionInput.Send.Source.From))
-		for _, leg := range input.translation.TransactionInput.Send.Source.From {
-			aliases = append(aliases, mtransaction.SplitAliasWithKey(leg.AccountAlias))
-		}
-	}
+	aliases := enginePreparationAliases(input)
 
 	pool, err := loadPreparedEngineSnapshots(ctx, uc.TransactionReader, input.organizationID, input.ledgerID, aliases)
 	if err != nil {
 		return enginePreparedTransaction{}, err
 	}
 
-	if err := rejectInternalScopeBalances(ctx, pool.ExplicitBalances); err != nil {
+	return uc.prepareEngineTransactionWithPool(ctx, input, pool)
+}
+
+// prepareEngineTransactionWithPool applies one transaction's isolated route
+// validation and translation against an already validated shared snapshot
+// inventory. Batch callers can therefore reuse one primary-routed read without
+// exposing unrelated balances to the item's explicit-target checks.
+func (uc *UseCase) prepareEngineTransactionWithPool(
+	ctx context.Context,
+	input enginePreparationInput,
+	pool EngineSnapshotPool,
+) (enginePreparedTransaction, error) {
+	if err := ctx.Err(); err != nil {
 		return enginePreparedTransaction{}, err
 	}
 
-	operations, err := orderedEngineValidationOperations(input.translation, pool.ExplicitBalances)
+	if uc == nil || uc.TransactionReader == nil || input.translation.Validate == nil {
+		return enginePreparedTransaction{}, invalidEngineTranslation("preparation requires a reader and validated intent")
+	}
+
+	ctx = readrouting.WithPrimaryRead(ctx)
+	itemPool, err := selectEnginePreparationPool(input, pool)
+	if err != nil {
+		return enginePreparedTransaction{}, err
+	}
+
+	if err := rejectInternalScopeBalances(ctx, itemPool.ExplicitBalances); err != nil {
+		return enginePreparedTransaction{}, err
+	}
+
+	operations, err := orderedEngineValidationOperations(input.translation, itemPool.ExplicitBalances)
 	if err != nil {
 		return enginePreparedTransaction{}, err
 	}
@@ -81,7 +98,7 @@ func (uc *UseCase) prepareEngineTransaction(ctx context.Context, input enginePre
 		return enginePreparedTransaction{}, err
 	}
 
-	input.translation.Balances = pool.Balances
+	input.translation.Balances = itemPool.Balances
 	input.translation.RouteCache = routeCache
 
 	translated, projection, err := TranslateEngineTransaction(input.translation)
@@ -89,7 +106,47 @@ func (uc *UseCase) prepareEngineTransaction(ctx context.Context, input enginePre
 		return enginePreparedTransaction{}, err
 	}
 
-	return enginePreparedTransaction{pool: pool, transaction: translated, projection: projection}, nil
+	return enginePreparedTransaction{pool: itemPool, transaction: translated, projection: projection}, nil
+}
+
+func enginePreparationAliases(input enginePreparationInput) []string {
+	// Cancellation restores sources only; destination state must not introduce
+	// an eligibility requirement after the original hold was accepted.
+	if input.translation.Action == constant.ActionCancel {
+		aliases := make([]string, 0, len(input.translation.TransactionInput.Send.Source.From))
+		for _, leg := range input.translation.TransactionInput.Send.Source.From {
+			aliases = append(aliases, mtransaction.SplitAliasWithKey(leg.AccountAlias))
+		}
+
+		return aliases
+	}
+
+	return input.translation.Validate.Aliases
+}
+
+func selectEnginePreparationPool(input enginePreparationInput, shared EngineSnapshotPool) (EngineSnapshotPool, error) {
+	aliases := enginePreparationAliases(input)
+	requested := make(map[string]struct{}, len(aliases))
+	for _, alias := range aliases {
+		requested[alias] = struct{}{}
+	}
+
+	explicit := make([]*mmodel.Balance, 0, len(requested))
+	for _, balance := range shared.ExplicitBalances {
+		snapshot, err := balanceToEngineSnapshot(input.organizationID, input.ledgerID, balance)
+		if err != nil {
+			return EngineSnapshotPool{}, err
+		}
+		if _, ok := requested[snapshot.BalanceRef]; ok {
+			explicit = append(explicit, balance)
+		}
+	}
+
+	return EngineSnapshotPool{
+		ExplicitBalances: explicit,
+		Balances:         shared.Balances,
+		Snapshots:        shared.Snapshots,
+	}, nil
 }
 
 func loadPreparedEngineSnapshots(ctx context.Context, reader TransactionReader, organizationID, ledgerID uuid.UUID, aliases []string) (EngineSnapshotPool, error) {

@@ -17,6 +17,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -202,7 +203,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchItems(
 		}
 	}
 
-	return nil
+	return uc.prepareAtomicTransactionBatchEngineItems(ctx, run)
 }
 
 func (uc *UseCase) prepareAtomicTransactionBatchItem(
@@ -267,10 +268,53 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 		return err
 	}
 
-	createRun := run.createTransactionRun(item)
-	item.prepared, err = uc.prepareCreateEngineExecution(ctx, createRun)
+	return nil
+}
 
-	return err
+func (uc *UseCase) prepareAtomicTransactionBatchEngineItems(
+	ctx context.Context,
+	run *atomicTransactionBatchRun,
+) error {
+	aliases := firstSeenAtomicTransactionBatchAliases(run)
+	readCtx := readrouting.WithPrimaryRead(ctx)
+	sharedPool, err := loadPreparedEngineSnapshots(
+		readCtx,
+		uc.TransactionReader,
+		run.organizationID,
+		run.ledgerID,
+		aliases,
+	)
+	if err != nil {
+		return err
+	}
+
+	for index := range run.items {
+		item := &run.items[index]
+		preparation := createEnginePreparationInput(run.createTransactionRun(item))
+		item.prepared, err = uc.prepareEngineTransactionWithPool(readCtx, preparation, sharedPool)
+		if err != nil {
+			return withAtomicTransactionBatchItemError(err, index, "transaction preparation failed")
+		}
+	}
+
+	return nil
+}
+
+func firstSeenAtomicTransactionBatchAliases(run *atomicTransactionBatchRun) []string {
+	seen := make(map[string]struct{})
+	aliases := make([]string, 0)
+	for index := range run.items {
+		preparation := createEnginePreparationInput(run.createTransactionRun(&run.items[index]))
+		for _, alias := range enginePreparationAliases(preparation) {
+			if _, exists := seen[alias]; exists {
+				continue
+			}
+			seen[alias] = struct{}{}
+			aliases = append(aliases, alias)
+		}
+	}
+
+	return aliases
 }
 
 func (run *atomicTransactionBatchRun) createTransactionRun(item *atomicTransactionBatchItemRun) *createTransactionRun {
