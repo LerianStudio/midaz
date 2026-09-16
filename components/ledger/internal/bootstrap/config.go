@@ -1030,7 +1030,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
 
 	// Transaction handlers
-	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase}
+	transactionHandler := &httpin.TransactionHandler{
+		Command:                 commandUseCase,
+		Query:                   queryUseCase,
+		TransactionBatchMaxSize: cfg.TransactionBatchMaxSize,
+	}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
 	balanceHandler := &httpin.BalanceHandler{Command: commandUseCase, Query: queryUseCase}

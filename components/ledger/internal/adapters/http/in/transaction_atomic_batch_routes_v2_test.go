@@ -44,7 +44,7 @@ func TestRegisterAtomicTransactionBatchV2Route_PublishesDedicatedOrderedContract
 	require.NotNil(t, transactions.MinItems)
 	require.NotNil(t, transactions.MaxItems)
 	assert.Equal(t, 1, *transactions.MinItems)
-	assert.Equal(t, atomicTransactionBatchAbsoluteMaxItems, *transactions.MaxItems)
+	assert.Equal(t, atomicTransactionBatchV2AbsoluteMaxSize, *transactions.MaxItems)
 	require.NotNil(t, transactions.Items)
 	assert.Equal(t, v2CreateBodySchemaRef, transactions.Items.Ref,
 		"each batch item must be the unchanged direct-v2 request model")

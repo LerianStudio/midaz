@@ -306,6 +306,8 @@ POST	/v2/transactions/block	3
 POST	/v2/transactions/block	1
 POST	/v2/transactions/direct	3
 POST	/v2/transactions/direct	1
+POST	/v2/transactions/direct/batch	3
+POST	/v2/transactions/direct/batch	1
 POST	/v2/transactions/hold	3
 POST	/v2/transactions/hold	1
 POST	/v2/transactions/unblock	3

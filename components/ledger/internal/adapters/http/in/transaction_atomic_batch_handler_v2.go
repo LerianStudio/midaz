@@ -6,14 +6,13 @@ package in
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
 
-	"github.com/danielgtaylor/huma/v2"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
-
-// atomicTransactionBatchAbsoluteMaxItems is the immutable public-contract ceiling.
-// An installation may enforce a lower configured limit at runtime, but the OpenAPI
-// contract must never advertise or accept more than this many transactions.
-const atomicTransactionBatchAbsoluteMaxItems = 50
 
 // CreateAtomicTransactionBatchV2Input is the Huma request envelope for the atomic
 // direct-v2 batch route. RawBody keeps runtime validation imperative so the handler
@@ -47,12 +46,71 @@ type CreateAtomicTransactionBatchV2Output struct {
 	Body                *CreateAtomicTransactionBatchV2Response
 }
 
-// CreateAtomicTransactionBatchV2 is registered with the public contract in task
-// 6.1. Task 6.2 replaces this temporary terminal with the structural collector and
-// command integration without changing the route or its published types.
+// CreateAtomicTransactionBatchV2 strictly decodes and structurally validates the
+// whole wrapper before invoking the batch command once. The collector preserves the
+// request array order and aggregates body-only errors; repository, fee, Tracer,
+// idempotency, and accounting work starts only after that phase succeeds.
 func (handler *TransactionHandler) CreateAtomicTransactionBatchV2(
-	context.Context,
-	*CreateAtomicTransactionBatchV2Input,
+	ctx context.Context,
+	in *CreateAtomicTransactionBatchV2Input,
 ) (*CreateAtomicTransactionBatchV2Output, error) {
-	return nil, huma.Error501NotImplemented("atomic transaction batch handler is not wired")
+	if err := ctx.Err(); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+	if handler.TransactionBatchMaxSize < 1 || handler.TransactionBatchMaxSize > atomicTransactionBatchV2AbsoluteMaxSize {
+		return nil, pkgHTTP.HumaProblem(fmt.Errorf(
+			"atomic transaction batch maximum size must be between 1 and %d",
+			atomicTransactionBatchV2AbsoluteMaxSize,
+		))
+	}
+
+	decoded, err := decodeAndValidateAtomicTransactionBatchV2(in.RawBody, handler.TransactionBatchMaxSize)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	organizationID, ledgerID, err := parseOrgLedger(decoded.scope.OrganizationID, decoded.scope.LedgerID)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+	if handler.Command == nil {
+		return nil, pkgHTTP.HumaProblem(errors.New("atomic transaction batch command is not configured"))
+	}
+
+	items := make([]command.CreateAtomicTransactionBatchV2ItemInput, len(decoded.items))
+	for index := range decoded.items {
+		items[index] = command.CreateAtomicTransactionBatchV2ItemInput{
+			OrganizationID:          organizationID,
+			LedgerID:                ledgerID,
+			Transaction:             decoded.items[index].normalized.transaction,
+			AccountBlockExceptionID: decoded.items[index].accountBlockExceptionID,
+		}
+	}
+
+	result, err := handler.Command.CreateAtomicTransactionBatchV2(ctx, command.CreateAtomicTransactionBatchV2Input{
+		Transactions:     items,
+		CanonicalRequest: decoded.canonicalRequest,
+		IdempotencyKey:   in.IdempotencyKey,
+		IdempotencyTTL:   pkgHTTP.ParseIdempotencyTTL(in.IdempotencyTTL),
+	})
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+	if result == nil {
+		return nil, pkgHTTP.HumaProblem(errors.New("atomic transaction batch command returned no result"))
+	}
+
+	transactions := make([]*TransactionV2, len(result.Transactions))
+	for index := range result.Transactions {
+		transactions[index] = newTransactionV2(result.Transactions[index])
+	}
+
+	return &CreateAtomicTransactionBatchV2Output{
+		Status:              http.StatusCreated,
+		IdempotencyReplayed: replayedHeader(result.Replayed),
+		Body: &CreateAtomicTransactionBatchV2Response{
+			BatchID:      result.BatchID.String(),
+			Transactions: transactions,
+		},
+	}, nil
 }
