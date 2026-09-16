@@ -84,7 +84,7 @@ in array order.
 | Boundary | Effective limit | Failure |
 | --- | ---: | --- |
 | Decoded request body | smaller than 1 MiB | `0143`, HTTP 413 |
-| Transactions | 1 to `TRANSACTION_BATCH_MAX_SIZE` (absolute maximum 50) | `0513`, HTTP 400 |
+| Transactions | 1 to `TRANSACTION_BATCH_MAX_SIZE` (default 10; absolute maximum 50) | `0513`, HTTP 400 |
 | Aggregate input debit/credit legs | 1,000 | `0514`, HTTP 400 |
 | Expanded postings after fees | 100 | `0515`, HTTP 422 |
 | Execution balances, including overdraft companions | 150 | `0515`, HTTP 422 |

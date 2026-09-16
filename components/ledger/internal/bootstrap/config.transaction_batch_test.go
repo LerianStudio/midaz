@@ -32,9 +32,10 @@ func TestConfig_TransactionBatchMaxSize(t *testing.T) {
 		want            int
 		wantConfigError string
 	}{
-		{name: "unset defaults to 50", want: 50},
-		{name: "blank defaults to 50", set: true, value: "", want: 50},
+		{name: "unset defaults to 10", want: 10},
+		{name: "blank defaults to 10", set: true, value: "", want: 10},
 		{name: "lower bound", set: true, value: "1", want: 1},
+		{name: "operational default", set: true, value: "10", want: 10},
 		{name: "upper bound", set: true, value: "50", want: 50},
 		{name: "explicit zero is rejected", set: true, value: "0", wantConfigError: "between 1 and 50, got 0"},
 		{name: "negative value is rejected", set: true, value: "-1", want: -1, wantConfigError: "between 1 and 50, got -1"},
@@ -70,13 +71,26 @@ func TestConfig_TransactionBatchMaxSize(t *testing.T) {
 }
 
 func TestInitServersWithOptions_RejectsInvalidTransactionBatchMaxSizeBeforeInfrastructure(t *testing.T) {
-	t.Setenv("TRANSACTION_BATCH_MAX_SIZE", "51")
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "above ceiling", value: "51", want: "TRANSACTION_BATCH_MAX_SIZE must be between 1 and 50, got 51"},
+		{name: "non integer", value: "invalid", want: "TRANSACTION_BATCH_MAX_SIZE must be between 1 and 50, got 0"},
+	}
 
-	service, err := InitServersWithOptions(nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TRANSACTION_BATCH_MAX_SIZE", tt.value)
 
-	require.Error(t, err)
-	assert.Nil(t, service)
-	assert.EqualError(t, err, "TRANSACTION_BATCH_MAX_SIZE must be between 1 and 50, got 51")
+			service, err := InitServersWithOptions(nil)
+
+			require.Error(t, err)
+			assert.Nil(t, service)
+			assert.EqualError(t, err, tt.want)
+		})
+	}
 }
 
 func unsetEnvForTest(t *testing.T, key string) {

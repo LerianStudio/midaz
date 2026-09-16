@@ -53,7 +53,7 @@ import (
 const ApplicationName = "ledger"
 
 const (
-	defaultTransactionBatchMaxSize = 50
+	defaultTransactionBatchMaxSize = 10
 	minTransactionBatchMaxSize     = 1
 	maxTransactionBatchMaxSize     = 50
 )
@@ -1943,9 +1943,9 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.RedisMinRetryBackoff, 8)
 	intDefault(&cfg.RedisMaxRetryBackoff, 1)
 
-	// TransactionBatchMaxSize defaults to the public contract ceiling when the
+	// TransactionBatchMaxSize defaults to the operational limit when the
 	// environment variable is absent or blank. An explicit zero must survive to
-	// startup validation and fail closed instead of silently becoming 50.
+	// startup validation and fail closed instead of silently becoming 10.
 	if strings.TrimSpace(os.Getenv("TRANSACTION_BATCH_MAX_SIZE")) == "" {
 		cfg.TransactionBatchMaxSize = defaultTransactionBatchMaxSize
 	}

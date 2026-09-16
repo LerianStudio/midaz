@@ -1129,7 +1129,7 @@ transaction cardinality may be reduced operationally with
 
 | Atomic batch boundary | Effective ceiling |
 | --- | ---: |
-| Transactions | 50 |
+| Transactions | 10 by default; configurable up to 50 |
 | Expanded postings after fees | 100 |
 | Execution balance snapshots, including overdraft companions | 150 |
 | Sum of encoded completion plans | 256 KiB |
