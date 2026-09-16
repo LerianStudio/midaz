@@ -138,24 +138,40 @@ func defaultTransactionPostgresConnector(cfg *Config, logger libLog.Logger) (*li
 // buildTransactionPostgresConnection creates a PostgresConnection for the transaction domain
 // using DB_TRANSACTION_* env vars.
 func buildTransactionPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
-	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.TxnPrefixedPrimaryDBHost, cfg.TxnPrefixedPrimaryDBUser, cfg.TxnPrefixedPrimaryDBPassword,
-		cfg.TxnPrefixedPrimaryDBName, cfg.TxnPrefixedPrimaryDBPort, cfg.TxnPrefixedPrimaryDBSSLMode)
+	pgCfg, err := newTransactionPostgresConfig(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
 
-	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.TxnPrefixedReplicaDBHost, cfg.TxnPrefixedReplicaDBUser, cfg.TxnPrefixedReplicaDBPassword,
-		cfg.TxnPrefixedReplicaDBName, cfg.TxnPrefixedReplicaDBPort, cfg.TxnPrefixedReplicaDBSSLMode)
-
-	conn, err := libPostgres.New(libPostgres.Config{
-		PrimaryDSN:         postgreSourcePrimary,
-		ReplicaDSN:         postgreSourceReplica,
-		Logger:             logger,
-		MaxOpenConnections: cfg.TxnPrefixedMaxOpenConnections,
-		MaxIdleConnections: cfg.TxnPrefixedMaxIdleConnections,
-	})
+	conn, err := libPostgres.New(pgCfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return conn, nil
+}
+
+// newTransactionPostgresConfig translates the transaction DB_TRANSACTION_* settings into the
+// lib-commons postgres config. The replica DSN is optional: absent replica
+// settings yield an empty ReplicaDSN so lib-commons opens a single pool on the
+// primary, while a partially set replica is a configuration error.
+func newTransactionPostgresConfig(cfg *Config, logger libLog.Logger) (libPostgres.Config, error) {
+	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.TxnPrefixedPrimaryDBHost, cfg.TxnPrefixedPrimaryDBUser, cfg.TxnPrefixedPrimaryDBPassword,
+		cfg.TxnPrefixedPrimaryDBName, cfg.TxnPrefixedPrimaryDBPort, cfg.TxnPrefixedPrimaryDBSSLMode)
+
+	postgreSourceReplica, err := buildOptionalReplicaDSN(constant.ModuleTransaction,
+		cfg.TxnPrefixedReplicaDBHost, cfg.TxnPrefixedReplicaDBUser, cfg.TxnPrefixedReplicaDBPassword,
+		cfg.TxnPrefixedReplicaDBName, cfg.TxnPrefixedReplicaDBPort, cfg.TxnPrefixedReplicaDBSSLMode)
+	if err != nil {
+		return libPostgres.Config{}, err
+	}
+
+	return libPostgres.Config{
+		PrimaryDSN:         postgreSourcePrimary,
+		ReplicaDSN:         postgreSourceReplica,
+		Logger:             logger,
+		MaxOpenConnections: cfg.TxnPrefixedMaxOpenConnections,
+		MaxIdleConnections: cfg.TxnPrefixedMaxIdleConnections,
+	}, nil
 }
