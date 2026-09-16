@@ -78,3 +78,27 @@ func TestProblemDetail_ProjectsFieldErrorTruncationMarker(t *testing.T) {
 	assert.Equal(t, pkg.FieldErrorTruncationMessage, last.Message)
 	assert.Nil(t, last.Value)
 }
+
+func TestHumaProblem_PreservesOrderedFieldsAroundPointerValidationError(t *testing.T) {
+	t.Parallel()
+
+	primary := &pkg.ValidationKnownFieldsError{
+		EntityType: "Transaction",
+		Code:       constant.ErrMissingFieldsInRequest.Error(),
+		Title:      "Missing Fields in Request",
+		Message:    "the first item is missing required fields",
+		Fields:     pkg.FieldValidations{"asset": "asset is required"},
+	}
+	wrapper := pkg.WithFieldErrors(primary, []pkg.FieldError{
+		{Location: "body.transactions[0].asset", Message: "asset is required"},
+		{Location: "body.transactions[1].amount", Message: "amount is required"},
+	})
+
+	rendered := HumaProblem(wrapper)
+	detail, ok := rendered.(*Detail)
+	require.True(t, ok)
+	assert.Equal(t, constant.ErrMissingFieldsInRequest.Error(), detail.Code)
+	require.Len(t, detail.Errors, 2)
+	assert.Equal(t, "body.transactions[0].asset", detail.Errors[0].Location)
+	assert.Equal(t, "body.transactions[1].amount", detail.Errors[1].Location)
+}

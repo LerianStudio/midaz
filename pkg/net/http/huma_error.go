@@ -52,6 +52,9 @@ func HumaProblem(err error) error {
 		if responseErr.Code != "" {
 			detail.Type = libProblem.BaseURI + "/" + responseErr.Code
 		}
+		if errs := fieldsToErrors(err); errs != nil {
+			detail.Errors = errs
+		}
 
 		return &detail
 	}
@@ -64,7 +67,12 @@ func HumaProblem(err error) error {
 	// returns a value. Without this the body-validation path 500s instead of 400.
 	var knownFieldsPtr *pkg.ValidationKnownFieldsError
 	if errors.As(err, &knownFieldsPtr) {
-		err = *knownFieldsPtr
+		var carrier *pkg.FieldErrorCarrier
+		if errors.As(err, &carrier) {
+			err = pkg.WithFieldErrors(*knownFieldsPtr, carrier.FieldErrors())
+		} else {
+			err = *knownFieldsPtr
+		}
 	}
 
 	detail, ok := ProblemDetail(err)
