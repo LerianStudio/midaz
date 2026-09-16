@@ -24,7 +24,7 @@ import (
 
 // This file is the v2 transaction contract seam (filename-suffix
 // versioning — v1 files are left untouched). It registers the v2 `direct`, atomic
-// `direct/batch`, `hold`, `block`, `unblock`, `commit`, `cancel`, and `revert`
+// `batch`, `hold`, `block`, `unblock`, `commit`, `cancel`, and `revert`
 // transaction ops onto the /v2
 // version group of the shared Huma contract and attaches
 // the SAME Fiber auth chain the v1 transaction ops carry (protectedMidaz,
@@ -52,7 +52,7 @@ import (
 
 // RegisterTransactionV2Routes registers the v2 transaction ops on the /v2 version
 // group of the shared Huma API. It registers the singular create ops `direct`, `hold`,
-// `block`, and `unblock` plus the dedicated atomic `direct/batch` op on the scope-free
+// `block`, and `unblock` plus the dedicated atomic `batch` op on the scope-free
 // create path, and the lifecycle ops `commit`, `cancel`, and `revert`
 // (by organization, ledger and transaction_id).
 // The lifecycle ops are thin v2 shells over the SAME transport-neutral core the v1 shells
@@ -405,7 +405,7 @@ func rejectOversizedV2Body(c fiber.Ctx) error {
 	})
 }
 
-// RegisterTransactionV2RoutesToApp wires the v2 `direct`, atomic `direct/batch`, `hold`,
+// RegisterTransactionV2RoutesToApp wires the v2 `direct`, atomic `batch`, `hold`,
 // `block`, `unblock`, `commit`, `cancel`, and `revert` ops end-to-end: it attaches the Fiber auth chain —
 // auth.Authorize("midaz","transactions","post") + the tenant PostAuthMiddlewares (plus
 // ParseUUIDPathParameters("transaction") on the routes that carry path UUIDs) — as

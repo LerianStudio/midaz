@@ -38,7 +38,7 @@ type CreateAtomicTransactionBatchV2ItemRequest struct {
 
 // CreateAtomicTransactionBatchV2Response is the successful public response. BatchID
 // is an ephemeral correlation and replay identifier, not a persisted or queryable
-// ledger resource. Transactions remain in the exact request-array order.
+// ledger resource. Transactions are returned in increasing logical order.
 type CreateAtomicTransactionBatchV2Response struct {
 	BatchID      string                                 `json:"batchId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 	Transactions []*AtomicTransactionBatchV2Transaction `json:"transactions" nullable:"false" doc:"Created transactions in increasing logical order."`

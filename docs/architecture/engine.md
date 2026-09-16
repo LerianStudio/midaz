@@ -1122,7 +1122,7 @@ demonstrates why an 8 MiB ceiling is unsafe and leaves headroom under the fixed
 32 MiB and 64 MiB boundaries. Metrics must still be monitored for real workloads;
 future evidence may justify a reviewed code change.
 
-The atomic direct-v2 batch applies a stricter command-level admission envelope
+The atomic transaction batch applies a stricter command-level admission envelope
 before Tracer reservation or accounting. These are fixed release limits; only the
 transaction cardinality may be reduced operationally with
 `TRANSACTION_BATCH_MAX_SIZE`:
@@ -1150,7 +1150,7 @@ The final 50-item, 100-posting, 150-balance maximum had a 77.1 ms median Lua p99
 the worst of its six isolated/concurrent runs was 81.4 ms, leaving 18.6 ms below
 the 100 ms target. Reproduction commands, serialized sizes, host details, and
 evidence limitations are recorded in
-[`engine-report.md`](../performance/engine-report.md#atomic-direct-v2-batch-release-gate).
+[`engine-report.md`](../performance/engine-report.md#atomic-transaction-batch-release-gate).
 
 The deterministic representative wire measurements are 2 postings/2 pool
 snapshots: 2,134 bytes; 10 postings/20 pool snapshots: 12,974 bytes; and 50

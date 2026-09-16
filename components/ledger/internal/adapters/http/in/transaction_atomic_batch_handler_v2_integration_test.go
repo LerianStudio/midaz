@@ -152,7 +152,7 @@ func postAtomicBatch(
 	return postTransaction(
 		t,
 		app,
-		v2CreateURL("direct/batch"),
+		v2CreateURL("batch"),
 		marshalAtomicBatchHTTPBody(t, transactions),
 		idempotencyKey,
 	)
@@ -385,7 +385,7 @@ func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 		}
 		request := httptest.NewRequest(
 			http.MethodPost,
-			v2CreateURL("direct/batch"),
+			v2CreateURL("batch"),
 			strings.NewReader(marshalAtomicBatchHTTPBody(t, transactions)),
 		)
 		request.Header.Set("Content-Type", "application/json")

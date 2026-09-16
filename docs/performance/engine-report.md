@@ -65,7 +65,7 @@ HTTP scenario and comparable baseline that exercises the active engine-backed pa
 the adapter benchmark above is not a substitute. Existing public k6 suites measure
 other API paths and likewise cannot be presented as this comparison.
 
-## Atomic direct-v2 batch release gate
+## Atomic transaction batch release gate
 
 The atomic batch matrix uses the production Redis adapter and assembled Lua against
 Valkey 8. It records the indivisible EVAL duration separately from adapter
@@ -112,6 +112,18 @@ go test -tags=integration \
   -bench='^BenchmarkAtomicTransactionBatchMatrix$/^n_(25|50)$/^disjoint$/^cold$/^fee_max$/^single_tenant$/^(isolated|concurrent_singular)$' \
   -benchmem -benchtime=20x -count=3
 ```
+
+The complete matrix additionally varies direct, hold, and mixed item profiles at
+N=1/10/25/50, shared balances, warm cache, tenant mix, base work, and unrelated
+singular traffic. The retained replay envelope is measured as
+`replay_response_bytes`, separately from the mutable completion payload.
+
+On 2026-09-16, the revised N=50 disjoint/cold/fee-expanded single-tenant profiles
+were sampled on the same host and Valkey 8 with 20 executions per profile. Hold Lua
+p99 was 78.36 ms isolated and 77.70 ms with concurrent singular traffic; mixed Lua
+p99 was 77.84 ms isolated and 78.49 ms concurrent. All four are below 100 ms. This
+is targeted regression evidence for the new action profiles, not a replacement for
+a full multi-run matrix collection.
 
 The complete matrix additionally varies N=1/10, shared balances, warm cache,
 tenant mix, base work, and unrelated singular traffic. Short local samples can
