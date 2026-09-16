@@ -6,11 +6,9 @@ package in
 
 import (
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -112,7 +110,7 @@ type CreateTransactionV2Request struct {
 // It is published as V2LegInput to preserve the existing OpenAPI contract.
 type TransactionV2LegRequest struct {
 	// Alias is the leg's account alias. The obligation is enforced BOTH by this tag and by
-	// an imperative check in Translate; see buildLeg for why the two are complementary.
+	// an imperative check in Translate; see normalizeTransactionV2Leg for why the two are complementary.
 	//
 	// The accepted SPELLINGS are enforced by validateV2Alias rather than by a tag, because the
 	// fee routes decode through a second validator instance that panics on a tag it does not
@@ -170,7 +168,7 @@ type TransactionV2LegRequest struct {
 type TransactionV2ShareRequest struct {
 	// Percentage is the leg's share of the transaction total, in percent, bounded to 1..100. It
 	// must be positive: a zero share moves nothing while the transaction still commits, and a
-	// negative one inverts the leg's accounting direction. buildLeg enforces the lower bound
+	// negative one inverts the leg's accounting direction. normalizeTransactionV2Leg enforces the lower bound
 	// imperatively as well, covering adapter tests that build the request in Go and skip the decoder.
 	//
 	// The `minimum` and `maximum` tags publish the bounds in the contract, so a client reads them
@@ -212,18 +210,6 @@ type TransactionV2Scope struct {
 func (s TransactionV2Scope) namesSameAs(other TransactionV2Scope) bool {
 	return strings.EqualFold(s.OrganizationID, other.OrganizationID) &&
 		strings.EqualFold(s.LedgerID, other.LedgerID)
-}
-
-// v2ScopeRef is one leg's scope paired with the field reference a rejection names it by, so the
-// scope rules can report the offending entry.
-type v2ScopeRef struct {
-	scope TransactionV2Scope
-	ref   string
-}
-
-// scope reads the scope off a leg.
-func (l TransactionV2LegRequest) scope() TransactionV2Scope {
-	return TransactionV2Scope{OrganizationID: l.OrganizationID, LedgerID: l.LedgerID}
 }
 
 // accountAliasCharset is the registered account alias charset, compiled once at package level
@@ -291,50 +277,12 @@ func validateV2Alias(alias string) error {
 // does not compute, and the same-account check needs the resolved balance-key entries the funnel
 // builds. Both stay ValidateSendSourceAndDistribute's job.
 func (in CreateTransactionV2Request) Translate(pending bool) (mtransaction.Transaction, TransactionV2Scope, error) {
-	if err := in.validateSidesPresent(); err != nil {
-		return mtransaction.Transaction{}, TransactionV2Scope{}, err
-	}
-
-	if err := in.validateAccountBlockExceptionSurface(pending); err != nil {
-		return mtransaction.Transaction{}, TransactionV2Scope{}, err
-	}
-
-	value, err := decimal.NewFromString(in.Amount)
-	if err != nil || value.LessThanOrEqual(decimal.Zero) {
-		return mtransaction.Transaction{}, TransactionV2Scope{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
-	}
-
-	from, err := in.buildLegs(in.Debits, true, "debits")
+	normalized, err := normalizeCreateTransactionV2Body(in, pending)
 	if err != nil {
 		return mtransaction.Transaction{}, TransactionV2Scope{}, err
 	}
 
-	to, err := in.buildLegs(in.Credits, false, "credits")
-	if err != nil {
-		return mtransaction.Transaction{}, TransactionV2Scope{}, err
-	}
-
-	scope, err := in.resolveScope()
-	if err != nil {
-		return mtransaction.Transaction{}, TransactionV2Scope{}, err
-	}
-
-	send := mtransaction.Send{
-		Asset:      in.Asset,
-		Value:      value,
-		Source:     mtransaction.Source{From: from},
-		Distribute: mtransaction.Distribute{To: to},
-	}
-
-	return mtransaction.Transaction{
-		Description: in.Description,
-		Code:        in.Code,
-		Pending:     pending,
-		Metadata:    in.Metadata,
-		RouteID:     cloneStringPtr(in.RouteID),
-		Send:        send,
-		Skip:        cloneTransactionSkip(in.Skip),
-	}, scope, nil
+	return normalized.transaction, normalized.scope, nil
 }
 
 // LifecycleV2Request is the OPTIONAL request body of the /v2 lifecycle actions that accept
@@ -360,23 +308,6 @@ type LifecycleV2Request struct {
 // nil when the body presented none.
 func (in LifecycleV2Request) AccountBlockException() (*uuid.UUID, error) {
 	return ParseAccountBlockExceptionID(in.AccountBlockExceptionID)
-}
-
-// validateAccountBlockExceptionSurface rejects an account-block exception presented on
-// the HOLD action. The two create actions share one body shape, so the surface rule
-// cannot be expressed as a field's presence or absence — it has to be checked against
-// the caller's pending intent, which is what the endpoint carries.
-//
-// The rejection is EXPLICIT rather than a silent drop: a caller who mints a grant and
-// presents it on a hold has to learn that the hold consumed nothing, otherwise it looks
-// like the pending is already authorized and the commit fails later for reasons that
-// name no field.
-func (in CreateTransactionV2Request) validateAccountBlockExceptionSurface(pending bool) error {
-	if pending && in.AccountBlockExceptionID != nil {
-		return pkg.ValidateBusinessError(constant.ErrAccountBlockExceptionNotSupported, constant.EntityTransaction, "hold")
-	}
-
-	return nil
 }
 
 // AccountBlockException returns the presented exception identifier parsed into a UUID,
@@ -405,211 +336,4 @@ func ParseAccountBlockExceptionID(raw *string) (*uuid.UUID, error) {
 	}
 
 	return &parsed, nil
-}
-
-// validateSidesPresent rejects a request whose debit or credit side is empty, naming the field
-// the caller has to fill.
-//
-// The obligation is enforced here as well as by the two arrays' `min=1` tags, for the same
-// reason the leg alias obligation is: adapter code and tests can assemble the request in Go and
-// skip the decoder, in which case no validation tag runs.
-func (in CreateTransactionV2Request) validateSidesPresent() error {
-	if len(in.Debits) == 0 {
-		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, "debits")
-	}
-
-	if len(in.Credits) == 0 {
-		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, "credits")
-	}
-
-	return nil
-}
-
-// resolveScope folds every leg's scope into the single pair the request is scoped by. Every leg
-// must name a complete scope, and all of them must name the SAME one.
-//
-// The agreement rule is what keeps a request inside one ledger: a body naming two would have no
-// single ledger to post against, and honouring each half against its own ledger leaves value
-// moving in one direction only on each of them. This is also the single place that decides the
-// rule, so widening it later is a change here and nowhere else.
-//
-// The pair returned is the FIRST leg's spelling, and the legs are walked source side first.
-func (in CreateTransactionV2Request) resolveScope() (TransactionV2Scope, error) {
-	var resolved TransactionV2Scope
-
-	for i, ref := range in.scopeRefs() {
-		if err := ref.requireComplete(); err != nil {
-			return TransactionV2Scope{}, err
-		}
-
-		if i == 0 {
-			resolved = ref.scope
-
-			continue
-		}
-
-		if !resolved.namesSameAs(ref.scope) {
-			return TransactionV2Scope{}, pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
-		}
-	}
-
-	return resolved, nil
-}
-
-// scopeRefs lists one entry per leg of the request, debit side first, each carrying the field
-// reference its rejections are named by.
-func (in CreateTransactionV2Request) scopeRefs() []v2ScopeRef {
-	refs := make([]v2ScopeRef, 0, len(in.Debits)+len(in.Credits))
-	refs = appendSideScopeRefs(refs, in.Debits, "debits")
-
-	return appendSideScopeRefs(refs, in.Credits, "credits")
-}
-
-// appendSideScopeRefs appends one entry per leg of a single side, referenced by index.
-// legsField names the side.
-func appendSideScopeRefs(refs []v2ScopeRef, legs []TransactionV2LegRequest, legsField string) []v2ScopeRef {
-	for i, leg := range legs {
-		refs = append(refs, v2ScopeRef{scope: leg.scope(), ref: legReference(legsField, i)})
-	}
-
-	return refs
-}
-
-// requireComplete rejects a leg that leaves either half of its scope empty, naming the field the
-// caller has to fill.
-//
-// The obligation is enforced here as well as by the leg arrays' `required` tags, for the same
-// reason the alias obligation is: adapter code and tests can assemble the request in Go and skip
-// the decoder, in which case no validation tag runs.
-func (r v2ScopeRef) requireComplete() error {
-	switch {
-	case r.scope.OrganizationID == "":
-		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, r.ref+".organizationId")
-	case r.scope.LedgerID == "":
-		return pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, r.ref+".ledgerId")
-	default:
-		return nil
-	}
-}
-
-// buildLegs expands one side's leg array into canonical legs, one per entry. fieldName names the
-// side in the per-leg error messages.
-func (in CreateTransactionV2Request) buildLegs(legs []TransactionV2LegRequest, isFrom bool, fieldName string) ([]mtransaction.FromTo, error) {
-	out := make([]mtransaction.FromTo, 0, len(legs))
-
-	for i, leg := range legs {
-		built, err := in.buildLeg(leg, isFrom, legReference(fieldName, i))
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, built)
-	}
-
-	return out, nil
-}
-
-// legReference spells the indexed reference to one entry of a side — `debits[0]` — so a caller
-// at the 500-leg cap can locate the entry a rejection is about. The shape matches the validator's
-// own field namespace, so both classes of rejection read alike.
-//
-// Not every decoder rejection carries the index: only the tags whose registered translation reads
-// the full field namespace (`required` among them) name it. The rest render the bare leaf field
-// name, with no side and no index.
-func legReference(fieldName string, i int) string {
-	return fieldName + "[" + strconv.Itoa(i) + "]"
-}
-
-// buildLeg maps one array entry onto a canonical leg. The entry must name an alias, that alias
-// must be one an account can carry, and exactly one of the two value expressions must be filled.
-// legRef is the indexed reference to the entry, which the rejections carry so a caller can locate
-// it.
-//
-// The alias obligation and the share's positive-percentage obligation are each enforced here AND
-// as a struct tag. They are complementary, not redundant: the tag is the guard every HTTP caller
-// meets, because it fires at the decode boundary before Translate runs, while these checks are the
-// only ones covering adapter code or tests that build the request in Go and skip the decoder. An
-// empty alias reaching the funnel names no account at all, and
-// a non-positive percentage resolves to no operation row (zero) or an inverted movement
-// (negative) while the transaction still commits.
-func (in CreateTransactionV2Request) buildLeg(leg TransactionV2LegRequest, isFrom bool, legRef string) (mtransaction.FromTo, error) {
-	if leg.Alias == "" {
-		return mtransaction.FromTo{}, pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityTransaction, legRef+".alias")
-	}
-
-	if err := validateV2Alias(leg.Alias); err != nil {
-		return mtransaction.FromTo{}, err
-	}
-
-	route := leg.OperationRouteID
-	if route == nil {
-		route = in.OperationRouteID
-	}
-
-	built := mtransaction.FromTo{
-		AccountAlias: leg.Alias,
-		Description:  leg.Description,
-		RouteID:      cloneStringPtr(route),
-		IsFrom:       isFrom,
-	}
-
-	// Each arm demands its own expression AND the absence of the other, so "exactly one" is
-	// decided in one place. That leaves the default arm reachable: it answers both-filled and
-	// neither-filled alike, and a THIRD expression filled on its own lands there too instead of
-	// producing a leg with no value at all, which reads as a valid entry and moves nothing.
-	switch {
-	case leg.Amount != "" && leg.Share == nil:
-		value, err := decimal.NewFromString(leg.Amount)
-		if err != nil || value.LessThanOrEqual(decimal.Zero) {
-			return mtransaction.FromTo{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
-		}
-
-		built.Amount = &mtransaction.Amount{Asset: in.Asset, Value: value}
-	case leg.Share != nil && leg.Amount == "":
-		if leg.Share.Percentage <= 0 {
-			return mtransaction.FromTo{}, pkg.ValidateBusinessError(constant.ErrInvalidTransactionNonPositiveValue, constant.EntityTransaction)
-		}
-
-		built.Share = &mtransaction.Share{
-			Percentage:             leg.Share.Percentage,
-			PercentageOfPercentage: leg.Share.PercentageOfPercentage,
-		}
-	default:
-		return mtransaction.FromTo{}, invalidLegExpression(legRef)
-	}
-
-	return built, nil
-}
-
-// invalidLegExpression rejects an entry that does not fill exactly one value expression. The
-// message names the two expressions a v2 leg accepts; the sentinel is shared with the detailed
-// transaction body, which accepts a third, so the option set has to be passed rather than
-// assumed.
-func invalidLegExpression(legRef string) error {
-	return pkg.ValidateTransactionTypeError(constant.EntityTransaction,
-		constant.TransactionTypeOptionsLeg, legRef)
-}
-
-// cloneStringPtr returns an independent copy of p, or nil when p is nil, so
-// callers never alias the input's route pointers onto the produced legs.
-func cloneStringPtr(p *string) *string {
-	if p == nil {
-		return nil
-	}
-
-	v := *p
-
-	return &v
-}
-
-// cloneTransactionSkip returns an independent copy of s, or nil when s is nil, so the
-// produced transaction never aliases the decoded input's skip block.
-func cloneTransactionSkip(s *mtransaction.TransactionSkip) *mtransaction.TransactionSkip {
-	if s == nil {
-		return nil
-	}
-
-	clone := *s
-
-	return &clone
 }
