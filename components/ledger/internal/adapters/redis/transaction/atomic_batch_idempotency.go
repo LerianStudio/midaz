@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -21,8 +22,6 @@ import (
 	"github.com/google/uuid"
 	redisclient "github.com/redis/go-redis/v9"
 
-	"github.com/LerianStudio/midaz/v4/pkg"
-	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -72,8 +71,8 @@ type AtomicTransactionBatchClaimResult struct {
 }
 
 // AtomicTransactionBatchIdempotencyRepository is the narrow command-facing
-// port for the batch state machine. Later transition operations extend this
-// interface without adding batch concerns to the legacy singular repository.
+// port for the batch state machine, kept separate from the legacy singular
+// repository contract.
 type AtomicTransactionBatchIdempotencyRepository interface {
 	ClaimAtomicTransactionBatch(
 		ctx context.Context,
@@ -81,6 +80,25 @@ type AtomicTransactionBatchIdempotencyRepository interface {
 		effectiveKey string,
 		claim AtomicTransactionBatchIdempotencyRecord,
 	) (*AtomicTransactionBatchClaimResult, error)
+	TransitionAtomicTransactionBatch(
+		ctx context.Context,
+		organizationID, ledgerID uuid.UUID,
+		effectiveKey, ownerToken string,
+		expectedState AtomicTransactionBatchIdempotencyState,
+		next AtomicTransactionBatchIdempotencyRecord,
+		replayTTL time.Duration,
+	) (*AtomicTransactionBatchTransitionResult, error)
+	DeleteAtomicTransactionBatchPrePublication(
+		ctx context.Context,
+		organizationID, ledgerID uuid.UUID,
+		effectiveKey, ownerToken string,
+	) (*AtomicTransactionBatchDeleteResult, error)
+	CleanupAbandonedAtomicTransactionBatch(
+		ctx context.Context,
+		organizationID, ledgerID uuid.UUID,
+		effectiveKey, ownerToken string,
+		engineEvidence bool,
+	) (*AtomicTransactionBatchDeleteResult, error)
 }
 
 // ClaimAtomicTransactionBatch atomically creates the first claimed record or
@@ -164,11 +182,7 @@ func (rr *RedisConsumerRepository) ClaimAtomicTransactionBatch(
 	case AtomicTransactionBatchClaimed, AtomicTransactionBatchReplayed:
 		return result, nil
 	case AtomicTransactionBatchInProgress, AtomicTransactionBatchFingerprintConflict:
-		return result, pkg.ValidateBusinessError(
-			constant.ErrIdempotencyKey,
-			constant.EntityTransaction,
-			"atomic transaction batch",
-		)
+		return result, atomicTransactionBatchIdempotencyConflictError()
 	default:
 		return nil, fmt.Errorf("unsupported atomic transaction batch claim outcome %q", outcome)
 	}
