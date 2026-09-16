@@ -15,14 +15,16 @@ local function expectRedisType(key, expected)
     end
 end
 
--- positiveBudget validates a trusted byte ceiling as a bounded positive integer
+-- positiveLimit validates one trusted ceiling as a bounded positive integer
 -- before converting the small value for arithmetic inside the script.
-local function positiveBudget(raw)
+local function positiveLimit(raw, description)
     integerText(raw, "2147483647")
     local value = tonumber(raw)
-    if value < 1 then technical("invalid_protocol", "byte budget must be positive") end
+    if value < 1 then technical("invalid_protocol", description .. " must be positive") end
     return value
 end
+
+local function positiveBudget(raw) return positiveLimit(raw, "byte budget") end
 
 -- validPosting validates one declarative accounting mutation. It accepts only
 -- the closed posting and draw-policy vocabularies and canonical positive money.
@@ -58,7 +60,7 @@ end
 -- decodeRequest validates the entire Go-to-Lua contract before live state is
 -- read or mutated. It proves scope, key inventory, balance identity, transaction
 -- correlation, and that every requirement and posting references the declared pool.
-local function decodeRequest(raw)
+local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumBalances)
     local request = decodeJSON(raw)
     requireObject(request)
     -- Validate the execution envelope and the fixed positions of shared keys.
@@ -75,12 +77,15 @@ local function decodeRequest(raw)
     end
     requireArray(request.balances)
     requireArray(request.transactions)
+    if #request.transactions == 0 or #request.transactions > maximumTransactions or #request.balances > maximumBalances then
+        technical("invalid_protocol", "execution exceeds transaction or balance limit")
+    end
     local grantCount = 0
     for _, transaction in ipairs(request.transactions) do
         requireObject(transaction)
         if transaction.accountBlockException ~= nil then grantCount = grantCount + 1 end
     end
-    if #request.transactions == 0 or #KEYS ~= 5 + 3 * #request.balances + grantCount then technical("invalid_protocol", "invalid execution cardinality") end
+    if #KEYS ~= 5 + 3 * #request.balances + grantCount then technical("invalid_protocol", "invalid execution cardinality") end
     -- All physical keys must be unique and use the same transaction hash tag so
     -- the complete execution belongs to one Redis Cluster slot.
     local seenKeys = {}
@@ -123,7 +128,7 @@ local function decodeRequest(raw)
     end
     -- Validate transaction correlation, guard advancement, recovery payloads,
     -- and the closed set of balance references used by requirements and postings.
-    local transactions, grantOrdinal = {}, 0
+    local transactions, grantOrdinal, postingCount = {}, 0, 0
     for _, transaction in ipairs(request.transactions) do
         requireObject(transaction)
         uuid(transaction.id)
@@ -140,6 +145,10 @@ local function decodeRequest(raw)
         requireArray(transaction.balanceRequirements)
         requireArray(transaction.postings)
         if #transaction.postings == 0 then technical("invalid_protocol", "empty transaction postings") end
+        if #transaction.postings > maximumPostings - postingCount then
+            technical("invalid_protocol", "execution exceeds posting limit")
+        end
+        postingCount = postingCount + #transaction.postings
         for _, requirement in ipairs(transaction.balanceRequirements) do
             validBalanceRequirement(requirement)
             if not refs[requirement.balanceRef] then technical("invalid_protocol", "invalid balance requirement reference") end

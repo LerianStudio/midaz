@@ -159,7 +159,14 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (r
 }
 
 func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, request accounting.Execution, keys []string, payload any) (*accounting.ExecutionResult, error) {
-	args := []any{payload, a.limits.MaxRequestBytes, a.limits.MaxPreparedBytes}
+	args := []any{
+		payload,
+		a.limits.MaxRequestBytes,
+		a.limits.MaxPreparedBytes,
+		a.limits.MaxTransactions,
+		a.limits.MaxPostings,
+		a.limits.MaxBalances,
+	}
 
 	for attempt := 0; attempt < 3; attempt++ {
 		if err := ctx.Err(); err != nil {

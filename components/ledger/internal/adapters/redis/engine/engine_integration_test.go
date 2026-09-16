@@ -153,9 +153,15 @@ func (f *integrationFixture) prepared(t *testing.T) *preparedExecution {
 
 func (f *integrationFixture) runRaw(t *testing.T, payload string) (string, error) {
 	t.Helper()
+	return f.runRawWithLimits(t, payload, f.limits)
+}
+
+func (f *integrationFixture) runRawWithLimits(t *testing.T, payload string, limits Limits) (string, error) {
+	t.Helper()
 	prepared := f.prepared(t)
 	return f.client.Eval(context.Background(), integrationEngineLua, prepared.Keys, payload,
-		strconv.Itoa(f.limits.MaxRequestBytes), strconv.Itoa(f.limits.MaxPreparedBytes)).Text()
+		strconv.Itoa(limits.MaxRequestBytes), strconv.Itoa(limits.MaxPreparedBytes),
+		strconv.Itoa(limits.MaxTransactions), strconv.Itoa(limits.MaxPostings), strconv.Itoa(limits.MaxBalances)).Text()
 }
 
 func (f *integrationFixture) run(t *testing.T) (string, error) {
@@ -731,7 +737,8 @@ func TestIntegrationEngineRejectsMalformedAccountBlockExceptionProtocol(t *testi
 		before := fixture.capture(t)
 
 		_, err := fixture.client.Eval(context.Background(), integrationEngineLua, prepared.Keys[:len(prepared.Keys)-1], string(prepared.Payload),
-			strconv.Itoa(fixture.limits.MaxRequestBytes), strconv.Itoa(fixture.limits.MaxPreparedBytes)).Text()
+			strconv.Itoa(fixture.limits.MaxRequestBytes), strconv.Itoa(fixture.limits.MaxPreparedBytes),
+			strconv.Itoa(fixture.limits.MaxTransactions), strconv.Itoa(fixture.limits.MaxPostings), strconv.Itoa(fixture.limits.MaxBalances)).Text()
 		require.ErrorContains(t, err, `"code":"invalid_protocol"`)
 		require.Equal(t, before, fixture.capture(t))
 	})
@@ -879,6 +886,7 @@ func TestIntegrationEngineRequiresAllSharedKeys(t *testing.T) {
 	_, err := f.client.Eval(
 		context.Background(), integrationEngineLua, prepared.Keys[:4], prepared.Payload,
 		strconv.Itoa(f.limits.MaxRequestBytes), strconv.Itoa(f.limits.MaxPreparedBytes),
+		strconv.Itoa(f.limits.MaxTransactions), strconv.Itoa(f.limits.MaxPostings), strconv.Itoa(f.limits.MaxBalances),
 	).Result()
 	require.ErrorContains(t, err, `"code":"invalid_protocol"`)
 	require.Equal(t, before, f.capture(t), "an incomplete shared-key inventory must not mutate Redis")
@@ -1383,6 +1391,92 @@ func TestIntegrationEngineRejectsMalformedProtocol(t *testing.T) {
 			_, err := f.runRaw(t, raw)
 			require.ErrorContains(t, err, "MIDAZ_ENGINE_TECH_V1 ")
 			require.Equal(t, before, f.capture(t))
+		})
+	}
+}
+
+func TestIntegrationEngineRejectsCountExcessBeforeLiveState(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+
+	t.Run("exact boundaries", func(t *testing.T) {
+		fixture := newIntegrationFixture(t, container.Client)
+		limits := fixture.limits
+		limits.MaxTransactions, limits.MaxPostings, limits.MaxBalances = 1, 1, 1
+
+		raw, err := fixture.runRawWithLimits(t, string(fixture.prepared(t).Payload), limits)
+		require.NoError(t, err)
+		require.Len(t, decodeIntegrationResult(t, raw).Movements, 1)
+	})
+
+	for _, test := range []struct {
+		name        string
+		wantMessage string
+		prepare     func(*testing.T, *integrationFixture) (string, Limits)
+	}{
+		{
+			name:        "transaction excess",
+			wantMessage: "execution exceeds transaction or balance limit",
+			prepare: func(t *testing.T, fixture *integrationFixture) (string, Limits) {
+				var request wireRequest
+				require.NoError(t, json.Unmarshal(fixture.prepared(t).Payload, &request))
+				second := request.Transactions[0]
+				second.ID = "1935edb9-c953-4f87-bea4-c98f57dff8b4"
+				second.GuardField = second.ID
+				second.RecoveryField = second.ID + ":" + request.ExecutionID
+				second.NextGuard = "second-next"
+				request.Transactions = append(request.Transactions, second)
+				raw, err := json.Marshal(request)
+				require.NoError(t, err)
+				limits := fixture.limits
+				limits.MaxTransactions = 1
+
+				return string(raw), limits
+			},
+		},
+		{
+			name:        "posting excess",
+			wantMessage: "execution exceeds posting limit",
+			prepare: func(t *testing.T, fixture *integrationFixture) (string, Limits) {
+				var request wireRequest
+				require.NoError(t, json.Unmarshal(fixture.prepared(t).Payload, &request))
+				second := request.Transactions[0].Postings[0]
+				second.Ref = "debit-1"
+				request.Transactions[0].Postings = append(request.Transactions[0].Postings, second)
+				raw, err := json.Marshal(request)
+				require.NoError(t, err)
+				limits := fixture.limits
+				limits.MaxPostings = 1
+
+				return string(raw), limits
+			},
+		},
+		{
+			name:        "balance excess",
+			wantMessage: "execution exceeds transaction or balance limit",
+			prepare: func(t *testing.T, fixture *integrationFixture) (string, Limits) {
+				fixture.addCompanion("0")
+				limits := fixture.limits
+				limits.MaxBalances = 1
+
+				return string(fixture.prepared(t).Payload), limits
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newIntegrationFixture(t, container.Client)
+			payload, limits := test.prepare(t, fixture)
+			balanceKey := fixture.resolved.Balances["@source#default"].Balance
+			require.NoError(t, fixture.client.Del(context.Background(), balanceKey).Err())
+			require.NoError(t, fixture.client.RPush(context.Background(), balanceKey, "unreadable-live-state").Err())
+			before := fixture.capture(t)
+
+			_, err := fixture.runRawWithLimits(t, payload, limits)
+			require.ErrorContains(t, err, test.wantMessage)
+			require.Equal(t, before, fixture.capture(t), "count rejection must not mutate any Redis key")
 		})
 	}
 }
