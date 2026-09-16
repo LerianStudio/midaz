@@ -286,6 +286,96 @@ func TestInitializeAtomicTransactionBatchV2_FreezesOrderedIDsAndNondecreasingTim
 	assert.Equal(t, "@source-0", input.Transactions[0].Transaction.Send.Source.From[0].AccountAlias)
 }
 
+func TestInitializeAtomicTransactionBatchV2_HonorsRevisedActionOrderAndOriginalIndex(t *testing.T) {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000071")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000072")
+	batchID := uuid.MustParse("01994f13-29b7-7000-8000-000000000073")
+	firstTransactionID := uuid.MustParse("01994f13-29b7-7000-8000-000000000074")
+	secondTransactionID := uuid.MustParse("01994f13-29b7-7000-8000-000000000075")
+	now := time.Date(2026, time.September, 16, 14, 0, 0, 0, time.UTC)
+	reader := &atomicTransactionBatchSettingsReader{settings: mmodel.LedgerSettings{}}
+	uc := &UseCase{
+		TransactionReader: reader,
+		UUIDv7Generator:   orderedAtomicTransactionBatchUUIDs(t, batchID, firstTransactionID, secondTransactionID),
+		Clock: orderedAtomicTransactionBatchTimes(
+			t,
+			now, now, now,
+			now, now, now,
+		),
+	}
+
+	direct := atomicTransactionBatchItemInput(organizationID, ledgerID, "@direct-source", "@direct-destination")
+	direct.Action, direct.Order, direct.OriginalIndex = constant.ActionDirect, 1, 1
+	hold := atomicTransactionBatchItemInput(organizationID, ledgerID, "@hold-source", "@hold-destination")
+	hold.Action, hold.Order, hold.OriginalIndex = constant.ActionHold, 2, 0
+
+	run, err := uc.initializeAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
+		Transactions: []CreateAtomicTransactionBatchV2ItemInput{direct, hold},
+	})
+	require.NoError(t, err)
+	require.Len(t, run.items, 2)
+	assert.Equal(t, []int{1, 2}, []int{run.items[0].order, run.items[1].order})
+	assert.Equal(t, []int{1, 0}, []int{run.items[0].originalIndex, run.items[1].originalIndex})
+	assert.Equal(t, []string{constant.CREATED, constant.PENDING}, []string{run.items[0].status, run.items[1].status})
+	assert.False(t, run.items[0].input.Pending)
+	assert.True(t, run.items[1].input.Pending)
+}
+
+func TestValidateAtomicTransactionBatchItemCorrelation_RejectsIncompleteOrReorderedRevisedInput(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000081")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000082")
+	first := atomicTransactionBatchItemInput(organizationID, ledgerID, "@first-source", "@first-destination")
+	second := atomicTransactionBatchItemInput(organizationID, ledgerID, "@second-source", "@second-destination")
+
+	tests := []struct {
+		name  string
+		items []CreateAtomicTransactionBatchV2ItemInput
+	}{
+		{
+			name: "reordered execution order",
+			items: []CreateAtomicTransactionBatchV2ItemInput{
+				withAtomicTransactionBatchRevision(first, constant.ActionDirect, 2, 0),
+				withAtomicTransactionBatchRevision(second, constant.ActionHold, 1, 1),
+			},
+		},
+		{
+			name: "repeated original index",
+			items: []CreateAtomicTransactionBatchV2ItemInput{
+				withAtomicTransactionBatchRevision(first, constant.ActionDirect, 1, 0),
+				withAtomicTransactionBatchRevision(second, constant.ActionHold, 2, 0),
+			},
+		},
+		{
+			name: "unsupported action",
+			items: []CreateAtomicTransactionBatchV2ItemInput{
+				withAtomicTransactionBatchRevision(first, "commit", 1, 0),
+				withAtomicTransactionBatchRevision(second, constant.ActionHold, 2, 1),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Error(t, validateAtomicTransactionBatchItemCorrelation(tt.items))
+		})
+	}
+}
+
+func withAtomicTransactionBatchRevision(
+	item CreateAtomicTransactionBatchV2ItemInput,
+	action string,
+	order, originalIndex int,
+) CreateAtomicTransactionBatchV2ItemInput {
+	item.Action = action
+	item.Order = order
+	item.OriginalIndex = originalIndex
+
+	return item
+}
+
 func TestCreateAtomicTransactionBatchV2_PreservesOrderedResult(t *testing.T) {
 	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000031")
 	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000032")
@@ -444,6 +534,59 @@ func TestPrepareAtomicTransactionBatchItems_UsesOneSharedPoolAndIsolatesRoutes(t
 		atomicTransactionBatchSnapshotRefs(run.items[0].prepared.pool.Snapshots),
 		"@shared#default",
 	))
+}
+
+func TestPrepareAtomicTransactionBatchItems_PreparesMixedDirectAndHoldActions(t *testing.T) {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000091")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000092")
+	now := time.Date(2026, time.September, 16, 16, 0, 0, 0, time.UTC)
+	reader := &atomicTransactionBatchSettingsReader{
+		balances: []*mmodel.Balance{
+			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-000000000093", "@direct-source", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-000000000094", "@direct-destination", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-000000000095", "@hold-source", "BRL"),
+			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-000000000096", "@hold-destination", "BRL"),
+		},
+	}
+	uc := &UseCase{
+		TransactionReader: reader,
+		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
+			t,
+			uuid.MustParse("01994f13-29b7-7000-8000-000000000097"),
+			uuid.MustParse("01994f13-29b7-7000-8000-000000000098"),
+			uuid.MustParse("01994f13-29b7-7000-8000-000000000099"),
+			uuid.MustParse("01994f13-29b7-7000-8000-00000000009a"),
+		),
+		Clock: func() time.Time { return now },
+	}
+	direct := withAtomicTransactionBatchRevision(
+		atomicTransactionBatchItemInput(organizationID, ledgerID, "@direct-source", "@direct-destination"),
+		constant.ActionDirect,
+		1,
+		1,
+	)
+	hold := withAtomicTransactionBatchRevision(
+		atomicTransactionBatchItemInput(organizationID, ledgerID, "@hold-source", "@hold-destination"),
+		constant.ActionHold,
+		2,
+		0,
+	)
+	run, err := uc.initializeAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
+		Transactions: []CreateAtomicTransactionBatchV2ItemInput{direct, hold},
+	})
+	require.NoError(t, err)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(context.Background())
+	ctx, span := tracer.Start(context.Background(), "test.prepare_mixed_atomic_transaction_batch")
+	t.Cleanup(func() { span.End() })
+	require.NoError(t, uc.prepareAtomicTransactionBatchItems(ctx, span, logger, run))
+
+	assert.Equal(t, []string{constant.ActionDirect, constant.ActionHold}, []string{run.items[0].action, run.items[1].action})
+	assert.Equal(t, []string{constant.CREATED, constant.PENDING}, []string{run.items[0].status, run.items[1].status})
+	require.NotEmpty(t, run.items[0].prepared.transaction.Postings)
+	require.NotEmpty(t, run.items[1].prepared.transaction.Postings)
+	assert.Equal(t, accounting.PostingDebit, run.items[0].prepared.transaction.Postings[0].Type)
+	assert.Equal(t, accounting.PostingHold, run.items[1].prepared.transaction.Postings[0].Type)
+	assert.Equal(t, 1, reader.engineReads)
 }
 
 func TestCreateAtomicTransactionBatchV2_RejectsFirstCommonScopeMismatchBeforeExternalWork(t *testing.T) {

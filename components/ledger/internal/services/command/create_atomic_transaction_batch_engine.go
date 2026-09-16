@@ -182,9 +182,9 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 		atomicTransactionBatchReservationConfirmedAbort,
 	)
 
-	return outcome, withAtomicTransactionBatchItemError(
+	return outcome, withAtomicTransactionBatchRunItemError(
 		mapped,
-		failure.TransactionIndex,
+		&run.items[failure.TransactionIndex],
 		"accounting execution refused",
 	)
 }

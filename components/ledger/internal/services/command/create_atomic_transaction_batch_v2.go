@@ -32,24 +32,29 @@ type UUIDv7Generator func() (uuid.UUID, error)
 // Clock is the time seam used by ordered batch orchestration.
 type Clock func() time.Time
 
-// CreateAtomicTransactionBatchV2ItemInput is one direct-v2 transaction in the
-// exact request-array order. Scope is repeated deliberately: the command
-// defends the common-scope invariant even when called without the HTTP adapter.
+// CreateAtomicTransactionBatchV2ItemInput is one transaction in execution
+// order. Action, Order and OriginalIndex are optional only for compatibility
+// with the already-published direct-only batch route; the revised HTTP decoder
+// always supplies all three and has already sorted by Order.
 type CreateAtomicTransactionBatchV2ItemInput struct {
 	OrganizationID          uuid.UUID
 	LedgerID                uuid.UUID
 	Transaction             mtransaction.Transaction
 	AccountBlockExceptionID *uuid.UUID
+	Action                  string
+	Order                   int
+	OriginalIndex           int
 }
 
 // CreateAtomicTransactionBatchV2Input carries one ordered atomic request. The
 // canonical bytes and idempotency settings are retained for the batch-level
 // claim introduced by the later pre-publication phase.
 type CreateAtomicTransactionBatchV2Input struct {
-	Transactions     []CreateAtomicTransactionBatchV2ItemInput
-	CanonicalRequest []byte
-	IdempotencyKey   string
-	IdempotencyTTL   time.Duration
+	Transactions       []CreateAtomicTransactionBatchV2ItemInput
+	CanonicalRequest   []byte
+	RequestFingerprint string
+	IdempotencyKey     string
+	IdempotencyTTL     time.Duration
 }
 
 // CreateAtomicTransactionBatchV2Result preserves request order and carries the
@@ -86,6 +91,9 @@ type atomicTransactionBatchRun struct {
 // phases must consume at this same slice index.
 type atomicTransactionBatchItemRun struct {
 	index                   int
+	order                   int
+	originalIndex           int
+	revised                 bool
 	transactionID           uuid.UUID
 	transactionDate         time.Time
 	transactionCreatedAt    time.Time
@@ -237,6 +245,9 @@ func (uc *UseCase) initializeAtomicTransactionBatchIdentity(
 	if err != nil {
 		return nil, err
 	}
+	if err := validateAtomicTransactionBatchItemCorrelation(in.Transactions); err != nil {
+		return nil, err
+	}
 
 	if uc.UUIDv7Generator == nil {
 		return nil, errors.New("atomic transaction batch UUIDv7 generator is not configured")
@@ -299,7 +310,7 @@ func (uc *UseCase) initializeAtomicTransactionBatchItemsAndSettings(
 
 		item.transactionDate, err = resolveTransactionDateAt(item.input, item.status, item.transactionCreatedAt)
 		if err != nil {
-			return withAtomicTransactionBatchItemError(err, index, "transaction date validation failed")
+			return withAtomicTransactionBatchRunItemError(err, item, "transaction date validation failed")
 		}
 	}
 
@@ -318,7 +329,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchItems(
 		}
 
 		if err := uc.prepareAtomicTransactionBatchItem(ctx, span, logger, run, &run.items[index]); err != nil {
-			return withAtomicTransactionBatchItemError(err, index, "transaction preparation failed")
+			return withAtomicTransactionBatchRunItemError(err, &run.items[index], "transaction preparation failed")
 		}
 	}
 
@@ -364,7 +375,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 		&item.input,
 		run.organizationID,
 		run.ledgerID,
-		false,
+		item.input.Pending,
 		item.honoredFeeSkip,
 	); err != nil {
 		return err
@@ -425,7 +436,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchEngineItems(
 
 		item.prepared, err = uc.prepareEngineTransactionWithPool(readCtx, preparation, sharedPool)
 		if err != nil {
-			return withAtomicTransactionBatchItemError(err, index, "transaction preparation failed")
+			return withAtomicTransactionBatchRunItemError(err, item, "transaction preparation failed")
 		}
 	}
 
@@ -500,12 +511,49 @@ func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2I
 	return organizationID, ledgerID, nil
 }
 
+func validateAtomicTransactionBatchItemCorrelation(items []CreateAtomicTransactionBatchV2ItemInput) error {
+	revised := false
+	for _, item := range items {
+		if item.Action != "" || item.Order != 0 || item.OriginalIndex != 0 {
+			revised = true
+			break
+		}
+	}
+	if !revised {
+		return nil
+	}
+
+	seenOriginalIndexes := make(map[int]struct{}, len(items))
+	for index, item := range items {
+		if item.Order != index+1 {
+			return fmt.Errorf("atomic transaction batch item %d order must be %d", index, index+1)
+		}
+		if item.OriginalIndex < 0 || item.OriginalIndex >= len(items) {
+			return fmt.Errorf("atomic transaction batch item %d has invalid original index %d", index, item.OriginalIndex)
+		}
+		if _, exists := seenOriginalIndexes[item.OriginalIndex]; exists {
+			return fmt.Errorf("atomic transaction batch item %d repeats original index %d", index, item.OriginalIndex)
+		}
+		seenOriginalIndexes[item.OriginalIndex] = struct{}{}
+		if item.Action != constant.ActionDirect && item.Action != constant.ActionHold {
+			return fmt.Errorf("atomic transaction batch item %d has unsupported action %q", index, item.Action)
+		}
+	}
+
+	return nil
+}
+
 func initializeAtomicTransactionBatchItem(
 	in CreateAtomicTransactionBatchV2ItemInput,
 	index int,
 	generateUUIDv7 UUIDv7Generator,
 	cursor *atomicTransactionBatchTimestampCursor,
 ) (atomicTransactionBatchItemRun, error) {
+	action := in.Action
+	if action == "" {
+		action = constant.ActionDirect
+	}
+
 	transactionID, err := generateUUIDv7()
 	if err != nil {
 		return atomicTransactionBatchItemRun{}, fmt.Errorf("generate atomic transaction batch item %d id: %w", index, err)
@@ -519,6 +567,7 @@ func initializeAtomicTransactionBatchItem(
 	if err != nil {
 		return atomicTransactionBatchItemRun{}, fmt.Errorf("clone atomic transaction batch item %d: %w", index, err)
 	}
+	input.Pending = action == constant.ActionHold
 
 	createdAt, err := cursor.next()
 	if err != nil {
@@ -537,14 +586,45 @@ func initializeAtomicTransactionBatchItem(
 
 	return atomicTransactionBatchItemRun{
 		index:                   index,
+		order:                   atomicTransactionBatchItemOrder(in, index),
+		originalIndex:           atomicTransactionBatchItemOriginalIndex(in, index),
+		revised:                 atomicTransactionBatchItemIsRevised(in),
 		transactionID:           transactionID,
 		transactionCreatedAt:    createdAt,
 		transactionUpdatedAt:    updatedAt,
 		operationUpdatedAt:      operationUpdatedAt,
 		input:                   input,
-		status:                  constant.CREATED,
+		status:                  atomicTransactionBatchActionInitialStatus(action),
 		accountBlockExceptionID: cloneUUIDPointer(in.AccountBlockExceptionID),
 	}, nil
+}
+
+func atomicTransactionBatchItemOrder(in CreateAtomicTransactionBatchV2ItemInput, index int) int {
+	if in.Order == 0 {
+		return index + 1
+	}
+
+	return in.Order
+}
+
+func atomicTransactionBatchItemOriginalIndex(in CreateAtomicTransactionBatchV2ItemInput, index int) int {
+	if !atomicTransactionBatchItemIsRevised(in) {
+		return index
+	}
+
+	return in.OriginalIndex
+}
+
+func atomicTransactionBatchItemIsRevised(in CreateAtomicTransactionBatchV2ItemInput) bool {
+	return in.Action != "" || in.Order != 0 || in.OriginalIndex != 0
+}
+
+func atomicTransactionBatchActionInitialStatus(action string) string {
+	if action == constant.ActionHold {
+		return constant.PENDING
+	}
+
+	return constant.CREATED
 }
 
 type atomicTransactionBatchTimestampCursor struct {
@@ -607,6 +687,20 @@ func withAtomicTransactionBatchItemError(primary error, index int, message strin
 	return pkg.WithFieldErrors(primary, []pkg.FieldError{{
 		Location: fmt.Sprintf("body.transactions[%d]", index),
 		Message:  message,
+	}})
+}
+
+func withAtomicTransactionBatchRunItemError(primary error, item *atomicTransactionBatchItemRun, message string) error {
+	if item == nil {
+		return primary
+	}
+	if !item.revised {
+		return withAtomicTransactionBatchItemError(primary, item.originalIndex, message)
+	}
+
+	return pkg.WithFieldErrors(primary, []pkg.FieldError{{
+		Location: fmt.Sprintf("body.transactions[%d]", item.originalIndex),
+		Message:  fmt.Sprintf("Transaction order %d: %s", item.order, message),
 	}})
 }
 

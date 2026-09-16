@@ -127,8 +127,11 @@ func atomicTransactionBatchRequestIdentity(in CreateAtomicTransactionBatchV2Inpu
 		canonical = encoded
 	}
 
-	digest := sha256.Sum256(canonical)
-	fingerprint := hex.EncodeToString(digest[:])
+	fingerprint := in.RequestFingerprint
+	if fingerprint == "" {
+		digest := sha256.Sum256(canonical)
+		fingerprint = hex.EncodeToString(digest[:])
+	}
 
 	effectiveKey := strings.TrimSpace(in.IdempotencyKey)
 	if effectiveKey == "" {
