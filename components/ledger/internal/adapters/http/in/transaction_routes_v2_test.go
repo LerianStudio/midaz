@@ -28,6 +28,8 @@ import (
 
 const directV2RoutePath = "/v2/transactions/direct"
 
+const atomicBatchV2RoutePath = "/v2/transactions/direct/batch"
+
 const holdV2RoutePath = "/v2/transactions/hold"
 
 const blockV2RoutePath = "/v2/transactions/block"
@@ -62,6 +64,9 @@ var v2Routes = []struct {
 	// bodySchema is the component name the op's request body $refs, or empty when the
 	// op advertises no request body at all.
 	bodySchema string
+	// responseSchema overrides the singular TransactionV2 response component for
+	// operations that intentionally return a wrapper.
+	responseSchema string
 }{
 	{
 		action:      "direct",
@@ -78,6 +83,15 @@ var v2Routes = []struct {
 		operationID: "createTransactionHoldV2",
 		hasBody:     true,
 		bodySchema:  v2CreateBodySchemaName,
+	},
+	{
+		action:         "atomic direct batch",
+		fiberPath:      atomicBatchV2RoutePath,
+		opPath:         "/transactions/direct/batch",
+		operationID:    v2AtomicTransactionBatchOperationID,
+		hasBody:        true,
+		bodySchema:     v2AtomicTransactionBatchRequestSchemaName,
+		responseSchema: v2AtomicTransactionBatchResponseSchemaName,
 	},
 	{
 		action:      "block",
@@ -288,7 +302,7 @@ func TestV2CreateOps_ContractPathsSitBehindTheGuardChain(t *testing.T) {
 	// revert, whose OPTIONAL account-block-exception body makes them body-carrying too.
 	// Which schema each one publishes, and whether its body is required, is asserted
 	// independently by the body-schema test. Cancel advertises none.
-	contractBodyPaths := make([]string, 0, len(v2CreateActions)+len(v2LifecycleBodyOperationIDs))
+	contractBodyPaths := make([]string, 0, len(v2CreateActions)+len(v2LifecycleBodyOperationIDs)+1)
 
 	for opPath, item := range oapi.Paths {
 		if item.Post != nil && item.Post.RequestBody != nil {
@@ -296,8 +310,8 @@ func TestV2CreateOps_ContractPathsSitBehindTheGuardChain(t *testing.T) {
 		}
 	}
 
-	require.Len(t, contractBodyPaths, len(v2CreateActions)+len(v2LifecycleBodyOperationIDs),
-		"the contract must advertise one body-carrying op per v2 create action, plus commit and revert")
+	require.Len(t, contractBodyPaths, len(v2CreateActions)+len(v2LifecycleBodyOperationIDs)+1,
+		"the contract must advertise one body-carrying op per singular v2 create action, the atomic batch, plus commit and revert")
 
 	for _, opPath := range contractBodyPaths {
 		t.Run(opPath, func(t *testing.T) {
@@ -417,9 +431,11 @@ const (
 
 	// v2LifecycleBodySchemaName is the component the OPTIONAL commit/revert body is
 	// published under, spelled literally for the same reason.
-	v2LifecycleBodySchemaName = "LifecycleV2Input"
-	v2LegSchemaName           = "V2LegInput"
-	v2ShareSchemaName         = "V2ShareInput"
+	v2LifecycleBodySchemaName                  = "LifecycleV2Input"
+	v2LegSchemaName                            = "V2LegInput"
+	v2ShareSchemaName                          = "V2ShareInput"
+	v2AtomicTransactionBatchRequestSchemaName  = "CreateAtomicTransactionBatchV2Request"
+	v2AtomicTransactionBatchResponseSchemaName = "CreateAtomicTransactionBatchV2Response"
 
 	// v1ResponseSchemaName is the component the v1 ops answer with. The v2 one is
 	// v2TransactionSchemaName, declared once in transaction_output_v2_test.go: a second
@@ -458,6 +474,11 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 			pathItem, ok := oapi.Paths[rt.opPath]
 			require.Truef(t, ok, "v2 contract should carry the %s op path %q", rt.action, rt.opPath)
 
+			wantResponseSchema := v2TransactionSchemaName
+			if rt.responseSchema != "" {
+				wantResponseSchema = rt.responseSchema
+			}
+
 			for status, resp := range pathItem.Post.Responses {
 				if !strings.HasPrefix(status, "2") {
 					continue
@@ -465,7 +486,7 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 
 				media, ok := resp.Content["application/json"]
 				require.Truef(t, ok, "%s %s should answer application/json", rt.action, status)
-				assert.Equalf(t, "#/components/schemas/"+v2TransactionSchemaName, media.Schema.Ref,
+				assert.Equalf(t, "#/components/schemas/"+wantResponseSchema, media.Schema.Ref,
 					"%s should answer with the v2 response component", rt.action)
 			}
 		})

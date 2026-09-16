@@ -23,8 +23,9 @@ import (
 )
 
 // This file is the v2 transaction contract seam (filename-suffix
-// versioning — v1 files are left untouched). It registers the v2 `direct`, `hold`,
-// `block`, `unblock`, `commit`, `cancel`, and `revert` transaction ops onto the /v2
+// versioning — v1 files are left untouched). It registers the v2 `direct`, atomic
+// `direct/batch`, `hold`, `block`, `unblock`, `commit`, `cancel`, and `revert`
+// transaction ops onto the /v2
 // version group of the shared Huma contract and attaches
 // the SAME Fiber auth chain the v1 transaction ops carry (protectedMidaz,
 // authz namespace "midaz", (resource, verb) = ("transactions","post")). No new
@@ -50,8 +51,9 @@ import (
 // not a native Huma 422.
 
 // RegisterTransactionV2Routes registers the v2 transaction ops on the /v2 version
-// group of the shared Huma API. It registers the create ops `direct`, `hold`, `block`, and `unblock` on the
-// scope-free create path, plus the lifecycle ops `commit`, `cancel`, and `revert`
+// group of the shared Huma API. It registers the singular create ops `direct`, `hold`,
+// `block`, and `unblock` plus the dedicated atomic `direct/batch` op on the scope-free
+// create path, and the lifecycle ops `commit`, `cancel`, and `revert`
 // (by organization, ledger and transaction_id).
 // The lifecycle ops are thin v2 shells over the SAME transport-neutral core the v1 shells
 // call — no idempotency HEADERS, since they carry no headers. Auth is the Fiber
@@ -80,6 +82,18 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 			DefaultStatus:    http.StatusCreated,
 		}, action.terminal(h))
 	}
+
+	huma.Register(api, huma.Operation{
+		OperationID:      v2AtomicTransactionBatchOperationID,
+		Method:           http.MethodPost,
+		Path:             v2AtomicTransactionBatchPath,
+		Summary:          "Create an atomic batch of direct Transactions (v2)",
+		Tags:             []string{transactionsTag},
+		Security:         secTransactionBearer,
+		SkipValidateBody: true,
+		MaxBodyBytes:     v2CreateMaxBodyBytes,
+		DefaultStatus:    http.StatusCreated,
+	}, h.CreateAtomicTransactionBatchV2)
 
 	huma.Register(api, huma.Operation{
 		OperationID:      "commitTransactionV2",
@@ -114,6 +128,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	}, h.RevertTransactionV2)
 
 	publishV2CreateBodySchema(api)
+	attachTypedRequestBody[CreateAtomicTransactionBatchV2Request](api, v2AtomicTransactionBatchOperationID)
 	publishV2LifecycleBodySchema(api)
 }
 
@@ -143,9 +158,13 @@ func publishV2LifecycleBodySchema(api huma.API) {
 // one spelling between them, not two that have to be kept equal.
 const v2CreateBasePath = "/transactions"
 
+const (
+	v2AtomicTransactionBatchPath        = v2CreateBasePath + "/direct/batch"
+	v2AtomicTransactionBatchOperationID = "createAtomicTransactionBatchV2"
+)
+
 // v2CreateBodyContentType is the media type the v2 create ops accept, matching the
-// `contentType` tag on CreateTransactionInputV2.RawBody — the key Huma files the
-// request body under.
+// `contentType` tags on their RawBody fields — the key Huma files each request body under.
 const v2CreateBodyContentType = "application/json"
 
 // v2CreateTerminal is the shape every v2 create terminal shares. All four actions accept the
@@ -385,8 +404,8 @@ func rejectOversizedV2Body(c fiber.Ctx) error {
 	})
 }
 
-// RegisterTransactionV2RoutesToApp wires the v2 `direct`, `hold`, `block`, `unblock`,
-// `commit`, `cancel`, and `revert` ops end-to-end: it attaches the Fiber auth chain —
+// RegisterTransactionV2RoutesToApp wires the v2 `direct`, atomic `direct/batch`, `hold`,
+// `block`, `unblock`, `commit`, `cancel`, and `revert` ops end-to-end: it attaches the Fiber auth chain —
 // auth.Authorize("midaz","transactions","post") + the tenant PostAuthMiddlewares (plus
 // ParseUUIDPathParameters("transaction") on the routes that carry path UUIDs) — as
 // MIDDLEWARE ONLY (group-relative path, no terminal) on the /v2 GROUP, then registers the
@@ -416,6 +435,9 @@ func RegisterTransactionV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 		routePost(group, v2CreateBasePath+action.suffix,
 			protectedMidaz(auth, "transactions", "post", routeOptions, v2CreateBodyLimit))
 	}
+
+	routePost(group, v2AtomicTransactionBatchPath,
+		protectedMidaz(auth, "transactions", "post", routeOptions, v2CreateBodyLimit))
 
 	routePost(group, transactionsIDChainPath+"/commit", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
 	routePost(group, transactionsIDChainPath+"/cancel", protectedMidaz(auth, "transactions", "post", routeOptions, parse))
