@@ -188,6 +188,25 @@ func TestIdempotencyInternalKey(t *testing.T) {
 	}
 }
 
+func TestAtomicTransactionBatchIdempotencyInternalKey(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	clientKey := "customer-visible-secret"
+
+	result := AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID, clientKey)
+
+	assert.Equal(
+		t,
+		"idempotency_atomic_batch:{550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8}:"+
+			"dc591983169a0714d6c0a565682e558a5819d4a2eb946005a0d8a29eb8c4d3d4",
+		result,
+	)
+	assert.NotContains(t, result, clientKey)
+	assert.NotEqual(t, IdempotencyInternalKey(organizationID, ledgerID, clientKey), result)
+}
+
 func TestAccountingRoutesInternalKey(t *testing.T) {
 	t.Parallel()
 

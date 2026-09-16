@@ -5,6 +5,8 @@
 package utils
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 
 	"github.com/google/uuid"
@@ -195,6 +197,32 @@ func IdempotencyInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 	builder.WriteString(keySeparator)
 	builder.WriteString(key)
 	builder.WriteString(endKey)
+
+	return builder.String()
+}
+
+// AtomicTransactionBatchIdempotencyInternalKey returns the private Redis key
+// used by atomic transaction batches. The effective client key is always hashed
+// before entering the namespace, so raw idempotency keys never become Redis key
+// material. The batch discriminator keeps this format isolated from singular
+// transaction idempotency, while the organization/ledger hash tag leaves room
+// for atomic batch-record and execution-index operations in one cluster slot.
+func AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID uuid.UUID, effectiveKey string) string {
+	digest := sha256.Sum256([]byte(effectiveKey))
+	hashedKey := hex.EncodeToString(digest[:])
+
+	var builder strings.Builder
+	builder.Grow(166) // "idempotency_atomic_batch:{" + 2×UUID + "}:" + SHA-256 hex
+
+	builder.WriteString("idempotency_atomic_batch")
+	builder.WriteString(keySeparator)
+	builder.WriteString(beginningKey)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(endKey)
+	builder.WriteString(keySeparator)
+	builder.WriteString(hashedKey)
 
 	return builder.String()
 }
