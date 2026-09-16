@@ -132,24 +132,40 @@ func defaultOnboardingPostgresConnector(cfg *Config, logger libLog.Logger) (*lib
 // buildOnboardingPostgresConnection creates a PostgresConnection for the onboarding domain
 // using DB_ONBOARDING_* env vars.
 func buildOnboardingPostgresConnection(cfg *Config, logger libLog.Logger) (*libPostgres.Client, error) {
-	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.OnbPrefixedPrimaryDBHost, cfg.OnbPrefixedPrimaryDBUser, cfg.OnbPrefixedPrimaryDBPassword,
-		cfg.OnbPrefixedPrimaryDBName, cfg.OnbPrefixedPrimaryDBPort, cfg.OnbPrefixedPrimaryDBSSLMode)
+	pgCfg, err := newOnboardingPostgresConfig(cfg, logger)
+	if err != nil {
+		return nil, err
+	}
 
-	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
-		cfg.OnbPrefixedReplicaDBHost, cfg.OnbPrefixedReplicaDBUser, cfg.OnbPrefixedReplicaDBPassword,
-		cfg.OnbPrefixedReplicaDBName, cfg.OnbPrefixedReplicaDBPort, cfg.OnbPrefixedReplicaDBSSLMode)
-
-	conn, err := libPostgres.New(libPostgres.Config{
-		PrimaryDSN:         postgreSourcePrimary,
-		ReplicaDSN:         postgreSourceReplica,
-		Logger:             logger,
-		MaxOpenConnections: cfg.OnbPrefixedMaxOpenConnections,
-		MaxIdleConnections: cfg.OnbPrefixedMaxIdleConnections,
-	})
+	conn, err := libPostgres.New(pgCfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return conn, nil
+}
+
+// newOnboardingPostgresConfig translates the onboarding DB_ONBOARDING_* settings into the
+// lib-commons postgres config. The replica DSN is optional: absent replica
+// settings yield an empty ReplicaDSN so lib-commons opens a single pool on the
+// primary, while a partially set replica is a configuration error.
+func newOnboardingPostgresConfig(cfg *Config, logger libLog.Logger) (libPostgres.Config, error) {
+	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.OnbPrefixedPrimaryDBHost, cfg.OnbPrefixedPrimaryDBUser, cfg.OnbPrefixedPrimaryDBPassword,
+		cfg.OnbPrefixedPrimaryDBName, cfg.OnbPrefixedPrimaryDBPort, cfg.OnbPrefixedPrimaryDBSSLMode)
+
+	postgreSourceReplica, err := buildOptionalReplicaDSN(constant.ModuleOnboarding,
+		cfg.OnbPrefixedReplicaDBHost, cfg.OnbPrefixedReplicaDBUser, cfg.OnbPrefixedReplicaDBPassword,
+		cfg.OnbPrefixedReplicaDBName, cfg.OnbPrefixedReplicaDBPort, cfg.OnbPrefixedReplicaDBSSLMode)
+	if err != nil {
+		return libPostgres.Config{}, err
+	}
+
+	return libPostgres.Config{
+		PrimaryDSN:         postgreSourcePrimary,
+		ReplicaDSN:         postgreSourceReplica,
+		Logger:             logger,
+		MaxOpenConnections: cfg.OnbPrefixedMaxOpenConnections,
+		MaxIdleConnections: cfg.OnbPrefixedMaxIdleConnections,
+	}, nil
 }
