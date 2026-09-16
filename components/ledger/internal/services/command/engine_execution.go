@@ -29,12 +29,13 @@ type PreparedEngineExecution struct {
 	CompletionPlans []TransactionCompletionPlan
 }
 
-// EngineExecutionOutcome preserves the prepared input and any result
-// returned by its single atomic execution.
+// EngineExecutionOutcome preserves the prepared input, global result and
+// validated per-transaction partitions from its single atomic execution.
 type EngineExecutionOutcome struct {
-	Prepared PreparedEngineExecution
-	Result   *accounting.ExecutionResult
-	Executed bool
+	Prepared   PreparedEngineExecution
+	Result     *accounting.ExecutionResult
+	Partitions []accounting.ExecutionResult
+	Executed   bool
 }
 
 // ExecutePreparedEngine executes a prepared request exactly once. Live
@@ -75,15 +76,11 @@ func ExecutePreparedEngine(
 		return outcome, invalidEngineResult(errors.New("executor returned a nil result"))
 	}
 
-	// The existing singular path retains its strict result validation. Batch
-	// result partitioning and per-plan validation are added at the dedicated
-	// partition boundary so a global multi-transaction result is never matched
-	// against one plan as though it were singular.
-	if len(prepared.CompletionPlans) == 1 {
-		if _, validationErr := validateOperationMovementResult(prepared.CompletionPlans[0], *result); validationErr != nil {
-			return outcome, invalidEngineResult(validationErr)
-		}
+	partitions, validationErr := partitionValidatedEngineResult(prepared, *result)
+	if validationErr != nil {
+		return outcome, invalidEngineResult(validationErr)
 	}
+	outcome.Partitions = partitions
 
 	return outcome, nil
 }
