@@ -42,6 +42,13 @@ type AtomicTransactionBatchIdempotencyRepository interface {
 		effectiveKey, ownerToken string,
 		next txRedis.AtomicTransactionBatchIdempotencyRecord,
 	) (*txRedis.AtomicTransactionBatchTransitionResult, error)
+	FinalizeAtomicTransactionBatch(
+		ctx context.Context,
+		organizationID, ledgerID, executionID uuid.UUID,
+		ownerToken string,
+		transactions map[uuid.UUID]json.RawMessage,
+		replayTTL time.Duration,
+	) (*txRedis.AtomicTransactionBatchFinalizationResult, error)
 	AbortAtomicTransactionBatchConfirmedRefusal(
 		ctx context.Context,
 		organizationID, ledgerID uuid.UUID,

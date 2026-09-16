@@ -930,6 +930,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// through the narrow TransactionReader port, satisfied directly by the query
 	// UseCase (signatures match), so command never imports the query package.
 	commandUseCase.TransactionReader = queryUseCase
+	commandUseCase.AtomicTransactionBatchProjectionReader = queryUseCase
 
 	// === CRM domain metrics (D6) ===
 	// The holder and instrument handlers share the SAME CRM use-case instance,

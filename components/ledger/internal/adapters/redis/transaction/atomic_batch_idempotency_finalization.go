@@ -40,6 +40,34 @@ type AtomicTransactionBatchExecutionLookupResult struct {
 	Record AtomicTransactionBatchIdempotencyRecord
 }
 
+// AtomicTransactionBatchFinalizationCandidateResult describes whether the
+// current durable member can be the execution's finalization trigger. The raw
+// receipt is an optimistic token: the ACK/finalization script must observe the
+// same bytes before it may seal the response.
+type AtomicTransactionBatchFinalizationCandidateResult struct {
+	Record       AtomicTransactionBatchIdempotencyRecord
+	Candidate    bool
+	ReceiptToken string
+}
+
+type atomicTransactionBatchReceipt struct {
+	FormatVersion     int                                     `json:"formatVersion"`
+	OrganizationID    uuid.UUID                               `json:"organizationId"`
+	LedgerID          uuid.UUID                               `json:"ledgerId"`
+	ExecutionID       uuid.UUID                               `json:"executionId"`
+	IntentFingerprint string                                  `json:"intentFingerprint"`
+	Protection        atomicTransactionBatchReceiptProtection `json:"protection"`
+}
+
+type atomicTransactionBatchReceiptProtection struct {
+	FormatVersion         int              `json:"formatVersion"`
+	RetentionSeconds      int64            `json:"retentionSeconds"`
+	Transactions          []uuid.UUID      `json:"transactions"`
+	RecoveryFields        []string         `json:"recoveryFields"`
+	Acknowledged          map[string]bool  `json:"acknowledged"`
+	TerminalCompletedAtMS map[string]int64 `json:"terminalCompletedAtMs"`
+}
+
 type AtomicTransactionBatchFinalizationOutcome string
 
 const (
@@ -143,6 +171,111 @@ func (rr *RedisConsumerRepository) GetAtomicTransactionBatchByExecutionID(
 	return &AtomicTransactionBatchExecutionLookupResult{Record: *record}, nil
 }
 
+// GetAtomicTransactionBatchFinalizationCandidate resolves the execution index
+// and checks the frozen receipt proof before the caller performs the one
+// bounded durable-projection read. A false candidate still identifies a batch:
+// its current member may be acknowledged, while the atomic ACK script protects
+// the race in which that member becomes the last outstanding trigger.
+func (rr *RedisConsumerRepository) GetAtomicTransactionBatchFinalizationCandidate(
+	ctx context.Context,
+	organizationID, ledgerID, executionID, transactionID uuid.UUID,
+) (*AtomicTransactionBatchFinalizationCandidateResult, error) {
+	_, record, err := rr.getAtomicTransactionBatchByExecutionID(ctx, organizationID, ledgerID, executionID)
+	if err != nil || record == nil {
+		return nil, err
+	}
+
+	result := &AtomicTransactionBatchFinalizationCandidateResult{Record: *record}
+	if record.State == AtomicTransactionBatchStateComplete {
+		return result, nil
+	}
+
+	receiptKey, err := tenantKeyFromContextOrError(
+		ctx,
+		atomicTransactionBatchEngineReceiptInternalKey(organizationID, ledgerID),
+	)
+	if err != nil {
+		return nil, err
+	}
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	receiptRaw, err := rds.HGet(ctx, receiptKey, executionID.String()).Result()
+	if errors.Is(err, redisclient.Nil) {
+		return nil, errors.New("atomic transaction batch execution receipt is missing")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get atomic transaction batch execution receipt: %w", err)
+	}
+
+	var receipt atomicTransactionBatchReceipt
+	if err := json.Unmarshal([]byte(receiptRaw), &receipt); err != nil {
+		return nil, fmt.Errorf("decode atomic transaction batch execution receipt: %w", err)
+	}
+	if err := validateAtomicTransactionBatchReceipt(
+		receipt,
+		*record,
+		organizationID,
+		ledgerID,
+		executionID,
+		transactionID,
+	); err != nil {
+		return nil, err
+	}
+
+	result.Candidate = true
+	for _, memberID := range receipt.Protection.Transactions {
+		if memberID == transactionID {
+			continue
+		}
+		member := memberID.String()
+		if !receipt.Protection.Acknowledged[member] || receipt.Protection.TerminalCompletedAtMS[member] < 1 {
+			result.Candidate = false
+			break
+		}
+	}
+	if result.Candidate {
+		result.ReceiptToken = receiptRaw
+	}
+
+	return result, nil
+}
+
+func validateAtomicTransactionBatchReceipt(
+	receipt atomicTransactionBatchReceipt,
+	record AtomicTransactionBatchIdempotencyRecord,
+	organizationID, ledgerID, executionID, transactionID uuid.UUID,
+) error {
+	protection := receipt.Protection
+	if receipt.FormatVersion != 1 || receipt.OrganizationID != organizationID ||
+		receipt.LedgerID != ledgerID || receipt.ExecutionID != executionID ||
+		receipt.IntentFingerprint == "" ||
+		protection.FormatVersion != 1 || protection.RetentionSeconds < 1 ||
+		protection.RetentionSeconds > 604800 || len(protection.Transactions) == 0 ||
+		len(protection.Transactions) != len(record.TransactionIDs) ||
+		len(protection.RecoveryFields) != len(record.TransactionIDs) ||
+		protection.Acknowledged == nil || protection.TerminalCompletedAtMS == nil {
+		return errors.New("atomic transaction batch execution receipt is invalid")
+	}
+
+	foundCurrent := false
+	for index, memberID := range record.TransactionIDs {
+		if protection.Transactions[index] != memberID ||
+			protection.RecoveryFields[index] != memberID.String()+":"+executionID.String() {
+			return errors.New("atomic transaction batch execution receipt membership differs")
+		}
+		if memberID == transactionID {
+			foundCurrent = true
+		}
+	}
+	if !foundCurrent {
+		return errors.New("atomic transaction batch recovery member is not indexed")
+	}
+
+	return nil
+}
+
 // FinalizeAtomicTransactionBatch reconstructs the public response by walking
 // the stored transaction ID slice. Map iteration can therefore never change
 // response order. Record and execution index receive the replay TTL together.
@@ -160,8 +293,8 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 	if strings.TrimSpace(ownerToken) == "" {
 		return nil, errors.New("atomic transaction batch finalization owner token is required")
 	}
-	if replayTTL <= 0 {
-		return nil, errors.New("atomic transaction batch finalization requires a positive replay TTL")
+	if replayTTL < 0 {
+		return nil, errors.New("atomic transaction batch finalization replay TTL cannot be negative")
 	}
 
 	recordKey, record, err := rr.getAtomicTransactionBatchByExecutionID(
@@ -200,6 +333,13 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 	if err != nil {
 		return nil, err
 	}
+	receiptKey, err := tenantKeyFromContextOrError(
+		ctx,
+		atomicTransactionBatchEngineReceiptInternalKey(organizationID, ledgerID),
+	)
+	if err != nil {
+		return nil, err
+	}
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		return nil, err
@@ -207,11 +347,13 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 	raw, err := finalizeAtomicTransactionBatchScript.Run(
 		ctx,
 		rds,
-		[]string{recordKey, indexKey},
+		[]string{recordKey, indexKey, receiptKey},
 		ownerToken,
 		executionID.String(),
 		string(payload),
 		strconv.FormatInt(int64(replayTTL), 10),
+		organizationID.String(),
+		ledgerID.String(),
 	).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to finalize atomic batch", err)

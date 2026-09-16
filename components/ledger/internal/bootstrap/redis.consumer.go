@@ -112,6 +112,9 @@ func (completer *tenantAppliedTransactionCompleter) resolveContext(ctx context.C
 	if !completer.multiTenantEnabled {
 		return ctx, nil
 	}
+	if tmcore.GetMBContext(ctx) != nil && tmcore.GetMBContext(ctx, constant.ModuleTransaction) != nil {
+		return ctx, nil
+	}
 
 	tenantID := tmcore.GetTenantIDContext(ctx)
 	if tenantID == "" || record == nil || record.TenantID != tenantID {

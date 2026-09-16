@@ -33,6 +33,7 @@ func (uc *UseCase) completeAtomicTransactionBatch(
 	}
 
 	transactions := make([]*transaction.Transaction, len(records))
+	completions := make([]TransactionCompletionResult, len(records))
 	for index := range records {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -62,14 +63,23 @@ func (uc *UseCase) completeAtomicTransactionBatch(
 			return nil, invalidTransactionCompletionRecord("atomic batch completer returned a mismatched transaction")
 		}
 
-		uc.acknowledgeEngineRecovery(ctx, logger, records[index], completion)
-
 		if run.items[index].status == constant.CREATED {
 			created := constant.CREATED
 			tran.Status = transaction.Status{Code: created, Description: &created}
 		}
 		transactions[index] = tran
+		completions[index] = completion
+
+		if index < len(records)-1 {
+			uc.acknowledgeEngineRecovery(ctx, logger, records[index], completion)
+		}
 	}
+
+	if err := uc.finalizeAtomicTransactionBatch(ctx, run, transactions); err != nil {
+		return nil, err
+	}
+	last := len(records) - 1
+	uc.acknowledgeEngineRecovery(ctx, logger, records[last], completions[last])
 
 	return transactions, nil
 }

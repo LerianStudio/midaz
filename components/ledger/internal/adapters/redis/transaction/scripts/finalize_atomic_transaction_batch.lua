@@ -1,3 +1,7 @@
+if #KEYS ~= 3 or #ARGV ~= 6 then
+    return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_ARGUMENTS_INVALID")
+end
+
 local indexTarget = redis.call("GET", KEYS[2])
 if not indexTarget then
     return {"missing", ""}
@@ -50,6 +54,27 @@ if cjson.encode(currentRecord.transactionIds) ~= cjson.encode(nextRecord.transac
 end
 
 local replayTTL = tonumber(ARGV[4])
+if replayTTL == 0 then
+    local receiptRaw = redis.call("HGET", KEYS[3], ARGV[2])
+    if not receiptRaw then
+        return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_RECEIPT_MISSING")
+    end
+
+    local receiptDecoded, receipt = pcall(cjson.decode, receiptRaw)
+    if not receiptDecoded or type(receipt) ~= "table" or
+       receipt.formatVersion ~= 1 or receipt.organizationId ~= ARGV[5] or
+       receipt.ledgerId ~= ARGV[6] or receipt.executionId ~= ARGV[2] or
+       type(receipt.protection) ~= "table" or receipt.protection.formatVersion ~= 1 or
+       type(receipt.protection.retentionSeconds) ~= "number" or
+       receipt.protection.retentionSeconds < 1 or receipt.protection.retentionSeconds > 604800 or
+       receipt.protection.retentionSeconds % 1 ~= 0 or
+       type(receipt.protection.transactions) ~= "table" or
+       cjson.encode(receipt.protection.transactions) ~= cjson.encode(currentRecord.transactionIds) then
+        return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_RECEIPT_INVALID")
+    end
+
+    replayTTL = receipt.protection.retentionSeconds
+end
 if not replayTTL or replayTTL <= 0 then
     return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_TTL_INVALID")
 end

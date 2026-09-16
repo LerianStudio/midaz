@@ -117,6 +117,7 @@ func TestCreateAtomicTransactionBatchV2_CompletesAndAcknowledgesPartitionsInOrde
 		}
 	}
 	assert.Equal(t, 1, repository.handoffs)
+	assert.Equal(t, 1, repository.finalizations)
 	require.Len(t, engine.executions, 1)
 }
 
@@ -160,7 +161,50 @@ func TestCreateAtomicTransactionBatchV2_CompletionFailureLeavesLaterRecordsForRe
 	require.Len(t, acknowledgmentDelegate.records, 1)
 	assert.Equal(t, transactionIDs[0], acknowledgmentDelegate.records[0].TransactionID)
 	assert.Equal(t, 1, repository.handoffs)
+	assert.Zero(t, repository.finalizations)
 	assert.Zero(t, repository.aborts)
 	assert.Zero(t, repository.deletes)
 	require.Len(t, engine.executions, 1, "completion failure must never retry accounting")
+}
+
+func TestCreateAtomicTransactionBatchV2_FinalizationFailureRetainsLastRecoveryRecord(t *testing.T) {
+	cause := errors.New("terminal idempotency unavailable")
+	repository := &atomicTransactionBatchClaimRepositoryFake{finalizationErr: cause}
+	engine := &applyingAtomicTransactionBatchEngine{t: t}
+	reserver := atomicTransactionBatchExecutionReserver()
+	uc, input, transactionIDs, _ := atomicTransactionBatchExecutionFixture(
+		t,
+		repository,
+		engine,
+		reserver,
+	)
+
+	order := make([]string, 0, len(transactionIDs)*2)
+	completionDelegate := &createAppliedTransactionCompleter{
+		outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
+	}
+	acknowledgmentDelegate := &recordingEngineRecoveryAcknowledger{}
+	uc.AppliedTransactionCompleter = &orderedAtomicTransactionBatchCompleter{
+		delegate: completionDelegate,
+		order:    &order,
+		failAt:   -1,
+	}
+	uc.EngineRecoveryAcknowledger = &orderedAtomicTransactionBatchAcknowledger{
+		delegate: acknowledgmentDelegate,
+		order:    &order,
+	}
+
+	result, err := uc.CreateAtomicTransactionBatchV2(context.Background(), input)
+	require.ErrorIs(t, err, cause)
+	assert.Nil(t, result)
+	assert.Equal(t, []string{
+		"complete:" + transactionIDs[0].String(),
+		"ack:" + transactionIDs[0].String(),
+		"complete:" + transactionIDs[1].String(),
+	}, order)
+	assert.Equal(t, 1, repository.finalizations)
+	require.Len(t, completionDelegate.envelopes, len(transactionIDs))
+	require.Len(t, acknowledgmentDelegate.records, 1)
+	assert.Equal(t, transactionIDs[0], acknowledgmentDelegate.records[0].TransactionID)
+	require.Len(t, engine.executions, 1, "terminal finalization failure must never retry accounting")
 }

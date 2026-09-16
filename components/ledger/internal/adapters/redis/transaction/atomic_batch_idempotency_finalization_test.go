@@ -147,8 +147,12 @@ func TestFinalizeAtomicTransactionBatch_StoresOrderedResponseAndClassifiesStaleO
 	assert.Equal(t, AtomicTransactionBatchFinalized, result.Outcome)
 	assert.Equal(t, string(expectedResponse), string(result.Response))
 	assert.Equal(t, finalizeAtomicTransactionBatchLua, client.capturedLua)
-	assert.Equal(t, []string{recordKey, indexKey}, client.capturedKeys)
-	require.Len(t, client.capturedArgs, 4)
+	assert.Equal(t, []string{
+		recordKey,
+		indexKey,
+		atomicTransactionBatchEngineReceiptInternalKey(organizationID, ledgerID),
+	}, client.capturedKeys)
+	require.Len(t, client.capturedArgs, 6)
 	assert.Equal(t, "300", client.capturedArgs[3])
 
 	client.result = []any{string(AtomicTransactionBatchFinalizeStale), string(appliedPayload)}

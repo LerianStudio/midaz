@@ -3,11 +3,14 @@
 -- that can be found in the LICENSE file.
 
 -- KEYS: selected recovery hash, optional legacy attempt hash, receipt hash,
---       guard hash, protection hash, cleanup schedule.
+--       guard hash, protection hash, cleanup schedule, and optionally the
+--       atomic-batch idempotency record plus execution index.
 -- ARGV: recovery field, exact envelope, attempt field, transaction UUID,
 --       execution UUID, terminal flag (0|1), durable completion unix millis,
---       clear legacy attempt flag (0|1).
-if #KEYS ~= 6 or #ARGV ~= 8 then
+--       clear legacy attempt flag (0|1), and optionally the exact receipt
+--       token, batch owner, complete record, organization UUID, ledger UUID.
+local batchMode = #KEYS == 8 and #ARGV == 13
+if (#KEYS ~= 6 or #ARGV ~= 8) and not batchMode then
     return redis.error_reply("ERR invalid protected recovery acknowledgement arguments")
 end
 
@@ -34,6 +37,15 @@ end
 local scheduleKind = redisType(KEYS[6])
 if scheduleKind ~= "none" and scheduleKind ~= "zset" then
     return redis.error_reply("WRONGTYPE protected recovery cleanup schedule must be a sorted set")
+end
+
+if batchMode then
+    for index = 7, 8 do
+        local kind = redisType(KEYS[index])
+        if kind ~= "none" and kind ~= "string" then
+            return redis.error_reply("WRONGTYPE atomic batch finalization requires string keys")
+        end
+    end
 end
 
 local protectionKey = KEYS[5]
@@ -140,6 +152,7 @@ if coordinatorRaw then
 end
 
 local deadlines, scheduleMembers = {}, {}
+local currentExecutionReady = false
 for linkedExecution, linked in pairs(receipts) do
     local ready, terminalAt = true, 0
     for _, id in ipairs(linked.protection.transactions) do
@@ -156,10 +169,76 @@ for linkedExecution, linked in pairs(receipts) do
         deadlines[linkedExecution] = deadline
         scheduleMembers[linkedExecution] = linked.organizationId .. ":" .. linked.ledgerId .. ":" .. linkedExecution
     end
+    if linkedExecution == executionID then currentExecutionReady = ready end
+end
+
+local batchPayload
+local batchRetentionSeconds
+if batchMode then
+    if receipt.organizationId ~= ARGV[12] or receipt.ledgerId ~= ARGV[13] then
+        return redis.error_reply("ERR atomic batch receipt scope differs")
+    end
+
+    local indexTarget = redis.call("GET", KEYS[8])
+    if not indexTarget or indexTarget ~= KEYS[7] then
+        return redis.error_reply("ERR atomic batch execution index differs")
+    end
+    local currentBatchRaw = redis.call("GET", KEYS[7])
+    local currentBatchDecoded, currentBatch = pcall(cjson.decode, currentBatchRaw or "")
+    if not currentBatchDecoded or type(currentBatch) ~= "table" or
+       currentBatch.formatVersion ~= 1 or currentBatch.ownerToken ~= ARGV[10] or
+       currentBatch.executionId ~= executionID or type(currentBatch.transactionIds) ~= "table" or
+       #currentBatch.transactionIds ~= #receipt.protection.transactions then
+        return redis.error_reply("ERR invalid atomic batch idempotency record")
+    end
+    for index, id in ipairs(receipt.protection.transactions) do
+        if currentBatch.transactionIds[index] ~= id then
+            return redis.error_reply("ERR atomic batch transaction membership differs")
+        end
+    end
+
+    if currentBatch.state == "complete" then
+        if type(currentBatch.response) ~= "table" then
+            return redis.error_reply("ERR completed atomic batch response is invalid")
+        end
+    elseif currentBatch.state == "applied" then
+        if currentExecutionReady then
+            if ARGV[9] == "" then
+                return 3
+            end
+            if currentRaw ~= ARGV[9] then
+                return 4
+            end
+            if ARGV[11] == "" then
+                return 3
+            end
+
+            local nextDecoded, nextBatch = pcall(cjson.decode, ARGV[11])
+            if not nextDecoded or type(nextBatch) ~= "table" or
+               nextBatch.formatVersion ~= 1 or nextBatch.state ~= "complete" or
+               nextBatch.ownerToken ~= currentBatch.ownerToken or
+               nextBatch.requestFingerprint ~= currentBatch.requestFingerprint or
+               nextBatch.batchId ~= currentBatch.batchId or
+               nextBatch.executionId ~= currentBatch.executionId or
+               type(nextBatch.transactionIds) ~= "table" or type(nextBatch.response) ~= "table" or
+               cjson.encode(nextBatch.transactionIds) ~= cjson.encode(currentBatch.transactionIds) then
+                return redis.error_reply("ERR invalid atomic batch terminal record")
+            end
+
+            batchPayload = ARGV[11]
+            batchRetentionSeconds = receipt.protection.retentionSeconds
+        end
+    else
+        return redis.error_reply("ERR atomic batch idempotency state differs")
+    end
 end
 
 -- Every validation and read happens before the acknowledgement deletion. Only
 -- deterministic hash writes remain afterward.
+if batchPayload then
+    redis.call("SET", KEYS[7], batchPayload, "EX", batchRetentionSeconds)
+    redis.call("SET", KEYS[8], KEYS[7], "EX", batchRetentionSeconds)
+end
 redis.call("HDEL", KEYS[1], field)
 if ARGV[8] == "1" then redis.call("HDEL", KEYS[2], ARGV[3]) end
 for linkedExecution, linked in pairs(receipts) do

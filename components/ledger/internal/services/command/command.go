@@ -147,6 +147,11 @@ type UseCase struct {
 	// namespace can be used accidentally.
 	AtomicTransactionBatchIdempotencyRepo AtomicTransactionBatchIdempotencyRepository
 
+	// AtomicTransactionBatchProjectionReader rebuilds complete, metadata-enriched
+	// public transaction representations in one bounded primary SQL read plus
+	// bounded metadata reads when recovery seals a batch response.
+	AtomicTransactionBatchProjectionReader AtomicTransactionBatchProjectionReader
+
 	// atomicTransactionBatchBudgetLimitOverride is a test seam for exact boundary
 	// characterization. Production leaves it nil and uses the reviewed hard
 	// limits compiled into the command.

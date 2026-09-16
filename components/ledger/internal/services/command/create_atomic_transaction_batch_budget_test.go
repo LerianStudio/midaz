@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -25,6 +26,7 @@ type atomicTransactionBatchClaimRepositoryFake struct {
 	claims              int
 	transitions         int
 	handoffs            int
+	finalizations       int
 	aborts              int
 	deletes             int
 	effectiveKey        string
@@ -35,9 +37,27 @@ type atomicTransactionBatchClaimRepositoryFake struct {
 	transitionErr       error
 	handoffErr          error
 	abortErr            error
+	finalizationErr     error
 	abortOutcome        txRedis.AtomicTransactionBatchRefusalAbortOutcome
 	abortExecutionID    uuid.UUID
 	abortTransactionIDs []uuid.UUID
+}
+
+func (repository *atomicTransactionBatchClaimRepositoryFake) FinalizeAtomicTransactionBatch(
+	_ context.Context,
+	_, _, _ uuid.UUID,
+	_ string,
+	_ map[uuid.UUID]json.RawMessage,
+	_ time.Duration,
+) (*txRedis.AtomicTransactionBatchFinalizationResult, error) {
+	repository.finalizations++
+	if repository.finalizationErr != nil {
+		return nil, repository.finalizationErr
+	}
+
+	return &txRedis.AtomicTransactionBatchFinalizationResult{
+		Outcome: txRedis.AtomicTransactionBatchFinalized,
+	}, nil
 }
 
 func (repository *atomicTransactionBatchClaimRepositoryFake) ClaimAtomicTransactionBatch(
