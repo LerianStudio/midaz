@@ -25,6 +25,7 @@ import (
 
 	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 type atomicBatchBenchmarkHook struct {
@@ -73,6 +74,7 @@ func (hook *atomicBatchBenchmarkHook) snapshot() []time.Duration {
 
 type atomicBatchBenchmarkCase struct {
 	transactions int
+	profile      string
 	shared       bool
 	warm         bool
 	feeExpanded  bool
@@ -105,15 +107,17 @@ func BenchmarkAtomicTransactionBatchMatrix(b *testing.B) {
 	require.NoError(b, err)
 
 	for _, transactions := range []int{1, 10, 25, 50} {
-		for _, shared := range []bool{true, false} {
-			for _, warm := range []bool{true, false} {
-				for _, feeExpanded := range []bool{false, true} {
-					for _, tenantMix := range []bool{false, true} {
-						for _, concurrent := range []bool{false, true} {
-							cfg := atomicBatchBenchmarkCase{transactions, shared, warm, feeExpanded, tenantMix, concurrent}
-							b.Run(cfg.name(), func(b *testing.B) {
-								benchmarkAtomicTransactionBatchCase(b, ctx, inspector, adapter, singularAdapter, hook, cfg)
-							})
+		for _, profile := range []string{"direct", "hold", "mixed"} {
+			for _, shared := range []bool{true, false} {
+				for _, warm := range []bool{true, false} {
+					for _, feeExpanded := range []bool{false, true} {
+						for _, tenantMix := range []bool{false, true} {
+							for _, concurrent := range []bool{false, true} {
+								cfg := atomicBatchBenchmarkCase{transactions, profile, shared, warm, feeExpanded, tenantMix, concurrent}
+								b.Run(cfg.name(), func(b *testing.B) {
+									benchmarkAtomicTransactionBatchCase(b, ctx, inspector, adapter, singularAdapter, hook, cfg)
+								})
+							}
 						}
 					}
 				}
@@ -144,7 +148,7 @@ func (cfg atomicBatchBenchmarkCase) name() string {
 		traffic = "concurrent_singular"
 	}
 
-	return fmt.Sprintf("n_%d/%s/%s/%s/%s/%s", cfg.transactions, shape, cache, fees, tenants, traffic)
+	return fmt.Sprintf("n_%d/%s/%s/%s/%s/%s/%s", cfg.transactions, cfg.profile, shape, cache, fees, tenants, traffic)
 }
 
 func benchmarkAtomicTransactionBatchCase(
@@ -245,6 +249,9 @@ func benchmarkAtomicTransactionBatchCase(
 	if response, marshalErr := json.Marshal(atomicBatchBenchmarkResultEnvelope(cfg, representative)); marshalErr == nil {
 		b.ReportMetric(float64(len(response)), "prepared_response_bytes")
 	}
+	if replay, marshalErr := json.Marshal(atomicBatchBenchmarkReplayEnvelope(cfg, representative)); marshalErr == nil {
+		b.ReportMetric(float64(len(replay)), "replay_response_bytes")
+	}
 	if usedMemory, memoryErr := atomicBatchBenchmarkRedisMemory(ctx, inspector); memoryErr == nil {
 		b.ReportMetric(float64(usedMemory), "redis_memory_bytes")
 	}
@@ -294,6 +301,7 @@ func atomicBatchBenchmarkExecution(
 	intents := make([]command.EngineTransactionIntent, cfg.transactions)
 	date := benchmarkDate()
 	for transactionIndex := 0; transactionIndex < cfg.transactions; transactionIndex++ {
+		isHold := cfg.profile == "hold" || (cfg.profile == "mixed" && transactionIndex%2 == 1)
 		transactionID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(fmt.Sprintf("%s:transaction:%d", executionSeed, transactionIndex)))
 		transaction := core.Transaction{ID: transactionID, Postings: make([]core.Posting, postingsPerTransaction)}
 		projections := make([]command.OperationRecordSpec, postingsPerTransaction)
@@ -311,6 +319,10 @@ func atomicBatchBenchmarkExecution(
 				postingType = core.PostingCredit
 				rowType = "CREDIT"
 				direction = "debit"
+			}
+			if isHold && postingIndex == 0 {
+				postingType = core.PostingHold
+				rowType = constant.ONHOLD
 			}
 			posting := core.Posting{
 				Ref:        fmt.Sprintf("t%02d-p%02d", transactionIndex, postingIndex),
@@ -334,16 +346,24 @@ func atomicBatchBenchmarkExecution(
 			projections[postingIndex].Balance.Version = balance.Version
 		}
 		request.Transactions[transactionIndex] = transaction
-		guards[transactionIndex] = command.ExecutionGuard{TransactionID: transactionID, NextToken: "approved"}
+		status := constant.APPROVED
+		action := constant.ActionDirect
+		nextToken := "approved"
+		if isHold {
+			status = constant.PENDING
+			action = constant.ActionHold
+			nextToken = "pending"
+		}
+		guards[transactionIndex] = command.ExecutionGuard{TransactionID: transactionID, NextToken: nextToken}
 		plans[transactionIndex] = command.TransactionCompletionPlan{
 			FormatVersion: 2, TenantID: tenantID, TransactionID: transactionID,
 			OrganizationID: organizationID, LedgerID: ledgerID, ExecutionID: executionID,
 			TTL: date.Add(time.Hour), TransactionDate: date, TransactionCreatedAt: date,
-			TransactionUpdatedAt: date, OperationUpdatedAt: date, Action: "CREATE",
-			TransactionStatus: "APPROVED", OperationSpecs: projections,
+			TransactionUpdatedAt: date, OperationUpdatedAt: date, Action: action,
+			TransactionStatus: status, OperationSpecs: projections,
 		}
 		intents[transactionIndex] = command.EngineTransactionIntent{
-			TransactionID: transactionID, Action: "CREATE", TransactionStatus: "APPROVED",
+			TransactionID: transactionID, Action: action, TransactionStatus: status,
 			TransactionDate: date, TransactionCreatedAt: date, TransactionUpdatedAt: date,
 			OperationUpdatedAt: date, PostingRefs: postingRefs(transaction.Postings),
 			OperationSpecs: frozenProjectionIntents(projections),
@@ -458,6 +478,30 @@ func atomicBatchBenchmarkResultEnvelope(
 		Transactions:     input.Execution.Transactions,
 		CompletionPlans:  input.CompletionPlans,
 	}
+}
+
+// atomicBatchBenchmarkReplayEnvelope approximates the immutable public payload
+// retained by batch idempotency. It is intentionally independent of the mutable
+// transaction projections so the metric covers replay storage, not a later read.
+func atomicBatchBenchmarkReplayEnvelope(cfg atomicBatchBenchmarkCase, input command.EngineExecution) any {
+	type transaction struct {
+		ID     uuid.UUID `json:"id"`
+		Order  int       `json:"order"`
+		Status string    `json:"status"`
+	}
+	transactions := make([]transaction, len(input.Execution.Transactions))
+	for index, item := range input.Execution.Transactions {
+		status := constant.APPROVED
+		if cfg.profile == "hold" || (cfg.profile == "mixed" && index%2 == 1) {
+			status = constant.PENDING
+		}
+		transactions[index] = transaction{ID: item.ID, Order: index + 1, Status: status}
+	}
+
+	return struct {
+		BatchID      uuid.UUID     `json:"batchId"`
+		Transactions []transaction `json:"transactions"`
+	}{BatchID: input.Execution.ExecutionID, Transactions: transactions}
 }
 
 // BenchmarkAdapterExecute characterizes the public adapter seam against a real
