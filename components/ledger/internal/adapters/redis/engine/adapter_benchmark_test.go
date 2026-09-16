@@ -8,10 +8,16 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
@@ -20,6 +26,417 @@ import (
 	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
+
+type atomicBatchBenchmarkHook struct {
+	mu      sync.Mutex
+	started map[redis.Cmder]time.Time
+	samples []time.Duration
+}
+
+func (hook *atomicBatchBenchmarkHook) DialHook(next redis.DialHook) redis.DialHook { return next }
+
+func (hook *atomicBatchBenchmarkHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		name := strings.ToUpper(cmd.Name())
+		if name != "EVALSHA" && name != "EVAL" {
+			return next(ctx, cmd)
+		}
+
+		started := time.Now()
+		err := next(ctx, cmd)
+		if err == nil {
+			hook.mu.Lock()
+			hook.samples = append(hook.samples, time.Since(started))
+			hook.mu.Unlock()
+		}
+
+		return err
+	}
+}
+
+func (hook *atomicBatchBenchmarkHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
+}
+
+func (hook *atomicBatchBenchmarkHook) reset() {
+	hook.mu.Lock()
+	defer hook.mu.Unlock()
+	hook.samples = nil
+}
+
+func (hook *atomicBatchBenchmarkHook) snapshot() []time.Duration {
+	hook.mu.Lock()
+	defer hook.mu.Unlock()
+
+	return append([]time.Duration(nil), hook.samples...)
+}
+
+type atomicBatchBenchmarkCase struct {
+	transactions int
+	shared       bool
+	warm         bool
+	feeExpanded  bool
+	tenantMix    bool
+	concurrent   bool
+}
+
+// BenchmarkAtomicTransactionBatchMatrix is the release-gate workload. It runs
+// the production adapter and Lua against real Valkey and publishes both the
+// indivisible script percentiles (Redis command hook) and the adapter end-to-end
+// percentiles. The fee-expanded N=50/disjoint case carries the published maximum
+// of 200 postings. ReportAllocs supplies Go B/op and allocs/op; the custom metrics
+// add serialized sizes, Valkey memory and unrelated singular-request latency.
+func BenchmarkAtomicTransactionBatchMatrix(b *testing.B) {
+	ctx := context.Background()
+	inspector, address, password := newAdapterValkey(b)
+	client := redis.NewClient(&redis.Options{Addr: address, Password: password, DB: 2, Protocol: 2, MaxRetries: -1})
+	b.Cleanup(func() { require.NoError(b, client.Close()) })
+	hook := &atomicBatchBenchmarkHook{}
+	client.AddHook(hook)
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, hardLimits())
+	require.NoError(b, err)
+	singularAdapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, hardLimits())
+	require.NoError(b, err)
+
+	for _, transactions := range []int{1, 10, 25, 50} {
+		for _, shared := range []bool{true, false} {
+			for _, warm := range []bool{true, false} {
+				for _, feeExpanded := range []bool{false, true} {
+					for _, tenantMix := range []bool{false, true} {
+						for _, concurrent := range []bool{false, true} {
+							cfg := atomicBatchBenchmarkCase{transactions, shared, warm, feeExpanded, tenantMix, concurrent}
+							b.Run(cfg.name(), func(b *testing.B) {
+								benchmarkAtomicTransactionBatchCase(b, ctx, inspector, adapter, singularAdapter, hook, cfg)
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func (cfg atomicBatchBenchmarkCase) name() string {
+	shape := "disjoint"
+	if cfg.shared {
+		shape = "shared"
+	}
+	cache := "cold"
+	if cfg.warm {
+		cache = "warm"
+	}
+	fees := "base"
+	if cfg.feeExpanded {
+		fees = "fee_max"
+	}
+	tenants := "single_tenant"
+	if cfg.tenantMix {
+		tenants = "tenant_mix"
+	}
+	traffic := "isolated"
+	if cfg.concurrent {
+		traffic = "concurrent_singular"
+	}
+
+	return fmt.Sprintf("n_%d/%s/%s/%s/%s/%s", cfg.transactions, shape, cache, fees, tenants, traffic)
+}
+
+func benchmarkAtomicTransactionBatchCase(
+	b *testing.B,
+	ctx context.Context,
+	inspector *redis.Client,
+	adapter *Adapter,
+	singularAdapter *Adapter,
+	hook *atomicBatchBenchmarkHook,
+	cfg atomicBatchBenchmarkCase,
+) {
+	b.Helper()
+	require.NoError(b, inspector.FlushDB(ctx).Err())
+
+	tenantIDs := []string{""}
+	if cfg.tenantMix {
+		tenantIDs = []string{"benchmark-tenant-a", "benchmark-tenant-b", "benchmark-tenant-c", "benchmark-tenant-d"}
+	}
+	for index, tenantID := range tenantIDs {
+		warmCtx := atomicBatchBenchmarkTenantContext(ctx, tenantID)
+		warmInput := atomicBatchBenchmarkExecution(b, cfg, tenantID, -100-index, "batch")
+		_, err := adapter.Execute(warmCtx, warmInput)
+		require.NoError(b, err)
+		if !cfg.warm {
+			require.NoError(b, inspector.FlushDB(ctx).Err())
+		}
+	}
+
+	representativeTenant := tenantIDs[0]
+	representative := atomicBatchBenchmarkExecution(b, cfg, representativeTenant, 0, "batch")
+	resolved, err := resolveAdapterKeys(atomicBatchBenchmarkTenantContext(ctx, representativeTenant), representative.Execution)
+	require.NoError(b, err)
+	prepared, err := prepareExecution(atomicBatchBenchmarkTenantContext(ctx, representativeTenant), representative, hardLimits(), resolved)
+	require.NoError(b, err)
+	requestBytes, err := json.Marshal(representative)
+	require.NoError(b, err)
+	recoveryBytes := 0
+	for _, plan := range representative.CompletionPlans {
+		recoveryBytes += len(plan.Payload)
+	}
+
+	hook.reset()
+	e2e := make([]time.Duration, 0, b.N)
+	unrelated := make([]time.Duration, 0, b.N)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for iteration := 0; iteration < b.N; iteration++ {
+		b.StopTimer()
+		if !cfg.warm {
+			require.NoError(b, inspector.FlushDB(ctx).Err())
+		}
+		tenantID := tenantIDs[iteration%len(tenantIDs)]
+		iterationCtx := atomicBatchBenchmarkTenantContext(ctx, tenantID)
+		input := atomicBatchBenchmarkExecution(b, cfg, tenantID, iteration+1, "batch")
+		var singularInput command.EngineExecution
+		if cfg.concurrent {
+			singularCfg := cfg
+			singularCfg.transactions = 1
+			singularCfg.shared = false
+			singularCfg.feeExpanded = false
+			singularInput = atomicBatchBenchmarkExecution(b, singularCfg, tenantID, iteration+1, "singular")
+		}
+		b.StartTimer()
+
+		type singularResult struct {
+			duration time.Duration
+			err      error
+		}
+		var singularDone chan singularResult
+		if cfg.concurrent {
+			singularDone = make(chan singularResult, 1)
+			go func() {
+				started := time.Now()
+				_, singularErr := singularAdapter.Execute(iterationCtx, singularInput)
+				singularDone <- singularResult{duration: time.Since(started), err: singularErr}
+			}()
+		}
+
+		started := time.Now()
+		result, err := adapter.Execute(iterationCtx, input)
+		e2e = append(e2e, time.Since(started))
+		require.NoError(b, err)
+		require.NotNil(b, result)
+		if singularDone != nil {
+			singular := <-singularDone
+			require.NoError(b, singular.err)
+			unrelated = append(unrelated, singular.duration)
+		}
+	}
+	b.StopTimer()
+
+	atomicBatchReportPercentiles(b, "e2e", e2e)
+	atomicBatchReportPercentiles(b, "lua", hook.snapshot())
+	atomicBatchReportPercentiles(b, "unrelated", unrelated)
+	b.ReportMetric(float64(len(prepared.Payload)), "prepared_wire_bytes")
+	b.ReportMetric(float64(len(requestBytes)), "engine_input_bytes")
+	b.ReportMetric(float64(recoveryBytes), "recovery_bytes")
+	if response, marshalErr := json.Marshal(atomicBatchBenchmarkResultEnvelope(cfg, representative)); marshalErr == nil {
+		b.ReportMetric(float64(len(response)), "prepared_response_bytes")
+	}
+	if usedMemory, memoryErr := atomicBatchBenchmarkRedisMemory(ctx, inspector); memoryErr == nil {
+		b.ReportMetric(float64(usedMemory), "redis_memory_bytes")
+	}
+}
+
+func atomicBatchBenchmarkExecution(
+	tb testing.TB,
+	cfg atomicBatchBenchmarkCase,
+	tenantID string,
+	iteration int,
+	traffic string,
+) command.EngineExecution {
+	tb.Helper()
+
+	postingsPerTransaction := 2
+	if cfg.feeExpanded {
+		postingsPerTransaction = 4
+	}
+	scopeSeed := fmt.Sprintf("atomic-batch:%s:%s:%s", cfg.name(), tenantID, traffic)
+	executionSeed := fmt.Sprintf("%s:%d", scopeSeed, iteration)
+	organizationID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(scopeSeed+":organization"))
+	ledgerID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(scopeSeed+":ledger"))
+	executionID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(executionSeed+":execution"))
+	request := core.Execution{OrganizationID: organizationID, LedgerID: ledgerID, ExecutionID: executionID}
+
+	balanceIndex := make(map[string]int)
+	addBalance := func(alias string) int {
+		if index, ok := balanceIndex[alias]; ok {
+			return index
+		}
+		index := len(request.Balances)
+		balanceIndex[alias] = index
+		request.Balances = append(request.Balances, core.BalanceSnapshot{
+			ID:         uuid.NewSHA1(uuid.NameSpaceOID, []byte(scopeSeed+":balance:"+alias)),
+			AccountID:  uuid.NewSHA1(uuid.NameSpaceOID, []byte(scopeSeed+":account:"+alias)),
+			BalanceRef: alias + "#default", Alias: alias, Key: "default", AccountType: "deposit",
+			AssetCode: "BRL", Direction: "credit", BalanceScope: "transactional",
+			Available: decimal.NewFromInt(1_000_000_000), Version: 1, AllowSending: true, AllowReceiving: true,
+		})
+
+		return index
+	}
+
+	request.Transactions = make([]core.Transaction, cfg.transactions)
+	guards := make([]command.ExecutionGuard, cfg.transactions)
+	plans := make([]command.TransactionCompletionPlan, cfg.transactions)
+	intents := make([]command.EngineTransactionIntent, cfg.transactions)
+	date := benchmarkDate()
+	for transactionIndex := 0; transactionIndex < cfg.transactions; transactionIndex++ {
+		transactionID := uuid.NewSHA1(uuid.NameSpaceOID, []byte(fmt.Sprintf("%s:transaction:%d", executionSeed, transactionIndex)))
+		transaction := core.Transaction{ID: transactionID, Postings: make([]core.Posting, postingsPerTransaction)}
+		projections := make([]command.OperationRecordSpec, postingsPerTransaction)
+		for postingIndex := 0; postingIndex < postingsPerTransaction; postingIndex++ {
+			owner := transactionIndex
+			if cfg.shared {
+				owner = 0
+			}
+			alias := fmt.Sprintf("@%s-%d-%d", traffic, owner, postingIndex)
+			balance := request.Balances[addBalance(alias)]
+			postingType := core.PostingDebit
+			rowType := "DEBIT"
+			direction := "credit"
+			if postingIndex%2 == 1 {
+				postingType = core.PostingCredit
+				rowType = "CREDIT"
+				direction = "debit"
+			}
+			posting := core.Posting{
+				Ref:        fmt.Sprintf("t%02d-p%02d", transactionIndex, postingIndex),
+				BalanceRef: balance.BalanceRef, Type: postingType, Amount: decimal.NewFromInt(1), DrawPolicy: core.DrawForbidden,
+			}
+			transaction.Postings[postingIndex] = posting
+			projections[postingIndex] = command.OperationRecordSpec{
+				TransactionID: transactionID, PostingRef: posting.Ref, BalanceRef: balance.BalanceRef,
+				Role: core.RolePrimary, Side: command.OperationSpecSideFrom, RowType: rowType,
+				Direction: direction, RequestedAmount: posting.Amount, CompatibilityPath: command.OperationRecordStandard,
+			}
+			projections[postingIndex].Balance.ID = balance.ID.String()
+			projections[postingIndex].Balance.AccountID = balance.AccountID.String()
+			projections[postingIndex].Balance.OrganizationID = organizationID.String()
+			projections[postingIndex].Balance.LedgerID = ledgerID.String()
+			projections[postingIndex].Balance.Alias = balance.Alias
+			projections[postingIndex].Balance.Key = balance.Key
+			projections[postingIndex].Balance.AssetCode = balance.AssetCode
+			projections[postingIndex].Balance.AccountType = balance.AccountType
+			projections[postingIndex].Balance.Available = balance.Available
+			projections[postingIndex].Balance.Version = balance.Version
+		}
+		request.Transactions[transactionIndex] = transaction
+		guards[transactionIndex] = command.ExecutionGuard{TransactionID: transactionID, NextToken: "approved"}
+		plans[transactionIndex] = command.TransactionCompletionPlan{
+			FormatVersion: 2, TenantID: tenantID, TransactionID: transactionID,
+			OrganizationID: organizationID, LedgerID: ledgerID, ExecutionID: executionID,
+			TTL: date.Add(time.Hour), TransactionDate: date, TransactionCreatedAt: date,
+			TransactionUpdatedAt: date, OperationUpdatedAt: date, Action: "CREATE",
+			TransactionStatus: "APPROVED", OperationSpecs: projections,
+		}
+		intents[transactionIndex] = command.EngineTransactionIntent{
+			TransactionID: transactionID, Action: "CREATE", TransactionStatus: "APPROVED",
+			TransactionDate: date, TransactionCreatedAt: date, TransactionUpdatedAt: date,
+			OperationUpdatedAt: date, PostingRefs: postingRefs(transaction.Postings),
+			OperationSpecs: frozenProjectionIntents(projections),
+		}
+	}
+	// Maximum fee expansion is also the maximum release-candidate profile:
+	// every explicit disjoint balance carries an overdraft companion snapshot,
+	// reaching the published 400-balance ceiling at N=50 without inventing
+	// extra postings or touching the companions.
+	if cfg.feeExpanded && !cfg.shared {
+		primaryCount := len(request.Balances)
+		for index := 0; index < primaryCount; index++ {
+			companion := request.Balances[index]
+			companion.ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(scopeSeed+":overdraft:"+companion.Alias))
+			companion.BalanceRef = companion.Alias + "#overdraft"
+			companion.Key = "overdraft"
+			companion.Direction = "debit"
+			companion.BalanceScope = "internal"
+			companion.Available = decimal.Zero
+			companion.AllowOverdraft = false
+			companion.OverdraftLimitEnabled = false
+			request.Balances = append(request.Balances, companion)
+		}
+	}
+	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{
+		TenantID: tenantID, OrganizationID: organizationID, LedgerID: ledgerID,
+		ExecutionID: executionID, Transactions: intents,
+	})
+	require.NoError(tb, err)
+	input := command.EngineExecution{
+		Execution: request, IntentFingerprint: fingerprint, Guards: guards,
+		CompletionPlans: make([]command.CompletionPlanRecord, cfg.transactions),
+	}
+	for index := range plans {
+		plans[index].IntentFingerprint = fingerprint
+		payload, encodeErr := command.EncodeTransactionCompletionPlan(plans[index])
+		require.NoError(tb, encodeErr)
+		input.CompletionPlans[index] = command.CompletionPlanRecord{TransactionID: plans[index].TransactionID, Payload: payload}
+	}
+	require.NoError(tb, command.ValidateTransactionCompletion(input))
+
+	return input
+}
+
+func atomicBatchBenchmarkTenantContext(ctx context.Context, tenantID string) context.Context {
+	if tenantID == "" {
+		return ctx
+	}
+
+	return tmcore.ContextWithTenantID(ctx, tenantID)
+}
+
+func atomicBatchReportPercentiles(b *testing.B, prefix string, samples []time.Duration) {
+	b.Helper()
+	if len(samples) == 0 {
+		return
+	}
+	sort.Slice(samples, func(i, j int) bool { return samples[i] < samples[j] })
+	percentile := func(value float64) float64 {
+		index := int(value * float64(len(samples)-1))
+
+		return float64(samples[index]) / float64(time.Millisecond)
+	}
+	b.ReportMetric(percentile(0.50), prefix+"_p50_ms")
+	b.ReportMetric(percentile(0.95), prefix+"_p95_ms")
+	b.ReportMetric(percentile(0.99), prefix+"_p99_ms")
+}
+
+func atomicBatchBenchmarkRedisMemory(ctx context.Context, client *redis.Client) (int64, error) {
+	info, err := client.Info(ctx, "memory").Result()
+	if err != nil {
+		return 0, err
+	}
+	for _, line := range strings.Split(info, "\n") {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "used_memory:")
+		if !ok {
+			continue
+		}
+
+		return strconv.ParseInt(value, 10, 64)
+	}
+
+	return 0, fmt.Errorf("Valkey INFO memory omitted used_memory")
+}
+
+func atomicBatchBenchmarkResultEnvelope(
+	cfg atomicBatchBenchmarkCase,
+	input command.EngineExecution,
+) any {
+	return struct {
+		TransactionCount int                            `json:"transactionCount"`
+		Transactions     []core.Transaction             `json:"transactions"`
+		CompletionPlans  []command.CompletionPlanRecord `json:"completionPlans"`
+	}{
+		TransactionCount: cfg.transactions,
+		Transactions:     input.Execution.Transactions,
+		CompletionPlans:  input.CompletionPlans,
+	}
+}
 
 // BenchmarkAdapterExecute characterizes the public adapter seam against a real
 // Valkey server. Every measured execution starts from an empty Valkey database; the
