@@ -24,13 +24,13 @@ import (
 )
 
 const (
-	atomicTransactionBatchMaxExpandedPostings       = 200
-	atomicTransactionBatchMaxExecutionBalances      = 400
-	atomicTransactionBatchMaxCompletionPlanBytes    = 32 * 1024 * 1024
-	atomicTransactionBatchMaxAccountingRequestBytes = 64 * 1024 * 1024
-	atomicTransactionBatchMaxPreparedResponseBytes  = 64 * 1024 * 1024
-	atomicTransactionBatchMaxRecoveryBytes          = 64 * 1024 * 1024
-	atomicTransactionBatchMaxCachedResponseBytes    = 64 * 1024 * 1024
+	atomicTransactionBatchMaxExpandedPostings       = 100
+	atomicTransactionBatchMaxExecutionBalances      = 150
+	atomicTransactionBatchMaxCompletionPlanBytes    = 256 * 1024
+	atomicTransactionBatchMaxAccountingRequestBytes = 256 * 1024
+	atomicTransactionBatchMaxPreparedResponseBytes  = 1024 * 1024
+	atomicTransactionBatchMaxRecoveryBytes          = 512 * 1024
+	atomicTransactionBatchMaxCachedResponseBytes    = 1024 * 1024
 
 	atomicTransactionBatchMovementSafetyBytes = 256
 	atomicTransactionBatchSnapshotSafetyBytes = 128

@@ -193,6 +193,20 @@ func TestValidateAtomicTransactionBatchCumulativeBudget_ExactBoundaries(t *testi
 	}
 }
 
+func TestAtomicTransactionBatchDefaultBudgetLimits_ReleaseGate(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, atomicTransactionBatchBudgetLimits{
+		expandedPostings:       100,
+		executionBalances:      150,
+		completionPlanBytes:    256 * 1024,
+		accountingRequestBytes: 256 * 1024,
+		preparedResponseBytes:  1024 * 1024,
+		recoveryBytes:          512 * 1024,
+		cachedResponseBytes:    1024 * 1024,
+	}, defaultAtomicTransactionBatchBudgetLimits)
+}
+
 func TestCreateAtomicTransactionBatchV2_BudgetFailureDeletesClaimBeforeBalanceRead(t *testing.T) {
 	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000081")
 	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000082")

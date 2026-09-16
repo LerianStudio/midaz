@@ -80,12 +80,18 @@ type atomicBatchBenchmarkCase struct {
 	concurrent   bool
 }
 
+const (
+	atomicBatchBenchmarkMaxPostings = 100
+	atomicBatchBenchmarkMaxBalances = 150
+)
+
 // BenchmarkAtomicTransactionBatchMatrix is the release-gate workload. It runs
 // the production adapter and Lua against real Valkey and publishes both the
 // indivisible script percentiles (Redis command hook) and the adapter end-to-end
-// percentiles. The fee-expanded N=50/disjoint case carries the published maximum
-// of 200 postings. ReportAllocs supplies Go B/op and allocs/op; the custom metrics
-// add serialized sizes, Valkey memory and unrelated singular-request latency.
+// percentiles. Every fee-expanded/disjoint case carries the published maxima of
+// 100 postings and 150 balances, independent of N. ReportAllocs supplies Go B/op
+// and allocs/op; the custom metrics add serialized sizes, Valkey memory and
+// unrelated singular-request latency.
 func BenchmarkAtomicTransactionBatchMatrix(b *testing.B) {
 	ctx := context.Background()
 	inspector, address, password := newAdapterValkey(b)
@@ -255,7 +261,7 @@ func atomicBatchBenchmarkExecution(
 
 	postingsPerTransaction := 2
 	if cfg.feeExpanded {
-		postingsPerTransaction = 4
+		postingsPerTransaction = atomicBatchBenchmarkMaxPostings / cfg.transactions
 	}
 	scopeSeed := fmt.Sprintf("atomic-batch:%s:%s:%s", cfg.name(), tenantID, traffic)
 	executionSeed := fmt.Sprintf("%s:%d", scopeSeed, iteration)
@@ -343,13 +349,14 @@ func atomicBatchBenchmarkExecution(
 			OperationSpecs: frozenProjectionIntents(projections),
 		}
 	}
-	// Maximum fee expansion is also the maximum release-candidate profile:
-	// every explicit disjoint balance carries an overdraft companion snapshot,
-	// reaching the published 400-balance ceiling at N=50 without inventing
-	// extra postings or touching the companions.
+	// Maximum fee expansion is also the final release profile: every explicit
+	// disjoint balance carries an overdraft companion snapshot, reaching the
+	// published 150-balance ceiling without inventing extra postings or touching
+	// the companions.
 	if cfg.feeExpanded && !cfg.shared {
 		primaryCount := len(request.Balances)
-		for index := 0; index < primaryCount; index++ {
+		companionCount := atomicBatchBenchmarkMaxBalances - primaryCount
+		for index := 0; index < companionCount; index++ {
 			companion := request.Balances[index]
 			companion.ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(scopeSeed+":overdraft:"+companion.Alias))
 			companion.BalanceRef = companion.Alias + "#overdraft"
@@ -360,6 +367,12 @@ func atomicBatchBenchmarkExecution(
 			companion.AllowOverdraft = false
 			companion.OverdraftLimitEnabled = false
 			request.Balances = append(request.Balances, companion)
+		}
+	}
+	if cfg.feeExpanded {
+		require.Len(tb, postingRefsForExecution(request), atomicBatchBenchmarkMaxPostings)
+		if !cfg.shared {
+			require.Len(tb, request.Balances, atomicBatchBenchmarkMaxBalances)
 		}
 	}
 	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{
@@ -380,6 +393,15 @@ func atomicBatchBenchmarkExecution(
 	require.NoError(tb, command.ValidateTransactionCompletion(input))
 
 	return input
+}
+
+func postingRefsForExecution(request core.Execution) []string {
+	refs := make([]string, 0)
+	for _, transaction := range request.Transactions {
+		refs = append(refs, postingRefs(transaction.Postings)...)
+	}
+
+	return refs
 }
 
 func atomicBatchBenchmarkTenantContext(ctx context.Context, tenantID string) context.Context {
