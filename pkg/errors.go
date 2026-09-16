@@ -1007,6 +1007,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Batch Budget Exceeded",
 			Message:    fmt.Sprintf("The transaction batch exceeds the %v budget at transaction index %v: observed %v, maximum %v. Please reduce the batch work and try again.", args...),
 		},
+		constant.ErrTransactionBatchStructuralValidation: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchStructuralValidation.Error(),
+			Title:      "Invalid Transaction Batch",
+			Message:    "One or more transactions in the batch failed structural validation. Check errors for details.",
+		},
 		constant.ErrOperationIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrOperationIDNotFound.Error(),

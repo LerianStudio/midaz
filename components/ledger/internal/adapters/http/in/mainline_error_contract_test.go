@@ -385,9 +385,17 @@ func TestMainlineErrorContract_AtomicTransactionBatchCodes(t *testing.T) {
 			expectedTitle:  "Transaction Batch Budget Exceeded",
 			expectedDetail: "The transaction batch exceeds the expandedPostings budget at transaction index 12: observed 201, maximum 200. Please reduce the batch work and try again.",
 		},
+		{
+			name:           "0516 structural validation is 400",
+			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchStructuralValidation, constant.EntityTransaction),
+			expectedStatus: fiber.StatusBadRequest,
+			expectedCode:   "0516",
+			expectedTitle:  "Invalid Transaction Batch",
+			expectedDetail: "One or more transactions in the batch failed structural validation. Check errors for details.",
+		},
 	}
 
-	require.Len(t, tests, 3, "the atomic transaction batch lock set is exactly codes 0513 through 0515")
+	require.Len(t, tests, 4, "the atomic transaction batch lock set is exactly codes 0513 through 0516")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

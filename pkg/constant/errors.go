@@ -568,6 +568,10 @@ var (
 	// first crosses a post-expansion budget. Args: budget dimension, zero-based
 	// transaction index, observed value, then the effective maximum.
 	ErrTransactionBatchBudgetExceeded = errors.New("0516")
+	// ErrTransactionBatchStructuralValidation is the batch-only primary error
+	// for aggregated item structural diagnostics. The individual diagnostics
+	// remain field details; this sentinel is never used by singular routes.
+	ErrTransactionBatchStructuralValidation = errors.New("0517")
 )
 
 // List of CRM domain errors.

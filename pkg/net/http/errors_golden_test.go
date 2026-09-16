@@ -289,6 +289,7 @@ func allSentinels() map[string]error {
 		"ErrTransactionBatchCardinality":              constant.ErrTransactionBatchCardinality,
 		"ErrTransactionBatchInputLegsLimitExceeded":   constant.ErrTransactionBatchInputLegsLimitExceeded,
 		"ErrTransactionBatchBudgetExceeded":           constant.ErrTransactionBatchBudgetExceeded,
+		"ErrTransactionBatchStructuralValidation":     constant.ErrTransactionBatchStructuralValidation,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
 		"ErrDuplicatedAliasKeyValue":                  constant.ErrDuplicatedAliasKeyValue,
