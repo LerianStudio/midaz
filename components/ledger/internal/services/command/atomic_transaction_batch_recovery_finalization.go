@@ -68,10 +68,12 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if record == nil || record.OrganizationID == uuid.Nil || record.LedgerID == uuid.Nil ||
 		record.ExecutionID == uuid.Nil || record.TransactionID == uuid.Nil {
 		return nil, errors.New("atomic transaction batch recovery identity is incomplete")
 	}
+
 	repository, ok := uc.AtomicTransactionBatchIdempotencyRepo.(atomicTransactionBatchFinalizationCandidateRepository)
 	if !ok {
 		return nil, errors.New("atomic transaction batch recovery finalizer is not configured")
@@ -87,20 +89,24 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 	if err != nil || candidate == nil {
 		return nil, err
 	}
+
 	uc.recordAtomicTransactionBatchRecovering(ctx)
 
 	if err := validateAtomicTransactionBatchRecoveredMember(candidate.Record, record, completion); err != nil {
 		return nil, err
 	}
+
 	uc.reconcileAtomicTransactionBatchRecoveredMember(ctx, completion.Record.Transaction)
 
 	prepared := &AtomicTransactionBatchRecoveryFinalization{}
 	if candidate.Record.State == txRedis.AtomicTransactionBatchStateComplete || !candidate.Candidate {
 		return prepared, nil
 	}
+
 	if candidate.ReceiptToken == "" {
 		return nil, errors.New("atomic transaction batch finalization candidate has no receipt token")
 	}
+
 	if uc.AtomicTransactionBatchProjectionReader == nil {
 		return nil, errors.New("atomic transaction batch projection reader is not configured")
 	}
@@ -114,6 +120,7 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 	if err != nil {
 		return nil, fmt.Errorf("read durable atomic transaction batch projections: %w", err)
 	}
+
 	responses, err := atomicTransactionBatchRecoveryResponses(
 		candidate.Record,
 		record.OrganizationID,
@@ -123,6 +130,7 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 	if err != nil {
 		return nil, err
 	}
+
 	prepared.ReceiptToken = candidate.ReceiptToken
 	prepared.Transactions = responses
 
@@ -137,20 +145,25 @@ func validateAtomicTransactionBatchRecoveredMember(
 	if completion.Record.Transaction == nil || completion.Record.Transaction.ID != record.TransactionID.String() {
 		return errors.New("atomic transaction batch recovery completion identity differs")
 	}
+
 	if completion.Record.Transaction.OrganizationID != record.OrganizationID.String() ||
 		completion.Record.Transaction.LedgerID != record.LedgerID.String() {
 		return errors.New("atomic transaction batch recovery completion scope differs")
 	}
+
 	found := false
+
 	for _, transactionID := range batch.TransactionIDs {
 		if transactionID == record.TransactionID {
 			found = true
 			break
 		}
 	}
+
 	if !found {
 		return errors.New("atomic transaction batch recovery transaction is not indexed")
 	}
+
 	if completion.Outcome.TransactionStatus != constant.APPROVED {
 		return fmt.Errorf(
 			"atomic transaction batch recovery requires durable APPROVED status, got %q",
@@ -168,12 +181,14 @@ func (uc *UseCase) reconcileAtomicTransactionBatchRecoveredMember(
 	if tran == nil || tran.TracerSkipped || uc.TracerReserver == nil {
 		return
 	}
+
 	transactionID, err := uuid.Parse(tran.ID)
 	if err != nil || transactionID == uuid.Nil {
 		return
 	}
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "command.reconcile_atomic_transaction_batch_tracer")
 	defer span.End()
 
@@ -181,6 +196,7 @@ func (uc *UseCase) reconcileAtomicTransactionBatchRecoveredMember(
 	if tran.Amount != nil {
 		amount = *tran.Amount
 	}
+
 	identity := reservationHandle{TransactionID: transactionID, Amount: amount, Asset: tran.AssetCode}
 	if err := uc.TracerReserver.ConfirmByTransaction(ctx, transactionID); err != nil {
 		uc.recordReservationByTransactionFailure(
@@ -211,13 +227,16 @@ func atomicTransactionBatchRecoveryResponses(
 		if tran == nil {
 			return nil, errors.New("atomic transaction batch durable projection is nil")
 		}
+
 		transactionID, err := uuid.Parse(tran.ID)
 		if err != nil || transactionID == uuid.Nil {
 			return nil, errors.New("atomic transaction batch durable projection ID is invalid")
 		}
+
 		if _, duplicate := byID[transactionID]; duplicate {
 			return nil, errors.New("atomic transaction batch durable projection ID is duplicated")
 		}
+
 		byID[transactionID] = tran
 	}
 
@@ -232,10 +251,12 @@ func atomicTransactionBatchRecoveryResponses(
 		public := *tran
 		created := constant.CREATED
 		public.Status = transaction.Status{Code: created, Description: &created}
+
 		payload, err := json.Marshal(&public)
 		if err != nil {
 			return nil, fmt.Errorf("marshal recovered atomic transaction batch transaction %s: %w", transactionID, err)
 		}
+
 		responses[transactionID] = payload
 	}
 

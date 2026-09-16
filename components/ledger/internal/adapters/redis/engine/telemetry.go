@@ -133,6 +133,7 @@ func recordAccountingDuration(
 	if err == nil {
 		err = histogram.Record(ctx, duration.Milliseconds())
 	}
+
 	logMetricError(ctx, logger, err)
 }
 

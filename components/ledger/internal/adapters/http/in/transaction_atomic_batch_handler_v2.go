@@ -57,6 +57,7 @@ func (handler *TransactionHandler) CreateAtomicTransactionBatchV2(
 	if err := ctx.Err(); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
+
 	if handler.TransactionBatchMaxSize < 1 || handler.TransactionBatchMaxSize > atomicTransactionBatchV2AbsoluteMaxSize {
 		return nil, pkgHTTP.HumaProblem(fmt.Errorf(
 			"atomic transaction batch maximum size must be between 1 and %d",
@@ -73,6 +74,7 @@ func (handler *TransactionHandler) CreateAtomicTransactionBatchV2(
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
+
 	if handler.Command == nil {
 		return nil, pkgHTTP.HumaProblem(errors.New("atomic transaction batch command is not configured"))
 	}
@@ -96,6 +98,7 @@ func (handler *TransactionHandler) CreateAtomicTransactionBatchV2(
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
+
 	if result == nil {
 		return nil, pkgHTTP.HumaProblem(errors.New("atomic transaction batch command returned no result"))
 	}

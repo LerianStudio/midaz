@@ -142,9 +142,11 @@ func (rr *RedisConsumerRepository) ClaimAtomicTransactionBatch(
 	if organizationID == uuid.Nil || ledgerID == uuid.Nil {
 		return nil, errors.New("atomic transaction batch idempotency scope is required")
 	}
+
 	if strings.TrimSpace(effectiveKey) == "" {
 		return nil, errors.New("atomic transaction batch effective idempotency key is required")
 	}
+
 	if err := validateAtomicTransactionBatchClaim(claim); err != nil {
 		return nil, err
 	}
@@ -155,6 +157,7 @@ func (rr *RedisConsumerRepository) ClaimAtomicTransactionBatch(
 	}
 
 	internalKey := utils.AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID, effectiveKey)
+
 	redisKey, err := tenantKeyFromContextOrError(ctx, internalKey)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to namespace atomic batch idempotency key", err)
@@ -192,6 +195,7 @@ func (rr *RedisConsumerRepository) ClaimAtomicTransactionBatch(
 	if err := json.Unmarshal([]byte(storedPayload), &stored); err != nil {
 		return nil, fmt.Errorf("decode atomic transaction batch idempotency record: %w", err)
 	}
+
 	if err := validateAtomicTransactionBatchIdempotencyRecord(stored); err != nil {
 		return nil, fmt.Errorf("invalid atomic transaction batch idempotency record: %w", err)
 	}
@@ -220,22 +224,28 @@ func validateAtomicTransactionBatchClaim(claim AtomicTransactionBatchIdempotency
 	return validateAtomicTransactionBatchIdempotencyRecord(claim)
 }
 
+//nolint:gocyclo // exhaustive state-machine validation keeps every forbidden field combination explicit
 func validateAtomicTransactionBatchIdempotencyRecord(record AtomicTransactionBatchIdempotencyRecord) error {
 	if record.FormatVersion != AtomicTransactionBatchIdempotencyFormatVersion {
 		return fmt.Errorf("unsupported format version %d", record.FormatVersion)
 	}
+
 	if !validAtomicTransactionBatchFingerprint(record.RequestFingerprint) {
 		return errors.New("request fingerprint must be lowercase SHA-256 hex")
 	}
+
 	if strings.TrimSpace(record.OwnerToken) == "" {
 		return errors.New("owner token is required")
 	}
+
 	if record.BatchID == uuid.Nil {
 		return errors.New("batch ID is required")
 	}
+
 	if record.ExecutionID != nil && *record.ExecutionID == uuid.Nil {
 		return errors.New("execution ID cannot be nil UUID")
 	}
+
 	if err := validateAtomicTransactionBatchTransactionIDs(record.TransactionIDs); err != nil {
 		return err
 	}
@@ -270,9 +280,11 @@ func validateAtomicTransactionBatchTransactionIDs(transactionIDs []uuid.UUID) er
 		if transactionID == uuid.Nil {
 			return errors.New("transaction ID cannot be nil UUID")
 		}
+
 		if _, found := seen[transactionID]; found {
 			return fmt.Errorf("transaction ID %s is repeated", transactionID)
 		}
+
 		seen[transactionID] = struct{}{}
 	}
 
@@ -301,6 +313,7 @@ func decodeAtomicTransactionBatchClaimReply(raw any) (AtomicTransactionBatchClai
 	if !ok {
 		return "", "", errors.New("atomic transaction batch claim reply has invalid outcome")
 	}
+
 	payload, ok := redisReplyString(values[1])
 	if !ok || payload == "" {
 		return "", "", errors.New("atomic transaction batch claim reply has invalid record")

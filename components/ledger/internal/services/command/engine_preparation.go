@@ -71,6 +71,7 @@ func (uc *UseCase) prepareEngineTransactionWithPool(
 	}
 
 	ctx = readrouting.WithPrimaryRead(ctx)
+
 	itemPool, err := selectEnginePreparationPool(input, pool)
 	if err != nil {
 		return enginePreparedTransaction{}, err
@@ -126,17 +127,20 @@ func enginePreparationAliases(input enginePreparationInput) []string {
 
 func selectEnginePreparationPool(input enginePreparationInput, shared EngineSnapshotPool) (EngineSnapshotPool, error) {
 	aliases := enginePreparationAliases(input)
+
 	requested := make(map[string]struct{}, len(aliases))
 	for _, alias := range aliases {
 		requested[alias] = struct{}{}
 	}
 
 	explicit := make([]*mmodel.Balance, 0, len(requested))
+
 	for _, balance := range shared.ExplicitBalances {
 		snapshot, err := balanceToEngineSnapshot(input.organizationID, input.ledgerID, balance)
 		if err != nil {
 			return EngineSnapshotPool{}, err
 		}
+
 		if _, ok := requested[snapshot.BalanceRef]; ok {
 			explicit = append(explicit, balance)
 		}

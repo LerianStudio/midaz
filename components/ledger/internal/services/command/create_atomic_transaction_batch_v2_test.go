@@ -213,6 +213,22 @@ func (reader *atomicTransactionBatchSettingsReader) ValidateAccountingRules(
 	return nil, nil
 }
 
+func (uc *UseCase) initializeAtomicTransactionBatchV2(
+	ctx context.Context,
+	in CreateAtomicTransactionBatchV2Input,
+) (*atomicTransactionBatchRun, error) {
+	run, err := uc.initializeAtomicTransactionBatchIdentity(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := uc.initializeAtomicTransactionBatchItemsAndSettings(ctx, in, run); err != nil {
+		return nil, err
+	}
+
+	return run, nil
+}
+
 func TestInitializeAtomicTransactionBatchV2_FreezesOrderedIDsAndNondecreasingTimestamps(t *testing.T) {
 	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000001")
 	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000002")

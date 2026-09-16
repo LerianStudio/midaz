@@ -21,6 +21,10 @@ func TestRegisterAtomicTransactionBatchV2Route_PublishesDedicatedOrderedContract
 
 	op := pathItem.Post
 	assert.Equal(t, v2AtomicTransactionBatchOperationID, op.OperationID)
+	assert.Contains(t, op.Description, "request-array order")
+	assert.Contains(t, op.Description, "all-or-none")
+	assert.Contains(t, op.Description, "100 postings and 150 balance snapshots")
+	assert.Contains(t, op.Description, "no query endpoint")
 	assert.EqualValues(t, v2CreateMaxBodyBytes, op.MaxBodyBytes,
 		"the batch must use the same decoded-body ceiling as singular v2 creates")
 	assert.Equal(t, secTransactionBearer, op.Security,

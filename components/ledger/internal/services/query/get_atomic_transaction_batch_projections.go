@@ -25,6 +25,8 @@ const atomicTransactionBatchProjectionLimit = 50
 // the bounded ID set; transaction and operation metadata are fetched in two
 // bounded MongoDB reads. The caller restores request order from its execution
 // index rather than trusting repository order.
+//
+//nolint:gocognit,gocyclo // one bounded read pipeline validates, enriches, and restores projection shape
 func (uc *UseCase) GetAtomicTransactionBatchProjections(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
@@ -33,20 +35,25 @@ func (uc *UseCase) GetAtomicTransactionBatchProjections(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if organizationID == uuid.Nil || ledgerID == uuid.Nil || len(transactionIDs) == 0 ||
 		len(transactionIDs) > atomicTransactionBatchProjectionLimit {
 		return nil, errors.New("atomic transaction batch projection identity is invalid")
 	}
+
 	seen := make(map[uuid.UUID]struct{}, len(transactionIDs))
 	for _, transactionID := range transactionIDs {
 		if transactionID == uuid.Nil {
 			return nil, errors.New("atomic transaction batch projection contains a nil transaction ID")
 		}
+
 		if _, duplicate := seen[transactionID]; duplicate {
 			return nil, errors.New("atomic transaction batch projection contains duplicate transaction IDs")
 		}
+
 		seen[transactionID] = struct{}{}
 	}
+
 	if uc.TransactionRepo == nil || uc.TransactionMetadataRepo == nil {
 		return nil, errors.New("atomic transaction batch projection repositories are not configured")
 	}
@@ -61,30 +68,37 @@ func (uc *UseCase) GetAtomicTransactionBatchProjections(
 	if err != nil {
 		return nil, fmt.Errorf("read atomic transaction batch projections: %w", err)
 	}
+
 	if len(transactions) == 0 {
 		return transactions, nil
 	}
 
 	transactionIDStrings := make([]string, 0, len(transactions))
 	operationIDs := make([]string, 0)
+
 	for _, tran := range transactions {
 		if tran == nil {
 			return nil, errors.New("atomic transaction batch projection contains a nil transaction")
 		}
+
 		transactionIDStrings = append(transactionIDStrings, tran.ID)
 		sort.SliceStable(tran.Operations, func(i, j int) bool {
 			if tran.Operations[i] == nil {
 				return false
 			}
+
 			if tran.Operations[j] == nil {
 				return true
 			}
+
 			return tran.Operations[i].ID < tran.Operations[j].ID
 		})
+
 		for _, operation := range tran.Operations {
 			if operation == nil {
 				return nil, errors.New("atomic transaction batch projection contains a nil operation")
 			}
+
 			operationIDs = append(operationIDs, operation.ID)
 		}
 	}
@@ -97,6 +111,7 @@ func (uc *UseCase) GetAtomicTransactionBatchProjections(
 	if err != nil {
 		return nil, fmt.Errorf("read atomic transaction batch metadata: %w", err)
 	}
+
 	transactionMetadataByID := make(map[string]map[string]any, len(transactionMetadata))
 	for _, metadata := range transactionMetadata {
 		if metadata != nil {
@@ -105,6 +120,7 @@ func (uc *UseCase) GetAtomicTransactionBatchProjections(
 	}
 
 	operationMetadataByID := make(map[string]map[string]any)
+
 	if len(operationIDs) > 0 {
 		operationMetadata, err := uc.TransactionMetadataRepo.FindByEntityIDs(
 			ctx,
@@ -114,6 +130,7 @@ func (uc *UseCase) GetAtomicTransactionBatchProjections(
 		if err != nil {
 			return nil, fmt.Errorf("read atomic transaction batch operation metadata: %w", err)
 		}
+
 		operationMetadataByID = make(map[string]map[string]any, len(operationMetadata))
 		for _, metadata := range operationMetadata {
 			if metadata != nil {
@@ -126,12 +143,15 @@ func (uc *UseCase) GetAtomicTransactionBatchProjections(
 		if metadata, found := transactionMetadataByID[tran.ID]; found {
 			tran.Metadata = metadata
 		}
+
 		source := make([]string, 0)
 		destination := make([]string, 0)
+
 		for _, operation := range tran.Operations {
 			if metadata, found := operationMetadataByID[operation.ID]; found {
 				operation.Metadata = metadata
 			}
+
 			switch operation.Type {
 			case constant.DEBIT:
 				source = append(source, operation.AccountAlias)
@@ -146,6 +166,7 @@ func (uc *UseCase) GetAtomicTransactionBatchProjections(
 				}
 			}
 		}
+
 		tran.Source = source
 		tran.Destination = resolveDestination(destination, tran.Body)
 	}

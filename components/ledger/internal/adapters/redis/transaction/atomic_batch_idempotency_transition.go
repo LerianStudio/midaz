@@ -78,12 +78,14 @@ func (rr *RedisConsumerRepository) TransitionAtomicTransactionBatch(
 	replayTTL time.Duration,
 ) (*AtomicTransactionBatchTransitionResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "redis.transition_atomic_transaction_batch")
 	defer span.End()
 
 	if err := validateAtomicTransactionBatchTransition(expectedState, next, replayTTL); err != nil {
 		return nil, err
 	}
+
 	if ownerToken == "" || ownerToken != next.OwnerToken {
 		return nil, errors.New("atomic transaction batch transition owner token is invalid")
 	}
@@ -115,6 +117,7 @@ func (rr *RedisConsumerRepository) TransitionAtomicTransactionBatch(
 	if err != nil {
 		return nil, err
 	}
+
 	result, err := atomicTransactionBatchTransitionResult(outcome, storedPayload)
 	if err != nil {
 		return nil, err
@@ -163,6 +166,7 @@ func (rr *RedisConsumerRepository) deleteAtomicTransactionBatch(
 	engineEvidence bool,
 ) (*AtomicTransactionBatchDeleteResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "redis.delete_atomic_transaction_batch")
 	defer span.End()
 
@@ -174,6 +178,7 @@ func (rr *RedisConsumerRepository) deleteAtomicTransactionBatch(
 	if engineEvidence {
 		evidenceArg = "1"
 	}
+
 	raw, err := rr.runAtomicTransactionBatchScript(
 		ctx,
 		organizationID,
@@ -194,6 +199,7 @@ func (rr *RedisConsumerRepository) deleteAtomicTransactionBatch(
 	if err != nil {
 		return nil, err
 	}
+
 	result, err := atomicTransactionBatchDeleteResult(outcome, storedPayload)
 	if err != nil {
 		return nil, err
@@ -219,15 +225,18 @@ func (rr *RedisConsumerRepository) runAtomicTransactionBatchScript(
 	if organizationID == uuid.Nil || ledgerID == uuid.Nil {
 		return nil, errors.New("atomic transaction batch idempotency scope is required")
 	}
+
 	if effectiveKey == "" {
 		return nil, errors.New("atomic transaction batch effective idempotency key is required")
 	}
 
 	internalKey := utils.AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID, effectiveKey)
+
 	redisKey, err := tenantKeyFromContextOrError(ctx, internalKey)
 	if err != nil {
 		return nil, err
 	}
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		return nil, err
@@ -248,6 +257,7 @@ func validateAtomicTransactionBatchTransition(
 	if expectedState != AtomicTransactionBatchStateClaimed || next.State != AtomicTransactionBatchStatePrepared {
 		return fmt.Errorf("invalid atomic transaction batch transition %q -> %q", expectedState, next.State)
 	}
+
 	if replayTTL != 0 {
 		return errors.New("nonterminal atomic transaction batch transition cannot set a replay TTL")
 	}
@@ -301,6 +311,7 @@ func decodeAtomicTransactionBatchScriptReply(raw any) (string, string, error) {
 	if !ok || outcome == "" {
 		return "", "", errors.New("atomic transaction batch script reply has invalid outcome")
 	}
+
 	payload, ok := redisReplyString(values[1])
 	if !ok {
 		return "", "", errors.New("atomic transaction batch script reply has invalid record")
@@ -317,9 +328,11 @@ func atomicTransactionBatchTransitionResult(
 	if payload == "" {
 		return result, nil
 	}
+
 	if err := json.Unmarshal([]byte(payload), &result.Record); err != nil {
 		return nil, fmt.Errorf("decode atomic transaction batch transition record: %w", err)
 	}
+
 	if err := validateAtomicTransactionBatchIdempotencyRecord(result.Record); err != nil {
 		return nil, fmt.Errorf("invalid atomic transaction batch transition record: %w", err)
 	}
@@ -335,9 +348,11 @@ func atomicTransactionBatchDeleteResult(
 	if payload == "" {
 		return result, nil
 	}
+
 	if err := json.Unmarshal([]byte(payload), &result.Record); err != nil {
 		return nil, fmt.Errorf("decode atomic transaction batch delete record: %w", err)
 	}
+
 	if err := validateAtomicTransactionBatchIdempotencyRecord(result.Record); err != nil {
 		return nil, fmt.Errorf("invalid atomic transaction batch delete record: %w", err)
 	}

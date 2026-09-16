@@ -25,14 +25,17 @@ func (uc *UseCase) completeAtomicTransactionBatch(
 	if err != nil {
 		return nil, err
 	}
+
 	if run == nil || len(run.items) != len(records) {
 		return nil, invalidTransactionCompletionRecord("atomic batch items do not match completion records")
 	}
+
 	if isNilAppliedTransactionCompleter(uc.AppliedTransactionCompleter) {
 		return nil, invalidTransactionCompletionRecord("atomic batch completer is not configured")
 	}
 
 	transactions := make([]*transaction.Transaction, len(records))
+
 	completions := make([]TransactionCompletionResult, len(records))
 	for index := range records {
 		if err := ctx.Err(); err != nil {
@@ -48,6 +51,7 @@ func (uc *UseCase) completeAtomicTransactionBatch(
 		if expectedStatus == constant.CREATED {
 			expectedStatus = constant.APPROVED
 		}
+
 		if completion.Outcome.TransactionStatus != expectedStatus {
 			return nil, fmt.Errorf(
 				"%w: atomic batch completer confirmed %q for item %d, expected %q",
@@ -67,6 +71,7 @@ func (uc *UseCase) completeAtomicTransactionBatch(
 			created := constant.CREATED
 			tran.Status = transaction.Status{Code: created, Description: &created}
 		}
+
 		transactions[index] = tran
 		completions[index] = completion
 
@@ -78,6 +83,7 @@ func (uc *UseCase) completeAtomicTransactionBatch(
 	if err := uc.finalizeAtomicTransactionBatch(ctx, run, transactions); err != nil {
 		return nil, err
 	}
+
 	last := len(records) - 1
 	uc.acknowledgeEngineRecovery(ctx, logger, records[last], completions[last])
 
@@ -90,10 +96,12 @@ func atomicTransactionBatchCompletionRecords(
 	if !outcome.Executed || outcome.Result == nil {
 		return nil, invalidEngineResult(errors.New("successful atomic batch has no engine result"))
 	}
+
 	prepared := outcome.Prepared
 	if err := validatePreparedEngineExecution(prepared); err != nil {
 		return nil, err
 	}
+
 	if len(outcome.Partitions) != len(prepared.CompletionPlans) {
 		return nil, invalidEngineResult(errors.New("atomic batch result partitions do not match completion plans"))
 	}
@@ -101,6 +109,7 @@ func atomicTransactionBatchCompletionRecords(
 	records := make([]*TransactionCompletionRecord, len(prepared.CompletionPlans))
 	for index := range prepared.CompletionPlans {
 		plan := prepared.CompletionPlans[index]
+
 		embedded := prepared.Execution.CompletionPlans[index]
 		if embedded.TransactionID != plan.TransactionID {
 			return nil, invalidEngineResult(errors.New("atomic batch completion order is inconsistent"))

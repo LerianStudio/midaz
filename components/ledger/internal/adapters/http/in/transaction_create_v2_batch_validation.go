@@ -92,11 +92,13 @@ func decodeAtomicTransactionBatchV2Wrapper(rawBody []byte, configuredMaxSize int
 	}
 
 	unknownFields := make(map[string]any)
+
 	for field, value := range wrapper {
 		if field != "transactions" {
 			unknownFields[field] = value
 		}
 	}
+
 	if len(unknownFields) > 0 {
 		return nil, pkg.ValidateBadRequestFieldsError(
 			pkg.FieldValidations{},
@@ -117,6 +119,7 @@ func decodeAtomicTransactionBatchV2Wrapper(rawBody []byte, configuredMaxSize int
 	if effectiveMaxSize < 1 {
 		effectiveMaxSize = 1
 	}
+
 	if effectiveMaxSize > atomicTransactionBatchV2AbsoluteMaxSize {
 		effectiveMaxSize = atomicTransactionBatchV2AbsoluteMaxSize
 	}
@@ -135,6 +138,7 @@ func decodeAtomicTransactionBatchV2Wrapper(rawBody []byte, configuredMaxSize int
 
 func countAtomicTransactionBatchV2InputLegs(rawItems []json.RawMessage) int {
 	total := 0
+
 	for _, rawItem := range rawItems {
 		var item map[string]json.RawMessage
 		if err := json.Unmarshal(rawItem, &item); err != nil {
@@ -157,6 +161,10 @@ func countRawTransactionV2Legs(raw json.RawMessage) int {
 	return len(legs)
 }
 
+// The collector intentionally keeps scope, repeated-grant, and ordered field
+// diagnostics in one pass so error precedence cannot drift across passes.
+//
+//nolint:gocognit // one-pass ordered validation is the contract this function enforces
 func collectAtomicTransactionBatchV2Items(
 	rawItems []json.RawMessage,
 	inputLegCount int,
@@ -167,8 +175,11 @@ func collectAtomicTransactionBatchV2Items(
 	}
 	details := make([]pkg.FieldError, 0)
 
-	var primary error
-	var commonScope *TransactionV2Scope
+	var (
+		primary     error
+		commonScope *TransactionV2Scope
+	)
+
 	scopeMismatchReported := false
 	seenExceptions := make(map[uuid.UUID]struct{})
 	repeatedExceptionReported := false
@@ -183,6 +194,7 @@ func collectAtomicTransactionBatchV2Items(
 			} else if !scopeMismatchReported && !commonScope.namesSameAs(itemScope) {
 				scopeMismatchReported = true
 				scopeErr = pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
+
 				itemDetails = append(itemDetails, pkg.FieldError{
 					Location: firstTransactionV2ScopeDifference(item.request, *commonScope),
 					Message:  atomicTransactionBatchV2ErrorMessage(scopeErr),
@@ -201,10 +213,12 @@ func collectAtomicTransactionBatchV2Items(
 						constant.ErrAccountBlockExceptionInvalid,
 						constant.EntityTransaction,
 					)
+
 					itemDetails = append(itemDetails, pkg.FieldError{
 						Location: "accountBlockExceptionId",
 						Message:  "accountBlockExceptionId must not be repeated within one transaction batch",
 					})
+
 					if itemPrimary == nil {
 						itemPrimary = repeatedErr
 					}
@@ -215,6 +229,7 @@ func collectAtomicTransactionBatchV2Items(
 		}
 
 		sortTransactionV2FieldErrors(itemDetails)
+
 		for _, detail := range itemDetails {
 			details = append(details, pkg.FieldError{
 				Location: prefixAtomicTransactionBatchV2Location(index, detail.Location),
@@ -227,6 +242,7 @@ func collectAtomicTransactionBatchV2Items(
 		}
 
 		result.items = append(result.items, item)
+
 		if len(details) > pkg.MaxFieldErrors {
 			break
 		}
@@ -243,6 +259,7 @@ func collectAtomicTransactionBatchV2Item(
 	rawItem json.RawMessage,
 ) (decodedAtomicTransactionBatchV2Item, []pkg.FieldError, error) {
 	var request CreateTransactionV2Request
+
 	_, details, decodeErr := pkgHTTP.DecodeAndValidateWithDetails(rawItem, &request)
 	item := decodedAtomicTransactionBatchV2Item{request: request}
 
@@ -343,6 +360,7 @@ func collectTransactionV2LegPureFieldErrors(legs []TransactionV2LegRequest, side
 func firstTransactionV2InternalScopeDifference(request CreateTransactionV2Request) (string, bool) {
 	refs := make([]v2ScopeRef, 0, len(request.Debits)+len(request.Credits))
 	refs = appendTransactionV2ScopeRefs(refs, request.Debits, "debits")
+
 	refs = appendTransactionV2ScopeRefs(refs, request.Credits, "credits")
 	if len(refs) < 2 || refs[0].requireComplete() != nil {
 		return "", false

@@ -28,13 +28,16 @@ import (
 func formatTransactionDate(ctx context.Context, span trace.Span, transactionInput mtransaction.Transaction, transactionStatus string) (time.Time, error) {
 	now := time.Now()
 	logger := libObservability.NewLoggerFromContext(ctx)
+
 	transactionDate, err := resolveTransactionDateAt(transactionInput, transactionStatus, now)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
+
 		message := "Pending transaction cannot have a custom transaction date"
 		if transactionInput.TransactionDate != nil && transactionInput.TransactionDate.After(now) {
 			message = "Transaction date cannot be a future date"
 		}
+
 		logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
 
 		return time.Time{}, err

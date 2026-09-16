@@ -204,39 +204,6 @@ func TestAtomicTransactionBatchReservationSettlement_RetriesTransportFailure(t *
 	assert.Equal(t, 2, attempts, "the first failed confirm must be redelivered by the bounded retrier")
 }
 
-func TestReconcileAtomicTransactionBatchReservations_UsesOrderedTransactionIdentity(t *testing.T) {
-	transactionIDs := []uuid.UUID{
-		uuid.MustParse("01994f13-29b7-7000-8000-0000000000c1"),
-		uuid.MustParse("01994f13-29b7-7000-8000-0000000000c2"),
-		uuid.MustParse("01994f13-29b7-7000-8000-0000000000c3"),
-	}
-	plans := make([]TransactionCompletionPlan, len(transactionIDs))
-	for index := range plans {
-		plans[index] = TransactionCompletionPlan{
-			TransactionID: transactionIDs[index],
-			TransactionInput: mtransaction.Transaction{Send: mtransaction.Send{
-				Asset: "BRL",
-				Value: decimal.NewFromInt(int64(index + 1)),
-			}},
-		}
-	}
-	plans[1].TracerSkipped = true
-	reserver := &stubReserver{}
-	uc := &UseCase{TracerReserver: reserver}
-	ctx, span, logger := anchorDeps()
-
-	uc.reconcileAtomicTransactionBatchReservations(
-		ctx,
-		span,
-		logger,
-		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce},
-		plans,
-	)
-
-	assert.Equal(t, []uuid.UUID{transactionIDs[0], transactionIDs[2]}, reserver.confirmedTransactions())
-	assert.Empty(t, reserver.releasedTransactions())
-}
-
 func atomicTransactionBatchTracerTestRun(itemCount int) *atomicTransactionBatchRun {
 	run := &atomicTransactionBatchRun{
 		ledgerSettings: mmodel.LedgerSettings{

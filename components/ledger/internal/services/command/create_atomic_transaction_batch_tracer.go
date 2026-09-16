@@ -9,8 +9,6 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // atomicTransactionBatchReservationSettlement names only outcomes that are
@@ -37,6 +35,7 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 ) error {
 	for index := range run.items {
 		item := &run.items[index]
+
 		reservation := uc.reserveTransaction(
 			ctx,
 			span,
@@ -88,40 +87,12 @@ func (uc *UseCase) settleAtomicTransactionBatchReservations(
 
 	for index := range run.items {
 		handle := run.items[index].tracerReservation
+
 		switch settlement {
 		case atomicTransactionBatchReservationConfirmedAbort:
 			uc.releaseReservations(ctx, span, logger, handle)
 		case atomicTransactionBatchReservationKnownSuccess:
 			uc.confirmReservations(ctx, span, logger, handle)
 		}
-	}
-}
-
-// reconcileAtomicTransactionBatchReservations confirms applied batch members
-// after recovery by stable transaction identity. Completion plans retain the
-// honored skip decision, so a skipped item produces no recovery-side Tracer
-// request either.
-func (uc *UseCase) reconcileAtomicTransactionBatchReservations(
-	ctx context.Context,
-	span trace.Span,
-	logger libLog.Logger,
-	settings mmodel.TracerSettings,
-	plans []TransactionCompletionPlan,
-) {
-	for index := range plans {
-		plan := plans[index]
-		identity := reservationHandle{
-			TransactionID: plan.TransactionID,
-			Amount:        plan.TransactionInput.Send.Value,
-			Asset:         plan.TransactionInput.Send.Asset,
-		}
-		uc.confirmReservationsByTransaction(
-			ctx,
-			span,
-			logger,
-			settings,
-			identity,
-			plan.TracerSkipped,
-		)
 	}
 }

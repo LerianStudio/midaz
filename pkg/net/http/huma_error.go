@@ -52,6 +52,7 @@ func HumaProblem(err error) error {
 		if responseErr.Code != "" {
 			detail.Type = libProblem.BaseURI + "/" + responseErr.Code
 		}
+
 		if errs := fieldsToErrors(err); errs != nil {
 			detail.Errors = errs
 		}

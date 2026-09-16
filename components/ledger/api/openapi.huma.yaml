@@ -16874,6 +16874,7 @@ paths:
         - Transactions (v2)
   /v2/transactions/direct/batch:
     post:
+      description: Executes the transactions once, in request-array order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. batchId is an ephemeral idempotency/recovery correlation value and has no query endpoint.
       operationId: createAtomicTransactionBatchV2
       parameters:
         - description: Idempotency key to safely retry the atomic batch; an identical retry returns the original ordered response

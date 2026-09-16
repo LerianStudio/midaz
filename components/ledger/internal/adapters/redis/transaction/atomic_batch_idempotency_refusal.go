@@ -60,6 +60,7 @@ func (rr *RedisConsumerRepository) AbortAtomicTransactionBatchConfirmedRefusal(
 	transactionIDs []uuid.UUID,
 ) (*AtomicTransactionBatchRefusalAbortResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "redis.abort_atomic_transaction_batch_confirmed_refusal")
 	defer span.End()
 
@@ -88,6 +89,7 @@ func (rr *RedisConsumerRepository) AbortAtomicTransactionBatchConfirmedRefusal(
 	if err != nil {
 		return nil, err
 	}
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		return nil, err
@@ -112,6 +114,7 @@ func (rr *RedisConsumerRepository) AbortAtomicTransactionBatchConfirmedRefusal(
 	if err != nil {
 		return nil, err
 	}
+
 	result, err := atomicTransactionBatchRefusalAbortResult(outcome, payload)
 	if err != nil {
 		return nil, err
@@ -141,12 +144,15 @@ func validateAtomicTransactionBatchRefusalAbort(
 	if organizationID == uuid.Nil || ledgerID == uuid.Nil || executionID == uuid.Nil {
 		return errors.New("atomic transaction batch refusal abort identity is incomplete")
 	}
+
 	if strings.TrimSpace(effectiveKey) == "" || strings.TrimSpace(ownerToken) == "" {
 		return errors.New("atomic transaction batch refusal abort ownership is incomplete")
 	}
+
 	if err := validateAtomicTransactionBatchTransactionIDs(transactionIDs); err != nil {
 		return err
 	}
+
 	if len(transactionIDs) == 0 {
 		return errors.New("atomic transaction batch refusal abort requires transaction IDs")
 	}
@@ -185,9 +191,11 @@ func atomicTransactionBatchRefusalAbortResult(
 	if payload == "" {
 		return result, nil
 	}
+
 	if err := json.Unmarshal([]byte(payload), &result.Record); err != nil {
 		return nil, fmt.Errorf("decode atomic transaction batch refusal abort record: %w", err)
 	}
+
 	if err := validateAtomicTransactionBatchIdempotencyRecord(result.Record); err != nil {
 		return nil, fmt.Errorf("invalid atomic transaction batch refusal abort record: %w", err)
 	}

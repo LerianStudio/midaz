@@ -76,6 +76,7 @@ func (uc *UseCase) claimAtomicTransactionBatch(
 	if err != nil {
 		return nil, err
 	}
+
 	ownerToken := uuid.NewString()
 	claim := txRedis.AtomicTransactionBatchIdempotencyRecord{
 		FormatVersion:      txRedis.AtomicTransactionBatchIdempotencyFormatVersion,
@@ -84,6 +85,7 @@ func (uc *UseCase) claimAtomicTransactionBatch(
 		OwnerToken:         ownerToken,
 		BatchID:            run.batchID,
 	}
+
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.ClaimAtomicTransactionBatch(
 		ctx,
 		run.organizationID,
@@ -94,6 +96,7 @@ func (uc *UseCase) claimAtomicTransactionBatch(
 	if err != nil {
 		return nil, err
 	}
+
 	if result == nil {
 		return nil, fmt.Errorf("atomic transaction batch idempotency claim returned no result")
 	}
@@ -120,11 +123,13 @@ func atomicTransactionBatchRequestIdentity(in CreateAtomicTransactionBatchV2Inpu
 		if err != nil {
 			return "", "", fmt.Errorf("encode atomic transaction batch identity: %w", err)
 		}
+
 		canonical = encoded
 	}
 
 	digest := sha256.Sum256(canonical)
 	fingerprint := hex.EncodeToString(digest[:])
+
 	effectiveKey := strings.TrimSpace(in.IdempotencyKey)
 	if effectiveKey == "" {
 		effectiveKey = fingerprint
@@ -145,6 +150,7 @@ func decodeAtomicTransactionBatchReplay(raw json.RawMessage) (*CreateAtomicTrans
 	if err := json.Unmarshal(raw, &response); err != nil {
 		return nil, fmt.Errorf("decode atomic transaction batch replay: %w", err)
 	}
+
 	if response.BatchID == uuid.Nil || len(response.Transactions) == 0 {
 		return nil, fmt.Errorf("atomic transaction batch replay response is incomplete")
 	}
@@ -175,6 +181,7 @@ func (uc *UseCase) abortAtomicTransactionBatchPrePublication(
 	if err != nil {
 		return fmt.Errorf("clean up atomic transaction batch after pre-publication failure: %w", err)
 	}
+
 	if result == nil || (result.Outcome != txRedis.AtomicTransactionBatchDeleted && result.Outcome != txRedis.AtomicTransactionBatchDeleteMissing) {
 		return fmt.Errorf("clean up atomic transaction batch after pre-publication failure: unexpected delete outcome")
 	}

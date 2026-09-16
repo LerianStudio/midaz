@@ -57,15 +57,19 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 		if !exists {
 			return nil, invalidTransactionCompletionRecord("engine movement belongs to an unknown transaction")
 		}
+
 		if transactionIndex < previousTransactionIndex {
 			return nil, invalidTransactionCompletionRecord("engine transaction movement ranges are interleaved or unordered")
 		}
-		if _, exists := balances[movement.BalanceRef]; !exists {
+
+		if _, balanceExists := balances[movement.BalanceRef]; !balanceExists {
 			return nil, invalidTransactionCompletionRecord("engine movement references an unknown balance")
 		}
+
 		if movement.Ref == "" {
 			return nil, invalidTransactionCompletionRecord("engine movement has no identity")
 		}
+
 		if _, duplicate := movementRefs[movement.Ref]; duplicate {
 			return nil, invalidTransactionCompletionRecord("engine movement identity is duplicated")
 		}
@@ -81,11 +85,13 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 		} else {
 			globalTouches = append(globalTouches, movement.BalanceRef)
 		}
+
 		globalLast[movement.BalanceRef] = movement.After
 
 		if _, touched := transactionLast[transactionIndex][movement.BalanceRef]; !touched {
 			transactionTouches[transactionIndex] = append(transactionTouches[transactionIndex], movement.BalanceRef)
 		}
+
 		transactionLast[transactionIndex][movement.BalanceRef] = movement.After
 	}
 
@@ -121,9 +127,11 @@ func indexEngineResultBalances(balances []accounting.BalanceSnapshot) (map[strin
 		if balance.BalanceRef == "" || balance.ID == uuid.Nil || balance.AccountID == uuid.Nil {
 			return nil, invalidTransactionCompletionRecord("execution contains an invalid balance identity")
 		}
+
 		if _, duplicate := byRef[balance.BalanceRef]; duplicate {
 			return nil, invalidTransactionCompletionRecord("execution contains a duplicate balance reference")
 		}
+
 		if _, duplicate := byID[balance.ID]; duplicate {
 			return nil, invalidTransactionCompletionRecord("execution contains a duplicate balance identity")
 		}
@@ -151,6 +159,7 @@ func validateGlobalEngineFinal(
 		if !exists || snapshot.BalanceRef != firstTouch[index] {
 			return nil, invalidTransactionCompletionRecord("engine final snapshot order does not match first touch")
 		}
+
 		if !sameEngineBalanceIdentity(balance, snapshot) {
 			return nil, invalidTransactionCompletionRecord("engine final snapshot identity differs from execution balance")
 		}

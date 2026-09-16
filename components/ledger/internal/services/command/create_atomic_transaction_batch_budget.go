@@ -78,6 +78,7 @@ type atomicTransactionBatchBudgetMeasurements struct {
 
 func (uc *UseCase) enforceAtomicTransactionBatchExpandedPostings(run *atomicTransactionBatchRun) error {
 	cumulative := make([]int, len(run.items))
+
 	total := 0
 	for index := range run.items {
 		total += len(run.items[index].input.Send.Source.From) + len(run.items[index].input.Send.Distribute.To)
@@ -108,8 +109,10 @@ func (uc *UseCase) prepareAndEnforceAtomicTransactionBatchBudgets(
 	if err != nil {
 		return err
 	}
+
 	run.budgetMeasurements = &measurements
 	limits := uc.resolvedAtomicTransactionBatchBudgetLimits()
+
 	checks := []struct {
 		dimension  string
 		cumulative []int
@@ -178,13 +181,16 @@ func (uc *UseCase) prepareAtomicTransactionBatchCompletionPlans(
 		if err != nil {
 			return fmt.Errorf("generate atomic transaction batch execution id: %w", err)
 		}
+
 		if executionID == uuid.Nil {
 			return errors.New("atomic transaction batch UUIDv7 generator returned a nil execution id")
 		}
+
 		run.executionID = executionID
 	}
 
 	_, _, headerID, _ := libObservability.NewTrackingFromContext(ctx)
+
 	intent := EngineIntent{
 		TenantID:       tmcore.GetTenantIDContext(ctx),
 		OrganizationID: run.organizationID,
@@ -227,14 +233,17 @@ func (uc *UseCase) prepareAtomicTransactionBatchCompletionPlans(
 	if err != nil {
 		return err
 	}
+
 	run.engineIntentFingerprint = fingerprint
 	for index := range run.items {
 		item := &run.items[index]
 		item.completionPlan.IntentFingerprint = fingerprint
+
 		payload, err := EncodeTransactionCompletionPlan(item.completionPlan)
 		if err != nil {
 			return err
 		}
+
 		item.completionPlanPayload = append(item.completionPlanPayload[:0], payload...)
 	}
 
@@ -251,6 +260,7 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 		recoveryBytes:          make([]int, len(run.items)),
 		cachedResponseBytes:    make([]int, len(run.items)),
 	}
+
 	balancePrefixes, err := atomicTransactionBatchBalancePrefixes(run)
 	if err != nil {
 		return atomicTransactionBatchBudgetMeasurements{}, err
@@ -264,6 +274,7 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 	recoveryBytes := 0
 	completionPlanBytes := 0
 	expandedPostings := 0
+
 	for index := range run.items {
 		item := &run.items[index]
 		expandedPostings += len(item.prepared.transaction.Postings)
@@ -300,10 +311,12 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 		if err != nil {
 			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch accounting request: %w", err)
 		}
+
 		preparedBytes, err := json.Marshal(prepared)
 		if err != nil {
 			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch prepared response: %w", err)
 		}
+
 		result := atomicTransactionBatchBudgetResult(*item)
 		recovery := TransactionCompletionRecord{
 			FormatVersion:     TransactionCompletionFormatVersion,
@@ -316,13 +329,16 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 			Payload:           string(item.completionPlanPayload),
 			Result:            result,
 		}
+
 		recoveryPayload, err := json.Marshal(recovery)
 		if err != nil {
 			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch recovery: %w", err)
 		}
+
 		recoveryBytes += len(recoveryPayload) +
 			len(result.Movements)*atomicTransactionBatchMovementSafetyBytes +
 			len(result.Final)*atomicTransactionBatchSnapshotSafetyBytes
+
 		cachedPayload, err := json.Marshal(struct {
 			BatchID      uuid.UUID                   `json:"batchId"`
 			Transactions []*transaction.Transaction  `json:"transactions"`
@@ -354,12 +370,15 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 	}
 
 	shared := run.items[0].prepared.pool.Snapshots
+
 	byRef := make(map[string]accounting.BalanceSnapshot, len(shared))
 	for _, snapshot := range shared {
 		byRef[snapshot.BalanceRef] = snapshot
 	}
+
 	seen := make(map[string]struct{}, len(shared))
 	ordered := make([]accounting.BalanceSnapshot, 0, len(shared))
+
 	prefixes := make([][]accounting.BalanceSnapshot, len(run.items))
 	for index := range run.items {
 		for _, balance := range run.items[index].prepared.pool.ExplicitBalances {
@@ -367,6 +386,7 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 			if snapshot, ok := byRef[ref]; ok {
 				if _, exists := seen[ref]; !exists {
 					seen[ref] = struct{}{}
+
 					ordered = append(ordered, snapshot)
 				}
 			}
@@ -374,16 +394,20 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 			if balance.Key == constant.OverdraftBalanceKey {
 				continue
 			}
+
 			companionRef := mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), constant.OverdraftBalanceKey)
 			if snapshot, ok := byRef[companionRef]; ok {
 				if _, exists := seen[companionRef]; !exists {
 					seen[companionRef] = struct{}{}
+
 					ordered = append(ordered, snapshot)
 				}
 			}
 		}
+
 		prefixes[index] = append([]accounting.BalanceSnapshot(nil), ordered...)
 	}
+
 	if len(seen) != len(shared) {
 		return nil, errors.New("atomic transaction batch shared pool contains an unowned execution balance")
 	}
@@ -405,7 +429,9 @@ func atomicTransactionBatchBudgetResult(item atomicTransactionBatchItemRun) acco
 	for _, snapshot := range item.prepared.pool.Snapshots {
 		snapshots[snapshot.BalanceRef] = snapshot
 	}
+
 	companions := make(map[string]string)
+
 	for _, spec := range item.prepared.projection {
 		if spec.Role == accounting.RoleOverdraftCompanion {
 			companions[spec.PostingRef] = spec.BalanceRef
@@ -417,17 +443,20 @@ func atomicTransactionBatchBudgetResult(item atomicTransactionBatchItemRun) acco
 		Final:     make([]accounting.BalanceSnapshot, 0, len(item.prepared.pool.Snapshots)),
 	}
 	touched := make(map[string]struct{})
+
 	appendMovement := func(posting accounting.Posting, role, balanceRef string) {
 		snapshot, ok := snapshots[balanceRef]
 		if !ok {
 			return
 		}
+
 		state := accounting.BalanceState{
 			Available:     snapshot.Available,
 			OnHold:        snapshot.OnHold,
 			OverdraftUsed: snapshot.OverdraftUsed,
 			Version:       snapshot.Version,
 		}
+
 		result.Movements = append(result.Movements, accounting.Movement{
 			Ref:            fmt.Sprintf("%s:%d:%s:%s:0", item.transactionID, len(posting.Ref), posting.Ref, role),
 			TransactionID:  item.transactionID,
@@ -442,11 +471,13 @@ func atomicTransactionBatchBudgetResult(item atomicTransactionBatchItemRun) acco
 		})
 		if _, exists := touched[balanceRef]; !exists {
 			touched[balanceRef] = struct{}{}
+
 			result.Final = append(result.Final, snapshot)
 		}
 	}
 	for _, posting := range item.prepared.transaction.Postings {
 		appendMovement(posting, accounting.RolePrimary, posting.BalanceRef)
+
 		if companionRef := companions[posting.Ref]; companionRef != "" {
 			appendMovement(posting, accounting.RoleOverdraftCompanion, companionRef)
 		}

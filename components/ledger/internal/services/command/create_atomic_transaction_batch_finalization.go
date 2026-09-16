@@ -24,9 +24,11 @@ func (uc *UseCase) finalizeAtomicTransactionBatch(
 	if run == nil || !run.idempotencyClaimed || uc.AtomicTransactionBatchIdempotencyRepo == nil {
 		return nil
 	}
+
 	if !run.idempotencyHandedOff || run.executionID == uuid.Nil {
 		return errors.New("atomic transaction batch cannot finalize before execution handoff")
 	}
+
 	if len(transactions) != len(run.items) {
 		return errors.New("atomic transaction batch terminal response cardinality differs")
 	}
@@ -36,10 +38,12 @@ func (uc *UseCase) finalizeAtomicTransactionBatch(
 		if tran == nil || tran.ID != run.items[index].transactionID.String() {
 			return errors.New("atomic transaction batch terminal response identity differs")
 		}
+
 		payload, err := json.Marshal(tran)
 		if err != nil {
 			return fmt.Errorf("marshal atomic transaction batch terminal item %d: %w", index, err)
 		}
+
 		responses[run.items[index].transactionID] = payload
 	}
 
@@ -57,6 +61,7 @@ func (uc *UseCase) finalizeAtomicTransactionBatch(
 	if err != nil {
 		return fmt.Errorf("finalize atomic transaction batch response: %w", err)
 	}
+
 	if result == nil ||
 		(result.Outcome != txRedis.AtomicTransactionBatchFinalized &&
 			result.Outcome != txRedis.AtomicTransactionBatchAlreadyComplete) {

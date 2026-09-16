@@ -101,6 +101,7 @@ func (rr *RedisConsumerRepository) HandoffAtomicTransactionBatchExecution(
 	next AtomicTransactionBatchIdempotencyRecord,
 ) (*AtomicTransactionBatchTransitionResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "redis.handoff_atomic_transaction_batch_execution")
 	defer span.End()
 
@@ -119,6 +120,7 @@ func (rr *RedisConsumerRepository) HandoffAtomicTransactionBatchExecution(
 	if err != nil {
 		return nil, err
 	}
+
 	raw, err := handoffAtomicTransactionBatchScript.Run(
 		ctx,
 		rds,
@@ -138,6 +140,7 @@ func (rr *RedisConsumerRepository) HandoffAtomicTransactionBatchExecution(
 	if err != nil {
 		return nil, err
 	}
+
 	result, err := atomicTransactionBatchTransitionResult(outcome, storedPayload)
 	if err != nil {
 		return nil, err
@@ -197,14 +200,17 @@ func (rr *RedisConsumerRepository) GetAtomicTransactionBatchFinalizationCandidat
 	if err != nil {
 		return nil, err
 	}
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 	receiptRaw, err := rds.HGet(ctx, receiptKey, executionID.String()).Result()
 	if errors.Is(err, redisclient.Nil) {
 		return nil, errors.New("atomic transaction batch execution receipt is missing")
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("get atomic transaction batch execution receipt: %w", err)
 	}
@@ -213,6 +219,7 @@ func (rr *RedisConsumerRepository) GetAtomicTransactionBatchFinalizationCandidat
 	if err := json.Unmarshal([]byte(receiptRaw), &receipt); err != nil {
 		return nil, fmt.Errorf("decode atomic transaction batch execution receipt: %w", err)
 	}
+
 	if err := validateAtomicTransactionBatchReceipt(
 		receipt,
 		*record,
@@ -225,16 +232,19 @@ func (rr *RedisConsumerRepository) GetAtomicTransactionBatchFinalizationCandidat
 	}
 
 	result.Candidate = true
+
 	for _, memberID := range receipt.Protection.Transactions {
 		if memberID == transactionID {
 			continue
 		}
+
 		member := memberID.String()
 		if !receipt.Protection.Acknowledged[member] || receipt.Protection.TerminalCompletedAtMS[member] < 1 {
 			result.Candidate = false
 			break
 		}
 	}
+
 	if result.Candidate {
 		result.ReceiptToken = receiptRaw
 	}
@@ -242,6 +252,7 @@ func (rr *RedisConsumerRepository) GetAtomicTransactionBatchFinalizationCandidat
 	return result, nil
 }
 
+//nolint:gocyclo // receipt identity, bounds, and ordered membership are one fail-closed proof
 func validateAtomicTransactionBatchReceipt(
 	receipt atomicTransactionBatchReceipt,
 	record AtomicTransactionBatchIdempotencyRecord,
@@ -260,15 +271,18 @@ func validateAtomicTransactionBatchReceipt(
 	}
 
 	foundCurrent := false
+
 	for index, memberID := range record.TransactionIDs {
 		if protection.Transactions[index] != memberID ||
 			protection.RecoveryFields[index] != memberID.String()+":"+executionID.String() {
 			return errors.New("atomic transaction batch execution receipt membership differs")
 		}
+
 		if memberID == transactionID {
 			foundCurrent = true
 		}
 	}
+
 	if !foundCurrent {
 		return errors.New("atomic transaction batch recovery member is not indexed")
 	}
@@ -287,12 +301,14 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 	replayTTL time.Duration,
 ) (*AtomicTransactionBatchFinalizationResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	ctx, span := tracer.Start(ctx, "redis.finalize_atomic_transaction_batch")
 	defer span.End()
 
 	if strings.TrimSpace(ownerToken) == "" {
 		return nil, errors.New("atomic transaction batch finalization owner token is required")
 	}
+
 	if replayTTL < 0 {
 		return nil, errors.New("atomic transaction batch finalization replay TTL cannot be negative")
 	}
@@ -303,6 +319,7 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 	if err != nil {
 		return nil, err
 	}
+
 	if record == nil {
 		result := &AtomicTransactionBatchFinalizationResult{Outcome: AtomicTransactionBatchFinalizeMissing}
 
@@ -315,12 +332,15 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 		if err != nil {
 			return nil, err
 		}
+
 		next.State = AtomicTransactionBatchStateComplete
 		next.Response = response
 	}
+
 	if err := validateAtomicTransactionBatchIdempotencyRecord(next); err != nil {
 		return nil, err
 	}
+
 	payload, err := json.Marshal(next)
 	if err != nil {
 		return nil, fmt.Errorf("marshal atomic transaction batch finalization: %w", err)
@@ -333,6 +353,7 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 	if err != nil {
 		return nil, err
 	}
+
 	receiptKey, err := tenantKeyFromContextOrError(
 		ctx,
 		atomicTransactionBatchEngineReceiptInternalKey(organizationID, ledgerID),
@@ -340,10 +361,12 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 	if err != nil {
 		return nil, err
 	}
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 	raw, err := finalizeAtomicTransactionBatchScript.Run(
 		ctx,
 		rds,
@@ -366,6 +389,7 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 	if err != nil {
 		return nil, err
 	}
+
 	result, err := atomicTransactionBatchFinalizationResult(outcome, storedPayload)
 	if err != nil {
 		return nil, err
@@ -400,6 +424,7 @@ func (rr *RedisConsumerRepository) getAtomicTransactionBatchByExecutionID(
 	if err != nil {
 		return "", nil, err
 	}
+
 	recordPrefix, err := tenantKeyFromContextOrError(
 		ctx,
 		utils.AtomicTransactionBatchIdempotencyInternalKeyPrefix(organizationID, ledgerID),
@@ -407,6 +432,7 @@ func (rr *RedisConsumerRepository) getAtomicTransactionBatchByExecutionID(
 	if err != nil {
 		return "", nil, err
 	}
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		return "", nil, err
@@ -416,9 +442,11 @@ func (rr *RedisConsumerRepository) getAtomicTransactionBatchByExecutionID(
 	if errors.Is(err, redisclient.Nil) {
 		return "", nil, nil
 	}
+
 	if err != nil {
 		return "", nil, fmt.Errorf("get atomic transaction batch execution index: %w", err)
 	}
+
 	if !validAtomicTransactionBatchRecordPointer(recordPrefix, recordKey) {
 		return "", nil, errors.New("atomic transaction batch execution index contains an invalid record pointer")
 	}
@@ -427,16 +455,20 @@ func (rr *RedisConsumerRepository) getAtomicTransactionBatchByExecutionID(
 	if errors.Is(err, redisclient.Nil) {
 		return "", nil, errors.New("atomic transaction batch execution index points to a missing record")
 	}
+
 	if err != nil {
 		return "", nil, fmt.Errorf("get atomic transaction batch idempotency record: %w", err)
 	}
+
 	var record AtomicTransactionBatchIdempotencyRecord
 	if err := json.Unmarshal(payload, &record); err != nil {
 		return "", nil, fmt.Errorf("decode indexed atomic transaction batch record: %w", err)
 	}
+
 	if err := validateAtomicTransactionBatchIdempotencyRecord(record); err != nil {
 		return "", nil, fmt.Errorf("invalid indexed atomic transaction batch record: %w", err)
 	}
+
 	if record.ExecutionID == nil || *record.ExecutionID != executionID ||
 		(record.State != AtomicTransactionBatchStateApplied && record.State != AtomicTransactionBatchStateComplete) {
 		return "", nil, errors.New("atomic transaction batch execution index points to a mismatched record")
@@ -454,9 +486,11 @@ func (rr *RedisConsumerRepository) atomicTransactionBatchExecutionKeys(
 	if organizationID == uuid.Nil || ledgerID == uuid.Nil || executionID == uuid.Nil {
 		return "", "", nil, errors.New("atomic transaction batch execution identity is incomplete")
 	}
+
 	if strings.TrimSpace(effectiveKey) == "" {
 		return "", "", nil, errors.New("atomic transaction batch effective idempotency key is required")
 	}
+
 	keys, err := tenantKeysFromContext(ctx, []string{
 		utils.AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID, effectiveKey),
 		utils.AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, executionID),
@@ -464,6 +498,7 @@ func (rr *RedisConsumerRepository) atomicTransactionBatchExecutionKeys(
 	if err != nil {
 		return "", "", nil, err
 	}
+
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		return "", "", nil, err
@@ -479,9 +514,11 @@ func validateAtomicTransactionBatchHandoff(
 	if next.State != AtomicTransactionBatchStateApplied {
 		return errors.New("atomic transaction batch handoff must enter applied state")
 	}
+
 	if err := validateAtomicTransactionBatchIdempotencyRecord(next); err != nil {
 		return err
 	}
+
 	if strings.TrimSpace(ownerToken) == "" || ownerToken != next.OwnerToken {
 		return errors.New("atomic transaction batch handoff owner token is invalid")
 	}
@@ -504,10 +541,12 @@ func buildAtomicTransactionBatchResponse(
 	ordered := make([]json.RawMessage, len(record.TransactionIDs))
 	for index, transactionID := range record.TransactionIDs {
 		transaction, found := transactions[transactionID]
+
 		trimmed := strings.TrimSpace(string(transaction))
 		if !found || !json.Valid(transaction) || !strings.HasPrefix(trimmed, "{") {
 			return nil, fmt.Errorf("invalid response for transaction %s", transactionID)
 		}
+
 		ordered[index] = transaction
 	}
 
@@ -526,10 +565,12 @@ func validAtomicTransactionBatchRecordPointer(prefix, recordKey string) bool {
 	if !strings.HasPrefix(recordKey, prefix) {
 		return false
 	}
+
 	digest := strings.TrimPrefix(recordKey, prefix)
 	if len(digest) != sha256.Size*2 || strings.ToLower(digest) != digest {
 		return false
 	}
+
 	decoded, err := hex.DecodeString(digest)
 
 	return err == nil && len(decoded) == sha256.Size
@@ -565,12 +606,15 @@ func atomicTransactionBatchFinalizationResult(
 	if payload == "" {
 		return result, nil
 	}
+
 	if err := json.Unmarshal([]byte(payload), &result.Record); err != nil {
 		return nil, fmt.Errorf("decode atomic transaction batch finalization record: %w", err)
 	}
+
 	if err := validateAtomicTransactionBatchIdempotencyRecord(result.Record); err != nil {
 		return nil, fmt.Errorf("invalid atomic transaction batch finalization record: %w", err)
 	}
+
 	result.Response = append(json.RawMessage(nil), result.Record.Response...)
 
 	return result, nil

@@ -80,6 +80,7 @@ func ExecutePreparedEngine(
 	if validationErr != nil {
 		return outcome, invalidEngineResult(validationErr)
 	}
+
 	outcome.Partitions = partitions
 
 	return outcome, nil
@@ -87,10 +88,12 @@ func ExecutePreparedEngine(
 
 func validatePreparedEngineExecution(prepared PreparedEngineExecution) error {
 	transactions := prepared.Execution.Execution.Transactions
+
 	transactionCount := len(transactions)
 	if transactionCount < 1 || transactionCount > maxPreparedEngineTransactions {
 		return invalidTransactionCompletionRecord("engine execution requires between 1 and 50 transactions")
 	}
+
 	if len(prepared.Execution.Guards) != transactionCount ||
 		len(prepared.Execution.CompletionPlans) != transactionCount ||
 		len(prepared.CompletionPlans) != transactionCount {
@@ -101,6 +104,7 @@ func validatePreparedEngineExecution(prepared PreparedEngineExecution) error {
 		transactionID := transaction.ID
 		guard := prepared.Execution.Guards[index]
 		embeddedPlan := prepared.Execution.CompletionPlans[index]
+
 		typedPlan := prepared.CompletionPlans[index]
 		if transactionID == uuid.Nil || guard.TransactionID != transactionID ||
 			embeddedPlan.TransactionID != transactionID || typedPlan.TransactionID != transactionID {
@@ -111,6 +115,7 @@ func validatePreparedEngineExecution(prepared PreparedEngineExecution) error {
 		if err != nil {
 			return err
 		}
+
 		if !bytes.Equal(canonicalPlan, embeddedPlan.Payload) {
 			return invalidTransactionCompletionRecord("typed completion plan does not match canonical embedded plan")
 		}

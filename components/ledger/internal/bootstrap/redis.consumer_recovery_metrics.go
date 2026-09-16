@@ -82,6 +82,7 @@ func (r *recoveryRecordCompleter) emitRecoveryBacklog(
 	}
 
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+
 	labels := map[string]string{recoveryMetricSourceLabel: recoveryMetricSource(source)}
 	if err := r.metricsFactory.SetGauge(
 		ctx,

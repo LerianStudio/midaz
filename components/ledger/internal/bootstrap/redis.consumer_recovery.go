@@ -246,6 +246,7 @@ func (r *recoveryRecordCompleter) process(ctx context.Context, source txRedis.Re
 	}
 }
 
+//nolint:gocyclo // recovery outcome classification must remain adjacent to each pipeline transition
 func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.RecoveryQueueSource, field, raw string, envelope *command.TransactionCompletionRecord) error {
 	startedAt := time.Now()
 	outcome := recoveryMetricOutcomeCompleted
@@ -272,6 +273,7 @@ func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.R
 
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+
 	ctx, err := r.resolveRecoveryCompletionContext(ctx, envelope)
 	if err != nil {
 		outcome = recoveryMetricOutcomeFinalizationFailed
@@ -353,6 +355,7 @@ func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.R
 	}
 
 	outcome = recoveryMetricOutcomeInvalidAck
+
 	return errors.New("invalid conditional recovery acknowledgment result")
 }
 
@@ -475,10 +478,12 @@ func (r *recoveryRecordCompleter) acknowledgeCompletion(
 			return 0, recoveryMetricOutcomeNotConfigured,
 				errors.New("atomic transaction batch recovery acknowledgment is not configured")
 		}
+
 		terminal, completedAt, outcome, err := r.completionEvidence(completion.Outcome.TransactionStatus)
 		if err != nil {
 			return 0, outcome, err
 		}
+
 		status, err := acknowledger.CompareAndDeleteAtomicTransactionBatchRecoveryWithProtectionFrom(
 			ctx,
 			source,

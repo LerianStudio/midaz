@@ -122,12 +122,13 @@ func DecodeAndValidateWithDetails(bodyBytes []byte, s any) (map[string]any, []pk
 	}
 
 	diffFields := FindUnknownFields(originalMap, marshaledMap)
+
 	unknownDetails := findUnknownFieldDetails(originalMap, marshaledMap)
 	if len(diffFields) > 0 && len(unknownDetails) == 0 {
 		unknownDetails = unknownFieldDetailsFallback(diffFields)
 	}
 
-	validationErr, validationDetails := validateStructWithDetails(s)
+	validationDetails, validationErr := validateStructWithDetails(s)
 	details := append(unknownDetails, validationDetails...)
 	sortFieldErrors(details)
 
@@ -206,12 +207,12 @@ func GetPayloadFromContext(c fiber.Ctx) any {
 // ValidateStruct validates a struct against defined validation rules, using the validator package.
 // Also validates null bytes in string fields for all types (structs and maps).
 func ValidateStruct(s any) error {
-	err, _ := validateStructWithDetails(s)
+	_, err := validateStructWithDetails(s)
 
 	return err
 }
 
-func validateStructWithDetails(s any) (error, []pkg.FieldError) {
+func validateStructWithDetails(s any) ([]pkg.FieldError, error) {
 	// Generic null-byte validation across all string fields in the payload
 	// This runs for all types including maps and structs
 	if violations := validateNoNullBytes(s); len(violations) > 0 {
@@ -219,20 +220,20 @@ func validateStructWithDetails(s any) (error, []pkg.FieldError) {
 
 		// Check for JSON structure violations first (return specific business errors)
 		if _, hasDepthViolation := violations["_depth"]; hasDepthViolation {
-			return pkg.ValidateBusinessError(cn.ErrJSONNestingDepthExceeded, "request"), details
+			return details, pkg.ValidateBusinessError(cn.ErrJSONNestingDepthExceeded, "request")
 		}
 
 		if _, hasKeyCountViolation := violations["_keyCount"]; hasKeyCountViolation {
-			return pkg.ValidateBusinessError(cn.ErrJSONKeyCountExceeded, "request"), details
+			return details, pkg.ValidateBusinessError(cn.ErrJSONKeyCountExceeded, "request")
 		}
 
 		// For other violations (null bytes), return field validation error
-		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{}), details
+		return details, pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
 	}
 
 	v, trans, err := newValidator()
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 
 	k := reflect.ValueOf(s).Kind()
@@ -252,13 +253,13 @@ func validateStructWithDetails(s any) (error, []pkg.FieldError) {
 
 		for _, fieldError := range validationErrors {
 			if businessErr := validatorBusinessError(fieldError, trans); businessErr != nil {
-				return businessErr, details
+				return details, businessErr
 			}
 		}
 
 		errPtr := malformedRequestErr(validationErrors, trans)
 
-		return &errPtr, details
+		return details, &errPtr
 	}
 
 	return nil, nil
@@ -336,6 +337,7 @@ func unmarshallingFieldDetails(err error) []pkg.FieldError {
 
 func normalizeUnmarshalFieldPath(field string) string {
 	parts := strings.Split(field, ".")
+
 	var normalized strings.Builder
 
 	for index, part := range parts {
@@ -350,6 +352,7 @@ func normalizeUnmarshalFieldPath(field string) string {
 		if index > 0 {
 			normalized.WriteString(".")
 		}
+
 		normalized.WriteString(part)
 	}
 
@@ -1095,11 +1098,13 @@ func collectUnknownFieldDetails(original, marshaled any, path string, details *[
 		for key := range originalValue {
 			keys = append(keys, key)
 		}
+
 		sort.Strings(keys)
 
 		for _, key := range keys {
 			value := originalValue[key]
 			fieldPath := joinJSONFieldPath(path, key)
+
 			marshaledValue, exists := marshaledMap[key]
 			if !exists {
 				if ignoreMissingUnknownValue(value) {

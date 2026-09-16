@@ -88,10 +88,12 @@ func (uc *UseCase) recordAtomicTransactionBatchReceived(
 	uc.recordAtomicTransactionBatchHistogram(ctx, logger, atomicTransactionBatchSizeMetric, nil, len(in.Transactions))
 
 	inputLegs := 0
+
 	for index := range in.Transactions {
 		transaction := in.Transactions[index].Transaction
 		inputLegs += len(transaction.Send.Source.From) + len(transaction.Send.Distribute.To)
 	}
+
 	uc.recordAtomicTransactionBatchHistogram(ctx, logger, atomicTransactionBatchInputLegsMetric, nil, inputLegs)
 }
 
@@ -109,6 +111,7 @@ func (uc *UseCase) recordAtomicTransactionBatchCompleted(
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 	outcome := atomicTransactionBatchOutcomeRejected
 	code := atomicTransactionBatchMetricCode(err)
+
 	dimension := atomicTransactionBatchMetricDimension(run)
 	switch {
 	case err == nil && result != nil && result.Replayed:
@@ -199,6 +202,7 @@ func (uc *UseCase) recordAtomicTransactionBatchWork(
 		expandedPostings += len(run.items[index].input.Send.Source.From) +
 			len(run.items[index].input.Send.Distribute.To)
 	}
+
 	uc.recordAtomicTransactionBatchHistogram(
 		ctx,
 		logger,
@@ -211,6 +215,7 @@ func (uc *UseCase) recordAtomicTransactionBatchWork(
 	if measurements == nil || len(measurements.executionBalances) == 0 {
 		return
 	}
+
 	last := len(measurements.executionBalances) - 1
 	uc.recordAtomicTransactionBatchHistogram(
 		ctx,
@@ -253,8 +258,10 @@ func (uc *UseCase) recordAtomicTransactionBatchHistogram(
 		if labels != nil {
 			histogram = histogram.WithLabels(labels)
 		}
+
 		err = histogram.Record(ctx, int64(value))
 	}
+
 	if err != nil && logger != nil {
 		logger.Log(ctx, libLog.LevelDebug, "Failed to emit atomic transaction batch histogram", libLog.Err(err))
 	}
@@ -303,6 +310,7 @@ func atomicTransactionBatchMetricCode(err error) string {
 			return candidate.Error()
 		}
 	}
+
 	if pkg.IsBusinessError(err) {
 		if code := atomicTransactionBatchBusinessErrorCode(err); code != "" {
 			bounded := atomicTransactionBatchMetricCodeLabel(code)
@@ -322,26 +330,32 @@ func atomicTransactionBatchBusinessErrorCode(err error) string {
 	if errors.As(err, &validation) {
 		return validation.Code
 	}
+
 	var unprocessable pkg.UnprocessableOperationError
 	if errors.As(err, &unprocessable) {
 		return unprocessable.Code
 	}
+
 	var conflict pkg.EntityConflictError
 	if errors.As(err, &conflict) {
 		return conflict.Code
 	}
+
 	var notFound pkg.EntityNotFoundError
 	if errors.As(err, &notFound) {
 		return notFound.Code
 	}
+
 	var unauthorized pkg.UnauthorizedError
 	if errors.As(err, &unauthorized) {
 		return unauthorized.Code
 	}
+
 	var forbidden pkg.ForbiddenError
 	if errors.As(err, &forbidden) {
 		return forbidden.Code
 	}
+
 	var failedPrecondition pkg.FailedPreconditionError
 	if errors.As(err, &failedPrecondition) {
 		return failedPrecondition.Code

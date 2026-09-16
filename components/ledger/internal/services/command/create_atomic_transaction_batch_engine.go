@@ -24,6 +24,7 @@ func buildAtomicTransactionBatchPreparedExecution(
 	if run == nil || len(run.items) == 0 {
 		return PreparedEngineExecution{}, errors.New("atomic transaction batch has no prepared items")
 	}
+
 	if run.executionID == uuid.Nil || run.engineIntentFingerprint == "" {
 		return PreparedEngineExecution{}, errors.New("atomic transaction batch execution identity is incomplete")
 	}
@@ -65,6 +66,7 @@ func buildAtomicTransactionBatchPreparedExecution(
 		)
 		prepared.CompletionPlans = append(prepared.CompletionPlans, item.completionPlan)
 	}
+
 	if err := validatePreparedEngineExecution(prepared); err != nil {
 		return PreparedEngineExecution{}, err
 	}
@@ -81,6 +83,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchIdempotency(
 	}
 
 	next := atomicTransactionBatchIdempotencyRecord(run, txRedis.AtomicTransactionBatchStatePrepared)
+
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.TransitionAtomicTransactionBatch(
 		ctx,
 		run.organizationID,
@@ -94,6 +97,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchIdempotency(
 	if err != nil {
 		return err
 	}
+
 	if result == nil ||
 		(result.Outcome != txRedis.AtomicTransactionBatchTransitionUpdated &&
 			result.Outcome != txRedis.AtomicTransactionBatchAlreadyTransitioned) ||
@@ -111,6 +115,7 @@ func (uc *UseCase) handoffAtomicTransactionBatchExecution(
 	next := atomicTransactionBatchIdempotencyRecord(run, txRedis.AtomicTransactionBatchStateApplied)
 	executionID := run.executionID
 	next.ExecutionID = &executionID
+
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.HandoffAtomicTransactionBatchExecution(
 		ctx,
 		run.organizationID,
@@ -122,6 +127,7 @@ func (uc *UseCase) handoffAtomicTransactionBatchExecution(
 	if err != nil {
 		return err
 	}
+
 	if result == nil ||
 		(result.Outcome != txRedis.AtomicTransactionBatchTransitionUpdated &&
 			result.Outcome != txRedis.AtomicTransactionBatchAlreadyTransitioned) ||
@@ -163,9 +169,11 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 	}
 
 	mapped := MapEngineError(prepared.Execution.Execution, executeErr)
+
 	if err := uc.abortAtomicTransactionBatchConfirmedRefusal(ctx, run); err != nil {
 		return outcome, err
 	}
+
 	uc.settleAtomicTransactionBatchReservations(
 		ctx,
 		span,
@@ -186,6 +194,7 @@ func (uc *UseCase) abortAtomicTransactionBatchConfirmedRefusal(
 	run *atomicTransactionBatchRun,
 ) error {
 	transactionIDs := atomicTransactionBatchTransactionIDs(run)
+
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.AbortAtomicTransactionBatchConfirmedRefusal(
 		ctx,
 		run.organizationID,
@@ -198,6 +207,7 @@ func (uc *UseCase) abortAtomicTransactionBatchConfirmedRefusal(
 	if err != nil {
 		return fmt.Errorf("protect atomic transaction batch after confirmed refusal: %w", err)
 	}
+
 	if result == nil ||
 		(result.Outcome != txRedis.AtomicTransactionBatchRefusalDeleted &&
 			result.Outcome != txRedis.AtomicTransactionBatchRefusalAlreadyDeleted) {

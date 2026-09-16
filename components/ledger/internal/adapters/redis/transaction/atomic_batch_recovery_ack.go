@@ -22,6 +22,8 @@ import (
 // final durable member, the same Lua invocation seals idempotency before it
 // deletes the last retry trigger. Status 3 means the caller did not yet provide
 // a terminal response; status 4 means its optimistic receipt token changed.
+//
+//nolint:gocyclo // the single CAS boundary validates every recovery and finalization prerequisite
 func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecoveryWithProtectionFrom(
 	ctx context.Context,
 	source RecoveryQueueSource,
@@ -35,6 +37,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
+
 	if source != RecoveryQueueSourceEngineRecover {
 		return 0, errors.New("atomic transaction batch recovery acknowledgment requires engine recovery source")
 	}
@@ -49,6 +52,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 	if err != nil {
 		return 0, err
 	}
+
 	executionID, err := uuid.Parse(executionRaw)
 	if err != nil {
 		return 0, fmt.Errorf("parse atomic transaction batch recovery execution ID: %w", err)
@@ -63,34 +67,42 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 	if err != nil {
 		return 0, err
 	}
+
 	if record == nil {
 		return 0, errors.New("atomic transaction batch execution index is missing")
 	}
 
 	nextPayload := ""
+
 	if record.State == AtomicTransactionBatchStateApplied && receiptToken != "" {
 		response, err := buildAtomicTransactionBatchResponse(*record, transactions)
 		if err != nil {
 			return 0, err
 		}
+
 		next := *record
 		next.State = AtomicTransactionBatchStateComplete
+
 		next.Response = response
 		if err := validateAtomicTransactionBatchIdempotencyRecord(next); err != nil {
 			return 0, err
 		}
+
 		payload, err := json.Marshal(next)
 		if err != nil {
 			return 0, fmt.Errorf("marshal atomic transaction batch recovery finalization: %w", err)
 		}
+
 		nextPayload = string(payload)
 	}
 
 	scope := organizationID.String() + ":" + ledgerID.String()
+
 	queueKey, err := recoveryQueueKey(source)
 	if err != nil {
 		return 0, err
 	}
+
 	indexKey, err := tenantKeyFromContextOrError(
 		ctx,
 		utils.AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, executionID),
@@ -98,6 +110,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 	if err != nil {
 		return 0, err
 	}
+
 	keys, err := tenantKeysFromContext(ctx, []string{
 		queueKey,
 		queueKey,
@@ -118,6 +131,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 	if err != nil {
 		return 0, fmt.Errorf("resolve atomic batch recovery attempt field: %w", err)
 	}
+
 	client, err := rr.conn.GetClient(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("get atomic batch recovery acknowledgment client: %w", err)
@@ -127,6 +141,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 	if terminal {
 		terminalFlag = "1"
 	}
+
 	result, err := acknowledgeEngineRecoveryScript.Run(
 		ctx,
 		client,
