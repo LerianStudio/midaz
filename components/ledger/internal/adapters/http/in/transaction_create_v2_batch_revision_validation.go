@@ -28,9 +28,11 @@ const (
 // public route still serves the original direct-only contract. Items are in
 // execution order, but originalIndex always refers to the received JSON array.
 type revisedDecodedAtomicTransactionBatchV2 struct {
-	items         []revisedDecodedAtomicTransactionBatchV2Item
-	scope         TransactionV2Scope
-	inputLegCount int
+	items              []revisedDecodedAtomicTransactionBatchV2Item
+	scope              TransactionV2Scope
+	inputLegCount      int
+	canonicalRequest   []byte
+	requestFingerprint string
 }
 
 type revisedDecodedAtomicTransactionBatchV2Item struct {
@@ -105,6 +107,13 @@ func decodeAndValidateRevisedAtomicTransactionBatchV2(
 			result.scope = scope
 		}
 	}
+
+	canonicalRequest, err := canonicalizeRevisedAtomicTransactionBatchV2Request(rawBody, result.items)
+	if err != nil {
+		return revisedDecodedAtomicTransactionBatchV2{}, fmt.Errorf("canonicalize revised atomic transaction batch request: %w", err)
+	}
+	result.canonicalRequest = canonicalRequest
+	result.requestFingerprint = fingerprintRevisedAtomicTransactionBatchV2Request(canonicalRequest)
 
 	return result, nil
 }
