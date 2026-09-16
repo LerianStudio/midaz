@@ -252,8 +252,15 @@ func TestBuildTransactionPostgresConnection_PrefixedValues(t *testing.T) {
 			},
 		},
 		{
-			name: "empty config produces empty-valued connection strings",
-			cfg:  &Config{},
+			name: "primary only: absent replica configuration is accepted",
+			cfg: &Config{
+				TxnPrefixedPrimaryDBHost:     "prefixed-host",
+				TxnPrefixedPrimaryDBUser:     "prefixed-user",
+				TxnPrefixedPrimaryDBPassword: "prefixed-pass",
+				TxnPrefixedPrimaryDBName:     "prefixed-db",
+				TxnPrefixedPrimaryDBPort:     "5433",
+				TxnPrefixedPrimaryDBSSLMode:  "require",
+			},
 		},
 	}
 
@@ -270,4 +277,74 @@ func TestBuildTransactionPostgresConnection_PrefixedValues(t *testing.T) {
 			assert.False(t, connected)
 		})
 	}
+}
+
+func TestNewTransactionPostgresConfig_ReplicaHandling(t *testing.T) {
+	t.Parallel()
+
+	logger := libLog.NewNop()
+
+	primary := &Config{
+		TxnPrefixedPrimaryDBHost:      "primary-host",
+		TxnPrefixedPrimaryDBUser:      "primary-user",
+		TxnPrefixedPrimaryDBPassword:  "primary-pass",
+		TxnPrefixedPrimaryDBName:      "primary-db",
+		TxnPrefixedPrimaryDBPort:      "5433",
+		TxnPrefixedPrimaryDBSSLMode:   "require",
+		TxnPrefixedMaxOpenConnections: 7,
+		TxnPrefixedMaxIdleConnections: 3,
+	}
+
+	const wantPrimaryDSN = "host=primary-host user=primary-user password=primary-pass dbname=primary-db port=5433 sslmode=require"
+
+	t.Run("absent replica passes an empty ReplicaDSN", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := *primary
+
+		pgCfg, err := newTransactionPostgresConfig(&cfg, logger)
+		require.NoError(t, err)
+
+		assert.Equal(t, wantPrimaryDSN, pgCfg.PrimaryDSN)
+		assert.Equal(t, "", pgCfg.ReplicaDSN, "absent replica must reach lib-commons as the empty sentinel, not a host= user= ... shell")
+		assert.Equal(t, 7, pgCfg.MaxOpenConnections)
+		assert.Equal(t, 3, pgCfg.MaxIdleConnections)
+	})
+
+	t.Run("full replica keeps the legacy DSN format", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := *primary
+		cfg.TxnPrefixedReplicaDBHost = "replica-host"
+		cfg.TxnPrefixedReplicaDBUser = "replica-user"
+		cfg.TxnPrefixedReplicaDBPassword = "replica-pass"
+		cfg.TxnPrefixedReplicaDBName = "replica-db"
+		cfg.TxnPrefixedReplicaDBPort = "5434"
+		cfg.TxnPrefixedReplicaDBSSLMode = "verify-full"
+
+		pgCfg, err := newTransactionPostgresConfig(&cfg, logger)
+		require.NoError(t, err)
+
+		assert.Equal(t, wantPrimaryDSN, pgCfg.PrimaryDSN)
+		assert.Equal(t, "host=replica-host user=replica-user password=replica-pass dbname=replica-db port=5434 sslmode=verify-full", pgCfg.ReplicaDSN)
+	})
+
+	t.Run("partial replica is a configuration error naming module and fields", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := *primary
+		cfg.TxnPrefixedReplicaDBHost = "replica-host"
+		cfg.TxnPrefixedReplicaDBUser = "replica-user"
+
+		_, err := newTransactionPostgresConfig(&cfg, logger)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, errIncompleteReplicaConfig)
+		assert.Contains(t, err.Error(), "transaction")
+		assert.Contains(t, err.Error(), "missing: password, dbname, port, sslmode")
+
+		conn, err := buildTransactionPostgresConnection(&cfg, logger)
+		require.Error(t, err, "the builder must refuse to start rather than silently downgrade to primary-only")
+		assert.ErrorIs(t, err, errIncompleteReplicaConfig)
+		assert.Nil(t, conn)
+	})
 }
