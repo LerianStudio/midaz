@@ -186,7 +186,7 @@ if batchMode then
     local currentBatchRaw = redis.call("GET", KEYS[7])
     local currentBatchDecoded, currentBatch = pcall(cjson.decode, currentBatchRaw or "")
     if not currentBatchDecoded or type(currentBatch) ~= "table" or
-       currentBatch.formatVersion ~= 1 or currentBatch.ownerToken ~= ARGV[10] or
+       (currentBatch.formatVersion ~= 1 and currentBatch.formatVersion ~= 2) or currentBatch.ownerToken ~= ARGV[10] or
        currentBatch.executionId ~= executionID or type(currentBatch.transactionIds) ~= "table" or
        #currentBatch.transactionIds ~= #receipt.protection.transactions then
         return redis.error_reply("ERR invalid atomic batch idempotency record")
@@ -194,6 +194,16 @@ if batchMode then
     for index, id in ipairs(receipt.protection.transactions) do
         if currentBatch.transactionIds[index] ~= id then
             return redis.error_reply("ERR atomic batch transaction membership differs")
+        end
+    end
+    if currentBatch.formatVersion == 2 then
+        if type(currentBatch.initialResponses) ~= "table" then
+            return redis.error_reply("ERR atomic batch initial responses are invalid")
+        end
+        for _, id in ipairs(currentBatch.transactionIds) do
+            if type(currentBatch.initialResponses[id]) ~= "string" then
+                return redis.error_reply("ERR atomic batch initial response is missing")
+            end
         end
     end
 
@@ -215,7 +225,7 @@ if batchMode then
 
             local nextDecoded, nextBatch = pcall(cjson.decode, ARGV[11])
             if not nextDecoded or type(nextBatch) ~= "table" or
-               nextBatch.formatVersion ~= 1 or nextBatch.state ~= "complete" or
+               nextBatch.formatVersion ~= currentBatch.formatVersion or nextBatch.state ~= "complete" or
                nextBatch.ownerToken ~= currentBatch.ownerToken or
                nextBatch.requestFingerprint ~= currentBatch.requestFingerprint or
                nextBatch.batchId ~= currentBatch.batchId or
@@ -223,6 +233,16 @@ if batchMode then
                type(nextBatch.transactionIds) ~= "table" or type(nextBatch.response) ~= "table" or
                cjson.encode(nextBatch.transactionIds) ~= cjson.encode(currentBatch.transactionIds) then
                 return redis.error_reply("ERR invalid atomic batch terminal record")
+            end
+            if currentBatch.formatVersion == 2 then
+                if type(nextBatch.initialResponses) ~= "table" then
+                    return redis.error_reply("ERR atomic batch initial responses changed")
+                end
+                for _, id in ipairs(currentBatch.transactionIds) do
+                    if nextBatch.initialResponses[id] ~= currentBatch.initialResponses[id] then
+                        return redis.error_reply("ERR atomic batch initial responses changed")
+                    end
+                end
             end
 
             batchPayload = ARGV[11]

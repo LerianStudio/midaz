@@ -5,7 +5,7 @@ end
 
 local decoded, record = pcall(cjson.decode, current)
 if not decoded or type(record) ~= "table" or
-   record.formatVersion ~= 1 or
+   (record.formatVersion ~= 1 and record.formatVersion ~= 2) or
    type(record.state) ~= "string" or
    type(record.ownerToken) ~= "string" then
     return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_INVALID")

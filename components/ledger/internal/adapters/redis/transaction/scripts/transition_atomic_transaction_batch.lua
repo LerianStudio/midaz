@@ -10,7 +10,8 @@ if not currentDecoded or type(currentRecord) ~= "table" or
     return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_INVALID")
 end
 
-if currentRecord.formatVersion ~= 1 or nextRecord.formatVersion ~= 1 or
+if (currentRecord.formatVersion ~= 1 and currentRecord.formatVersion ~= 2) or
+   (nextRecord.formatVersion ~= 1 and nextRecord.formatVersion ~= 2) or
    type(currentRecord.state) ~= "string" or type(nextRecord.state) ~= "string" or
    type(currentRecord.ownerToken) ~= "string" or type(nextRecord.ownerToken) ~= "string" or
    type(currentRecord.requestFingerprint) ~= "string" or type(nextRecord.requestFingerprint) ~= "string" or
@@ -34,6 +35,10 @@ if currentRecord.ownerToken ~= nextRecord.ownerToken or
    currentRecord.requestFingerprint ~= nextRecord.requestFingerprint or
    currentRecord.batchId ~= nextRecord.batchId then
     return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_IDENTITY_CHANGED")
+end
+
+if currentRecord.formatVersion ~= nextRecord.formatVersion then
+    return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_FORMAT_CHANGED")
 end
 
 if currentRecord.state ~= "claimed" or nextRecord.state ~= "prepared" then

@@ -68,6 +68,7 @@ func TestCreateAtomicTransactionBatchV2_CompletesAndAcknowledgesPartitionsInOrde
 	)
 
 	order := make([]string, 0, len(transactionIDs)*2)
+	repository.captureOrder = &order
 	completionDelegate := &createAppliedTransactionCompleter{
 		outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
 	}
@@ -101,10 +102,13 @@ func TestCreateAtomicTransactionBatchV2_CompletesAndAcknowledgesPartitionsInOrde
 
 	assert.Equal(t, []string{
 		"complete:" + transactionIDs[0].String(),
+		"capture:" + transactionIDs[0].String(),
 		"ack:" + transactionIDs[0].String(),
 		"complete:" + transactionIDs[1].String(),
+		"capture:" + transactionIDs[1].String(),
 		"ack:" + transactionIDs[1].String(),
 	}, order)
+	assert.Equal(t, len(transactionIDs), repository.captures)
 	for index, transactionID := range transactionIDs {
 		record := completionDelegate.envelopes[index]
 		assert.Equal(t, transactionID, record.TransactionID)

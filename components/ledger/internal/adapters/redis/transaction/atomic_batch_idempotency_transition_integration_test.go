@@ -8,6 +8,7 @@ package redis
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -66,6 +67,12 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 		require.ErrorContains(t, err, "ATOMIC_BATCH_IDEMPOTENCY_TRANSACTIONS_CHANGED")
 
 		applied := atomicBatchAppliedRecord()
+		firstResponse := json.RawMessage(`{"id":"first"}`)
+		secondResponse := json.RawMessage(`{"id":"second"}`)
+		applied.InitialResponses = map[string]string{
+			applied.TransactionIDs[0].String(): base64.StdEncoding.EncodeToString(firstResponse),
+			applied.TransactionIDs[1].String(): base64.StdEncoding.EncodeToString(secondResponse),
+		}
 		transitioned, err = repository.HandoffAtomicTransactionBatchExecution(
 			ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken, applied,
 		)
@@ -82,8 +89,8 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 		require.Equal(t, applied.TransactionIDs, lookup.Record.TransactionIDs)
 
 		responses := map[uuid.UUID]json.RawMessage{
-			applied.TransactionIDs[1]: json.RawMessage(`{"id":"second"}`),
-			applied.TransactionIDs[0]: json.RawMessage(`{"id":"first"}`),
+			applied.TransactionIDs[1]: secondResponse,
+			applied.TransactionIDs[0]: firstResponse,
 		}
 		staleResult, err := repository.FinalizeAtomicTransactionBatch(
 			ctx, organizationID, ledgerID, executionID, "stale-owner", responses, 60,

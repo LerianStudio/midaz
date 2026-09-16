@@ -10,7 +10,7 @@ if not decoded or type(record) ~= "table" then
     return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_INVALID")
 end
 
-if record.formatVersion ~= 1 or
+if (record.formatVersion ~= 1 and record.formatVersion ~= 2) or
    type(record.requestFingerprint) ~= "string" or
    type(record.state) ~= "string" then
     return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_INVALID")

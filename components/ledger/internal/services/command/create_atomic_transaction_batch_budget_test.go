@@ -27,6 +27,9 @@ type atomicTransactionBatchClaimRepositoryFake struct {
 	transitions         int
 	handoffs            int
 	finalizations       int
+	captures            int
+	capturedResponses   map[uuid.UUID]json.RawMessage
+	captureOrder        *[]string
 	aborts              int
 	deletes             int
 	effectiveKey        string
@@ -41,6 +44,27 @@ type atomicTransactionBatchClaimRepositoryFake struct {
 	abortOutcome        txRedis.AtomicTransactionBatchRefusalAbortOutcome
 	abortExecutionID    uuid.UUID
 	abortTransactionIDs []uuid.UUID
+}
+
+func (repository *atomicTransactionBatchClaimRepositoryFake) CaptureAtomicTransactionBatchInitialResponse(
+	_ context.Context,
+	_, _, _ uuid.UUID,
+	_ string,
+	transactionID uuid.UUID,
+	response json.RawMessage,
+) (*txRedis.AtomicTransactionBatchInitialResponseCaptureResult, error) {
+	repository.captures++
+	if repository.capturedResponses == nil {
+		repository.capturedResponses = make(map[uuid.UUID]json.RawMessage)
+	}
+	repository.capturedResponses[transactionID] = append(json.RawMessage(nil), response...)
+	if repository.captureOrder != nil {
+		*repository.captureOrder = append(*repository.captureOrder, "capture:"+transactionID.String())
+	}
+
+	return &txRedis.AtomicTransactionBatchInitialResponseCaptureResult{
+		Outcome: txRedis.AtomicTransactionBatchInitialResponseCaptured,
+	}, nil
 }
 
 func (repository *atomicTransactionBatchClaimRepositoryFake) FinalizeAtomicTransactionBatch(

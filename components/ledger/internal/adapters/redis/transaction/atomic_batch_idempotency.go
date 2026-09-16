@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/sha256"
 	_ "embed"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -25,7 +26,11 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-const AtomicTransactionBatchIdempotencyFormatVersion = 1
+const (
+	AtomicTransactionBatchLegacyFormatVersion      = 1
+	AtomicTransactionBatchIdempotencyFormatVersion = 2
+	atomicTransactionBatchInitialResponsesMaxBytes = 1024 * 1024
+)
 
 //go:embed scripts/claim_atomic_transaction_batch.lua
 var claimAtomicTransactionBatchLua string
@@ -52,7 +57,28 @@ type AtomicTransactionBatchIdempotencyRecord struct {
 	BatchID            uuid.UUID                              `json:"batchId"`
 	ExecutionID        *uuid.UUID                             `json:"executionId,omitempty"`
 	TransactionIDs     []uuid.UUID                            `json:"transactionIds,omitempty"`
-	Response           json.RawMessage                        `json:"response,omitempty"`
+	// InitialResponses freezes the creation representation per transaction ID.
+	// Values are base64-encoded JSON to retain the exact response bytes while
+	// keeping the ephemeral record independent from public response DTOs.
+	InitialResponses map[string]string `json:"initialResponses,omitempty"`
+	Response         json.RawMessage   `json:"response,omitempty"`
+}
+
+type AtomicTransactionBatchInitialResponseCaptureOutcome string
+
+const (
+	AtomicTransactionBatchInitialResponseCaptured        AtomicTransactionBatchInitialResponseCaptureOutcome = "captured"
+	AtomicTransactionBatchInitialResponseAlreadyCaptured AtomicTransactionBatchInitialResponseCaptureOutcome = "already_captured"
+	AtomicTransactionBatchInitialResponseMissing         AtomicTransactionBatchInitialResponseCaptureOutcome = "missing"
+	AtomicTransactionBatchInitialResponseStaleOwner      AtomicTransactionBatchInitialResponseCaptureOutcome = "stale_owner"
+	AtomicTransactionBatchInitialResponseStateConflict   AtomicTransactionBatchInitialResponseCaptureOutcome = "state_conflict"
+	AtomicTransactionBatchInitialResponseIndexConflict   AtomicTransactionBatchInitialResponseCaptureOutcome = "index_conflict"
+	AtomicTransactionBatchInitialResponseConflict        AtomicTransactionBatchInitialResponseCaptureOutcome = "response_conflict"
+)
+
+type AtomicTransactionBatchInitialResponseCaptureResult struct {
+	Outcome AtomicTransactionBatchInitialResponseCaptureOutcome
+	Record  AtomicTransactionBatchIdempotencyRecord
 }
 
 type AtomicTransactionBatchClaimOutcome string
@@ -105,6 +131,13 @@ type AtomicTransactionBatchIdempotencyRepository interface {
 		transactions map[uuid.UUID]json.RawMessage,
 		replayTTL time.Duration,
 	) (*AtomicTransactionBatchFinalizationResult, error)
+	CaptureAtomicTransactionBatchInitialResponse(
+		ctx context.Context,
+		organizationID, ledgerID, executionID uuid.UUID,
+		ownerToken string,
+		transactionID uuid.UUID,
+		response json.RawMessage,
+	) (*AtomicTransactionBatchInitialResponseCaptureResult, error)
 	AbortAtomicTransactionBatchConfirmedRefusal(
 		ctx context.Context,
 		organizationID, ledgerID uuid.UUID,
@@ -226,7 +259,8 @@ func validateAtomicTransactionBatchClaim(claim AtomicTransactionBatchIdempotency
 
 //nolint:gocyclo // exhaustive state-machine validation keeps every forbidden field combination explicit
 func validateAtomicTransactionBatchIdempotencyRecord(record AtomicTransactionBatchIdempotencyRecord) error {
-	if record.FormatVersion != AtomicTransactionBatchIdempotencyFormatVersion {
+	if record.FormatVersion != AtomicTransactionBatchLegacyFormatVersion &&
+		record.FormatVersion != AtomicTransactionBatchIdempotencyFormatVersion {
 		return fmt.Errorf("unsupported format version %d", record.FormatVersion)
 	}
 
@@ -250,13 +284,17 @@ func validateAtomicTransactionBatchIdempotencyRecord(record AtomicTransactionBat
 		return err
 	}
 
+	if err := validateAtomicTransactionBatchInitialResponses(record); err != nil {
+		return err
+	}
+
 	switch record.State {
 	case AtomicTransactionBatchStateClaimed:
-		if record.ExecutionID != nil || len(record.TransactionIDs) > 0 || len(record.Response) > 0 {
+		if record.ExecutionID != nil || len(record.TransactionIDs) > 0 || len(record.InitialResponses) > 0 || len(record.Response) > 0 {
 			return errors.New("claimed record contains prepared or terminal fields")
 		}
 	case AtomicTransactionBatchStatePrepared:
-		if record.ExecutionID != nil || len(record.TransactionIDs) == 0 || len(record.Response) > 0 {
+		if record.ExecutionID != nil || len(record.TransactionIDs) == 0 || len(record.InitialResponses) > 0 || len(record.Response) > 0 {
 			return errors.New("prepared record requires transaction IDs and no execution or terminal response")
 		}
 	case AtomicTransactionBatchStateApplied:
@@ -267,8 +305,49 @@ func validateAtomicTransactionBatchIdempotencyRecord(record AtomicTransactionBat
 		if record.ExecutionID == nil || len(record.TransactionIDs) == 0 || !validAtomicTransactionBatchResponse(record.Response) {
 			return errors.New("complete record requires execution and transaction IDs and a JSON response")
 		}
+		if record.FormatVersion == AtomicTransactionBatchIdempotencyFormatVersion && len(record.InitialResponses) != len(record.TransactionIDs) {
+			return errors.New("complete record requires every initial response")
+		}
 	default:
 		return fmt.Errorf("unsupported state %q", record.State)
+	}
+
+	return nil
+}
+
+func validateAtomicTransactionBatchInitialResponses(record AtomicTransactionBatchIdempotencyRecord) error {
+	if record.FormatVersion == AtomicTransactionBatchLegacyFormatVersion {
+		if len(record.InitialResponses) > 0 {
+			return errors.New("legacy record cannot contain initial responses")
+		}
+
+		return nil
+	}
+
+	if len(record.InitialResponses) == 0 {
+		return nil
+	}
+
+	members := make(map[string]struct{}, len(record.TransactionIDs))
+	for _, transactionID := range record.TransactionIDs {
+		members[transactionID.String()] = struct{}{}
+	}
+
+	total := 0
+	for transactionID, encoded := range record.InitialResponses {
+		if _, found := members[transactionID]; !found {
+			return fmt.Errorf("initial response transaction ID %q is not a batch member", transactionID)
+		}
+
+		response, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil || !validAtomicTransactionBatchResponse(response) || !strings.HasPrefix(strings.TrimSpace(string(response)), "{") {
+			return fmt.Errorf("initial response for transaction %s is invalid", transactionID)
+		}
+
+		total += len(response)
+		if total > atomicTransactionBatchInitialResponsesMaxBytes {
+			return errors.New("initial responses exceed byte budget")
+		}
 	}
 
 	return nil

@@ -75,6 +75,10 @@ func (uc *UseCase) completeAtomicTransactionBatch(
 		transactions[index] = tran
 		completions[index] = completion
 
+		if err := uc.captureAtomicTransactionBatchInitialResponse(ctx, run, run.items[index].transactionID, tran); err != nil {
+			return nil, err
+		}
+
 		if index < len(records)-1 {
 			uc.acknowledgeEngineRecovery(ctx, logger, records[index], completion)
 		}

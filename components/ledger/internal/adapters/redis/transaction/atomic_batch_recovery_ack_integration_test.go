@@ -200,6 +200,83 @@ func TestIntegrationAtomicTransactionBatchRecoveryAckFinalizesBeforeLastDelete(t
 		"duplicate delivery must not extend terminal retention")
 }
 
+func TestIntegrationAtomicTransactionBatchRecoveryAckFinalizesFromCapturedResponses(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	fixture := newAtomicBatchRecoveryAckFixture(t, container.Client)
+	completedAt := time.Date(2026, time.September, 16, 12, 0, 0, 0, time.UTC)
+	responses := []json.RawMessage{
+		json.RawMessage(`{"id":"first","status":"CREATED"}`),
+		json.RawMessage(`{"id":"second","status":"PENDING"}`),
+	}
+
+	for index, transactionID := range fixture.record.TransactionIDs {
+		result, err := fixture.repository.CaptureAtomicTransactionBatchInitialResponse(
+			fixture.ctx,
+			fixture.organizationID,
+			fixture.ledgerID,
+			fixture.executionID,
+			fixture.record.OwnerToken,
+			transactionID,
+			responses[index],
+		)
+		require.NoError(t, err)
+		require.Equal(t, AtomicTransactionBatchInitialResponseCaptured, result.Outcome)
+	}
+
+	status, err := fixture.repository.CompareAndDeleteAtomicTransactionBatchRecoveryWithProtectionFrom(
+		fixture.ctx,
+		RecoveryQueueSourceEngineRecover,
+		fixture.organizationID,
+		fixture.ledgerID,
+		fixture.fields[0],
+		fixture.payloads[0],
+		true,
+		completedAt,
+		"",
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, RecoveryAckDeleted, status)
+
+	candidate, err := fixture.repository.GetAtomicTransactionBatchFinalizationCandidate(
+		fixture.ctx,
+		fixture.organizationID,
+		fixture.ledgerID,
+		fixture.executionID,
+		fixture.record.TransactionIDs[1],
+	)
+	require.NoError(t, err)
+	require.True(t, candidate.Candidate)
+
+	status, err = fixture.repository.CompareAndDeleteAtomicTransactionBatchRecoveryWithProtectionFrom(
+		fixture.ctx,
+		RecoveryQueueSourceEngineRecover,
+		fixture.organizationID,
+		fixture.ledgerID,
+		fixture.fields[1],
+		fixture.payloads[1],
+		true,
+		completedAt.Add(time.Second),
+		candidate.ReceiptToken,
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, RecoveryAckDeleted, status)
+
+	var complete AtomicTransactionBatchIdempotencyRecord
+	require.NoError(t, json.Unmarshal([]byte(container.Client.Get(fixture.ctx, fixture.recordKey).Val()), &complete))
+	require.Equal(t, AtomicTransactionBatchStateComplete, complete.State)
+	require.JSONEq(
+		t,
+		`{"batchId":"00000000-0000-0000-0000-000000000010","transactions":[{"id":"first","status":"CREATED"},{"id":"second","status":"PENDING"}]}`,
+		string(complete.Response),
+	)
+}
+
 func TestIntegrationAtomicTransactionBatchRecoveryAckRetainsMemberWhenReceiptChanges(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
@@ -283,6 +360,7 @@ func newAtomicBatchRecoveryAckFixture(
 	organizationID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	ledgerID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	record := atomicBatchAppliedRecord()
+	record.FormatVersion = AtomicTransactionBatchLegacyFormatVersion
 	executionID := *record.ExecutionID
 	recordKey, err := tenantKeyFromContextOrError(
 		ctx,

@@ -19,7 +19,8 @@ local currentDecoded, currentRecord = pcall(cjson.decode, current)
 local nextDecoded, nextRecord = pcall(cjson.decode, ARGV[3])
 if not currentDecoded or type(currentRecord) ~= "table" or
    not nextDecoded or type(nextRecord) ~= "table" or
-   currentRecord.formatVersion ~= 1 or nextRecord.formatVersion ~= 1 or
+   (currentRecord.formatVersion ~= 1 and currentRecord.formatVersion ~= 2) or
+   (nextRecord.formatVersion ~= 1 and nextRecord.formatVersion ~= 2) or
    type(currentRecord.state) ~= "string" or type(nextRecord.state) ~= "string" or
    type(currentRecord.ownerToken) ~= "string" or type(nextRecord.ownerToken) ~= "string" or
    type(currentRecord.requestFingerprint) ~= "string" or type(nextRecord.requestFingerprint) ~= "string" or
@@ -48,6 +49,20 @@ if currentRecord.ownerToken ~= nextRecord.ownerToken or
    currentRecord.batchId ~= nextRecord.batchId or
    currentRecord.executionId ~= nextRecord.executionId then
     return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_IDENTITY_CHANGED")
+end
+if currentRecord.formatVersion ~= nextRecord.formatVersion then
+    return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_FORMAT_CHANGED")
+end
+if currentRecord.formatVersion == 2 then
+    if type(currentRecord.initialResponses) ~= "table" or type(nextRecord.initialResponses) ~= "table" then
+        return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_INITIAL_RESPONSES_INVALID")
+    end
+    for _, id in ipairs(currentRecord.transactionIds) do
+        if type(currentRecord.initialResponses[id]) ~= "string" or
+           currentRecord.initialResponses[id] ~= nextRecord.initialResponses[id] then
+            return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_INITIAL_RESPONSES_CHANGED")
+        end
+    end
 end
 if cjson.encode(currentRecord.transactionIds) ~= cjson.encode(nextRecord.transactionIds) then
     return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_TRANSACTIONS_CHANGED")

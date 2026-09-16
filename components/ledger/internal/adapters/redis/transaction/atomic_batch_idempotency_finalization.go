@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha256"
 	_ "embed"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -530,6 +531,15 @@ func buildAtomicTransactionBatchResponse(
 	record AtomicTransactionBatchIdempotencyRecord,
 	transactions map[uuid.UUID]json.RawMessage,
 ) (json.RawMessage, error) {
+	if record.FormatVersion == AtomicTransactionBatchIdempotencyFormatVersion {
+		captured, err := atomicTransactionBatchCapturedResponses(record)
+		if err != nil {
+			return nil, err
+		}
+
+		transactions = captured
+	}
+
 	if len(transactions) != len(record.TransactionIDs) {
 		return nil, fmt.Errorf(
 			"atomic transaction batch finalization requires %d transaction responses, got %d",
@@ -559,6 +569,39 @@ func buildAtomicTransactionBatchResponse(
 	}
 
 	return response, nil
+}
+
+func atomicTransactionBatchCapturedResponses(
+	record AtomicTransactionBatchIdempotencyRecord,
+) (map[uuid.UUID]json.RawMessage, error) {
+	if record.FormatVersion != AtomicTransactionBatchIdempotencyFormatVersion {
+		return nil, errors.New("atomic transaction batch record has no captured initial responses")
+	}
+
+	if len(record.InitialResponses) != len(record.TransactionIDs) {
+		return nil, fmt.Errorf(
+			"atomic transaction batch requires %d captured initial responses, got %d",
+			len(record.TransactionIDs),
+			len(record.InitialResponses),
+		)
+	}
+
+	responses := make(map[uuid.UUID]json.RawMessage, len(record.TransactionIDs))
+	for _, transactionID := range record.TransactionIDs {
+		encoded, found := record.InitialResponses[transactionID.String()]
+		if !found {
+			return nil, fmt.Errorf("atomic transaction batch initial response for transaction %s is missing", transactionID)
+		}
+
+		response, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil || !validAtomicTransactionBatchResponse(response) || !strings.HasPrefix(strings.TrimSpace(string(response)), "{") {
+			return nil, fmt.Errorf("atomic transaction batch initial response for transaction %s is invalid", transactionID)
+		}
+
+		responses[transactionID] = json.RawMessage(response)
+	}
+
+	return responses, nil
 }
 
 func validAtomicTransactionBatchRecordPointer(prefix, recordKey string) bool {

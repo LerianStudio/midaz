@@ -6,8 +6,10 @@ package redis
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -178,11 +180,18 @@ func TestAtomicTransactionBatchIdempotencyRecordValidation(t *testing.T) {
 	applied.ExecutionID = uuidPointer(uuid.MustParse("00000000-0000-0000-0000-000000000020"))
 	complete := applied
 	complete.State = AtomicTransactionBatchStateComplete
+	complete.InitialResponses = atomicBatchInitialResponses(complete.TransactionIDs)
 	complete.Response = json.RawMessage(`{"batchId":"00000000-0000-0000-0000-000000000010","transactions":[]}`)
 
 	for _, record := range []AtomicTransactionBatchIdempotencyRecord{claim, prepared, applied, complete} {
 		require.NoError(t, validateAtomicTransactionBatchIdempotencyRecord(record), record.State)
 	}
+
+	legacyApplied := applied
+	legacyApplied.FormatVersion = AtomicTransactionBatchLegacyFormatVersion
+	require.NoError(t, validateAtomicTransactionBatchIdempotencyRecord(legacyApplied), "legacy applied fixture remains readable")
+	legacyApplied.InitialResponses = atomicBatchInitialResponses(legacyApplied.TransactionIDs)
+	assert.ErrorContains(t, validateAtomicTransactionBatchIdempotencyRecord(legacyApplied), "legacy record cannot contain")
 
 	invalidVersion := claim
 	invalidVersion.FormatVersion++
@@ -201,8 +210,19 @@ func TestAtomicTransactionBatchIdempotencyRecordValidation(t *testing.T) {
 	assert.Error(t, validateAtomicTransactionBatchIdempotencyRecord(invalidComplete))
 
 	repeated := prepared
+	repeated.TransactionIDs = append([]uuid.UUID(nil), prepared.TransactionIDs...)
 	repeated.TransactionIDs[1] = repeated.TransactionIDs[0]
 	assert.Error(t, validateAtomicTransactionBatchIdempotencyRecord(repeated))
+
+	partial := applied
+	partial.InitialResponses = atomicBatchInitialResponses(partial.TransactionIDs[:1])
+	require.NoError(t, validateAtomicTransactionBatchIdempotencyRecord(partial), "applied records allow partial arrival")
+
+	oversized := applied
+	oversized.InitialResponses = map[string]string{
+		oversized.TransactionIDs[0].String(): base64.StdEncoding.EncodeToString([]byte(`{"payload":"` + strings.Repeat("x", atomicTransactionBatchInitialResponsesMaxBytes) + `"}`)),
+	}
+	assert.ErrorContains(t, validateAtomicTransactionBatchIdempotencyRecord(oversized), "exceed byte budget")
 }
 
 func TestClaimAtomicTransactionBatch_PropagatesRedisAndReplyErrors(t *testing.T) {
@@ -300,6 +320,7 @@ func atomicBatchIdempotencyClaim(fingerprintCharacter string) AtomicTransactionB
 
 func atomicBatchIdempotencyComplete(fingerprintCharacter string) AtomicTransactionBatchIdempotencyRecord {
 	record := atomicBatchIdempotencyClaim(fingerprintCharacter)
+	record.FormatVersion = AtomicTransactionBatchLegacyFormatVersion
 	record.State = AtomicTransactionBatchStateComplete
 	record.ExecutionID = uuidPointer(uuid.MustParse("00000000-0000-0000-0000-000000000020"))
 	record.TransactionIDs = atomicBatchTransactionIDs()
@@ -313,6 +334,15 @@ func atomicBatchTransactionIDs() []uuid.UUID {
 		uuid.MustParse("00000000-0000-0000-0000-000000000030"),
 		uuid.MustParse("00000000-0000-0000-0000-000000000031"),
 	}
+}
+
+func atomicBatchInitialResponses(transactionIDs []uuid.UUID) map[string]string {
+	responses := make(map[string]string, len(transactionIDs))
+	for index, transactionID := range transactionIDs {
+		responses[transactionID.String()] = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`{"id":"initial-%d"}`, index)))
+	}
+
+	return responses
 }
 
 func uuidPointer(value uuid.UUID) *uuid.UUID {

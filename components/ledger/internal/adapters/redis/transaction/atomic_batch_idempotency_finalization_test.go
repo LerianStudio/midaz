@@ -91,6 +91,7 @@ func TestBuildAtomicTransactionBatchResponse_UsesStoredOrder(t *testing.T) {
 	t.Parallel()
 
 	record := atomicBatchAppliedRecord()
+	record.FormatVersion = AtomicTransactionBatchLegacyFormatVersion
 	firstID := record.TransactionIDs[0]
 	secondID := record.TransactionIDs[1]
 	responses := map[uuid.UUID]json.RawMessage{
@@ -115,6 +116,7 @@ func TestFinalizeAtomicTransactionBatch_StoresOrderedResponseAndClassifiesStaleO
 	organizationID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	ledgerID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	applied := atomicBatchAppliedRecord()
+	applied.FormatVersion = AtomicTransactionBatchLegacyFormatVersion
 	executionID := *applied.ExecutionID
 	indexKey := utils.AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, executionID)
 	recordKey := utils.AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID, "effective-key")
