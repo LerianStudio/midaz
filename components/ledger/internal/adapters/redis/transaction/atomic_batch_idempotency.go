@@ -316,14 +316,6 @@ func validateAtomicTransactionBatchIdempotencyRecord(record AtomicTransactionBat
 }
 
 func validateAtomicTransactionBatchInitialResponses(record AtomicTransactionBatchIdempotencyRecord) error {
-	if record.FormatVersion == AtomicTransactionBatchLegacyFormatVersion {
-		if len(record.InitialResponses) > 0 {
-			return errors.New("legacy record cannot contain initial responses")
-		}
-
-		return nil
-	}
-
 	if len(record.InitialResponses) == 0 {
 		return nil
 	}

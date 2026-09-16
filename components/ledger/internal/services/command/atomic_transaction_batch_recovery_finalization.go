@@ -96,6 +96,31 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 		return nil, err
 	}
 
+	if candidate.Record.State != txRedis.AtomicTransactionBatchStateComplete {
+		initialResponse, err := atomicTransactionBatchRecoveredInitialResponse(record, completion)
+		if err != nil {
+			return nil, err
+		}
+
+		captured, err := uc.AtomicTransactionBatchIdempotencyRepo.CaptureAtomicTransactionBatchInitialResponse(
+			ctx,
+			record.OrganizationID,
+			record.LedgerID,
+			record.ExecutionID,
+			candidate.Record.OwnerToken,
+			record.TransactionID,
+			initialResponse,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("capture recovered atomic transaction batch initial response: %w", err)
+		}
+		if captured == nil {
+			return nil, errors.New("capture recovered atomic transaction batch initial response returned no result")
+		}
+
+		candidate.Record = captured.Record
+	}
+
 	uc.reconcileAtomicTransactionBatchRecoveredMember(ctx, completion.Record.Transaction)
 
 	prepared := &AtomicTransactionBatchRecoveryFinalization{}
@@ -105,6 +130,14 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 
 	if candidate.ReceiptToken == "" {
 		return nil, errors.New("atomic transaction batch finalization candidate has no receipt token")
+	}
+
+	if candidate.Record.FormatVersion == txRedis.AtomicTransactionBatchIdempotencyFormatVersion {
+		// The final ACK seals the response from the immutable captures. No
+		// primary read may substitute a lifecycle-mutated projection.
+		prepared.ReceiptToken = candidate.ReceiptToken
+
+		return prepared, nil
 	}
 
 	if uc.AtomicTransactionBatchProjectionReader == nil {
@@ -164,14 +197,44 @@ func validateAtomicTransactionBatchRecoveredMember(
 		return errors.New("atomic transaction batch recovery transaction is not indexed")
 	}
 
-	if completion.Outcome.TransactionStatus != constant.APPROVED {
+	if completion.Outcome.TransactionStatus != constant.APPROVED &&
+		completion.Outcome.TransactionStatus != constant.PENDING {
 		return fmt.Errorf(
-			"atomic transaction batch recovery requires durable APPROVED status, got %q",
+			"atomic transaction batch recovery requires durable APPROVED or PENDING status, got %q",
 			completion.Outcome.TransactionStatus,
 		)
 	}
 
 	return nil
+}
+
+func atomicTransactionBatchRecoveredInitialResponse(
+	record *TransactionCompletionRecord,
+	completion TransactionCompletionResult,
+) (json.RawMessage, error) {
+	if record == nil || completion.Record.Transaction == nil || completion.Record.Transaction.ID != record.TransactionID.String() {
+		return nil, errors.New("atomic transaction batch recovered initial response identity differs")
+	}
+
+	public := *completion.Record.Transaction
+	switch completion.Outcome.TransactionStatus {
+	case constant.APPROVED:
+		created := constant.CREATED
+		public.Status = transaction.Status{Code: created, Description: &created}
+	case constant.PENDING:
+		if public.Status.Code != constant.PENDING {
+			return nil, fmt.Errorf("atomic transaction batch recovery hold status differs: got %q", public.Status.Code)
+		}
+	default:
+		return nil, fmt.Errorf("atomic transaction batch recovery has unsupported initial status %q", completion.Outcome.TransactionStatus)
+	}
+
+	payload, err := json.Marshal(&public)
+	if err != nil {
+		return nil, fmt.Errorf("marshal recovered atomic transaction batch initial response: %w", err)
+	}
+
+	return payload, nil
 }
 
 func (uc *UseCase) reconcileAtomicTransactionBatchRecoveredMember(

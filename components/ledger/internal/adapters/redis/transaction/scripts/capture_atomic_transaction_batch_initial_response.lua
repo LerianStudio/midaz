@@ -66,7 +66,6 @@ if total > maxBytes then return {"state_conflict", current} end
 
 responses[ARGV[3]] = ARGV[4]
 record.initialResponses = responses
-record.formatVersion = 2
 local payload = cjson.encode(record)
 redis.call("SET", KEYS[1], payload)
 return {"captured", payload}

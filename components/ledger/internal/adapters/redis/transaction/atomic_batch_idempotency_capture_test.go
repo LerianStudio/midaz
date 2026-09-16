@@ -32,7 +32,6 @@ func TestCaptureAtomicTransactionBatchInitialResponse_UsesExecutionScopedCAS(t *
 	require.NoError(t, err)
 
 	captured := record
-	captured.FormatVersion = AtomicTransactionBatchIdempotencyFormatVersion
 	captured.InitialResponses = map[string]string{
 		transactionID.String(): base64.StdEncoding.EncodeToString([]byte(`{"id":"second","status":"CREATED"}`)),
 	}

@@ -196,23 +196,22 @@ if batchMode then
             return redis.error_reply("ERR atomic batch transaction membership differs")
         end
     end
-    if currentBatch.formatVersion == 2 then
-        if type(currentBatch.initialResponses) ~= "table" then
-            return redis.error_reply("ERR atomic batch initial responses are invalid")
-        end
-        for _, id in ipairs(currentBatch.transactionIds) do
-            if type(currentBatch.initialResponses[id]) ~= "string" then
-                return redis.error_reply("ERR atomic batch initial response is missing")
-            end
-        end
-    end
-
     if currentBatch.state == "complete" then
         if type(currentBatch.response) ~= "table" then
             return redis.error_reply("ERR completed atomic batch response is invalid")
         end
     elseif currentBatch.state == "applied" then
         if currentExecutionReady then
+            if currentBatch.formatVersion == 2 then
+                if type(currentBatch.initialResponses) ~= "table" then
+                    return redis.error_reply("ERR atomic batch initial responses are invalid")
+                end
+                for _, id in ipairs(currentBatch.transactionIds) do
+                    if type(currentBatch.initialResponses[id]) ~= "string" then
+                        return redis.error_reply("ERR atomic batch initial response is missing")
+                    end
+                end
+            end
             if ARGV[9] == "" then
                 return 3
             end

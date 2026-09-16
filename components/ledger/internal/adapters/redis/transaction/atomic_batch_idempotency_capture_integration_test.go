@@ -40,7 +40,7 @@ func TestIntegrationAtomicTransactionBatchInitialResponseCaptureCAS(t *testing.T
 	)
 	require.NoError(t, err)
 	require.Equal(t, AtomicTransactionBatchInitialResponseCaptured, result.Outcome)
-	require.Equal(t, AtomicTransactionBatchIdempotencyFormatVersion, result.Record.FormatVersion)
+	require.Equal(t, AtomicTransactionBatchLegacyFormatVersion, result.Record.FormatVersion)
 	require.Len(t, result.Record.InitialResponses, 1)
 
 	result, err = fixture.repository.CaptureAtomicTransactionBatchInitialResponse(
@@ -85,7 +85,7 @@ func TestIntegrationAtomicTransactionBatchInitialResponseCaptureCAS(t *testing.T
 	require.NoError(t, err)
 	var stored AtomicTransactionBatchIdempotencyRecord
 	require.NoError(t, json.Unmarshal(storedRaw, &stored))
-	assert.Equal(t, AtomicTransactionBatchIdempotencyFormatVersion, stored.FormatVersion)
+	assert.Equal(t, AtomicTransactionBatchLegacyFormatVersion, stored.FormatVersion)
 	assert.Equal(t, base64.StdEncoding.EncodeToString(first), stored.InitialResponses[firstID.String()])
 	assert.Equal(t, base64.StdEncoding.EncodeToString(second), stored.InitialResponses[secondID.String()])
 	assert.NotContains(t, string(storedRaw), `"order"`)

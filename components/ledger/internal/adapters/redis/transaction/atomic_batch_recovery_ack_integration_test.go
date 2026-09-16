@@ -207,6 +207,10 @@ func TestIntegrationAtomicTransactionBatchRecoveryAckFinalizesFromCapturedRespon
 
 	container := redistestutil.SetupReusableContainer(t)
 	fixture := newAtomicBatchRecoveryAckFixture(t, container.Client)
+	fixture.record.FormatVersion = AtomicTransactionBatchIdempotencyFormatVersion
+	recordPayload, err := json.Marshal(fixture.record)
+	require.NoError(t, err)
+	require.NoError(t, container.Client.Set(fixture.ctx, fixture.recordKey, recordPayload, 0).Err())
 	completedAt := time.Date(2026, time.September, 16, 12, 0, 0, 0, time.UTC)
 	responses := []json.RawMessage{
 		json.RawMessage(`{"id":"first","status":"CREATED"}`),

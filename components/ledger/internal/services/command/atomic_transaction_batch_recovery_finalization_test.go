@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -29,6 +30,67 @@ type atomicTransactionBatchRecoveryRepositoryFake struct {
 	err       error
 	calls     int
 	identity  [4]uuid.UUID
+	captures  []json.RawMessage
+}
+
+func (repository *atomicTransactionBatchRecoveryRepositoryFake) CaptureAtomicTransactionBatchInitialResponse(
+	_ context.Context,
+	_, _, _ uuid.UUID,
+	_ string,
+	transactionID uuid.UUID,
+	response json.RawMessage,
+) (*txRedis.AtomicTransactionBatchInitialResponseCaptureResult, error) {
+	if repository.candidate == nil {
+		return nil, errors.New("missing recovery candidate")
+	}
+
+	repository.captures = append(repository.captures, append(json.RawMessage(nil), response...))
+	if repository.candidate.Record.FormatVersion == txRedis.AtomicTransactionBatchIdempotencyFormatVersion {
+		if repository.candidate.Record.InitialResponses == nil {
+			repository.candidate.Record.InitialResponses = make(map[string]string)
+		}
+		repository.candidate.Record.InitialResponses[transactionID.String()] = base64.StdEncoding.EncodeToString(response)
+	}
+
+	return &txRedis.AtomicTransactionBatchInitialResponseCaptureResult{
+		Outcome: txRedis.AtomicTransactionBatchInitialResponseCaptured,
+		Record:  repository.candidate.Record,
+	}, nil
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesDirectWithoutProjectionRead(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+	fixture.repository.candidate.Candidate = false
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	require.NoError(t, err)
+	require.NotNil(t, prepared)
+	assert.Zero(t, fixture.reader.calls)
+	require.Len(t, fixture.repository.captures, 1)
+
+	var public transactionPostgres.Transaction
+	require.NoError(t, json.Unmarshal(fixture.repository.captures[0], &public))
+	assert.Equal(t, constant.CREATED, public.Status.Code)
+}
+
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_V2CapturesPendingHoldWithoutProjectionRead(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate.Record.FormatVersion = txRedis.AtomicTransactionBatchIdempotencyFormatVersion
+	fixture.repository.candidate.Candidate = false
+	pending := constant.PENDING
+	fixture.completion.Outcome.TransactionStatus = pending
+	fixture.completion.Record.Transaction.Status = transactionPostgres.Status{Code: pending, Description: &pending}
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	require.NoError(t, err)
+	require.NotNil(t, prepared)
+	assert.Zero(t, fixture.reader.calls)
+	require.Len(t, fixture.repository.captures, 1)
+
+	var public transactionPostgres.Transaction
+	require.NoError(t, json.Unmarshal(fixture.repository.captures[0], &public))
+	assert.Equal(t, constant.PENDING, public.Status.Code)
 }
 
 func (repository *atomicTransactionBatchRecoveryRepositoryFake) GetAtomicTransactionBatchFinalizationCandidate(
@@ -234,7 +296,7 @@ func atomicTransactionBatchRecoveryFixture(tracerSkipped bool) atomicTransaction
 	}
 	engineID := executionID
 	batchRecord := txRedis.AtomicTransactionBatchIdempotencyRecord{
-		FormatVersion:      txRedis.AtomicTransactionBatchIdempotencyFormatVersion,
+		FormatVersion:      txRedis.AtomicTransactionBatchLegacyFormatVersion,
 		State:              txRedis.AtomicTransactionBatchStateApplied,
 		RequestFingerprint: "request-fingerprint",
 		OwnerToken:         "owner-token",

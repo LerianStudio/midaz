@@ -191,7 +191,7 @@ func TestAtomicTransactionBatchIdempotencyRecordValidation(t *testing.T) {
 	legacyApplied.FormatVersion = AtomicTransactionBatchLegacyFormatVersion
 	require.NoError(t, validateAtomicTransactionBatchIdempotencyRecord(legacyApplied), "legacy applied fixture remains readable")
 	legacyApplied.InitialResponses = atomicBatchInitialResponses(legacyApplied.TransactionIDs)
-	assert.ErrorContains(t, validateAtomicTransactionBatchIdempotencyRecord(legacyApplied), "legacy record cannot contain")
+	require.NoError(t, validateAtomicTransactionBatchIdempotencyRecord(legacyApplied), "legacy drain may retain snapshots")
 
 	invalidVersion := claim
 	invalidVersion.FormatVersion++
