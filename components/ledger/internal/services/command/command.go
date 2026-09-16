@@ -134,6 +134,13 @@ type UseCase struct {
 	// UseCase (signatures match).
 	TransactionReader TransactionReader
 
+	// UUIDv7Generator and Clock freeze the identities and timestamps of one
+	// atomic transaction batch before any state-dependent item preparation.
+	// Bootstrap always supplies production implementations; tests inject fixed
+	// values so ordering and replay-sensitive context remain deterministic.
+	UUIDv7Generator UUIDv7Generator
+	Clock           Clock
+
 	// Engine applies balance changes through the execution port.
 	// A nil value leaves the existing transaction execution path unchanged.
 	Engine Engine

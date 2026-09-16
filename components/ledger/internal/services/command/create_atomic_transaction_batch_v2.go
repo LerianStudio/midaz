@@ -1,0 +1,312 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+)
+
+const atomicTransactionBatchAbsoluteMaxSize = 50
+
+// UUIDv7Generator is the identity seam used by ordered batch orchestration.
+type UUIDv7Generator func() (uuid.UUID, error)
+
+// Clock is the time seam used by ordered batch orchestration.
+type Clock func() time.Time
+
+// CreateAtomicTransactionBatchV2ItemInput is one direct-v2 transaction in the
+// exact request-array order. Scope is repeated deliberately: the command
+// defends the common-scope invariant even when called without the HTTP adapter.
+type CreateAtomicTransactionBatchV2ItemInput struct {
+	OrganizationID          uuid.UUID
+	LedgerID                uuid.UUID
+	Transaction             mtransaction.Transaction
+	AccountBlockExceptionID *uuid.UUID
+}
+
+// CreateAtomicTransactionBatchV2Input carries one ordered atomic request. The
+// canonical bytes and idempotency settings are retained for the batch-level
+// claim introduced by the later pre-publication phase.
+type CreateAtomicTransactionBatchV2Input struct {
+	Transactions     []CreateAtomicTransactionBatchV2ItemInput
+	CanonicalRequest []byte
+	IdempotencyKey   string
+	IdempotencyTTL   time.Duration
+}
+
+// CreateAtomicTransactionBatchV2Result preserves request order and carries the
+// batch replay state without creating a persisted batch domain resource.
+type CreateAtomicTransactionBatchV2Result struct {
+	BatchID      uuid.UUID
+	Transactions []*transaction.Transaction
+	Replayed     bool
+}
+
+// atomicTransactionBatchRun owns the batch-wide state. Order-sensitive state
+// exists only in items; maps may be used by later phases for lookup, but never
+// to rebuild this slice or determine execution order.
+type atomicTransactionBatchRun struct {
+	batchID        uuid.UUID
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
+	ledgerSettings mmodel.LedgerSettings
+	items          []atomicTransactionBatchItemRun
+}
+
+// atomicTransactionBatchItemRun owns the stable per-item identity and temporal
+// context that all subsequent preparation, engine, completion, and response
+// phases must consume at this same slice index.
+type atomicTransactionBatchItemRun struct {
+	index                   int
+	transactionID           uuid.UUID
+	transactionDate         time.Time
+	transactionCreatedAt    time.Time
+	transactionUpdatedAt    time.Time
+	operationUpdatedAt      time.Time
+	input                   mtransaction.Transaction
+	status                  string
+	accountBlockExceptionID *uuid.UUID
+}
+
+// CreateAtomicTransactionBatchV2 initializes the ordered batch command state.
+// Later preparation phases extend this coordinator before the HTTP route is
+// registered; this foundation deliberately performs no accounting mutation.
+func (uc *UseCase) CreateAtomicTransactionBatchV2(ctx context.Context, in CreateAtomicTransactionBatchV2Input) (*CreateAtomicTransactionBatchV2Result, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "command.create_atomic_transaction_batch_v2")
+	defer span.End()
+
+	run, err := uc.initializeAtomicTransactionBatchV2(ctx, in)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to initialize atomic transaction batch", err)
+		return nil, err
+	}
+
+	transactions := make([]*transaction.Transaction, len(run.items))
+	for index := range run.items {
+		transactions[index] = atomicTransactionBatchFoundationResult(run, &run.items[index])
+	}
+
+	return &CreateAtomicTransactionBatchV2Result{
+		BatchID:      run.batchID,
+		Transactions: transactions,
+		Replayed:     false,
+	}, nil
+}
+
+func (uc *UseCase) initializeAtomicTransactionBatchV2(ctx context.Context, in CreateAtomicTransactionBatchV2Input) (*atomicTransactionBatchRun, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	organizationID, ledgerID, err := validateAtomicTransactionBatchScope(in.Transactions)
+	if err != nil {
+		return nil, err
+	}
+
+	if uc.UUIDv7Generator == nil {
+		return nil, errors.New("atomic transaction batch UUIDv7 generator is not configured")
+	}
+	if uc.Clock == nil {
+		return nil, errors.New("atomic transaction batch clock is not configured")
+	}
+	if uc.TransactionReader == nil {
+		return nil, errors.New("atomic transaction batch transaction reader is not configured")
+	}
+
+	batchID, err := uc.UUIDv7Generator()
+	if err != nil {
+		return nil, fmt.Errorf("generate atomic transaction batch id: %w", err)
+	}
+	if batchID == uuid.Nil {
+		return nil, errors.New("atomic transaction batch UUIDv7 generator returned a nil batch id")
+	}
+
+	run := &atomicTransactionBatchRun{
+		batchID:        batchID,
+		organizationID: organizationID,
+		ledgerID:       ledgerID,
+		items:          make([]atomicTransactionBatchItemRun, len(in.Transactions)),
+	}
+
+	cursor := atomicTransactionBatchTimestampCursor{clock: uc.Clock}
+	for index := range in.Transactions {
+		item, itemErr := initializeAtomicTransactionBatchItem(in.Transactions[index], index, uc.UUIDv7Generator, &cursor)
+		if itemErr != nil {
+			return nil, itemErr
+		}
+		run.items[index] = item
+	}
+
+	run.ledgerSettings, err = uc.TransactionReader.GetParsedLedgerSettings(ctx, run.organizationID, run.ledgerID)
+	if err != nil {
+		return nil, fmt.Errorf("get atomic transaction batch ledger settings: %w", err)
+	}
+
+	// State-dependent validation starts only after the complete ordered run is
+	// frozen. It stops at the first actual failure and never evaluates later
+	// items speculatively.
+	for index := range run.items {
+		item := &run.items[index]
+		item.transactionDate, err = resolveTransactionDateAt(item.input, item.status, item.transactionCreatedAt)
+		if err != nil {
+			return nil, withAtomicTransactionBatchItemError(err, index, "transaction date validation failed")
+		}
+	}
+
+	return run, nil
+}
+
+func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2ItemInput) (uuid.UUID, uuid.UUID, error) {
+	if len(items) == 0 || len(items) > atomicTransactionBatchAbsoluteMaxSize {
+		return uuid.Nil, uuid.Nil, pkg.ValidateBusinessError(
+			constant.ErrTransactionBatchCardinality,
+			constant.EntityTransaction,
+			len(items),
+			atomicTransactionBatchAbsoluteMaxSize,
+		)
+	}
+
+	organizationID := items[0].OrganizationID
+	ledgerID := items[0].LedgerID
+	for index := range items {
+		if items[index].OrganizationID == uuid.Nil || items[index].LedgerID == uuid.Nil ||
+			items[index].OrganizationID != organizationID || items[index].LedgerID != ledgerID {
+			err := pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
+			return uuid.Nil, uuid.Nil, withAtomicTransactionBatchItemError(
+				err,
+				index,
+				"transaction scope must match the first batch item",
+			)
+		}
+	}
+
+	return organizationID, ledgerID, nil
+}
+
+func initializeAtomicTransactionBatchItem(
+	in CreateAtomicTransactionBatchV2ItemInput,
+	index int,
+	generateUUIDv7 UUIDv7Generator,
+	cursor *atomicTransactionBatchTimestampCursor,
+) (atomicTransactionBatchItemRun, error) {
+	transactionID, err := generateUUIDv7()
+	if err != nil {
+		return atomicTransactionBatchItemRun{}, fmt.Errorf("generate atomic transaction batch item %d id: %w", index, err)
+	}
+	if transactionID == uuid.Nil {
+		return atomicTransactionBatchItemRun{}, fmt.Errorf("atomic transaction batch UUIDv7 generator returned a nil id for item %d", index)
+	}
+
+	input, err := clonePendingTransactionInput(in.Transaction)
+	if err != nil {
+		return atomicTransactionBatchItemRun{}, fmt.Errorf("clone atomic transaction batch item %d: %w", index, err)
+	}
+
+	createdAt, err := cursor.next()
+	if err != nil {
+		return atomicTransactionBatchItemRun{}, fmt.Errorf("freeze atomic transaction batch item %d creation time: %w", index, err)
+	}
+	updatedAt, err := cursor.next()
+	if err != nil {
+		return atomicTransactionBatchItemRun{}, fmt.Errorf("freeze atomic transaction batch item %d update time: %w", index, err)
+	}
+	operationUpdatedAt, err := cursor.next()
+	if err != nil {
+		return atomicTransactionBatchItemRun{}, fmt.Errorf("freeze atomic transaction batch item %d operation time: %w", index, err)
+	}
+
+	return atomicTransactionBatchItemRun{
+		index:                   index,
+		transactionID:           transactionID,
+		transactionCreatedAt:    createdAt,
+		transactionUpdatedAt:    updatedAt,
+		operationUpdatedAt:      operationUpdatedAt,
+		input:                   input,
+		status:                  constant.CREATED,
+		accountBlockExceptionID: cloneUUIDPointer(in.AccountBlockExceptionID),
+	}, nil
+}
+
+type atomicTransactionBatchTimestampCursor struct {
+	clock Clock
+	last  time.Time
+}
+
+func (cursor *atomicTransactionBatchTimestampCursor) next() (time.Time, error) {
+	next := cursor.clock()
+	if next.IsZero() {
+		return time.Time{}, errors.New("clock returned a zero timestamp")
+	}
+	if !cursor.last.IsZero() && next.Before(cursor.last) {
+		next = cursor.last
+	}
+	cursor.last = next
+
+	return next, nil
+}
+
+func atomicTransactionBatchFoundationResult(run *atomicTransactionBatchRun, item *atomicTransactionBatchItemRun) *transaction.Transaction {
+	amount := item.input.Send.Value
+	status := item.status
+
+	return &transaction.Transaction{
+		ID:                       item.transactionID.String(),
+		Description:              item.input.Description,
+		Status:                   transaction.Status{Code: status, Description: &status},
+		Amount:                   &amount,
+		AssetCode:                item.input.Send.Asset,
+		ChartOfAccountsGroupName: item.input.ChartOfAccountsGroupName,
+		Source:                   atomicTransactionBatchAliases(item.input.Send.Source.From),
+		Destination:              atomicTransactionBatchAliases(item.input.Send.Distribute.To),
+		LedgerID:                 run.ledgerID.String(),
+		OrganizationID:           run.organizationID.String(),
+		Body:                     item.input,
+		Route:                    item.input.Route, //nolint:staticcheck // compatibility field mirrors singular transaction output
+		RouteID:                  item.input.RouteID,
+		CreatedAt:                item.transactionDate,
+		UpdatedAt:                item.transactionUpdatedAt,
+		Metadata:                 item.input.Metadata,
+		Operations:               make([]*operation.Operation, 0),
+	}
+}
+
+func atomicTransactionBatchAliases(entries []mtransaction.FromTo) []string {
+	aliases := make([]string, len(entries))
+	for index := range entries {
+		aliases[index] = mtransaction.SplitAlias(entries[index].AccountAlias)
+	}
+
+	return aliases
+}
+
+func withAtomicTransactionBatchItemError(primary error, index int, message string) error {
+	return pkg.WithFieldErrors(primary, []pkg.FieldError{{
+		Location: fmt.Sprintf("body.transactions[%d]", index),
+		Message:  message,
+	}})
+}
+
+func cloneUUIDPointer(value *uuid.UUID) *uuid.UUID {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+
+	return &cloned
+}

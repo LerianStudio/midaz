@@ -883,6 +883,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
+		UUIDv7Generator:         libCommons.GenerateUUIDv7,
+		Clock:                   time.Now,
 		// Streaming
 		Streaming: streamingEmitter,
 		// Observability (D6)
