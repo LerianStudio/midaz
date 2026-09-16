@@ -37,7 +37,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		keys, err := resolveAdapterKeys(ctx, input.Execution)
 		require.NoError(t, err)
 		t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
-		assertMultiTransactionAcceptanceState(t, inspector, keys, input)
+		assertMultiTransactionAcceptanceState(t, inspector, keys, input, *result)
 
 		committed := captureAdapterState(t, inspector, keys)
 		replayed, err := adapter.Execute(ctx, input)
@@ -56,6 +56,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		input, limits := multiTransactionAcceptanceExecution(t)
 		keys, err := resolveAdapterKeys(ctx, input.Execution)
 		require.NoError(t, err)
+		t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
 		live := input.Execution.Balances[0]
 		live.Available = decimal.NewFromInt(41)
 		live.Version = 8
@@ -72,6 +73,29 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		final := liveStateCompositionSnapshot(t, result.Final, "@source#default")
 		require.Equal(t, int64(12), final.Version)
 		require.Equal(t, "11", final.OverdraftUsed.String())
+	})
+
+	t.Run("first ordered refusal leaves no batch writes", func(t *testing.T) {
+		input, limits := multiTransactionAcceptanceExecution(t)
+		input.Execution.Balances[0].Blocked = true
+		for index := 1; index < len(input.Execution.Transactions); index++ {
+			input.Execution.Transactions[index].RejectBlockedBalances = true
+		}
+		keys, err := resolveAdapterKeys(ctx, input.Execution)
+		require.NoError(t, err)
+		t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
+		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
+		require.NoError(t, err)
+		before := captureAdapterState(t, inspector, keys)
+
+		result, err := adapter.Execute(ctx, input)
+		require.Nil(t, result)
+		var failure *core.Failure
+		require.ErrorAs(t, err, &failure)
+		require.Equal(t, core.FailureAccountBlocked, failure.Code)
+		require.Equal(t, 1, failure.TransactionIndex, "the first failing transaction must use its zero-based request index")
+		require.Equal(t, 0, failure.PostingIndex)
+		require.Equal(t, before, captureAdapterState(t, inspector, keys), "a later refusal must publish no balances or execution sidecars")
 	})
 }
 
@@ -289,7 +313,13 @@ func multiTransactionAcceptanceCompanion() core.BalanceSnapshot {
 	return balance
 }
 
-func assertMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client, keys resolvedExecutionKeys, input command.EngineExecution) {
+func assertMultiTransactionAcceptanceState(
+	t *testing.T,
+	inspector *redis.Client,
+	keys resolvedExecutionKeys,
+	input command.EngineExecution,
+	result core.ExecutionResult,
+) {
 	t.Helper()
 	ctx := context.Background()
 	expected := multiTransactionAcceptanceResult()
@@ -312,13 +342,10 @@ func assertMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client
 	}
 
 	require.Equal(t, int64(3), inspector.HLen(ctx, keys.Recovery).Val())
-	transactionMovementRanges := [][2]int{{0, 3}, {3, 5}, {5, 7}}
-	intermediatePrimary := []core.BalanceSnapshot{expected.Final[0], expected.Final[0], expected.Final[0]}
-	intermediateCompanion := []core.BalanceSnapshot{expected.Final[1], expected.Final[1], expected.Final[1]}
-	intermediatePrimary[0].OverdraftUsed, intermediatePrimary[0].Version = decimal.NewFromInt(10), 9
-	intermediateCompanion[0].Available, intermediateCompanion[0].Version = decimal.NewFromInt(10), 4
-	intermediatePrimary[1].OverdraftUsed, intermediatePrimary[1].Version = decimal.NewFromInt(4), 10
-	intermediateCompanion[1].Available, intermediateCompanion[1].Version = decimal.NewFromInt(4), 5
+	prepared := multiTransactionAcceptancePrepared(t, input)
+	partitions, err := command.PartitionEngineResult(prepared, result)
+	require.NoError(t, err)
+	require.Len(t, partitions, len(input.Execution.Transactions))
 	for index, transaction := range input.Execution.Transactions {
 		field := transaction.ID.String() + ":" + input.Execution.ExecutionID.String()
 		raw, getErr := inspector.HGet(ctx, keys.Recovery, field).Bytes()
@@ -329,10 +356,14 @@ func assertMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client
 		require.Equal(t, transaction.ID, envelope.TransactionID)
 		require.Equal(t, input.IntentFingerprint, envelope.IntentFingerprint)
 		require.Equal(t, string(input.CompletionPlans[index].Payload), envelope.Payload)
-		movementRange := transactionMovementRanges[index]
-		requireJSONEqual(t, expected.Movements[movementRange[0]:movementRange[1]], envelope.Result.Movements)
-		requireJSONEqual(t, []core.BalanceSnapshot{intermediatePrimary[index], intermediateCompanion[index]}, envelope.Result.Final)
+		require.Equal(t, command.TransactionCompletionFormatVersion, envelope.FormatVersion)
+		normalBytes, marshalErr := json.Marshal(partitions[index])
+		require.NoError(t, marshalErr)
+		recoveryBytes, marshalErr := json.Marshal(envelope.Result)
+		require.NoError(t, marshalErr)
+		require.Equal(t, normalBytes, recoveryBytes, "normal and recovery results must be byte-identical after typed decoding")
 	}
+	assertSharedPoolPartitionChains(t, partitions)
 
 	require.Equal(t, int64(1), inspector.HLen(ctx, keys.Receipts).Val())
 	receipt, err := inspector.HGet(ctx, keys.Receipts, input.Execution.ExecutionID.String()).Bytes()
@@ -342,6 +373,13 @@ func assertMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client
 		ExecutionID       string `json:"executionId"`
 		IntentFingerprint string `json:"intentFingerprint"`
 		Response          string `json:"response"`
+		Protection        struct {
+			FormatVersion       int              `json:"formatVersion"`
+			Transactions        []string         `json:"transactions"`
+			RecoveryFields      []string         `json:"recoveryFields"`
+			Acknowledged        map[string]bool  `json:"acknowledged"`
+			TerminalCompletedAt map[string]int64 `json:"terminalCompletedAtMs"`
+		} `json:"protection"`
 	}
 	require.NoError(t, json.Unmarshal(receipt, &saved))
 	require.Equal(t, 1, saved.FormatVersion)
@@ -350,6 +388,66 @@ func assertMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client
 	replayed, err := DecodeResult([]byte(saved.Response), input.Execution)
 	require.NoError(t, err)
 	requireJSONEqual(t, expected, replayed)
+	require.Equal(t, 1, saved.Protection.FormatVersion)
+	require.Empty(t, saved.Protection.Acknowledged)
+	require.Empty(t, saved.Protection.TerminalCompletedAt)
+
+	wantTransactions := make([]string, len(input.Execution.Transactions))
+	wantRecoveryFields := make([]string, len(input.Execution.Transactions))
+	for index, transaction := range input.Execution.Transactions {
+		wantTransactions[index] = transaction.ID.String()
+		wantRecoveryFields[index] = transaction.ID.String() + ":" + input.Execution.ExecutionID.String()
+	}
+	require.Equal(t, wantTransactions, saved.Protection.Transactions)
+	require.Equal(t, wantRecoveryFields, saved.Protection.RecoveryFields)
+
+	require.Equal(t, int64(len(input.Execution.Transactions)), inspector.HLen(ctx, keys.Protection).Val())
+	for _, transaction := range input.Execution.Transactions {
+		raw, getErr := inspector.HGet(ctx, keys.Protection, transaction.ID.String()).Bytes()
+		require.NoError(t, getErr)
+		var coordinator struct {
+			FormatVersion int              `json:"formatVersion"`
+			Executions    map[string]int64 `json:"executions"`
+		}
+		require.NoError(t, json.Unmarshal(raw, &coordinator))
+		require.Equal(t, 1, coordinator.FormatVersion)
+		require.Equal(t, map[string]int64{input.Execution.ExecutionID.String(): 0}, coordinator.Executions)
+	}
+}
+
+func multiTransactionAcceptancePrepared(t *testing.T, input command.EngineExecution) command.PreparedEngineExecution {
+	t.Helper()
+
+	plans := make([]command.TransactionCompletionPlan, len(input.CompletionPlans))
+	for index, record := range input.CompletionPlans {
+		plan, err := command.DecodeTransactionCompletionPlan(record.Payload)
+		require.NoError(t, err)
+		plans[index] = *plan
+	}
+
+	return command.PreparedEngineExecution{Execution: input, CompletionPlans: plans}
+}
+
+func assertSharedPoolPartitionChains(t *testing.T, partitions []core.ExecutionResult) {
+	t.Helper()
+
+	for index := 1; index < len(partitions); index++ {
+		previous := make(map[string]core.BalanceState, len(partitions[index-1].Final))
+		for _, snapshot := range partitions[index-1].Final {
+			previous[snapshot.BalanceRef] = core.BalanceState{
+				Available: snapshot.Available, OnHold: snapshot.OnHold,
+				OverdraftUsed: snapshot.OverdraftUsed, Version: snapshot.Version,
+			}
+		}
+		seen := make(map[string]bool)
+		for _, movement := range partitions[index].Movements {
+			if seen[movement.BalanceRef] {
+				continue
+			}
+			seen[movement.BalanceRef] = true
+			require.Equal(t, previous[movement.BalanceRef], movement.Before, "later transactions must start from the prior transaction's shared-pool state")
+		}
+	}
 }
 
 func requireJSONEqual(t *testing.T, expected, actual any) {
@@ -363,7 +461,7 @@ func requireJSONEqual(t *testing.T, expected, actual any) {
 
 func deleteMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client, keys resolvedExecutionKeys) {
 	t.Helper()
-	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards}
+	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards, keys.Protection}
 	for _, balance := range keys.Balances {
 		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
 	}
