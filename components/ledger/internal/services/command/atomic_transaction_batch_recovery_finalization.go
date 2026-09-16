@@ -2,6 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
+//nolint:wsl_v5 // recovery phases are deliberately separated by durable evidence boundaries.
 package command
 
 import (
@@ -60,6 +61,8 @@ type AtomicTransactionBatchRecoveryFinalizer interface {
 // index, reconciles Tracer for the durable member by stable identity, and only
 // reads all projections when the frozen receipt proves every other member was
 // already acknowledged. The Redis ACK revalidates the exact receipt token.
+//
+//nolint:gocyclo // each branch protects a distinct recovery compatibility invariant.
 func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 	ctx context.Context,
 	record *TransactionCompletionRecord,

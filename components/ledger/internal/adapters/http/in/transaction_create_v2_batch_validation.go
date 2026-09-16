@@ -24,61 +24,10 @@ const (
 	atomicTransactionBatchV2InputLegLimit   = 1000
 )
 
-// decodedAtomicTransactionBatchV2 is the body-only admission result. Its items
-// retain request order and contain no data obtained from repositories, fees,
-// Tracer, Redis, or the accounting engine.
-type decodedAtomicTransactionBatchV2 struct {
-	items              []decodedAtomicTransactionBatchV2Item
-	scope              TransactionV2Scope
-	inputLegCount      int
-	canonicalRequest   []byte
-	requestFingerprint string
-}
-
 type decodedAtomicTransactionBatchV2Item struct {
 	request                 CreateTransactionV2Request
 	normalized              normalizedTransactionV2Body
 	accountBlockExceptionID *uuid.UUID
-}
-
-// decodeAndValidateAtomicTransactionBatchV2 enforces request-wide wrapper and
-// resource limits before collecting body-only diagnostics from each item. It is
-// intentionally transport-independent so the future Huma handler can apply the
-// decoded-body byte limit before calling it and start external work only after
-// this function succeeds.
-func decodeAndValidateAtomicTransactionBatchV2(
-	rawBody []byte,
-	configuredMaxSize int,
-) (decodedAtomicTransactionBatchV2, error) {
-	rawItems, err := decodeAtomicTransactionBatchV2Wrapper(rawBody, configuredMaxSize)
-	if err != nil {
-		return decodedAtomicTransactionBatchV2{}, err
-	}
-
-	inputLegCount := countAtomicTransactionBatchV2InputLegs(rawItems)
-	if inputLegCount > atomicTransactionBatchV2InputLegLimit {
-		return decodedAtomicTransactionBatchV2{}, pkg.ValidateBusinessError(
-			constant.ErrTransactionBatchInputLegsLimitExceeded,
-			constant.EntityTransaction,
-			inputLegCount,
-			atomicTransactionBatchV2InputLegLimit,
-		)
-	}
-
-	result, err := collectAtomicTransactionBatchV2Items(rawItems, inputLegCount)
-	if err != nil {
-		return decodedAtomicTransactionBatchV2{}, err
-	}
-
-	canonicalRequest, err := canonicalizeAtomicTransactionBatchV2Request(rawBody)
-	if err != nil {
-		return decodedAtomicTransactionBatchV2{}, fmt.Errorf("canonicalize atomic transaction batch request: %w", err)
-	}
-
-	result.canonicalRequest = canonicalRequest
-	result.requestFingerprint = fingerprintAtomicTransactionBatchV2Request(canonicalRequest)
-
-	return result, nil
 }
 
 func decodeAtomicTransactionBatchV2Wrapper(rawBody []byte, configuredMaxSize int) ([]json.RawMessage, error) {
@@ -159,100 +108,6 @@ func countRawTransactionV2Legs(raw json.RawMessage) int {
 	}
 
 	return len(legs)
-}
-
-// The collector intentionally keeps scope, repeated-grant, and ordered field
-// diagnostics in one pass so error precedence cannot drift across passes.
-//
-//nolint:gocognit // one-pass ordered validation is the contract this function enforces
-func collectAtomicTransactionBatchV2Items(
-	rawItems []json.RawMessage,
-	inputLegCount int,
-) (decodedAtomicTransactionBatchV2, error) {
-	result := decodedAtomicTransactionBatchV2{
-		items:         make([]decodedAtomicTransactionBatchV2Item, 0, len(rawItems)),
-		inputLegCount: inputLegCount,
-	}
-	details := make([]pkg.FieldError, 0)
-
-	var (
-		primary     error
-		commonScope *TransactionV2Scope
-	)
-
-	scopeMismatchReported := false
-	seenExceptions := make(map[uuid.UUID]struct{})
-	repeatedExceptionReported := false
-
-	for index, rawItem := range rawItems {
-		item, itemDetails, itemPrimary := collectAtomicTransactionBatchV2Item(rawItem)
-
-		if itemScope, scopeErr := resolveTransactionV2Scope(item.request.Debits, item.request.Credits); scopeErr == nil {
-			if commonScope == nil {
-				commonScope = &itemScope
-				result.scope = itemScope
-			} else if !scopeMismatchReported && !commonScope.namesSameAs(itemScope) {
-				scopeMismatchReported = true
-				scopeErr = pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
-
-				itemDetails = append(itemDetails, pkg.FieldError{
-					Location: firstTransactionV2ScopeDifference(item.request, *commonScope),
-					Message:  atomicTransactionBatchV2ErrorMessage(scopeErr),
-				})
-				if itemPrimary == nil {
-					itemPrimary = scopeErr
-				}
-			}
-		}
-
-		if item.accountBlockExceptionID != nil {
-			if _, found := seenExceptions[*item.accountBlockExceptionID]; found {
-				if !repeatedExceptionReported {
-					repeatedExceptionReported = true
-					repeatedErr := pkg.ValidateBusinessError(
-						constant.ErrAccountBlockExceptionInvalid,
-						constant.EntityTransaction,
-					)
-
-					itemDetails = append(itemDetails, pkg.FieldError{
-						Location: "accountBlockExceptionId",
-						Message:  "accountBlockExceptionId must not be repeated within one transaction batch",
-					})
-
-					if itemPrimary == nil {
-						itemPrimary = repeatedErr
-					}
-				}
-			} else {
-				seenExceptions[*item.accountBlockExceptionID] = struct{}{}
-			}
-		}
-
-		sortTransactionV2FieldErrors(itemDetails)
-
-		for _, detail := range itemDetails {
-			details = append(details, pkg.FieldError{
-				Location: prefixAtomicTransactionBatchV2Location(index, detail.Location),
-				Message:  detail.Message,
-			})
-		}
-
-		if primary == nil && itemPrimary != nil {
-			primary = itemPrimary
-		}
-
-		result.items = append(result.items, item)
-
-		if len(details) > pkg.MaxFieldErrors {
-			break
-		}
-	}
-
-	if primary != nil {
-		return decodedAtomicTransactionBatchV2{}, pkg.WithFieldErrors(primary, details)
-	}
-
-	return result, nil
 }
 
 func collectAtomicTransactionBatchV2Item(

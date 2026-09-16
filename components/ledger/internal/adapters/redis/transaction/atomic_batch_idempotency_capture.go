@@ -2,6 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
+//nolint:wsl_v5 // capture phases are intentionally aligned with Redis CAS boundaries.
 package redis
 
 import (
@@ -32,6 +33,8 @@ var captureAtomicTransactionBatchInitialResponseScript = redisclient.NewScript(c
 // representation before its recovery evidence is acknowledged. It is a CAS:
 // the same bytes replay safely while divergent bytes can never overwrite the
 // first accepted response.
+//
+//nolint:gocyclo // every branch protects a distinct immutable capture invariant.
 func (rr *RedisConsumerRepository) CaptureAtomicTransactionBatchInitialResponse(
 	ctx context.Context,
 	organizationID, ledgerID, executionID uuid.UUID,

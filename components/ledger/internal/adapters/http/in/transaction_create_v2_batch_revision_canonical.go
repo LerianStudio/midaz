@@ -2,6 +2,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
+//nolint:wsl_v5 // canonical JSON phases are grouped by validation boundaries.
 package in
 
 import (
