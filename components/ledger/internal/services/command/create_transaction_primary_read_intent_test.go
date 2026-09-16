@@ -21,6 +21,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
@@ -189,10 +190,19 @@ func newPrimaryReadCapturingUseCase(ctrl *gomock.Controller) (*primaryReadCaptur
 		}).
 		AnyTimes()
 
+	// The seed guard reads the operation trail on the miss path; this harness is about
+	// read routing, so no balance is behind its trail.
+	mockOperation := operation.NewMockRepository(ctrl)
+	mockOperation.EXPECT().
+		ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]*operation.Operation{}, nil).
+		AnyTimes()
+
 	uc := &query.UseCase{
 		BalanceRepo:          mockBalance,
 		AccountRepo:          mockAccount,
 		TransactionRedisRepo: mockRedis,
+		OperationRepo:        mockOperation,
 	}
 
 	return captured, uc

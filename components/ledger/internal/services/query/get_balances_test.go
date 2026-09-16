@@ -14,6 +14,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -134,12 +135,21 @@ func TestGetBalances(t *testing.T) {
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockAccountRepo := account.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
 
 	uc := &UseCase{
 		BalanceRepo:          mockBalanceRepo,
 		AccountRepo:          mockAccountRepo,
 		TransactionRedisRepo: mockRedisRepo,
+		OperationRepo:        mockOperationRepo,
 	}
+
+	// The seed guard queries the operation trail on every cache miss; these cases are
+	// about the cache-aside flow, so no balance has a trail ahead of its row.
+	mockOperationRepo.EXPECT().
+		ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]*operation.Operation{}, nil).
+		AnyTimes()
 
 	ctx := context.Background()
 	organizationID := uuid.New()
@@ -370,7 +380,16 @@ func TestGetBalances_CacheProjection(t *testing.T) {
 			mockBalanceRepo := balance.NewMockRepository(ctrl)
 			mockAccountRepo := account.NewMockRepository(ctrl)
 			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-			uc := &UseCase{BalanceRepo: mockBalanceRepo, AccountRepo: mockAccountRepo, TransactionRedisRepo: mockRedisRepo}
+			mockOperationRepo := operation.NewMockRepository(ctrl)
+			uc := &UseCase{
+				BalanceRepo: mockBalanceRepo, AccountRepo: mockAccountRepo,
+				TransactionRedisRepo: mockRedisRepo, OperationRepo: mockOperationRepo,
+			}
+
+			mockOperationRepo.EXPECT().
+				ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(map[string]*operation.Operation{}, nil).
+				AnyTimes()
 
 			internalKey := utils.BalanceInternalKey(organizationID, ledgerID, alias)
 			mockRedisRepo.EXPECT().Get(gomock.Any(), internalKey).Return(tt.cached, nil)
@@ -378,7 +397,7 @@ func TestGetBalances_CacheProjection(t *testing.T) {
 			if tt.wantDatabase {
 				blocked := false
 				mockBalanceRepo.EXPECT().ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{alias}).
-					Return([]*mmodel.Balance{{Alias: "@alice", Key: "default", AccountID: accountID.String(), Available: decimal.NewFromInt(999)}}, nil)
+					Return([]*mmodel.Balance{{ID: uuid.New().String(), Alias: "@alice", Key: "default", AccountID: accountID.String(), Available: decimal.NewFromInt(999)}}, nil)
 				mockAccountRepo.EXPECT().ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{accountID}).
 					Return([]*mmodel.Account{{ID: accountID.String(), Blocked: &blocked}}, nil)
 			}
@@ -624,11 +643,18 @@ func TestGetBalances_BlockedHydration(t *testing.T) {
 		mockBalanceRepo := balance.NewMockRepository(ctrl)
 		mockAccountRepo := account.NewMockRepository(ctrl)
 		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+
+		mockOperationRepo.EXPECT().
+			ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(map[string]*operation.Operation{}, nil).
+			AnyTimes()
 
 		return &UseCase{
 			BalanceRepo:          mockBalanceRepo,
 			AccountRepo:          mockAccountRepo,
 			TransactionRedisRepo: mockRedisRepo,
+			OperationRepo:        mockOperationRepo,
 		}, mockBalanceRepo, mockAccountRepo, mockRedisRepo
 	}
 

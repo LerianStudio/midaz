@@ -270,6 +270,10 @@ type Config struct {
 	BalanceSyncBatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`
 	BalanceSyncFlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"`
 	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
+	// BalanceSyncTTLKeepaliveIntervalMs is how often the TTL of every scheduled
+	// balance key is re-applied. Absent, invalid and out-of-range values are
+	// resolved by the worker, which never fails to start on this knob.
+	BalanceSyncTTLKeepaliveIntervalMs int `env:"BALANCE_SYNC_TTL_KEEPALIVE_INTERVAL_MS"`
 
 	// --- Streaming (lib-streaming producer) ---
 	// Default for all streaming knobs is OFF — a service with
@@ -1409,9 +1413,10 @@ func initRedisConnection(cfg *Config, logger libLog.Logger) (*libRedis.Client, e
 // initBalanceSyncWorker creates the balance sync worker (multi-tenant or single-tenant).
 func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, pgManager *tmpostgres.Manager, tenantServiceName string) *BalanceSyncWorker {
 	syncCfg := BalanceSyncConfig{
-		BatchSize:      cfg.BalanceSyncBatchSize,
-		FlushTimeoutMs: cfg.BalanceSyncFlushTimeoutMs,
-		PollIntervalMs: cfg.BalanceSyncPollIntervalMs,
+		BatchSize:              cfg.BalanceSyncBatchSize,
+		FlushTimeoutMs:         cfg.BalanceSyncFlushTimeoutMs,
+		PollIntervalMs:         cfg.BalanceSyncPollIntervalMs,
+		TTLKeepaliveIntervalMs: cfg.BalanceSyncTTLKeepaliveIntervalMs,
 	}
 
 	var balanceSyncWorker *BalanceSyncWorker
@@ -1429,6 +1434,7 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 		libLog.Int("batch_size", effectiveCfg.BatchSize),
 		libLog.Int("flush_timeout_ms", effectiveCfg.FlushTimeoutMs),
 		libLog.Int("poll_interval_ms", effectiveCfg.PollIntervalMs),
+		libLog.Int("ttl_keepalive_interval_ms", effectiveCfg.TTLKeepaliveIntervalMs),
 	)
 
 	return balanceSyncWorker
@@ -1958,6 +1964,7 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceSyncBatchSize, 50)
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
+	intDefault(&cfg.BalanceSyncTTLKeepaliveIntervalMs, defaultKeepaliveIntervalMs)
 }
 
 // buildTracerReserver constructs the tracer reservation HTTP client when the
