@@ -98,6 +98,7 @@ type atomicTransactionBatchItemRun struct {
 	honoredTracerSkip       bool
 	accountBlockGrant       *mtransaction.AccountBlockExceptionGrant
 	prepared                enginePreparedTransaction
+	tracerReservation       reservationHandle
 	guard                   ExecutionGuard
 	completionPlan          TransactionCompletionPlan
 	completionPlanPayload   []byte
