@@ -105,6 +105,13 @@ type AtomicTransactionBatchIdempotencyRepository interface {
 		transactions map[uuid.UUID]json.RawMessage,
 		replayTTL time.Duration,
 	) (*AtomicTransactionBatchFinalizationResult, error)
+	AbortAtomicTransactionBatchConfirmedRefusal(
+		ctx context.Context,
+		organizationID, ledgerID uuid.UUID,
+		effectiveKey, ownerToken string,
+		executionID uuid.UUID,
+		transactionIDs []uuid.UUID,
+	) (*AtomicTransactionBatchRefusalAbortResult, error)
 	DeleteAtomicTransactionBatchPrePublication(
 		ctx context.Context,
 		organizationID, ledgerID uuid.UUID,

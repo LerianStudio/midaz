@@ -449,9 +449,5 @@ func atomicTransactionBatchBudgetResult(item atomicTransactionBatchItemRun) acco
 }
 
 func atomicTransactionBatchRetentionSeconds(ttl time.Duration) int64 {
-	if ttl <= 0 {
-		return 0
-	}
-
-	return int64(ttl / time.Second)
+	return idempotencyRetentionSeconds(ttl)
 }

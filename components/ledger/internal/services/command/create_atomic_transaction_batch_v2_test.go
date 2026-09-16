@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -46,6 +47,88 @@ func (engine *capturingAtomicBatchEquivalenceEngine) Execute(
 		PostingIndex:     0,
 		BalanceRef:       transaction.Postings[0].BalanceRef,
 	}
+}
+
+type applyingAtomicTransactionBatchEngine struct {
+	t          *testing.T
+	executions []EngineExecution
+}
+
+func (engine *applyingAtomicTransactionBatchEngine) Execute(
+	_ context.Context,
+	execution EngineExecution,
+) (*accounting.ExecutionResult, error) {
+	engine.t.Helper()
+	engine.executions = append(engine.executions, execution)
+
+	states := make(map[string]accounting.BalanceState, len(execution.Execution.Balances))
+	snapshots := make(map[string]accounting.BalanceSnapshot, len(execution.Execution.Balances))
+	for _, snapshot := range execution.Execution.Balances {
+		states[snapshot.BalanceRef] = accounting.BalanceState{
+			Available:     snapshot.Available,
+			OnHold:        snapshot.OnHold,
+			OverdraftUsed: snapshot.OverdraftUsed,
+			Version:       snapshot.Version,
+		}
+		snapshots[snapshot.BalanceRef] = snapshot
+	}
+
+	result := &accounting.ExecutionResult{
+		Movements: make([]accounting.Movement, 0),
+		Final:     make([]accounting.BalanceSnapshot, 0),
+	}
+	touched := make([]string, 0)
+	seen := make(map[string]struct{})
+	for transactionIndex, transaction := range execution.Execution.Transactions {
+		for postingIndex, posting := range transaction.Postings {
+			before, exists := states[posting.BalanceRef]
+			require.True(engine.t, exists)
+			after := before
+			switch posting.Type {
+			case accounting.PostingDebit:
+				after.Available = after.Available.Sub(posting.Amount)
+			case accounting.PostingCredit:
+				after.Available = after.Available.Add(posting.Amount)
+			case accounting.PostingHold, accounting.PostingReserve:
+				after.Available = after.Available.Sub(posting.Amount)
+				after.OnHold = after.OnHold.Add(posting.Amount)
+			case accounting.PostingRelease, accounting.PostingUnreserve:
+				after.Available = after.Available.Add(posting.Amount)
+				after.OnHold = after.OnHold.Sub(posting.Amount)
+			default:
+				require.FailNow(engine.t, "unexpected posting type", string(posting.Type))
+			}
+			after.Version++
+			states[posting.BalanceRef] = after
+			result.Movements = append(result.Movements, accounting.Movement{
+				Ref:            fmt.Sprintf("movement:%d:%d", transactionIndex, postingIndex),
+				TransactionID:  transaction.ID,
+				PostingRef:     posting.Ref,
+				Role:           accounting.RolePrimary,
+				BalanceRef:     posting.BalanceRef,
+				Type:           posting.Type,
+				Amount:         posting.Amount,
+				OverdraftDelta: after.OverdraftUsed.Sub(before.OverdraftUsed),
+				Before:         before,
+				After:          after,
+			})
+			if _, found := seen[posting.BalanceRef]; !found {
+				seen[posting.BalanceRef] = struct{}{}
+				touched = append(touched, posting.BalanceRef)
+			}
+		}
+	}
+	for _, balanceRef := range touched {
+		snapshot := snapshots[balanceRef]
+		state := states[balanceRef]
+		snapshot.Available = state.Available
+		snapshot.OnHold = state.OnHold
+		snapshot.OverdraftUsed = state.OverdraftUsed
+		snapshot.Version = state.Version
+		result.Final = append(result.Final, snapshot)
+	}
+
+	return result, nil
 }
 
 type atomicTransactionBatchRouteCall struct {
@@ -202,7 +285,9 @@ func TestCreateAtomicTransactionBatchV2_PreservesOrderedResult(t *testing.T) {
 		atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-000000000039", "@destination-1", "BRL"),
 	}}
 	uc := &UseCase{
-		TransactionReader: reader,
+		TransactionReader:                     reader,
+		AtomicTransactionBatchIdempotencyRepo: &atomicTransactionBatchClaimRepositoryFake{},
+		Engine:                                &applyingAtomicTransactionBatchEngine{t: t},
 		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
 			t,
 			batchID,
@@ -437,10 +522,12 @@ func TestCreateAtomicTransactionBatchV2_HonorsPerItemControlSkips(t *testing.T) 
 	}
 	feeApplier := &fakeFeeApplier{}
 	uc := &UseCase{
-		TransactionReader: reader,
-		FeeApplier:        feeApplier,
-		UUIDv7Generator:   orderedAtomicTransactionBatchUUIDs(t, batchID, transactionID, executionID),
-		Clock:             func() time.Time { return now },
+		TransactionReader:                     reader,
+		FeeApplier:                            feeApplier,
+		AtomicTransactionBatchIdempotencyRepo: &atomicTransactionBatchClaimRepositoryFake{},
+		Engine:                                &applyingAtomicTransactionBatchEngine{t: t},
+		UUIDv7Generator:                       orderedAtomicTransactionBatchUUIDs(t, batchID, transactionID, executionID),
+		Clock:                                 func() time.Time { return now },
 	}
 	item := atomicTransactionBatchItemInput(organizationID, ledgerID, "@source", "@destination")
 	item.Transaction.Skip = &mtransaction.TransactionSkip{Fees: true, Tracer: true}

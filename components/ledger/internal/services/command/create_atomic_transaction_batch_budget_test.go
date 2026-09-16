@@ -22,11 +22,22 @@ import (
 )
 
 type atomicTransactionBatchClaimRepositoryFake struct {
-	claims       int
-	deletes      int
-	effectiveKey string
-	claim        txRedis.AtomicTransactionBatchIdempotencyRecord
-	deleteOwner  string
+	claims              int
+	transitions         int
+	handoffs            int
+	aborts              int
+	deletes             int
+	effectiveKey        string
+	claim               txRedis.AtomicTransactionBatchIdempotencyRecord
+	transition          txRedis.AtomicTransactionBatchIdempotencyRecord
+	handoff             txRedis.AtomicTransactionBatchIdempotencyRecord
+	deleteOwner         string
+	transitionErr       error
+	handoffErr          error
+	abortErr            error
+	abortOutcome        txRedis.AtomicTransactionBatchRefusalAbortOutcome
+	abortExecutionID    uuid.UUID
+	abortTransactionIDs []uuid.UUID
 }
 
 func (repository *atomicTransactionBatchClaimRepositoryFake) ClaimAtomicTransactionBatch(
@@ -42,6 +53,68 @@ func (repository *atomicTransactionBatchClaimRepositoryFake) ClaimAtomicTransact
 	return &txRedis.AtomicTransactionBatchClaimResult{
 		Outcome: txRedis.AtomicTransactionBatchClaimed,
 		Record:  claim,
+	}, nil
+}
+
+func (repository *atomicTransactionBatchClaimRepositoryFake) TransitionAtomicTransactionBatch(
+	_ context.Context,
+	_, _ uuid.UUID,
+	_, _ string,
+	_ txRedis.AtomicTransactionBatchIdempotencyState,
+	next txRedis.AtomicTransactionBatchIdempotencyRecord,
+	_ time.Duration,
+) (*txRedis.AtomicTransactionBatchTransitionResult, error) {
+	repository.transitions++
+	repository.transition = next
+	if repository.transitionErr != nil {
+		return nil, repository.transitionErr
+	}
+
+	return &txRedis.AtomicTransactionBatchTransitionResult{
+		Outcome: txRedis.AtomicTransactionBatchTransitionUpdated,
+		Record:  next,
+	}, nil
+}
+
+func (repository *atomicTransactionBatchClaimRepositoryFake) HandoffAtomicTransactionBatchExecution(
+	_ context.Context,
+	_, _ uuid.UUID,
+	_, _ string,
+	next txRedis.AtomicTransactionBatchIdempotencyRecord,
+) (*txRedis.AtomicTransactionBatchTransitionResult, error) {
+	repository.handoffs++
+	repository.handoff = next
+	if repository.handoffErr != nil {
+		return nil, repository.handoffErr
+	}
+
+	return &txRedis.AtomicTransactionBatchTransitionResult{
+		Outcome: txRedis.AtomicTransactionBatchTransitionUpdated,
+		Record:  next,
+	}, nil
+}
+
+func (repository *atomicTransactionBatchClaimRepositoryFake) AbortAtomicTransactionBatchConfirmedRefusal(
+	_ context.Context,
+	_, _ uuid.UUID,
+	_, _ string,
+	executionID uuid.UUID,
+	transactionIDs []uuid.UUID,
+) (*txRedis.AtomicTransactionBatchRefusalAbortResult, error) {
+	repository.aborts++
+	repository.abortExecutionID = executionID
+	repository.abortTransactionIDs = append([]uuid.UUID(nil), transactionIDs...)
+	if repository.abortErr != nil {
+		return nil, repository.abortErr
+	}
+	outcome := repository.abortOutcome
+	if outcome == "" {
+		outcome = txRedis.AtomicTransactionBatchRefusalDeleted
+	}
+
+	return &txRedis.AtomicTransactionBatchRefusalAbortResult{
+		Outcome: outcome,
+		Record:  repository.handoff,
 	}, nil
 }
 

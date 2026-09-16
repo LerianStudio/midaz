@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -18,16 +19,36 @@ import (
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 )
 
-// AtomicTransactionBatchIdempotencyClaimRepository is the command-owned
-// pre-publication subset of the Redis batch state machine. Execution handoff
-// and terminal finalization extend this consumer port in their own phases.
-type AtomicTransactionBatchIdempotencyClaimRepository interface {
+// AtomicTransactionBatchIdempotencyRepository is the command-owned subset of
+// the Redis batch state machine used before durable projection completion.
+type AtomicTransactionBatchIdempotencyRepository interface {
 	ClaimAtomicTransactionBatch(
 		ctx context.Context,
 		organizationID, ledgerID uuid.UUID,
 		effectiveKey string,
 		claim txRedis.AtomicTransactionBatchIdempotencyRecord,
 	) (*txRedis.AtomicTransactionBatchClaimResult, error)
+	TransitionAtomicTransactionBatch(
+		ctx context.Context,
+		organizationID, ledgerID uuid.UUID,
+		effectiveKey, ownerToken string,
+		expectedState txRedis.AtomicTransactionBatchIdempotencyState,
+		next txRedis.AtomicTransactionBatchIdempotencyRecord,
+		replayTTL time.Duration,
+	) (*txRedis.AtomicTransactionBatchTransitionResult, error)
+	HandoffAtomicTransactionBatchExecution(
+		ctx context.Context,
+		organizationID, ledgerID uuid.UUID,
+		effectiveKey, ownerToken string,
+		next txRedis.AtomicTransactionBatchIdempotencyRecord,
+	) (*txRedis.AtomicTransactionBatchTransitionResult, error)
+	AbortAtomicTransactionBatchConfirmedRefusal(
+		ctx context.Context,
+		organizationID, ledgerID uuid.UUID,
+		effectiveKey, ownerToken string,
+		executionID uuid.UUID,
+		transactionIDs []uuid.UUID,
+	) (*txRedis.AtomicTransactionBatchRefusalAbortResult, error)
 	DeleteAtomicTransactionBatchPrePublication(
 		ctx context.Context,
 		organizationID, ledgerID uuid.UUID,
@@ -133,7 +154,7 @@ func (uc *UseCase) abortAtomicTransactionBatchPrePublication(
 	run *atomicTransactionBatchRun,
 	primary error,
 ) error {
-	if run == nil || !run.idempotencyClaimed || uc.AtomicTransactionBatchIdempotencyRepo == nil {
+	if run == nil || !run.idempotencyClaimed || run.idempotencyHandedOff || uc.AtomicTransactionBatchIdempotencyRepo == nil {
 		return primary
 	}
 

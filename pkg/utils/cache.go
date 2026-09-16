@@ -205,8 +205,9 @@ func IdempotencyInternalKey(organizationID, ledgerID uuid.UUID, key string) stri
 // used by atomic transaction batches. The effective client key is always hashed
 // before entering the namespace, so raw idempotency keys never become Redis key
 // material. The batch discriminator keeps this format isolated from singular
-// transaction idempotency, while the organization/ledger hash tag leaves room
-// for atomic batch-record and execution-index operations in one cluster slot.
+// transaction idempotency. Organization and ledger remain explicit path
+// components while the shared transaction hash tag co-locates batch state with
+// accounting receipt/recovery evidence for cluster-safe refusal cleanup.
 func AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID uuid.UUID, effectiveKey string) string {
 	digest := sha256.Sum256([]byte(effectiveKey))
 	hashedKey := hex.EncodeToString(digest[:])
@@ -219,15 +220,15 @@ func AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID uuid.
 // pointer validation; callers must append exactly one lowercase SHA-256 digest.
 func AtomicTransactionBatchIdempotencyInternalKeyPrefix(organizationID, ledgerID uuid.UUID) string {
 	var builder strings.Builder
-	builder.Grow(102) // "idempotency_atomic_batch:{" + 2×UUID + "}:"
+	builder.Grow(117) // "idempotency_atomic_batch:{transactions}:" + 2×UUID + ":"
 
 	builder.WriteString("idempotency_atomic_batch")
 	builder.WriteString(keySeparator)
-	builder.WriteString(beginningKey)
+	builder.WriteString(cachepolicy.HashTag)
+	builder.WriteString(keySeparator)
 	builder.WriteString(organizationID.String())
 	builder.WriteString(keySeparator)
 	builder.WriteString(ledgerID.String())
-	builder.WriteString(endKey)
 	builder.WriteString(keySeparator)
 
 	return builder.String()
@@ -238,15 +239,15 @@ func AtomicTransactionBatchIdempotencyInternalKeyPrefix(organizationID, ledgerID
 // key so handoff and finalization can update both atomically in Redis Cluster.
 func AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, executionID uuid.UUID) string {
 	var builder strings.Builder
-	builder.Grow(139) // "idempotency_atomic_batch_execution:{" + 3×UUID separators + "}"
+	builder.Grow(154) // "idempotency_atomic_batch_execution:{transactions}:" + 3×UUID
 
 	builder.WriteString("idempotency_atomic_batch_execution")
 	builder.WriteString(keySeparator)
-	builder.WriteString(beginningKey)
+	builder.WriteString(cachepolicy.HashTag)
+	builder.WriteString(keySeparator)
 	builder.WriteString(organizationID.String())
 	builder.WriteString(keySeparator)
 	builder.WriteString(ledgerID.String())
-	builder.WriteString(endKey)
 	builder.WriteString(keySeparator)
 	builder.WriteString(executionID.String())
 

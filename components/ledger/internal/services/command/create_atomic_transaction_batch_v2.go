@@ -74,6 +74,7 @@ type atomicTransactionBatchRun struct {
 	idempotencyFingerprint  string
 	idempotencyOwnerToken   string
 	idempotencyClaimed      bool
+	idempotencyHandedOff    bool
 	engineIntentFingerprint string
 	items                   []atomicTransactionBatchItemRun
 }
@@ -129,6 +130,29 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(ctx context.Context, in Create
 	}
 	if err := uc.prepareAtomicTransactionBatchItems(ctx, span, logger, run); err != nil {
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
+	}
+	prepared, err := buildAtomicTransactionBatchPreparedExecution(run)
+	if err != nil {
+		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
+	}
+	if uc.Engine == nil {
+		return nil, uc.abortAtomicTransactionBatchPrePublication(
+			ctx,
+			run,
+			errors.New("atomic transaction batch engine is not configured"),
+		)
+	}
+	if err := uc.prepareAtomicTransactionBatchIdempotency(ctx, run); err != nil {
+		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
+	}
+	if err := uc.reserveAtomicTransactionBatch(ctx, span, logger, run); err != nil {
+		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
+	}
+	if err := uc.handoffAtomicTransactionBatchExecution(ctx, run); err != nil {
+		return nil, err
+	}
+	if _, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, prepared); err != nil {
+		return nil, err
 	}
 
 	transactions := make([]*transaction.Transaction, len(run.items))

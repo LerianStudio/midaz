@@ -79,7 +79,7 @@ func TestGetAtomicTransactionBatchByExecutionID_ValidatesScopedPointer(t *testin
 	require.NotNil(t, result)
 	assert.Equal(t, applied, result.Record)
 
-	client.getValues[indexKey] = "idempotency_atomic_batch:{other:scope}:" + string(make([]byte, 64))
+	client.getValues[indexKey] = "idempotency_atomic_batch:{transactions}:other:scope:" + string(make([]byte, 64))
 	result, err = repository.GetAtomicTransactionBatchByExecutionID(
 		context.Background(), organizationID, ledgerID, executionID,
 	)
