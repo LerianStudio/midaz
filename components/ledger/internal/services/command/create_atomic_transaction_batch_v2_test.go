@@ -193,6 +193,7 @@ func TestCreateAtomicTransactionBatchV2_PreservesOrderedResult(t *testing.T) {
 	batchID := uuid.MustParse("01994f13-29b7-7000-8000-000000000033")
 	firstTransactionID := uuid.MustParse("01994f13-29b7-7000-8000-000000000034")
 	secondTransactionID := uuid.MustParse("01994f13-29b7-7000-8000-000000000035")
+	executionID := uuid.MustParse("01994f13-29b7-7000-8000-00000000003a")
 	now := time.Date(2026, time.September, 16, 12, 30, 0, 0, time.UTC)
 	reader := &atomicTransactionBatchSettingsReader{balances: []*mmodel.Balance{
 		atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-000000000036", "@source-0", "BRL"),
@@ -207,6 +208,7 @@ func TestCreateAtomicTransactionBatchV2_PreservesOrderedResult(t *testing.T) {
 			batchID,
 			firstTransactionID,
 			secondTransactionID,
+			executionID,
 		),
 		Clock: func() time.Time { return now },
 	}
@@ -242,6 +244,7 @@ func TestPrepareAtomicTransactionBatchItems_UsesOneSharedPoolAndIsolatesRoutes(t
 		uuid.MustParse("01994f13-29b7-7000-8000-000000000075"),
 		uuid.MustParse("01994f13-29b7-7000-8000-000000000076"),
 	}
+	executionID := uuid.MustParse("01994f13-29b7-7000-8000-00000000007c")
 	now := time.Date(2026, time.September, 16, 15, 0, 0, 0, time.UTC)
 	routeIDs := []string{"route-0", "route-1", "route-2"}
 	settings := mmodel.LedgerSettings{}
@@ -277,6 +280,7 @@ func TestPrepareAtomicTransactionBatchItems_UsesOneSharedPoolAndIsolatesRoutes(t
 			transactionIDs[0],
 			transactionIDs[1],
 			transactionIDs[2],
+			executionID,
 		),
 		Clock: func() time.Time { return now },
 	}
@@ -419,6 +423,7 @@ func TestCreateAtomicTransactionBatchV2_HonorsPerItemControlSkips(t *testing.T) 
 	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000062")
 	batchID := uuid.MustParse("01994f13-29b7-7000-8000-000000000063")
 	transactionID := uuid.MustParse("01994f13-29b7-7000-8000-000000000064")
+	executionID := uuid.MustParse("01994f13-29b7-7000-8000-000000000067")
 	now := time.Date(2026, time.September, 16, 14, 0, 0, 0, time.UTC)
 	settings := mmodel.LedgerSettings{}
 	settings.Overrides.AllowFeeSkip = true
@@ -434,7 +439,7 @@ func TestCreateAtomicTransactionBatchV2_HonorsPerItemControlSkips(t *testing.T) 
 	uc := &UseCase{
 		TransactionReader: reader,
 		FeeApplier:        feeApplier,
-		UUIDv7Generator:   orderedAtomicTransactionBatchUUIDs(t, batchID, transactionID),
+		UUIDv7Generator:   orderedAtomicTransactionBatchUUIDs(t, batchID, transactionID, executionID),
 		Clock:             func() time.Time { return now },
 	}
 	item := atomicTransactionBatchItemInput(organizationID, ledgerID, "@source", "@destination")
@@ -535,11 +540,12 @@ func TestCreateAtomicTransactionBatchV2_OneItemMatchesSingularAccountingAndCompl
 	batchReader := &createEngineReader{balances: balances}
 	batchFee := &fakeFeeApplier{mutate: feeMutation}
 	batchID := uuid.MustParse("01994f13-29b7-7000-8000-000000000048")
+	batchExecutionID := uuid.MustParse("01994f13-29b7-7000-8000-000000000049")
 	batch := &UseCase{
 		TransactionRedisRepo: batchRedis,
 		TransactionReader:    batchReader,
 		FeeApplier:           batchFee,
-		UUIDv7Generator:      orderedAtomicTransactionBatchUUIDs(t, batchID, singularTransactionID),
+		UUIDv7Generator:      orderedAtomicTransactionBatchUUIDs(t, batchID, singularTransactionID, batchExecutionID),
 		Clock:                func() time.Time { return transactionDate.Add(time.Hour) },
 	}
 	batchInput, err := clonePendingTransactionInput(raw)

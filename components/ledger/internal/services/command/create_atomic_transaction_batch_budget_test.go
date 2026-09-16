@@ -1,0 +1,175 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+)
+
+type atomicTransactionBatchClaimRepositoryFake struct {
+	claims       int
+	deletes      int
+	effectiveKey string
+	claim        txRedis.AtomicTransactionBatchIdempotencyRecord
+	deleteOwner  string
+}
+
+func (repository *atomicTransactionBatchClaimRepositoryFake) ClaimAtomicTransactionBatch(
+	_ context.Context,
+	_, _ uuid.UUID,
+	effectiveKey string,
+	claim txRedis.AtomicTransactionBatchIdempotencyRecord,
+) (*txRedis.AtomicTransactionBatchClaimResult, error) {
+	repository.claims++
+	repository.effectiveKey = effectiveKey
+	repository.claim = claim
+
+	return &txRedis.AtomicTransactionBatchClaimResult{
+		Outcome: txRedis.AtomicTransactionBatchClaimed,
+		Record:  claim,
+	}, nil
+}
+
+func (repository *atomicTransactionBatchClaimRepositoryFake) DeleteAtomicTransactionBatchPrePublication(
+	_ context.Context,
+	_, _ uuid.UUID,
+	_ string,
+	ownerToken string,
+) (*txRedis.AtomicTransactionBatchDeleteResult, error) {
+	repository.deletes++
+	repository.deleteOwner = ownerToken
+
+	return &txRedis.AtomicTransactionBatchDeleteResult{
+		Outcome: txRedis.AtomicTransactionBatchDeleted,
+		Record:  repository.claim,
+	}, nil
+}
+
+func TestValidateAtomicTransactionBatchCumulativeBudget_ExactBoundaries(t *testing.T) {
+	limits := defaultAtomicTransactionBatchBudgetLimits
+	tests := []struct {
+		dimension string
+		limit     int
+	}{
+		{atomicTransactionBatchBudgetExpandedPostings, limits.expandedPostings},
+		{atomicTransactionBatchBudgetExecutionBalances, limits.executionBalances},
+		{atomicTransactionBatchBudgetCompletionPlanBytes, limits.completionPlanBytes},
+		{atomicTransactionBatchBudgetAccountingRequestBytes, limits.accountingRequestBytes},
+		{atomicTransactionBatchBudgetPreparedResponseBytes, limits.preparedResponseBytes},
+		{atomicTransactionBatchBudgetRecoveryBytes, limits.recoveryBytes},
+		{atomicTransactionBatchBudgetCachedResponseBytes, limits.cachedResponseBytes},
+	}
+
+	for _, test := range tests {
+		t.Run(test.dimension, func(t *testing.T) {
+			require.NoError(t, validateAtomicTransactionBatchCumulativeBudget(
+				test.dimension,
+				[]int{test.limit - 1, test.limit},
+				test.limit,
+			))
+
+			err := validateAtomicTransactionBatchCumulativeBudget(
+				test.dimension,
+				[]int{test.limit - 1, test.limit + 1, test.limit + 100},
+				test.limit,
+			)
+			assertAtomicTransactionBatchBudgetError(
+				t,
+				err,
+				test.dimension,
+				1,
+				test.limit+1,
+				test.limit,
+			)
+		})
+	}
+}
+
+func TestCreateAtomicTransactionBatchV2_BudgetFailureDeletesClaimBeforeBalanceRead(t *testing.T) {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000081")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000082")
+	batchID := uuid.MustParse("01994f13-29b7-7000-8000-000000000083")
+	transactionID := uuid.MustParse("01994f13-29b7-7000-8000-000000000084")
+	reader := &atomicTransactionBatchSettingsReader{settings: mmodel.LedgerSettings{}}
+	repository := &atomicTransactionBatchClaimRepositoryFake{}
+	limits := defaultAtomicTransactionBatchBudgetLimits
+	limits.expandedPostings = 1
+	uc := &UseCase{
+		TransactionReader:                     reader,
+		AtomicTransactionBatchIdempotencyRepo: repository,
+		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
+			t,
+			batchID,
+			transactionID,
+		),
+		Clock: func() time.Time { return time.Date(2026, time.September, 16, 16, 0, 0, 0, time.UTC) },
+		atomicTransactionBatchBudgetLimitOverride: &limits,
+	}
+
+	result, err := uc.CreateAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
+		Transactions: []CreateAtomicTransactionBatchV2ItemInput{
+			atomicTransactionBatchItemInput(organizationID, ledgerID, "@source", "@destination"),
+		},
+		CanonicalRequest: []byte(`{"transactions":[{"description":"budget"}]}`),
+		IdempotencyKey:   "client-batch-key",
+	})
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assertAtomicTransactionBatchBudgetError(
+		t,
+		err,
+		atomicTransactionBatchBudgetExpandedPostings,
+		0,
+		2,
+		1,
+	)
+
+	assert.Equal(t, 1, repository.claims)
+	assert.Equal(t, 1, repository.deletes)
+	assert.Equal(t, "client-batch-key", repository.effectiveKey)
+	assert.NotEmpty(t, repository.claim.OwnerToken)
+	assert.Equal(t, repository.claim.OwnerToken, repository.deleteOwner)
+	assert.Equal(t, txRedis.AtomicTransactionBatchStateClaimed, repository.claim.State)
+	assert.Equal(t, batchID, repository.claim.BatchID)
+	assert.Equal(t, 0, reader.engineReads, "expanded postings must reject before the shared balance read")
+}
+
+func assertAtomicTransactionBatchBudgetError(
+	t *testing.T,
+	err error,
+	dimension string,
+	index, observed, limit int,
+) {
+	t.Helper()
+	require.Error(t, err)
+
+	var business pkg.UnprocessableOperationError
+	require.True(t, errors.As(err, &business))
+	assert.Equal(t, constant.ErrTransactionBatchBudgetExceeded.Error(), business.Code)
+	assert.Equal(t, "Transaction Batch Budget Exceeded", business.Title)
+	assert.Equal(t, "The transaction batch exceeds the "+dimension+" budget at transaction index "+
+		fmt.Sprint(index)+": observed "+fmt.Sprint(observed)+", maximum "+fmt.Sprint(limit)+
+		". Please reduce the batch work and try again.", business.Message)
+
+	var carrier *pkg.FieldErrorCarrier
+	require.True(t, errors.As(err, &carrier))
+	assert.Equal(t, []pkg.FieldError{{
+		Location: "body.transactions[" + fmt.Sprint(index) + "]",
+		Message:  dimension + " budget observed " + fmt.Sprint(observed) + " exceeds maximum " + fmt.Sprint(limit),
+	}}, carrier.FieldErrors())
+}

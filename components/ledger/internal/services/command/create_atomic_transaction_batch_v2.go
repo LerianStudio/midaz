@@ -64,12 +64,18 @@ type CreateAtomicTransactionBatchV2Result struct {
 // exists only in items; maps may be used by later phases for lookup, but never
 // to rebuild this slice or determine execution order.
 type atomicTransactionBatchRun struct {
-	batchID        uuid.UUID
-	organizationID uuid.UUID
-	ledgerID       uuid.UUID
-	ledgerSettings mmodel.LedgerSettings
-	idempotencyTTL time.Duration
-	items          []atomicTransactionBatchItemRun
+	batchID                 uuid.UUID
+	executionID             uuid.UUID
+	organizationID          uuid.UUID
+	ledgerID                uuid.UUID
+	ledgerSettings          mmodel.LedgerSettings
+	idempotencyTTL          time.Duration
+	idempotencyEffectiveKey string
+	idempotencyFingerprint  string
+	idempotencyOwnerToken   string
+	idempotencyClaimed      bool
+	engineIntentFingerprint string
+	items                   []atomicTransactionBatchItemRun
 }
 
 // atomicTransactionBatchItemRun owns the stable per-item identity and temporal
@@ -92,6 +98,9 @@ type atomicTransactionBatchItemRun struct {
 	honoredTracerSkip       bool
 	accountBlockGrant       *mtransaction.AccountBlockExceptionGrant
 	prepared                enginePreparedTransaction
+	guard                   ExecutionGuard
+	completionPlan          TransactionCompletionPlan
+	completionPlanPayload   []byte
 }
 
 // CreateAtomicTransactionBatchV2 initializes the ordered batch command state.
@@ -102,13 +111,23 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(ctx context.Context, in Create
 	ctx, span := tracer.Start(ctx, "command.create_atomic_transaction_batch_v2")
 	defer span.End()
 
-	run, err := uc.initializeAtomicTransactionBatchV2(ctx, in)
+	run, err := uc.initializeAtomicTransactionBatchIdentity(ctx, in)
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to initialize atomic transaction batch", err)
 		return nil, err
 	}
-	if err := uc.prepareAtomicTransactionBatchItems(ctx, span, logger, run); err != nil {
+	replay, err := uc.claimAtomicTransactionBatch(ctx, in, run)
+	if err != nil {
 		return nil, err
+	}
+	if replay != nil {
+		return replay, nil
+	}
+	if err := uc.initializeAtomicTransactionBatchItemsAndSettings(ctx, in, run); err != nil {
+		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
+	}
+	if err := uc.prepareAtomicTransactionBatchItems(ctx, span, logger, run); err != nil {
+		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
 
 	transactions := make([]*transaction.Transaction, len(run.items))
@@ -124,6 +143,21 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(ctx context.Context, in Create
 }
 
 func (uc *UseCase) initializeAtomicTransactionBatchV2(ctx context.Context, in CreateAtomicTransactionBatchV2Input) (*atomicTransactionBatchRun, error) {
+	run, err := uc.initializeAtomicTransactionBatchIdentity(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.initializeAtomicTransactionBatchItemsAndSettings(ctx, in, run); err != nil {
+		return nil, err
+	}
+
+	return run, nil
+}
+
+func (uc *UseCase) initializeAtomicTransactionBatchIdentity(
+	ctx context.Context,
+	in CreateAtomicTransactionBatchV2Input,
+) (*atomicTransactionBatchRun, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -136,12 +170,6 @@ func (uc *UseCase) initializeAtomicTransactionBatchV2(ctx context.Context, in Cr
 	if uc.UUIDv7Generator == nil {
 		return nil, errors.New("atomic transaction batch UUIDv7 generator is not configured")
 	}
-	if uc.Clock == nil {
-		return nil, errors.New("atomic transaction batch clock is not configured")
-	}
-	if uc.TransactionReader == nil {
-		return nil, errors.New("atomic transaction batch transaction reader is not configured")
-	}
 
 	batchID, err := uc.UUIDv7Generator()
 	if err != nil {
@@ -151,26 +179,41 @@ func (uc *UseCase) initializeAtomicTransactionBatchV2(ctx context.Context, in Cr
 		return nil, errors.New("atomic transaction batch UUIDv7 generator returned a nil batch id")
 	}
 
-	run := &atomicTransactionBatchRun{
+	return &atomicTransactionBatchRun{
 		batchID:        batchID,
 		organizationID: organizationID,
 		ledgerID:       ledgerID,
 		idempotencyTTL: in.IdempotencyTTL,
-		items:          make([]atomicTransactionBatchItemRun, len(in.Transactions)),
+	}, nil
+}
+
+func (uc *UseCase) initializeAtomicTransactionBatchItemsAndSettings(
+	ctx context.Context,
+	in CreateAtomicTransactionBatchV2Input,
+	run *atomicTransactionBatchRun,
+) error {
+	if uc.Clock == nil {
+		return errors.New("atomic transaction batch clock is not configured")
 	}
+	if uc.TransactionReader == nil {
+		return errors.New("atomic transaction batch transaction reader is not configured")
+	}
+
+	run.items = make([]atomicTransactionBatchItemRun, len(in.Transactions))
 
 	cursor := atomicTransactionBatchTimestampCursor{clock: uc.Clock}
 	for index := range in.Transactions {
 		item, itemErr := initializeAtomicTransactionBatchItem(in.Transactions[index], index, uc.UUIDv7Generator, &cursor)
 		if itemErr != nil {
-			return nil, itemErr
+			return itemErr
 		}
 		run.items[index] = item
 	}
 
+	var err error
 	run.ledgerSettings, err = uc.TransactionReader.GetParsedLedgerSettings(ctx, run.organizationID, run.ledgerID)
 	if err != nil {
-		return nil, fmt.Errorf("get atomic transaction batch ledger settings: %w", err)
+		return fmt.Errorf("get atomic transaction batch ledger settings: %w", err)
 	}
 
 	// State-dependent validation starts only after the complete ordered run is
@@ -180,11 +223,11 @@ func (uc *UseCase) initializeAtomicTransactionBatchV2(ctx context.Context, in Cr
 		item := &run.items[index]
 		item.transactionDate, err = resolveTransactionDateAt(item.input, item.status, item.transactionCreatedAt)
 		if err != nil {
-			return nil, withAtomicTransactionBatchItemError(err, index, "transaction date validation failed")
+			return withAtomicTransactionBatchItemError(err, index, "transaction date validation failed")
 		}
 	}
 
-	return run, nil
+	return nil
 }
 
 func (uc *UseCase) prepareAtomicTransactionBatchItems(
@@ -202,8 +245,15 @@ func (uc *UseCase) prepareAtomicTransactionBatchItems(
 			return withAtomicTransactionBatchItemError(err, index, "transaction preparation failed")
 		}
 	}
+	if err := uc.enforceAtomicTransactionBatchExpandedPostings(run); err != nil {
+		return err
+	}
 
-	return uc.prepareAtomicTransactionBatchEngineItems(ctx, run)
+	if err := uc.prepareAtomicTransactionBatchEngineItems(ctx, run); err != nil {
+		return err
+	}
+
+	return uc.prepareAndEnforceAtomicTransactionBatchBudgets(ctx, run)
 }
 
 func (uc *UseCase) prepareAtomicTransactionBatchItem(

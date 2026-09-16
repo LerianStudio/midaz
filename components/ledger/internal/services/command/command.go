@@ -141,6 +141,16 @@ type UseCase struct {
 	UUIDv7Generator UUIDv7Generator
 	Clock           Clock
 
+	// AtomicTransactionBatchIdempotencyRepo owns the batch-only claim and
+	// pre-publication cleanup state machine. It is separate from the singular
+	// transaction cache contract so neither namespace can be used accidentally.
+	AtomicTransactionBatchIdempotencyRepo AtomicTransactionBatchIdempotencyClaimRepository
+
+	// atomicTransactionBatchBudgetLimitOverride is a test seam for exact boundary
+	// characterization. Production leaves it nil and uses the reviewed hard
+	// limits compiled into the command.
+	atomicTransactionBatchBudgetLimitOverride *atomicTransactionBatchBudgetLimits
+
 	// Engine applies balance changes through the execution port.
 	// A nil value leaves the existing transaction execution path unchanged.
 	Engine Engine
