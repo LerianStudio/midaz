@@ -288,6 +288,9 @@ func TestCreateAtomicTransactionBatchV2_PreservesOrderedResult(t *testing.T) {
 		TransactionReader:                     reader,
 		AtomicTransactionBatchIdempotencyRepo: &atomicTransactionBatchClaimRepositoryFake{},
 		Engine:                                &applyingAtomicTransactionBatchEngine{t: t},
+		AppliedTransactionCompleter: &createAppliedTransactionCompleter{
+			outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
+		},
 		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
 			t,
 			batchID,
@@ -526,8 +529,11 @@ func TestCreateAtomicTransactionBatchV2_HonorsPerItemControlSkips(t *testing.T) 
 		FeeApplier:                            feeApplier,
 		AtomicTransactionBatchIdempotencyRepo: &atomicTransactionBatchClaimRepositoryFake{},
 		Engine:                                &applyingAtomicTransactionBatchEngine{t: t},
-		UUIDv7Generator:                       orderedAtomicTransactionBatchUUIDs(t, batchID, transactionID, executionID),
-		Clock:                                 func() time.Time { return now },
+		AppliedTransactionCompleter: &createAppliedTransactionCompleter{
+			outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
+		},
+		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(t, batchID, transactionID, executionID),
+		Clock:           func() time.Time { return now },
 	}
 	item := atomicTransactionBatchItemInput(organizationID, ledgerID, "@source", "@destination")
 	item.Transaction.Skip = &mtransaction.TransactionSkip{Fees: true, Tracer: true}

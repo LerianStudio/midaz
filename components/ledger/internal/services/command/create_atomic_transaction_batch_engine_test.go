@@ -237,7 +237,11 @@ func atomicTransactionBatchExecutionFixture(
 		TransactionReader:                     reader,
 		AtomicTransactionBatchIdempotencyRepo: repository,
 		Engine:                                engine,
-		TracerReserver:                        reserver,
+		AppliedTransactionCompleter: &createAppliedTransactionCompleter{
+			outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
+		},
+		EngineRecoveryAcknowledger: &recordingEngineRecoveryAcknowledger{},
+		TracerReserver:             reserver,
 		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
 			t,
 			batchID,

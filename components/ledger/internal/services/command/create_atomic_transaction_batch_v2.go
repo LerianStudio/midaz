@@ -142,6 +142,13 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(ctx context.Context, in Create
 			errors.New("atomic transaction batch engine is not configured"),
 		)
 	}
+	if isNilAppliedTransactionCompleter(uc.AppliedTransactionCompleter) {
+		return nil, uc.abortAtomicTransactionBatchPrePublication(
+			ctx,
+			run,
+			errors.New("atomic transaction batch completer is not configured"),
+		)
+	}
 	if err := uc.prepareAtomicTransactionBatchIdempotency(ctx, run); err != nil {
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
@@ -151,13 +158,13 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(ctx context.Context, in Create
 	if err := uc.handoffAtomicTransactionBatchExecution(ctx, run); err != nil {
 		return nil, err
 	}
-	if _, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, prepared); err != nil {
+	outcome, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, prepared)
+	if err != nil {
 		return nil, err
 	}
-
-	transactions := make([]*transaction.Transaction, len(run.items))
-	for index := range run.items {
-		transactions[index] = atomicTransactionBatchFoundationResult(run, &run.items[index])
+	transactions, err := uc.completeAtomicTransactionBatch(ctx, logger, run, outcome)
+	if err != nil {
+		return nil, err
 	}
 
 	return &CreateAtomicTransactionBatchV2Result{
