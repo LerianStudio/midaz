@@ -153,12 +153,16 @@ end
 
 local deadlines, scheduleMembers = {}, {}
 local currentExecutionReady = false
+local currentExecutionBatchReady = false
 for linkedExecution, linked in pairs(receipts) do
-    local ready, terminalAt = true, 0
-    for _, id in ipairs(linked.protection.transactions) do
-        local completed = linked.protection.terminalCompletedAtMs[id]
-        if linked.protection.acknowledged[id] ~= true or type(completed) ~= "number" or completed < 1 then
-            ready = false
+	local ready, batchReady, terminalAt = true, true, 0
+	for _, id in ipairs(linked.protection.transactions) do
+		local completed = linked.protection.terminalCompletedAtMs[id]
+		if linked.protection.acknowledged[id] ~= true then
+			batchReady = false
+		end
+		if linked.protection.acknowledged[id] ~= true or type(completed) ~= "number" or completed < 1 then
+			ready = false
         elseif completed > terminalAt then
             terminalAt = completed
         end
@@ -169,7 +173,10 @@ for linkedExecution, linked in pairs(receipts) do
         deadlines[linkedExecution] = deadline
         scheduleMembers[linkedExecution] = linked.organizationId .. ":" .. linked.ledgerId .. ":" .. linkedExecution
     end
-    if linkedExecution == executionID then currentExecutionReady = ready end
+	if linkedExecution == executionID then
+		currentExecutionReady = ready
+		currentExecutionBatchReady = batchReady
+	end
 end
 
 local batchPayload
@@ -201,7 +208,7 @@ if batchMode then
             return redis.error_reply("ERR completed atomic batch response is invalid")
         end
     elseif currentBatch.state == "applied" then
-        if currentExecutionReady then
+		if currentExecutionBatchReady then
             if currentBatch.formatVersion == 2 then
                 if type(currentBatch.initialResponses) ~= "table" then
                     return redis.error_reply("ERR atomic batch initial responses are invalid")

@@ -240,7 +240,7 @@ func (rr *RedisConsumerRepository) GetAtomicTransactionBatchFinalizationCandidat
 		}
 
 		member := memberID.String()
-		if !receipt.Protection.Acknowledged[member] || receipt.Protection.TerminalCompletedAtMS[member] < 1 {
+		if !receipt.Protection.Acknowledged[member] {
 			result.Candidate = false
 			break
 		}

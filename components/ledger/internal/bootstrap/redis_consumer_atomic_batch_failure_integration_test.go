@@ -157,12 +157,12 @@ func TestIntegrationAtomicTransactionBatchFailureRecoveryConverges(t *testing.T)
 	client := recoveryEngineValkey(t)
 
 	tests := []struct {
-		name                   string
-		failSecondCompletion   bool
-		failTerminalProjection bool
+		name                 string
+		failSecondCompletion bool
+		projectionReadFails  bool
 	}{
 		{name: "between individual projection completions", failSecondCompletion: true},
-		{name: "before terminal idempotency storage", failTerminalProjection: true},
+		{name: "finalization does not read mutable projections", projectionReadFails: true},
 	}
 
 	for _, test := range tests {
@@ -211,7 +211,7 @@ func TestIntegrationAtomicTransactionBatchFailureRecoveryConverges(t *testing.T)
 			if test.failSecondCompletion {
 				store.failCompletion[secondID] = 1
 			}
-			if test.failTerminalProjection {
+			if test.projectionReadFails {
 				store.projectionReadFailures = 1
 			}
 			finalizer := &command.UseCase{
@@ -250,15 +250,19 @@ func TestIntegrationAtomicTransactionBatchFailureRecoveryConverges(t *testing.T)
 				messages[fields[1]],
 				secondEnvelope,
 			)
-			require.Error(t, err)
 			if test.failSecondCompletion {
+				require.Error(t, err)
 				require.ErrorContains(t, err, "injected projection failure")
 				assert.Len(t, store.transactions, 1)
 			} else {
-				require.ErrorContains(t, err, "injected terminal projection read failure")
+				require.NoError(t, err)
 				assert.Len(t, store.transactions, 2)
 			}
-			assertAtomicBatchRecoveryMember(t, testCtx, repository, fields[1], messages[fields[1]])
+			if test.failSecondCompletion {
+				assertAtomicBatchRecoveryMember(t, testCtx, repository, fields[1], messages[fields[1]])
+			} else {
+				assertAtomicBatchRecoveryMember(t, testCtx, repository, fields[1], "")
+			}
 			lookup, err := repository.GetAtomicTransactionBatchByExecutionID(
 				testCtx,
 				execution.Execution.OrganizationID,
@@ -267,25 +271,36 @@ func TestIntegrationAtomicTransactionBatchFailureRecoveryConverges(t *testing.T)
 			)
 			require.NoError(t, err)
 			require.NotNil(t, lookup)
-			assert.Equal(t, txredis.AtomicTransactionBatchStateApplied, lookup.Record.State)
+			if test.failSecondCompletion {
+				assert.Equal(t, txredis.AtomicTransactionBatchStateApplied, lookup.Record.State)
+			} else {
+				assert.Equal(t, txredis.AtomicTransactionBatchStateComplete, lookup.Record.State)
+			}
 			assert.Equal(t, monetaryState, client.Get(testCtx, balanceKey).Val())
 			assert.Equal(t, 1, engine.calls, "recovery must never invoke accounting")
 
-			require.NoError(t, coordinator.complete(
-				testCtx,
-				txredis.RecoveryQueueSourceEngineRecover,
-				fields[1],
-				messages[fields[1]],
-				secondEnvelope,
-			))
-			assertAtomicBatchRecoveryMember(t, testCtx, repository, fields[1], "")
+			if test.failSecondCompletion {
+				require.NoError(t, coordinator.complete(
+					testCtx,
+					txredis.RecoveryQueueSourceEngineRecover,
+					fields[1],
+					messages[fields[1]],
+					secondEnvelope,
+				))
+				assertAtomicBatchRecoveryMember(t, testCtx, repository, fields[1], "")
+			}
 			assert.Len(t, store.transactions, 2)
 			for _, transactionID := range appliedRecord.TransactionIDs {
 				assert.Equal(t, 1, store.durableWrites[transactionID], "each projection must become durable exactly once")
 			}
 			assert.Equal(t, 1, store.attempts[appliedRecord.TransactionIDs[0]])
-			assert.Equal(t, 2, store.attempts[appliedRecord.TransactionIDs[1]],
-				"only the retained member may be retried")
+			if test.failSecondCompletion {
+				assert.Equal(t, 2, store.attempts[appliedRecord.TransactionIDs[1]],
+					"only the retained member may be retried")
+			} else {
+				assert.Equal(t, 1, store.attempts[appliedRecord.TransactionIDs[1]],
+					"snapshot finalization must not require a second completion")
+			}
 			assert.Equal(t, 1, engine.calls, "completion retry and finalization must not re-execute accounting")
 			assert.Equal(t, monetaryState, client.Get(testCtx, balanceKey).Val())
 			assertAtomicBatchRecoveryProtection(t, testCtx, client, artifactKeys, 2)
