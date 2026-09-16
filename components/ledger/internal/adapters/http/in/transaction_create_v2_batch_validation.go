@@ -28,9 +28,11 @@ const (
 // retain request order and contain no data obtained from repositories, fees,
 // Tracer, Redis, or the accounting engine.
 type decodedAtomicTransactionBatchV2 struct {
-	items         []decodedAtomicTransactionBatchV2Item
-	scope         TransactionV2Scope
-	inputLegCount int
+	items              []decodedAtomicTransactionBatchV2Item
+	scope              TransactionV2Scope
+	inputLegCount      int
+	canonicalRequest   []byte
+	requestFingerprint string
 }
 
 type decodedAtomicTransactionBatchV2Item struct {
@@ -63,7 +65,20 @@ func decodeAndValidateAtomicTransactionBatchV2(
 		)
 	}
 
-	return collectAtomicTransactionBatchV2Items(rawItems, inputLegCount)
+	result, err := collectAtomicTransactionBatchV2Items(rawItems, inputLegCount)
+	if err != nil {
+		return decodedAtomicTransactionBatchV2{}, err
+	}
+
+	canonicalRequest, err := canonicalizeAtomicTransactionBatchV2Request(rawBody)
+	if err != nil {
+		return decodedAtomicTransactionBatchV2{}, fmt.Errorf("canonicalize atomic transaction batch request: %w", err)
+	}
+
+	result.canonicalRequest = canonicalRequest
+	result.requestFingerprint = fingerprintAtomicTransactionBatchV2Request(canonicalRequest)
+
+	return result, nil
 }
 
 func decodeAtomicTransactionBatchV2Wrapper(rawBody []byte, configuredMaxSize int) ([]json.RawMessage, error) {
