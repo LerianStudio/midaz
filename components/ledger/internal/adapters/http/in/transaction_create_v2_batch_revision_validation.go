@@ -37,6 +37,7 @@ type revisedDecodedAtomicTransactionBatchV2 struct {
 
 type revisedDecodedAtomicTransactionBatchV2Item struct {
 	request                 CreateTransactionV2Request
+	normalized              normalizedTransactionV2Body
 	action                  atomicTransactionBatchV2Action
 	order                   int
 	originalIndex           int
@@ -156,6 +157,7 @@ func collectRevisedAtomicTransactionBatchV2Item(
 
 	item, itemDetails, itemErr := collectAtomicTransactionBatchV2Item(requestRaw)
 	state.item.request = item.request
+	state.item.normalized = item.normalized
 	state.item.accountBlockExceptionID = item.accountBlockExceptionID
 	state.details = append(state.details, itemDetails...)
 	if itemErr != nil && len(itemDetails) == 0 {

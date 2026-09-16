@@ -87,8 +87,8 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		OperationID:      v2AtomicTransactionBatchOperationID,
 		Method:           http.MethodPost,
 		Path:             v2AtomicTransactionBatchPath,
-		Summary:          "Create an atomic batch of direct Transactions (v2)",
-		Description:      "Executes the transactions once, in request-array order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. batchId is an ephemeral idempotency/recovery correlation value and has no query endpoint.",
+		Summary:          "Create an atomic batch of Transactions (v2)",
+		Description:      "Executes direct and hold transactions once, in explicit increasing order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. batchId is an ephemeral idempotency/recovery correlation value and has no query endpoint.",
 		Tags:             []string{transactionsTag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,
@@ -160,7 +160,7 @@ func publishV2LifecycleBodySchema(api huma.API) {
 const v2CreateBasePath = "/transactions"
 
 const (
-	v2AtomicTransactionBatchPath        = v2CreateBasePath + "/direct/batch"
+	v2AtomicTransactionBatchPath        = v2CreateBasePath + "/batch"
 	v2AtomicTransactionBatchOperationID = "createAtomicTransactionBatchV2"
 )
 

@@ -21,7 +21,7 @@ func TestRegisterAtomicTransactionBatchV2Route_PublishesDedicatedOrderedContract
 
 	op := pathItem.Post
 	assert.Equal(t, v2AtomicTransactionBatchOperationID, op.OperationID)
-	assert.Contains(t, op.Description, "request-array order")
+	assert.Contains(t, op.Description, "explicit increasing order")
 	assert.Contains(t, op.Description, "all-or-none")
 	assert.Contains(t, op.Description, "100 postings and 150 balance snapshots")
 	assert.Contains(t, op.Description, "no query endpoint")
@@ -50,8 +50,7 @@ func TestRegisterAtomicTransactionBatchV2Route_PublishesDedicatedOrderedContract
 	assert.Equal(t, 1, *transactions.MinItems)
 	assert.Equal(t, atomicTransactionBatchV2AbsoluteMaxSize, *transactions.MaxItems)
 	require.NotNil(t, transactions.Items)
-	assert.Equal(t, v2CreateBodySchemaRef, transactions.Items.Ref,
-		"each batch item must be the unchanged direct-v2 request model")
+	assert.Equal(t, "#/components/schemas/CreateAtomicTransactionBatchV2ItemRequest", transactions.Items.Ref)
 
 	created := op.Responses[createdResponseStatus]
 	require.NotNil(t, created)
@@ -70,8 +69,8 @@ func TestRegisterAtomicTransactionBatchV2Route_PublishesDedicatedOrderedContract
 	require.NotNil(t, responseTransactions)
 	assert.Equal(t, "array", responseTransactions.Type)
 	require.NotNil(t, responseTransactions.Items)
-	assert.Equal(t, "#/components/schemas/"+v2TransactionSchemaName, responseTransactions.Items.Ref)
-	assert.Contains(t, responseTransactions.Description, "exact request-array order")
+	assert.Equal(t, "#/components/schemas/AtomicTransactionBatchV2Transaction", responseTransactions.Items.Ref)
+	assert.Contains(t, responseTransactions.Description, "increasing logical order")
 }
 
 func TestRegisterAtomicTransactionBatchV2Route_DoesNotChangeExistingOperationIDs(t *testing.T) {

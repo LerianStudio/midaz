@@ -23,19 +23,30 @@ type CreateAtomicTransactionBatchV2Input struct {
 	RawBody        []byte `contentType:"application/json"`
 }
 
-// CreateAtomicTransactionBatchV2Request is the stable request wrapper for an
-// ordered atomic batch. Array order is execution order and must be preserved by
-// validation, accounting, completion, replay, and response construction.
+// CreateAtomicTransactionBatchV2Request is the stable revised batch wrapper.
+// Each item declares its logical execution order explicitly; physical array
+// placement is retained only for structural-error locations.
 type CreateAtomicTransactionBatchV2Request struct {
-	Transactions []CreateTransactionV2Request `json:"transactions" validate:"min=1,max=50,dive" minItems:"1" maxItems:"50" nullable:"false" doc:"Direct-v2 transactions in execution order. All items succeed atomically or none is applied."`
+	Transactions []CreateAtomicTransactionBatchV2ItemRequest `json:"transactions" validate:"min=1,max=50,dive" minItems:"1" maxItems:"50" nullable:"false" doc:"Direct or hold transactions with unique consecutive order. All items succeed atomically or none is applied."`
+}
+
+type CreateAtomicTransactionBatchV2ItemRequest struct {
+	Action string `json:"action" enum:"direct,hold" doc:"Transaction action."`
+	Order  int    `json:"order" minimum:"1" doc:"One-based logical execution order."`
+	CreateTransactionV2Request
 }
 
 // CreateAtomicTransactionBatchV2Response is the successful public response. BatchID
 // is an ephemeral correlation and replay identifier, not a persisted or queryable
 // ledger resource. Transactions remain in the exact request-array order.
 type CreateAtomicTransactionBatchV2Response struct {
-	BatchID      string           `json:"batchId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-	Transactions []*TransactionV2 `json:"transactions" nullable:"false" doc:"Created transactions in the exact request-array order."`
+	BatchID      string                                 `json:"batchId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Transactions []*AtomicTransactionBatchV2Transaction `json:"transactions" nullable:"false" doc:"Created transactions in increasing logical order."`
+}
+
+type AtomicTransactionBatchV2Transaction struct {
+	*TransactionV2
+	Order int `json:"order" minimum:"1" doc:"Logical order used to execute this transaction."`
 }
 
 // CreateAtomicTransactionBatchV2Output is the Huma success envelope: HTTP 201,
@@ -65,7 +76,7 @@ func (handler *TransactionHandler) CreateAtomicTransactionBatchV2(
 		))
 	}
 
-	decoded, err := decodeAndValidateAtomicTransactionBatchV2(in.RawBody, handler.TransactionBatchMaxSize)
+	decoded, err := decodeAndValidateRevisedAtomicTransactionBatchV2(in.RawBody, handler.TransactionBatchMaxSize)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -86,14 +97,18 @@ func (handler *TransactionHandler) CreateAtomicTransactionBatchV2(
 			LedgerID:                ledgerID,
 			Transaction:             decoded.items[index].normalized.transaction,
 			AccountBlockExceptionID: decoded.items[index].accountBlockExceptionID,
+			Action:                  string(decoded.items[index].action),
+			Order:                   decoded.items[index].order,
+			OriginalIndex:           decoded.items[index].originalIndex,
 		}
 	}
 
 	result, err := handler.Command.CreateAtomicTransactionBatchV2(ctx, command.CreateAtomicTransactionBatchV2Input{
-		Transactions:     items,
-		CanonicalRequest: decoded.canonicalRequest,
-		IdempotencyKey:   in.IdempotencyKey,
-		IdempotencyTTL:   pkgHTTP.ParseIdempotencyTTL(in.IdempotencyTTL),
+		Transactions:       items,
+		CanonicalRequest:   decoded.canonicalRequest,
+		RequestFingerprint: decoded.requestFingerprint,
+		IdempotencyKey:     in.IdempotencyKey,
+		IdempotencyTTL:     pkgHTTP.ParseIdempotencyTTL(in.IdempotencyTTL),
 	})
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -103,9 +118,9 @@ func (handler *TransactionHandler) CreateAtomicTransactionBatchV2(
 		return nil, pkgHTTP.HumaProblem(errors.New("atomic transaction batch command returned no result"))
 	}
 
-	transactions := make([]*TransactionV2, len(result.Transactions))
+	transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Transactions))
 	for index := range result.Transactions {
-		transactions[index] = newTransactionV2(result.Transactions[index])
+		transactions[index] = &AtomicTransactionBatchV2Transaction{TransactionV2: newTransactionV2(result.Transactions[index]), Order: index + 1}
 	}
 
 	return &CreateAtomicTransactionBatchV2Output{

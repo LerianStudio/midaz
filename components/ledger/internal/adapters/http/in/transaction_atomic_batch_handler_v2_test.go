@@ -6,9 +6,7 @@ package in
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -74,16 +72,16 @@ func TestCreateAtomicTransactionBatchV2_AggregatesOrderedStructuralErrors(t *tes
 	second.Asset = ""
 	body := marshalAtomicBatchV2Wrapper(
 		t,
-		mustMarshalAtomicBatchV2Item(t, first),
-		mustMarshalAtomicBatchV2Item(t, second),
+		revisedAtomicBatchV2Item(t, first, "direct", 1),
+		revisedAtomicBatchV2Item(t, second, "hold", 2),
 	)
 
 	resp := postAtomicBatchV2(t, app, body, nil)
 	defer func() { _ = resp.Body.Close() }()
 
 	detail := decodeAtomicBatchHTTPProblem(t, resp)
-	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
-	assert.Equal(t, constant.ErrInvalidTransactionNonPositiveValue.Error(), detail.Code)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, constant.ErrTransactionBatchStructuralValidation.Error(), detail.Code)
 	require.Len(t, detail.Errors, 2)
 	assert.Equal(t, "body.transactions[0].amount", detail.Errors[0].Location)
 	assert.Equal(t, "body.transactions[1].asset", detail.Errors[1].Location)
@@ -119,15 +117,15 @@ func TestCreateAtomicTransactionBatchV2_ReplayAndConflict(t *testing.T) {
 
 	body := marshalAtomicBatchV2Wrapper(
 		t,
-		mustMarshalAtomicBatchV2Item(t, validAtomicBatchV2Request("@source", "@destination", batchTestLedgerID)),
-		mustMarshalAtomicBatchV2Item(t, validAtomicBatchV2Request("@source-two", "@destination-two", batchTestLedgerID)),
+		revisedAtomicBatchV2Item(t, validAtomicBatchV2Request("@source", "@destination", batchTestLedgerID), "direct", 1),
+		revisedAtomicBatchV2Item(t, validAtomicBatchV2Request("@source-two", "@destination-two", batchTestLedgerID), "hold", 2),
 	)
 	// Whitespace makes the submitted bytes differ from their canonical identity,
 	// proving the handler passes the canonical representation rather than raw bytes.
 	body = append(append([]byte(" \n"), body...), '\n')
-	decoded, err := decodeAndValidateAtomicTransactionBatchV2(body, 50)
+	decoded, err := decodeAndValidateRevisedAtomicTransactionBatchV2(body, 50)
 	require.NoError(t, err)
-	wantFingerprint := sha256.Sum256(decoded.canonicalRequest)
+	wantFingerprint := decoded.requestFingerprint
 
 	t.Run("completed request replays its ordered response", func(t *testing.T) {
 		repository := &atomicBatchHandlerClaimRepository{
@@ -140,7 +138,7 @@ func TestCreateAtomicTransactionBatchV2_ReplayAndConflict(t *testing.T) {
 				assert.Equal(t, batchTestOrganizationID, organizationID.String())
 				assert.Equal(t, batchTestLedgerID, ledgerID.String())
 				assert.Equal(t, "batch-replay-key", effectiveKey)
-				assert.Equal(t, fmt.Sprintf("%x", wantFingerprint), claim.RequestFingerprint)
+				assert.Equal(t, wantFingerprint, claim.RequestFingerprint)
 
 				return &txRedis.AtomicTransactionBatchClaimResult{
 					Outcome: txRedis.AtomicTransactionBatchReplayed,

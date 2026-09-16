@@ -19052,6 +19052,100 @@
         ]
       }
     },
+    "/v2/transactions/batch": {
+      "post": {
+        "description": "Executes direct and hold transactions once, in explicit increasing order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. batchId is an ephemeral idempotency/recovery correlation value and has no query endpoint.",
+        "operationId": "createAtomicTransactionBatchV2",
+        "parameters": [
+          {
+            "description": "Idempotency key to safely retry the atomic batch; an identical retry returns the original ordered response",
+            "in": "header",
+            "name": "X-Idempotency",
+            "schema": {
+              "description": "Idempotency key to safely retry the atomic batch; an identical retry returns the original ordered response",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Idempotency slot TTL in seconds (default 300)",
+            "in": "header",
+            "name": "X-TTL",
+            "schema": {
+              "description": "Idempotency slot TTL in seconds (default 300)",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAtomicTransactionBatchV2Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAtomicTransactionBatchV2Response"
+                }
+              }
+            },
+            "description": "Created",
+            "headers": {
+              "X-Idempotency-Replayed": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create an atomic batch of Transactions (v2)",
+        "tags": [
+          "Midaz_Ledger_API_Transactions (v2)"
+        ]
+      }
+    },
     "/v2/transactions/block": {
       "post": {
         "operationId": "createTransactionBlockV2",
@@ -19233,100 +19327,6 @@
           }
         ],
         "summary": "Create a Transaction using the v2 direct model",
-        "tags": [
-          "Midaz_Ledger_API_Transactions (v2)"
-        ]
-      }
-    },
-    "/v2/transactions/direct/batch": {
-      "post": {
-        "description": "Executes the transactions once, in request-array order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. batchId is an ephemeral idempotency/recovery correlation value and has no query endpoint.",
-        "operationId": "createAtomicTransactionBatchV2",
-        "parameters": [
-          {
-            "description": "Idempotency key to safely retry the atomic batch; an identical retry returns the original ordered response",
-            "in": "header",
-            "name": "X-Idempotency",
-            "schema": {
-              "description": "Idempotency key to safely retry the atomic batch; an identical retry returns the original ordered response",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Idempotency slot TTL in seconds (default 300)",
-            "in": "header",
-            "name": "X-TTL",
-            "schema": {
-              "description": "Idempotency slot TTL in seconds (default 300)",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateAtomicTransactionBatchV2Request"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateAtomicTransactionBatchV2Response"
-                }
-              }
-            },
-            "description": "Created",
-            "headers": {
-              "X-Idempotency-Replayed": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "422": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          },
-          "500": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Internal Server Error"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "summary": "Create an atomic batch of direct Transactions (v2)",
         "tags": [
           "Midaz_Ledger_API_Transactions (v2)"
         ]
@@ -22947,6 +22947,177 @@
         ],
         "type": "object"
       },
+      "AtomicTransactionBatchV2Transaction": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "examples": [
+              "1500"
+            ],
+            "minimum": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assetCode": {
+            "examples": [
+              "BRL"
+            ],
+            "maxLength": 10,
+            "minLength": 2,
+            "type": "string"
+          },
+          "createdAt": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
+          },
+          "credit": {
+            "examples": [
+              [
+                "@person2"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "debit": {
+            "examples": [
+              [
+                "@person1"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "deletedAt": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "examples": [
+              "Transaction description"
+            ],
+            "maxLength": 256,
+            "type": "string"
+          },
+          "feesSkipped": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "id": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "ledgerId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "description": "Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is an object carrying exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys.",
+            "type": "object"
+          },
+          "operations": {
+            "items": {
+              "$ref": "#/components/schemas/OperationV2"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "order": {
+            "description": "Logical order used to execute this transaction.",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "organizationId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "parentTransactionId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TransactionStatus"
+          },
+          "tracerSkipped": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "examples": [
+              "2021-01-01T00:00:00Z"
+            ],
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order",
+          "id",
+          "description",
+          "status",
+          "amount",
+          "assetCode",
+          "debit",
+          "credit",
+          "ledgerId",
+          "organizationId",
+          "feesSkipped",
+          "tracerSkipped",
+          "createdAt",
+          "updatedAt",
+          "deletedAt",
+          "operations"
+        ],
+        "type": "object"
+      },
       "AuditEventResponse": {
         "additionalProperties": false,
         "properties": {
@@ -23790,13 +23961,98 @@
         ],
         "type": "object"
       },
+      "CreateAtomicTransactionBatchV2ItemRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "accountBlockExceptionId": {
+            "description": "Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action.",
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "action": {
+            "description": "Transaction action.",
+            "enum": [
+              "direct",
+              "hold"
+            ],
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "credits": {
+            "items": {
+              "$ref": "#/components/schemas/V2LegInput"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
+          },
+          "debits": {
+            "items": {
+              "$ref": "#/components/schemas/V2LegInput"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "operationRouteId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "order": {
+            "description": "One-based logical execution order.",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "routeId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
+          "skip": {
+            "$ref": "#/components/schemas/TransactionSkip"
+          }
+        },
+        "required": [
+          "action",
+          "order",
+          "asset",
+          "amount",
+          "debits",
+          "credits"
+        ],
+        "type": "object"
+      },
       "CreateAtomicTransactionBatchV2Request": {
         "additionalProperties": false,
         "properties": {
           "transactions": {
-            "description": "Direct-v2 transactions in execution order. All items succeed atomically or none is applied.",
+            "description": "Direct or hold transactions with unique consecutive order. All items succeed atomically or none is applied.",
             "items": {
-              "$ref": "#/components/schemas/CreateTransactionV2Input"
+              "$ref": "#/components/schemas/CreateAtomicTransactionBatchV2ItemRequest"
             },
             "maxItems": 50,
             "minItems": 1,
@@ -23819,9 +24075,9 @@
             "type": "string"
           },
           "transactions": {
-            "description": "Created transactions in the exact request-array order.",
+            "description": "Created transactions in increasing logical order.",
             "items": {
-              "$ref": "#/components/schemas/TransactionV2"
+              "$ref": "#/components/schemas/AtomicTransactionBatchV2Transaction"
             },
             "type": "array"
           }

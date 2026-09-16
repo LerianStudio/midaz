@@ -28,7 +28,7 @@ import (
 
 const directV2RoutePath = "/v2/transactions/direct"
 
-const atomicBatchV2RoutePath = "/v2/transactions/direct/batch"
+const atomicBatchV2RoutePath = "/v2/transactions/batch"
 
 const holdV2RoutePath = "/v2/transactions/hold"
 
@@ -85,9 +85,9 @@ var v2Routes = []struct {
 		bodySchema:  v2CreateBodySchemaName,
 	},
 	{
-		action:         "atomic direct batch",
+		action:         "atomic batch",
 		fiberPath:      atomicBatchV2RoutePath,
-		opPath:         "/transactions/direct/batch",
+		opPath:         "/transactions/batch",
 		operationID:    v2AtomicTransactionBatchOperationID,
 		hasBody:        true,
 		bodySchema:     v2AtomicTransactionBatchRequestSchemaName,
