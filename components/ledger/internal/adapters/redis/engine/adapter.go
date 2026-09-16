@@ -215,6 +215,10 @@ func executeAccounting(ctx context.Context, client *redis.Client, keys []string,
 	}
 
 	logger, _, _, factory := libObservability.NewTrackingFromContext(ctx)
+	startedAt := time.Now()
+	defer func() {
+		recordAccountingDuration(ctx, factory, logger, time.Since(startedAt))
+	}()
 	if factory != nil {
 		emitCounter(ctx, factory, logger, "engine_cas_attempts_total", "Accounting script attempts, including receipt replay and post-normalization execution but excluding NOSCRIPT fallback.", nil, 1)
 	}

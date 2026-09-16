@@ -21,6 +21,12 @@ var executionDuration = metrics.Metric{
 	Buckets:     []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 5000},
 }
 
+var accountingDuration = metrics.Metric{
+	Name: "engine_accounting_duration_ms", Unit: "ms",
+	Description: "Duration of the indivisible accounting Lua invocation, including a NOSCRIPT fallback when required.",
+	Buckets:     []float64{1, 5, 10, 25, 50, 75, 100, 150, 250, 500, 1000},
+}
+
 var executionSize = metrics.Metric{
 	Name: "engine_request_size_bytes", Unit: "By",
 	Description: "Validated accounting Lua JSON payload size, excluding Redis keys and RESP framing.",
@@ -111,6 +117,23 @@ func recordExecutionOutcome(ctx context.Context, factory *metrics.MetricsFactory
 	}
 
 	logMetricError(ctx, logger, emitErr)
+}
+
+func recordAccountingDuration(
+	ctx context.Context,
+	factory *metrics.MetricsFactory,
+	logger libLog.Logger,
+	duration time.Duration,
+) {
+	if factory == nil {
+		return
+	}
+
+	histogram, err := factory.Histogram(accountingDuration)
+	if err == nil {
+		err = histogram.Record(ctx, duration.Milliseconds())
+	}
+	logMetricError(ctx, logger, err)
 }
 
 func emitCounter(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, name, description string, labels map[string]string, value int64) {

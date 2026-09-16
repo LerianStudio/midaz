@@ -76,6 +76,8 @@ type atomicTransactionBatchRun struct {
 	idempotencyClaimed      bool
 	idempotencyHandedOff    bool
 	engineIntentFingerprint string
+	rejectionDimension      string
+	budgetMeasurements      *atomicTransactionBatchBudgetMeasurements
 	items                   []atomicTransactionBatchItemRun
 }
 
@@ -108,30 +110,48 @@ type atomicTransactionBatchItemRun struct {
 // CreateAtomicTransactionBatchV2 initializes the ordered batch command state.
 // Later preparation phases extend this coordinator before the HTTP route is
 // registered; this foundation deliberately performs no accounting mutation.
-func (uc *UseCase) CreateAtomicTransactionBatchV2(ctx context.Context, in CreateAtomicTransactionBatchV2Input) (*CreateAtomicTransactionBatchV2Result, error) {
+func (uc *UseCase) CreateAtomicTransactionBatchV2(
+	ctx context.Context,
+	in CreateAtomicTransactionBatchV2Input,
+) (result *CreateAtomicTransactionBatchV2Result, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 	ctx, span := tracer.Start(ctx, "command.create_atomic_transaction_batch_v2")
 	defer span.End()
+	startedAt := time.Now()
+	uc.recordAtomicTransactionBatchReceived(ctx, in)
 
-	run, err := uc.initializeAtomicTransactionBatchIdentity(ctx, in)
+	var run *atomicTransactionBatchRun
+	defer func() {
+		uc.recordAtomicTransactionBatchCompleted(ctx, result, run, err, time.Since(startedAt))
+	}()
+
+	phaseStartedAt := time.Now()
+	run, err = uc.initializeAtomicTransactionBatchIdentity(ctx, in)
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "identity", time.Since(phaseStartedAt))
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to initialize atomic transaction batch", err)
 		return nil, err
 	}
+	phaseStartedAt = time.Now()
 	replay, err := uc.claimAtomicTransactionBatch(ctx, in, run)
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "idempotency", time.Since(phaseStartedAt))
 	if err != nil {
 		return nil, err
 	}
 	if replay != nil {
 		return replay, nil
 	}
+	phaseStartedAt = time.Now()
 	if err := uc.initializeAtomicTransactionBatchItemsAndSettings(ctx, in, run); err != nil {
+		uc.recordAtomicTransactionBatchPhaseDuration(ctx, "preparation", time.Since(phaseStartedAt))
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
 	if err := uc.prepareAtomicTransactionBatchItems(ctx, span, logger, run); err != nil {
+		uc.recordAtomicTransactionBatchPhaseDuration(ctx, "preparation", time.Since(phaseStartedAt))
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
 	prepared, err := buildAtomicTransactionBatchPreparedExecution(run)
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "preparation", time.Since(phaseStartedAt))
 	if err != nil {
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
@@ -152,26 +172,35 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(ctx context.Context, in Create
 	if err := uc.prepareAtomicTransactionBatchIdempotency(ctx, run); err != nil {
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
+	phaseStartedAt = time.Now()
 	if err := uc.reserveAtomicTransactionBatch(ctx, span, logger, run); err != nil {
+		uc.recordAtomicTransactionBatchPhaseDuration(ctx, "reservation", time.Since(phaseStartedAt))
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "reservation", time.Since(phaseStartedAt))
 	if err := uc.handoffAtomicTransactionBatchExecution(ctx, run); err != nil {
 		return nil, err
 	}
+	phaseStartedAt = time.Now()
 	outcome, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, prepared)
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "accounting", time.Since(phaseStartedAt))
 	if err != nil {
 		return nil, err
 	}
+	phaseStartedAt = time.Now()
 	transactions, err := uc.completeAtomicTransactionBatch(ctx, logger, run, outcome)
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "completion", time.Since(phaseStartedAt))
 	if err != nil {
 		return nil, err
 	}
 
-	return &CreateAtomicTransactionBatchV2Result{
+	result = &CreateAtomicTransactionBatchV2Result{
 		BatchID:      run.batchID,
 		Transactions: transactions,
 		Replayed:     false,
-	}, nil
+	}
+
+	return result, nil
 }
 
 func (uc *UseCase) initializeAtomicTransactionBatchV2(ctx context.Context, in CreateAtomicTransactionBatchV2Input) (*atomicTransactionBatchRun, error) {

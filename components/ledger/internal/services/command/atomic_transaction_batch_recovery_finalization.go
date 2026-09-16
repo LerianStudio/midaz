@@ -87,6 +87,7 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 	if err != nil || candidate == nil {
 		return nil, err
 	}
+	uc.recordAtomicTransactionBatchRecovering(ctx)
 
 	if err := validateAtomicTransactionBatchRecoveredMember(candidate.Record, record, completion); err != nil {
 		return nil, err

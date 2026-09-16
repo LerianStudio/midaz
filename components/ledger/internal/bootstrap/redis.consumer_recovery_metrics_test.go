@@ -142,6 +142,39 @@ func TestCompleteRecoveryRecord_MetricsAreNilFactorySafe(t *testing.T) {
 	require.Equal(t, "raw", queue.payload)
 }
 
+func TestRecoveryBacklogMetricUsesClosedSourceLabels(t *testing.T) {
+	require.Equal(t, "unknown", recoveryMetricOutcome("idempotency-secret"))
+	require.Equal(t, "unknown", recoveryMetricSource(txRedis.RecoveryQueueSource("tenant-or-id")))
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
+	factory, err := metrics.NewMetricsFactory(provider.Meter("recovery-backlog-test"), nil)
+	require.NoError(t, err)
+
+	completer := &recoveryRecordCompleter{metricsFactory: factory}
+	completer.emitRecoveryBacklog(context.Background(), txRedis.RecoveryQueueSourceEngineRecover, 7)
+	completer.emitRecoveryBacklog(context.Background(), txRedis.RecoveryQueueSource("tenant-or-id"), 9)
+
+	var data metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &data))
+	gauge := findRecoveryBacklogGauge(data)
+	require.NotNil(t, gauge)
+	require.Len(t, gauge.DataPoints, 2)
+
+	observed := make(map[string]int64, 2)
+	for _, point := range gauge.DataPoints {
+		require.Equal(t, 1, point.Attributes.Len())
+		value, ok := point.Attributes.Value(attribute.Key(recoveryMetricSourceLabel))
+		require.True(t, ok)
+		observed[value.AsString()] = point.Value
+	}
+	require.Equal(t, map[string]int64{
+		string(txRedis.RecoveryQueueSourceEngineRecover): 7,
+		"unknown": 9,
+	}, observed)
+}
+
 func findRecoveryCounter(data metricdata.ResourceMetrics) *metricdata.Sum[int64] {
 	for _, scope := range data.ScopeMetrics {
 		for i := range scope.Metrics {
@@ -161,6 +194,20 @@ func findRecoveryHistogram(data metricdata.ResourceMetrics) *metricdata.Histogra
 		for i := range scope.Metrics {
 			if scope.Metrics[i].Name == recoveryMetricDurationName {
 				if value, ok := scope.Metrics[i].Data.(metricdata.Histogram[int64]); ok {
+					return &value
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func findRecoveryBacklogGauge(data metricdata.ResourceMetrics) *metricdata.Gauge[int64] {
+	for _, scope := range data.ScopeMetrics {
+		for i := range scope.Metrics {
+			if scope.Metrics[i].Name == recoveryMetricBacklogName {
+				if value, ok := scope.Metrics[i].Data.(metricdata.Gauge[int64]); ok {
 					return &value
 				}
 			}

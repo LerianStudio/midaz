@@ -84,11 +84,16 @@ func (uc *UseCase) enforceAtomicTransactionBatchExpandedPostings(run *atomicTran
 		cumulative[index] = total
 	}
 
-	return validateAtomicTransactionBatchCumulativeBudget(
+	err := validateAtomicTransactionBatchCumulativeBudget(
 		atomicTransactionBatchBudgetExpandedPostings,
 		cumulative,
 		uc.resolvedAtomicTransactionBatchBudgetLimits().expandedPostings,
 	)
+	if err != nil {
+		run.rejectionDimension = atomicTransactionBatchBudgetExpandedPostings
+	}
+
+	return err
 }
 
 func (uc *UseCase) prepareAndEnforceAtomicTransactionBatchBudgets(
@@ -103,6 +108,7 @@ func (uc *UseCase) prepareAndEnforceAtomicTransactionBatchBudgets(
 	if err != nil {
 		return err
 	}
+	run.budgetMeasurements = &measurements
 	limits := uc.resolvedAtomicTransactionBatchBudgetLimits()
 	checks := []struct {
 		dimension  string
@@ -118,6 +124,7 @@ func (uc *UseCase) prepareAndEnforceAtomicTransactionBatchBudgets(
 	}
 	for _, check := range checks {
 		if err := validateAtomicTransactionBatchCumulativeBudget(check.dimension, check.cumulative, check.limit); err != nil {
+			run.rejectionDimension = check.dimension
 			return err
 		}
 	}
