@@ -11,7 +11,9 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -65,6 +67,7 @@ type atomicTransactionBatchRun struct {
 	organizationID uuid.UUID
 	ledgerID       uuid.UUID
 	ledgerSettings mmodel.LedgerSettings
+	idempotencyTTL time.Duration
 	items          []atomicTransactionBatchItemRun
 }
 
@@ -81,6 +84,13 @@ type atomicTransactionBatchItemRun struct {
 	input                   mtransaction.Transaction
 	status                  string
 	accountBlockExceptionID *uuid.UUID
+	validate                *mtransaction.Responses
+	fromTo                  []mtransaction.FromTo
+	action                  string
+	honoredFeeSkip          bool
+	honoredTracerSkip       bool
+	accountBlockGrant       *mtransaction.AccountBlockExceptionGrant
+	prepared                enginePreparedTransaction
 }
 
 // CreateAtomicTransactionBatchV2 initializes the ordered batch command state.
@@ -94,6 +104,9 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(ctx context.Context, in Create
 	run, err := uc.initializeAtomicTransactionBatchV2(ctx, in)
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to initialize atomic transaction batch", err)
+		return nil, err
+	}
+	if err := uc.prepareAtomicTransactionBatchItems(ctx, span, logger, run); err != nil {
 		return nil, err
 	}
 
@@ -141,6 +154,7 @@ func (uc *UseCase) initializeAtomicTransactionBatchV2(ctx context.Context, in Cr
 		batchID:        batchID,
 		organizationID: organizationID,
 		ledgerID:       ledgerID,
+		idempotencyTTL: in.IdempotencyTTL,
 		items:          make([]atomicTransactionBatchItemRun, len(in.Transactions)),
 	}
 
@@ -170,6 +184,113 @@ func (uc *UseCase) initializeAtomicTransactionBatchV2(ctx context.Context, in Cr
 	}
 
 	return run, nil
+}
+
+func (uc *UseCase) prepareAtomicTransactionBatchItems(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	run *atomicTransactionBatchRun,
+) error {
+	for index := range run.items {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		if err := uc.prepareAtomicTransactionBatchItem(ctx, span, logger, run, &run.items[index]); err != nil {
+			return withAtomicTransactionBatchItemError(err, index, "transaction preparation failed")
+		}
+	}
+
+	return nil
+}
+
+func (uc *UseCase) prepareAtomicTransactionBatchItem(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	run *atomicTransactionBatchRun,
+	item *atomicTransactionBatchItemRun,
+) error {
+	if err := validatePositiveTransactionValue(ctx, span, logger, item.input.Send.Value); err != nil {
+		return err
+	}
+
+	mtransaction.ApplyDefaultBalanceKeys(item.input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(item.input.Send.Distribute.To)
+
+	if _, err := mtransaction.ValidateSendSourceAndDistribute(ctx, item.input, item.status); err != nil {
+		return pkg.HandleKnownBusinessValidationErrors(err)
+	}
+
+	feeSkip, tracerSkip, _, err := resolveTransactionSkips(item.input, run.ledgerSettings)
+	if err != nil {
+		return err
+	}
+	item.honoredFeeSkip = feeSkip
+	item.honoredTracerSkip = tracerSkip
+
+	if err := uc.applyFees(
+		ctx,
+		&item.input,
+		run.organizationID,
+		run.ledgerID,
+		false,
+		item.honoredFeeSkip,
+	); err != nil {
+		return err
+	}
+
+	normalizeTransactionSendLegs(&item.input)
+
+	item.validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, item.input, item.status)
+	if err != nil {
+		return pkg.HandleKnownBusinessValidationErrors(err)
+	}
+
+	item.fromTo = append(item.fromTo, mtransaction.MutateConcatAliases(item.input.Send.Source.From)...)
+	item.fromTo = append(item.fromTo, mtransaction.MutateConcatAliases(item.input.Send.Distribute.To)...)
+	if run.ledgerSettings.Accounting.ValidateRoutes {
+		mtransaction.PropagateRouteValidation(ctx, item.validate, item.status)
+	}
+	item.action = mtransaction.StatusToAction(item.status)
+
+	item.accountBlockGrant, err = uc.resolveAccountBlockExceptionGrant(
+		ctx,
+		span,
+		logger,
+		run.organizationID,
+		run.ledgerID,
+		item.accountBlockExceptionID,
+	)
+	if err != nil {
+		return err
+	}
+
+	createRun := run.createTransactionRun(item)
+	item.prepared, err = uc.prepareCreateEngineExecution(ctx, createRun)
+
+	return err
+}
+
+func (run *atomicTransactionBatchRun) createTransactionRun(item *atomicTransactionBatchItemRun) *createTransactionRun {
+	return &createTransactionRun{
+		organizationID:             run.organizationID,
+		ledgerID:                   run.ledgerID,
+		transactionID:              item.transactionID,
+		transactionDate:            item.transactionDate,
+		input:                      item.input,
+		status:                     item.status,
+		action:                     item.action,
+		validate:                   item.validate,
+		fromTo:                     item.fromTo,
+		ledgerSettings:             run.ledgerSettings,
+		idempotencyTTL:             run.idempotencyTTL,
+		honoredFeeSkip:             item.honoredFeeSkip,
+		honoredTracerSkip:          item.honoredTracerSkip,
+		accountBlockExceptionID:    item.accountBlockExceptionID,
+		accountBlockExceptionGrant: item.accountBlockGrant,
+	}
 }
 
 func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2ItemInput) (uuid.UUID, uuid.UUID, error) {
@@ -279,6 +400,8 @@ func atomicTransactionBatchFoundationResult(run *atomicTransactionBatchRun, item
 		Body:                     item.input,
 		Route:                    item.input.Route, //nolint:staticcheck // compatibility field mirrors singular transaction output
 		RouteID:                  item.input.RouteID,
+		FeesSkipped:              item.honoredFeeSkip,
+		TracerSkipped:            item.honoredTracerSkip,
 		CreatedAt:                item.transactionDate,
 		UpdatedAt:                item.transactionUpdatedAt,
 		Metadata:                 item.input.Metadata,
