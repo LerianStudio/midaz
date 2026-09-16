@@ -9,6 +9,8 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -21,9 +23,34 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
+type rejectAtomicBatchPublicationHook struct {
+	calls int
+}
+
+func (hook *rejectAtomicBatchPublicationHook) DialHook(next redis.DialHook) redis.DialHook {
+	return next
+}
+
+func (hook *rejectAtomicBatchPublicationHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		switch strings.ToUpper(cmd.Name()) {
+		case "EVALSHA", "EVAL":
+			hook.calls++
+
+			return errors.New("injected failure before accounting publication")
+		default:
+			return next(ctx, cmd)
+		}
+	}
+}
+
+func (hook *rejectAtomicBatchPublicationHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
+}
+
 func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 	ctx := context.Background()
-	inspector, _, _ := newAdapterValkey(t)
+	inspector, address, password := newAdapterValkey(t)
 
 	t.Run("ordered shared balance execution, recovery, and replay", func(t *testing.T) {
 		input, limits := multiTransactionAcceptanceExecution(t)
@@ -96,6 +123,58 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		require.Equal(t, 1, failure.TransactionIndex, "the first failing transaction must use its zero-based request index")
 		require.Equal(t, 0, failure.PostingIndex)
 		require.Equal(t, before, captureAdapterState(t, inspector, keys), "a later refusal must publish no balances or execution sidecars")
+	})
+
+	t.Run("transport failure before publication leaves no batch state", func(t *testing.T) {
+		input, limits := multiTransactionAcceptanceExecution(t)
+		keys, err := resolveAdapterKeys(ctx, input.Execution)
+		require.NoError(t, err)
+		t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
+		before := captureAdapterState(t, inspector, keys)
+
+		hook := &rejectAtomicBatchPublicationHook{}
+		client := redis.NewClient(&redis.Options{
+			Addr: address, Password: password, DB: 2, Protocol: 2, MaxRetries: -1,
+		})
+		client.AddHook(hook)
+		t.Cleanup(func() { require.NoError(t, client.Close()) })
+		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, limits)
+		require.NoError(t, err)
+
+		result, err := adapter.Execute(ctx, input)
+		require.Nil(t, result)
+		require.ErrorContains(t, err, "injected failure before accounting publication")
+		require.Equal(t, 1, hook.calls, "the mutating command must not be retried")
+		require.Equal(t, before, captureAdapterState(t, inspector, keys),
+			"a failure before publication must leave every balance and sidecar absent")
+	})
+
+	t.Run("lost response after atomic publication is not retried", func(t *testing.T) {
+		require.NoError(t, inspector.ScriptFlush(ctx).Err())
+		input, limits := multiTransactionAcceptanceExecution(t)
+		keys, err := resolveAdapterKeys(ctx, input.Execution)
+		require.NoError(t, err)
+		t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
+
+		proxy := newAccountingProxy(t, address, true)
+		client := newProtocolProxyClient(t, proxy, password)
+		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, limits)
+		require.NoError(t, err)
+
+		result, err := adapter.Execute(ctx, input)
+		require.Nil(t, result)
+		var technical interface {
+			EngineFailureCode() string
+			OutcomeIndeterminate() bool
+		}
+		require.True(t, errors.As(err, &technical))
+		require.Equal(t, "transport", technical.EngineFailureCode())
+		require.True(t, technical.OutcomeIndeterminate())
+		require.Equal(t, 1, proxy.count("EVALSHA"), "an unknown outcome must not retry the accounting command")
+		require.Equal(t, 1, proxy.count("EVAL"), "only the confirmed NOSCRIPT fallback may publish the execution")
+
+		expected := multiTransactionAcceptanceResult()
+		assertMultiTransactionAcceptanceState(t, inspector, keys, input, *expected)
 	})
 }
 
