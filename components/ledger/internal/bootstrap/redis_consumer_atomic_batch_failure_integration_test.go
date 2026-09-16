@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 type countingAtomicBatchRecoveryEngine struct {
@@ -50,6 +52,7 @@ func (engine *countingAtomicBatchRecoveryEngine) Execute(
 }
 
 type failureInjectedBatchProjectionStore struct {
+	mu                     sync.Mutex
 	transactions           map[uuid.UUID]*transaction.Transaction
 	attempts               map[uuid.UUID]int
 	durableWrites          map[uuid.UUID]int
@@ -70,6 +73,9 @@ func (store *failureInjectedBatchProjectionStore) Complete(
 	_ context.Context,
 	record *command.TransactionCompletionRecord,
 ) (command.TransactionCompletionResult, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
 	store.attempts[record.TransactionID]++
 	if store.failCompletion[record.TransactionID] > 0 {
 		store.failCompletion[record.TransactionID]--
@@ -113,6 +119,9 @@ func (store *failureInjectedBatchProjectionStore) GetAtomicTransactionBatchProje
 	_, _ uuid.UUID,
 	transactionIDs []uuid.UUID,
 ) ([]*transaction.Transaction, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
 	if store.projectionReadFailures > 0 {
 		store.projectionReadFailures--
 
@@ -127,6 +136,20 @@ func (store *failureInjectedBatchProjectionStore) GetAtomicTransactionBatchProje
 	}
 
 	return transactions, nil
+}
+
+func (store *failureInjectedBatchProjectionStore) durableWriteCount(transactionID uuid.UUID) int {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	return store.durableWrites[transactionID]
+}
+
+func (store *failureInjectedBatchProjectionStore) projectionCount() int {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	return len(store.transactions)
 }
 
 func TestIntegrationAtomicTransactionBatchFailureRecoveryConverges(t *testing.T) {
@@ -297,6 +320,85 @@ func TestIntegrationAtomicTransactionBatchFailureRecoveryConverges(t *testing.T)
 	}
 }
 
+func TestIntegrationAtomicTransactionBatchCompatibleRecoveryUsesEngineOnly(t *testing.T) {
+	ctx := context.Background()
+	client := recoveryEngineValkey(t)
+	tenantID := "atomic-batch-compatible-" + uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name())).String()
+	testCtx := tmcore.ContextWithTenantID(ctx, tenantID)
+	provider := recoveryEngineClientProvider{client: client}
+	repository, err := txredis.NewConsumerRedis(provider)
+	require.NoError(t, err)
+	adapter, err := redisengine.NewAdapter(provider)
+	require.NoError(t, err)
+	engine := &countingAtomicBatchRecoveryEngine{delegate: adapter}
+	execution := atomicBatchRecoveryExecution(t, tenantID)
+	_, _ = seedAtomicBatchRecoveryIdempotency(t, testCtx, repository, execution)
+
+	result, err := engine.Execute(testCtx, execution)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1, engine.calls)
+
+	legacyMessages, err := repository.ReadAllRecoveryMessages(testCtx, txredis.RecoveryQueueSourceLegacyBackup)
+	require.NoError(t, err)
+	assert.Empty(t, legacyMessages, "the batch must not enter the legacy backup queue")
+	backupKey, err := tmvalkey.GetKeyContext(testCtx, txredis.TransactionBackupQueue)
+	require.NoError(t, err)
+	assert.Zero(t, client.HLen(testCtx, backupKey).Val())
+
+	engineMessages, err := repository.ReadAllRecoveryMessages(testCtx, txredis.RecoveryQueueSourceEngineRecover)
+	require.NoError(t, err)
+	require.Len(t, engineMessages, len(execution.Execution.Transactions))
+	for _, field := range atomicBatchRecoveryFields(execution) {
+		raw := engineMessages[field]
+		require.NotEmpty(t, raw)
+		record, decodeErr := command.DecodeTransactionCompletionRecord([]byte(raw))
+		require.NoError(t, decodeErr)
+		assert.Equal(t, command.TransactionCompletionFormatVersion, record.FormatVersion)
+	}
+	artifactKeys := atomicBatchRecoveryArtifactKeys(t, testCtx, execution)
+	assertAtomicBatchRecoveryProtection(t, testCtx, client, artifactKeys, int64(len(execution.Execution.Transactions)))
+	for _, tran := range execution.Execution.Transactions {
+		writeBehindKey, resolveErr := tmvalkey.GetKeyContext(
+			testCtx,
+			utils.TransactionInternalKey(execution.Execution.OrganizationID, execution.Execution.LedgerID, tran.ID.String()),
+		)
+		require.NoError(t, resolveErr)
+		assert.Zero(t, client.Exists(testCtx, writeBehindKey).Val(),
+			"the batch must not create a transaction write-behind entry")
+	}
+
+	store := newFailureInjectedBatchProjectionStore()
+	commandUseCase := &command.UseCase{
+		TransactionRedisRepo:                   repository,
+		AtomicTransactionBatchIdempotencyRepo:  repository,
+		AtomicTransactionBatchProjectionReader: store,
+	}
+	completedAt := time.Date(2026, time.September, 16, 19, 0, 0, 0, time.UTC)
+	runner := NewRedisQueueConsumer(recoveryQuietLogger{}, commandUseCase, nil).
+		WithAppliedTransactionCompleter(store).
+		WithRecoveryClock(func() time.Time { return completedAt })
+
+	// The runner deliberately enables the legacy consumer first and the engine
+	// consumer second. A concurrent final-member race may retain one trigger, so
+	// the next bounded cycle must converge without another durable projection.
+	runner.readMessagesAndProcess(testCtx)
+	runner.readMessagesAndProcess(testCtx)
+
+	remainingEngine, err := repository.ReadAllRecoveryMessages(testCtx, txredis.RecoveryQueueSourceEngineRecover)
+	require.NoError(t, err)
+	assert.Empty(t, remainingEngine)
+	legacyMessages, err = repository.ReadAllRecoveryMessages(testCtx, txredis.RecoveryQueueSourceLegacyBackup)
+	require.NoError(t, err)
+	assert.Empty(t, legacyMessages)
+	assert.Equal(t, len(execution.Execution.Transactions), store.projectionCount())
+	for _, tran := range execution.Execution.Transactions {
+		assert.Equal(t, 1, store.durableWriteCount(tran.ID),
+			"only the engine consumer may durably project each batch member")
+	}
+	assert.Equal(t, 1, engine.calls, "neither recovery consumer may invoke accounting")
+}
+
 type atomicBatchRecoveryKeys struct {
 	receipt    string
 	guards     string
@@ -463,7 +565,7 @@ func atomicBatchRecoveryExecution(t *testing.T, tenantID string) command.EngineE
 	id := func(suffix string) uuid.UUID {
 		return uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":"+suffix))
 	}
-	date := time.Date(2026, time.September, 16, 18, 0, 0, 0, time.UTC)
+	date := time.Date(2024, time.January, 2, 18, 0, 0, 0, time.UTC)
 	balance := accounting.BalanceSnapshot{
 		BalanceRef:     "@source#default",
 		ID:             id("balance"),
