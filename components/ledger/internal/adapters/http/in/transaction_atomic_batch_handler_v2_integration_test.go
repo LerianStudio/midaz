@@ -126,7 +126,16 @@ func atomicBatchTransfer(
 func marshalAtomicBatchHTTPBody(t *testing.T, transactions []CreateTransactionV2Request) string {
 	t.Helper()
 
-	body, err := json.Marshal(CreateAtomicTransactionBatchV2Request{Transactions: transactions})
+	items := make([]CreateAtomicTransactionBatchV2ItemRequest, len(transactions))
+	for index, transaction := range transactions {
+		items[index] = CreateAtomicTransactionBatchV2ItemRequest{
+			Action:                     "direct",
+			Order:                      index + 1,
+			CreateTransactionV2Request: transaction,
+		}
+	}
+
+	body, err := json.Marshal(CreateAtomicTransactionBatchV2Request{Transactions: items})
 	require.NoError(t, err)
 
 	return string(body)
