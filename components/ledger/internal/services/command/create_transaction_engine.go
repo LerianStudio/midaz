@@ -233,7 +233,7 @@ func (uc *UseCase) buildCreateEngineExecution(run *createTransactionRun, frozen 
 		CompletionPlans:   []CompletionPlanRecord{{TransactionID: run.transactionID, Payload: raw}},
 	}
 
-	return PreparedEngineExecution{Execution: execution, CompletionPlan: payload}, nil
+	return PreparedEngineExecution{Execution: execution, CompletionPlans: []TransactionCompletionPlan{payload}}, nil
 }
 
 // idempotencyRetentionSeconds accepts the repository's historical seconds-count
@@ -247,11 +247,11 @@ func idempotencyRetentionSeconds(ttl time.Duration) int64 {
 }
 
 func createEngineEnvelope(outcome EngineExecutionOutcome) (*TransactionCompletionRecord, error) {
-	if outcome.Result == nil || len(outcome.Prepared.Execution.CompletionPlans) != 1 {
+	if outcome.Result == nil || len(outcome.Prepared.Execution.CompletionPlans) != 1 || len(outcome.Prepared.CompletionPlans) != 1 {
 		return nil, invalidEngineResult(errors.New("successful create has no correlated recovery result"))
 	}
 
-	payload := outcome.Prepared.CompletionPlan
+	payload := outcome.Prepared.CompletionPlans[0]
 
 	return &TransactionCompletionRecord{
 		FormatVersion: TransactionCompletionFormatVersion,
