@@ -40,6 +40,23 @@ func codeFromError(err error) string {
 	}
 }
 
+func TestValidateSendSourceAndDistribute_RecordsMissingOperationRoutes(t *testing.T) {
+	t.Parallel()
+
+	amount := Amount{Asset: "BRL", Value: decimal.NewFromInt(10)}
+	transaction := Transaction{Send: Send{
+		Asset:      "BRL",
+		Value:      amount.Value,
+		Source:     Source{From: []FromTo{{AccountAlias: "@payer", Amount: &amount, IsFrom: true}}},
+		Distribute: Distribute{To: []FromTo{{AccountAlias: "@receiver", Amount: &amount}}},
+	}}
+
+	response, err := ValidateSendSourceAndDistribute(context.Background(), transaction, pkgConstant.CREATED)
+	require.NoError(t, err)
+	assert.Equal(t, "", response.OperationRoutesFrom["@payer"])
+	assert.Equal(t, "", response.OperationRoutesTo["@receiver"])
+}
+
 func TestValidateBalancesRules(t *testing.T) {
 	t.Parallel()
 
