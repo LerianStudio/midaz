@@ -7,6 +7,7 @@
 package account
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -501,4 +502,40 @@ func TestIntegration_AccountClosingConditionalUpdateRefusesOutOfScope(t *testing
 	closed := readClosedAt(t, f.db, f.closedID)
 	require.True(t, closed.Valid)
 	assert.True(t, f.closedAt.Equal(closed.Time), "an already-closed account keeps its original instant")
+}
+
+// TestIntegration_AccountClosingConditionalUpdateReportsTechnicalFailure drives
+// the close with a cancelled context, so the statement fails for a reason that
+// is not "matched no row". The distinction is the whole point of the sentinel:
+// a caller that cannot tell an unknown outcome from a refused one would treat a
+// lost write as proof the account is still open.
+func TestIntegration_AccountClosingConditionalUpdateReportsTechnicalFailure(t *testing.T) {
+	f := newClosingReadFixture(t)
+
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	closedAt, err := f.repo.CloseAccount(cancelled, f.orgID, f.ledgerID, f.openID)
+
+	require.Error(t, err, "a cancelled close must report a failure")
+	require.NotErrorIs(t, err, ErrAccountCloseNotApplied,
+		"a technical failure must never be reported as a refused close: the outcome is unknown, not decided")
+	assert.ErrorIs(t, err, context.Canceled, "the technical failure must propagate its own cause")
+
+	assert.True(t, closedAt.IsZero(),
+		"a failed close returns the zero time, which is not an instant a caller may persist or publish")
+
+	// Read back on a live context: the account the failed attempt targeted must
+	// still be open, and the fixture's already-closed account untouched.
+	assert.False(t, readClosedAt(t, f.db, f.openID).Valid, "a failed close must leave the account open")
+
+	stored := readClosedAt(t, f.db, f.closedID)
+	require.True(t, stored.Valid)
+	assert.True(t, f.closedAt.Equal(stored.Time), "a failed close must not disturb another account's instant")
+
+	// The account is still closable once the caller retries on a live context,
+	// so the failure left nothing behind that blocks the operation.
+	retried, err := f.repo.CloseAccount(t.Context(), f.orgID, f.ledgerID, f.openID)
+	require.NoError(t, err, "a retry after a technical failure must be able to apply")
+	assert.False(t, retried.IsZero())
 }
