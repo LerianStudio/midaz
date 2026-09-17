@@ -47,6 +47,10 @@ func (handler *AccountHandler) CreateAccountV2(ctx context.Context, in *CreateAc
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
+	if err := rejectAccountClosedAtInput(in.RawBody); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
 	payload := new(mmodel.CreateAccountInput)
 	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -163,6 +167,10 @@ func (handler *AccountHandler) UpdateAccountV2(ctx context.Context, in *UpdateAc
 
 	id, err := parsePathUUID(in.ID, "id")
 	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	if err := rejectAccountClosedAtInput(in.RawBody); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
