@@ -203,7 +203,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchCompletionPlans(
 		item.guard = ExecutionGuard{
 			TransactionID: item.transactionID,
 			ExpectedToken: "",
-			NextToken:     constant.APPROVED,
+			NextToken:     item.status,
 		}
 		item.completionPlan = TransactionCompletionPlan{
 			FormatVersion:        TransactionCompletionFormatVersion,

@@ -582,6 +582,7 @@ func TestPrepareAtomicTransactionBatchItems_PreparesMixedDirectAndHoldActions(t 
 
 	assert.Equal(t, []string{constant.ActionDirect, constant.ActionHold}, []string{run.items[0].action, run.items[1].action})
 	assert.Equal(t, []string{constant.CREATED, constant.PENDING}, []string{run.items[0].status, run.items[1].status})
+	assert.Equal(t, []string{constant.CREATED, constant.PENDING}, []string{run.items[0].guard.NextToken, run.items[1].guard.NextToken})
 	require.NotEmpty(t, run.items[0].prepared.transaction.Postings)
 	require.NotEmpty(t, run.items[1].prepared.transaction.Postings)
 	assert.Equal(t, accounting.PostingDebit, run.items[0].prepared.transaction.Postings[0].Type)
