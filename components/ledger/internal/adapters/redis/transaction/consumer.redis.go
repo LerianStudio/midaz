@@ -176,6 +176,12 @@ type RedisRepository interface {
 	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
 	// ReadAllMessagesFromQueue reads all messages from the backup queue.
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
+	// ScanRecoveryMessages reads one bounded page of one recovery hash with HSCAN,
+	// so a caller can walk the existing records without HGETALL and without
+	// changing their format, their acknowledgment or their retention. The cursor
+	// belongs to the caller and to ONE hash: the two recovery origins are walked
+	// with independent cursors and are never merged by field.
+	ScanRecoveryMessages(ctx context.Context, source RecoveryQueueSource, cursor uint64, count int64) (RecoveryScanPage, error)
 	// RemoveMessageFromQueue removes a specific message from the backup queue by key.
 	RemoveMessageFromQueue(ctx context.Context, key string) error
 	// IncrementBackupAttempt atomically increments the failure counter for a backup

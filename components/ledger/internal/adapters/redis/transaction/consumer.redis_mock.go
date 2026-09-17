@@ -461,6 +461,21 @@ func (mr *MockRedisRepositoryMockRecorder) RemoveMessageFromQueue(ctx, key any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMessageFromQueue), ctx, key)
 }
 
+// ScanRecoveryMessages mocks base method.
+func (m *MockRedisRepository) ScanRecoveryMessages(ctx context.Context, source RecoveryQueueSource, cursor uint64, count int64) (RecoveryScanPage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ScanRecoveryMessages", ctx, source, cursor, count)
+	ret0, _ := ret[0].(RecoveryScanPage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ScanRecoveryMessages indicates an expected call of ScanRecoveryMessages.
+func (mr *MockRedisRepositoryMockRecorder) ScanRecoveryMessages(ctx, source, cursor, count any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanRecoveryMessages", reflect.TypeOf((*MockRedisRepository)(nil).ScanRecoveryMessages), ctx, source, cursor, count)
+}
+
 // Set mocks base method.
 func (m *MockRedisRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	m.ctrl.T.Helper()
