@@ -43,7 +43,8 @@ func TestCreateFeeEstimate(t *testing.T) {
 	enableFlagFalse := false
 
 	from := transaction.FromTo{
-		Amount: nil,
+		AccountAlias: "@source-one",
+		Amount:       nil,
 		Share: &transaction.Share{
 			Percentage:             50,
 			PercentageOfPercentage: 0,
@@ -56,7 +57,8 @@ func TestCreateFeeEstimate(t *testing.T) {
 	}
 
 	from2 := transaction.FromTo{
-		Amount: nil,
+		AccountAlias: "@source-two",
+		Amount:       nil,
 		Share: &transaction.Share{
 			Percentage:             50,
 			PercentageOfPercentage: 0,
@@ -69,7 +71,8 @@ func TestCreateFeeEstimate(t *testing.T) {
 	}
 
 	to := transaction.FromTo{
-		Amount: nil,
+		AccountAlias: "@destination",
+		Amount:       nil,
 		Share: &transaction.Share{
 			Percentage:             100,
 			PercentageOfPercentage: 0,

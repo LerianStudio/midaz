@@ -257,6 +257,28 @@ func MutateConcatAliases(entries []FromTo) []FromTo {
 	return result
 }
 
+// AmountMapKeys returns the keys used to keep calculated movements distinct in
+// Responses.From/To. A unique alias keeps the historical key. Repeated raw
+// aliases use the same index/alias/balance-key identity that the transaction
+// pipeline uses after normalization, so two balances belonging to one account
+// cannot overwrite one another before fees are applied.
+func AmountMapKeys(entries []FromTo) []string {
+	counts := make(map[string]int, len(entries))
+	for i := range entries {
+		counts[entries[i].AccountAlias]++
+	}
+
+	keys := make([]string, len(entries))
+	for i := range entries {
+		keys[i] = entries[i].AccountAlias
+		if counts[entries[i].AccountAlias] > 1 && !isConcatedAlias(entries[i].AccountAlias) {
+			keys[i] = entries[i].ConcatAlias(i)
+		}
+	}
+
+	return keys
+}
+
 // MutateSplitAliases restores clean aliases IN-PLACE by stripping the index
 // prefix added by MutateConcatAliases. Entries that are not concat'd are left
 // untouched (idempotent). Called after ValidateSendSourceAndDistribute has
