@@ -328,6 +328,7 @@ func unmarshallingFieldDetails(body []byte, err error) []pkg.FieldError {
 	if !errors.As(err, &typeErr) || typeErr.Field == "" {
 		return nil
 	}
+
 	location := normalizeUnmarshalFieldPath(typeErr.Field)
 	if !strings.Contains(location, "[") {
 		if indexed, ok := indexedUnmarshalFieldPath(body, typeErr); ok {
