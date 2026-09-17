@@ -226,6 +226,13 @@ type Account struct {
 	// format: date-time
 	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
+	// Timestamp when the account was closed, null if still open (RFC3339 format).
+	// Output only: the instant is written exclusively by the close command and is
+	// rejected as an input field on create and update.
+	// example: null
+	// format: date-time
+	ClosedAt *time.Time `json:"closedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
 	// Custom key-value pairs for extending the account information
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
 	Metadata map[string]any `json:"metadata,omitempty"`

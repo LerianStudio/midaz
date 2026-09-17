@@ -19,6 +19,13 @@ components:
           type:
             - boolean
             - "null"
+        closedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
         createdAt:
           examples:
             - "2021-01-01T00:00:00Z"
@@ -110,6 +117,7 @@ components:
         - createdAt
         - updatedAt
         - deletedAt
+        - closedAt
       type: object
     AccountBlockException:
       additionalProperties: false
@@ -247,6 +255,13 @@ components:
           type:
             - boolean
             - "null"
+        closedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
         createdAt:
           examples:
             - "2021-01-01T00:00:00Z"
@@ -351,6 +366,7 @@ components:
         - createdAt
         - updatedAt
         - deletedAt
+        - closedAt
       type: object
     AccountingEntries:
       additionalProperties: false

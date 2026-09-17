@@ -8,7 +8,6 @@ package account
 
 import (
 	"database/sql"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
@@ -43,10 +44,10 @@ func applyOnboardingMigrationFile(t *testing.T, db *sql.DB, name string) {
 
 // insertAccountRow writes an account with the minimal column set, i.e. without
 // naming closed_at. It stands for an account that predates the closing feature.
-func insertAccountRow(t *testing.T, db *sql.DB, orgID, ledgerID, accountID uuid.UUID, createdAt time.Time) {
+// The alias is passed in because uuid v7 ids minted in the same millisecond
+// share a prefix, so a derived alias would collide.
+func insertAccountRow(t *testing.T, db *sql.DB, orgID, ledgerID, accountID uuid.UUID, alias string, createdAt time.Time) {
 	t.Helper()
-
-	alias := fmt.Sprintf("@closing-%s", accountID.String()[:8])
 
 	_, err := db.Exec(`
 		INSERT INTO account (id, name, asset_code, organization_id, ledger_id, status, alias, type, blocked, created_at, updated_at)
@@ -90,7 +91,7 @@ func TestIntegration_AccountClosingMigrationLeavesExistingAccountsOpen(t *testin
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
 	legacyAccountID := uuid.Must(libCommons.GenerateUUIDv7())
-	insertAccountRow(t, container.DB, orgID, ledgerID, legacyAccountID, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	insertAccountRow(t, container.DB, orgID, ledgerID, legacyAccountID, "@closing-legacy", time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
 
 	applyOnboardingMigrationFile(t, container.DB, closedAtMigration+".up.sql")
 
@@ -110,7 +111,7 @@ func TestIntegration_AccountClosingMigrationLeavesExistingAccountsOpen(t *testin
 
 	// A fresh account written after the migration is open as well.
 	newAccountID := uuid.Must(libCommons.GenerateUUIDv7())
-	insertAccountRow(t, container.DB, orgID, ledgerID, newAccountID, time.Date(2026, 2, 3, 4, 5, 6, 0, time.UTC))
+	insertAccountRow(t, container.DB, orgID, ledgerID, newAccountID, "@closing-fresh", time.Date(2026, 2, 3, 4, 5, 6, 0, time.UTC))
 
 	assert.False(t, readClosedAt(t, container.DB, newAccountID).Valid, "a newly created account must be open")
 }
@@ -126,7 +127,7 @@ func TestIntegration_AccountClosingMigrationIsIdempotent(t *testing.T) {
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 
 	accountID := uuid.Must(libCommons.GenerateUUIDv7())
-	insertAccountRow(t, container.DB, orgID, ledgerID, accountID, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+	insertAccountRow(t, container.DB, orgID, ledgerID, accountID, "@closing-idempotent", time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
 
 	closedAt := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
 
@@ -138,4 +139,156 @@ func TestIntegration_AccountClosingMigrationIsIdempotent(t *testing.T) {
 	got := readClosedAt(t, container.DB, accountID)
 	require.True(t, got.Valid, "re-running the migration must preserve the closing instant")
 	assert.True(t, closedAt.Equal(got.Time), "the closing instant must be unchanged")
+}
+
+// closingReadFixture builds an org, a ledger and two accounts — one open, one
+// closed at a fixed instant — and returns the repository plus their ids. Every
+// read assertion below shares it, so the same pair is observed through every
+// query shape.
+type closingReadFixture struct {
+	repo       *AccountPostgreSQLRepository
+	db         *sql.DB
+	orgID      uuid.UUID
+	ledgerID   uuid.UUID
+	openID     uuid.UUID
+	closedID   uuid.UUID
+	openAlias  string
+	closeAlias string
+	closedAt   time.Time
+}
+
+func newClosingReadFixture(t *testing.T) closingReadFixture {
+	t.Helper()
+
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	closedAt := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
+
+	openID := uuid.Must(libCommons.GenerateUUIDv7())
+	closedID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	openAlias, closeAlias := "@closing-open", "@closing-closed"
+
+	insertAccountRow(t, container.DB, orgID, ledgerID, openID, openAlias, createdAt)
+	insertAccountRow(t, container.DB, orgID, ledgerID, closedID, closeAlias, createdAt)
+
+	_, err := container.DB.Exec(`UPDATE account SET closed_at = $1 WHERE id = $2`, closedAt, closedID)
+	require.NoError(t, err, "failed to record a closing instant")
+
+	return closingReadFixture{
+		repo:       repo,
+		db:         container.DB,
+		orgID:      orgID,
+		ledgerID:   ledgerID,
+		openID:     openID,
+		closedID:   closedID,
+		openAlias:  openAlias,
+		closeAlias: closeAlias,
+		closedAt:   closedAt,
+	}
+}
+
+// assertClosingPair checks that a read returned both accounts and that only the
+// closed one carries an instant, and that the instant is the persisted one.
+func (f closingReadFixture) assertClosingPair(t *testing.T, accounts []*mmodel.Account) {
+	t.Helper()
+
+	byID := make(map[string]*mmodel.Account, len(accounts))
+	for _, acc := range accounts {
+		byID[acc.ID] = acc
+	}
+
+	open, ok := byID[f.openID.String()]
+	require.True(t, ok, "the open account must be returned")
+	assert.Nil(t, open.ClosedAt, "an open account must report no closing instant")
+
+	closed, ok := byID[f.closedID.String()]
+	require.True(t, ok, "the closed account must be returned")
+	require.NotNil(t, closed.ClosedAt, "a closed account must report its closing instant")
+	assert.True(t, f.closedAt.Equal(*closed.ClosedAt), "the reported instant must be the persisted one")
+}
+
+// TestIntegration_AccountClosingReadsReportClosedAt walks every account read
+// shape — by id, by alias, the ledger listing and the two batch lookups — under
+// both holder policies. closedAt is version-independent, so the /v1 projection
+// must report it exactly like the /v2 one while still withholding holderId.
+func TestIntegration_AccountClosingReadsReportClosedAt(t *testing.T) {
+	f := newClosingReadFixture(t)
+	ctx := t.Context()
+
+	policies := map[string]mmodel.HolderPolicy{
+		"v1": mmodel.HolderOffV1,
+		"v2": mmodel.HolderOnV2,
+	}
+
+	for name, policy := range policies {
+		t.Run("find_by_id_"+name, func(t *testing.T) {
+			open, err := f.repo.Find(ctx, f.orgID, f.ledgerID, nil, f.openID, policy)
+			require.NoError(t, err)
+
+			closed, err := f.repo.Find(ctx, f.orgID, f.ledgerID, nil, f.closedID, policy)
+			require.NoError(t, err)
+
+			f.assertClosingPair(t, []*mmodel.Account{open, closed})
+		})
+
+		t.Run("find_with_deleted_"+name, func(t *testing.T) {
+			open, err := f.repo.FindWithDeleted(ctx, f.orgID, f.ledgerID, nil, f.openID, policy)
+			require.NoError(t, err)
+
+			closed, err := f.repo.FindWithDeleted(ctx, f.orgID, f.ledgerID, nil, f.closedID, policy)
+			require.NoError(t, err)
+
+			f.assertClosingPair(t, []*mmodel.Account{open, closed})
+		})
+
+		t.Run("find_alias_"+name, func(t *testing.T) {
+			open, err := f.repo.FindAlias(ctx, f.orgID, f.ledgerID, nil, f.openAlias, policy)
+			require.NoError(t, err)
+
+			closed, err := f.repo.FindAlias(ctx, f.orgID, f.ledgerID, nil, f.closeAlias, policy)
+			require.NoError(t, err)
+
+			f.assertClosingPair(t, []*mmodel.Account{open, closed})
+		})
+
+		t.Run("find_all_"+name, func(t *testing.T) {
+			accounts, err := f.repo.FindAll(ctx, f.orgID, f.ledgerID, nil, nil, listAllHeader(), policy)
+			require.NoError(t, err)
+
+			f.assertClosingPair(t, accounts)
+		})
+
+		t.Run("list_by_ids_"+name, func(t *testing.T) {
+			accounts, err := f.repo.ListByIDs(ctx, f.orgID, f.ledgerID, nil, nil, []uuid.UUID{f.openID, f.closedID}, policy)
+			require.NoError(t, err)
+
+			f.assertClosingPair(t, accounts)
+		})
+	}
+
+	t.Run("list_accounts_by_ids", func(t *testing.T) {
+		accounts, err := f.repo.ListAccountsByIDs(ctx, f.orgID, f.ledgerID, []uuid.UUID{f.openID, f.closedID})
+		require.NoError(t, err)
+
+		f.assertClosingPair(t, accounts)
+	})
+
+	t.Run("list_accounts_by_alias", func(t *testing.T) {
+		accounts, err := f.repo.ListAccountsByAlias(ctx, f.orgID, f.ledgerID, []string{f.openAlias, f.closeAlias})
+		require.NoError(t, err)
+
+		f.assertClosingPair(t, accounts)
+	})
+}
+
+// listAllHeader is the query header a full ledger listing uses: one page wide
+// enough for the fixture, ordered deterministically.
+func listAllHeader() http.QueryHeader {
+	return http.QueryHeader{Limit: 100, Page: 1, SortOrder: "desc"}
 }

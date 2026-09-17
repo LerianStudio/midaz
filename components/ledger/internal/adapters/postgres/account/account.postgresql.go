@@ -81,6 +81,7 @@ func accountColumns(withHolder bool) []string {
 		"deleted_at",
 		"blocked",
 		holderCheckSkipped,
+		"closed_at",
 	}
 }
 
@@ -384,6 +385,7 @@ func scanAccountRows(rows *sql.Rows) ([]*mmodel.Account, error) {
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			return nil, mapReadError(err)
 		}
@@ -586,6 +588,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.DeletedAt,
 		&acc.Blocked,
 		&acc.HolderCheckSkipped,
+		&acc.ClosedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
@@ -663,6 +666,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.DeletedAt,
 		&acc.Blocked,
 		&acc.HolderCheckSkipped,
+		&acc.ClosedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
@@ -741,6 +745,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.DeletedAt,
 		&acc.Blocked,
 		&acc.HolderCheckSkipped,
+		&acc.ClosedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, constant.EntityAccount)
@@ -883,6 +888,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			mapped := mapReadError(err)
 
@@ -968,6 +974,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			mapped := mapReadError(err)
 
@@ -1219,6 +1226,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			mapped := mapReadError(err)
 
@@ -1303,6 +1311,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			mapped := mapReadError(err)
 
@@ -1399,6 +1408,7 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
