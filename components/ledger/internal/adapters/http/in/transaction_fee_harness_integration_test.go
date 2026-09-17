@@ -38,12 +38,16 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
+	redisengine "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/engine"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
@@ -77,11 +81,13 @@ type feeHarness struct {
 	mongoContainer *mongotestutil.ContainerResult
 	redisContainer *redistestutil.ContainerResult
 
-	pgConn      *libPostgres.Client
-	db          *sql.DB
-	redisRepo   redis.RedisRepository
-	metaRepo    mongotxn.Repository
-	packageRepo pack.Repository
+	pgConn          *libPostgres.Client
+	db              *sql.DB
+	redisRepo       redis.RedisRepository
+	metaRepo        mongotxn.Repository
+	packageRepo     pack.Repository
+	engineProvider  redisengine.RedisClientProvider
+	completionStore command.TransactionWriteStore
 
 	commandUC *command.UseCase
 	queryUC   *query.UseCase
@@ -129,6 +135,8 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	// Transaction-domain repos.
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(h.pgConn, false)
 	operationRepo := operation.NewOperationPostgreSQLRepository(h.pgConn)
+	operationRouteRepo := operationroute.NewOperationRoutePostgreSQLRepository(h.pgConn)
+	transactionRouteRepo := transactionroute.NewTransactionRoutePostgreSQLRepository(h.pgConn, false)
 	balanceRepo := balance.NewBalancePostgreSQLRepository(h.pgConn, false)
 	h.metaRepo = mongotxn.NewMetadataMongoDBRepository(mongoTxnConn)
 
@@ -157,6 +165,8 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 		TransactionRepo:         transactionRepo,
 		OperationRepo:           operationRepo,
 		BalanceRepo:             balanceRepo,
+		OperationRouteRepo:      operationRouteRepo,
+		TransactionRouteRepo:    transactionRouteRepo,
 		TransactionMetadataRepo: h.metaRepo,
 		TransactionRedisRepo:    redisRepo,
 	}
@@ -174,6 +184,8 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 		TransactionMetadataRepo: h.metaRepo,
 		TransactionRedisRepo:    redisRepo,
 	}
+	h.engineProvider = redisConn
+	h.completionStore = completion.NewStore(transactionRepo, operationRepo)
 
 	// Fee Mongo: inject the already-connected container client so the repo's
 	// GetDB + EnsureIndexes run against real Mongo without re-dialing.
@@ -203,6 +215,18 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 	h.ledgerID = postgrestestutil.CreateTestLedger(t, h.db, h.orgID)
 
 	return h
+}
+
+// enableAccountingEngine opts this harness into the same engine-backed create
+// and synchronous completion path used by the production bootstrap. Existing
+// fee proof tests keep their legacy-path fixture unless they explicitly opt in.
+func (h *feeHarness) enableAccountingEngine(t *testing.T) {
+	t.Helper()
+
+	engineAdapter, err := redisengine.NewAdapter(h.engineProvider)
+	require.NoError(t, err, "accounting engine")
+	h.commandUC.Engine = engineAdapter
+	h.commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(h.completionStore, h.metaRepo)
 }
 
 // dropFeePrecisionTable is a no-op assertion that the ISO-4217 precision table
@@ -381,11 +405,23 @@ func (h *feeHarness) v2Leg(alias, amount string) string {
 	return `{"alias":"` + alias + `",` + h.v2Scope() + `,"amount":"` + amount + `"}`
 }
 
+// v2RoutedLeg builds a v2 leg with its canonical operation route.
+func (h *feeHarness) v2RoutedLeg(alias, amount string, operationRouteID uuid.UUID) string {
+	return `{"alias":"` + alias + `",` + h.v2Scope() + `,"amount":"` + amount +
+		`","operationRouteId":"` + operationRouteID.String() + `"}`
+}
+
 // v2Body assembles a flat v2 create body from already-built legs.
 func (h *feeHarness) v2Body(description, asset, amount string, debits, credits []string) string {
 	return `{"description":"` + description + `","asset":"` + asset + `","amount":"` + amount + `"` +
 		`,"debits":[` + strings.Join(debits, ",") + `]` +
 		`,"credits":[` + strings.Join(credits, ",") + `]}`
+}
+
+// v2RoutedBody is v2Body with the canonical transaction route attached.
+func (h *feeHarness) v2RoutedBody(description, asset, amount string, transactionRouteID uuid.UUID, debits, credits []string) string {
+	return strings.TrimSuffix(h.v2Body(description, asset, amount, debits, credits), "}") +
+		`,"routeId":"` + transactionRouteID.String() + `"}`
 }
 
 // v2CreatePath builds the create path for a v2 action (direct, hold, block, unblock).
@@ -436,6 +472,28 @@ func (h *feeHarness) seedBalance(t *testing.T, alias, asset string, available de
 	return postgrestestutil.CreateTestBalance(t, h.db, h.orgID, h.ledgerID, accountID, balParams)
 }
 
+// seedAdditionalBalance adds a non-default balance to an account already seeded
+// under alias. It is useful for proving the fee expansion keeps the payer's
+// selected balance identity instead of drifting to a sibling balance.
+func (h *feeHarness) seedAdditionalBalance(t *testing.T, alias, key, asset string, available decimal.Decimal, accountType string) uuid.UUID {
+	t.Helper()
+
+	var accountID uuid.UUID
+	err := h.db.QueryRow(`SELECT id FROM account WHERE organization_id=$1 AND ledger_id=$2 AND alias=$3 AND deleted_at IS NULL`,
+		h.orgID, h.ledgerID, alias).Scan(&accountID)
+	require.NoError(t, err, "find account for additional balance")
+
+	balParams := postgrestestutil.DefaultBalanceParams()
+	balParams.Alias = alias
+	balParams.Key = key
+	balParams.AssetCode = asset
+	balParams.Available = available
+	balParams.OnHold = decimal.Zero
+	balParams.AccountType = accountType
+
+	return postgrestestutil.CreateTestBalance(t, h.db, h.orgID, h.ledgerID, accountID, balParams)
+}
+
 // seedBalanceWithSegment is like seedBalance but assigns the account a segment.
 func (h *feeHarness) seedBalanceWithSegment(t *testing.T, alias, asset string, available decimal.Decimal, segmentID uuid.UUID) uuid.UUID {
 	t.Helper()
@@ -467,6 +525,8 @@ type feeSpec struct {
 	creditAccount string
 	priority      int
 	referenceAmt  string // defaults to originalAmount
+	routeFrom     *string
+	routeTo       *string
 }
 
 // packageSpec describes a fee package to seed.
@@ -513,6 +573,8 @@ func (h *feeHarness) seedPackage(t *testing.T, spec packageSpec) uuid.UUID {
 			Priority:         priority,
 			IsDeductibleFrom: &ded,
 			CreditAccount:    f.creditAccount,
+			RouteFrom:        f.routeFrom,
+			RouteTo:          f.routeTo,
 		}
 	}
 
@@ -587,7 +649,7 @@ type persistedLeg struct {
 func loadLegs(t *testing.T, db *sql.DB, txID uuid.UUID) []persistedLeg {
 	t.Helper()
 
-	rows, err := db.Query(`SELECT type, account_alias, amount, balance_key, route FROM operation WHERE transaction_id = $1`, txID)
+	rows, err := db.Query(`SELECT type, account_alias, amount, balance_key, route_id FROM operation WHERE transaction_id = $1`, txID)
 	require.NoError(t, err, "query operations")
 	defer func() { _ = rows.Close() }()
 
