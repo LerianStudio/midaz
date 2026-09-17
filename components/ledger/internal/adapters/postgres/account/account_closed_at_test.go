@@ -86,3 +86,89 @@ func TestAccountColumns_BothProjectionsNameClosedAt(t *testing.T) {
 		assert.Contains(t, query, "closed_at", "every account projection must read closed_at")
 	}
 }
+
+// buildUpdateSQL runs the real SET assembly of Update and returns the statement,
+// so the assertion reads what the repository would send rather than a copy of it.
+func buildUpdateSQL(t *testing.T, acc *mmodel.Account) string {
+	t.Helper()
+
+	record := &AccountPostgreSQLModel{}
+	record.FromEntity(acc)
+
+	query, _, err := applyAccountUpdateFields(squirrel.Update("account"), acc, record).
+		Set("updated_at", fixedClosedAt).
+		Where(squirrel.Eq{"id": acc.ID}).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	require.NoError(t, err)
+
+	return query
+}
+
+// The generic update never writes closed_at, whatever the entity carries. An
+// account that already holds a closing instant round-trips through FromEntity
+// with it set, so a SET list derived from the record would silently rewrite the
+// column on every PATCH.
+func TestUpdate_NeverWritesClosedAt(t *testing.T) {
+	tests := []struct {
+		name string
+		acc  *mmodel.Account
+	}{
+		{
+			name: "entity carries a closing instant",
+			acc: &mmodel.Account{
+				ID:       "acc-1",
+				Name:     "Renamed",
+				ClosedAt: &fixedClosedAt,
+			},
+		},
+		{
+			name: "null fields name the closing instant in both spellings",
+			acc: &mmodel.Account{
+				ID:         "acc-1",
+				Name:       "Renamed",
+				ClosedAt:   &fixedClosedAt,
+				NullFields: []string{"closedAt", "closed_at"},
+			},
+		},
+		{
+			name: "null fields mix the closing instant with an allowed one",
+			acc: &mmodel.Account{
+				ID:         "acc-1",
+				Name:       "Renamed",
+				ClosedAt:   &fixedClosedAt,
+				NullFields: []string{"closedAt", "segmentId"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			query := buildUpdateSQL(t, tc.acc)
+
+			// Guard against a vacuous pass: the statement must still be a real update.
+			require.Contains(t, query, "name = ", "the update must still write the allowed fields")
+
+			assert.NotContains(t, query, "closed_at", "a generic update must never name closed_at")
+		})
+	}
+}
+
+// applyNullableFields owns the merge-patch null semantics, and its field set is
+// closed: a closedAt entry must clear nothing.
+func TestApplyNullableFields_IgnoresClosedAt(t *testing.T) {
+	acc := &mmodel.Account{ID: "acc-1", NullFields: []string{"closedAt", "closed_at", "segmentId"}}
+
+	record := &AccountPostgreSQLModel{}
+	record.FromEntity(acc)
+
+	query, _, err := applyNullableFields(squirrel.Update("account"), acc, record).
+		Where(squirrel.Eq{"id": acc.ID}).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	require.NoError(t, err)
+
+	require.Contains(t, query, "segment_id = ", "the allowed null field must still be cleared")
+	assert.NotContains(t, query, "closed_at")
+}

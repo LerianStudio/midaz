@@ -14,6 +14,7 @@ import (
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libPointers "github.com/LerianStudio/lib-commons/v7/commons/pointers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -291,4 +292,58 @@ func TestIntegration_AccountClosingReadsReportClosedAt(t *testing.T) {
 // enough for the fixture, ordered deterministically.
 func listAllHeader() http.QueryHeader {
 	return http.QueryHeader{Limit: 100, Page: 1, SortOrder: "desc"}
+}
+
+// TestIntegration_AccountClosingUpdatePreservesClosedAt runs an allowed PATCH
+// against a closed account and reads it back. The update must follow its normal
+// contract while leaving the closing instant untouched: closed_at is outside the
+// generic SET list, so no PATCH — including one whose payload carries merge-patch
+// nulls — can rewrite or clear it, and none reopens the account.
+func TestIntegration_AccountClosingUpdatePreservesClosedAt(t *testing.T) {
+	f := newClosingReadFixture(t)
+	ctx := t.Context()
+
+	updates := []struct {
+		name  string
+		input *mmodel.Account
+	}{
+		{
+			name:  "rename",
+			input: &mmodel.Account{Name: "Renamed Account"},
+		},
+		{
+			name:  "unblock",
+			input: &mmodel.Account{Blocked: libPointers.Bool(false)},
+		},
+		{
+			name:  "clear a nullable field",
+			input: &mmodel.Account{Name: "Renamed Again", NullFields: []string{"segmentId", "closedAt"}},
+		},
+		{
+			name:  "carry the closing instant in the entity",
+			input: &mmodel.Account{Name: "Renamed Once More", ClosedAt: &f.closedAt},
+		},
+	}
+
+	for _, tc := range updates {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := f.repo.Update(ctx, f.orgID, f.ledgerID, nil, f.closedID, tc.input)
+			require.NoError(t, err, "an allowed PATCH must follow its normal contract on a closed account")
+
+			stored := readClosedAt(t, f.db, f.closedID)
+			require.True(t, stored.Valid, "the PATCH must not reopen the account")
+			assert.True(t, f.closedAt.Equal(stored.Time), "the PATCH must not move the closing instant")
+
+			reread, err := f.repo.Find(ctx, f.orgID, f.ledgerID, nil, f.closedID, mmodel.HolderOnV2)
+			require.NoError(t, err)
+			require.NotNil(t, reread.ClosedAt)
+			assert.True(t, f.closedAt.Equal(*reread.ClosedAt), "the re-read after PATCH must report the same instant")
+		})
+	}
+
+	// An open account is unaffected in the other direction: a PATCH does not
+	// close it.
+	_, err := f.repo.Update(ctx, f.orgID, f.ledgerID, nil, f.openID, &mmodel.Account{Name: "Still Open", ClosedAt: &f.closedAt})
+	require.NoError(t, err)
+	assert.False(t, readClosedAt(t, f.db, f.openID).Valid, "a PATCH must never close an open account")
 }

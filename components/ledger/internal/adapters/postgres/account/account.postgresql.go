@@ -995,6 +995,32 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 	return accounts, nil
 }
 
+// applyAccountUpdateFields adds the SET clauses a generic account update may
+// write. The list is closed by construction: closed_at is absent from it and
+// from applyNullableFields, so neither an entity carrying a closing instant nor
+// a NullFields entry naming closedAt can reach the column. Only the close
+// command writes it.
+func applyAccountUpdateFields(builder squirrel.UpdateBuilder, acc *mmodel.Account, record *AccountPostgreSQLModel) squirrel.UpdateBuilder {
+	if acc.Name != "" {
+		builder = builder.Set("name", record.Name)
+	}
+
+	if !acc.Status.IsEmpty() {
+		builder = builder.Set("status", record.Status)
+		builder = builder.Set("status_description", record.StatusDescription)
+	}
+
+	if !libCommons.IsNilOrEmpty(acc.Alias) {
+		builder = builder.Set("alias", record.Alias)
+	}
+
+	if acc.Blocked != nil {
+		builder = builder.Set("blocked", *acc.Blocked)
+	}
+
+	return applyNullableFields(builder, acc, record)
+}
+
 // applyNullableFields applies nullable field updates (segmentId, entityId, portfolioId)
 // supporting RFC 7396 JSON Merge Patch null semantics.
 func applyNullableFields(builder squirrel.UpdateBuilder, acc *mmodel.Account, record *AccountPostgreSQLModel) squirrel.UpdateBuilder {
@@ -1036,26 +1062,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	record := &AccountPostgreSQLModel{}
 	record.FromEntity(acc)
 
-	builder := squirrel.Update(r.tableName)
-
-	if acc.Name != "" {
-		builder = builder.Set("name", record.Name)
-	}
-
-	if !acc.Status.IsEmpty() {
-		builder = builder.Set("status", record.Status)
-		builder = builder.Set("status_description", record.StatusDescription)
-	}
-
-	if !libCommons.IsNilOrEmpty(acc.Alias) {
-		builder = builder.Set("alias", record.Alias)
-	}
-
-	if acc.Blocked != nil {
-		builder = builder.Set("blocked", *acc.Blocked)
-	}
-
-	builder = applyNullableFields(builder, acc, record)
+	builder := applyAccountUpdateFields(squirrel.Update(r.tableName), acc, record)
 
 	record.UpdatedAt = time.Now()
 	builder = builder.Set("updated_at", record.UpdatedAt)
