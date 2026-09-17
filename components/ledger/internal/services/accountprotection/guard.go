@@ -23,6 +23,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -123,7 +124,7 @@ func (g *Guard) AcquireAdmission(ctx context.Context, organizationID, ledgerID u
 	}
 
 	for _, accountID := range ordered {
-		if err := g.refuseWhenClosing(ctx, organizationID, ledgerID, accountID); err != nil {
+		if err := g.refuseWhenClosing(ctx, span, logger, organizationID, ledgerID, accountID); err != nil {
 			admission.Release(ctx)
 
 			return nil, err
@@ -233,18 +234,27 @@ func (g *Guard) EnsureOpen(ctx context.Context, organizationID, ledgerID uuid.UU
 // refuseWhenClosing rejects an operation over an account a closing attempt owns.
 // An unreadable marker is a refusal of its own: reading it as absence would turn a
 // protection failure into an authorization.
-func (g *Guard) refuseWhenClosing(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
-	logger := libObservability.NewLoggerFromContext(ctx)
-
+//
+// The two refusals are of different classes and reach the acquisition span through
+// different helpers: a marker that could not be read is a technical failure of the
+// protection surface, while a marker that is there is the business outcome the
+// coordination exists to produce.
+func (g *Guard) refuseWhenClosing(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID) error {
 	_, found, err := g.markers.GetAccountClosingMarker(ctx, organizationID, ledgerID, accountID)
 	if err != nil {
+		indeterminate := pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to read the account closing marker", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to read the account closing marker", libLog.Err(err))
 
-		return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+		return indeterminate
 	}
 
 	if found {
-		return pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
+		conflict := pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "A closing attempt owns the account", conflict)
+
+		return conflict
 	}
 
 	return nil

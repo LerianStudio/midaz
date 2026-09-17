@@ -11,13 +11,42 @@ import (
 	"testing"
 	"time"
 
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
+
+// recordingContext wires an in-memory span recorder into the tracking context so a
+// test can read back the class the guard recorded on its own span.
+func recordingContext() (context.Context, *tracetest.SpanRecorder) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+
+	return libObservability.ContextWithTracer(context.Background(), provider.Tracer("accountprotection-test")), recorder
+}
+
+// findSpan returns the first ended span with the given name, failing the test when
+// the guard never opened it.
+func findSpan(t *testing.T, recorder *tracetest.SpanRecorder, name string) sdktrace.ReadOnlySpan {
+	t.Helper()
+
+	for _, span := range recorder.Ended() {
+		if span.Name() == name {
+			return span
+		}
+	}
+
+	t.Fatalf("span %q was not recorded", name)
+
+	return nil
+}
 
 // fixedClosedAt is the closing instant every test reads and writes. A fixed
 // instant keeps the assertions independent of the clock.
@@ -376,6 +405,50 @@ func TestAcquireAdmission_ClosingAttemptRefusesAdmission(t *testing.T) {
 	require.Error(t, err)
 	assertErrorCode(t, err, constant.ErrAccountClosingInProgress.Error())
 	assert.Zero(t, f.markers.ownedCount(), "a refusal must take no ownership")
+}
+
+// TestAcquireAdmission_UnreadableClosingMarkerIsTechnical proves an unreadable
+// closing marker refuses as an indeterminate protection instead of being read as
+// absence, and that the refusal is recorded as the technical failure it is: the
+// cache could not answer, which is not the same as a closing being in progress.
+func TestAcquireAdmission_UnreadableClosingMarkerIsTechnical(t *testing.T) {
+	t.Parallel()
+
+	f := newGuardFixture()
+	f.markers.closingErr = errCacheUnavailable
+
+	ctx, recorder := recordingContext()
+
+	_, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{uuid.New()})
+
+	require.Error(t, err)
+	assertErrorCode(t, err, constant.ErrAccountClosingProtectionIndeterminate.Error())
+	assert.Zero(t, f.markers.ownedCount(), "a refusal must take no ownership")
+	assert.Zero(t, f.markers.acquireCalls, "the ownership is never attempted over an unreadable marker")
+
+	span := findSpan(t, recorder, "exec.acquire_account_admission")
+	assert.Equal(t, codes.Error, span.Status().Code, "an unreadable protection surface is a technical failure")
+}
+
+// TestAcquireAdmission_ClosingMarkerRefusalKeepsTheSpanGreen pins the other class:
+// a closing attempt that owns the account is the business outcome the coordination
+// exists to produce, so it must not flip the acquisition span red.
+func TestAcquireAdmission_ClosingMarkerRefusalKeepsTheSpanGreen(t *testing.T) {
+	t.Parallel()
+
+	f := newGuardFixture()
+	accountID := uuid.New()
+	f.markers.closing[f.key(accountID)] = uuid.NewString()
+
+	ctx, recorder := recordingContext()
+
+	_, err := f.guard.AcquireAdmission(ctx, f.organizationID, f.ledgerID, []uuid.UUID{accountID})
+
+	require.Error(t, err)
+	assertErrorCode(t, err, constant.ErrAccountClosingInProgress.Error())
+
+	span := findSpan(t, recorder, "exec.acquire_account_admission")
+	assert.NotEqual(t, codes.Error, span.Status().Code, "a business refusal keeps the span green")
 }
 
 // TestAcquireAdmission_PartialAcquisitionIsReleased proves a refusal on the second
