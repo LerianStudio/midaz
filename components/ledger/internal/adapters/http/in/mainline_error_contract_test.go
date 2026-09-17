@@ -362,40 +362,40 @@ func TestMainlineErrorContract_AtomicTransactionBatchCodes(t *testing.T) {
 		expectedDetail string
 	}{
 		{
-			name:           "0513 invalid batch cardinality is 400",
+			name:           "0514 invalid batch cardinality is 400",
 			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchCardinality, constant.EntityTransaction, 51, 50),
 			expectedStatus: fiber.StatusBadRequest,
-			expectedCode:   "0513",
+			expectedCode:   "0514",
 			expectedTitle:  "Invalid Transaction Batch Cardinality",
 			expectedDetail: "The transaction batch contains 51 items, but it must contain between 1 and 50 items. Please adjust the 'transactions' array and try again.",
 		},
 		{
-			name:           "0514 aggregate input leg limit is 400",
+			name:           "0515 aggregate input leg limit is 400",
 			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchInputLegsLimitExceeded, constant.EntityTransaction, 1001, 1000),
 			expectedStatus: fiber.StatusBadRequest,
-			expectedCode:   "0514",
+			expectedCode:   "0515",
 			expectedTitle:  "Transaction Batch Input Leg Limit Exceeded",
 			expectedDetail: "The transaction batch contains 1001 input debit and credit legs, exceeding the maximum of 1000. Please reduce the number of legs and try again.",
 		},
 		{
-			name:           "0515 derived batch budget is 422",
+			name:           "0516 derived batch budget is 422",
 			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchBudgetExceeded, constant.EntityTransaction, "expandedPostings", 12, 201, 200),
 			expectedStatus: fiber.StatusUnprocessableEntity,
-			expectedCode:   "0515",
+			expectedCode:   "0516",
 			expectedTitle:  "Transaction Batch Budget Exceeded",
 			expectedDetail: "The transaction batch exceeds the expandedPostings budget at transaction index 12: observed 201, maximum 200. Please reduce the batch work and try again.",
 		},
 		{
-			name:           "0516 structural validation is 400",
+			name:           "0517 structural validation is 400",
 			err:            pkg.ValidateBusinessError(constant.ErrTransactionBatchStructuralValidation, constant.EntityTransaction),
 			expectedStatus: fiber.StatusBadRequest,
-			expectedCode:   "0516",
+			expectedCode:   "0517",
 			expectedTitle:  "Invalid Transaction Batch",
 			expectedDetail: "One or more transactions in the batch failed structural validation. Check errors for details.",
 		},
 	}
 
-	require.Len(t, tests, 4, "the atomic transaction batch lock set is exactly codes 0513 through 0516")
+	require.Len(t, tests, 4, "the atomic transaction batch lock set is exactly codes 0514 through 0517")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

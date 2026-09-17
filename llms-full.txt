@@ -201,7 +201,7 @@ no single base path. The onboarding resources below sit under `/v1`. The fee res
 ledger-scoped under `/v2` (see section 4.3), the CRM resources are under `/v2`, and the v2
 transaction surface (for example `POST /v2/transactions/direct`) is exposed under `/v2`.
 
-`POST /v2/transactions/direct/batch` accepts an ordered wrapper of direct-v2
+`POST /v2/transactions/batch` accepts an ordered wrapper of direct-v2
 transactions and applies all monetary effects in one all-or-none accounting execution.
 It has no path or query parameters; every item must name the same organization and ledger
 through its legs. The success wrapper contains an ephemeral `batchId` plus transactions in
@@ -266,7 +266,7 @@ See [the atomic batch contract](docs/api/atomic-transaction-batch.md).
 | POST | .../transactions/inflow | Create inflow transaction |
 | POST | .../transactions/outflow | Create outflow transaction |
 | POST | .../transactions/annotation | Create annotation transaction |
-| POST | /v2/transactions/direct/batch | Create an ordered atomic batch of direct-v2 transactions |
+| POST | /v2/transactions/batch | Create an ordered atomic batch of direct-v2 transactions |
 | POST | .../transactions/:tid/commit | Commit pending transaction |
 | POST | .../transactions/:tid/cancel | Cancel pending transaction |
 | POST | .../transactions/:tid/revert | Revert transaction |
