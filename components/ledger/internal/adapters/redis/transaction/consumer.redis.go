@@ -126,6 +126,10 @@ type SyncKey struct {
 
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
+	// AccountProtectionRepository carries the account-scoped closing markers and the
+	// administrative ownership. They live on the same cache the balances do, so the
+	// services that admit or delete balances reach them through this same handle.
+	AccountProtectionRepository
 	// Set stores a key-value pair with a TTL.
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	// SetNX stores a key-value pair only if the key does not already exist (atomic).
