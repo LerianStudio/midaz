@@ -126,6 +126,16 @@ type Repository interface {
 	// A statement that matched no row returns ErrAccountCloseNotApplied, which
 	// does not say WHICH of absent, deleted or already-closed it was.
 	CloseAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (time.Time, error)
+	// ListClosedAtByIDs returns the closing instant of each requested account,
+	// read from the PRIMARY inside a read-only transaction. A closing that
+	// committed moments ago must be visible to the caller that decides whether a
+	// balance may still be admitted, and a replica cannot promise that.
+	//
+	// The map carries one entry per row found: a nil value is an open account and
+	// a non-nil value its closing instant. An account absent from the map has no
+	// row in the scope and therefore no closing to report. Soft-deleted rows are
+	// included, so a closing survives a later deletion of the account.
+	ListClosedAtByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]*time.Time, error)
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
 	// ListExternalAccountsByAssetCode returns the live (not soft-deleted) accounts of
@@ -1255,6 +1265,124 @@ func (r *AccountPostgreSQLRepository) CloseAccount(ctx context.Context, organiza
 	span.SetAttributes(attribute.Int64("db.rows_affected", 1))
 
 	return closedAt.Time, nil
+}
+
+func (r *AccountPostgreSQLRepository) ListClosedAtByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]*time.Time, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_account_closed_at_by_ids")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.Int("app.request.account_ids_count", len(ids)),
+	)
+
+	closingStates := make(map[uuid.UUID]*time.Time, len(ids))
+
+	if len(ids) == 0 {
+		return closingStates, nil
+	}
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	query, args, err := squirrel.Select("id", "closed_at").
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return nil, err
+	}
+
+	// A read-only transaction is what routes the read to the primary: the resolver
+	// sends plain queries to a replica, and replica lag here would read an account
+	// that was closed a moment ago as still open.
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to open the read-only primary transaction", err)
+
+		return nil, fmt.Errorf("open read-only primary transaction: %w", err)
+	}
+
+	defer func() {
+		// A read-only transaction wrote nothing, so the rollback only releases the
+		// connection. It is a no-op after the commit below.
+		_ = tx.Rollback()
+	}()
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		mapped := mapReadError(err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", mapped)
+
+		return nil, mapped
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			id       uuid.UUID
+			closedAt sql.NullTime
+		)
+
+		if err := rows.Scan(&id, &closedAt); err != nil {
+			mapped := mapReadError(err)
+
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", mapped)
+
+			return nil, mapped
+		}
+
+		if closedAt.Valid {
+			instant := closedAt.Time.UTC()
+			closingStates[id] = &instant
+
+			continue
+		}
+
+		closingStates[id] = nil
+	}
+
+	if err := rows.Err(); err != nil {
+		mapped := mapReadError(err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", mapped)
+
+		return nil, mapped
+	}
+
+	// The cursor has to be released before the transaction ends, so the commit
+	// below is not racing an open result set.
+	if err := rows.Close(); err != nil {
+		mapped := mapReadError(err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to close rows", mapped)
+
+		return nil, mapped
+	}
+
+	if err := tx.Commit(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to close the read-only primary transaction", err)
+
+		return nil, fmt.Errorf("commit read-only primary transaction: %w", err)
+	}
+
+	span.SetAttributes(attribute.Int("db.rows_returned", len(closingStates)))
+
+	return closingStates, nil
 }
 
 // ListAccountsByIDs list Accounts entity from the database using the provided IDs.

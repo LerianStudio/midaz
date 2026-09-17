@@ -539,3 +539,88 @@ func TestIntegration_AccountClosingConditionalUpdateReportsTechnicalFailure(t *t
 	require.NoError(t, err, "a retry after a technical failure must be able to apply")
 	assert.False(t, retried.IsZero())
 }
+
+// TestIntegration_AccountClosingAuthoritativeReadReportsClosedAt covers the read
+// that decides whether a balance may still be admitted. It answers per account,
+// distinguishes an open account from a closed one, and reports nothing at all for
+// an identifier outside the scope — absence of a row is not a closing.
+func TestIntegration_AccountClosingAuthoritativeReadReportsClosedAt(t *testing.T) {
+	f := newClosingReadFixture(t)
+	ctx := t.Context()
+
+	stranger := uuid.Must(libCommons.GenerateUUIDv7())
+
+	states, err := f.repo.ListClosedAtByIDs(ctx, f.orgID, f.ledgerID, []uuid.UUID{f.openID, f.closedID, stranger})
+	require.NoError(t, err)
+
+	open, ok := states[f.openID]
+	require.True(t, ok, "the open account must be reported")
+	assert.Nil(t, open, "an open account carries no closing instant")
+
+	closed, ok := states[f.closedID]
+	require.True(t, ok, "the closed account must be reported")
+	require.NotNil(t, closed)
+	assert.True(t, f.closedAt.Equal(*closed), "the reported instant must be the persisted one")
+
+	_, ok = states[stranger]
+	assert.False(t, ok, "an account with no row in scope reports no state")
+
+	t.Run("an empty request reads nothing", func(t *testing.T) {
+		states, err := f.repo.ListClosedAtByIDs(ctx, f.orgID, f.ledgerID, nil)
+		require.NoError(t, err)
+		assert.Empty(t, states)
+	})
+
+	t.Run("another ledger sees none of it", func(t *testing.T) {
+		states, err := f.repo.ListClosedAtByIDs(ctx, f.orgID, uuid.Must(libCommons.GenerateUUIDv7()), []uuid.UUID{f.closedID})
+		require.NoError(t, err)
+		assert.Empty(t, states, "a closing is confined to its own scope")
+	})
+
+	t.Run("a closing committed a moment ago is visible", func(t *testing.T) {
+		instant, err := f.repo.CloseAccount(ctx, f.orgID, f.ledgerID, f.openID)
+		require.NoError(t, err)
+
+		states, err := f.repo.ListClosedAtByIDs(ctx, f.orgID, f.ledgerID, []uuid.UUID{f.openID})
+		require.NoError(t, err)
+
+		require.NotNil(t, states[f.openID], "the authoritative read must see the closing it follows")
+		assert.True(t, instant.Equal(*states[f.openID]))
+	})
+}
+
+// TestIntegration_AccountClosingExternalAccountStartsWithoutAnyProtection covers
+// AC-05 from the storage side: the external account the asset flow creates is born
+// open and owns no protection state of its own, and its ineligibility for closing
+// comes from its type, not from a marker.
+func TestIntegration_AccountClosingExternalAccountStartsWithoutAnyProtection(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+	repo := createRepository(t, container)
+	ctx := t.Context()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	externalID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// The asset flow writes the external account through the repository directly,
+	// which is exactly the path that installs no marker.
+	_, err := repo.Create(ctx, &mmodel.Account{
+		ID:             externalID.String(),
+		Name:           "External USD",
+		AssetCode:      "USD",
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Type:           "external",
+		Alias:          libPointers.String("@external/USD"),
+		Status:         mmodel.Status{Code: "ACTIVE"},
+	})
+	require.NoError(t, err)
+
+	states, err := repo.ListClosedAtByIDs(ctx, orgID, ledgerID, []uuid.UUID{externalID})
+	require.NoError(t, err)
+
+	closedAt, ok := states[externalID]
+	require.True(t, ok)
+	assert.Nil(t, closedAt, "an external account is created open and carries no closing instant")
+}
