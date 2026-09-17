@@ -126,9 +126,10 @@ func TestDirectV2FeeAccountingRoutes(t *testing.T) {
 		payerID := h.seedBalance(t, "@invalid-payer", "BRL", decimal.NewFromInt(1000), "deposit")
 		receiverID := h.seedBalance(t, "@invalid-receiver", "BRL", decimal.Zero, "deposit")
 		feeRevenueID := h.seedBalance(t, "@invalid-fee", "BRL", decimal.Zero, "deposit")
+		unlinkedFeeSource := h.seedDirectOperationRoute(t, "unlinked fee source", "source", "debit")
 
 		fee := flatFee("invalid_route_fee", "@invalid-fee", "5", false)
-		fee.routeFrom = routeString(uuid.New())
+		fee.routeFrom = routeString(unlinkedFeeSource)
 		fee.routeTo = routeString(routes.destinations[1])
 		h.seedPackage(t, packageSpec{label: "invalid_explicit_route", fees: []feeSpec{fee}})
 

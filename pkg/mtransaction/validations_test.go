@@ -53,6 +53,8 @@ func TestValidateSendSourceAndDistribute_RecordsMissingOperationRoutes(t *testin
 
 	response, err := ValidateSendSourceAndDistribute(context.Background(), transaction, pkgConstant.CREATED)
 	require.NoError(t, err)
+	require.Contains(t, response.OperationRoutesFrom, "@payer")
+	require.Contains(t, response.OperationRoutesTo, "@receiver")
 	assert.Equal(t, "", response.OperationRoutesFrom["@payer"])
 	assert.Equal(t, "", response.OperationRoutesTo["@receiver"])
 }
