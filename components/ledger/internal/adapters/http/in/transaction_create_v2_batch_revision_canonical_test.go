@@ -6,6 +6,7 @@ package in
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -59,8 +60,10 @@ func TestDecodeAndValidateRevisedAtomicTransactionBatchV2_CanonicalIdentityInclu
 	changedContent := first
 	changedContent.Amount = "2"
 	changedDebitOrder := first
+	changedDebitOrder.Debits = slices.Clone(first.Debits)
 	changedDebitOrder.Debits[0], changedDebitOrder.Debits[1] = changedDebitOrder.Debits[1], changedDebitOrder.Debits[0]
 	changedCreditOrder := second
+	changedCreditOrder.Credits = slices.Clone(second.Credits)
 	changedCreditOrder.Credits[0], changedCreditOrder.Credits[1] = changedCreditOrder.Credits[1], changedCreditOrder.Credits[0]
 
 	assert.NotEqual(t, baseline.requestFingerprint, changedAction.requestFingerprint)

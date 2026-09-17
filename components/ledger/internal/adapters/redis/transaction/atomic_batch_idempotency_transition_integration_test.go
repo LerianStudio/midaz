@@ -37,6 +37,10 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 	ctx := tmcore.ContextWithTenantID(t.Context(), tenantID)
 
 	t.Run("state progression starts TTL only at complete", func(t *testing.T) {
+		const replayTTL time.Duration = 60
+
+		replayRetention := replayTTL * time.Second
+		minimumReplayRetention := replayRetention - 5*time.Second
 		effectiveKey := "state-progression"
 		redisKey := transitionNamespacedBatchKey(t, ctx, organizationID, ledgerID, effectiveKey)
 		executionID := uuid.MustParse("00000000-0000-0000-0000-000000000020")
@@ -93,14 +97,14 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 			applied.TransactionIDs[0]: firstResponse,
 		}
 		staleResult, err := repository.FinalizeAtomicTransactionBatch(
-			ctx, organizationID, ledgerID, executionID, "stale-owner", responses, 60,
+			ctx, organizationID, ledgerID, executionID, "stale-owner", responses, replayTTL,
 		)
 		requireAtomicBatchFinalizationConflict(t, staleResult, err, AtomicTransactionBatchFinalizeStale)
 		require.Equal(t, time.Duration(-1), container.Client.TTL(ctx, redisKey).Val())
 		require.Equal(t, time.Duration(-1), container.Client.TTL(ctx, indexKey).Val())
 
 		finalized, err := repository.FinalizeAtomicTransactionBatch(
-			ctx, organizationID, ledgerID, executionID, claim.OwnerToken, responses, 60,
+			ctx, organizationID, ledgerID, executionID, claim.OwnerToken, responses, replayTTL,
 		)
 		require.NoError(t, err)
 		require.Equal(t, AtomicTransactionBatchFinalized, finalized.Outcome)
@@ -110,13 +114,14 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 			string(finalized.Response),
 		)
 		beforeRetry := container.Client.PTTL(ctx, redisKey).Val()
-		require.Positive(t, beforeRetry)
-		require.LessOrEqual(t, beforeRetry, 60*time.Second)
+		require.GreaterOrEqual(t, beforeRetry, minimumReplayRetention)
+		require.LessOrEqual(t, beforeRetry, replayRetention)
 		indexBeforeRetry := container.Client.PTTL(ctx, indexKey).Val()
-		require.Positive(t, indexBeforeRetry)
+		require.GreaterOrEqual(t, indexBeforeRetry, minimumReplayRetention)
+		require.LessOrEqual(t, indexBeforeRetry, replayRetention)
 
 		finalized, err = repository.FinalizeAtomicTransactionBatch(
-			ctx, organizationID, ledgerID, executionID, claim.OwnerToken, nil, 60,
+			ctx, organizationID, ledgerID, executionID, claim.OwnerToken, nil, replayTTL,
 		)
 		require.NoError(t, err)
 		require.Equal(t, AtomicTransactionBatchAlreadyComplete, finalized.Outcome)

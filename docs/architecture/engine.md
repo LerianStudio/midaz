@@ -1142,7 +1142,7 @@ The decoded HTTP body must also remain below 1 MiB and the request may contain a
 most 1,000 input legs. Passing those two input checks does not guarantee admission:
 fee expansion, balance companions, escaping, and duplicated recovery/projection
 context are checked against the derived limits above. The first transaction that
-crosses a derived boundary receives `0515` and no Tracer or accounting work begins.
+crosses a derived boundary receives `0516` and no Tracer or accounting work begins.
 
 The release gate lowered the original 200-posting/400-balance candidates. On the
 recorded production-adapter benchmark, that candidate reached 143.4 ms Lua p99.

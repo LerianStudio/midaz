@@ -5,7 +5,9 @@
 package http
 
 import (
+	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -64,6 +66,36 @@ func TestDecodeAndValidateWithDetails_PreservesDecodeAndValidatePrimary(t *testi
 	assert.Equal(t, legacyErr, detailedErr)
 	assert.Equal(t, []pkg.FieldError{{
 		Location: "items[0].alias",
+		Message:  "invalid value: expected type 'string', but got 'number'",
+	}}, details)
+}
+
+func TestDecodeAndValidateWithDetails_RecoversNestedArrayIndexFromRawBody(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{"items":[{"alias":"valid"},{"alias":123}]}`)
+
+	var input validationDetailsRequest
+	_, details, err := DecodeAndValidateWithDetails(raw, &input)
+	require.Error(t, err)
+	assert.Equal(t, []pkg.FieldError{{
+		Location: "items[1].alias",
+		Message:  "invalid value: expected type 'string', but got 'number'",
+	}}, details)
+}
+
+func TestUnmarshallingFieldDetails_RecoversOmittedSliceIndex(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{"items":[{"alias":"valid"},{"alias":123}]}`)
+	details := unmarshallingFieldDetails(raw, &json.UnmarshalTypeError{
+		Value: "number",
+		Type:  reflect.TypeFor[string](),
+		Field: "items.alias",
+	})
+
+	assert.Equal(t, []pkg.FieldError{{
+		Location: "items[1].alias",
 		Message:  "invalid value: expected type 'string', but got 'number'",
 	}}, details)
 }

@@ -97,7 +97,7 @@ by Lua.
 ## Validation and limits
 
 Structural validation examines all items before fees, persistent reads, Tracer, or
-accounting. Its batch-specific primary error is `0516` / HTTP 400, `Invalid
+accounting. Its batch-specific primary error is `0517` / HTTP 400, `Invalid
 Transaction Batch`. Its RFC 9457 `errors[]` details are ordered by physical,
 zero-based transaction index and then field location, each naming its logical order
 when that order is valid; they are capped at 100 entries with an explicit truncation
@@ -107,15 +107,15 @@ logical order.
 | Boundary | Effective limit | Failure |
 | --- | ---: | --- |
 | Decoded request body | smaller than 1 MiB | `0143`, HTTP 413 |
-| Transactions | 1 to `TRANSACTION_BATCH_MAX_SIZE` (default 10; absolute maximum 50) | `0513`, HTTP 400 |
-| Aggregate input debit/credit legs | 1,000 | `0514`, HTTP 400 |
-| Expanded postings after fees | 100 | `0515`, HTTP 422 |
-| Execution balances, including overdraft companions | 150 | `0515`, HTTP 422 |
-| Encoded completion plans | 256 KiB | `0515`, HTTP 422 |
-| Serialized accounting request | 256 KiB | `0515`, HTTP 422 |
-| Prepared execution representation | 1 MiB | `0515`, HTTP 422 |
-| Estimated recovery representation | 512 KiB | `0515`, HTTP 422 |
-| Cached terminal response representation | 1 MiB | `0515`, HTTP 422 |
+| Transactions | 1 to `TRANSACTION_BATCH_MAX_SIZE` (default 10; absolute maximum 50) | `0514`, HTTP 400 |
+| Aggregate input debit/credit legs | 1,000 | `0515`, HTTP 400 |
+| Expanded postings after fees | 100 | `0516`, HTTP 422 |
+| Execution balances, including overdraft companions | 150 | `0516`, HTTP 422 |
+| Encoded completion plans | 256 KiB | `0516`, HTTP 422 |
+| Serialized accounting request | 256 KiB | `0516`, HTTP 422 |
+| Prepared execution representation | 1 MiB | `0516`, HTTP 422 |
+| Estimated recovery representation | 512 KiB | `0516`, HTTP 422 |
+| Cached terminal response representation | 1 MiB | `0516`, HTTP 422 |
 
 The cardinality environment setting may only lower the accepted number of items;
 the work and byte ceilings are fixed code-owned safety boundaries. A request that

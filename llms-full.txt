@@ -201,11 +201,10 @@ no single base path. The onboarding resources below sit under `/v1`. The fee res
 ledger-scoped under `/v2` (see section 4.3), the CRM resources are under `/v2`, and the v2
 transaction surface (for example `POST /v2/transactions/direct`) is exposed under `/v2`.
 
-`POST /v2/transactions/batch` accepts an ordered wrapper of direct-v2
+`POST /v2/transactions/batch` accepts an ordered wrapper of direct and hold
 transactions and applies all monetary effects in one all-or-none accounting execution.
 It has no path or query parameters; every item must name the same organization and ledger
-through its legs. The success wrapper contains an ephemeral `batchId` plus transactions in
-the exact input order. `batchId` is not a persisted domain resource and has no query endpoint.
+through its legs. The success wrapper contains only transactions in the exact input order.
 See [the atomic batch contract](docs/api/atomic-transaction-batch.md).
 
 #### Onboarding Resources
@@ -266,7 +265,7 @@ See [the atomic batch contract](docs/api/atomic-transaction-batch.md).
 | POST | .../transactions/inflow | Create inflow transaction |
 | POST | .../transactions/outflow | Create outflow transaction |
 | POST | .../transactions/annotation | Create annotation transaction |
-| POST | /v2/transactions/batch | Create an ordered atomic batch of direct-v2 transactions |
+| POST | /v2/transactions/batch | Create an ordered atomic batch of direct and hold transactions |
 | POST | .../transactions/:tid/commit | Commit pending transaction |
 | POST | .../transactions/:tid/cancel | Cancel pending transaction |
 | POST | .../transactions/:tid/revert | Revert transaction |
@@ -512,9 +511,10 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0159` ErrTenantServiceSuspended — tenant service suspended
 - `0160` ErrTenantNotFound — tenant does not exist
 - `0161` ErrTenantServiceUnavailable — tenant resolution failed
-- `0513` ErrTransactionBatchCardinality — batch item count is outside the configured 1–50 bound (HTTP 400)
-- `0514` ErrTransactionBatchInputLegsLimitExceeded — aggregate debit/credit legs exceed 1,000 (HTTP 400)
-- `0515` ErrTransactionBatchBudgetExceeded — derived post-fee work or serialized state exceeds a fixed batch budget (HTTP 422)
+- `0514` ErrTransactionBatchCardinality — batch item count is outside the configured 1–50 bound (HTTP 400)
+- `0515` ErrTransactionBatchInputLegsLimitExceeded — aggregate debit/credit legs exceed 1,000 (HTTP 400)
+- `0516` ErrTransactionBatchBudgetExceeded — derived post-fee work or serialized state exceeds a fixed batch budget (HTTP 422)
+- `0517` ErrTransactionBatchStructuralValidation — one or more batch items fail structural validation (HTTP 400)
 
 #### Overdraft Feature Error Codes (0167–0176)
 - `0167` ErrOverdraftLimitExceeded — transaction exceeds overdraft limit
@@ -655,7 +655,7 @@ are set programmatically by `applyConfigDefaults()`.
 #### Transaction API limits
 | Variable | Default | Description |
 |----------|---------|-------------|
-| TRANSACTION_BATCH_MAX_SIZE | 50 | Maximum ordered transactions accepted by the atomic direct-v2 batch; valid range 1–50, startup fails outside it, and it cannot raise the fixed posting, balance, or byte budgets |
+| TRANSACTION_BATCH_MAX_SIZE | 10 | Maximum ordered transactions accepted by the atomic batch by default; configurable from 1 to the absolute maximum of 50, startup fails outside that range, and it cannot raise the fixed posting, balance, or byte budgets |
 
 #### PostgreSQL — Transaction (Replica)
 | Variable | Default | Description |

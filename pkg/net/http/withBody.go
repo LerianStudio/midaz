@@ -103,7 +103,7 @@ func DecodeAndValidate(bodyBytes []byte, s any) (map[string]any, error) {
 // aggregate several request-body failures before rendering them.
 func DecodeAndValidateWithDetails(bodyBytes []byte, s any) (map[string]any, []pkg.FieldError, error) {
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
-		return nil, unmarshallingFieldDetails(err), pkg.ValidateUnmarshallingError(err)
+		return nil, unmarshallingFieldDetails(bodyBytes, err), pkg.ValidateUnmarshallingError(err)
 	}
 
 	marshaled, err := json.Marshal(s)
@@ -114,7 +114,7 @@ func DecodeAndValidateWithDetails(bodyBytes []byte, s any) (map[string]any, []pk
 	var originalMap, marshaledMap map[string]any
 
 	if err := json.Unmarshal(bodyBytes, &originalMap); err != nil {
-		return nil, unmarshallingFieldDetails(err), pkg.ValidateUnmarshallingError(err)
+		return nil, unmarshallingFieldDetails(bodyBytes, err), pkg.ValidateUnmarshallingError(err)
 	}
 
 	if err := json.Unmarshal(marshaled, &marshaledMap); err != nil {
@@ -323,16 +323,75 @@ func sortFieldErrors(details []pkg.FieldError) {
 	})
 }
 
-func unmarshallingFieldDetails(err error) []pkg.FieldError {
+func unmarshallingFieldDetails(body []byte, err error) []pkg.FieldError {
 	var typeErr *json.UnmarshalTypeError
 	if !errors.As(err, &typeErr) || typeErr.Field == "" {
 		return nil
 	}
+	location := normalizeUnmarshalFieldPath(typeErr.Field)
+	if !strings.Contains(location, "[") {
+		if indexed, ok := indexedUnmarshalFieldPath(body, typeErr); ok {
+			location = indexed
+		}
+	}
 
 	return []pkg.FieldError{{
-		Location: normalizeUnmarshalFieldPath(typeErr.Field),
+		Location: location,
 		Message:  fmt.Sprintf("invalid value: expected type '%s', but got '%s'", typeErr.Type, typeErr.Value),
 	}}
+}
+
+func indexedUnmarshalFieldPath(body []byte, typeErr *json.UnmarshalTypeError) (string, bool) {
+	var raw any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return "", false
+	}
+
+	return findUnmarshalFieldPath(raw, strings.Split(typeErr.Field, "."), "", typeErr.Value)
+}
+
+func findUnmarshalFieldPath(value any, fields []string, path, valueType string) (string, bool) {
+	if len(fields) == 0 {
+		return path, unmarshalJSONValueType(value) == valueType
+	}
+
+	switch typed := value.(type) {
+	case map[string]any:
+		next, ok := typed[fields[0]]
+		if !ok {
+			return "", false
+		}
+
+		return findUnmarshalFieldPath(next, fields[1:], joinJSONFieldPath(path, fields[0]), valueType)
+	case []any:
+		for index, item := range typed {
+			itemPath := path + "[" + strconv.Itoa(index) + "]"
+			if indexed, ok := findUnmarshalFieldPath(item, fields, itemPath, valueType); ok {
+				return indexed, true
+			}
+		}
+	}
+
+	return "", false
+}
+
+func unmarshalJSONValueType(value any) string {
+	switch value.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return "bool"
+	case float64:
+		return "number"
+	case string:
+		return "string"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	default:
+		return ""
+	}
 }
 
 func normalizeUnmarshalFieldPath(field string) string {
