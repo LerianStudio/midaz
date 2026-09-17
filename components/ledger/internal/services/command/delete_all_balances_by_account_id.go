@@ -58,7 +58,12 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		return err
 	}
 
-	defer func() { admission.Release(ctx) }()
+	// writeIssued opens the window in which the ownership may no longer be given
+	// back on an unresolved failure: from the first persistence attempt onwards the
+	// outcome has to be proven, not assumed.
+	writeIssued := false
+
+	defer func() { resolveAccountAdmission(ctx, admission, writeIssued, err) }()
 
 	readCtx := readrouting.WithPrimaryRead(ctx)
 
@@ -131,6 +136,8 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 			return err
 		}
 	}
+
+	writeIssued = true
 
 	if err := uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, accountID, false); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to toggle balance transfers for account on repo", err)

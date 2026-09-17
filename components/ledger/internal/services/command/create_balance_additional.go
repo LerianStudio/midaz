@@ -106,9 +106,14 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	defer func() { admission.Release(ctx) }()
+	// writeIssued opens the window in which the ownership may no longer be given
+	// back on an unresolved failure: from the first persistence attempt onwards the
+	// outcome has to be proven, not assumed.
+	writeIssued := false
 
-	if err := uc.ensureAccountsNotClosed(ctx, organizationID, ledgerID, constant.ErrAccountIneligibility, accountID); err != nil {
+	defer func() { resolveAccountAdmission(ctx, admission, writeIssued, err) }()
+
+	if err := uc.ensureAccountsNotClosed(ctx, organizationID, ledgerID, constant.ErrAccountClosed, accountID); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Refused to create a balance on a closed account", err)
 		logger.Log(ctx, libLog.LevelWarn, "Refused to create a balance on a closed account", libLog.Err(err))
 
@@ -197,6 +202,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		syntheticCurrent := *additionalBalance
 		syntheticCurrent.Settings = nil
 
+		writeIssued = true
+
 		companion, oerr := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, &syntheticCurrent, cbi.Settings)
 		if oerr != nil {
 			return nil, oerr
@@ -204,6 +211,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 		overdraftCompanion = companion
 	}
+
+	writeIssued = true
 
 	created, err := uc.BalanceRepo.Create(ctx, additionalBalance)
 	if err != nil {

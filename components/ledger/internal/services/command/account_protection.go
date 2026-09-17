@@ -6,8 +6,10 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -47,4 +49,39 @@ func (uc *UseCase) ensureAccountsNotClosed(ctx context.Context, organizationID, 
 	}
 
 	return err
+}
+
+// resolveAccountAdmission ends the ownership according to what is known about the
+// write the operation issued.
+//
+// writeIssued tells the two situations apart: a failure raised before any write
+// left nothing behind, so the ownership goes back immediately. Once a write is on
+// the wire, only a server answer proves it did not land — PostgreSQL rejecting the
+// statement with a SQLSTATE. A cancelled context, an expired deadline or a lost
+// connection proves nothing: the commit may have happened with the answer lost on
+// the way back, and releasing then would let a closing validate a balance list
+// that is still changing. Such an outcome keeps the ownership for reconciliation.
+func resolveAccountAdmission(ctx context.Context, admission *accountprotection.Admission, writeIssued bool, err error) {
+	if err != nil && writeIssued && !sqlWriteOutcomeIsKnown(err) {
+		admission.MarkIndeterminate()
+	}
+
+	admission.Release(ctx)
+}
+
+// sqlWriteOutcomeIsKnown reports whether err proves the write did not land: a
+// SQLSTATE the server answered with, or a refusal this service decided on its own
+// — a uniqueness conflict is reported as the second after being recognized as the
+// first, and both mean nothing was persisted.
+func sqlWriteOutcomeIsKnown(err error) bool {
+	if err == nil {
+		return true
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr != nil {
+		return true
+	}
+
+	return pkg.IsBusinessError(err)
 }
