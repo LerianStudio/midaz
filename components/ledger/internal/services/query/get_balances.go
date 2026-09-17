@@ -278,6 +278,10 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 			return nil, err
 		}
 
+		if err := uc.protectBalanceSeedAdmission(ctx, span, organizationID, ledgerID, balancesDB); err != nil {
+			return nil, err
+		}
+
 		if err := uc.hydrateAccountBlocked(ctx, organizationID, ledgerID, balancesDB); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to hydrate account blocked state", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to hydrate account blocked state", libLog.Err(err))

@@ -44,6 +44,22 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		attribute.String("app.request.request_id", requestID),
 	)
 
+	// Deleting balances changes the very list a closing validates, so it takes the
+	// same per-account ownership the closing does. The delete markers below keep
+	// their own keys and semantics; this only serializes the two administrative
+	// operations against each other.
+	admission, admissionErr := uc.acquireAccountAdmission(ctx, organizationID, ledgerID, accountID)
+	if admissionErr != nil {
+		err = admissionErr
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to protect the account for balance deletion", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to protect the account for balance deletion", libLog.Err(err))
+
+		return err
+	}
+
+	defer func() { admission.Release(ctx) }()
+
 	readCtx := readrouting.WithPrimaryRead(ctx)
 
 	balances, err := uc.BalanceRepo.ListByAccountID(readCtx, organizationID, ledgerID, accountID)

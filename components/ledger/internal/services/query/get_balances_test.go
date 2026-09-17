@@ -151,6 +151,10 @@ func TestGetBalances(t *testing.T) {
 		Return(map[string]*operation.Operation{}, nil).
 		AnyTimes()
 
+	// Every cache miss also coordinates its seed with closing; these accounts were
+	// never closed, so the protection answers absence throughout.
+	expectOpenAccountAdmission(mockRedisRepo, mockAccountRepo)
+
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
@@ -390,6 +394,8 @@ func TestGetBalances_CacheProjection(t *testing.T) {
 				ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(map[string]*operation.Operation{}, nil).
 				AnyTimes()
+
+			expectOpenAccountAdmission(mockRedisRepo, mockAccountRepo)
 
 			internalKey := utils.BalanceInternalKey(organizationID, ledgerID, alias)
 			mockRedisRepo.EXPECT().Get(gomock.Any(), internalKey).Return(tt.cached, nil)
@@ -649,6 +655,8 @@ func TestGetBalances_BlockedHydration(t *testing.T) {
 			ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(map[string]*operation.Operation{}, nil).
 			AnyTimes()
+
+		expectOpenAccountAdmission(mockRedisRepo, mockAccountRepo)
 
 		return &UseCase{
 			BalanceRepo:          mockBalanceRepo,

@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"strings"
 	"testing"
+	"time"
 
 	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
 	"github.com/google/uuid"
@@ -188,6 +189,29 @@ func newPrimaryReadCapturingUseCase(ctrl *gomock.Controller) (*primaryReadCaptur
 
 			return out, nil
 		}).
+		AnyTimes()
+
+	// The miss path also coordinates the seed with closing; this harness is about read
+	// routing, so the account is open and owns no marker.
+	mockRedis.EXPECT().
+		GetAccountClosingMarker(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return("", false, nil).
+		AnyTimes()
+	mockRedis.EXPECT().
+		AcquireAccountAdminOwnership(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		AnyTimes()
+	mockRedis.EXPECT().
+		ReleaseAccountAdminOwnership(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
+		AnyTimes()
+	mockRedis.EXPECT().
+		GetAccountClosedMarker(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(time.Time{}, false, nil).
+		AnyTimes()
+	mockAccount.EXPECT().
+		ListClosedAtByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID]*time.Time{}, nil).
 		AnyTimes()
 
 	// The seed guard reads the operation trail on the miss path; this harness is about

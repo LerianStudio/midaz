@@ -114,6 +114,10 @@ func (m *seedGuardMocks) expectCacheMiss(aliases []string, rows []*mmodel.Balanc
 			Return([]*mmodel.Account{}, nil).
 			Times(1)
 	}
+
+	// The seed also coordinates with closing; these rows belong to an account that
+	// was never closed, so the protection answers absence throughout.
+	expectOpenAccountAdmission(m.redis, m.account)
 }
 
 // seedGuardRow is a balance row as PostgreSQL holds it, with identity fields set so a

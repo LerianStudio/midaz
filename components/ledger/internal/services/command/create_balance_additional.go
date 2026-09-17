@@ -94,6 +94,27 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, constant.EntityBalance)
 	}
 
+	// The ownership is taken before the account is inspected and held until the
+	// creation has a known SQL result, so a closing that starts meanwhile either
+	// waits for this creation or refuses it — never validates a balance list that
+	// is still growing. The companion provisioned below belongs to the same
+	// account, so it is already covered and asks for no ownership of its own.
+	admission, err := uc.acquireAccountAdmission(ctx, organizationID, ledgerID, accountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to protect the account for balance creation", err)
+
+		return nil, err
+	}
+
+	defer func() { admission.Release(ctx) }()
+
+	if err := uc.ensureAccountsNotClosed(ctx, organizationID, ledgerID, constant.ErrAccountIneligibility, accountID); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Refused to create a balance on a closed account", err)
+		logger.Log(ctx, libLog.LevelWarn, "Refused to create a balance on a closed account", libLog.Err(err))
+
+		return nil, err
+	}
+
 	existingBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, strings.ToLower(cbi.Key))
 	if err != nil {
 		var notFound pkg.EntityNotFoundError
