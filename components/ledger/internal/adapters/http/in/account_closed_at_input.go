@@ -30,7 +30,7 @@ var accountClosedAtInputKeys = []string{"closedAt", "closed_at"}
 func rejectAccountClosedAtInput(rawBody []byte) error {
 	var root map[string]json.RawMessage
 	if err := json.Unmarshal(rawBody, &root); err != nil {
-		return nil
+		return nil //nolint:nilerr // a body this guard cannot read is not its to refuse; the shared decoder reports it
 	}
 
 	unexpected := make(pkg.UnknownFields)
