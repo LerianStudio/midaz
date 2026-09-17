@@ -111,6 +111,66 @@ func TestPrepareExecutionPreservesTransactionAndSnapshotOrder(t *testing.T) {
 	require.Len(t, wire.Balances, 1)
 }
 
+func TestPrepareExecutionEnforcesTrustedCountBoundaries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("exact limits", func(t *testing.T) {
+		input, limits, resolved := validWireExecution()
+		limits.MaxTransactions, limits.MaxPostings, limits.MaxBalances = 1, 1, 1
+
+		prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+		require.NoError(t, err)
+		require.NotNil(t, prepared)
+	})
+
+	t.Run("transaction excess", func(t *testing.T) {
+		input, limits, resolved := validWireExecution()
+		expandWireTransactions(&input, 2)
+		limits.MaxTransactions = 1
+
+		prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+		require.ErrorContains(t, err, "transaction or balance limits")
+		require.Nil(t, prepared)
+	})
+
+	t.Run("posting excess", func(t *testing.T) {
+		input, limits, resolved := validWireExecution()
+		second := input.Execution.Transactions[0].Postings[0]
+		second.Ref = "debit-1"
+		input.Execution.Transactions[0].Postings = append(input.Execution.Transactions[0].Postings, second)
+		limits.MaxPostings = 1
+
+		prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+		require.ErrorContains(t, err, "posting limit")
+		require.Nil(t, prepared)
+	})
+
+	t.Run("balance excess", func(t *testing.T) {
+		input, limits, resolved := validWireExecution()
+		addWireBalance(&input, &resolved)
+		limits.MaxBalances = 1
+
+		prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+		require.ErrorContains(t, err, "transaction or balance limits")
+		require.Nil(t, prepared)
+	})
+}
+
+func TestPrepareExecutionAcceptsProductionTransactionMaximum(t *testing.T) {
+	t.Parallel()
+
+	input, _, resolved := validWireExecution()
+	expandWireTransactions(&input, maxTransactionsPerExecution)
+	prepared, err := prepareExecution(context.Background(), input, hardLimits(), resolved)
+	require.NoError(t, err)
+	require.NotNil(t, prepared)
+
+	expandWireTransactions(&input, maxTransactionsPerExecution+1)
+	prepared, err = prepareExecution(context.Background(), input, hardLimits(), resolved)
+	require.ErrorContains(t, err, "transaction or balance limits")
+	require.Nil(t, prepared)
+}
+
 func TestPrepareExecutionRejectsInvalidInputs(t *testing.T) {
 	t.Parallel()
 
@@ -433,6 +493,45 @@ func validWireExecutionWithGrant() (command.EngineExecution, Limits, resolvedExe
 	}
 
 	return input, limits, resolved
+}
+
+func expandWireTransactions(input *command.EngineExecution, count int) {
+	template := input.Execution.Transactions[0]
+	templateGuard := input.Guards[0]
+	templatePlan := input.CompletionPlans[0]
+	input.Execution.Transactions = make([]accounting.Transaction, 0, count)
+	input.Guards = make([]command.ExecutionGuard, 0, count)
+	input.CompletionPlans = make([]command.CompletionPlanRecord, 0, count)
+
+	for index := range count {
+		transactionID := uuid.NewSHA1(template.ID, []byte{byte(index), byte(index >> 8)})
+		transaction := template
+		transaction.ID = transactionID
+		transaction.Postings = append([]accounting.Posting(nil), template.Postings...)
+		guard := templateGuard
+		guard.TransactionID = transactionID
+		guard.NextToken = transactionID.String()
+		plan := templatePlan
+		plan.TransactionID = transactionID
+		plan.Payload = append(json.RawMessage(nil), templatePlan.Payload...)
+
+		input.Execution.Transactions = append(input.Execution.Transactions, transaction)
+		input.Guards = append(input.Guards, guard)
+		input.CompletionPlans = append(input.CompletionPlans, plan)
+	}
+}
+
+func addWireBalance(input *command.EngineExecution, resolved *resolvedExecutionKeys) {
+	balance := input.Execution.Balances[0]
+	balance.ID = uuid.MustParse("0d174365-c8e6-4557-aeb8-672e446fa9cc")
+	balance.AccountID = uuid.MustParse("8e081845-44c7-451a-970f-97673183819c")
+	balance.Alias = "@secondary"
+	balance.BalanceRef = balance.Alias + "#" + balance.Key
+	input.Execution.Balances = append(input.Execution.Balances, balance)
+	resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys(
+		"tenant:fixture:balance:{transactions}:" + input.Execution.OrganizationID.String() + ":" +
+			input.Execution.LedgerID.String() + ":" + balance.BalanceRef,
+	)
 }
 
 func TestWireArraysAreNotNull(t *testing.T) {

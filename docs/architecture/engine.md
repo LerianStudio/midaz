@@ -1095,7 +1095,7 @@ configuration:
 
 | Boundary | Hard ceiling |
 | --- | ---: |
-| Transactions per execution | 1 |
+| Transactions per execution | 50 |
 | Postings per execution | 10,000 |
 | Balance snapshots per execution | 20,000 |
 | Completion plan | 32 MiB |
@@ -1121,6 +1121,36 @@ wire with only two postings, two snapshots, and one projection context. This
 demonstrates why an 8 MiB ceiling is unsafe and leaves headroom under the fixed
 32 MiB and 64 MiB boundaries. Metrics must still be monitored for real workloads;
 future evidence may justify a reviewed code change.
+
+The atomic transaction batch applies a stricter command-level admission envelope
+before Tracer reservation or accounting. These are fixed release limits; only the
+transaction cardinality may be reduced operationally with
+`TRANSACTION_BATCH_MAX_SIZE`:
+
+| Atomic batch boundary | Effective ceiling |
+| --- | ---: |
+| Transactions | 10 by default; configurable up to 50 |
+| Expanded postings after fees | 100 |
+| Execution balance snapshots, including overdraft companions | 150 |
+| Sum of encoded completion plans | 256 KiB |
+| Serialized accounting request | 256 KiB |
+| Prepared execution representation | 1 MiB |
+| Estimated recovery representation | 512 KiB |
+| Cached terminal response representation | 1 MiB |
+
+The decoded HTTP body must also remain below 1 MiB and the request may contain at
+most 1,000 input legs. Passing those two input checks does not guarantee admission:
+fee expansion, balance companions, escaping, and duplicated recovery/projection
+context are checked against the derived limits above. The first transaction that
+crosses a derived boundary receives `0516` and no Tracer or accounting work begins.
+
+The release gate lowered the original 200-posting/400-balance candidates. On the
+recorded production-adapter benchmark, that candidate reached 143.4 ms Lua p99.
+The final 50-item, 100-posting, 150-balance maximum had a 77.1 ms median Lua p99;
+the worst of its six isolated/concurrent runs was 81.4 ms, leaving 18.6 ms below
+the 100 ms target. Reproduction commands, serialized sizes, host details, and
+evidence limitations are recorded in
+[`engine-report.md`](../performance/engine-report.md#atomic-transaction-batch-release-gate).
 
 The deterministic representative wire measurements are 2 postings/2 pool
 snapshots: 2,134 bytes; 10 postings/20 pool snapshots: 12,974 bytes; and 50

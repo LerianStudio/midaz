@@ -403,7 +403,7 @@ func TestTransactionV2ShareRequest_ResolvesPerLegAmounts(t *testing.T) {
 // TestTransactionV2LegRequest_AliasRequired proves the leg alias obligation is enforced twice, and that
 // the two guards are complementary rather than redundant. This case exercises the struct tag,
 // which is the guard every HTTP caller meets: it fires at the decode boundary, before Translate
-// runs. The imperative sibling in buildLeg is what covers a caller that builds the input in Go
+// runs. The imperative sibling in normalizeTransactionV2Leg is what covers a caller that builds the input in Go
 // and never runs it through the decoder (TestCreateTransactionV2Request_Translate's
 // "leg without an alias is rejected").
 //

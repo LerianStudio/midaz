@@ -56,6 +56,7 @@ func TestExecutionOutcome_ClosedLabels(t *testing.T) {
 	}
 
 	require.NotPanics(t, func() { recordExecutionOutcome(context.Background(), nil, nil, time.Second, nil) })
+	require.NotPanics(t, func() { recordAccountingDuration(context.Background(), nil, nil, time.Second) })
 }
 
 func TestAdapterExecute_CanceledRequestMetrics(t *testing.T) {

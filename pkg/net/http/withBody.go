@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -90,38 +91,59 @@ func (d *decoderHandler) FiberHandlerFunc(c fiber.Ctx) error {
 // exactly as the pre-refactor FiberHandlerFunc did — order is contract (an
 // unexpected field wins over a missing required one).
 func DecodeAndValidate(bodyBytes []byte, s any) (map[string]any, error) {
+	originalMap, _, err := DecodeAndValidateWithDetails(bodyBytes, s)
+
+	return originalMap, err
+}
+
+// DecodeAndValidateWithDetails runs the same strict pipeline as
+// DecodeAndValidate and additionally returns deterministic field diagnostics.
+// The primary error is byte-for-byte the same error DecodeAndValidate returns;
+// details are an ordered, platform-neutral projection for callers that need to
+// aggregate several request-body failures before rendering them.
+func DecodeAndValidateWithDetails(bodyBytes []byte, s any) (map[string]any, []pkg.FieldError, error) {
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
-		return nil, pkg.ValidateUnmarshallingError(err)
+		return nil, unmarshallingFieldDetails(bodyBytes, err), pkg.ValidateUnmarshallingError(err)
 	}
 
 	marshaled, err := json.Marshal(s)
 	if err != nil {
-		return nil, pkg.ValidateUnmarshallingError(err)
+		return nil, nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	var originalMap, marshaledMap map[string]any
 
 	if err := json.Unmarshal(bodyBytes, &originalMap); err != nil {
-		return nil, pkg.ValidateUnmarshallingError(err)
+		return nil, unmarshallingFieldDetails(bodyBytes, err), pkg.ValidateUnmarshallingError(err)
 	}
 
 	if err := json.Unmarshal(marshaled, &marshaledMap); err != nil {
-		return nil, pkg.ValidateUnmarshallingError(err)
+		return nil, nil, pkg.ValidateUnmarshallingError(err)
 	}
 
 	diffFields := FindUnknownFields(originalMap, marshaledMap)
-	if len(diffFields) > 0 {
-		return nil, pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
+
+	unknownDetails := findUnknownFieldDetails(originalMap, marshaledMap)
+	if len(diffFields) > 0 && len(unknownDetails) == 0 {
+		unknownDetails = unknownFieldDetailsFallback(diffFields)
 	}
 
-	if err := ValidateStruct(s); err != nil {
-		return nil, err
+	validationDetails, validationErr := validateStructWithDetails(s)
+	details := append(unknownDetails, validationDetails...)
+	sortFieldErrors(details)
+
+	if len(diffFields) > 0 {
+		return nil, details, pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, pkg.FieldValidations{}, "", diffFields)
+	}
+
+	if validationErr != nil {
+		return nil, details, validationErr
 	}
 
 	parseMetadata(s, originalMap)
 	populateNullFields(s, originalMap)
 
-	return originalMap, nil
+	return originalMap, nil, nil
 }
 
 // WithDecode wraps a handler function, providing it with a struct instance created using the provided constructor function.
@@ -185,25 +207,33 @@ func GetPayloadFromContext(c fiber.Ctx) any {
 // ValidateStruct validates a struct against defined validation rules, using the validator package.
 // Also validates null bytes in string fields for all types (structs and maps).
 func ValidateStruct(s any) error {
+	_, err := validateStructWithDetails(s)
+
+	return err
+}
+
+func validateStructWithDetails(s any) ([]pkg.FieldError, error) {
 	// Generic null-byte validation across all string fields in the payload
 	// This runs for all types including maps and structs
 	if violations := validateNoNullBytes(s); len(violations) > 0 {
+		details := fieldValidationDetails(violations)
+
 		// Check for JSON structure violations first (return specific business errors)
 		if _, hasDepthViolation := violations["_depth"]; hasDepthViolation {
-			return pkg.ValidateBusinessError(cn.ErrJSONNestingDepthExceeded, "request")
+			return details, pkg.ValidateBusinessError(cn.ErrJSONNestingDepthExceeded, "request")
 		}
 
 		if _, hasKeyCountViolation := violations["_keyCount"]; hasKeyCountViolation {
-			return pkg.ValidateBusinessError(cn.ErrJSONKeyCountExceeded, "request")
+			return details, pkg.ValidateBusinessError(cn.ErrJSONKeyCountExceeded, "request")
 		}
 
 		// For other violations (null bytes), return field validation error
-		return pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
+		return details, pkg.ValidateBadRequestFieldsError(pkg.FieldValidations{}, violations, "", map[string]any{})
 	}
 
 	v, trans, err := newValidator()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	k := reflect.ValueOf(s).Kind()
@@ -213,38 +243,180 @@ func ValidateStruct(s any) error {
 
 	// Struct-specific validation using go-playground/validator
 	if k != reflect.Struct {
-		return nil
+		return nil, nil
 	}
 
 	err = v.Struct(s)
 	if err != nil {
-		for _, fieldError := range err.(validator.ValidationErrors) {
-			switch fieldError.Tag() {
-			case "keymax":
-				return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
-			case "valuemax":
-				return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
-			case "nonested":
-				return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
-			case "noreservedkey":
-				return pkg.ValidateBusinessError(cn.ErrReservedMetadataKey, "", fieldError.Value())
-			case "singletransactiontype":
-				return pkg.ValidateTransactionTypeError("", cn.TransactionTypeOptionsDetailed, fieldError.Translate(trans))
-			case "invalidaliascharacters":
-				return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "")
-			case "invalidaccounttype":
-				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
-			case "accounttypedirection":
-				return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeDirection, "", fieldError.Translate(trans))
+		validationErrors := err.(validator.ValidationErrors)
+		details := validatorFieldDetails(validationErrors, trans)
+
+		for _, fieldError := range validationErrors {
+			if businessErr := validatorBusinessError(fieldError, trans); businessErr != nil {
+				return details, businessErr
 			}
 		}
 
-		errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
+		errPtr := malformedRequestErr(validationErrors, trans)
 
-		return &errPtr
+		return details, &errPtr
 	}
 
-	return nil
+	return nil, nil
+}
+
+func validatorBusinessError(fieldError validator.FieldError, trans ut.Translator) error {
+	switch fieldError.Tag() {
+	case "keymax":
+		return pkg.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+	case "valuemax":
+		return pkg.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
+	case "nonested":
+		return pkg.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
+	case "noreservedkey":
+		return pkg.ValidateBusinessError(cn.ErrReservedMetadataKey, "", fieldError.Value())
+	case "singletransactiontype":
+		return pkg.ValidateTransactionTypeError("", cn.TransactionTypeOptionsDetailed, fieldError.Translate(trans))
+	case "invalidaliascharacters":
+		return pkg.ValidateBusinessError(cn.ErrAccountAliasInvalid, "")
+	case "invalidaccounttype":
+		return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeKeyValue, "", fieldError.Translate(trans))
+	case "accounttypedirection":
+		return pkg.ValidateBusinessError(cn.ErrInvalidAccountTypeDirection, "", fieldError.Translate(trans))
+	default:
+		return nil
+	}
+}
+
+func validatorFieldDetails(validationErrors validator.ValidationErrors, trans ut.Translator) []pkg.FieldError {
+	details := make([]pkg.FieldError, 0, len(validationErrors))
+	for _, fieldError := range validationErrors {
+		details = append(details, pkg.FieldError{
+			Location: formatErrorFieldName(fieldError.Namespace()),
+			Message:  fieldError.Translate(trans),
+		})
+	}
+
+	sortFieldErrors(details)
+
+	return details
+}
+
+func fieldValidationDetails(fields pkg.FieldValidations) []pkg.FieldError {
+	details := make([]pkg.FieldError, 0, len(fields))
+	for field, message := range fields {
+		details = append(details, pkg.FieldError{Location: field, Message: message})
+	}
+
+	sortFieldErrors(details)
+
+	return details
+}
+
+func sortFieldErrors(details []pkg.FieldError) {
+	sort.SliceStable(details, func(i, j int) bool {
+		if details[i].Location == details[j].Location {
+			return details[i].Message < details[j].Message
+		}
+
+		return details[i].Location < details[j].Location
+	})
+}
+
+func unmarshallingFieldDetails(body []byte, err error) []pkg.FieldError {
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) || typeErr.Field == "" {
+		return nil
+	}
+
+	location := normalizeUnmarshalFieldPath(typeErr.Field)
+	if !strings.Contains(location, "[") {
+		if indexed, ok := indexedUnmarshalFieldPath(body, typeErr); ok {
+			location = indexed
+		}
+	}
+
+	return []pkg.FieldError{{
+		Location: location,
+		Message:  fmt.Sprintf("invalid value: expected type '%s', but got '%s'", typeErr.Type, typeErr.Value),
+	}}
+}
+
+func indexedUnmarshalFieldPath(body []byte, typeErr *json.UnmarshalTypeError) (string, bool) {
+	var raw any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return "", false
+	}
+
+	return findUnmarshalFieldPath(raw, strings.Split(typeErr.Field, "."), "", typeErr.Value)
+}
+
+func findUnmarshalFieldPath(value any, fields []string, path, valueType string) (string, bool) {
+	if len(fields) == 0 {
+		return path, unmarshalJSONValueType(value) == valueType
+	}
+
+	switch typed := value.(type) {
+	case map[string]any:
+		next, ok := typed[fields[0]]
+		if !ok {
+			return "", false
+		}
+
+		return findUnmarshalFieldPath(next, fields[1:], joinJSONFieldPath(path, fields[0]), valueType)
+	case []any:
+		for index, item := range typed {
+			itemPath := path + "[" + strconv.Itoa(index) + "]"
+			if indexed, ok := findUnmarshalFieldPath(item, fields, itemPath, valueType); ok {
+				return indexed, true
+			}
+		}
+	}
+
+	return "", false
+}
+
+func unmarshalJSONValueType(value any) string {
+	switch value.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return "bool"
+	case float64:
+		return "number"
+	case string:
+		return "string"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	default:
+		return ""
+	}
+}
+
+func normalizeUnmarshalFieldPath(field string) string {
+	parts := strings.Split(field, ".")
+
+	var normalized strings.Builder
+
+	for index, part := range parts {
+		if _, err := strconv.Atoi(part); err == nil {
+			normalized.WriteString("[")
+			normalized.WriteString(part)
+			normalized.WriteString("]")
+
+			continue
+		}
+
+		if index > 0 {
+			normalized.WriteString(".")
+		}
+
+		normalized.WriteString(part)
+	}
+
+	return normalized.String()
 }
 
 // ParseUUIDPathParameters globally, considering all path parameters are UUIDs and adding them to the span attributes
@@ -958,6 +1130,143 @@ func FindUnknownFields(original, marshaled map[string]any) map[string]any {
 	}
 
 	return diffFields
+}
+
+// findUnknownFieldDetails reports the same unknown-field differences as
+// FindUnknownFields while retaining exact array indexes and deterministic path
+// order. FindUnknownFields remains the authority for whether the singular
+// request is rejected; this projection exists for ordered aggregate responses.
+func findUnknownFieldDetails(original, marshaled map[string]any) []pkg.FieldError {
+	details := make([]pkg.FieldError, 0)
+	collectUnknownFieldDetails(original, marshaled, "", &details)
+	sortFieldErrors(details)
+
+	return details
+}
+
+func collectUnknownFieldDetails(original, marshaled any, path string, details *[]pkg.FieldError) {
+	switch originalValue := original.(type) {
+	case map[string]any:
+		marshaledMap, ok := marshaled.(map[string]any)
+		if !ok {
+			appendUnknownFieldDetail(path, details)
+
+			return
+		}
+
+		keys := make([]string, 0, len(originalValue))
+		for key := range originalValue {
+			keys = append(keys, key)
+		}
+
+		sort.Strings(keys)
+
+		for _, key := range keys {
+			value := originalValue[key]
+			fieldPath := joinJSONFieldPath(path, key)
+
+			marshaledValue, exists := marshaledMap[key]
+			if !exists {
+				if ignoreMissingUnknownValue(value) {
+					continue
+				}
+
+				appendUnknownFieldDetail(fieldPath, details)
+
+				continue
+			}
+
+			collectUnknownFieldDetails(value, marshaledValue, fieldPath, details)
+		}
+
+	case []any:
+		marshaledArray, ok := marshaled.([]any)
+		if !ok {
+			appendUnknownFieldDetail(path, details)
+
+			return
+		}
+
+		for index, value := range originalValue {
+			itemPath := path + "[" + strconv.Itoa(index) + "]"
+			if index >= len(marshaledArray) {
+				appendUnknownFieldDetail(itemPath, details)
+
+				continue
+			}
+
+			collectUnknownFieldDetails(value, marshaledArray[index], itemPath, details)
+		}
+
+	case string:
+		if unknownStringValuesEqual(originalValue, marshaled) {
+			return
+		}
+
+		appendUnknownFieldDetail(path, details)
+
+	default:
+		if !reflect.DeepEqual(original, marshaled) {
+			appendUnknownFieldDetail(path, details)
+		}
+	}
+}
+
+func ignoreMissingUnknownValue(value any) bool {
+	if value == nil {
+		return true
+	}
+
+	if number, ok := value.(float64); ok && number == 0 {
+		return true
+	}
+
+	if boolean, ok := value.(bool); ok && !boolean {
+		return true
+	}
+
+	return false
+}
+
+func unknownStringValuesEqual(original string, marshaled any) bool {
+	if reflect.DeepEqual(original, marshaled) {
+		return true
+	}
+
+	if isStringNumeric(original) && isDecimalEqual(original, marshaled) {
+		return true
+	}
+
+	marshaledString, ok := marshaled.(string)
+
+	return ok && areDatesEqual(original, marshaledString)
+}
+
+func appendUnknownFieldDetail(path string, details *[]pkg.FieldError) {
+	if path == "" {
+		return
+	}
+
+	*details = append(*details, pkg.FieldError{Location: path, Message: "unexpected field"})
+}
+
+func joinJSONFieldPath(prefix, field string) string {
+	if prefix == "" {
+		return field
+	}
+
+	return prefix + "." + field
+}
+
+func unknownFieldDetailsFallback(fields pkg.UnknownFields) []pkg.FieldError {
+	details := make([]pkg.FieldError, 0, len(fields))
+	for field := range fields {
+		details = append(details, pkg.FieldError{Location: field, Message: "unexpected field"})
+	}
+
+	sortFieldErrors(details)
+
+	return details
 }
 
 func isDecimalEqual(a, b any) bool {

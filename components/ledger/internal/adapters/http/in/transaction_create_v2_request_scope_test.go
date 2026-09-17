@@ -421,7 +421,7 @@ func TestCreateTransactionV2Request_DecodeAndTranslateResolvesScope(t *testing.T
 // accounts: that request is a scope disagreement, not a transaction paying itself. Answering it
 // as ambiguity would tell the caller its debit and credit are one account when they are not.
 //
-// This is Translate's own check (resolveScope), so it fires before the funnel runs — unlike the
+// This is Translate's own check (resolveTransactionV2Scope), so it fires before the funnel runs — unlike the
 // same-ledger case, which Translate cannot decide on its own; see
 // TestCreateTransactionV2Request_SameAliasIsAmbiguousAtTheFunnel.
 func TestCreateTransactionV2Request_SameAliasAcrossLedgersIsNotOneAccount(t *testing.T) {
