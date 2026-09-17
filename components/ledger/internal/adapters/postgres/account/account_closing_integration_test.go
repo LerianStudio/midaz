@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -346,4 +347,158 @@ func TestIntegration_AccountClosingUpdatePreservesClosedAt(t *testing.T) {
 	_, err := f.repo.Update(ctx, f.orgID, f.ledgerID, nil, f.openID, &mmodel.Account{Name: "Still Open", ClosedAt: &f.closedAt})
 	require.NoError(t, err)
 	assert.False(t, readClosedAt(t, f.db, f.openID).Valid, "a PATCH must never close an open account")
+}
+
+// TestIntegration_AccountClosingConditionalUpdateRecordsTheInstant closes an
+// open account and asserts the instant comes from the database and lands on the
+// row, without disturbing any other column.
+func TestIntegration_AccountClosingConditionalUpdateRecordsTheInstant(t *testing.T) {
+	f := newClosingReadFixture(t)
+	ctx := t.Context()
+
+	before, err := f.repo.Find(ctx, f.orgID, f.ledgerID, nil, f.openID, mmodel.HolderOnV2)
+	require.NoError(t, err)
+
+	closedAt, err := f.repo.CloseAccount(ctx, f.orgID, f.ledgerID, f.openID)
+	require.NoError(t, err)
+	require.False(t, closedAt.IsZero(), "the close must return the instant the database generated")
+
+	stored := readClosedAt(t, f.db, f.openID)
+	require.True(t, stored.Valid)
+	assert.True(t, closedAt.Equal(stored.Time), "the returned instant must be the persisted one")
+
+	after, err := f.repo.Find(ctx, f.orgID, f.ledgerID, nil, f.openID, mmodel.HolderOnV2)
+	require.NoError(t, err)
+	require.NotNil(t, after.ClosedAt)
+	assert.True(t, closedAt.Equal(*after.ClosedAt), "the read-back must report the same instant")
+
+	assert.Equal(t, before.Name, after.Name, "closing must not touch the registry fields")
+	assert.Equal(t, before.Status, after.Status)
+	assert.Equal(t, before.Blocked, after.Blocked)
+	assert.Equal(t, before.UpdatedAt, after.UpdatedAt, "closing writes closed_at alone")
+}
+
+// TestIntegration_AccountClosingConditionalUpdateIsSingleShot repeats the close
+// over a confirmed closing. The second attempt must not apply, and the original
+// instant must survive it.
+func TestIntegration_AccountClosingConditionalUpdateIsSingleShot(t *testing.T) {
+	f := newClosingReadFixture(t)
+	ctx := t.Context()
+
+	first, err := f.repo.CloseAccount(ctx, f.orgID, f.ledgerID, f.openID)
+	require.NoError(t, err)
+
+	_, err = f.repo.CloseAccount(ctx, f.orgID, f.ledgerID, f.openID)
+	require.ErrorIs(t, err, ErrAccountCloseNotApplied, "a repeat must not apply")
+
+	stored := readClosedAt(t, f.db, f.openID)
+	require.True(t, stored.Valid)
+	assert.True(t, first.Equal(stored.Time), "the repeat must not overwrite the original instant")
+}
+
+// TestIntegration_AccountClosingConditionalUpdateResolvesADispute runs several
+// closings of the same account at once. Exactly one applies; every loser reports
+// the not-applied sentinel and none of them moves the instant.
+func TestIntegration_AccountClosingConditionalUpdateResolvesADispute(t *testing.T) {
+	f := newClosingReadFixture(t)
+	ctx := t.Context()
+
+	const contenders = 8
+
+	start := make(chan struct{})
+	results := make(chan struct {
+		closedAt time.Time
+		err      error
+	}, contenders)
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < contenders; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			<-start
+
+			closedAt, err := f.repo.CloseAccount(ctx, f.orgID, f.ledgerID, f.openID)
+			results <- struct {
+				closedAt time.Time
+				err      error
+			}{closedAt: closedAt, err: err}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var (
+		winners int
+		winner  time.Time
+	)
+
+	for res := range results {
+		if res.err == nil {
+			winners++
+			winner = res.closedAt
+
+			continue
+		}
+
+		require.ErrorIs(t, res.err, ErrAccountCloseNotApplied, "a loser must report the not-applied sentinel")
+	}
+
+	require.Equal(t, 1, winners, "exactly one closing may apply")
+
+	stored := readClosedAt(t, f.db, f.openID)
+	require.True(t, stored.Valid)
+	assert.True(t, winner.Equal(stored.Time), "the persisted instant must be the winner's")
+}
+
+// TestIntegration_AccountClosingConditionalUpdateRefusesOutOfScope asserts the
+// condition covers the whole scope and the row's lifecycle: a wrong
+// organization, a wrong ledger, an unknown id, a soft-deleted account and an
+// already-closed one all match nothing, and none of them is distinguishable from
+// the others by the result alone — the caller has to read authoritatively.
+func TestIntegration_AccountClosingConditionalUpdateRefusesOutOfScope(t *testing.T) {
+	f := newClosingReadFixture(t)
+	ctx := t.Context()
+
+	otherOrgID := pgtestutil.CreateTestOrganization(t, f.db)
+	otherLedgerID := pgtestutil.CreateTestLedger(t, f.db, otherOrgID)
+
+	deletedID := uuid.Must(libCommons.GenerateUUIDv7())
+	insertAccountRow(t, f.db, f.orgID, f.ledgerID, deletedID, "@closing-deleted", time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
+
+	_, err := f.db.Exec(`UPDATE account SET deleted_at = now() WHERE id = $1`, deletedID)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		orgID     uuid.UUID
+		ledgerID  uuid.UUID
+		accountID uuid.UUID
+	}{
+		{name: "unknown account", orgID: f.orgID, ledgerID: f.ledgerID, accountID: uuid.Must(libCommons.GenerateUUIDv7())},
+		{name: "another organization", orgID: otherOrgID, ledgerID: f.ledgerID, accountID: f.openID},
+		{name: "another ledger", orgID: f.orgID, ledgerID: otherLedgerID, accountID: f.openID},
+		{name: "soft-deleted account", orgID: f.orgID, ledgerID: f.ledgerID, accountID: deletedID},
+		{name: "already-closed account", orgID: f.orgID, ledgerID: f.ledgerID, accountID: f.closedID},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := f.repo.CloseAccount(ctx, tc.orgID, tc.ledgerID, tc.accountID)
+			require.ErrorIs(t, err, ErrAccountCloseNotApplied)
+		})
+	}
+
+	assert.False(t, readClosedAt(t, f.db, f.openID).Valid, "a refused close must leave the account open")
+	assert.False(t, readClosedAt(t, f.db, deletedID).Valid, "a soft-deleted account must not acquire an instant")
+
+	closed := readClosedAt(t, f.db, f.closedID)
+	require.True(t, closed.Valid)
+	assert.True(t, f.closedAt.Equal(closed.Time), "an already-closed account keeps its original instant")
 }

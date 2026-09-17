@@ -85,6 +85,13 @@ func accountColumns(withHolder bool) []string {
 	}
 }
 
+// ErrAccountCloseNotApplied reports that a conditional close matched no row: the
+// account does not exist in the scope, is soft-deleted, or is already closed. The
+// three are indistinguishable from the statement's result alone, so the caller
+// resolves which one it is with an authoritative read — a zero-row result is NOT
+// evidence that the account is absent.
+var ErrAccountCloseNotApplied = errors.New("errAccountCloseNotApplied")
+
 // Repository provides an interface for operations related to account entities.
 // It defines methods for creating, retrieving, updating, and deleting accounts in the database.
 //
@@ -109,6 +116,16 @@ type Repository interface {
 	ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error)
 	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error)
 	Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error
+	// CloseAccount records the closing instant of one live, open account and
+	// returns the instant the database generated. The write is conditional on
+	// deleted_at IS NULL AND closed_at IS NULL, so concurrent attempts resolve
+	// themselves: at most one applies, and a repeat over a confirmed closing
+	// never overwrites the original instant. It is the only write that touches
+	// closed_at.
+	//
+	// A statement that matched no row returns ErrAccountCloseNotApplied, which
+	// does not say WHICH of absent, deleted or already-closed it was.
+	CloseAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (time.Time, error)
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
 	// ListExternalAccountsByAssetCode returns the live (not soft-deleted) accounts of
@@ -1167,6 +1184,77 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	}
 
 	return nil
+}
+
+// CloseAccount records the closing instant of one live, open account.
+func (r *AccountPostgreSQLRepository) CloseAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (time.Time, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.close_account")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", id.String()),
+	)
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return time.Time{}, err
+	}
+
+	// now() is the database's, not the process's: the instant has to come from the
+	// same clock that serializes the write, so two racing closings cannot disagree
+	// about which one landed first.
+	builder := squirrel.Update(r.tableName).
+		Set("closed_at", squirrel.Expr("now()")).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("closed_at IS NULL")).
+		Suffix("RETURNING closed_at").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := builder.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return time.Time{}, err
+	}
+
+	var closedAt sql.NullTime
+
+	if err := db.QueryRowContext(ctx, query, args...).Scan(&closedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetAttributes(attribute.Int64("db.rows_affected", 0))
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Conditional close matched no row", ErrAccountCloseNotApplied)
+
+			return time.Time{}, ErrAccountCloseNotApplied
+		}
+
+		mapped := mapReadError(err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to execute close query", mapped)
+
+		return time.Time{}, mapped
+	}
+
+	if !closedAt.Valid {
+		err := fmt.Errorf("close of account %s returned a null closing instant", id)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to read the closing instant", err)
+
+		return time.Time{}, err
+	}
+
+	span.SetAttributes(attribute.Int64("db.rows_affected", 1))
+
+	return closedAt.Time, nil
 }
 
 // ListAccountsByIDs list Accounts entity from the database using the provided IDs.
