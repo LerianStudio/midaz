@@ -142,6 +142,14 @@ type Repository interface {
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	CountByFilters(ctx context.Context, organizationID, ledgerID uuid.UUID, filter CountFilter) (int64, error)
+	// HasPendingByAccount reports whether a PENDING transaction involves the
+	// account as source or destination, reading that participation from the
+	// operation rows of the same scope.
+	//
+	// It answers what PostgreSQL can see: a pending execution whose rows are not
+	// projected yet is invisible to it, so a false answer is not proof on its own
+	// that the account has no pending work.
+	HasPendingByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (bool, error)
 }
 
 // transactionColumns is derived from transactionColumnList for use with squirrel.Select.
