@@ -27,7 +27,9 @@ import (
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -1305,23 +1307,31 @@ func (r *AccountPostgreSQLRepository) ListClosedAtByIDs(ctx context.Context, org
 		return nil, err
 	}
 
-	// A read-only transaction is what routes the read to the primary: the resolver
-	// sends plain queries to a replica, and replica lag here would read an account
-	// that was closed a moment ago as still open.
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to open the read-only primary transaction", err)
+	// The primary is not a routing preference here but a correctness requirement:
+	// an account closed a moment ago must look closed to whoever decides whether a
+	// balance may still be admitted, and replica lag would report it as open. The
+	// intent is therefore stamped on the read context instead of being inherited
+	// from the caller, and the seam is asked to honor it unconditionally.
+	readCtx := readrouting.WithPrimaryRead(ctx)
 
-		return nil, fmt.Errorf("open read-only primary transaction: %w", err)
+	reader, release, _, err := readseam.AcquireReadFrom(readCtx, db, true)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to acquire the primary read", err)
+
+		return nil, err
 	}
 
 	defer func() {
-		// A read-only transaction wrote nothing, so the rollback only releases the
-		// connection. It is a no-op after the commit below.
-		_ = tx.Rollback()
+		if release == nil {
+			return
+		}
+
+		if releaseErr := release(); releaseErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to release the primary read", releaseErr)
+		}
 	}()
 
-	rows, err := tx.QueryContext(ctx, query, args...)
+	rows, err := reader.QueryContext(readCtx, query, args...)
 	if err != nil {
 		mapped := mapReadError(err)
 
@@ -1364,20 +1374,14 @@ func (r *AccountPostgreSQLRepository) ListClosedAtByIDs(ctx context.Context, org
 		return nil, mapped
 	}
 
-	// The cursor has to be released before the transaction ends, so the commit
-	// below is not racing an open result set.
+	// The cursor has to be released before the deferred release finalizes the
+	// read-only transaction, so that finalization is not racing an open result set.
 	if err := rows.Close(); err != nil {
 		mapped := mapReadError(err)
 
 		libOpentelemetry.HandleSpanError(span, "Failed to close rows", mapped)
 
 		return nil, mapped
-	}
-
-	if err := tx.Commit(); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to close the read-only primary transaction", err)
-
-		return nil, fmt.Errorf("commit read-only primary transaction: %w", err)
 	}
 
 	span.SetAttributes(attribute.Int("db.rows_returned", len(closingStates)))
