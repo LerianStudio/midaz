@@ -556,6 +556,46 @@ var (
 	// snapshot is not a decimal. The request is refused rather than served, because
 	// feeding the engine the stale row is how a balance silently forks.
 	ErrBalanceSeedRebuildInconsistent = errors.New("0513")
+	// ErrAccountAlreadyClosed is returned when a close is requested for an account
+	// that already carries a closing instant. Closing is single-shot: the repeat is
+	// refused rather than treated as a no-op success, so a caller cannot read
+	// "closed just now" out of a response that describes a closing someone else
+	// performed. The recorded instant is preserved.
+	ErrAccountAlreadyClosed = errors.New("0514")
+	// ErrAccountClosingInProgress is returned when another administrative attempt
+	// already holds the account: a closing is being decided or finalized. Distinct
+	// from ErrAccountAlreadyClosed (0514), which reports a transition that already
+	// landed; this one reports a decision still in flight, so the account may end
+	// up either open or closed.
+	ErrAccountClosingInProgress = errors.New("0515")
+	// ErrAccountBalanceNotZero is returned when a close finds any balance of the
+	// account whose Available, OnHold or OverdraftUsed is not exactly zero. The
+	// three are checked individually and per balance: components are never
+	// compensated against each other, residuals are never rounded away, and an
+	// unused overdraft limit is not a debt.
+	ErrAccountBalanceNotZero = errors.New("0516")
+	// ErrAccountHasPendingTransactions is returned when a close finds a pending
+	// transaction involving the account as source or destination. Distinct from
+	// ErrAccountBalanceNotZero (0516): the monetary components can all read zero
+	// while a two-phase transaction is still able to move them.
+	ErrAccountHasPendingTransactions = errors.New("0517")
+	// ErrAccountClosingPersistencePending is returned when a close cannot prove
+	// that earlier work finished: an execution is still in completion, or the
+	// persisted balances have not caught up with the live ones. The refusal is
+	// temporary and the caller may retry once the existing workers conclude;
+	// nothing is reapplied and no evidence is discarded.
+	ErrAccountClosingPersistencePending = errors.New("0518")
+	// ErrAccountClosed is returned when a monetary movement targets a closed
+	// account. It is independent of ErrAccountBlocked (0502): unblocking, or
+	// presenting a valid block exception, does not reopen a closed account.
+	ErrAccountClosed = errors.New("0519")
+	// ErrAccountClosingProtectionIndeterminate is returned when the account
+	// protection controls cannot be read or a dependency they rely on is
+	// unavailable, so neither admission nor closing can be decided. The absence of
+	// the markers is a normal, distinct state; this code reports that the state
+	// could not be established at all, and the message stays sanitized because the
+	// cause is internal.
+	ErrAccountClosingProtectionIndeterminate = errors.New("0520")
 )
 
 // List of CRM domain errors.
