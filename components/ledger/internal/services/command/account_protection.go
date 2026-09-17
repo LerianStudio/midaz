@@ -11,9 +11,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
 // accountProtectionGuard builds the guard over the repositories this use case
@@ -67,6 +69,59 @@ func resolveAccountAdmission(ctx context.Context, admission *accountprotection.A
 	}
 
 	admission.Release(ctx)
+}
+
+// resolveEngineAdmissions ends the ownerships an execution was held for according
+// to what its answer proves.
+//
+// A success, a request never submitted and a refusal the engine decided before its
+// commit phase all prove the accounting state did not change, so the ownership goes
+// back. Anything else — a timeout, a lost connection, a malformed response, a
+// failure after writes may have started — leaves an execution whose outcome is
+// unknown: the ownership stays for reconciliation, because releasing it would let a
+// closing validate a balance list a live execution can still move.
+func resolveEngineAdmissions(admissions *accountprotection.Sink, request accounting.Execution, outcome EngineExecutionOutcome, err error) {
+	if err == nil || !outcome.Executed || confirmedPrecommitEngineFailure(request, err) {
+		return
+	}
+
+	admissions.MarkIndeterminate()
+}
+
+// ensureBalanceAccountsAvailable refuses a compatibility movement whose balances
+// belong to an account the cache marks as closing or closed.
+//
+// It is the availability check of the paths that do not reach the engine, where
+// the same controls are read inside the atomic execution. Markers only: no
+// ownership is taken and no account row is read, so a warm load keeps costing no
+// query. The cache-miss admission of those same balances is protected by the load
+// itself.
+func (uc *UseCase) ensureBalanceAccountsAvailable(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+	if len(balances) == 0 {
+		return nil
+	}
+
+	accountIDs := make([]uuid.UUID, 0, len(balances))
+
+	for _, balance := range balances {
+		accountID, err := uuid.Parse(balance.AccountID)
+		if err != nil {
+			return err
+		}
+
+		accountIDs = append(accountIDs, accountID)
+	}
+
+	err := uc.accountProtectionGuard().EnsureAvailable(ctx, organizationID, ledgerID, accountIDs)
+	if err == nil {
+		return nil
+	}
+
+	if _, closed := accountprotection.AsClosedAccountError(err); closed {
+		return pkg.ValidateBusinessError(constant.ErrAccountClosed, constant.EntityAccount)
+	}
+
+	return err
 }
 
 // sqlWriteOutcomeIsKnown reports whether err proves the write did not land: a

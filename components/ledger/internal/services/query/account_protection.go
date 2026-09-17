@@ -46,9 +46,10 @@ func (uc *UseCase) accountProtectionGuard() *accountprotection.Guard {
 // or there is nothing to protect; Release handles that, and so does
 // confirmSeedAdmissionCoverage.
 //
-// The ownership is held through the seed load and its rebuild, and released by the
-// caller afterwards. Holding it further, through the engine's own admission,
-// belongs with the script-side validation and is not part of this seam yet.
+// The ownership is held through the seed load and its rebuild. Where the caller
+// installed an admission sink, it is handed over and stays alive through the
+// accounting execution that admits the seed; otherwise the caller releases it when
+// the load ends.
 func (uc *UseCase) protectBalanceSeedAdmission(ctx context.Context, span trace.Span, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) (*accountprotection.Admission, error) {
 	if len(balances) == 0 {
 		return nil, nil

@@ -231,6 +231,56 @@ func (g *Guard) EnsureOpen(ctx context.Context, organizationID, ledgerID uuid.UU
 	return nil
 }
 
+// EnsureAvailable refuses an operation over an account the cache marks as closing
+// or closed. It reads the markers only: no ownership is taken and no account row
+// is read, so a path already holding a warm balance keeps costing no query.
+//
+// It is the availability check of the paths that admit balances without reaching
+// the engine, where the marker check lives inside the same atomic execution. The
+// absence of both markers is the normal state of an open account and passes;
+// a marker that cannot be read refuses, because reading a protection failure as
+// absence would turn it into an authorization.
+func (g *Guard) EnsureAvailable(ctx context.Context, organizationID, ledgerID uuid.UUID, accountIDs []uuid.UUID) error {
+	if g == nil || g.markers == nil {
+		return nil
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "exec.ensure_accounts_available")
+	defer span.End()
+
+	ordered := sortedUniqueAccountIDs(accountIDs)
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.Int("app.request.account_ids_count", len(ordered)),
+	)
+
+	for _, accountID := range ordered {
+		closedAt, found, err := g.markers.GetAccountClosedMarker(ctx, organizationID, ledgerID, accountID)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to read the account closed marker", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to read the account closed marker", libLog.Err(err))
+
+			return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+		}
+
+		if found {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "The account is closed", nil)
+
+			return ClosedAccountError{AccountID: accountID, ClosedAt: closedAt}
+		}
+
+		if err := g.refuseWhenClosing(ctx, span, logger, organizationID, ledgerID, accountID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // refuseWhenClosing rejects an operation over an account a closing attempt owns.
 // An unreadable marker is a refusal of its own: reading it as absence would turn a
 // protection failure into an authorization.

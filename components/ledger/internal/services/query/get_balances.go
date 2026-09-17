@@ -22,6 +22,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -291,7 +292,13 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 		// hydration and the rebuild. Releasing it earlier would let a closing evict
 		// between the seed and the rebuild and hand the engine a balance of an account
 		// it already finished closing.
-		defer admission.Release(ctx)
+		//
+		// The seed itself is admitted later, inside the engine, so a caller that goes
+		// on to execute accounting installs a sink and takes the ownership over: it
+		// then ends with the execution's answer instead of with this load.
+		if !accountprotection.AdoptAdmission(ctx, admission) {
+			defer admission.Release(ctx)
+		}
 
 		balancesDB, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, uncachedAliases)
 		if err != nil {
