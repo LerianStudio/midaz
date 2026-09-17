@@ -11,11 +11,7 @@ import (
 	"strings"
 	"time"
 
-	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
@@ -49,6 +45,10 @@ var ErrAccountProtectionMarkerUnreadable = errors.New("account protection marker
 // There is no key for an open account. Absence of every marker is the normal state,
 // it never authorizes admitting a balance on its own, and no path backfills keys for
 // accounts that were never closed.
+//
+// Every method here resolves to ONE cache command, which the instrumented pool
+// already spans; the error class and the account scope belong on the caller's
+// domain span, where the refusal is decided.
 type AccountProtectionRepository interface {
 	// AcquireAccountClosingMarker installs the closing marker for one account when
 	// no attempt owns it, carrying the caller's token. It returns false when another
@@ -88,183 +88,85 @@ type AccountProtectionRepository interface {
 var _ AccountProtectionRepository = (*RedisConsumerRepository)(nil)
 
 func (rr *RedisConsumerRepository) AcquireAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
-	return rr.acquireAccountProtection(ctx, "redis.acquire_account_closing_marker",
-		utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID), organizationID, ledgerID, accountID, token)
+	return rr.acquireAccountProtection(ctx, utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID), token)
 }
 
 func (rr *RedisConsumerRepository) GetAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (string, bool, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.get_account_closing_marker")
-	defer span.End()
-
-	setAccountProtectionSpanAttributes(span, organizationID, ledgerID, accountID)
-
 	value, err := rr.Get(ctx, utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID))
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to read account closing marker", err)
-
 		return "", false, err
 	}
 
 	if value == "" {
-		span.SetAttributes(attribute.Bool("app.account_closing_marker_found", false))
-
 		return "", false, nil
 	}
 
 	token := strings.TrimSpace(value)
 	if token == "" {
-		err := fmt.Errorf("%w: closing marker carries no owner token", ErrAccountProtectionMarkerUnreadable)
-		libOpentelemetry.HandleSpanError(span, "Account closing marker is unreadable", err)
-
-		return "", false, err
+		return "", false, fmt.Errorf("%w: closing marker carries no owner token", ErrAccountProtectionMarkerUnreadable)
 	}
-
-	span.SetAttributes(attribute.Bool("app.account_closing_marker_found", true))
 
 	return token, true, nil
 }
 
 func (rr *RedisConsumerRepository) ReleaseAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
-	return rr.releaseAccountProtection(ctx, "redis.release_account_closing_marker",
-		utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID), organizationID, ledgerID, accountID, token)
+	return rr.releaseAccountProtection(ctx, utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID), token)
 }
 
 func (rr *RedisConsumerRepository) SetAccountClosedMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, closedAt time.Time) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.set_account_closed_marker")
-	defer span.End()
-
-	setAccountProtectionSpanAttributes(span, organizationID, ledgerID, accountID)
-
 	if closedAt.IsZero() {
-		err := fmt.Errorf("%w: closing instant is zero", ErrAccountProtectionMarkerUnreadable)
-		libOpentelemetry.HandleSpanError(span, "Refused to cache a zero closing instant", err)
-
-		return err
+		return fmt.Errorf("%w: closing instant is zero", ErrAccountProtectionMarkerUnreadable)
 	}
 
 	key := utils.AccountClosedMarkerKey(organizationID, ledgerID, accountID)
 
-	if err := rr.Set(ctx, key, closedAt.UTC().Format(accountClosedMarkerLayout), AccountClosedMarkerTTLSeconds); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to write account closed marker", err)
-
-		return err
-	}
-
-	return nil
+	return rr.Set(ctx, key, closedAt.UTC().Format(accountClosedMarkerLayout), AccountClosedMarkerTTLSeconds)
 }
 
 func (rr *RedisConsumerRepository) GetAccountClosedMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (time.Time, bool, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.get_account_closed_marker")
-	defer span.End()
-
-	setAccountProtectionSpanAttributes(span, organizationID, ledgerID, accountID)
-
 	value, err := rr.Get(ctx, utils.AccountClosedMarkerKey(organizationID, ledgerID, accountID))
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to read account closed marker", err)
-
 		return time.Time{}, false, err
 	}
 
 	if value == "" {
-		span.SetAttributes(attribute.Bool("app.account_closed_marker_found", false))
-
 		return time.Time{}, false, nil
 	}
 
 	closedAt, parseErr := time.Parse(accountClosedMarkerLayout, strings.TrimSpace(value))
 	if parseErr != nil {
-		err := fmt.Errorf("%w: closed marker is not a timestamp", ErrAccountProtectionMarkerUnreadable)
-		libOpentelemetry.HandleSpanError(span, "Account closed marker is unreadable", err)
-
-		return time.Time{}, false, err
+		return time.Time{}, false, fmt.Errorf("%w: closed marker is not a timestamp", ErrAccountProtectionMarkerUnreadable)
 	}
-
-	span.SetAttributes(attribute.Bool("app.account_closed_marker_found", true))
 
 	return closedAt.UTC(), true, nil
 }
 
 func (rr *RedisConsumerRepository) AcquireAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
-	return rr.acquireAccountProtection(ctx, "redis.acquire_account_admin_ownership",
-		utils.AccountAdminOwnershipKey(organizationID, ledgerID, accountID), organizationID, ledgerID, accountID, token)
+	return rr.acquireAccountProtection(ctx, utils.AccountAdminOwnershipKey(organizationID, ledgerID, accountID), token)
 }
 
 func (rr *RedisConsumerRepository) ReleaseAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
-	return rr.releaseAccountProtection(ctx, "redis.release_account_admin_ownership",
-		utils.AccountAdminOwnershipKey(organizationID, ledgerID, accountID), organizationID, ledgerID, accountID, token)
+	return rr.releaseAccountProtection(ctx, utils.AccountAdminOwnershipKey(organizationID, ledgerID, accountID), token)
 }
 
 // acquireAccountProtection installs one protection key for the caller's token when
 // it is free. A zero TTL is passed on purpose: these keys are released by their
 // owner or by reconciliation, never by age.
-func (rr *RedisConsumerRepository) acquireAccountProtection(ctx context.Context, spanName, key string, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, spanName)
-	defer span.End()
-
-	setAccountProtectionSpanAttributes(span, organizationID, ledgerID, accountID)
-
+func (rr *RedisConsumerRepository) acquireAccountProtection(ctx context.Context, key, token string) (bool, error) {
 	if strings.TrimSpace(token) == "" {
-		err := fmt.Errorf("%w: owner token is empty", ErrAccountProtectionMarkerUnreadable)
-		libOpentelemetry.HandleSpanError(span, "Refused to install an account protection key without an owner", err)
-
-		return false, err
+		return false, fmt.Errorf("%w: owner token is empty", ErrAccountProtectionMarkerUnreadable)
 	}
 
-	acquired, err := rr.SetNX(ctx, key, token, 0)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to install account protection key", err)
-
-		return false, err
-	}
-
-	span.SetAttributes(attribute.Bool("app.account_protection_acquired", acquired))
-
-	return acquired, nil
+	return rr.SetNX(ctx, key, token, 0)
 }
 
 // releaseAccountProtection drops one protection key only when it still carries the
 // caller's token, so a release that arrives late cannot remove protection another
 // operation installed afterwards.
-func (rr *RedisConsumerRepository) releaseAccountProtection(ctx context.Context, spanName, key string, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, spanName)
-	defer span.End()
-
-	setAccountProtectionSpanAttributes(span, organizationID, ledgerID, accountID)
-
+func (rr *RedisConsumerRepository) releaseAccountProtection(ctx context.Context, key, token string) (bool, error) {
 	if strings.TrimSpace(token) == "" {
-		err := fmt.Errorf("%w: owner token is empty", ErrAccountProtectionMarkerUnreadable)
-		libOpentelemetry.HandleSpanError(span, "Refused to release an account protection key without an owner", err)
-
-		return false, err
+		return false, fmt.Errorf("%w: owner token is empty", ErrAccountProtectionMarkerUnreadable)
 	}
 
-	released, err := rr.DeleteIfValue(ctx, key, token)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to release account protection key", err)
-
-		return false, err
-	}
-
-	span.SetAttributes(attribute.Bool("app.account_protection_released", released))
-
-	return released, nil
-}
-
-func setAccountProtectionSpanAttributes(span trace.Span, organizationID, ledgerID, accountID uuid.UUID) {
-	span.SetAttributes(
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.String("app.request.account_id", accountID.String()),
-	)
+	return rr.DeleteIfValue(ctx, key, token)
 }
