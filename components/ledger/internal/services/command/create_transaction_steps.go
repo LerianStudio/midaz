@@ -67,15 +67,22 @@ func (uc *UseCase) claimTransactionIdempotency(ctx context.Context, span trace.S
 // (ApplyDefaultBalanceKeys only fills empty keys, MutateConcatAliases skips
 // already-concat'd aliases), so legs that were already normalized are untouched.
 func normalizeSendLegs(run *createTransactionRun) {
-	for i := range run.input.Send.Source.From {
-		run.input.Send.Source.From[i].IsFrom = true
+	normalizeTransactionSendLegs(&run.input)
+}
+
+// normalizeTransactionSendLegs is the shared direct-v2 leg normalizer used by
+// singular and atomic-batch preparation. It mutates only the caller-owned
+// transaction copy and preserves debit/credit slice order.
+func normalizeTransactionSendLegs(input *mtransaction.Transaction) {
+	for i := range input.Send.Source.From {
+		input.Send.Source.From[i].IsFrom = true
 	}
 
-	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Source.From)
-	mtransaction.ApplyDefaultBalanceKeys(run.input.Send.Distribute.To)
+	mtransaction.ApplyDefaultBalanceKeys(input.Send.Source.From)
+	mtransaction.ApplyDefaultBalanceKeys(input.Send.Distribute.To)
 
-	mtransaction.MutateConcatAliases(run.input.Send.Source.From)
-	mtransaction.MutateConcatAliases(run.input.Send.Distribute.To)
+	mtransaction.MutateConcatAliases(input.Send.Source.From)
+	mtransaction.MutateConcatAliases(input.Send.Distribute.To)
 }
 
 // stageBalances seeds the backup queue, loads the balances behind the validated

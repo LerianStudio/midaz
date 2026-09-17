@@ -134,6 +134,29 @@ type UseCase struct {
 	// UseCase (signatures match).
 	TransactionReader TransactionReader
 
+	// UUIDv7Generator and Clock freeze the identities and timestamps of one
+	// atomic transaction batch before any state-dependent item preparation.
+	// Bootstrap always supplies production implementations; tests inject fixed
+	// values so ordering and replay-sensitive context remain deterministic.
+	UUIDv7Generator UUIDv7Generator
+	Clock           Clock
+
+	// AtomicTransactionBatchIdempotencyRepo owns the batch-only claim,
+	// execution handoff, refusal cleanup, and terminal state machine. It is
+	// separate from the singular transaction cache contract so neither
+	// namespace can be used accidentally.
+	AtomicTransactionBatchIdempotencyRepo AtomicTransactionBatchIdempotencyRepository
+
+	// AtomicTransactionBatchProjectionReader rebuilds complete, metadata-enriched
+	// public transaction representations in one bounded primary SQL read plus
+	// bounded metadata reads when recovery seals a batch response.
+	AtomicTransactionBatchProjectionReader AtomicTransactionBatchProjectionReader
+
+	// atomicTransactionBatchBudgetLimitOverride is a test seam for exact boundary
+	// characterization. Production leaves it nil and uses the reviewed hard
+	// limits compiled into the command.
+	atomicTransactionBatchBudgetLimitOverride *atomicTransactionBatchBudgetLimits
+
 	// Engine applies balance changes through the execution port.
 	// A nil value leaves the existing transaction execution path unchanged.
 	Engine Engine

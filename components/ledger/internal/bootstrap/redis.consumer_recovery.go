@@ -41,6 +41,21 @@ type recoveryProtectionAcknowledger interface {
 	CompareAndDeleteRecoveryWithProtectionFrom(context.Context, txRedis.RecoveryQueueSource, uuid.UUID, uuid.UUID, string, string, bool, time.Time) (int64, error)
 }
 
+type atomicTransactionBatchRecoveryAcknowledger interface {
+	CompareAndDeleteAtomicTransactionBatchRecoveryWithProtectionFrom(
+		context.Context,
+		txRedis.RecoveryQueueSource,
+		uuid.UUID,
+		uuid.UUID,
+		string,
+		string,
+		bool,
+		time.Time,
+		string,
+		map[uuid.UUID]json.RawMessage,
+	) (int64, error)
+}
+
 type recoveryRecordReader interface {
 	ReadRecoveryMessage(context.Context, txRedis.RecoveryQueueSource, string) (string, error)
 }
@@ -58,18 +73,24 @@ type recoveryRecordCompleter struct {
 	logger         libLog.Logger
 	queue          txRedis.RedisRepository
 	completer      command.AppliedTransactionCompleter
+	batchFinalizer command.AtomicTransactionBatchRecoveryFinalizer
 	clock          func() time.Time
 	metricsFactory *metrics.MetricsFactory
 }
 
 func (r *RedisQueueConsumer) newRecoveryRecordCompleter() *recoveryRecordCompleter {
-	return &recoveryRecordCompleter{
+	completion := &recoveryRecordCompleter{
 		logger:         r.Logger,
 		queue:          r.queue,
 		completer:      r.appliedTransactionCompleter,
 		clock:          r.recoveryClock,
 		metricsFactory: r.metricsFactory,
 	}
+	if r.Command != nil && r.Command.AtomicTransactionBatchIdempotencyRepo != nil {
+		completion.batchFinalizer = r.Command
+	}
+
+	return completion
 }
 
 // WithAppliedTransactionCompleter supplies durable SQL and metadata completion
@@ -225,6 +246,7 @@ func (r *recoveryRecordCompleter) process(ctx context.Context, source txRedis.Re
 	}
 }
 
+//nolint:gocyclo // recovery outcome classification must remain adjacent to each pipeline transition
 func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.RecoveryQueueSource, field, raw string, envelope *command.TransactionCompletionRecord) error {
 	startedAt := time.Now()
 	outcome := recoveryMetricOutcomeCompleted
@@ -252,6 +274,12 @@ func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.R
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	ctx, err := r.resolveRecoveryCompletionContext(ctx, envelope)
+	if err != nil {
+		outcome = recoveryMetricOutcomeFinalizationFailed
+		return err
+	}
+
 	completion, err := r.completer.Complete(ctx, envelope)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -268,7 +296,28 @@ func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.R
 		return err
 	}
 
-	status, acknowledgmentOutcome, err := r.acknowledgeCompletion(ctx, source, field, raw, envelope, completion)
+	var batchFinalization *command.AtomicTransactionBatchRecoveryFinalization
+	if source == txRedis.RecoveryQueueSourceEngineRecover && r.batchFinalizer != nil {
+		batchFinalization, err = r.batchFinalizer.PrepareAtomicTransactionBatchRecoveryFinalization(
+			ctx,
+			envelope,
+			completion,
+		)
+		if err != nil {
+			outcome = recoveryMetricOutcomeFinalizationFailed
+			return fmt.Errorf("prepare atomic transaction batch recovery finalization: %w", err)
+		}
+	}
+
+	status, acknowledgmentOutcome, err := r.acknowledgeCompletion(
+		ctx,
+		source,
+		field,
+		raw,
+		envelope,
+		completion,
+		batchFinalization,
+	)
 	if acknowledgmentOutcome != "" {
 		outcome = acknowledgmentOutcome
 	}
@@ -293,10 +342,21 @@ func (r *recoveryRecordCompleter) complete(ctx context.Context, source txRedis.R
 	case 2:
 		outcome = recoveryMetricOutcomeRecordChanged
 		return errors.New("recovery record changed during completion; replacement retained")
-	default:
-		outcome = recoveryMetricOutcomeInvalidAck
-		return errors.New("invalid conditional recovery acknowledgment result")
+	case txRedis.RecoveryAckFinalizationRequired:
+		if batchFinalization != nil {
+			outcome = recoveryMetricOutcomeFinalizationFailed
+			return errors.New("atomic transaction batch finalization response is not ready; recovery record retained")
+		}
+	case txRedis.RecoveryAckReceiptChanged:
+		if batchFinalization != nil {
+			outcome = recoveryMetricOutcomeRecordChanged
+			return errors.New("atomic transaction batch receipt changed during finalization; recovery record retained")
+		}
 	}
+
+	outcome = recoveryMetricOutcomeInvalidAck
+
+	return errors.New("invalid conditional recovery acknowledgment result")
 }
 
 // AcknowledgeEngineRecovery removes the exact engine recovery record after the
@@ -352,6 +412,7 @@ func (r *recoveryRecordCompleter) AcknowledgeEngineRecovery(
 		raw,
 		envelope,
 		completion,
+		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("acknowledge engine recovery record: %w", err)
@@ -409,7 +470,36 @@ func (r *recoveryRecordCompleter) acknowledgeCompletion(
 	field, raw string,
 	envelope *command.TransactionCompletionRecord,
 	completion command.TransactionCompletionResult,
+	batchFinalization *command.AtomicTransactionBatchRecoveryFinalization,
 ) (int64, string, error) {
+	if batchFinalization != nil {
+		acknowledger, ok := r.queue.(atomicTransactionBatchRecoveryAcknowledger)
+		if !ok {
+			return 0, recoveryMetricOutcomeNotConfigured,
+				errors.New("atomic transaction batch recovery acknowledgment is not configured")
+		}
+
+		terminal, completedAt, outcome, err := r.completionEvidence(completion.Outcome.TransactionStatus)
+		if err != nil {
+			return 0, outcome, err
+		}
+
+		status, err := acknowledger.CompareAndDeleteAtomicTransactionBatchRecoveryWithProtectionFrom(
+			ctx,
+			source,
+			envelope.OrganizationID,
+			envelope.LedgerID,
+			field,
+			raw,
+			terminal,
+			completedAt,
+			batchFinalization.ReceiptToken,
+			batchFinalization.Transactions,
+		)
+
+		return status, "", err
+	}
+
 	if protected, ok := r.queue.(recoveryProtectionAcknowledger); ok {
 		terminal, completedAt, outcome, err := r.completionEvidence(completion.Outcome.TransactionStatus)
 		if err != nil {
@@ -453,6 +543,20 @@ func (r *recoveryRecordCompleter) acknowledgeCompletion(
 	status, err := acknowledger.CompareAndDeleteRecovery(ctx, field, raw)
 
 	return status, "", err
+}
+
+func (r *recoveryRecordCompleter) resolveRecoveryCompletionContext(
+	ctx context.Context,
+	record *command.TransactionCompletionRecord,
+) (context.Context, error) {
+	resolver, ok := r.completer.(interface {
+		resolveContext(context.Context, *command.TransactionCompletionRecord) (context.Context, error)
+	})
+	if !ok {
+		return ctx, nil
+	}
+
+	return resolver.resolveContext(ctx, record)
 }
 
 func (r *recoveryRecordCompleter) completionEvidence(status string) (bool, time.Time, string, error) {

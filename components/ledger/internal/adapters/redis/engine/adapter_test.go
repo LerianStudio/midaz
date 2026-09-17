@@ -399,7 +399,7 @@ func TestNewAdapter_UsesEngineHardLimits(t *testing.T) {
 	adapter, err := NewAdapter(provider)
 	require.NoError(t, err)
 	require.Equal(t, Limits{
-		MaxTransactions:        1,
+		MaxTransactions:        50,
 		MaxPostings:            10_000,
 		MaxBalances:            20_000,
 		MaxCompletionPlanBytes: 32 * 1024 * 1024,

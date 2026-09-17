@@ -382,7 +382,7 @@ func buildPendingEngineExecution(
 		CompletionPlans:   []CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: raw}},
 	}
 
-	return PreparedEngineExecution{Execution: execution, CompletionPlan: payload}, nil
+	return PreparedEngineExecution{Execution: execution, CompletionPlans: []TransactionCompletionPlan{payload}}, nil
 }
 
 func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, logger libLog.Logger, expectedStatus string, outcome EngineExecutionOutcome) (*transaction.Transaction, error) {

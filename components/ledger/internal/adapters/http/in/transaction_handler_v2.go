@@ -142,12 +142,12 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 // canonical struct is persisted in the body JSONB and doubles as the read model — a
 // consumed grant has no business surviving in either.
 func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, TransactionV2Scope, *uuid.UUID, error) {
-	payload := new(CreateTransactionV2Request)
-	if _, err := pkgHTTP.DecodeAndValidate(rawBody, payload); err != nil {
+	payload, err := decodeCreateTransactionV2Body(rawBody)
+	if err != nil {
 		return mtransaction.Transaction{}, TransactionV2Scope{}, nil, err
 	}
 
-	transactionInput, scope, err := payload.Translate(pending)
+	normalized, err := normalizeCreateTransactionV2Body(payload, pending)
 	if err != nil {
 		return mtransaction.Transaction{}, TransactionV2Scope{}, nil, err
 	}
@@ -157,11 +157,12 @@ func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOver
 		return mtransaction.Transaction{}, TransactionV2Scope{}, nil, err
 	}
 
+	transactionInput := normalized.transaction
 	if operationTypeOverride != "" {
 		transactionInput.OperationTypeOverride = operationTypeOverride
 	}
 
-	return transactionInput, scope, exceptionID, nil
+	return transactionInput, normalized.scope, exceptionID, nil
 }
 
 // idempotencyActionDiscriminator returns the action-identity label folded into the v2

@@ -75,7 +75,7 @@ func TestIntegration_ExecutePreparedEngine_UsesLiveValkeyState(t *testing.T) {
 			require.NoError(t, err)
 			prepared, err := buildLiveStateCompositionExecution(ctx, t, client, keys, fixture)
 			require.NoError(t, err)
-			require.Equal(t, decimal.NewFromInt(test.seedAvailable), decimal.Decimal(prepared.CompletionPlan.OperationSpecs[0].Balance.Available))
+			require.Equal(t, decimal.NewFromInt(test.seedAvailable), decimal.Decimal(prepared.CompletionPlans[0].OperationSpecs[0].Balance.Available))
 
 			live := fixture.primary
 			live.Available = decimal.NewFromInt(test.liveAvailable)
@@ -95,7 +95,7 @@ func TestIntegration_ExecutePreparedEngine_UsesLiveValkeyState(t *testing.T) {
 				test.wantPrimaryOverdraftUsed, test.wantPrimaryVersion, test.wantCompanionAvailable, test.wantCompanionVersion)
 			assertLiveStateCompositionSchedule(t, ctx, client, keys, test.wantRows == 2)
 
-			rows, err := command.BuildOperationRecordsFromMovements(got.Prepared.CompletionPlan, *got.Result)
+			rows, err := command.BuildOperationRecordsFromMovements(got.Prepared.CompletionPlans[0], *got.Result)
 			require.NoError(t, err)
 			require.Len(t, rows, test.wantRows)
 			assertLiveStateCompositionStoredOutcome(t, ctx, client, keys, got, rows)
@@ -126,9 +126,9 @@ func TestIntegration_AdapterExecute_UsesLiveOverdraftSettingsWithoutVersionBump(
 	require.False(t, preparedPrimary.AllowOverdraft)
 	require.False(t, preparedPrimary.OverdraftLimitEnabled)
 	require.Equal(t, int64(7), preparedPrimary.Version)
-	require.Len(t, prepared.CompletionPlan.OperationSpecs, 2)
-	require.Equal(t, core.RoleOverdraftCompanion, prepared.CompletionPlan.OperationSpecs[1].Role)
-	require.Equal(t, "@source#overdraft", prepared.CompletionPlan.OperationSpecs[1].BalanceRef)
+	require.Len(t, prepared.CompletionPlans[0].OperationSpecs, 2)
+	require.Equal(t, core.RoleOverdraftCompanion, prepared.CompletionPlans[0].OperationSpecs[1].Role)
+	require.Equal(t, "@source#overdraft", prepared.CompletionPlans[0].OperationSpecs[1].BalanceRef)
 
 	livePrimary := fixture.primary
 	livePrimary.AllowOverdraft = true
@@ -150,7 +150,7 @@ func TestIntegration_AdapterExecute_UsesLiveOverdraftSettingsWithoutVersionBump(
 	assertLiveStateCompositionPersistedBalances(t, ctx, client, keys, "0", "20", 8, "20", 4)
 	assertLiveStateCompositionSchedule(t, ctx, client, keys, true)
 
-	rows, err := command.BuildOperationRecordsFromMovements(prepared.CompletionPlan, *result)
+	rows, err := command.BuildOperationRecordsFromMovements(prepared.CompletionPlans[0], *result)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	require.Equal(t, []string{constant.DEBIT, constant.OVERDRAFT}, []string{rows[0].Type, rows[1].Type})
@@ -280,7 +280,7 @@ func buildLiveStateCompositionExecution(
 	execution.CompletionPlans = []command.CompletionPlanRecord{{TransactionID: fixture.transactionID, Payload: encodeAdapterRecovery(t, &execution, payload)}}
 	payload.IntentFingerprint = execution.IntentFingerprint
 
-	return command.PreparedEngineExecution{Execution: execution, CompletionPlan: payload}, nil
+	return command.PreparedEngineExecution{Execution: execution, CompletionPlans: []command.TransactionCompletionPlan{payload}}, nil
 }
 
 func liveStateCompositionModel(fixture liveStateCompositionFixture, snapshot core.BalanceSnapshot) *mmodel.Balance {
@@ -388,7 +388,7 @@ func assertLiveStateCompositionStoredOutcome(
 	rows any,
 ) {
 	t.Helper()
-	transactionID := got.Prepared.CompletionPlan.TransactionID
+	transactionID := got.Prepared.CompletionPlans[0].TransactionID
 	executionID := got.Prepared.Execution.Execution.ExecutionID
 	require.Equal(t, int64(1), client.HLen(ctx, keys.Guards).Val())
 	require.Equal(t, constant.APPROVED, client.HGet(ctx, keys.Guards, transactionID.String()).Val())
