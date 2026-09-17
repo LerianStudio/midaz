@@ -39,24 +39,32 @@ The entrypoint tells one ordered story:
 3. `loadBalancePool` reads live cache values. A valid Redis value is
    authoritative; a request snapshot is only an in-memory seed for a cache miss.
    Noncanonical legacy limits request a separate precommit repair.
-4. `validateAccountBlockExceptions` re-reads every presented single-use grant,
+4. `loadAccountProtection` reads the closing controls of every account of the
+   pool, and `validateAccountClosingAvailability` refuses every requirement and
+   posting whose account is closing or closed, and every used balance this
+   execution would seed without holding its account's admission ownership. The
+   check is unconditional: no skip, permission, cancellation, or account-block
+   exception exempts it, and a companion that only sits in the pool is untouched.
+   An unused marker pair is the normal state of an open account; a marker that
+   exists but carries no value refuses technically.
+5. `validateAccountBlockExceptions` re-reads every presented single-use grant,
    compares its alias and amount with the transaction's bound primary outflow,
    and prepares a transaction-local exemption for that primary balance and its
    overdraft companion. Missing, expired, consumed, malformed, or mismatched
    grants refuse before any write.
-5. `validateLiveBalanceAvailability` checks both deletion-marker namespaces
+6. `validateLiveBalanceAvailability` checks both deletion-marker namespaces
    and the live account-block control for declared requirements and postings.
    A valid grant bypasses only the block and sending controls for its bound
    account pair; deletion markers and every other balance remain enforced.
    Cancellation explicitly disables the block control; generated companions
    repeat both protections at their exact mutation site.
-6. `applyTransactionsInMemory` validates live asset/permission requirements,
+7. `applyTransactionsInMemory` validates live asset/permission requirements,
    runs the closed `postingAlgebra`, resolves real overdraft draws or repayments,
    and builds truthful movements and version chains without writing Redis.
-7. `prepareExecutionWrites` serializes the response, changed balance blobs,
+8. `prepareExecutionWrites` serializes the response, changed balance blobs,
    recovery records, receipt, guards, and protection data while enforcing the
    total prepared-byte ceiling.
-8. `commitPreparedExecution` is the only publication phase. It writes changed
+9. `commitPreparedExecution` is the only publication phase. It writes changed
    balances, synchronization schedule members, recovery records, guards,
    protection coordinators, deletes consumed grant keys, and finally writes the
    receipt.
@@ -75,6 +83,15 @@ deletion marker, and compatibility deletion marker. After all balance triplets,
 each transaction that presents an account-block exception contributes exactly
 one grant key, in transaction order. The request carries the corresponding
 one-based key index; Lua verifies the tail position and exception-ID suffix.
+
+The inventory closes with one triplet per account of the balance pool, in
+ascending account order: the account-closing marker, the account-closed marker,
+and the administrative ownership key. Every one of them carries the complete
+organization, ledger, and account scope, and Lua verifies that each ends in its
+own account identifier. The request declares those accounts in the same order,
+each with the administrative admission token its caller holds — empty when the
+caller owns none. The token is private to that boundary and reaches no receipt,
+recovery record, or public contract.
 
 A valid stored receipt is checked before the live grant. Replaying the same
 execution therefore returns its prior result after the grant has been consumed;

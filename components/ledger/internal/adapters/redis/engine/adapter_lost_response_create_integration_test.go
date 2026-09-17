@@ -44,6 +44,7 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 	organizationID := uuid.MustParse("b1111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("b2222222-2222-4222-8222-222222222222")
 	reader := &pendingLifecycleReader{
+		client:   inspector,
 		settings: mmodel.LedgerSettings{Tracer: mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce}},
 		balances: []*mmodel.Balance{
 			adapterCreateBalance(organizationID, ledgerID, "b3333333-3333-4333-8333-333333333333", "b4444444-4444-4444-8444-444444444444", "@source", 100, 7),

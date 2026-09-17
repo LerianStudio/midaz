@@ -178,7 +178,7 @@ func TestIntegration_EngineNormalAndRecoveryPersistenceAreEquivalent(t *testing.
 		client.AddHook(hook)
 		organizationID := uuid.MustParse("c1111111-1111-4111-8111-111111111111")
 		ledgerID := uuid.MustParse("c2222222-2222-4222-8222-222222222222")
-		reader := &adapterCreateReader{balances: []*mmodel.Balance{
+		reader := &adapterCreateReader{client: client, balances: []*mmodel.Balance{
 			adapterCreateBalance(organizationID, ledgerID, "c3333333-3333-4333-8333-333333333333", "c4444444-4444-4444-8444-444444444444", "@source", 100, 7),
 			adapterCreateBalance(organizationID, ledgerID, "c5555555-5555-4555-8555-555555555555", "c6666666-6666-4666-8666-666666666666", "@target", 20, 3),
 		}}
@@ -269,7 +269,7 @@ func TestIntegration_EngineNormalAndRecoveryPersistenceAreEquivalent(t *testing.
 		client.AddHook(hook)
 		organizationID := uuid.MustParse("d1111111-1111-4111-8111-111111111111")
 		ledgerID := uuid.MustParse("d2222222-2222-4222-8222-222222222222")
-		reader := &pendingLifecycleReader{balances: []*mmodel.Balance{
+		reader := &pendingLifecycleReader{client: client, balances: []*mmodel.Balance{
 			adapterCreateBalance(organizationID, ledgerID, "d3333333-3333-4333-8333-333333333333", "d4444444-4444-4444-8444-444444444444", "@source", 100, 7),
 			adapterCreateBalance(organizationID, ledgerID, "d5555555-5555-4555-8555-555555555555", "d6666666-6666-4666-8666-666666666666", "@target", 20, 3),
 		}}

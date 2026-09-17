@@ -168,6 +168,8 @@ func TestIntegrationEnsureTransactionGuardFencesCommitAndCancel(t *testing.T) {
 
 	require.NoError(t, adapter.EnsureTransactionGuard(ctx, organizationID, ledgerID, transactionID, constant.PENDING))
 
+	ctx = admitEngineSeeds(t, ctx, client, commit.Execution)
+
 	type outcome struct {
 		next   string
 		result *core.ExecutionResult

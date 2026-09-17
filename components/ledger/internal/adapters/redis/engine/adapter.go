@@ -24,6 +24,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -288,6 +289,7 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		Protection:             "engine:" + cachepolicy.HashTag + ":protection:" + scope,
 		Balances:               make(map[string]resolvedBalanceKeys, len(request.Balances)),
 		AccountBlockExceptions: make(map[uuid.UUID]string, len(request.Transactions)),
+		Accounts:               make(map[uuid.UUID]resolvedAccountKeys, len(request.Balances)),
 	}
 	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection} {
 		prefixed, err := tmvalkey.GetKeyContext(ctx, *key)
@@ -331,7 +333,44 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		resolved.AccountBlockExceptions[transaction.AccountBlockException.ExceptionID] = prefixed
 	}
 
+	if err := resolveAccountProtectionKeys(ctx, request, &resolved); err != nil {
+		return resolvedExecutionKeys{}, err
+	}
+
 	return resolved, nil
+}
+
+// resolveAccountProtectionKeys resolves the closing controls of every account of
+// the declared pool by the full scope, and attaches the administrative token this
+// request holds over each of them.
+//
+// The token comes from the admission the balance load took; a request that owns
+// nothing resolves an empty one and may then only use balances the cache already
+// holds.
+func resolveAccountProtectionKeys(ctx context.Context, request accounting.Execution, resolved *resolvedExecutionKeys) error {
+	sink := accountprotection.SinkFromContext(ctx)
+
+	for _, accountID := range protectedAccounts(request) {
+		protection := resolvedAccountKeys{
+			Closing:        utils.AccountClosingMarkerKey(request.OrganizationID, request.LedgerID, accountID),
+			Closed:         utils.AccountClosedMarkerKey(request.OrganizationID, request.LedgerID, accountID),
+			Ownership:      utils.AccountAdminOwnershipKey(request.OrganizationID, request.LedgerID, accountID),
+			AdmissionToken: sink.TokenFor(request.OrganizationID, request.LedgerID, accountID),
+		}
+
+		for _, key := range []*string{&protection.Closing, &protection.Closed, &protection.Ownership} {
+			prefixed, err := tmvalkey.GetKeyContext(ctx, *key)
+			if err != nil {
+				return err
+			}
+
+			*key = prefixed
+		}
+
+		resolved.Accounts[accountID] = protection
+	}
+
+	return nil
 }
 
 func classifyAccountingError(err error, request accounting.Execution, keys []string) error {
@@ -360,7 +399,10 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 		}
 
 		switch failure.Code {
-		case "invalid_json", "invalid_protocol", "invalid_balance", "balance_identity_mismatch", "wrong_key_type", "execution_fingerprint_conflict", "execution_guard_conflict", "version_overflow", "invalid_companion", "prepared_bytes_exceeded", "request_bytes_exceeded", "serialization_failed", "script_runtime_failed":
+		// The account protection codes are decided in the preflight, before any
+		// write, so a movement they refuse is certain not to have been applied.
+		case "invalid_json", "invalid_protocol", "invalid_balance", "balance_identity_mismatch", "wrong_key_type", "execution_fingerprint_conflict", "execution_guard_conflict", "version_overflow", "invalid_companion", "prepared_bytes_exceeded", "request_bytes_exceeded", "serialization_failed", "script_runtime_failed",
+			"account_closed", "account_closing_in_progress", "admission_not_confirmed", "account_protection_unreadable":
 			return technical(failure.Code, false, err)
 		case "indeterminate", "execution_outcome_unknown", "invalid_receipt":
 			return technical(failure.Code, true, err)

@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -62,12 +63,26 @@ type resolvedExecutionKeys struct {
 	Protection             string
 	Balances               map[string]resolvedBalanceKeys
 	AccountBlockExceptions map[uuid.UUID]string
+	Accounts               map[uuid.UUID]resolvedAccountKeys
 }
 
 type resolvedBalanceKeys struct {
 	Balance       string
 	Deleted       string
 	LegacyDeleted string
+}
+
+// resolvedAccountKeys carries the account-scoped closing controls of one account
+// of the declared pool. AdmissionToken is the administrative token the caller
+// holds over that account while a cache-miss seed is still to be admitted; it is
+// empty when the caller owns nothing. The token is private to this boundary: it
+// travels in the request payload and reaches no receipt, recovery record, span or
+// log.
+type resolvedAccountKeys struct {
+	Closing        string
+	Closed         string
+	Ownership      string
+	AdmissionToken string
 }
 
 type preparedExecution struct {
@@ -91,6 +106,17 @@ type wireRequest struct {
 	RetentionSeconds   int64             `json:"retentionSeconds"`
 	Transactions       []wireTransaction `json:"transactions"`
 	Balances           []wireBalance     `json:"balances"`
+	Accounts           []wireAccount     `json:"accounts"`
+}
+
+// wireAccount declares the account-scoped closing controls of one account of the
+// balance pool, in the same order as the key block it indexes.
+type wireAccount struct {
+	AccountID         string `json:"accountId"`
+	ClosingKeyIndex   int    `json:"closingKeyIndex"`
+	ClosedKeyIndex    int    `json:"closedKeyIndex"`
+	OwnershipKeyIndex int    `json:"ownershipKeyIndex"`
+	AdmissionToken    string `json:"admissionToken"`
 }
 
 type wireTransaction struct {
@@ -173,7 +199,9 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 		return nil, err
 	}
 
-	keys, err := prepareKeys(input.Execution, resolved, limits.MaxRequestBytes)
+	accounts := protectedAccounts(input.Execution)
+
+	keys, err := prepareKeys(input.Execution, resolved, limits.MaxRequestBytes, accounts)
 	if err != nil {
 		return nil, err
 	}
@@ -188,6 +216,8 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 		return nil, err
 	}
 
+	wireAccounts := prepareAccounts(input.Execution, resolved, accounts)
+
 	request := input.Execution
 
 	retentionSeconds, err := effectiveRetentionSeconds(input.RetentionSeconds)
@@ -200,6 +230,7 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 		OrganizationID: request.OrganizationID.String(), LedgerID: request.LedgerID.String(), ExecutionID: request.ExecutionID.String(),
 		IntentFingerprint: input.IntentFingerprint, ScheduleKeyIndex: 1, RecoveryKeyIndex: 2, ReceiptKeyIndex: 3, GuardKeyIndex: 4, ProtectionKeyIndex: 5,
 		ReceiptField: request.ExecutionID.String(), RetentionSeconds: retentionSeconds, Transactions: transactions, Balances: wireBalances,
+		Accounts: wireAccounts,
 	}
 
 	encoded, err := json.Marshal(wire)
@@ -486,7 +517,64 @@ func preparePostings(postings []accounting.Posting, balances map[string]accounti
 	return prepared, nil
 }
 
-func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, maxBytes int) ([]string, error) {
+// protectedAccounts lists the accounts of the declared balance pool once each, in
+// one deterministic order. The order is what lets the key block and the wire
+// declaration index each other, and sorting by the canonical identifier keeps two
+// executions over the same pool producing the same layout.
+func protectedAccounts(request accounting.Execution) []uuid.UUID {
+	seen := make(map[uuid.UUID]bool, len(request.Balances))
+	ordered := make([]uuid.UUID, 0, len(request.Balances))
+
+	for _, balance := range request.Balances {
+		if seen[balance.AccountID] {
+			continue
+		}
+
+		seen[balance.AccountID] = true
+
+		ordered = append(ordered, balance.AccountID)
+	}
+
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].String() < ordered[j].String() })
+
+	return ordered
+}
+
+// accountProtectionKeyBase is the number of keys that precede the account
+// protection block: the five shared keys, one triplet per balance and one grant
+// key per transaction that presents an account-block exception.
+func accountProtectionKeyBase(request accounting.Execution) int {
+	base := 5 + 3*len(request.Balances)
+
+	for _, transaction := range request.Transactions {
+		if transaction.AccountBlockException != nil {
+			base++
+		}
+	}
+
+	return base
+}
+
+// prepareAccounts declares the closing controls of every account of the pool and
+// the administrative token the caller holds over it, matching the tail key block
+// position for position.
+func prepareAccounts(request accounting.Execution, resolved resolvedExecutionKeys, accounts []uuid.UUID) []wireAccount {
+	base := accountProtectionKeyBase(request)
+	prepared := make([]wireAccount, 0, len(accounts))
+
+	for i, accountID := range accounts {
+		keys := resolved.Accounts[accountID]
+		prepared = append(prepared, wireAccount{
+			AccountID:       accountID.String(),
+			ClosingKeyIndex: base + 3*i + 1, ClosedKeyIndex: base + 3*i + 2, OwnershipKeyIndex: base + 3*i + 3,
+			AdmissionToken: keys.AdmissionToken,
+		})
+	}
+
+	return prepared
+}
+
+func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, maxBytes int, accounts []uuid.UUID) ([]string, error) {
 	if len(resolved.Balances) != len(request.Balances) {
 		return nil, fmt.Errorf("resolved accounting key inventory does not match snapshots")
 	}
@@ -509,6 +597,11 @@ func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, m
 	}
 
 	keys, err := appendAccountBlockExceptionKeys(request, resolved, keys)
+	if err != nil {
+		return nil, err
+	}
+
+	keys, err = appendAccountProtectionKeys(resolved, keys, accounts)
 	if err != nil {
 		return nil, err
 	}
@@ -547,6 +640,29 @@ func appendAccountBlockExceptionKeys(request accounting.Execution, resolved reso
 
 	if len(resolved.AccountBlockExceptions) != grantCount {
 		return nil, fmt.Errorf("resolved accounting account-block exception inventory does not match transactions")
+	}
+
+	return keys, nil
+}
+
+// appendAccountProtectionKeys closes the key inventory with one closing, closed
+// and administrative ownership key per account of the pool. Every key carries the
+// complete scope, so the controls of one account can never be resolved from the
+// account identifier alone and two ledgers never share a key.
+func appendAccountProtectionKeys(resolved resolvedExecutionKeys, keys []string, accounts []uuid.UUID) ([]string, error) {
+	if len(resolved.Accounts) != len(accounts) {
+		return nil, fmt.Errorf("resolved accounting account protection inventory does not match the balance pool")
+	}
+
+	for _, accountID := range accounts {
+		protection, exists := resolved.Accounts[accountID]
+		suffix := ":" + accountID.String()
+
+		if !exists || !strings.HasSuffix(protection.Closing, suffix) || !strings.HasSuffix(protection.Closed, suffix) || !strings.HasSuffix(protection.Ownership, suffix) {
+			return nil, fmt.Errorf("invalid resolved accounting account protection keys")
+		}
+
+		keys = append(keys, protection.Closing, protection.Closed, protection.Ownership)
 	}
 
 	return keys, nil

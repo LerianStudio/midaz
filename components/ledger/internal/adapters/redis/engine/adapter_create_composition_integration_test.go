@@ -32,13 +32,16 @@ type adapterCreateReader struct {
 	command.TransactionReader
 	balances []*mmodel.Balance
 	reads    int
+	// client lets the stub take the administrative admission of the accounts it
+	// serves, as the real cache-miss load does.
+	client redis.UniversalClient
 }
 
 func (r *adapterCreateReader) GetParsedLedgerSettings(context.Context, uuid.UUID, uuid.UUID) (mmodel.LedgerSettings, error) {
 	return mmodel.LedgerSettings{}, nil
 }
 
-func (r *adapterCreateReader) GetBalances(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+func (r *adapterCreateReader) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 	r.reads++
 	out := make([]*mmodel.Balance, 0, len(aliases))
 	for _, alias := range aliases {
@@ -47,6 +50,9 @@ func (r *adapterCreateReader) GetBalances(_ context.Context, _, _ uuid.UUID, ali
 				out = append(out, balance)
 			}
 		}
+	}
+	if err := adoptSeedAdmission(ctx, r.client, organizationID, ledgerID, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -97,7 +103,7 @@ func TestIntegration_CreateTransactionV1_ComposesRealAdapterRecoveryAndFinalizat
 	client, _, _ := newAdapterValkey(t)
 	orgID := uuid.MustParse("81111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("82222222-2222-4222-8222-222222222222")
-	reader := &adapterCreateReader{balances: []*mmodel.Balance{
+	reader := &adapterCreateReader{client: client, balances: []*mmodel.Balance{
 		adapterCreateBalance(orgID, ledgerID, "83333333-3333-4333-8333-333333333333", "84444444-4444-4444-8444-444444444444", "@source", 100, 7),
 		adapterCreateBalance(orgID, ledgerID, "85555555-5555-4555-8555-555555555555", "86666666-6666-4666-8666-666666666666", "@target", 20, 3),
 	}}

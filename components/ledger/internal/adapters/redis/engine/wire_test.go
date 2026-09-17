@@ -59,10 +59,12 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	require.Equal(t, input.Execution.LedgerID.String(), wire.LedgerID)
 	require.Equal(t, input.Execution.ExecutionID.String(), wire.ExecutionID)
 	require.Equal(t, input.IntentFingerprint, wire.IntentFingerprint)
+	accountID := input.Execution.Balances[0].AccountID
 	require.Equal(t, []string{
 		resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection,
 		resolved.Balances["@source#default"].Balance, resolved.Balances["@source#default"].Deleted,
 		resolved.Balances["@source#default"].LegacyDeleted,
+		resolved.Accounts[accountID].Closing, resolved.Accounts[accountID].Closed, resolved.Accounts[accountID].Ownership,
 	}, first.Keys)
 	require.Equal(t, 1, wire.ScheduleKeyIndex)
 	require.Equal(t, 2, wire.RecoveryKeyIndex)
@@ -296,12 +298,14 @@ func TestPrepareExecutionCarriesAccountBlockExceptionAfterBalanceKeys(t *testing
 
 	exception := input.Execution.Transactions[0].AccountBlockException
 	require.NotNil(t, exception)
+	accountID := input.Execution.Balances[0].AccountID
 	require.Equal(t, []string{
 		resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection,
 		resolved.Balances["@source#default"].Balance,
 		resolved.Balances["@source#default"].Deleted,
 		resolved.Balances["@source#default"].LegacyDeleted,
 		resolved.AccountBlockExceptions[exception.ExceptionID],
+		resolved.Accounts[accountID].Closing, resolved.Accounts[accountID].Closed, resolved.Accounts[accountID].Ownership,
 	}, prepared.Keys)
 
 	var wire wireRequest
@@ -418,6 +422,7 @@ func validWireExecution() (command.EngineExecution, Limits, resolvedExecutionKey
 	scope := organizationID.String() + ":" + ledgerID.String()
 	balanceKey := prefix + "balance:{transactions}:" + scope + ":@source#default"
 	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + cachepolicy.EngineRecoverQueue, Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Protection: prefix + "engine:{transactions}:protection:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": testResolvedBalanceKeys(balanceKey)}}
+	resolved.Accounts = testResolvedAccountKeys(prefix, input.Execution, testAdmissionToken)
 	return input, Limits{MaxTransactions: 10, MaxPostings: 100, MaxBalances: 100, MaxCompletionPlanBytes: 4096, MaxRequestBytes: 16384, MaxPreparedBytes: 1048576}, resolved
 }
 
@@ -466,9 +471,9 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 		wantBytes  int
 		maxTouched int
 	}{
-		{name: "two postings", postings: 2, pool: 2, wantBytes: 2272, maxTouched: 2},
-		{name: "ten postings", postings: 10, pool: 20, wantBytes: 13868, maxTouched: 10},
-		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 66314, maxTouched: 50},
+		{name: "two postings", postings: 2, pool: 2, wantBytes: 2605, maxTouched: 2},
+		{name: "ten postings", postings: 10, pool: 20, wantBytes: 17107, maxTouched: 10},
+		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 82627, maxTouched: 50},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -551,14 +556,14 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 
 	limits := Limits{MaxTransactions: 1, MaxPostings: 2, MaxBalances: 2, MaxCompletionPlanBytes: len(recovery) + 1, MaxRequestBytes: bodyLimit * 4, MaxPreparedBytes: bodyLimit * 4}
 	inputExecution := command.EngineExecution{Execution: request, IntentFingerprint: "immutable-intent", Guards: []command.ExecutionGuard{{TransactionID: txID, ExpectedToken: "old", NextToken: "next"}}, CompletionPlans: []command.CompletionPlanRecord{{TransactionID: txID, Payload: recovery}}}
-	resolved := sizingResolvedKeys(request.Balances)
+	resolved := sizingResolvedKeys(request)
 	prepared, err := prepareExecution(context.Background(), inputExecution, limits, resolved)
 	require.NoError(t, err)
 
 	t.Logf("v1 lower-bound bytes: original=%d frozen_recovery=%d v1_legs=%d wire_postings=%d snapshots=%d final_wire=%d", len(body), len(recovery), len(transaction.Send.Source.From)+len(transaction.Send.Distribute.To), len(request.Transactions[0].Postings), len(request.Balances), len(prepared.Payload))
 	require.Equal(t, 4193188, len(body))
 	require.Equal(t, 10490524, len(recovery))
-	require.Equal(t, 12251608, len(prepared.Payload))
+	require.Equal(t, 12251941, len(prepared.Payload))
 	require.Greater(t, len(recovery), len(body), "completion plan must retain transaction and stable projection data")
 	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry the completion plan plus engine postings and snapshots")
 	require.Equal(t, 2, len(request.Transactions[0].Postings), "v1 retains both logical legs; no v1 leg cap is introduced")
@@ -712,7 +717,7 @@ func prepareTransactionBodyWithFees(t *testing.T, feeCount int) preparedSize {
 		Guards:          []command.ExecutionGuard{{TransactionID: transactionID, ExpectedToken: "old", NextToken: "next"}},
 		CompletionPlans: []command.CompletionPlanRecord{{TransactionID: transactionID, Payload: recovery}},
 	}
-	prepared, err := prepareExecution(t.Context(), execution, limits, sizingResolvedKeys(request.Balances))
+	prepared, err := prepareExecution(t.Context(), execution, limits, sizingResolvedKeys(request))
 	require.NoError(t, err)
 
 	return preparedSize{
@@ -765,13 +770,21 @@ func nearV1Body(t *testing.T, target int) ([]byte, ledgerin.CreateTransactionReq
 
 func fixedSizingTime() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
 
-func sizingResolvedKeys(balances []accounting.BalanceSnapshot) resolvedExecutionKeys {
+func sizingResolvedKeys(request accounting.Execution) resolvedExecutionKeys {
+	balances := request.Balances
 	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: "tenant:fixture:schedule:{transactions}", Recovery: "tenant:fixture:recovery:{transactions}", Receipts: "tenant:fixture:receipts:{transactions}", Guards: "tenant:fixture:guards:{transactions}", Protection: "tenant:fixture:protection:{transactions}", Balances: make(map[string]resolvedBalanceKeys, len(balances))}
 	for _, balance := range balances {
 		key := "tenant:fixture:balance:{transactions}:" + balance.BalanceRef
 		resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys(key)
 	}
+	sizingResolvedAccountKeys(request, &resolved)
 	return resolved
+}
+
+// sizingResolvedAccountKeys completes a sizing fixture whose pool was rebuilt
+// after construction, so the account protection block matches the new accounts.
+func sizingResolvedAccountKeys(request accounting.Execution, resolved *resolvedExecutionKeys) {
+	resolved.Accounts = testResolvedAccountKeys("tenant:fixture:", request, testAdmissionToken)
 }
 
 func measuredWireExecution(postingCount, poolCount int) (command.EngineExecution, Limits, resolvedExecutionKeys) {
@@ -790,11 +803,36 @@ func measuredWireExecution(postingCount, poolCount int) (command.EngineExecution
 		key := "tenant:fixture:balance:{transactions}:measurement:" + index
 		resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys(key)
 	}
+	sizingResolvedAccountKeys(input.Execution, &resolved)
 	input.Execution.Transactions[0].Postings = make([]accounting.Posting, postingCount)
 	for i := 0; i < postingCount; i++ {
 		input.Execution.Transactions[0].Postings[i] = accounting.Posting{Ref: "debit-" + strconv.Itoa(i), BalanceRef: input.Execution.Balances[i].BalanceRef, Type: accounting.PostingDebit, Amount: decimal.NewFromInt(1), DrawPolicy: accounting.DrawAllowed}
 	}
 	return input, limits, resolved
+}
+
+// testAdmissionToken is the administrative token the fixtures hold over every
+// account of their pool. It stands for the ownership a cache-miss load takes and
+// keeps alive until the execution answers.
+const testAdmissionToken = "fixture-admission-token"
+
+// testResolvedAccountKeys mirrors the adapter's account protection resolution for
+// one fixture pool: the closing and closed markers and the administrative
+// ownership of every account, each under the fixture's tenant prefix.
+func testResolvedAccountKeys(prefix string, request accounting.Execution, token string) map[uuid.UUID]resolvedAccountKeys {
+	scope := request.OrganizationID.String() + ":" + request.LedgerID.String() + ":"
+	accounts := make(map[uuid.UUID]resolvedAccountKeys, len(request.Balances))
+
+	for _, accountID := range protectedAccounts(request) {
+		accounts[accountID] = resolvedAccountKeys{
+			Closing:        prefix + "account-closing:" + cachepolicy.HashTag + ":" + scope + accountID.String(),
+			Closed:         prefix + "account-closed:" + cachepolicy.HashTag + ":" + scope + accountID.String(),
+			Ownership:      prefix + "account-admin-ownership:" + cachepolicy.HashTag + ":" + scope + accountID.String(),
+			AdmissionToken: token,
+		}
+	}
+
+	return accounts
 }
 
 func testResolvedBalanceKeys(key string) resolvedBalanceKeys {
