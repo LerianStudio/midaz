@@ -270,6 +270,29 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 	balances, uncachedAliases := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
 
 	if len(uncachedAliases) > 0 {
+		// The first read only turns aliases into account identifiers: an alias names
+		// no account until a row says so, so nothing can be owned before it. Its rows
+		// are discarded — they were read outside the ownership and may already
+		// describe a closed account.
+		resolved, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, uncachedAliases)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to get balances from database", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to get balances from database", libLog.Err(err))
+
+			return nil, err
+		}
+
+		admission, err := uc.protectBalanceSeedAdmission(ctx, span, organizationID, ledgerID, resolved)
+		if err != nil {
+			return nil, err
+		}
+
+		// The ownership covers the whole admission: the seed read, the blocked
+		// hydration and the rebuild. Releasing it earlier would let a closing evict
+		// between the seed and the rebuild and hand the engine a balance of an account
+		// it already finished closing.
+		defer admission.Release(ctx)
+
 		balancesDB, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, uncachedAliases)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to get balances from database", err)
@@ -278,7 +301,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 			return nil, err
 		}
 
-		if err := uc.protectBalanceSeedAdmission(ctx, span, organizationID, ledgerID, balancesDB); err != nil {
+		if err := uc.confirmSeedAdmissionCoverage(ctx, span, admission, balancesDB); err != nil {
 			return nil, err
 		}
 

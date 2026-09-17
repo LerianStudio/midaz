@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -174,6 +175,101 @@ func TestGetBalances_CacheMissRefusesWhenTheProtectionIsUnreadable(t *testing.T)
 
 	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID).
 		Return("", false, redis.ErrAccountProtectionMarkerUnreadable)
+
+	_, err := m.uc.GetBalances(context.Background(), admissionOrgID, admissionLedgerID, []string{admissionAlias})
+
+	require.Error(t, err)
+
+	var unavailable pkg.ServiceUnavailableError
+	require.True(t, errors.As(err, &unavailable))
+	assert.Equal(t, constant.ErrAccountClosingProtectionIndeterminate.Error(), unavailable.Code)
+}
+
+// admissionSeedRow builds one balance row of the account under test.
+func admissionSeedRow(accountID uuid.UUID, available int64) *mmodel.Balance {
+	return &mmodel.Balance{
+		ID:        uuid.NewString(),
+		AccountID: accountID.String(),
+		Alias:     "@closing_account",
+		Key:       constant.DefaultBalanceKey,
+		Available: decimal.NewFromInt(available),
+	}
+}
+
+// TestGetBalances_SeedIsReadUnderTheOwnership proves the widened window: the first
+// read only names the accounts to own, the seed itself is read again under that
+// ownership, and the ownership survives the hydration and the rebuild. The rows the
+// pre-ownership read returned never reach the caller.
+func TestGetBalances_SeedIsReadUnderTheOwnership(t *testing.T) {
+	m := newAdmissionMocks(t)
+
+	beforeOwnership := admissionSeedRow(admissionAccountID, 100)
+	underOwnership := admissionSeedRow(admissionAccountID, 200)
+
+	m.redis.EXPECT().Get(gomock.Any(), utils.BalanceInternalKey(admissionOrgID, admissionLedgerID, admissionAlias)).
+		Return("", nil)
+
+	resolve := m.balance.EXPECT().ListByAliasesWithKeys(gomock.Any(), admissionOrgID, admissionLedgerID, []string{admissionAlias}).
+		Return([]*mmodel.Balance{beforeOwnership}, nil)
+
+	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID).
+		Return("", false, nil).After(resolve)
+	acquire := m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID, gomock.Any()).
+		Return(true, nil).After(resolve)
+	m.redis.EXPECT().GetAccountClosedMarker(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID).
+		Return(time.Time{}, false, nil)
+	m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), admissionOrgID, admissionLedgerID, []uuid.UUID{admissionAccountID}).
+		Return(map[uuid.UUID]*time.Time{admissionAccountID: nil}, nil)
+
+	reread := m.balance.EXPECT().ListByAliasesWithKeys(gomock.Any(), admissionOrgID, admissionLedgerID, []string{admissionAlias}).
+		Return([]*mmodel.Balance{underOwnership}, nil).After(acquire)
+
+	blocked := false
+	hydrate := m.account.EXPECT().ListAccountsByIDs(gomock.Any(), admissionOrgID, admissionLedgerID, []uuid.UUID{admissionAccountID}).
+		Return([]*mmodel.Account{{ID: admissionAccountID.String(), Blocked: &blocked}}, nil).After(reread)
+
+	rebuild := m.uc.OperationRepo.(*operation.MockRepository).EXPECT().
+		ListLatestByBalances(gomock.Any(), admissionOrgID, admissionLedgerID, gomock.Any()).
+		Return(map[string]*operation.Operation{}, nil).After(hydrate)
+
+	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID, gomock.Any()).
+		Return(true, nil).After(rebuild)
+
+	balances, err := m.uc.GetBalances(context.Background(), admissionOrgID, admissionLedgerID, []string{admissionAlias})
+
+	require.NoError(t, err)
+	require.Len(t, balances, 1)
+	assert.Equal(t, underOwnership.ID, balances[0].ID, "the seed must be the row read under the ownership")
+	assert.True(t, decimal.NewFromInt(200).Equal(balances[0].Available))
+}
+
+// TestGetBalances_SeedOutsideTheOwnedSetIsRefused proves the re-read cannot smuggle
+// in an account the ownership never covered: such a seed was checked against no
+// closing at all, so it is refused instead of served.
+func TestGetBalances_SeedOutsideTheOwnedSetIsRefused(t *testing.T) {
+	m := newAdmissionMocks(t)
+
+	stranger := uuid.New()
+
+	m.redis.EXPECT().Get(gomock.Any(), utils.BalanceInternalKey(admissionOrgID, admissionLedgerID, admissionAlias)).
+		Return("", nil)
+	m.balance.EXPECT().ListByAliasesWithKeys(gomock.Any(), admissionOrgID, admissionLedgerID, []string{admissionAlias}).
+		Return([]*mmodel.Balance{admissionSeedRow(admissionAccountID, 100)}, nil)
+
+	m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID).
+		Return("", false, nil)
+	m.redis.EXPECT().AcquireAccountAdminOwnership(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID, gomock.Any()).
+		Return(true, nil)
+	m.redis.EXPECT().GetAccountClosedMarker(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID).
+		Return(time.Time{}, false, nil)
+	m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), admissionOrgID, admissionLedgerID, []uuid.UUID{admissionAccountID}).
+		Return(map[uuid.UUID]*time.Time{admissionAccountID: nil}, nil)
+
+	m.balance.EXPECT().ListByAliasesWithKeys(gomock.Any(), admissionOrgID, admissionLedgerID, []string{admissionAlias}).
+		Return([]*mmodel.Balance{admissionSeedRow(stranger, 100)}, nil)
+
+	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), admissionOrgID, admissionLedgerID, admissionAccountID, gomock.Any()).
+		Return(true, nil)
 
 	_, err := m.uc.GetBalances(context.Background(), admissionOrgID, admissionLedgerID, []string{admissionAlias})
 

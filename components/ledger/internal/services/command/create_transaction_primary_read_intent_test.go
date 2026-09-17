@@ -175,6 +175,12 @@ func newPrimaryReadCapturingUseCase(ctrl *gomock.Controller) (*primaryReadCaptur
 		Return([]*mmodel.Account{}, nil).
 		AnyTimes()
 
+	// One row per alias, memoized: the miss path reads the same aliases twice — once
+	// to name the accounts it owns and once for the seed under that ownership — and
+	// an alias that named two different accounts across those reads would describe a
+	// database that cannot exist.
+	rows := map[string]*mmodel.Balance{}
+
 	mockBalance.EXPECT().
 		ListByAliasesWithKeys(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
@@ -182,9 +188,15 @@ func newPrimaryReadCapturingUseCase(ctrl *gomock.Controller) (*primaryReadCaptur
 			captured.primaryRead = readrouting.IsPrimaryRead(ctx)
 
 			out := make([]*mmodel.Balance, 0, len(aliases))
+
 			for _, a := range aliases {
 				alias, _, _ := strings.Cut(a, "#")
-				out = append(out, companionOverdraftBalance(alias))
+
+				if _, known := rows[alias]; !known {
+					rows[alias] = companionOverdraftBalance(alias)
+				}
+
+				out = append(out, rows[alias])
 			}
 
 			return out, nil

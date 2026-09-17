@@ -103,10 +103,12 @@ func (m *seedGuardMocks) expectCacheMiss(aliases []string, rows []*mmodel.Balanc
 			Times(1)
 	}
 
+	// Twice: the first read resolves the aliases into the accounts to be owned, and
+	// the seeds themselves are read again under that ownership.
 	m.balance.EXPECT().
 		ListByAliasesWithKeys(gomock.Any(), seedGuardOrgID, seedGuardLedgerID, aliases).
 		Return(rows, nil).
-		Times(1)
+		Times(2)
 
 	if len(rows) > 0 {
 		m.account.EXPECT().
