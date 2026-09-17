@@ -24,7 +24,7 @@ func TestRegisterAtomicTransactionBatchV2Route_PublishesDedicatedOrderedContract
 	assert.Contains(t, op.Description, "explicit increasing order")
 	assert.Contains(t, op.Description, "all-or-none")
 	assert.Contains(t, op.Description, "100 postings and 150 balance snapshots")
-	assert.Contains(t, op.Description, "no query endpoint")
+	assert.Contains(t, op.Description, "no batch query endpoint")
 	assert.EqualValues(t, v2CreateMaxBodyBytes, op.MaxBodyBytes,
 		"the batch must use the same decoded-body ceiling as singular v2 creates")
 	assert.Equal(t, secTransactionBearer, op.Security,
@@ -62,8 +62,8 @@ func TestRegisterAtomicTransactionBatchV2Route_PublishesDedicatedOrderedContract
 
 	responseSchema := doc.Components.Schemas.SchemaFromRef(responseMedia.Schema.Ref)
 	require.NotNil(t, responseSchema)
-	assert.ElementsMatch(t, []string{"batchId", "transactions"}, responseSchema.Required)
-	assert.Equal(t, "uuid", responseSchema.Properties["batchId"].Format)
+	assert.Equal(t, []string{"transactions"}, responseSchema.Required)
+	assert.NotContains(t, responseSchema.Properties, "batchId")
 
 	responseTransactions := responseSchema.Properties["transactions"]
 	require.NotNil(t, responseTransactions)

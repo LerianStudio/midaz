@@ -167,6 +167,7 @@ func decodeAtomicBatchResponse(
 
 	body := drainBody(t, response)
 	require.Equal(t, wantStatus, response.StatusCode, "unexpected HTTP status; body: %s", string(body))
+	require.NotContains(t, string(body), `"batchId"`, "the public response must not expose the internal batch identifier")
 
 	var result CreateAtomicTransactionBatchV2Response
 	require.NoError(t, json.Unmarshal(body, &result), "response should be valid JSON; body: %s", string(body))
@@ -233,7 +234,6 @@ func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 					postAtomicBatch(t, fixture.app, transactions, fmt.Sprintf("cardinality-%d", size)),
 					http.StatusCreated,
 				)
-				require.NotEqual(t, uuid.Nil.String(), result.BatchID)
 				require.Len(t, result.Transactions, size)
 				for index := range result.Transactions {
 					require.Equal(t, transactions[index].Description, result.Transactions[index].Description)

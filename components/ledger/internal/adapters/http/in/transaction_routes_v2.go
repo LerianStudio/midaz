@@ -88,7 +88,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 		Method:           http.MethodPost,
 		Path:             v2AtomicTransactionBatchPath,
 		Summary:          "Create an atomic batch of Transactions (v2)",
-		Description:      "Executes direct and hold transactions once, in explicit increasing order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. batchId is an ephemeral idempotency/recovery correlation value and has no query endpoint.",
+		Description:      "Executes direct and hold transactions once, in explicit increasing order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. The internal idempotency/recovery batch identifier is not exposed; there is no batch query endpoint.",
 		Tags:             []string{transactionsTag},
 		Security:         secTransactionBearer,
 		SkipValidateBody: true,

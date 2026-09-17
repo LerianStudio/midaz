@@ -88,7 +88,6 @@ type AtomicTransactionBatchFinalizationResult struct {
 }
 
 type atomicTransactionBatchPublicResponse struct {
-	BatchID      uuid.UUID         `json:"batchId"`
 	Transactions []json.RawMessage `json:"transactions"`
 }
 
@@ -561,7 +560,6 @@ func buildAtomicTransactionBatchResponse(
 	}
 
 	response, err := json.Marshal(atomicTransactionBatchPublicResponse{
-		BatchID:      record.BatchID,
 		Transactions: ordered,
 	})
 	if err != nil {

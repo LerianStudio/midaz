@@ -19054,7 +19054,7 @@
     },
     "/v2/transactions/batch": {
       "post": {
-        "description": "Executes direct and hold transactions once, in explicit increasing order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. batchId is an ephemeral idempotency/recovery correlation value and has no query endpoint.",
+        "description": "Executes direct and hold transactions once, in explicit increasing order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. The internal idempotency/recovery batch identifier is not exposed; there is no batch query endpoint.",
         "operationId": "createAtomicTransactionBatchV2",
         "parameters": [
           {
@@ -24067,13 +24067,6 @@
       "CreateAtomicTransactionBatchV2Response": {
         "additionalProperties": false,
         "properties": {
-          "batchId": {
-            "examples": [
-              "00000000-0000-0000-0000-000000000000"
-            ],
-            "format": "uuid",
-            "type": "string"
-          },
           "transactions": {
             "description": "Created transactions in increasing logical order.",
             "items": {
@@ -24083,7 +24076,6 @@
           }
         },
         "required": [
-          "batchId",
           "transactions"
         ],
         "type": "object"

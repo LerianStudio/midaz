@@ -117,7 +117,7 @@ func (uc *UseCase) claimAtomicTransactionBatch(
 
 		return nil, nil
 	case txRedis.AtomicTransactionBatchReplayed:
-		return decodeAtomicTransactionBatchReplay(result.Record.Response)
+		return decodeAtomicTransactionBatchReplay(result.Record.BatchID, result.Record.Response)
 	default:
 		return nil, fmt.Errorf("unexpected successful atomic transaction batch claim outcome %q", result.Outcome)
 	}
@@ -148,25 +148,24 @@ func atomicTransactionBatchRequestIdentity(in CreateAtomicTransactionBatchV2Inpu
 	return fingerprint, effectiveKey, nil
 }
 
-func decodeAtomicTransactionBatchReplay(raw json.RawMessage) (*CreateAtomicTransactionBatchV2Result, error) {
+func decodeAtomicTransactionBatchReplay(batchID uuid.UUID, raw json.RawMessage) (*CreateAtomicTransactionBatchV2Result, error) {
 	if len(raw) == 0 {
 		return nil, fmt.Errorf("atomic transaction batch replay has no terminal response")
 	}
 
 	var response struct {
-		BatchID      uuid.UUID                  `json:"batchId"`
 		Transactions []*transaction.Transaction `json:"transactions"`
 	}
 	if err := json.Unmarshal(raw, &response); err != nil {
 		return nil, fmt.Errorf("decode atomic transaction batch replay: %w", err)
 	}
 
-	if response.BatchID == uuid.Nil || len(response.Transactions) == 0 {
+	if batchID == uuid.Nil || len(response.Transactions) == 0 {
 		return nil, fmt.Errorf("atomic transaction batch replay response is incomplete")
 	}
 
 	return &CreateAtomicTransactionBatchV2Result{
-		BatchID:      response.BatchID,
+		BatchID:      batchID,
 		Transactions: response.Transactions,
 		Replayed:     true,
 	}, nil

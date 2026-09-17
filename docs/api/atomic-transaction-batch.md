@@ -33,12 +33,11 @@ Tracer, route, overdraft, skip, and account-block-exception rules. `action` is
 either `direct` or `hold`; a hold is returned initially as `PENDING` and is later
 committed or cancelled through the existing individual transaction routes.
 
-Success is HTTP 201 with a wrapper containing `batchId` and the created
-`TransactionV2` objects plus their non-persisted `order`. The response
-`transactions` array is in increasing logical order, rather than physical request
-array order. `batchId` is
-an ephemeral idempotency and recovery correlation value. It is not stored on the
-transaction rows or events, and there is no batch resource or query endpoint;
+Success is HTTP 201 with a wrapper containing the created `TransactionV2` objects
+plus their non-persisted `order`. The response `transactions` array is in
+increasing logical order, rather than physical request array order. The internal
+idempotency and recovery batch identifier is not exposed in the response, is not
+stored on transaction rows or events, and has no batch resource or query endpoint;
 query created transactions through their individual transaction IDs.
 
 ## Ordering and atomicity

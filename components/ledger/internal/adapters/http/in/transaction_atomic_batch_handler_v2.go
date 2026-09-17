@@ -36,11 +36,10 @@ type CreateAtomicTransactionBatchV2ItemRequest struct {
 	CreateTransactionV2Request
 }
 
-// CreateAtomicTransactionBatchV2Response is the successful public response. BatchID
-// is an ephemeral correlation and replay identifier, not a persisted or queryable
-// ledger resource. Transactions are returned in increasing logical order.
+// CreateAtomicTransactionBatchV2Response is the successful public response. Its
+// internal idempotency and recovery batch identifier is deliberately not exposed.
+// Transactions are returned in increasing logical order.
 type CreateAtomicTransactionBatchV2Response struct {
-	BatchID      string                                 `json:"batchId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 	Transactions []*AtomicTransactionBatchV2Transaction `json:"transactions" nullable:"false" doc:"Created transactions in increasing logical order."`
 }
 
@@ -127,7 +126,6 @@ func (handler *TransactionHandler) CreateAtomicTransactionBatchV2(
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(result.Replayed),
 		Body: &CreateAtomicTransactionBatchV2Response{
-			BatchID:      result.BatchID.String(),
 			Transactions: transactions,
 		},
 	}, nil

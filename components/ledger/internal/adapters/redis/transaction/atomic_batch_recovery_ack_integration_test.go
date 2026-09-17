@@ -62,7 +62,7 @@ func TestIntegrationAtomicTransactionBatchFinalizationUsesReceiptRetention(t *te
 	assert.Equal(t, AtomicTransactionBatchFinalized, result.Outcome)
 	assert.JSONEq(
 		t,
-		`{"batchId":"00000000-0000-0000-0000-000000000010","transactions":[{"id":"first"},{"id":"second"}]}`,
+		`{"transactions":[{"id":"first"},{"id":"second"}]}`,
 		string(result.Response),
 	)
 	recordTTL := container.Client.TTL(fixture.ctx, fixture.recordKey).Val()
@@ -172,7 +172,7 @@ func TestIntegrationAtomicTransactionBatchRecoveryAckFinalizesBeforeLastDelete(t
 	assert.Equal(t, AtomicTransactionBatchStateComplete, complete.State)
 	assert.JSONEq(
 		t,
-		`{"batchId":"00000000-0000-0000-0000-000000000010","transactions":[{"id":"first"},{"id":"second"}]}`,
+		`{"transactions":[{"id":"first"},{"id":"second"}]}`,
 		string(complete.Response),
 	)
 	recordTTL := container.Client.TTL(fixture.ctx, fixture.recordKey).Val()
@@ -276,7 +276,7 @@ func TestIntegrationAtomicTransactionBatchRecoveryAckFinalizesFromCapturedRespon
 	require.Equal(t, AtomicTransactionBatchStateComplete, complete.State)
 	require.JSONEq(
 		t,
-		`{"batchId":"00000000-0000-0000-0000-000000000010","transactions":[{"id":"first","status":"CREATED"},{"id":"second","status":"PENDING"}]}`,
+		`{"transactions":[{"id":"first","status":"CREATED"},{"id":"second","status":"PENDING"}]}`,
 		string(complete.Response),
 	)
 }

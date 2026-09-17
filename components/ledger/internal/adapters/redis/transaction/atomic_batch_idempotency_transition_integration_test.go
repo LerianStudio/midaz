@@ -106,7 +106,7 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 		require.Equal(t, AtomicTransactionBatchFinalized, finalized.Outcome)
 		require.Equal(
 			t,
-			`{"batchId":"00000000-0000-0000-0000-000000000010","transactions":[{"id":"first"},{"id":"second"}]}`,
+			`{"transactions":[{"id":"first"},{"id":"second"}]}`,
 			string(finalized.Response),
 		)
 		beforeRetry := container.Client.PTTL(ctx, redisKey).Val()

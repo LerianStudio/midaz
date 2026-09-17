@@ -340,11 +340,9 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 			len(result.Final)*atomicTransactionBatchSnapshotSafetyBytes
 
 		cachedPayload, err := json.Marshal(struct {
-			BatchID      uuid.UUID                   `json:"batchId"`
 			Transactions []*transaction.Transaction  `json:"transactions"`
 			Plans        []TransactionCompletionPlan `json:"plans"`
 		}{
-			BatchID:      run.batchID,
 			Transactions: publicTransactions,
 			Plans:        plans,
 		})

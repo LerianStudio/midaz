@@ -94,10 +94,8 @@ func TestCreateAtomicTransactionBatchV2_ReplayAndConflict(t *testing.T) {
 		uuid.MustParse("01994f13-29b7-7000-8000-000000000603"),
 	}
 	response, err := json.Marshal(struct {
-		BatchID      uuid.UUID                  `json:"batchId"`
 		Transactions []*transaction.Transaction `json:"transactions"`
 	}{
-		BatchID: batchID,
 		Transactions: []*transaction.Transaction{
 			{
 				ID:             transactionIDs[0].String(),
@@ -162,9 +160,14 @@ func TestCreateAtomicTransactionBatchV2_ReplayAndConflict(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 		assert.Equal(t, "true", resp.Header.Get("X-Idempotency-Replayed"))
 
+		var rawResponse map[string]json.RawMessage
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&rawResponse))
+		assert.NotContains(t, rawResponse, "batchId")
+
 		var got CreateAtomicTransactionBatchV2Response
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
-		assert.Equal(t, batchID.String(), got.BatchID)
+		transactions, err := json.Marshal(rawResponse)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(transactions, &got))
 		require.Len(t, got.Transactions, 2)
 		assert.Equal(t, transactionIDs[0].String(), got.Transactions[0].ID)
 		assert.Equal(t, transactionIDs[1].String(), got.Transactions[1].ID)

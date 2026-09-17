@@ -103,7 +103,7 @@ func TestBuildAtomicTransactionBatchResponse_UsesStoredOrder(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(
 		t,
-		`{"batchId":"00000000-0000-0000-0000-000000000010","transactions":[{"id":"first"},{"id":"second"}]}`,
+		`{"transactions":[{"id":"first"},{"id":"second"}]}`,
 		string(response),
 	)
 	assert.NotContains(t, string(responses[firstID]), "batchId")
