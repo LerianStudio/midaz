@@ -31,6 +31,12 @@ const (
 // and it is served on the /v2 contract ALONE — see RegisterAccountV2Routes.
 const accountClosePath = accountListPath + "/{account_id}/close"
 
+// accountClosedAtInputDoc documents the closing instant's immutability on the two
+// operations that take an account body. It is the same sentence on both contracts
+// and on both operations, because the refusal is.
+const accountClosedAtInputDoc = "The closing instant is output only: a body naming closedAt or closed_at at its root is refused with 400 whatever the value it carries, " +
+	"and the stored instant is only ever written by the close command."
+
 // RegisterAccountRoutes registers the eight /v1 account operations on the shared Huma
 // API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber group, so
 // the humafiber adapter registers on that group and Fiber prepends the version prefix).
@@ -50,6 +56,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:           http.MethodPost,
 		Path:             accountListPath,
 		Summary:          "Create a new account",
+		Description:      accountClosedAtInputDoc,
 		Tags:             []string{accountTag},
 		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate).
@@ -98,6 +105,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             accountIDPath,
 		Summary:          "Update an account",
+		Description:      accountClosedAtInputDoc,
 		Tags:             []string{accountTag},
 		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively.
@@ -144,6 +152,7 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:           http.MethodPost,
 		Path:             accountListPath,
 		Summary:          "Create a new account",
+		Description:      accountClosedAtInputDoc,
 		Tags:             []string{accountTag},
 		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively (http.DecodeAndValidate).
@@ -192,6 +201,7 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             accountIDPath,
 		Summary:          "Update an account",
+		Description:      accountClosedAtInputDoc,
 		Tags:             []string{accountTag},
 		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively.
@@ -219,11 +229,15 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 	}, h.CountAccounts)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "closeAccount" + opSuffix,
-		Method:        http.MethodPost,
-		Path:          accountClosePath,
-		Summary:       "Close an account",
-		Description:   "Closes an account whose balances are all exactly zero and which holds no pending transaction, preserving its history and refusing every later movement. The command takes no body and the closing instant is read back as the account's closedAt.",
+		OperationID: "closeAccount" + opSuffix,
+		Method:      http.MethodPost,
+		Path:        accountClosePath,
+		Summary:     "Close an account",
+		Description: "Closes an account whose balances are all exactly zero and which holds no pending transaction, preserving its history and refusing every later movement. " +
+			"The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. " +
+			"An external account is never eligible (0074), balances that are not exactly zero (0516) and a pending transaction involving the account (0517) are refused with 422. " +
+			"An account already closed (0514), an account under an administrative dispute (0515) and an account whose accounting persistence is still settling (0518) are refused with 409, the last of which may be retried later. " +
+			"An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519.",
 		Tags:          []string{accountTag},
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.

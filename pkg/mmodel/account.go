@@ -231,7 +231,7 @@ type Account struct {
 	// rejected as an input field on create and update.
 	// example: null
 	// format: date-time
-	ClosedAt *time.Time `json:"closedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	ClosedAt *time.Time `json:"closedAt" example:"2021-01-01T00:00:00Z" format:"date-time" doc:"Instant the account was closed, null while it is still open. Output only: it is written exclusively by the close command and is refused as an input field on create and update"`
 
 	// Custom key-value pairs for extending the account information
 	// example: {"department": "Treasury", "purpose": "Operating Expenses", "region": "Global"}
