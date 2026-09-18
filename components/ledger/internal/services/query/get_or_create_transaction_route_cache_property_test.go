@@ -9,6 +9,7 @@ package query
 import (
 	"bytes"
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"testing/quick"
@@ -21,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
@@ -74,7 +76,7 @@ func TestProperty_SentinelDetection_OnlyExactMatch(t *testing.T) {
 			_, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 			// Must NOT be treated as sentinel — DB was called, so this is the DB not-found path
-			return err == services.ErrDatabaseItemNotFound
+			return isTransactionRouteNotFound(err)
 		}
 
 		if isSentinel {
@@ -89,7 +91,7 @@ func TestProperty_SentinelDetection_OnlyExactMatch(t *testing.T) {
 
 			result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-			return err == services.ErrDatabaseItemNotFound &&
+			return isTransactionRouteNotFound(err) &&
 				reflect.DeepEqual(result, mmodel.TransactionRouteCache{})
 		}
 
@@ -232,10 +234,18 @@ func TestProperty_SentinelPath_NeverCallsDB(t *testing.T) {
 		result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 		// Must return sentinel error with zero-value result and NO DB call
-		return err == services.ErrDatabaseItemNotFound &&
+		return isTransactionRouteNotFound(err) &&
 			reflect.DeepEqual(result, mmodel.TransactionRouteCache{})
 	}
 
 	err := quick.Check(property, cfg)
 	require.NoError(t, err)
+}
+
+// isTransactionRouteNotFound reports whether err carries the 404 identity of a missing transaction
+// route: the typed pkg.EntityNotFoundError with code 0105.
+func isTransactionRouteNotFound(err error) bool {
+	var entityNotFound pkg.EntityNotFoundError
+
+	return errors.As(err, &entityNotFound) && entityNotFound.Code == "0105"
 }
