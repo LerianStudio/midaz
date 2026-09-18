@@ -48,6 +48,20 @@ type AccountClosingReconciliationStats struct {
 	// pass finished. It is the backlog measure of the coordination, and the pass
 	// never releases one it did not resolve through its own closing.
 	Ownerships int
+
+	// failures counts the steps that could not complete, keyed by the bounded stage
+	// vocabulary of account_closing_telemetry.go. It stays nil while nothing failed,
+	// so the zero value of this struct remains the empty pass.
+	failures map[string]int
+}
+
+// fail records one failed step of the pass under its bounded stage.
+func (s *AccountClosingReconciliationStats) fail(stage string) {
+	if s.failures == nil {
+		s.failures = make(map[string]int, len(accountClosingFailureStages))
+	}
+
+	s.failures[stage]++
 }
 
 // ReconcileAccountClosings resolves the closing protection that earlier attempts
@@ -78,6 +92,8 @@ func (uc *UseCase) ReconcileAccountClosings(ctx context.Context) AccountClosingR
 	ctx, span := tracer.Start(ctx, "exec.reconcile_account_closings")
 	defer span.End()
 
+	start := time.Now()
+
 	for cursor, page := uint64(0), 0; page < maxAccountClosingReconcilePages; page++ {
 		if ctx.Err() != nil {
 			break
@@ -85,6 +101,8 @@ func (uc *UseCase) ReconcileAccountClosings(ctx context.Context) AccountClosingR
 
 		scan, err := uc.TransactionRedisRepo.ScanAccountClosingMarkers(ctx, cursor, accountClosingReconcileScanCount)
 		if err != nil {
+			stats.fail(accountClosingStageScanMarkers)
+
 			libOpentelemetry.HandleSpanError(span, "Failed to scan the account closing markers", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to scan the account closing markers", libLog.Err(err))
 
@@ -115,7 +133,46 @@ func (uc *UseCase) ReconcileAccountClosings(ctx context.Context) AccountClosingR
 		attribute.Int("app.account_closing.reconciled_ownership_backlog", stats.Ownerships),
 	)
 
+	// A pass whose scans both walked to the end is what the age measure counts as
+	// reconciliation having run. One that aborted on a scan reached an unknown part
+	// of the namespace, so advancing the instant would report coverage it never had.
+	complete := ctx.Err() == nil &&
+		stats.failures[accountClosingStageScanMarkers] == 0 &&
+		stats.failures[accountClosingStageScanOwnerships] == 0
+
+	reportAccountClosingReconciliation(ctx, logger, stats, complete)
+
+	recordAccountClosingReconciliation(ctx, uc.MetricsFactory, logger, stats, time.Since(start), complete, time.Now().UTC())
+
 	return stats
+}
+
+// reportAccountClosingReconciliation logs the result of one pass at the single
+// point that knows it.
+//
+// A pass that resolved everything it found is routine and logs at Debug; one that
+// left protection behind, could not read a key or failed a step is the degraded
+// case an operator has to see, and logs at Warn. The fields are counts only: the
+// accounts a pass touched are span attributes and repository detail, not log or
+// label material.
+func reportAccountClosingReconciliation(ctx context.Context, logger libLog.Logger, stats AccountClosingReconciliationStats, complete bool) {
+	fields := []any{
+		libLog.Int("scanned", stats.Scanned),
+		libLog.Int("completed", stats.Completed),
+		libLog.Int("released", stats.Released),
+		libLog.Int("retained", stats.Retained),
+		libLog.Int("unreadable", stats.Unreadable),
+		libLog.Int("ownership_backlog", stats.Ownerships),
+		libLog.Bool("complete", complete),
+	}
+
+	if !complete || stats.Retained > 0 || stats.Unreadable > 0 || stats.Ownerships > 0 || len(stats.failures) > 0 {
+		logger.Log(ctx, libLog.LevelWarn, "The account closing reconciliation left protection in place", fields...)
+
+		return
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "The account closing reconciliation pass finished", fields...)
 }
 
 // reconcileAccountClosing resolves one discovered closing marker.
@@ -128,6 +185,7 @@ func (uc *UseCase) reconcileAccountClosing(
 	attempt, found, err := uc.TransactionRedisRepo.ReadAccountClosingAttempt(ctx, scope.OrganizationID, scope.LedgerID, scope.AccountID)
 	if err != nil {
 		stats.Unreadable++
+		stats.fail(accountClosingStageReadMarker)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to read a closing marker while reconciling", libLog.Err(err))
 
@@ -143,6 +201,7 @@ func (uc *UseCase) reconcileAccountClosing(
 	closedAt, err := uc.readReconciledClosingInstant(ctx, scope)
 	if err != nil {
 		stats.Retained++
+		stats.fail(accountClosingStageReadAccount)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to read the authoritative closing state while reconciling", libLog.Err(err))
 
@@ -196,6 +255,7 @@ func (uc *UseCase) completeReconciledAccountClosing(
 	balances, err := uc.BalanceRepo.ListByAccountID(readrouting.WithPrimaryRead(ctx), scope.OrganizationID, scope.LedgerID, scope.AccountID)
 	if err != nil {
 		stats.Retained++
+		stats.fail(accountClosingStageListBalances)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to list the balances of a closed account while reconciling", libLog.Err(err))
 
@@ -205,6 +265,7 @@ func (uc *UseCase) completeReconciledAccountClosing(
 	for _, balance := range balances {
 		if err := uc.TransactionRedisRepo.Del(ctx, balanceCacheKeyFor(scope.OrganizationID, scope.LedgerID, balance)); err != nil {
 			stats.Retained++
+			stats.fail(accountClosingStageEvictBalance)
 
 			logger.Log(ctx, libLog.LevelWarn, "Failed to evict a balance of a closed account while reconciling", libLog.Err(err))
 
@@ -214,6 +275,7 @@ func (uc *UseCase) completeReconciledAccountClosing(
 
 	if err := uc.TransactionRedisRepo.SetAccountClosedMarker(ctx, scope.OrganizationID, scope.LedgerID, scope.AccountID, closedAt); err != nil {
 		stats.Retained++
+		stats.fail(accountClosingStageInstallClosedMarker)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to install the closed marker while reconciling", libLog.Err(err))
 
@@ -222,13 +284,14 @@ func (uc *UseCase) completeReconciledAccountClosing(
 
 	if _, err := uc.TransactionRedisRepo.ReleaseAccountClosingAttempt(ctx, scope.OrganizationID, scope.LedgerID, scope.AccountID, attempt.Token); err != nil {
 		stats.Retained++
+		stats.fail(accountClosingStageReleaseClosedMarker)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to remove the closing marker of a finished closing while reconciling", libLog.Err(err))
 
 		return
 	}
 
-	uc.releaseReconciledOwnership(ctx, logger, scope, attempt.Token)
+	uc.releaseReconciledOwnership(ctx, logger, scope, attempt.Token, stats)
 
 	stats.Completed++
 }
@@ -250,6 +313,7 @@ func (uc *UseCase) releaseAbortedAccountClosing(
 	released, err := uc.TransactionRedisRepo.ReleaseAccountClosingMarker(ctx, scope.OrganizationID, scope.LedgerID, scope.AccountID, attempt.Token)
 	if err != nil {
 		stats.Retained++
+		stats.fail(accountClosingStageReleaseAbortedMarker)
 
 		logger.Log(ctx, libLog.LevelWarn, "Failed to release an aborted closing while reconciling", libLog.Err(err))
 
@@ -262,7 +326,7 @@ func (uc *UseCase) releaseAbortedAccountClosing(
 		return
 	}
 
-	uc.releaseReconciledOwnership(ctx, logger, scope, attempt.Token)
+	uc.releaseReconciledOwnership(ctx, logger, scope, attempt.Token, stats)
 
 	stats.Released++
 }
@@ -270,8 +334,10 @@ func (uc *UseCase) releaseAbortedAccountClosing(
 // releaseReconciledOwnership drops the administrative ownership that belongs to
 // the same attempt, conditionally on its token so an ownership another operation
 // took afterwards is never touched.
-func (uc *UseCase) releaseReconciledOwnership(ctx context.Context, logger libLog.Logger, scope txRedis.AccountProtectionScope, token string) {
+func (uc *UseCase) releaseReconciledOwnership(ctx context.Context, logger libLog.Logger, scope txRedis.AccountProtectionScope, token string, stats *AccountClosingReconciliationStats) {
 	if _, err := uc.TransactionRedisRepo.ReleaseAccountAdminOwnership(ctx, scope.OrganizationID, scope.LedgerID, scope.AccountID, token); err != nil {
+		stats.fail(accountClosingStageReleaseOwnership)
+
 		logger.Log(ctx, libLog.LevelWarn, "Failed to release the ownership of a reconciled closing", libLog.Err(err))
 	}
 }
@@ -292,6 +358,8 @@ func (uc *UseCase) countAbandonedAccountOwnerships(ctx context.Context, logger l
 
 		scan, err := uc.TransactionRedisRepo.ScanAccountAdminOwnerships(ctx, cursor, accountClosingReconcileScanCount)
 		if err != nil {
+			stats.fail(accountClosingStageScanOwnerships)
+
 			logger.Log(ctx, libLog.LevelWarn, "Failed to scan the account administrative ownerships", libLog.Err(err))
 
 			return

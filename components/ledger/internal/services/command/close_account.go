@@ -69,8 +69,13 @@ func (uc *UseCase) CloseAccount(ctx context.Context, organizationID, ledgerID, a
 
 	start := time.Now()
 
+	// Single exit boundary of the closing telemetry. The domain metric answers
+	// whether the operation succeeded and how long it took; the closing metrics
+	// beside it answer, over a bounded vocabulary, why one did not. Neither carries
+	// an account, an organization, a ledger or an amount — those live on the span.
 	defer func() {
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "close_account", start, err)
+		recordAccountClosingOutcome(ctx, uc.MetricsFactory, logger, err)
 	}()
 
 	span.SetAttributes(

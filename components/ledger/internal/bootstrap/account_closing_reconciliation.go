@@ -7,8 +7,6 @@ package bootstrap
 import (
 	"context"
 	"time"
-
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // accountClosingReconcileTimeout bounds one reconciliation pass so a slow
@@ -27,6 +25,10 @@ const accountClosingReconcileTimeout = 30 * time.Second
 //
 // The pass never fails the cycle. A closing it cannot resolve keeps its
 // protection, which is the outcome the reconciliation exists to preserve.
+//
+// The runner does not report the result. The use case is the single point that
+// can: it knows which steps failed and whether both namespace walks completed,
+// and a second report from here would describe the same pass with less of it.
 func (r *RedisQueueConsumer) reconcileAccountClosings(ctx context.Context) {
 	if r.Command == nil {
 		return
@@ -35,28 +37,5 @@ func (r *RedisQueueConsumer) reconcileAccountClosings(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, accountClosingReconcileTimeout)
 	defer cancel()
 
-	stats := r.Command.ReconcileAccountClosings(ctx)
-
-	if stats.Scanned == 0 && stats.Ownerships == 0 {
-		return
-	}
-
-	r.Logger.Log(ctx, libLog.LevelDebug, "Reconciled the account closing protection",
-		libLog.Int("scanned_count", stats.Scanned),
-		libLog.Int("completed_count", stats.Completed),
-		libLog.Int("released_count", stats.Released),
-		libLog.Int("retained_count", stats.Retained),
-		libLog.Int("unreadable_count", stats.Unreadable),
-		libLog.Int("ownership_backlog_count", stats.Ownerships))
-
-	if stats.Retained == 0 && stats.Unreadable == 0 {
-		return
-	}
-
-	// A retained closing is protection that outlived its attempt, so it is the
-	// backlog an operator has to see; no account is named, because the reason is
-	// what identifies the condition.
-	r.Logger.Log(ctx, libLog.LevelWarn, "Account closing protection is waiting for reconciliation",
-		libLog.Int("retained_count", stats.Retained),
-		libLog.Int("unreadable_count", stats.Unreadable))
+	r.Command.ReconcileAccountClosings(ctx)
 }
