@@ -13,6 +13,7 @@ package query
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -24,12 +25,25 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
+
+// requireRouteNotFound asserts err is the transaction-route not-found business
+// error GetOrCreateTransactionRouteCache returns on BOTH its not-found arms
+// (DB miss and NOT_FOUND sentinel hit): a pkg.EntityNotFoundError carrying code
+// 0105, which pkg/net/http/problem.go maps to HTTP 404.
+func requireRouteNotFound(t *testing.T, err error, msgAndArgs ...any) {
+	t.Helper()
+
+	var e pkg.EntityNotFoundError
+
+	require.Truef(t, errors.As(err, &e), "expected pkg.EntityNotFoundError, got %v", err)
+	assert.Equal(t, "0105", e.Code, msgAndArgs...)
+}
 
 // =============================================================================
 // TEST INFRASTRUCTURE
@@ -97,9 +111,9 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelStoredAfterDBMiss(
 	// Act - call for non-existent route should hit DB, get not-found, store sentinel
 	_, err = infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, nonExistentID)
 
-	// Assert - function returns ErrDatabaseItemNotFound
+	// Assert - function returns the 0105 not-found business error
 	require.Error(t, err, "should return error for non-existent route")
-	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "error should be ErrDatabaseItemNotFound")
+	requireRouteNotFound(t, err, "error should be a 0105 not-found error")
 
 	// Assert - sentinel value is now stored in Redis
 	cachedBytes, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
@@ -128,8 +142,8 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelStoredForDifferent
 	_, err2 := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, nonExistent2)
 
 	// Assert - both return not-found error
-	require.Equal(t, services.ErrDatabaseItemNotFound, err1, "first call should return ErrDatabaseItemNotFound")
-	require.Equal(t, services.ErrDatabaseItemNotFound, err2, "second call should return ErrDatabaseItemNotFound")
+	requireRouteNotFound(t, err1, "first call should return a 0105 not-found error")
+	requireRouteNotFound(t, err2, "second call should return a 0105 not-found error")
 
 	// Assert - both have independent sentinel entries
 	key1 := utils.AccountingRoutesInternalKey(orgID, ledgerID, nonExistent1)
@@ -147,7 +161,7 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelStoredForDifferent
 // =============================================================================
 // IS-2: Sentinel hit prevents DB call
 // When Redis contains the NOT_FOUND sentinel, the function returns
-// ErrDatabaseItemNotFound immediately without querying the database.
+// the 0105 not-found business error immediately, without querying the database.
 // =============================================================================
 
 func TestIntegration_GetOrCreateTransactionRouteCache_SentinelHitReturnsCachedNotFound(t *testing.T) {
@@ -161,14 +175,14 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelHitReturnsCachedNo
 
 	// First call stores sentinel in Redis
 	_, err := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, nonExistentID)
-	require.Equal(t, services.ErrDatabaseItemNotFound, err, "first call should return ErrDatabaseItemNotFound")
+	requireRouteNotFound(t, err, "first call should return a 0105 not-found error")
 
 	// Act - second call should hit sentinel in Redis, return immediately
 	result, err := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, nonExistentID)
 
 	// Assert - same error returned from sentinel cache hit
 	require.Error(t, err, "second call should also return error")
-	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "error should be ErrDatabaseItemNotFound from sentinel")
+	requireRouteNotFound(t, err, "error should be a 0105 not-found error from sentinel")
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value cache struct")
 }
 
@@ -191,7 +205,7 @@ func TestIntegration_GetOrCreateTransactionRouteCache_ManualSentinelInRedisRetur
 
 	// Assert
 	require.Error(t, err, "should return error when sentinel exists in Redis")
-	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "error should be ErrDatabaseItemNotFound")
+	requireRouteNotFound(t, err, "error should be a 0105 not-found error")
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value")
 }
 
@@ -210,7 +224,7 @@ func TestIntegration_GetOrCreateTransactionRouteCache_MultipleSentinelHitsConsis
 	// Act - call multiple times; all should consistently return sentinel-based not-found
 	for i := 0; i < 5; i++ {
 		result, err := infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, nonExistentID)
-		assert.Equal(t, services.ErrDatabaseItemNotFound, err, "call %d should return ErrDatabaseItemNotFound", i+1)
+		requireRouteNotFound(t, err, "call %d should return a 0105 not-found error", i+1)
 		assert.Equal(t, mmodel.TransactionRouteCache{}, result, "call %d should return zero-value result", i+1)
 	}
 }
@@ -248,7 +262,7 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelExpiryTriggersDBLo
 	_, err = infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, nonExistentID)
 
 	// Assert - route still doesn't exist in DB, so function stores a fresh sentinel
-	require.Equal(t, services.ErrDatabaseItemNotFound, err, "should return ErrDatabaseItemNotFound after sentinel expiry")
+	requireRouteNotFound(t, err, "should return a 0105 not-found error after sentinel expiry")
 
 	// Verify a new sentinel was stored (with the real 60s TTL this time)
 	cachedBytes, err = infra.uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
@@ -455,10 +469,10 @@ func TestIntegration_GetOrCreateTransactionRouteCache_SentinelOverwrittenByDBFet
 	err := infra.uc.TransactionRedisRepo.SetBytes(ctx, internalKey, []byte("NOT_FOUND"), time.Duration(60))
 	require.NoError(t, err, "sentinel injection should succeed")
 
-	// Act - function finds sentinel and returns ErrDatabaseItemNotFound
+	// Act - function finds sentinel and returns the 0105 not-found business error
 	// (sentinel takes priority - this is the current behavior)
 	_, err = infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, txRouteID)
-	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "sentinel in Redis should cause not-found even if DB has the route")
+	requireRouteNotFound(t, err, "sentinel in Redis should cause not-found even if DB has the route")
 
 	// Delete the sentinel to simulate TTL expiry
 	delErr := infra.redisContainer.Client.Del(ctx, internalKey).Err()
@@ -540,7 +554,7 @@ func TestIntegration_GetOrCreateTransactionRouteCache_CorruptedCacheForNonExiste
 	_, err = infra.uc.GetOrCreateTransactionRouteCache(ctx, orgID, ledgerID, nonExistentID)
 
 	// Assert
-	require.Equal(t, services.ErrDatabaseItemNotFound, err, "should return ErrDatabaseItemNotFound after DB fallback")
+	requireRouteNotFound(t, err, "should return a 0105 not-found error after DB fallback")
 
 	// Verify sentinel replaced corrupted data
 	cachedBytes, err := infra.uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
