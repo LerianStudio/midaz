@@ -507,6 +507,36 @@ func (mr *MockRedisRepositoryMockRecorder) RemoveMessageFromQueue(ctx, key any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMessageFromQueue), ctx, key)
 }
 
+// ScanAccountAdminOwnerships mocks base method.
+func (m *MockRedisRepository) ScanAccountAdminOwnerships(ctx context.Context, cursor uint64, count int64) (AccountProtectionScanPage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ScanAccountAdminOwnerships", ctx, cursor, count)
+	ret0, _ := ret[0].(AccountProtectionScanPage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ScanAccountAdminOwnerships indicates an expected call of ScanAccountAdminOwnerships.
+func (mr *MockRedisRepositoryMockRecorder) ScanAccountAdminOwnerships(ctx, cursor, count any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanAccountAdminOwnerships", reflect.TypeOf((*MockRedisRepository)(nil).ScanAccountAdminOwnerships), ctx, cursor, count)
+}
+
+// ScanAccountClosingMarkers mocks base method.
+func (m *MockRedisRepository) ScanAccountClosingMarkers(ctx context.Context, cursor uint64, count int64) (AccountProtectionScanPage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ScanAccountClosingMarkers", ctx, cursor, count)
+	ret0, _ := ret[0].(AccountProtectionScanPage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ScanAccountClosingMarkers indicates an expected call of ScanAccountClosingMarkers.
+func (mr *MockRedisRepositoryMockRecorder) ScanAccountClosingMarkers(ctx, cursor, count any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ScanAccountClosingMarkers", reflect.TypeOf((*MockRedisRepository)(nil).ScanAccountClosingMarkers), ctx, cursor, count)
+}
+
 // ScanRecoveryMessages mocks base method.
 func (m *MockRedisRepository) ScanRecoveryMessages(ctx context.Context, source RecoveryQueueSource, cursor uint64, count int64) (RecoveryScanPage, error) {
 	m.ctrl.T.Helper()

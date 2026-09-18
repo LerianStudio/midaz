@@ -112,6 +112,15 @@ type AccountProtectionRepository interface {
 	// ReleaseAccountAdminOwnership drops the ownership only when it still carries the
 	// caller's token.
 	ReleaseAccountAdminOwnership(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
+	// ScanAccountClosingMarkers reads one bounded page of the closing-marker
+	// namespace. It is how reconciliation finds the attempts a restart interrupted,
+	// without an unbounded key read and without depending on anything held in
+	// memory. The cursor belongs to the caller.
+	ScanAccountClosingMarkers(ctx context.Context, cursor uint64, count int64) (AccountProtectionScanPage, error)
+	// ScanAccountAdminOwnerships reads one bounded page of the administrative
+	// ownership namespace, where an ownership left behind by an operation other
+	// than a closing is discovered.
+	ScanAccountAdminOwnerships(ctx context.Context, cursor uint64, count int64) (AccountProtectionScanPage, error)
 }
 
 // Compile-time guarantee that the transaction cache repository serves the

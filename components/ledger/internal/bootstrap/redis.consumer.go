@@ -407,6 +407,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 	}
 
 	r.cleanupEngineRecovery(ctx)
+	r.reconcileAccountClosings(ctx)
 	r.Logger.Log(ctx, libLog.LevelDebug, "Messages under time-of-life threshold", libLog.Int("threshold_minutes", MessageTimeOfLife), libLog.Int("message_count", aggregate.tooYoung))
 	r.Logger.Log(ctx, libLog.LevelDebug, "Finished processing eligible messages", libLog.Int("eligible_count", aggregate.messageCount-aggregate.tooYoung))
 }
