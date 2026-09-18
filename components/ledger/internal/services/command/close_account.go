@@ -6,7 +6,6 @@ package command
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -42,6 +40,7 @@ type accountClosingAttempt struct {
 	admission      *accountprotection.Admission
 	token          string
 	retained       bool
+	markerReleased bool
 }
 
 // CloseAccount closes one account after proving that nothing it holds can still
@@ -285,71 +284,6 @@ func (uc *UseCase) verifyNoAccountClosingPendingTransaction(ctx context.Context,
 	return pending
 }
 
-// finalizeAccountClosing records the closing instant with the conditional write.
-//
-// The instant is the database's: it comes back from the statement that applied it,
-// so two attempts cannot disagree about which one landed and no clock of this
-// process ever reaches the column. A statement that matched no row says nothing
-// about WHY, so the authoritative row answers that instead of the row count.
-func (uc *UseCase) finalizeAccountClosing(
-	ctx context.Context,
-	span trace.Span,
-	logger libLog.Logger,
-	attempt *accountClosingAttempt,
-	_ []accountClosingBalanceState,
-) (time.Time, error) {
-	closedAt, err := uc.AccountRepo.CloseAccount(ctx, attempt.organizationID, attempt.ledgerID, attempt.accountID)
-	if err == nil {
-		return closedAt, nil
-	}
-
-	if errors.Is(err, account.ErrAccountCloseNotApplied) {
-		return time.Time{}, uc.resolveUnappliedAccountClosing(ctx, span, logger, attempt)
-	}
-
-	libOpentelemetry.HandleSpanError(span, "Failed to record the account closing", err)
-	logger.Log(ctx, libLog.LevelError, "Failed to record the account closing", libLog.Err(err))
-
-	return time.Time{}, err
-}
-
-// resolveUnappliedAccountClosing decides what a zero-row conditional write meant.
-//
-// Absent, soft-deleted and already closed are indistinguishable from the statement
-// alone, so the authoritative row is read: a closing instant there is the conflict
-// of a repeat, and no row at all is the account being gone from the scope. A read
-// that fails leaves the outcome unknown, which is refused rather than guessed.
-func (uc *UseCase) resolveUnappliedAccountClosing(
-	ctx context.Context,
-	span trace.Span,
-	logger libLog.Logger,
-	attempt *accountClosingAttempt,
-) error {
-	states, err := uc.AccountRepo.ListClosedAtByIDs(ctx, attempt.organizationID, attempt.ledgerID, []uuid.UUID{attempt.accountID})
-	if err != nil {
-		indeterminate := pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
-
-		libOpentelemetry.HandleSpanError(span, "Failed to resolve the unapplied account closing", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to resolve the unapplied account closing", libLog.Err(err))
-
-		return indeterminate
-	}
-
-	if closedAt, ok := states[attempt.accountID]; ok && closedAt != nil {
-		alreadyClosed := pkg.ValidateBusinessError(constant.ErrAccountAlreadyClosed, constant.EntityAccount)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "The account was already closed", alreadyClosed)
-
-		return alreadyClosed
-	}
-
-	notFound := pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
-
-	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "The account to close is no longer in the scope", notFound)
-
-	return notFound
-}
-
 // retain records that the outcome of this attempt could not be established, so its
 // protection stays in place for reconciliation instead of being given back.
 func (a *accountClosingAttempt) retain() {
@@ -376,13 +310,15 @@ func (uc *UseCase) releaseAccountClosingAttempt(ctx context.Context, attempt *ac
 
 	logger := libObservability.NewLoggerFromContext(ctx)
 
-	released, err := uc.TransactionRedisRepo.ReleaseAccountClosingMarker(ctx, attempt.organizationID, attempt.ledgerID, attempt.accountID, attempt.token)
-	if err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Failed to remove the account closing marker", libLog.Err(err))
-	}
+	if !attempt.markerReleased {
+		released, err := uc.TransactionRedisRepo.ReleaseAccountClosingAttempt(ctx, attempt.organizationID, attempt.ledgerID, attempt.accountID, attempt.token)
+		if err != nil {
+			logger.Log(ctx, libLog.LevelWarn, "Failed to remove the account closing marker", libLog.Err(err))
+		}
 
-	if !released && err == nil {
-		logger.Log(ctx, libLog.LevelDebug, "The account closing marker was not owned at release")
+		if !released && err == nil {
+			logger.Log(ctx, libLog.LevelDebug, "The account closing marker was not owned at release")
+		}
 	}
 
 	attempt.admission.Release(ctx)

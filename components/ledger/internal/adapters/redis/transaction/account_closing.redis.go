@@ -11,7 +11,10 @@ import (
 	"strings"
 	"time"
 
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
@@ -28,6 +31,17 @@ const (
 	// nanosecond-precision RFC 3339 value round-trips the timestamp the database
 	// generated without widening it.
 	accountClosedMarkerLayout = time.RFC3339Nano
+
+	// accountClosingWriteSuffix is appended to the attempt token once that attempt
+	// issued its closing write. It is what separates an attempt that cannot have
+	// closed anything from one whose write may still land: reconciliation may give
+	// back the protection of the first, never of the second, and no elapsed time
+	// turns the second into the first.
+	//
+	// The separator cannot occur in a token, which is a UUID, so the encoding is
+	// unambiguous. It is private to this adapter: the marker still holds one
+	// attempt's identity, and nothing outside reads its bytes.
+	accountClosingWriteSuffix = "|w"
 )
 
 // ErrAccountProtectionMarkerUnreadable reports a marker that exists but cannot be
@@ -57,13 +71,30 @@ type AccountProtectionRepository interface {
 	// resolved.
 	AcquireAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
 	// GetAccountClosingMarker returns the token of the attempt that owns the closing
-	// marker. A missing marker returns ("", false, nil); a marker that exists with an
-	// empty token returns ErrAccountProtectionMarkerUnreadable.
+	// marker, whatever phase that attempt is in. A missing marker returns
+	// ("", false, nil); a marker that exists with an empty token returns
+	// ErrAccountProtectionMarkerUnreadable.
 	GetAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (string, bool, error)
+	// ReadAccountClosingAttempt returns the attempt recorded on the closing marker:
+	// its token and whether it already issued its closing write. It is the read
+	// reconciliation needs, because those two phases license different actions.
+	ReadAccountClosingAttempt(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (AccountClosingAttempt, bool, error)
+	// MarkAccountClosingWriteIssued records on the marker that the caller's attempt
+	// is about to issue its closing write, so a later reconciliation cannot mistake
+	// an unresolved write for an attempt that never wrote. It is conditional on the
+	// caller's token and idempotent, returning false when another attempt owns the
+	// marker or none does.
+	MarkAccountClosingWriteIssued(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
 	// ReleaseAccountClosingMarker removes the closing marker only when it still
-	// carries the caller's token, so a late release can never drop a newer attempt's
-	// protection. It returns false when the marker is missing or owned by another.
+	// carries the caller's token AND that attempt has not issued its closing write.
+	// It is the release reconciliation uses, where an issued write is exactly the
+	// case that must keep its protection. It returns false when the marker is
+	// missing, owned by another attempt, or already carrying a write.
 	ReleaseAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
+	// ReleaseAccountClosingAttempt removes the closing marker of the caller's own
+	// attempt in either phase. Only the owner calls it, and only once it knows what
+	// its write did.
+	ReleaseAccountClosingAttempt(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error)
 	// SetAccountClosedMarker writes the confirmed closing instant as a negative cache
 	// entry with its fixed TTL. It is unconditional: the instant comes from the
 	// authoritative row, so recomposing it after expiry must not depend on whether a
@@ -91,26 +122,121 @@ func (rr *RedisConsumerRepository) AcquireAccountClosingMarker(ctx context.Conte
 	return rr.acquireAccountProtection(ctx, utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID), token)
 }
 
+// AccountClosingAttempt is what one closing marker records: the token of the
+// attempt that owns the account and whether that attempt already issued the write
+// that records the closing instant.
+//
+// WriteIssued is the difference reconciliation turns on. An attempt that never
+// issued its write cannot have closed anything, so its abandoned protection may be
+// given back. One that did may have committed with the answer lost, so its
+// protection stays until the authoritative row says what happened.
+type AccountClosingAttempt struct {
+	Token       string
+	WriteIssued bool
+}
+
 func (rr *RedisConsumerRepository) GetAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (string, bool, error) {
+	attempt, found, err := rr.ReadAccountClosingAttempt(ctx, organizationID, ledgerID, accountID)
+
+	return attempt.Token, found, err
+}
+
+func (rr *RedisConsumerRepository) ReadAccountClosingAttempt(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) (AccountClosingAttempt, bool, error) {
 	value, err := rr.Get(ctx, utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID))
 	if err != nil {
-		return "", false, err
+		return AccountClosingAttempt{}, false, err
 	}
 
 	if value == "" {
-		return "", false, nil
+		return AccountClosingAttempt{}, false, nil
 	}
 
-	token := strings.TrimSpace(value)
-	if token == "" {
-		return "", false, fmt.Errorf("%w: closing marker carries no owner token", ErrAccountProtectionMarkerUnreadable)
+	attempt, err := decodeAccountClosingAttempt(value)
+	if err != nil {
+		return AccountClosingAttempt{}, false, err
 	}
 
-	return token, true, nil
+	return attempt, true, nil
+}
+
+func (rr *RedisConsumerRepository) MarkAccountClosingWriteIssued(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	if strings.TrimSpace(token) == "" {
+		return false, fmt.Errorf("%w: owner token is empty", ErrAccountProtectionMarkerUnreadable)
+	}
+
+	key := utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID)
+
+	return rr.runAccountClosingScript(ctx, markAccountClosingWriteScript, "redis.mark_account_closing_write", key, token, token+accountClosingWriteSuffix)
 }
 
 func (rr *RedisConsumerRepository) ReleaseAccountClosingMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
 	return rr.releaseAccountProtection(ctx, utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID), token)
+}
+
+func (rr *RedisConsumerRepository) ReleaseAccountClosingAttempt(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, token string) (bool, error) {
+	if strings.TrimSpace(token) == "" {
+		return false, fmt.Errorf("%w: owner token is empty", ErrAccountProtectionMarkerUnreadable)
+	}
+
+	key := utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID)
+
+	return rr.runAccountClosingScript(ctx, deleteAccountClosingScript, "redis.release_account_closing_attempt", key, token, token+accountClosingWriteSuffix)
+}
+
+// decodeAccountClosingAttempt reads one marker value. An empty token is reported
+// as unreadable rather than as an absent marker: a marker that exists but cannot
+// be attributed leaves the protection state unknown, and treating that as absence
+// would turn a failure into an authorization.
+func decodeAccountClosingAttempt(value string) (AccountClosingAttempt, error) {
+	trimmed := strings.TrimSpace(value)
+
+	token, writeIssued := strings.CutSuffix(trimmed, accountClosingWriteSuffix)
+	if strings.TrimSpace(token) == "" {
+		return AccountClosingAttempt{}, fmt.Errorf("%w: closing marker carries no owner token", ErrAccountProtectionMarkerUnreadable)
+	}
+
+	return AccountClosingAttempt{Token: token, WriteIssued: writeIssued}, nil
+}
+
+// runAccountClosingScript runs one conditional marker script over the tenant's
+// key and reports whether it applied.
+func (rr *RedisConsumerRepository) runAccountClosingScript(ctx context.Context, script *redis.Script, spanName, key string, args ...any) (bool, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, spanName)
+	defer span.End()
+
+	key, err := tenantKeyFromContextOrError(ctx, key)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to namespace redis key", err)
+
+		return false, err
+	}
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to connect on redis", err)
+
+		return false, err
+	}
+
+	result, err := script.Run(ctx, rds, []string{key}, args...).Result()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to run the account closing marker script", err)
+
+		return false, err
+	}
+
+	applied, ok := result.(int64)
+	if !ok {
+		err = fmt.Errorf("unexpected result type from account closing marker script: %T", result)
+
+		libOpentelemetry.HandleSpanError(span, "Unexpected result type", err)
+
+		return false, err
+	}
+
+	return applied == 1, nil
 }
 
 func (rr *RedisConsumerRepository) SetAccountClosedMarker(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, closedAt time.Time) error {

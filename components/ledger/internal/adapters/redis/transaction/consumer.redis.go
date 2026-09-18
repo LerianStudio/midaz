@@ -58,6 +58,12 @@ var deleteIfValueLua string
 //go:embed scripts/expire_if_value.lua
 var expireIfValueLua string
 
+//go:embed scripts/mark_account_closing_write.lua
+var markAccountClosingWriteLua string
+
+//go:embed scripts/delete_account_closing_attempt.lua
+var deleteAccountClosingAttemptLua string
+
 //go:embed scripts/normalize_balance_limit.lua
 var normalizeBalanceLimitLua string
 
@@ -82,6 +88,8 @@ var (
 	updateBalanceAllowFlagsScript   = redis.NewScript(updateBalanceAllowFlagsLua)
 	deleteIfValueScript             = redis.NewScript(deleteIfValueLua)
 	expireIfValueScript             = redis.NewScript(expireIfValueLua)
+	markAccountClosingWriteScript   = redis.NewScript(markAccountClosingWriteLua)
+	deleteAccountClosingScript      = redis.NewScript(deleteAccountClosingAttemptLua)
 	normalizeBalanceLimitScript     = redis.NewScript(normalizeBalanceLimitLua)
 	compareDeleteRecoveryScript     = redis.NewScript(compareDeleteRecoveryLua)
 	acknowledgeEngineRecoveryScript = redis.NewScript(acknowledgeEngineRecoveryLua)
