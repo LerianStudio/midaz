@@ -103,7 +103,21 @@ func (m *closeAccountMocks) expectProtectionTaken() {
 // expectProtectionReleased programs the cleanup of a resolved attempt: the closing
 // marker leaves before the ownership, and both are conditional on the token.
 func (m *closeAccountMocks) expectProtectionReleased() {
-	m.redis.EXPECT().ReleaseAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+	m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+		Return(true, nil)
+	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+		Return(true, nil)
+}
+
+// expectClosingFinalized programs the finalization of a confirmed closing: the
+// write intent, the eviction of every verified balance blob, the negative cache
+// and the removal of the closing marker.
+func (m *closeAccountMocks) expectClosingFinalized(closedAt time.Time, evictions int) {
+	m.redis.EXPECT().MarkAccountClosingWriteIssued(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+		Return(true, nil)
+	m.redis.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(evictions)
+	m.redis.EXPECT().SetAccountClosedMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, closedAt).Return(nil)
+	m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
 		Return(true, nil)
 	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
 		Return(true, nil)
@@ -167,7 +181,7 @@ func TestCloseAccount_ClosesAnEligibleAccount(t *testing.T) {
 	m.expectPendingQuery(false, nil)
 
 	m.account.EXPECT().CloseAccount(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).Return(closeInstant, nil)
-	m.expectProtectionReleased()
+	m.expectClosingFinalized(closeInstant, 1)
 
 	closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
 
@@ -192,7 +206,7 @@ func TestCloseAccount_ClosesABlockedAccount(t *testing.T) {
 	m.expectPendingQuery(false, nil)
 
 	m.account.EXPECT().CloseAccount(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).Return(closeInstant, nil)
-	m.expectProtectionReleased()
+	m.expectClosingFinalized(closeInstant, 1)
 
 	closedAt, err := m.uc.CloseAccount(context.Background(), closeOrgID, closeLedgerID, closeAccountID)
 
@@ -372,6 +386,8 @@ func TestCloseAccount_ResolvesAZeroRowWriteWithTheAuthoritativeRow(t *testing.T)
 
 	recorded := closeInstant
 
+	m.redis.EXPECT().MarkAccountClosingWriteIssued(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+		Return(true, nil)
 	m.account.EXPECT().CloseAccount(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
 		Return(time.Time{}, account.ErrAccountCloseNotApplied)
 	m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), closeOrgID, closeLedgerID, []uuid.UUID{closeAccountID}).
