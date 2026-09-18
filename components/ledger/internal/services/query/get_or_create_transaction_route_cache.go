@@ -17,6 +17,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
@@ -50,9 +51,11 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 	if err == nil && len(cachedValue) > 0 {
 		if bytes.Equal(cachedValue, cacheNotFoundSentinel) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found (sentinel cache hit)", services.ErrDatabaseItemNotFound)
+			notFoundErr := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
 
-			return mmodel.TransactionRouteCache{}, services.ErrDatabaseItemNotFound
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found (sentinel cache hit)", notFoundErr)
+
+			return mmodel.TransactionRouteCache{}, notFoundErr
 		}
 
 		var cacheData mmodel.TransactionRouteCache
@@ -77,13 +80,15 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, msg, err)
 
-			logger.Log(ctx, libLog.LevelWarn, msg)
+			logger.Log(ctx, libLog.LevelWarn, msg,
+				libLog.String("transaction_route_id", transactionRouteID.String()),
+				libLog.String("ledger_id", ledgerID.String()))
 
 			if setErr := uc.TransactionRedisRepo.SetBytes(ctx, internalKey, cacheNotFoundSentinel, sentinelTTL); setErr != nil {
 				logger.Log(ctx, libLog.LevelWarn, "Failed to store not-found sentinel in cache", libLog.Err(setErr))
 			}
 
-			return mmodel.TransactionRouteCache{}, services.ErrDatabaseItemNotFound
+			return mmodel.TransactionRouteCache{}, pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to fetch transaction route from database", err)
