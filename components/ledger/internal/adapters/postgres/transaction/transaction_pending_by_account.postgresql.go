@@ -18,13 +18,15 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// pendingByAccountQuery builds the existence query for a PENDING transaction the
-// account participates in, on either side.
+// pendingByAccountQuery builds the existence query for a PENDING transaction that
+// still encumbers the account.
 //
-// Participation is read from the operation rows, which is where an account meets a
-// transaction: one row per leg, carrying the account it moved and the direction it
-// moved in, so source and destination are both covered without the query having to
-// name a side. The scope is complete on both tables — organization, ledger and the
+// Participation is read from the operation rows — the legs that carry an
+// accounting commitment. A hold writes only source-side rows, so a match here is
+// an account whose funds a pending still encumbers; the destination of a pending
+// is by design no impediment to closing.
+//
+// The scope is complete on both tables — organization, ledger and the
 // account identifier — and both soft-delete filters are kept, so the operation
 // predicate matches idx_operation_account_id
 // (organization_id, ledger_id, account_id, id) WHERE deleted_at IS NULL and the

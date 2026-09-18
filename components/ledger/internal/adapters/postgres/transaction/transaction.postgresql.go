@@ -142,8 +142,8 @@ type Repository interface {
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	CountByFilters(ctx context.Context, organizationID, ledgerID uuid.UUID, filter CountFilter) (int64, error)
-	// HasPendingByAccount reports whether a PENDING transaction involves the
-	// account as source or destination, reading that participation from the
+	// HasPendingByAccount reports whether a PENDING transaction still
+	// encumbers the account as source, reading that participation from the
 	// operation rows of the same scope.
 	//
 	// It answers what PostgreSQL can see: a pending execution whose rows are not

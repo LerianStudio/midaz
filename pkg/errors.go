@@ -556,7 +556,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrAccountHasPendingTransactions.Error(),
 			Title:      "Account Has Pending Transactions Error",
-			Message:    "The account cannot be closed because a pending transaction still involves it as source or destination. Please commit or cancel those transactions and try again.",
+			Message:    "The account cannot be closed because a pending transaction still holds its funds. Please commit or cancel those transactions and try again.",
 		},
 		constant.ErrAccountClosingPersistencePending: EntityConflictError{
 			EntityType: entityType,

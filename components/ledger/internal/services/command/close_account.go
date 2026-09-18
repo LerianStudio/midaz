@@ -326,10 +326,13 @@ func (uc *UseCase) verifyAccountClosingEligibility(ctx context.Context, organiza
 }
 
 // verifyNoAccountClosingPendingTransaction refuses the closing while a pending
-// transaction can still move the account, on either side.
+// transaction still encumbers the account as source. Participation is read from
+// the durable operation record, independently of the live-balance evidence, so a
+// disagreement between the two fails closed.
 //
-// Every monetary component may read zero and the account still be one commit away
-// from moving, so this is a refusal of its own class and not a balance residual.
+// A pending naming the account only as destination is deliberately no impediment:
+// the hold reserves nothing on the destination side, and the closed-account
+// refusal at commit answers that side instead.
 func (uc *UseCase) verifyNoAccountClosingPendingTransaction(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

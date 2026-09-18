@@ -575,7 +575,7 @@ var (
 	// unused overdraft limit is not a debt.
 	ErrAccountBalanceNotZero = errors.New("0516")
 	// ErrAccountHasPendingTransactions is returned when a close finds a pending
-	// transaction involving the account as source or destination. Distinct from
+	// transaction still encumbering the account as source. Distinct from
 	// ErrAccountBalanceNotZero (0516): the monetary components can all read zero
 	// while a two-phase transaction is still able to move them.
 	ErrAccountHasPendingTransactions = errors.New("0517")
