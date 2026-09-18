@@ -86,7 +86,7 @@ which feeds both the Catalog and the manifest:
 
 ## Event summary
 
-All 35 events carry `SchemaVersion = 1.0.0`. The `account_type.*` events are
+All 36 events carry `SchemaVersion = 1.0.0`. The `account_type.*` events are
 intentionally NOT registered — the type label flows through `account.*` events
 as a string field.
 
@@ -101,6 +101,7 @@ as a string field.
 | `account.created` | account / created | `studio.lerian.ledger.account.created` | account ID | `CreateAccount` |
 | `account.updated` | account / updated | `studio.lerian.ledger.account.updated` | account ID | `UpdateAccount` |
 | `account.deleted` | account / deleted | `studio.lerian.ledger.account.deleted` | account ID | `DeleteAccountByID` |
+| `account.closed` | account / closed | `studio.lerian.ledger.account.closed` | account ID | `CloseAccount` |
 | `asset.created` | asset / created | `studio.lerian.ledger.asset.created` | asset ID | `CreateAsset` |
 | `asset.updated` | asset / updated | `studio.lerian.ledger.asset.updated` | asset ID | `UpdateAssetByID` |
 | `asset.deleted` | asset / deleted | `studio.lerian.ledger.asset.deleted` | asset ID | `DeleteAssetByID` |
@@ -283,6 +284,21 @@ Source: `pkg/streaming/events/account_deleted.go`.
 
 > The cascade `DeleteAllBalancesByAccountID` does NOT generate per-balance
 > `balance.deleted` events; the user-visible fact is the account removal.
+
+#### `account.closed` — 4 fields
+
+Source: `pkg/streaming/events/account_closed.go`.
+
+| Key | Type | Notes |
+|-----|------|-------|
+| `id` | string | Account ID. |
+| `organizationId` | string | |
+| `ledgerId` | string | |
+| `closedAt` | string | RFC3339. The instant the database recorded and returned; no producer clock reaches it. |
+
+> Closing writes no transaction and no operation, so the payload carries no
+> transaction reference. It is also the only event a closing publishes — neither
+> `account.updated` nor `balance.deleted` follows from it.
 
 ### Asset
 
