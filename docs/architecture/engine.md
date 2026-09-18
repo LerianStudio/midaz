@@ -55,7 +55,7 @@ The boundary is intentionally strict:
 | Phase | May decide | Must not decide |
 | --- | --- | --- |
 | Before the engine | API/version policy, fees, tracer, transaction shape, route resolution, posting composition, static identity and scope | Whether the current live balance can fund a posting; the real overdraft split; resulting balance versions |
-| Inside the engine | Live asset, permission, account-block, and deletion-marker checks; available/on-hold arithmetic; overdraft draw/repayment; movements; versions; guards; receipts; and recovery evidence | HTTP policy, route DSL interpretation, SQL/MongoDB projection, event publication |
+| Inside the engine | Live asset, permission, account-block, account-block-exception, and deletion-marker checks; atomic single-use grant consumption; available/on-hold arithmetic; overdraft draw/repayment; movements; versions; guards; receipts; and recovery evidence | HTTP policy, route DSL interpretation, SQL/MongoDB projection, event publication |
 | After the engine | Durable transaction/operation projection, metadata verification, response shaping, events, and recovery acknowledgment | Re-running accounting or changing the movement result to fit a historical row shape |
 
 All balance-dependent approval happens against live Redis state inside the same
@@ -95,35 +95,40 @@ revert, commit, or cancel that reaches the engine:
    `createRevertV1`, `createRevertV2`, `transitionPendingV1`, or
    `transitionPendingV2`) performs, as applicable, API policy, normalization,
    idempotency claim, fees/tracer policy, and static transaction validation.
-2. `prepareEngineTransaction` calls `TransactionReader.GetEngineBalances`. The
+2. For v2 create, revert, and pending commit, the command resolves an optional
+   `accountBlockExceptionId` for static binding. That read is not authoritative:
+   Lua re-reads and consumes the grant in the atomic accounting execution.
+3. `prepareEngineTransaction` calls `TransactionReader.GetEngineBalances`. The
    query implementation checks Redis first and reads PostgreSQL only for cache
    misses. It returns explicit transaction balances separately from optional
    overdraft companions, then resolves accounting routes and calls
    `TranslateEngineTransaction` to build ordered postings.
-3. The create/revert or pending builder captures a `TransactionCompletionPlan`,
+4. The create/revert or pending builder captures a `TransactionCompletionPlan`,
    execution ID, lifecycle guard, and immutable intent fingerprint. The plan
    freezes row attribution, metadata, and timestamps, but deliberately leaves all
    monetary outcomes to the engine.
-4. `ExecutePreparedEngine` validates that the in-memory plan and embedded plan are
+5. `ExecutePreparedEngine` validates that the in-memory plan and embedded plan are
    canonical and correlated, then invokes `Engine.Execute` exactly once. It does
    not implement stale-balance or conflict retry.
-5. `redis/engine.Adapter.Execute` resolves tenant-scoped physical keys, builds the
+6. `redis/engine.Adapter.Execute` resolves tenant-scoped physical keys, including
+   an ordered tail key for every presented account-block exception, builds the
    bounded wire request, obtains a supported standalone/Sentinel client, and sends
    the assembled Lua script with Redis client retries disabled.
-6. Lua `main` decodes the protocol and calls `execute`, which checks for a valid
+7. Lua `main` decodes the protocol and calls `execute`, which checks for a valid
    receipt replay, validates guards/key types, loads authoritative live balances,
-   evaluates ordered postings in memory, serializes every output, and finally
-   calls `commitPreparedExecution` to publish balances plus recovery evidence.
-7. On a confirmed result, `AppliedTransactionCompleter.Complete` projects or
+   validates live grants, evaluates ordered postings in memory, serializes every
+   output, and finally calls `commitPreparedExecution` to publish balances plus
+   recovery evidence and delete consumed grants before writing the receipt.
+8. On a confirmed result, `AppliedTransactionCompleter.Complete` projects or
    verifies the transaction, operations, and metadata. Completion failure returns
    an error to the request but does not undo accounting.
-8. After validating the durable outcome, the normal path asks
+9. After validating the durable outcome, the normal path asks
    `EngineRecoveryAcknowledger` to read the exact raw version-2 record, validate
    that it represents the completed execution, and run the protected
    exact-value ACK. The ACK removes only `recover`; it updates acknowledgment
    and terminal proof and, when terminal conditions hold, schedules future
    receipt/guard cleanup atomically.
-9. A missing record is already acknowledged. If this best-effort synchronous
+10. A missing record is already acknowledged. If this best-effort synchronous
    ACK fails or observes a replacement, the request still succeeds because the
    accounting result and projections are durable. A record that remains is
    handled by `EngineRecoveryConsumer`; an uncertain response may also mean the
@@ -201,6 +206,10 @@ arithmetic.
 Transactions contain a nonzero UUID and ordered postings. Each posting has a
 transaction-unique `Ref`, a logical `BalanceRef` (`alias#key`), a supported type,
 positive decimal `Amount`, `DrawPolicy`, and nonnegative `OverdraftAmount`.
+An optional `AccountBlockException` carries a nonzero exception UUID, account
+alias, positive amount, and `PrimaryPostingRef`. Go must bind it to exactly one
+eligible primary outflow: `debit` for direct/revert or `unreserve` for commit.
+Its amount is derived from that posting, not trusted from the cached grant.
 No domain input may supply physical Redis keys.
 
 All input belongs to one authenticated tenant and ledger. The adapter resolves
@@ -540,9 +549,10 @@ integration tests use the same assembled source. Raw Lua assets consume the
 fixed local policy values prepended by `LuaSource` and are not standalone
 definitions of cache policy. The legacy script retains its three top-level KEYS
 and its 25-argument stride per balance; the engine retains exactly three ARGV
-values. Balance-key bytes and the 24-hour balance-cache TTL are unchanged; each
-balance contributes both the dedicated marker key and the compatibility suffix
-key to the declared Redis key inventory.
+values. The engine key inventory begins with five shared keys, followed by three
+keys per balance (live value plus both deletion-marker forms), then one grant key
+for each transaction that presents an account-block exception, in transaction
+order. Balance-key bytes and the 24-hour balance-cache TTL are unchanged.
 
 Before the first write, the engine must:
 
@@ -550,15 +560,21 @@ Before the first write, the engine must:
    recovery correlation, receipt/guard state, and expected Redis key types.
 2. Resolve touched balances and use live data when present; use cache-miss seeds
    only in working memory. Do not seed Redis early with `SET NX`.
-3. Check both deletion-marker namespaces and, unless the lifecycle action is a
-   cancellation, the live account-block flag for every explicitly required or
-   posted balance. Generated companions repeat both protections at their
-   exact mutation site. An unused pool balance with a marker must not block the
-   request. Live cached money, settings, block state, and version supersede the
-   request seed after identity validation.
-4. Execute transactions and postings in stable order against working state.
+3. Re-read every presented account-block exception from its declared tail key.
+   Missing, expired, already-consumed, malformed, wrong-alias, or wrong-amount
+   values refuse with `account_block_exception_invalid` before any write. A valid
+   grant exempts only its bound primary account and that account's overdraft
+   companion from the live blocked and sending controls for that transaction.
+4. Check both deletion-marker namespaces and, unless the lifecycle action is a
+   cancellation or a matching exemption applies, the live account-block flag for
+   every explicitly required or posted balance. Deletion markers are never
+   bypassed. Generated companions repeat both protections at their exact mutation
+   site. An unused pool balance with a marker must not block the request. Live
+   cached money, settings, block state, and version supersede the request seed
+   after identity validation.
+5. Execute transactions and postings in stable order against working state.
    Later transactions observe earlier intermediate results.
-5. Serialize all final blobs, per-transaction recovery envelopes, receipts,
+6. Serialize all final blobs, per-transaction recovery envelopes, receipts,
    guards, and the response, and prepare all command arguments.
 
 The earlier Go cache-aside read and this Lua read have different jobs. Go needs a
@@ -574,9 +590,10 @@ recovery-retention guarantee and does not justify moving live validation to Go.
 
 Only then may the script publish prepared writes. Update each changed balance's
 schedule score with overwrite semantics, retaining the worker's fractional-second
-precision. Do not use `ZADD NX`. Refusals before commit leave key values, TTLs,
-absence, schedule, recover records, and guards unchanged, except separately executed
-conditional normalization.
+precision. Delete each validated grant after balance/recovery/protection writes
+and before the receipt. Do not use `ZADD NX`. Refusals before commit leave grant
+values and TTLs, balance values and TTLs, absence, schedule, recovery records,
+and guards unchanged, except separately executed conditional normalization.
 
 Lua execution is isolated, not rollback-capable. An arbitrary error after the
 first write can leave partial state. Preflight must detect predictable WRONGTYPE
@@ -677,6 +694,7 @@ automatically repair a partially executed commit.
 | overdraft_not_eligible | 0492 only for eligible-account route denial; 0018 for forbidden/ineligible paths, preserving validation precedence |
 | balance_deleted | 0019 |
 | account_blocked | 0502; evaluated from the live cache value inside Lua |
+| account_block_exception_invalid | 0508 on `Transaction`, correlated to the primary posting; the live grant is missing, malformed, consumed, expired, or has a divergent alias/amount; no state or grant is mutated |
 | balance_missing | 0139 for the corresponding retrieval failure |
 | overdraft_companion_missing | Technical invariant failure, generic 0046 |
 | onhold_underflow | Technical invariant failure, generic 0046; not external-hold code 0098 |
@@ -964,13 +982,20 @@ The legacy accounting path remains only where the flow intentionally bypasses
 the engine and for compatibility with work created by older instances. Both paths
 retain dual-compatible cache parsing and repair handling.
 
-A V2 create, revert, or pending commit that presents an
-`accountBlockExceptionId` is one intentional compatibility bypass: the legacy
-atomic path currently owns validation and single-use consumption of that grant.
-Requests without a grant still enforce the live account-block flag inside the
-engine, and cancellation remains exempt. Moving grants into the engine requires
-extending the engine protocol so validation, monetary mutation, and grant
-consumption remain one atomic Redis operation.
+A v2 create, revert, or pending commit that presents an
+`accountBlockExceptionId` remains on the default engine path. Go binds the cached
+grant to one eligible primary outflow, while Lua authoritatively re-reads it,
+validates alias and scale-insensitive amount equality, exempts only that primary
+account plus its overdraft companion from blocked/sending controls, and deletes
+the key in the same commit as the monetary mutation. The exception UUID is part
+of the immutable intent fingerprint. Receipt replay is checked first, so the same
+execution can replay after consumption; a different execution cannot reuse the
+grant. Executable v2 reversals have no nil-engine fallback: tests inject the engine
+dependencies just as production bootstrap does. Requests without a grant still
+enforce the live account-block flag, deletion markers are never bypassed, and
+cancellation remains exempt without reading a grant. HOLD rejects a presented
+identifier with 0509 at the transport. NOTED remains on its nonmonetary path and
+does not consume a grant; rejecting that combination is tracked separately.
 
 ### Cache writer compatibility
 
@@ -1070,7 +1095,7 @@ configuration:
 
 | Boundary | Hard ceiling |
 | --- | ---: |
-| Transactions per execution | 1 |
+| Transactions per execution | 50 |
 | Postings per execution | 10,000 |
 | Balance snapshots per execution | 20,000 |
 | Completion plan | 32 MiB |
@@ -1096,6 +1121,36 @@ wire with only two postings, two snapshots, and one projection context. This
 demonstrates why an 8 MiB ceiling is unsafe and leaves headroom under the fixed
 32 MiB and 64 MiB boundaries. Metrics must still be monitored for real workloads;
 future evidence may justify a reviewed code change.
+
+The atomic transaction batch applies a stricter command-level admission envelope
+before Tracer reservation or accounting. These are fixed release limits; only the
+transaction cardinality may be reduced operationally with
+`TRANSACTION_BATCH_MAX_SIZE`:
+
+| Atomic batch boundary | Effective ceiling |
+| --- | ---: |
+| Transactions | 10 by default; configurable up to 50 |
+| Expanded postings after fees | 100 |
+| Execution balance snapshots, including overdraft companions | 150 |
+| Sum of encoded completion plans | 256 KiB |
+| Serialized accounting request | 256 KiB |
+| Prepared execution representation | 1 MiB |
+| Estimated recovery representation | 512 KiB |
+| Cached terminal response representation | 1 MiB |
+
+The decoded HTTP body must also remain below 1 MiB and the request may contain at
+most 1,000 input legs. Passing those two input checks does not guarantee admission:
+fee expansion, balance companions, escaping, and duplicated recovery/projection
+context are checked against the derived limits above. The first transaction that
+crosses a derived boundary receives `0516` and no Tracer or accounting work begins.
+
+The release gate lowered the original 200-posting/400-balance candidates. On the
+recorded production-adapter benchmark, that candidate reached 143.4 ms Lua p99.
+The final 50-item, 100-posting, 150-balance maximum had a 77.1 ms median Lua p99;
+the worst of its six isolated/concurrent runs was 81.4 ms, leaving 18.6 ms below
+the 100 ms target. Reproduction commands, serialized sizes, host details, and
+evidence limitations are recorded in
+[`engine-report.md`](../performance/engine-report.md#atomic-transaction-batch-release-gate).
 
 The deterministic representative wire measurements are 2 postings/2 pool
 snapshots: 2,134 bytes; 10 postings/20 pool snapshots: 12,974 bytes; and 50

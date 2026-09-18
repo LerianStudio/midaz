@@ -109,6 +109,12 @@ func (m *MockRedisRepository) DeleteIfValue(ctx context.Context, key, value stri
 	return ret0, ret1
 }
 
+// DeleteIfValue indicates an expected call of DeleteIfValue.
+func (mr *MockRedisRepositoryMockRecorder) DeleteIfValue(ctx, key, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIfValue", reflect.TypeOf((*MockRedisRepository)(nil).DeleteIfValue), ctx, key, value)
+}
+
 // ExpireIfValue mocks base method.
 func (m *MockRedisRepository) ExpireIfValue(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
 	m.ctrl.T.Helper()
@@ -122,12 +128,6 @@ func (m *MockRedisRepository) ExpireIfValue(ctx context.Context, key, value stri
 func (mr *MockRedisRepositoryMockRecorder) ExpireIfValue(ctx, key, value, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExpireIfValue", reflect.TypeOf((*MockRedisRepository)(nil).ExpireIfValue), ctx, key, value, ttl)
-}
-
-// DeleteIfValue indicates an expected call of DeleteIfValue.
-func (mr *MockRedisRepositoryMockRecorder) DeleteIfValue(ctx, key, value any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIfValue", reflect.TypeOf((*MockRedisRepository)(nil).DeleteIfValue), ctx, key, value)
 }
 
 // Get mocks base method.
@@ -322,6 +322,22 @@ func (m *MockRedisRepository) ReadMessageFromQueue(ctx context.Context, key stri
 func (mr *MockRedisRepositoryMockRecorder) ReadMessageFromQueue(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).ReadMessageFromQueue), ctx, key)
+}
+
+// RefreshBalanceSyncKeyTTLs mocks base method.
+func (m *MockRedisRepository) RefreshBalanceSyncKeyTTLs(ctx context.Context, ttl time.Duration) (int64, float64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RefreshBalanceSyncKeyTTLs", ctx, ttl)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(float64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// RefreshBalanceSyncKeyTTLs indicates an expected call of RefreshBalanceSyncKeyTTLs.
+func (mr *MockRedisRepositoryMockRecorder) RefreshBalanceSyncKeyTTLs(ctx, ttl any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RefreshBalanceSyncKeyTTLs", reflect.TypeOf((*MockRedisRepository)(nil).RefreshBalanceSyncKeyTTLs), ctx, ttl)
 }
 
 // RemoveBalanceSyncKeysBatch mocks base method.

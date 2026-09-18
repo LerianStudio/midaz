@@ -58,8 +58,27 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	// Point-in-time balance queries
+	// ListLatestByBalances returns, for each requested balance, the operation holding
+	// its high-water mark: the newest balance-affecting, non-deleted operation of that
+	// balance, carrying the after-values and overdraft snapshot it left behind. The
+	// result is keyed by balance ID; a balance with no eligible operation is ABSENT
+	// from the map rather than an error, which is what a brand-new account looks like.
+	//
+	// The read always targets the primary: its purpose is to tell whether the balance
+	// row is behind the operation trail, and a lagging replica would report a stale
+	// high-water mark and blind that check.
+	ListLatestByBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, refs []BalanceHWMRef) (map[string]*Operation, error)
 	FindLastOperationBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID, balanceID uuid.UUID, timestamp time.Time) (*Operation, error)
 	FindLastOperationsForAccountBeforeTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
+}
+
+// BalanceHWMRef addresses one balance in a high-water-mark lookup. The account ID
+// travels with the balance ID because it is the leading column of
+// idx_operation_account_balance_pit: without it the lookup cannot match the index
+// prefix.
+type BalanceHWMRef struct {
+	AccountID uuid.UUID
+	BalanceID uuid.UUID
 }
 
 // OperationPostgreSQLRepository is a Postgresql-specific implementation of the OperationRepository.
@@ -1195,6 +1214,132 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 	}
 
 	return operations, cur, nil
+}
+
+// ListLatestByBalances resolves the high-water-mark operation of each requested balance.
+//
+// The high-water mark is decided by balance_version_after, the only field that grows
+// monotonically with the balance: it is assigned inside the serialized Lua execution,
+// while created_at is stamped in Go BEFORE that execution. Two concurrent transactions on
+// one balance can therefore land in the opposite order in the two fields, and picking the
+// newest created_at would then elect an intermediate version as the mark — which reads as
+// "the row is only slightly behind" and rebuilds the seed short, permanently.
+//
+// Cost of that choice, accepted deliberately: idx_operation_account_balance_pit orders by
+// created_at, so the balance's entries under the (organization, ledger, account, balance)
+// prefix are scanned and sorted for a top-1 instead of being read in index order. The
+// query runs only on a cache miss, and a dedicated index would need a migration, which
+// this work explicitly rules out.
+func (r *OperationPostgreSQLRepository) ListLatestByBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, refs []BalanceHWMRef) (hwm map[string]*Operation, err error) {
+	if len(refs) == 0 {
+		return map[string]*Operation{}, nil
+	}
+
+	logger := libObservability.NewLoggerFromContext(ctx)
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// A read-only transaction is what makes dbresolver target the primary. Opening it is
+	// fail-closed: no replica fallback, because a stale high-water mark reads as "the
+	// balance row is up to date" and silently disarms the caller's guard.
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("open read-only primary transaction for balance high-water marks: %w", err)
+	}
+
+	defer func() {
+		// A failed read ends the transaction by rolling it back: committing work that
+		// produced nothing is the habit this closure would teach whoever copies it. A
+		// rollback that itself fails joins the error it could not undo, so the caller
+		// still sees the original failure.
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				err = errors.Join(err, fmt.Errorf("rollback read-only primary transaction for balance high-water marks: %w", rollbackErr))
+			}
+
+			return
+		}
+
+		if commitErr := tx.Commit(); commitErr != nil {
+			err = fmt.Errorf("close read-only primary transaction for balance high-water marks: %w", commitErr)
+		}
+	}()
+
+	query, args, err := buildBalanceHWMQuery(r.tableName, organizationID, ledgerID, refs)
+	if err != nil {
+		return nil, fmt.Errorf("build balance high-water mark query: %w", err)
+	}
+
+	logger.Log(ctx, libLog.LevelDebug, "ListLatestByBalances query assembled", libLog.String("query", query))
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query balance high-water marks: %w", err)
+	}
+
+	defer rows.Close()
+
+	result := make(map[string]*Operation, len(refs))
+
+	for rows.Next() {
+		var operation OperationPointInTimeModel
+
+		if scanErr := rows.Scan(
+			&operation.ID,
+			&operation.BalanceID,
+			&operation.AccountID,
+			&operation.AssetCode,
+			&operation.BalanceKey,
+			&operation.AvailableBalanceAfter,
+			&operation.OnHoldBalanceAfter,
+			&operation.VersionBalanceAfter,
+			&operation.CreatedAt,
+			&operation.Snapshot,
+		); scanErr != nil {
+			return nil, fmt.Errorf("scan balance high-water mark: %w", scanErr)
+		}
+
+		result[operation.BalanceID] = operation.ToEntity()
+	}
+
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, fmt.Errorf("iterate balance high-water marks: %w", rowsErr)
+	}
+
+	return result, nil
+}
+
+// buildBalanceHWMQuery assembles the high-water-mark lookup. DISTINCT ON keeps the first
+// row per balance, and the ORDER BY that decides which row that is leads with
+// balance_version_after — deliberately diverging from idx_operation_account_balance_pit,
+// which leads with created_at. See ListLatestByBalances for why the version has to win
+// and what that ordering costs.
+func buildBalanceHWMQuery(tableName string, organizationID, ledgerID uuid.UUID, refs []BalanceHWMRef) (string, []any, error) {
+	pairs := make(squirrel.Or, 0, len(refs))
+	for _, ref := range refs {
+		pairs = append(pairs, squirrel.Eq{
+			"account_id": ref.AccountID,
+			"balance_id": ref.BalanceID,
+		})
+	}
+
+	return squirrel.Select("DISTINCT ON (balance_id) "+strings.Join(operationPointInTimeColumns, ", ")).
+		From(tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(pairs).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		// Annotation rows move no money, so they hold no balance state to compare against.
+		Where(squirrel.Eq{"balance_affected": true}).
+		// Version first: it is the balance's monotonic clock. created_at and id only
+		// break a tie, which distinct operations of one balance can reach solely on an
+		// already-forked trail.
+		OrderBy("balance_id", "balance_version_after DESC", "created_at DESC", "id DESC").
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
 }
 
 // FindLastOperationBeforeTimestamp finds the last operation for a specific balance before a given timestamp.

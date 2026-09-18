@@ -201,6 +201,13 @@ func newCountingOneKeyRepo(t *testing.T, fetches *atomic.Int32) *redisTransactio
 		}).
 		AnyTimes()
 
+	// The collector runs a TTL keepalive beside its flush loop; this test observes
+	// the flush path only.
+	repo.EXPECT().
+		RefreshBalanceSyncKeyTTLs(gomock.Any(), gomock.Any()).
+		Return(int64(0), float64(0), nil).
+		AnyTimes()
+
 	return repo
 }
 

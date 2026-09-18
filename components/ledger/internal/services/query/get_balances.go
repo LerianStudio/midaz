@@ -11,12 +11,18 @@ import (
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -279,10 +285,175 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 			return nil, err
 		}
 
+		if err := uc.rebuildStaleBalanceSeeds(ctx, span, organizationID, ledgerID, balancesDB); err != nil {
+			return nil, err
+		}
+
 		balances = append(balances, balancesDB...)
 	}
 
 	return balances, nil
+}
+
+// rebuildStaleBalanceSeeds keeps a cache-miss seed from feeding the engine a balance
+// that the operation trail has already moved past.
+//
+// The balance row is written asynchronously by the sync worker, so losing the cached
+// balance while a delta is still pending leaves PostgreSQL behind the trail. Seeding
+// from that row restarts the balance from an older state, and every later mutation
+// forks off it — money disappears with no error anywhere. The operation at the
+// high-water mark records the state it left behind, so when the row is behind it, that
+// operation is the truth and the row is not.
+//
+// Only the monetary fields are taken from the operation; identity, flags and settings
+// stay as the row has them. A row at or ahead of the trail is left untouched: a
+// completion or recovery that landed after the last operation is not a fork.
+//
+// Residual window: the trail is written after the engine runs, by the completer or by
+// recovery. If the process stalls between the two and the cached balance is evicted in
+// that same instant, the mark is one version behind the live state and the seed is
+// rebuilt one version short. That window is narrow, it heals when recovery persists the
+// operation, and it leaves the seed no worse than the pre-guard behavior, which used the
+// stale row unconditionally.
+func (uc *UseCase) rebuildStaleBalanceSeeds(
+	ctx context.Context,
+	span trace.Span,
+	organizationID, ledgerID uuid.UUID,
+	balances []*mmodel.Balance,
+) error {
+	if len(balances) == 0 {
+		return nil
+	}
+
+	logger := libObservability.NewLoggerFromContext(ctx)
+
+	refs := make([]operation.BalanceHWMRef, 0, len(balances))
+
+	for _, b := range balances {
+		accountID, err := uuid.Parse(b.AccountID)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Invalid account ID on balance", err)
+			logger.Log(ctx, libLog.LevelError, "Invalid account ID on balance", libLog.String("balance_id", b.ID), libLog.Err(err))
+
+			return err
+		}
+
+		balanceID, err := uuid.Parse(b.ID)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Invalid balance ID on balance", err)
+			logger.Log(ctx, libLog.LevelError, "Invalid balance ID on balance", libLog.String("balance_id", b.ID), libLog.Err(err))
+
+			return err
+		}
+
+		refs = append(refs, operation.BalanceHWMRef{AccountID: accountID, BalanceID: balanceID})
+	}
+
+	highWaterMarks, err := uc.OperationRepo.ListLatestByBalances(ctx, organizationID, ledgerID, refs)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to load balance high-water marks", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to load balance high-water marks", libLog.Err(err))
+
+		return err
+	}
+
+	rebuilt := 0
+
+	for _, b := range balances {
+		hwm := highWaterMarks[b.ID]
+		if hwm == nil {
+			continue
+		}
+
+		// A mark with no after-version is a row behind a trail that cannot be rebuilt
+		// from, which applyBalanceHighWaterMark refuses (0513) — deliberately, and not
+		// the same case as having no mark at all, which passes through. The schema keeps
+		// the column NOT NULL, so this is a guard against a future shape, not a live one:
+		// do not turn it into a passthrough.
+		if hwm.BalanceAfter.Version != nil && *hwm.BalanceAfter.Version <= b.Version {
+			continue
+		}
+
+		// Read before the rebuild overwrites it: how far behind the row was is the
+		// whole point of the warning.
+		rowVersion := b.Version
+
+		if err := applyBalanceHighWaterMark(b, hwm); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to rebuild stale balance seed", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to rebuild stale balance seed",
+				libLog.String("balance_id", b.ID), libLog.Err(err))
+
+			return err
+		}
+
+		logger.Log(ctx, libLog.LevelWarn, "Rebuilt stale balance seed from the operation trail",
+			libLog.String("balance_id", b.ID),
+			libLog.Int("row_version", int(rowVersion)),
+			libLog.Int("hwm_version", int(*hwm.BalanceAfter.Version)))
+
+		rebuilt++
+	}
+
+	if rebuilt > 0 {
+		span.SetAttributes(attribute.Int("app.balance_seed.rebuilt_count", rebuilt))
+		uc.recordBalanceSeedRebuilt(ctx, organizationID, ledgerID, rebuilt)
+	}
+
+	return nil
+}
+
+// applyBalanceHighWaterMark overwrites the balance's monetary state with the state the
+// high-water-mark operation left behind. Anything the operation cannot supply makes the
+// whole rebuild fail: serving the stale row is the failure this guard exists to prevent,
+// so a request that cannot be answered correctly is refused instead.
+func applyBalanceHighWaterMark(balance *mmodel.Balance, hwm *operation.Operation) error {
+	if hwm.BalanceAfter.Available == nil || hwm.BalanceAfter.OnHold == nil || hwm.BalanceAfter.Version == nil {
+		return pkg.ValidateBusinessError(constant.ErrBalanceSeedRebuildInconsistent, constant.EntityBalance)
+	}
+
+	balance.Available = *hwm.BalanceAfter.Available
+	balance.OnHold = *hwm.BalanceAfter.OnHold
+	balance.Version = *hwm.BalanceAfter.Version
+
+	// The overdraft companion's operations carry the DEFAULT balance's overdraft
+	// snapshot, mirrored onto them at write time, so that value describes another
+	// balance. The companion keeps what its own row holds — and never has to read the
+	// snapshot, so an unreadable one cannot fail a rebuild that would ignore it.
+	if balance.Key != constant.OverdraftBalanceKey {
+		overdraftUsed, err := decimal.NewFromString(hwm.Snapshot.OverdraftUsedAfter)
+		if err != nil {
+			return pkg.ValidateBusinessError(constant.ErrBalanceSeedRebuildInconsistent, constant.EntityBalance)
+		}
+
+		balance.OverdraftUsed = overdraftUsed
+	}
+
+	return nil
+}
+
+// recordBalanceSeedRebuilt counts rebuilt seeds for the scope. Best-effort: a metric
+// failure never affects the read.
+func (uc *UseCase) recordBalanceSeedRebuilt(ctx context.Context, organizationID, ledgerID uuid.UUID, rebuilt int) {
+	if uc.MetricsFactory == nil {
+		return
+	}
+
+	logger := libObservability.NewLoggerFromContext(ctx)
+
+	counter, err := uc.MetricsFactory.Counter(utils.BalanceSeedRebuilt)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Failed to create balance seed rebuild counter", libLog.Err(err))
+
+		return
+	}
+
+	if addErr := counter.WithLabels(map[string]string{
+		"organization_id": organizationID.String(),
+		"ledger_id":       ledgerID.String(),
+		"tenant_id":       tmcore.GetTenantIDContext(ctx),
+	}).Add(ctx, int64(rebuilt)); addErr != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Failed to emit balance seed rebuild counter", libLog.Err(addErr))
+	}
 }
 
 // hydrateAccountBlocked stamps database-loaded balances with their owning

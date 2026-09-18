@@ -252,6 +252,44 @@ func TestAccountingError_ClosedServerProtocol(t *testing.T) {
 	}
 }
 
+func TestAccountingError_AccountBlockExceptionRefusalRequiresPrimaryPosting(t *testing.T) {
+	t.Parallel()
+
+	request, _ := adapterResultFixture(t)
+	posting := request.Transactions[0].Postings[0]
+	request.Transactions[0].AccountBlockException = &core.AccountBlockException{
+		ExceptionID: uuid.MustParse("6e0ebc70-6039-4edf-b039-4bb5d85afafe"),
+		Alias:       "@source", Amount: posting.Amount, PrimaryPostingRef: posting.Ref,
+	}
+	failure := core.Failure{
+		Code: core.FailureAccountBlockExceptionInvalid, TransactionIndex: 0,
+		PostingIndex: 0, BalanceRef: posting.BalanceRef,
+	}
+
+	err := classifyAccountingError(accountingReply("MIDAZ_ENGINE_V1 "+string(adapterJSON(t, failure))), request, nil)
+	var refusal *core.Failure
+	require.ErrorAs(t, err, &refusal)
+	require.Equal(t, failure, *refusal)
+
+	for _, mutate := range []func(*core.Failure, *core.Execution){
+		func(failure *core.Failure, _ *core.Execution) { failure.PostingIndex = -1 },
+		func(_ *core.Failure, request *core.Execution) { request.Transactions[0].AccountBlockException = nil },
+		func(_ *core.Failure, request *core.Execution) {
+			request.Transactions[0].AccountBlockException.PrimaryPostingRef = "other"
+		},
+		func(failure *core.Failure, _ *core.Execution) { failure.BalanceRef = "@other#default" },
+	} {
+		invalidFailure, invalidRequest := failure, request
+		invalidRequest.Transactions = append([]core.Transaction(nil), request.Transactions...)
+		invalidRequest.Transactions[0].Postings = append([]core.Posting(nil), request.Transactions[0].Postings...)
+		exception := *request.Transactions[0].AccountBlockException
+		invalidRequest.Transactions[0].AccountBlockException = &exception
+		mutate(&invalidFailure, &invalidRequest)
+		err := classifyAccountingError(accountingReply("MIDAZ_ENGINE_V1 "+string(adapterJSON(t, invalidFailure))), invalidRequest, nil)
+		assertAdapterTechnical(t, err, "invalid_failure", true)
+	}
+}
+
 func TestAccountingError_OutcomeCertaintyAndNormalizationScope(t *testing.T) {
 	request, _ := adapterResultFixture(t)
 	for _, test := range []struct {
@@ -292,6 +330,19 @@ func TestAccountingError_OutcomeCertaintyAndNormalizationScope(t *testing.T) {
 	require.False(t, isNoScript(errors.New("NOSCRIPT missing")))
 	require.False(t, isNoScript(accountingReply("ERR NOSCRIPT missing")))
 	require.False(t, isNoScript(accountingReply("runtime NOSCRIPT missing")))
+}
+
+func TestAccountingError_NormalizationIgnoresAccountBlockExceptionKey(t *testing.T) {
+	t.Parallel()
+
+	request, _ := adapterResultFixture(t)
+	keys := []string{"schedule", "recovery", "receipt", "guard", "protection", "balance", "deleted", "legacy-deleted", "grant"}
+
+	err := classifyAccountingError(accountingReply(`BALANCE_LIMIT_NORMALIZATION_REQUIRED:["balance"]`), request, keys)
+	assertAdapterTechnical(t, err, "normalization_required", false)
+
+	err = classifyAccountingError(accountingReply(`BALANCE_LIMIT_NORMALIZATION_REQUIRED:["grant"]`), request, keys)
+	assertAdapterTechnical(t, err, "invalid_normalization_failure", true)
 }
 
 func assertAdapterTechnical(t *testing.T, err error, code string, uncertain bool) {
@@ -348,7 +399,7 @@ func TestNewAdapter_UsesEngineHardLimits(t *testing.T) {
 	adapter, err := NewAdapter(provider)
 	require.NoError(t, err)
 	require.Equal(t, Limits{
-		MaxTransactions:        1,
+		MaxTransactions:        50,
 		MaxPostings:            10_000,
 		MaxBalances:            20_000,
 		MaxCompletionPlanBytes: 32 * 1024 * 1024,

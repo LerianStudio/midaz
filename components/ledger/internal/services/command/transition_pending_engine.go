@@ -69,22 +69,27 @@ func (uc *UseCase) transitionPendingWithEngine(
 		return nil, err
 	}
 
+	recordEngineAccountBlockExceptionPresented(span, run.accountBlockExceptionGrant != nil)
+
 	engineState, err := uc.prepareEngineTransaction(ctx, enginePreparationInput{
 		organizationID: run.organizationID,
 		ledgerID:       run.ledgerID,
 		translation: EngineTranslationInput{
-			TransactionID:          transition.transactionID,
-			Action:                 transition.action,
-			TransactionStatus:      run.status,
-			RouteValidationEnabled: transition.ledgerSettings.Accounting.ValidateRoutes,
-			TransactionInput:       transition.input,
-			Validate:               transition.validate,
+			TransactionID:              transition.transactionID,
+			Action:                     transition.action,
+			TransactionStatus:          run.status,
+			RouteValidationEnabled:     transition.ledgerSettings.Accounting.ValidateRoutes,
+			TransactionInput:           transition.input,
+			Validate:                   transition.validate,
+			AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
 		},
 	})
 	if err != nil {
 		unlock()
 		return nil, err
 	}
+
+	recordEngineAccountBlockExceptionBypass(span, engineState.transaction.AccountBlockException)
 
 	prepared, err := buildPendingEngineExecution(transition.persisted, transition.input, transition.validate, engineState, transition.stableContext, transition.action)
 	if err != nil {
@@ -377,7 +382,7 @@ func buildPendingEngineExecution(
 		CompletionPlans:   []CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: raw}},
 	}
 
-	return PreparedEngineExecution{Execution: execution, CompletionPlan: payload}, nil
+	return PreparedEngineExecution{Execution: execution, CompletionPlans: []TransactionCompletionPlan{payload}}, nil
 }
 
 func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, logger libLog.Logger, expectedStatus string, outcome EngineExecutionOutcome) (*transaction.Transaction, error) {

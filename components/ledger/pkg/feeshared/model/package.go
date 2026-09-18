@@ -156,23 +156,30 @@ func validateCalculationValues(model *CalculationModel, minAmount, feeKey string
 			return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".calculationModel.calculations.value")
 		}
 
-		if minAmount != "" && isDeductible {
-			if calc.Type == Percentage {
-				oneHundredPercent := decimal.NewFromInt(100)
-				if valueCalc.GreaterThan(oneHundredPercent) {
-					return pkg.ValidateBusinessError(constant.ErrCalculationValuePercentage, "", feeKey)
-				}
+		if !isDeductible {
+			continue
+		}
+
+		// A deductible fee is taken out of the payment it is charged on, so a
+		// percentage above 100 would take more than the payment carries. That holds
+		// whether or not the package declares a minimum, which is why the cap below
+		// does not wait for one. The flat cap does: without a minimum it has no
+		// amount to measure the fee against.
+		if calc.Type == Percentage {
+			oneHundredPercent := decimal.NewFromInt(100)
+			if valueCalc.GreaterThan(oneHundredPercent) {
+				return pkg.ValidateBusinessError(constant.ErrCalculationValuePercentage, "", feeKey)
+			}
+		}
+
+		if calc.Type == Flat && minAmount != "" {
+			minAmountDecimal, errMinAmt := parseAmountDecimal(minAmount)
+			if errMinAmt != nil {
+				return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".minimumAmount")
 			}
 
-			if calc.Type == Flat {
-				minAmountDecimal, errMinAmt := parseAmountDecimal(minAmount)
-				if errMinAmt != nil {
-					return pkg.ValidateBusinessError(constant.ErrConvertToDecimal, "", feeKey+".minimumAmount")
-				}
-
-				if valueCalc.GreaterThan(minAmountDecimal) {
-					return pkg.ValidateBusinessError(constant.ErrCalculationValueFlatFee, "", minAmount, feeKey)
-				}
+			if valueCalc.GreaterThan(minAmountDecimal) {
+				return pkg.ValidateBusinessError(constant.ErrCalculationValueFlatFee, "", minAmount, feeKey)
 			}
 		}
 	}
@@ -190,7 +197,7 @@ func (f *Fee) ValidateIfFeeIsNil() bool {
 }
 
 func (f *Fee) ValidateNewFee(feeKey string, minAmount decimal.Decimal) error {
-	if err := f.validateRequiredFields(); err != nil {
+	if err := f.validateRequiredFields(feeKey); err != nil {
 		return err
 	}
 
@@ -205,10 +212,25 @@ func (f *Fee) ValidateNewFee(feeKey string, minAmount decimal.Decimal) error {
 	return nil
 }
 
-// validateRequiredFields checks if all required fields are present
-func (f *Fee) validateRequiredFields() error {
-	if f.FeeLabel == "" ||
-		f.CalculationModel.ApplicationRule == "" ||
+// validateRequiredFields checks if all required fields are present.
+//
+// The calculation model is a pointer and every clause of the chain below reads
+// through it, so it is checked on its own beforehand: a fee entry carrying a
+// label but no calculation model used to reach those clauses and dereference
+// nil, crashing the request instead of answering the caller. A fee entry with no
+// label at all never got that far, because the empty label short-circuited the
+// chain before the pointer was read, so the label keeps its own check first and
+// its own answer: that shape was already refused and its refusal does not move.
+func (f *Fee) validateRequiredFields(feeKey string) error {
+	if f.FeeLabel == "" {
+		return pkg.ValidateBusinessError(constant.ErrFeeFieldsRequired, "")
+	}
+
+	if f.CalculationModel == nil {
+		return pkg.ValidateBusinessError(constant.ErrCalculationRequired, "", feeKey)
+	}
+
+	if f.CalculationModel.ApplicationRule == "" ||
 		len(f.CalculationModel.Calculations) == 0 ||
 		f.ReferenceAmount == "" ||
 		f.Priority == 0 ||

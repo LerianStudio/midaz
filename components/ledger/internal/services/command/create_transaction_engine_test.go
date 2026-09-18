@@ -237,6 +237,7 @@ func TestCreateTransactionV1UsesOptInEngineWithoutLegacyMutationPorts(t *testing
 	assert.Equal(t, transactionDate, got.CreatedAt)
 	assert.Len(t, got.Operations, 2)
 	require.Len(t, executor.requests, 1)
+	assert.Nil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
 	require.Len(t, finalizer.envelopes, 1)
 	require.Len(t, acknowledger.records, 1)
 	assert.Same(t, finalizer.envelopes[0], acknowledger.records[0])
@@ -275,6 +276,10 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 
 	organizationID := uuid.MustParse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 	ledgerID := uuid.MustParse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+	exceptionID := uuid.MustParse("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeef")
+	redisRepo.EXPECT().GetAccountBlockException(gomock.Any(), organizationID, ledgerID, exceptionID).
+		Return(&mmodel.AccountBlockExceptionRedis{Alias: "@source", Amount: "10.00"}, nil).
+		Times(1)
 	source := translationBalance(organizationID, ledgerID, "cccccccc-cccc-4ccc-8ccc-cccccccccccc", "@source", constant.DefaultBalanceKey)
 	target := translationBalance(organizationID, ledgerID, "dddddddd-dddd-4ddd-8ddd-dddddddddddd", "@target", constant.DefaultBalanceKey)
 	settings := mmodel.LedgerSettings{}
@@ -297,7 +302,7 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	got, replayed, err := uc.CreateTransactionV2(ctx, CreateTransactionV2Input{
 		OrganizationID: organizationID, LedgerID: ledgerID,
 		Transaction: createEngineTransaction(transactionDate), TransactionStatus: constant.CREATED,
-		IdempotencyTTL: time.Minute,
+		IdempotencyTTL: time.Minute, AccountBlockExceptionID: &exceptionID,
 	})
 	require.NoError(t, err)
 	assert.False(t, replayed)
@@ -308,6 +313,10 @@ func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	assert.Empty(t, reserver.releasedIDs)
 	require.Len(t, executor.requests, 1)
 	assert.Equal(t, int64(1), executor.requests[0].Execution.Balances[0].Version)
+	require.NotNil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
+	assert.Equal(t, accounting.AccountBlockException{
+		ExceptionID: exceptionID, Alias: "@source", Amount: decimal.NewFromInt(10), PrimaryPostingRef: "from:0:debit",
+	}, *executor.requests[0].Execution.Transactions[0].AccountBlockException)
 	payload := mustCreateEngineRecovery(t, executor.requests[0])
 	assert.Equal(t, transactionDate, payload.TransactionDate)
 	assert.Equal(t, transactionDate, payload.TransactionCreatedAt)
@@ -460,6 +469,120 @@ func TestCreateTransactionEngineFailureCleanupBoundary(t *testing.T) {
 	}
 }
 
+func TestCreateTransactionV2GrantFailureCleanupBoundary(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	technicalFailure := errors.New("transport outcome unknown")
+
+	for _, test := range []struct {
+		name            string
+		executeErr      error
+		wantClaimDelete bool
+		wantRelease     bool
+		wantCode        string
+	}{
+		{
+			name: "confirmed grant refusal releases claim and reservation",
+			executeErr: &accounting.Failure{
+				Code: accounting.FailureAccountBlockExceptionInvalid, TransactionIndex: 0, PostingIndex: 0,
+				BalanceRef: "@source#default",
+			},
+			wantClaimDelete: true,
+			wantRelease:     true,
+			wantCode:        constant.ErrAccountBlockExceptionInvalid.Error(),
+		},
+		{name: "indeterminate grant execution retains claim and reservation", executeErr: technicalFailure},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			redisRepo := txRedis.NewMockRedisRepository(ctrl)
+			redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil).Times(1)
+			if test.wantClaimDelete {
+				redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			}
+
+			organizationID := uuid.MustParse("91111111-1111-4111-8111-111111111111")
+			ledgerID := uuid.MustParse("92222222-2222-4222-8222-222222222222")
+			exceptionID := uuid.MustParse("93333333-3333-4333-8333-333333333333")
+			redisRepo.EXPECT().GetAccountBlockException(gomock.Any(), organizationID, ledgerID, exceptionID).
+				Return(&mmodel.AccountBlockExceptionRedis{Alias: "@source", Amount: "10"}, nil).
+				Times(1)
+
+			settings := mmodel.LedgerSettings{}
+			settings.Tracer.Mode = mmodel.TracerModeEnforce
+			reader := &createEngineReader{settings: settings, balances: []*mmodel.Balance{
+				translationBalance(organizationID, ledgerID, "94444444-4444-4444-8444-444444444444", "@source", constant.DefaultBalanceKey),
+				translationBalance(organizationID, ledgerID, "95555555-5555-4555-8555-555555555555", "@target", constant.DefaultBalanceKey),
+			}}
+			executor := &createEngineErrorExecutor{err: test.executeErr}
+			reservationID := uuid.MustParse("96666666-6666-4666-8666-666666666666")
+			reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}
+			uc := &UseCase{
+				TransactionRedisRepo: redisRepo, TransactionReader: reader,
+				Engine: executor, AppliedTransactionCompleter: &createAppliedTransactionCompleter{}, TracerReserver: reserver,
+			}
+
+			_, replayed, err := uc.CreateTransactionV2(
+				tmcore.ContextWithTenantID(context.Background(), "tenant-grant-failure"),
+				CreateTransactionV2Input{
+					OrganizationID: organizationID, LedgerID: ledgerID,
+					Transaction:       createEngineTransaction(time.Date(2026, time.September, 14, 12, 0, 0, 0, time.UTC)),
+					TransactionStatus: constant.CREATED, IdempotencyTTL: time.Minute,
+					AccountBlockExceptionID: &exceptionID,
+				},
+			)
+			require.Error(t, err)
+			assert.False(t, replayed)
+			require.Len(t, executor.requests, 1)
+			require.NotNil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
+			if test.wantCode != "" {
+				assert.Contains(t, err.Error(), test.wantCode)
+			} else {
+				assert.ErrorIs(t, err, technicalFailure)
+			}
+			if test.wantRelease {
+				assert.Equal(t, []uuid.UUID{reservationID}, reserver.releasedIDs)
+			} else {
+				assert.Empty(t, reserver.releasedIDs)
+			}
+			assert.Empty(t, reserver.confirmedIDs)
+		})
+	}
+}
+
+func TestCreateTransactionV2GrantBindingFailureStopsBeforeEngine(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil).Times(1)
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	organizationID := uuid.MustParse("a1111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("a2222222-2222-4222-8222-222222222222")
+	exceptionID := uuid.MustParse("a3333333-3333-4333-8333-333333333333")
+	redisRepo.EXPECT().GetAccountBlockException(gomock.Any(), organizationID, ledgerID, exceptionID).
+		Return(&mmodel.AccountBlockExceptionRedis{Alias: "@target", Amount: "10"}, nil).
+		Times(1)
+	reader := &createEngineReader{balances: []*mmodel.Balance{
+		translationBalance(organizationID, ledgerID, "a4444444-4444-4444-8444-444444444444", "@source", constant.DefaultBalanceKey),
+		translationBalance(organizationID, ledgerID, "a5555555-5555-4555-8555-555555555555", "@target", constant.DefaultBalanceKey),
+	}}
+	executor := &createEngineErrorExecutor{err: errors.New("must not execute")}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo, TransactionReader: reader,
+		Engine: executor, AppliedTransactionCompleter: &createAppliedTransactionCompleter{},
+	}
+
+	_, _, err := uc.CreateTransactionV2(context.Background(), CreateTransactionV2Input{
+		OrganizationID: organizationID, LedgerID: ledgerID,
+		Transaction:       createEngineTransaction(time.Date(2026, time.September, 14, 13, 0, 0, 0, time.UTC)),
+		TransactionStatus: constant.CREATED, IdempotencyTTL: time.Minute,
+		AccountBlockExceptionID: &exceptionID,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), constant.ErrAccountBlockExceptionInvalid.Error())
+	assert.Empty(t, executor.requests)
+}
+
 func TestCreateTransactionEngineRecoveryAcknowledgmentFailureIsNonFatal(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	ctrl := gomock.NewController(t)
@@ -510,10 +633,14 @@ func TestCreateTransactionEngineRecoveryAcknowledgmentFailureIsNonFatal(t *testi
 }
 
 func TestConfirmedPrecommitEngineFailureIsConservative(t *testing.T) {
+	exceptionID := uuid.MustParse("77777777-7777-4777-8777-777777777777")
 	request := accounting.Execution{
 		Transactions: []accounting.Transaction{{
 			BalanceRequirements: []accounting.BalanceRequirement{{BalanceRef: "@source#default", AssetCode: "USD", Permission: accounting.BalancePermissionSend}},
 			Postings:            []accounting.Posting{{Ref: "source", BalanceRef: "@source#default"}},
+			AccountBlockException: &accounting.AccountBlockException{
+				ExceptionID: exceptionID, Alias: "@source", Amount: decimal.NewFromInt(10), PrimaryPostingRef: "source",
+			},
 		}},
 		Balances: []accounting.BalanceSnapshot{{BalanceRef: "@source#default"}},
 	}
@@ -526,6 +653,12 @@ func TestConfirmedPrecommitEngineFailureIsConservative(t *testing.T) {
 	assert.True(t, confirmedPrecommitEngineFailure(request, financial))
 	assert.True(t, confirmedPrecommitEngineFailure(request, &accounting.Failure{
 		Code: accounting.FailureSendingNotAllowed, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "@source#default",
+	}))
+	assert.True(t, confirmedPrecommitEngineFailure(request, &accounting.Failure{
+		Code: accounting.FailureAccountBlockExceptionInvalid, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default",
+	}))
+	assert.False(t, confirmedPrecommitEngineFailure(request, &accounting.Failure{
+		Code: accounting.FailureAccountBlockExceptionInvalid, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "@source#default",
 	}))
 }
 

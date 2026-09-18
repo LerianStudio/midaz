@@ -86,11 +86,15 @@ func (uc *UseCase) executeCreateEngine(
 		guard:    ExecutionGuard{TransactionID: run.transactionID, ExpectedToken: "", NextToken: nextToken},
 	}
 
+	recordEngineAccountBlockExceptionPresented(span, run.accountBlockExceptionGrant != nil)
+
 	engineState, err := uc.prepareCreateEngineExecution(ctx, run)
 	if err != nil {
 		uc.rollbackCreateClaim(ctx, run)
 		return nil, err
 	}
+
+	recordEngineAccountBlockExceptionBypass(span, engineState.transaction.AccountBlockException)
 
 	prepared, err := uc.buildCreateEngineExecution(run, frozen, engineState)
 	if err != nil {
@@ -175,15 +179,20 @@ func (uc *UseCase) finalizeCreateEngineResult(ctx context.Context, logger libLog
 }
 
 func (uc *UseCase) prepareCreateEngineExecution(ctx context.Context, run *createTransactionRun) (enginePreparedTransaction, error) {
-	return uc.prepareEngineTransaction(ctx, enginePreparationInput{
+	return uc.prepareEngineTransaction(ctx, createEnginePreparationInput(run))
+}
+
+func createEnginePreparationInput(run *createTransactionRun) enginePreparationInput {
+	return enginePreparationInput{
 		organizationID: run.organizationID,
 		ledgerID:       run.ledgerID,
 		translation: EngineTranslationInput{
 			TransactionID: run.transactionID, Action: run.action, TransactionStatus: run.status,
 			RouteValidationEnabled: run.ledgerSettings.Accounting.ValidateRoutes,
 			TransactionInput:       run.input, Validate: run.validate,
+			AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
 		},
-	})
+	}
 }
 
 func (uc *UseCase) buildCreateEngineExecution(run *createTransactionRun, frozen createBalanceExecutionContext, prepared enginePreparedTransaction) (PreparedEngineExecution, error) {
@@ -228,7 +237,7 @@ func (uc *UseCase) buildCreateEngineExecution(run *createTransactionRun, frozen 
 		CompletionPlans:   []CompletionPlanRecord{{TransactionID: run.transactionID, Payload: raw}},
 	}
 
-	return PreparedEngineExecution{Execution: execution, CompletionPlan: payload}, nil
+	return PreparedEngineExecution{Execution: execution, CompletionPlans: []TransactionCompletionPlan{payload}}, nil
 }
 
 // idempotencyRetentionSeconds accepts the repository's historical seconds-count
@@ -242,11 +251,11 @@ func idempotencyRetentionSeconds(ttl time.Duration) int64 {
 }
 
 func createEngineEnvelope(outcome EngineExecutionOutcome) (*TransactionCompletionRecord, error) {
-	if outcome.Result == nil || len(outcome.Prepared.Execution.CompletionPlans) != 1 {
+	if outcome.Result == nil || len(outcome.Prepared.Execution.CompletionPlans) != 1 || len(outcome.Prepared.CompletionPlans) != 1 {
 		return nil, invalidEngineResult(errors.New("successful create has no correlated recovery result"))
 	}
 
-	payload := outcome.Prepared.CompletionPlan
+	payload := outcome.Prepared.CompletionPlans[0]
 
 	return &TransactionCompletionRecord{
 		FormatVersion: TransactionCompletionFormatVersion,
@@ -298,9 +307,23 @@ func confirmedPrecommitEngineFailure(request accounting.Execution, err error) bo
 			accounting.FailureAssetMismatch,
 			accounting.FailureSendingNotAllowed,
 			accounting.FailureReceivingNotAllowed,
-			accounting.FailureExternalHoldNotAllowed:
+			accounting.FailureExternalHoldNotAllowed,
+			accounting.FailureAccountBlockExceptionInvalid:
 		default:
 			return false
+		}
+
+		if failure.Code == accounting.FailureAccountBlockExceptionInvalid {
+			if failure.PostingIndex < 0 || failure.TransactionIndex < 0 || failure.TransactionIndex >= len(request.Transactions) {
+				return false
+			}
+
+			engineTransaction := request.Transactions[failure.TransactionIndex]
+			posting, valid := engineFailurePosting(request, failure)
+
+			return valid && engineTransaction.AccountBlockException != nil &&
+				posting.Ref == engineTransaction.AccountBlockException.PrimaryPostingRef &&
+				posting.BalanceRef == failure.BalanceRef
 		}
 
 		if failure.PostingIndex == -1 {

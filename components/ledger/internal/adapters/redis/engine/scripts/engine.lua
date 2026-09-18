@@ -2,10 +2,13 @@
 -- decoded request to the engine orchestration. Business decisions remain inside
 -- execute, where live state and writes share the same atomic Redis invocation.
 local function main()
-    if #ARGV ~= 3 or #KEYS < 5 then technical("invalid_protocol", "invalid script argument count") end
+    if #ARGV ~= 6 or #KEYS < 5 then technical("invalid_protocol", "invalid script argument count") end
     local maximumRequest, maximumPrepared = positiveBudget(ARGV[2]), positiveBudget(ARGV[3])
+    local maximumTransactions = positiveLimit(ARGV[4], "transaction limit")
+    local maximumPostings = positiveLimit(ARGV[5], "posting limit")
+    local maximumBalances = positiveLimit(ARGV[6], "balance limit")
     if #ARGV[1] > maximumRequest then technical("request_bytes_exceeded", "request exceeds byte budget") end
-    local request = decodeRequest(ARGV[1])
+    local request = decodeRequest(ARGV[1], maximumTransactions, maximumPostings, maximumBalances)
     return execute(request, maximumPrepared)
 end
 

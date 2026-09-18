@@ -30,7 +30,8 @@ commands are not rolled back.
 
 The entrypoint tells one ordered story:
 
-1. `main` validates the three ARGV values, decodes the request, and calls
+1. `main` validates the six ARGV values (payload, byte budgets, and trusted
+   transaction/posting/balance limits), decodes the request, and calls
    `execute`.
 2. `prepareExecutionProtection` calls `storedReceipt` first. A valid receipt
    returns the exact prior response without loading balances. A new execution
@@ -39,19 +40,27 @@ The entrypoint tells one ordered story:
 3. `loadBalancePool` reads live cache values. A valid Redis value is
    authoritative; a request snapshot is only an in-memory seed for a cache miss.
    Noncanonical legacy limits request a separate precommit repair.
-4. `validateLiveBalanceAvailability` checks both deletion-marker namespaces
+4. `validateAccountBlockExceptions` re-reads every presented single-use grant,
+   compares its alias and amount with the transaction's bound primary outflow,
+   and prepares a transaction-local exemption for that primary balance and its
+   overdraft companion. Missing, expired, consumed, malformed, or mismatched
+   grants refuse before any write.
+5. `validateLiveBalanceAvailability` checks both deletion-marker namespaces
    and the live account-block control for declared requirements and postings.
+   A valid grant bypasses only the block and sending controls for its bound
+   account pair; deletion markers and every other balance remain enforced.
    Cancellation explicitly disables the block control; generated companions
    repeat both protections at their exact mutation site.
-5. `applyTransactionsInMemory` validates live asset/permission requirements,
+6. `applyTransactionsInMemory` validates live asset/permission requirements,
    runs the closed `postingAlgebra`, resolves real overdraft draws or repayments,
    and builds truthful movements and version chains without writing Redis.
-6. `prepareExecutionWrites` serializes the response, changed balance blobs,
+7. `prepareExecutionWrites` serializes the response, changed balance blobs,
    recovery records, receipt, guards, and protection data while enforcing the
    total prepared-byte ceiling.
-7. `commitPreparedExecution` is the only publication phase. It writes changed
+8. `commitPreparedExecution` is the only publication phase. It writes changed
    balances, synchronization schedule members, recovery records, guards,
-   protection coordinators, and finally the receipt.
+   protection coordinators, deletes consumed grant keys, and finally writes the
+   receipt.
 
 The receipt is written last deliberately: its presence means the complete
 prepared command sequence returned through the final write. Recovery records are
@@ -59,11 +68,25 @@ written before it so a failure after a monetary write retains as much completion
 evidence as possible. A recovery consumer may complete SQL/MongoDB projection and
 acknowledge that evidence; it must never call this script to reapply accounting.
 
+## Declared key layout
+
+`KEYS[1..5]` are the schedule, recovery, receipt, guard, and protection keys.
+Each balance then contributes one ordered triplet: live balance, dedicated
+deletion marker, and compatibility deletion marker. After all balance triplets,
+each transaction that presents an account-block exception contributes exactly
+one grant key, in transaction order. The request carries the corresponding
+one-based key index; Lua verifies the tail position and exception-ID suffix.
+
+A valid stored receipt is checked before the live grant. Replaying the same
+execution therefore returns its prior result after the grant has been consumed;
+a new execution cannot reuse that now-missing grant.
+
 ## Maintenance rules
 
 - Keep every live balance-dependent decision inside this one Redis execution.
   Go may supply seeds and declarative postings but must not pre-approve funds,
-  calculate the authoritative overdraft split, or retry on a snapshot version.
+  approve a cached account-block exception, calculate the authoritative
+  overdraft split, or retry on a snapshot version.
 - Add route/version behavior by changing Go posting composition when the monetary
   algebra is unchanged. Do not fork the Lua engine merely to mirror API versions.
 - Perform predictable validation, calculation, JSON encoding, and size checks

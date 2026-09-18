@@ -5,6 +5,7 @@
 package fee
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -175,45 +176,135 @@ func setFeeExemptionMetadata(f *model.FeeCalculate, reason string) {
 // account the trimmed alias names, and the mark is no longer affected either way. Closing the
 // truncation needs an alias rule on the transaction leg, which is a different surface from this
 // one.
-func updatedAmountsFromFee(amounts map[string]transaction.Amount) []transaction.FromTo {
+func updatedAmountsFromFee(amounts map[string]transaction.Amount, originals []transaction.FromTo) []transaction.FromTo {
+	originalKeys := transaction.AmountMapKeys(originals)
+	originalByKey := make(map[string]transaction.FromTo, len(originals))
+	consumed := make(map[string]bool, len(originals))
 	newFromTo := make([]transaction.FromTo, 0, len(amounts))
 
-	for account, amount := range amounts {
-		parts := strings.Split(account, "->")
-		cleanAccount := trimFeeSuffix(account)
-		metadata := map[string]any{}
+	for i := range originals {
+		key := originalKeys[i]
+		originalByKey[key] = originals[i]
 
-		var route string
-
-		if strings.Contains(account, feeconstant.SuffixFeeSource) {
-			cleanAccount, metadata = processAccount(account)
+		amount, ok := amounts[key]
+		if !ok {
+			continue
 		}
 
-		// Set after processAccount, which replaces the metadata map rather than adding to it.
-		if amount.FeeLeg {
-			metadata[constant.MetadataKeyFeeLeg] = constant.MetadataValueFeeLeg
-		}
+		leg := originals[i]
+		leg.AccountAlias = trimFeeSuffix(leg.AccountAlias)
+		leg.Amount = &transaction.Amount{Asset: amount.Asset, Value: amount.Value}
+		leg.Share = nil
+		leg.Remaining = ""
+		leg.Metadata = cloneMetadata(leg.Metadata)
 
-		if len(parts) > 2 && parts[len(parts)-1] != "" {
-			route = parts[len(parts)-1]
-		}
+		newFromTo = append(newFromTo, leg)
+		consumed[key] = true
+	}
 
-		fromTo := transaction.FromTo{
-			AccountAlias: cleanAccount,
-			Amount:       &transaction.Amount{Asset: amount.Asset, Value: amount.Value},
+	generatedKeys := make([]string, 0, len(amounts)-len(consumed))
+	for key := range amounts {
+		if !consumed[key] {
+			generatedKeys = append(generatedKeys, key)
 		}
-		if len(metadata) > 0 {
-			fromTo.Metadata = metadata
-		}
+	}
 
-		if route != "" {
-			fromTo.Route = route //nolint:staticcheck // legacy field kept for backward compatibility; RouteID is canonical
-		}
+	sort.Strings(generatedKeys)
 
-		newFromTo = append(newFromTo, fromTo)
+	for _, key := range generatedKeys {
+		newFromTo = append(newFromTo, generatedFeeLeg(key, amounts[key], originalByKey))
 	}
 
 	return newFromTo
+}
+
+func cloneMetadata(metadata map[string]any) map[string]any {
+	if metadata == nil {
+		return nil
+	}
+
+	cloned := make(map[string]any, len(metadata))
+	for key, value := range metadata {
+		cloned[key] = value
+	}
+
+	return cloned
+}
+
+func generatedFeeLeg(key string, amount transaction.Amount, originalByKey map[string]transaction.FromTo) transaction.FromTo {
+	parts := strings.Split(key, "->")
+
+	metadata := make(map[string]any)
+	if amount.FeeLeg {
+		metadata[constant.MetadataKeyFeeLeg] = constant.MetadataValueFeeLeg
+	}
+
+	leg := transaction.FromTo{
+		AccountAlias: trimFeeSuffix(key),
+		Amount:       &transaction.Amount{Asset: amount.Asset, Value: amount.Value},
+	}
+	if len(metadata) > 0 {
+		leg.Metadata = metadata
+	}
+
+	route := ""
+	if len(parts) > 2 {
+		route = parts[len(parts)-1]
+	}
+
+	if strings.Contains(key, feeconstant.SuffixFeeSource) {
+		leg.AccountAlias = parts[0]
+		if len(parts) >= 3 {
+			payerKey := parts[2]
+
+			if leg.Metadata == nil {
+				leg.Metadata = make(map[string]any)
+			}
+
+			leg.Metadata["source"] = sourceAlias(payerKey, originalByKey)
+		}
+	} else if payerKey, ok := feeDebitPayerKey(key); ok {
+		if payer, found := originalByKey[payerKey]; found {
+			leg.AccountAlias = payer.AccountAlias
+			leg.BalanceKey = payer.BalanceKey
+			leg.IsFrom = payer.IsFrom
+
+			if route == "" && payer.RouteID != nil {
+				inherited := *payer.RouteID
+				leg.RouteID = &inherited
+			}
+		}
+	}
+
+	if route != "" {
+		leg.Route = route //nolint:staticcheck // retained for compatibility; RouteID is canonical
+		routeID := route
+		leg.RouteID = &routeID
+	}
+
+	return leg
+}
+
+func feeDebitPayerKey(key string) (string, bool) {
+	index := strings.Index(key, "->fee")
+	if index == -1 || strings.HasPrefix(key[index:], feeconstant.SuffixFeeSource) {
+		return "", false
+	}
+
+	return key[:index], true
+}
+
+func sourceAlias(key string, originalByKey map[string]transaction.FromTo) string {
+	if original, ok := originalByKey[key]; ok {
+		return original.AccountAlias
+	}
+
+	parts := strings.Split(key, transaction.AliasSeparatorString)
+	if len(parts) >= 3 {
+		return parts[1]
+	}
+
+	return trimFeeSuffix(key)
 }
 
 // trimFeeSuffix trims the fee suffix
@@ -223,22 +314,6 @@ func trimFeeSuffix(s string) string {
 	}
 
 	return s
-}
-
-// processAccount processes the account
-func processAccount(account string) (string, map[string]any) {
-	parts := strings.Split(account, "->")
-	metadata := make(map[string]any)
-
-	if len(parts) >= 3 && strings.Contains(parts[1], "fee_source") {
-		cleanAccount := parts[0]
-		sourceAccount := parts[2]
-		metadata["source"] = sourceAccount
-
-		return cleanAccount, metadata
-	}
-
-	return account, metadata
 }
 
 // findMaxAccount Helper to find the account with the maximum value

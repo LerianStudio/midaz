@@ -956,6 +956,23 @@ func TestFee_hasNoCalculationModelUpdates(t *testing.T) {
 	}
 }
 
+// TestFee_NilCalculationModelNeverReachesTheUnguardedRead pins why
+// hasNoCalculationModelUpdates may read the calculation model pointer without
+// checking it: both routes into it refuse a nil one first, and nothing else says
+// so. This is the patch of a fee that already exists, where a partial patch may
+// legitimately omit the calculation model, so the answer is to keep the guards
+// rather than refuse the request. Drop either one and this crashes, which is the
+// same dereference the Nil CalculationModel case covers for a fee being added.
+func TestFee_NilCalculationModelNeverReachesTheUnguardedRead(t *testing.T) {
+	f := Fee{FeeLabel: "Taxa Administrativa"}
+
+	assert.False(t, f.removesTheFee(), "a patch that writes a field is not a removal")
+
+	updated, err := f.updateCalculationModel(map[string]Fee{}, nil, "adminFee", decimal.NewFromInt(100), bson.M{})
+	assert.False(t, updated, "a patch that sends no calculation model updates none")
+	assert.NoError(t, err)
+}
+
 func TestUpdatePackageInput_ValidateFees(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -1446,7 +1463,7 @@ func TestValidateCalculationValues(t *testing.T) {
 			errCode:      constant.ErrCalculationValuePercentage.Error(),
 		},
 		{
-			name: "Empty minAmount - should skip deductible validation",
+			name: "Empty minAmount - deductible flat has no minimum to exceed",
 			model: &CalculationModel{
 				ApplicationRule: FlatFee,
 				Calculations: []Calculation{
@@ -1641,6 +1658,9 @@ func TestFee_ValidateNewFee(t *testing.T) {
 		minAmount decimal.Decimal
 		wantErr   bool
 		errCode   string
+		// errText, when set, pins the whole rendered refusal, so a refusal that
+		// stops naming the fee it is about fails here.
+		errText string
 	}{
 		{
 			name: "Valid new fee",
@@ -1940,6 +1960,37 @@ func TestFee_ValidateNewFee(t *testing.T) {
 			minAmount: decimal.NewFromInt(100),
 			wantErr:   false,
 		},
+		{
+			// The reported defect. A fee being added with a label and no
+			// calculation model used to reach the chained check below and read
+			// through a pointer that was never sent, crashing the request.
+			name: "Nil CalculationModel",
+			fee: Fee{
+				FeeLabel:         "Test Fee",
+				ReferenceAmount:  OriginalAmount,
+				Priority:         1,
+				CreditAccount:    "credit_account",
+				IsDeductibleFrom: boolPtr(true),
+			},
+			minAmount: decimal.NewFromInt(100),
+			wantErr:   true,
+			errCode:   constant.ErrCalculationRequired.Error(),
+			errText:   "0187 - The calculation model is required for fee fee1.",
+		},
+		{
+			// An entry with no label at all never reached the pointer, because
+			// the label check answered first. Its refusal does not move.
+			name: "Nil CalculationModel and no fee label",
+			fee: Fee{
+				ReferenceAmount:  OriginalAmount,
+				Priority:         1,
+				CreditAccount:    "credit_account",
+				IsDeductibleFrom: boolPtr(true),
+			},
+			minAmount: decimal.NewFromInt(100),
+			wantErr:   true,
+			errCode:   constant.ErrFeeFieldsRequired.Error(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -1954,6 +2005,10 @@ func TestFee_ValidateNewFee(t *testing.T) {
 					} else if validationErr, ok := err.(pkg.ValidationError); ok {
 						assert.Contains(t, validationErr.Code, tt.errCode)
 					}
+				}
+
+				if tt.errText != "" {
+					assert.Equal(t, tt.errText, err.Error(), "the refusal must name the fee the caller has to fix")
 				}
 			} else {
 				assert.NoError(t, err)

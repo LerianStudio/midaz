@@ -159,7 +159,14 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (r
 }
 
 func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, request accounting.Execution, keys []string, payload any) (*accounting.ExecutionResult, error) {
-	args := []any{payload, a.limits.MaxRequestBytes, a.limits.MaxPreparedBytes}
+	args := []any{
+		payload,
+		a.limits.MaxRequestBytes,
+		a.limits.MaxPreparedBytes,
+		a.limits.MaxTransactions,
+		a.limits.MaxPostings,
+		a.limits.MaxBalances,
+	}
 
 	for attempt := 0; attempt < 3; attempt++ {
 		if err := ctx.Err(); err != nil {
@@ -208,6 +215,12 @@ func executeAccounting(ctx context.Context, client *redis.Client, keys []string,
 	}
 
 	logger, _, _, factory := libObservability.NewTrackingFromContext(ctx)
+
+	startedAt := time.Now()
+	defer func() {
+		recordAccountingDuration(ctx, factory, logger, time.Since(startedAt))
+	}()
+
 	if factory != nil {
 		emitCounter(ctx, factory, logger, "engine_cas_attempts_total", "Accounting script attempts, including receipt replay and post-normalization execution but excluding NOSCRIPT fallback.", nil, 1)
 	}
@@ -282,11 +295,12 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 
 	resolved := resolvedExecutionKeys{
 		TenantID: tmcore.GetTenantIDContext(ctx), Schedule: utils.BalanceSyncScheduleKey,
-		Recovery:   cachepolicy.EngineRecoverQueue,
-		Receipts:   "engine:" + cachepolicy.HashTag + ":receipts:" + scope,
-		Guards:     "engine:" + cachepolicy.HashTag + ":guards:" + scope,
-		Protection: "engine:" + cachepolicy.HashTag + ":protection:" + scope,
-		Balances:   make(map[string]resolvedBalanceKeys, len(request.Balances)),
+		Recovery:               cachepolicy.EngineRecoverQueue,
+		Receipts:               "engine:" + cachepolicy.HashTag + ":receipts:" + scope,
+		Guards:                 "engine:" + cachepolicy.HashTag + ":guards:" + scope,
+		Protection:             "engine:" + cachepolicy.HashTag + ":protection:" + scope,
+		Balances:               make(map[string]resolvedBalanceKeys, len(request.Balances)),
+		AccountBlockExceptions: make(map[uuid.UUID]string, len(request.Transactions)),
 	}
 	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection} {
 		prefixed, err := tmvalkey.GetKeyContext(ctx, *key)
@@ -313,6 +327,21 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		resolved.Balances[balance.BalanceRef] = resolvedBalanceKeys{
 			Balance: prefixed, Deleted: deleted, LegacyDeleted: prefixed + cachepolicy.DeletionMarkerSuffix,
 		}
+	}
+
+	for _, transaction := range request.Transactions {
+		if transaction.AccountBlockException == nil {
+			continue
+		}
+
+		key := utils.AccountBlockExceptionInternalKey(request.OrganizationID, request.LedgerID, transaction.AccountBlockException.ExceptionID)
+
+		prefixed, err := tmvalkey.GetKeyContext(ctx, key)
+		if err != nil {
+			return resolvedExecutionKeys{}, err
+		}
+
+		resolved.AccountBlockExceptions[transaction.AccountBlockException.ExceptionID] = prefixed
 	}
 
 	return resolved, nil
@@ -359,8 +388,10 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 			return technical("invalid_normalization_failure", true, err)
 		}
 
-		allowed := make(map[string]bool, len(keys)/3)
-		for i := 5; i < len(keys); i += 3 {
+		allowed := make(map[string]bool, len(request.Balances))
+
+		balanceKeyEnd := 5 + 3*len(request.Balances)
+		for i := 5; i < balanceKeyEnd; i += 3 {
 			allowed[keys[i]] = true
 		}
 
@@ -387,13 +418,23 @@ func validateFailure(failure accounting.Failure, request accounting.Execution) e
 	case accounting.FailureInsufficientFunds, accounting.FailureOverdraftLimitExceeded, accounting.FailureOverdraftNotEligible,
 		accounting.FailureOverdraftCompanionMissing, accounting.FailureBalanceDeleted, accounting.FailureAccountBlocked, accounting.FailureOnHoldUnderflow,
 		accounting.FailureBalanceMissing, accounting.FailureAssetMismatch, accounting.FailureSendingNotAllowed,
-		accounting.FailureReceivingNotAllowed, accounting.FailureExternalHoldNotAllowed:
+		accounting.FailureReceivingNotAllowed, accounting.FailureExternalHoldNotAllowed,
+		accounting.FailureAccountBlockExceptionInvalid:
 	default:
 		return errors.New("unknown accounting refusal code")
 	}
 
 	if failure.TransactionIndex < 0 || failure.TransactionIndex >= len(request.Transactions) {
 		return errors.New("invalid accounting refusal transaction")
+	}
+
+	if failure.Code == accounting.FailureAccountBlockExceptionInvalid {
+		transaction := request.Transactions[failure.TransactionIndex]
+		if failure.PostingIndex < 0 || failure.PostingIndex >= len(transaction.Postings) || transaction.AccountBlockException == nil ||
+			transaction.Postings[failure.PostingIndex].Ref != transaction.AccountBlockException.PrimaryPostingRef ||
+			failure.BalanceRef != transaction.Postings[failure.PostingIndex].BalanceRef {
+			return errors.New("invalid accounting account-block exception refusal")
+		}
 	}
 
 	if failure.PostingIndex == -1 {

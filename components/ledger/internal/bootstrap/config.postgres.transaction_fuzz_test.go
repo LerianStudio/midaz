@@ -105,6 +105,25 @@ func FuzzBuildTransactionPostgresConnection_ConfigValues(f *testing.F) {
 			TxnPrefixedReplicaDBSSLMode:  sslmode,
 		}
 
+		// The replica mirrors the primary, so it is partially configured exactly
+		// when some, but not all, of the six values are blank. That is a
+		// configuration error by contract (never a silent primary-only downgrade),
+		// so it is the one input class where an error is the correct answer.
+		blank := 0
+		for _, v := range []string{host, port, user, password, dbname, sslmode} {
+			if strings.TrimSpace(v) == "" {
+				blank++
+			}
+		}
+
+		if blank > 0 && blank < 6 {
+			conn, err := buildTransactionPostgresConnection(cfg, logger)
+			require.ErrorIs(t, err, errIncompleteReplicaConfig)
+			require.Nil(t, conn)
+
+			return
+		}
+
 		// Act: call buildPostgresConnection -- must not panic (covered by test execution).
 		conn, err := buildTransactionPostgresConnection(cfg, logger)
 		require.NoError(t, err)

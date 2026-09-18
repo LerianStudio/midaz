@@ -62,9 +62,5 @@ jobs:
       helm_chart: "midaz"
       helm_values_key_mappings: '{"midaz-ledger": "ledger", "midaz-tracer": "tracer"}'
       gitops_yaml_key_mappings: '{"midaz-ledger.tag": ".ledger.image.tag", "midaz-tracer.tag": ".tracer.image.tag", "midaz-ledger-migrations.tag": ".ledger.migrations.image.tag", "midaz-tracer-migrations.tag": ".tracer.migrations.image.tag"}'
-      enable_apidog_e2e: true
-      enable_e2e_tests: true
-      e2e_modules: "midaz-ledger,midaz-crm"
-      e2e_tenancy: st
-      s3_uploads: '[{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/onboarding/*.sql","s3_prefix":"ledger/onboarding/postgresql","strip_prefix":"components/ledger/migrations/onboarding","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/transaction/*.sql","s3_prefix":"ledger/transaction/postgresql","strip_prefix":"components/ledger/migrations/transaction","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/tracer/migrations/*.sql","s3_prefix":"tracer/postgresql","strip_prefix":"components/tracer/migrations","flatten":false}]'
+      s3_uploads: '[{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/onboarding/*.sql","s3_prefix":"ledger/onboarding/postgresql","strip_prefix":"components/ledger/migrations/onboarding","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/transaction/*.sql","s3_prefix":"ledger/transaction/postgresql","strip_prefix":"components/ledger/migrations/transaction","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/tracer/migrations/*.sql","s3_prefix":"tracer/tracer-api/postgresql","strip_prefix":"components/tracer/migrations","flatten":false}]'
     secrets: inherit

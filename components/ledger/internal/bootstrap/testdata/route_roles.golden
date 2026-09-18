@@ -201,6 +201,7 @@ POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transac
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit	transaction
 POST	/v2/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert	transaction
 POST	/v2/settings/metadata-indexes/entities/:entity_name	ledger
+POST	/v2/transactions/batch	transaction
 POST	/v2/transactions/block	transaction
 POST	/v2/transactions/direct	transaction
 POST	/v2/transactions/hold	transaction

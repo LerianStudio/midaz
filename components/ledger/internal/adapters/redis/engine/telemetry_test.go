@@ -32,6 +32,7 @@ func TestExecutionOutcome_ClosedLabels(t *testing.T) {
 		{"refusal", "refused", core.FailureInsufficientFunds, &core.Failure{Code: core.FailureInsufficientFunds}},
 		{"integrity refusal", "refused", core.FailureOnHoldUnderflow, &core.Failure{Code: core.FailureOnHoldUnderflow}},
 		{"live sending restriction", "refused", core.FailureSendingNotAllowed, fmt.Errorf("wrapper: %w", &core.Failure{Code: core.FailureSendingNotAllowed})},
+		{"invalid account-block exception", "refused", core.FailureAccountBlockExceptionInvalid, &core.Failure{Code: core.FailureAccountBlockExceptionInvalid}},
 		{"technical", "technical_error", "connection_unavailable", technical("connection_unavailable", false, errors.New("sensitive detail"))},
 		{"uncertain", "indeterminate", "transport", fmt.Errorf("wrapper: %w", technical("transport", true, errors.New("sensitive detail")))},
 		{"foreign error", "technical_error", "unknown", errors.New("sensitive detail")},
@@ -55,6 +56,7 @@ func TestExecutionOutcome_ClosedLabels(t *testing.T) {
 	}
 
 	require.NotPanics(t, func() { recordExecutionOutcome(context.Background(), nil, nil, time.Second, nil) })
+	require.NotPanics(t, func() { recordAccountingDuration(context.Background(), nil, nil, time.Second) })
 }
 
 func TestAdapterExecute_CanceledRequestMetrics(t *testing.T) {

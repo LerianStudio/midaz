@@ -93,6 +93,13 @@ func newAlwaysOneKeyRepo(t *testing.T) *redisTransaction.MockRedisRepository {
 		}).
 		AnyTimes()
 
+	// The collector runs a TTL keepalive beside its flush loop; these tests observe
+	// the flush path only.
+	repo.EXPECT().
+		RefreshBalanceSyncKeyTTLs(gomock.Any(), gomock.Any()).
+		Return(int64(0), float64(0), nil).
+		AnyTimes()
+
 	return repo
 }
 

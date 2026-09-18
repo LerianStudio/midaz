@@ -1,4 +1,5 @@
--- ARGV: wire JSON, maximum request bytes, maximum total prepared bytes.
+-- ARGV: wire JSON, maximum request bytes, maximum total prepared bytes,
+-- maximum transactions, maximum postings, maximum balances.
 -- Physical Redis keys are supplied only through KEYS. Financial decimals and
 -- versions remain text; numeric JSON tokens are preserved without a double round-trip.
 

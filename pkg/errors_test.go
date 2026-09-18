@@ -11,6 +11,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEntityNotFoundError_Error(t *testing.T) {
@@ -733,4 +734,20 @@ func TestIsBusinessError(t *testing.T) {
 			assert.Equal(t, tt.expected, IsBusinessError(tt.err))
 		})
 	}
+}
+
+// TestValidateBusinessError_BalanceSeedRebuildInconsistent locks the 0513 mapping: a
+// seed that cannot establish the balance's current state is a temporary
+// infrastructure condition the caller may retry, so it renders as 503 and never
+// exposes why the rebuild failed.
+func TestValidateBusinessError_BalanceSeedRebuildInconsistent(t *testing.T) {
+	result := ValidateBusinessError(constant.ErrBalanceSeedRebuildInconsistent, constant.EntityBalance)
+
+	unavailable, ok := result.(ServiceUnavailableError)
+	require.True(t, ok, "0513 must map to ServiceUnavailableError (HTTP 503), got %T", result)
+	assert.Equal(t, "0513", unavailable.Code)
+	assert.Equal(t, constant.EntityBalance, unavailable.EntityType)
+	assert.NotEmpty(t, unavailable.Title)
+	assert.NotEmpty(t, unavailable.Message)
+	assert.False(t, IsBusinessError(result), "a 503 is technical, not a caller error")
 }

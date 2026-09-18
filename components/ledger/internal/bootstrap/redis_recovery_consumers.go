@@ -86,6 +86,7 @@ func (c *LegacyBackupConsumer) Consume(ctx context.Context) recoveryOriginStats 
 	}
 
 	stats := recoveryOriginStats{read: true, messageCount: len(messages)}
+	c.completion.emitRecoveryBacklog(ctx, txRedis.RecoveryQueueSourceLegacyBackup, len(messages))
 	c.logger.Log(ctx, libLog.LevelDebug, "Read legacy backup messages", libLog.Int("message_count", len(messages)))
 
 	if len(messages) == 0 {
@@ -188,6 +189,7 @@ func (c *EngineRecoveryConsumer) Consume(ctx context.Context) recoveryOriginStat
 	}
 
 	stats := recoveryOriginStats{read: true, messageCount: len(messages)}
+	c.completion.emitRecoveryBacklog(ctx, txRedis.RecoveryQueueSourceEngineRecover, len(messages))
 	c.logger.Log(ctx, libLog.LevelDebug, "Read engine recovery messages", libLog.Int("message_count", len(messages)))
 
 	if len(messages) == 0 {

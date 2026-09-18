@@ -48,6 +48,24 @@ func TestBalance_IsEmpty(t *testing.T) {
 	}
 }
 
+func TestAmountMapKeys_PreservesRepeatedAccountBalances(t *testing.T) {
+	t.Parallel()
+
+	entries := []FromTo{
+		{AccountAlias: "@payer", BalanceKey: "available"},
+		{AccountAlias: "@payer", BalanceKey: "reserved"},
+		{AccountAlias: "@receiver", BalanceKey: "default"},
+		{AccountAlias: "3#@normalized#blocked", BalanceKey: "blocked"},
+	}
+
+	assert.Equal(t, []string{
+		"0#@payer#available",
+		"1#@payer#reserved",
+		"@receiver",
+		"3#@normalized#blocked",
+	}, AmountMapKeys(entries))
+}
+
 func TestFromTo_SplitAlias(t *testing.T) {
 	t.Parallel()
 

@@ -32,7 +32,7 @@ type Limits struct {
 }
 
 const (
-	maxTransactionsPerExecution = 1
+	maxTransactionsPerExecution = 50
 	maxPostingsPerExecution     = 10_000
 	maxBalancesPerExecution     = 20_000
 	maxCompletionPlanBytes      = 32 * 1024 * 1024
@@ -54,13 +54,14 @@ func hardLimits() Limits {
 // resolvedExecutionKeys is supplied by the authenticated adapter boundary,
 // never by request JSON. Hash fields remain in the payload, not in KEYS.
 type resolvedExecutionKeys struct {
-	TenantID   string
-	Schedule   string
-	Recovery   string
-	Receipts   string
-	Guards     string
-	Protection string
-	Balances   map[string]resolvedBalanceKeys
+	TenantID               string
+	Schedule               string
+	Recovery               string
+	Receipts               string
+	Guards                 string
+	Protection             string
+	Balances               map[string]resolvedBalanceKeys
+	AccountBlockExceptions map[uuid.UUID]string
 }
 
 type resolvedBalanceKeys struct {
@@ -93,15 +94,24 @@ type wireRequest struct {
 }
 
 type wireTransaction struct {
-	ID                    string                   `json:"id"`
-	RejectBlockedBalances bool                     `json:"rejectBlockedBalances"`
-	GuardField            string                   `json:"guardField"`
-	ExpectedGuard         string                   `json:"expectedGuard"`
-	NextGuard             string                   `json:"nextGuard"`
-	RecoveryField         string                   `json:"recoveryField"`
-	CompletionPlan        string                   `json:"completionPlan"`
-	BalanceRequirements   []wireBalanceRequirement `json:"balanceRequirements"`
-	Postings              []wirePosting            `json:"postings"`
+	ID                    string                     `json:"id"`
+	RejectBlockedBalances bool                       `json:"rejectBlockedBalances"`
+	AccountBlockException *wireAccountBlockException `json:"accountBlockException,omitempty"`
+	GuardField            string                     `json:"guardField"`
+	ExpectedGuard         string                     `json:"expectedGuard"`
+	NextGuard             string                     `json:"nextGuard"`
+	RecoveryField         string                     `json:"recoveryField"`
+	CompletionPlan        string                     `json:"completionPlan"`
+	BalanceRequirements   []wireBalanceRequirement   `json:"balanceRequirements"`
+	Postings              []wirePosting              `json:"postings"`
+}
+
+type wireAccountBlockException struct {
+	KeyIndex          int    `json:"keyIndex"`
+	ExceptionID       string `json:"exceptionId"`
+	Alias             string `json:"alias"`
+	Amount            string `json:"amount"`
+	PrimaryPostingRef string `json:"primaryPostingRef"`
 }
 
 type wireBalanceRequirement struct {
@@ -163,7 +173,7 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 		return nil, err
 	}
 
-	keys, err := prepareKeys(input.Execution.Balances, resolved, limits.MaxRequestBytes)
+	keys, err := prepareKeys(input.Execution, resolved, limits.MaxRequestBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -339,6 +349,7 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 	preparedTransactions := make([]wireTransaction, 0, len(request.Transactions))
 	transactionIDs := make(map[uuid.UUID]bool, len(request.Transactions))
 	postingCount := 0
+	grantOrdinal := 0
 
 	for _, transaction := range request.Transactions {
 		if err := ctx.Err(); err != nil {
@@ -381,10 +392,64 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 		}
 
 		prepared.Postings = postings
+		if transaction.AccountBlockException != nil {
+			exception, err := prepareAccountBlockException(
+				transaction.AccountBlockException,
+				transaction.Postings,
+				balances,
+				6+3*len(request.Balances)+grantOrdinal,
+				limits.MaxRequestBytes,
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			prepared.AccountBlockException = exception
+			grantOrdinal++
+		}
+
 		preparedTransactions = append(preparedTransactions, prepared)
 	}
 
 	return preparedTransactions, nil
+}
+
+func prepareAccountBlockException(exception *accounting.AccountBlockException, postings []accounting.Posting, balances map[string]accounting.BalanceSnapshot, keyIndex, maxBytes int) (*wireAccountBlockException, error) {
+	if exception == nil {
+		return nil, nil
+	}
+
+	if exception.ExceptionID == uuid.Nil || strings.TrimSpace(exception.Alias) == "" || strings.TrimSpace(exception.PrimaryPostingRef) == "" || exception.Amount.Sign() <= 0 {
+		return nil, fmt.Errorf("invalid accounting account-block exception")
+	}
+
+	amount, err := boundedDecimal(exception.Amount, maxBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var primary *accounting.Posting
+
+	for i := range postings {
+		if postings[i].Ref == exception.PrimaryPostingRef {
+			primary = &postings[i]
+			break
+		}
+	}
+
+	if primary == nil || !primary.Amount.Equal(exception.Amount) {
+		return nil, fmt.Errorf("invalid accounting account-block exception posting")
+	}
+
+	snapshot, exists := balances[primary.BalanceRef]
+	if !exists || snapshot.Key == "overdraft" || snapshot.Alias != exception.Alias {
+		return nil, fmt.Errorf("invalid accounting account-block exception balance")
+	}
+
+	return &wireAccountBlockException{
+		KeyIndex: keyIndex, ExceptionID: exception.ExceptionID.String(), Alias: exception.Alias,
+		Amount: amount, PrimaryPostingRef: exception.PrimaryPostingRef,
+	}, nil
 }
 
 func preparePostings(postings []accounting.Posting, balances map[string]accounting.BalanceSnapshot, maxBytes int) ([]wirePosting, error) {
@@ -421,8 +486,8 @@ func preparePostings(postings []accounting.Posting, balances map[string]accounti
 	return prepared, nil
 }
 
-func prepareKeys(balances []accounting.BalanceSnapshot, resolved resolvedExecutionKeys, maxBytes int) ([]string, error) {
-	if len(resolved.Balances) != len(balances) {
+func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, maxBytes int) ([]string, error) {
+	if len(resolved.Balances) != len(request.Balances) {
 		return nil, fmt.Errorf("resolved accounting key inventory does not match snapshots")
 	}
 
@@ -431,7 +496,7 @@ func prepareKeys(balances []accounting.BalanceSnapshot, resolved resolvedExecuti
 	}
 
 	keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection}
-	for _, balance := range balances {
+	for _, balance := range request.Balances {
 		pair, exists := resolved.Balances[balance.BalanceRef]
 
 		expectedMarker, validBalanceKey := cachepolicy.DeletionMarkerKey(pair.Balance)
@@ -443,6 +508,11 @@ func prepareKeys(balances []accounting.BalanceSnapshot, resolved resolvedExecuti
 		keys = append(keys, pair.Balance, pair.Deleted, pair.LegacyDeleted)
 	}
 
+	keys, err := appendAccountBlockExceptionKeys(request, resolved, keys)
+	if err != nil {
+		return nil, err
+	}
+
 	seen := make(map[string]bool, len(keys))
 
 	total := 0
@@ -452,6 +522,31 @@ func prepareKeys(balances []accounting.BalanceSnapshot, resolved resolvedExecuti
 		}
 
 		seen[key], total = true, total+len(key)
+	}
+
+	return keys, nil
+}
+
+func appendAccountBlockExceptionKeys(request accounting.Execution, resolved resolvedExecutionKeys, keys []string) ([]string, error) {
+	grantCount := 0
+
+	for _, transaction := range request.Transactions {
+		if transaction.AccountBlockException == nil {
+			continue
+		}
+
+		grantCount++
+
+		key, exists := resolved.AccountBlockExceptions[transaction.AccountBlockException.ExceptionID]
+		if !exists || key == "" {
+			return nil, fmt.Errorf("missing resolved accounting account-block exception key")
+		}
+
+		keys = append(keys, key)
+	}
+
+	if len(resolved.AccountBlockExceptions) != grantCount {
+		return nil, fmt.Errorf("resolved accounting account-block exception inventory does not match transactions")
 	}
 
 	return keys, nil

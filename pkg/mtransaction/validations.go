@@ -445,6 +445,7 @@ func StatusToAction(statusCode string) string {
 func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType string, t chan decimal.Decimal, ft chan map[string]Amount, sd chan []string, or chan map[string]string) {
 	fmto := make(map[string]Amount)
 	scdt := make([]string, 0, len(fromTos))
+	amountKeys := AmountMapKeys(fromTos)
 
 	total := decimal.NewFromInt(0)
 
@@ -457,8 +458,11 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 	operationRoute := make(map[string]string)
 
 	for i := range fromTos {
+		amountKey := amountKeys[i]
+		operationRoute[amountKey] = ""
+
 		if fromTos[i].RouteID != nil {
-			operationRoute[fromTos[i].AccountAlias] = *fromTos[i].RouteID
+			operationRoute[amountKey] = *fromTos[i].RouteID
 		}
 
 		operation, direction := DetermineOperation(transaction.Pending, fromTos[i].IsFrom, transactionType)
@@ -477,7 +481,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 			secondPart := percentageOfPercentage.Div(oneHundred)
 			shareValue := transaction.Send.Value.Mul(firstPart).Mul(secondPart)
 
-			fmto[fromTos[i].AccountAlias] = Amount{
+			fmto[amountKey] = Amount{
 				Asset:           transaction.Send.Asset,
 				Value:           shareValue,
 				Operation:       operation,
@@ -498,7 +502,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 				Direction:       direction,
 			}
 
-			fmto[fromTos[i].AccountAlias] = amount
+			fmto[amountKey] = amount
 			total = total.Add(amount.Value)
 
 			remaining.Value = remaining.Value.Sub(amount.Value)
@@ -510,7 +514,7 @@ func CalculateTotal(fromTos []FromTo, transaction Transaction, transactionType s
 			remaining.Operation = operation
 			remaining.Direction = direction
 
-			fmto[fromTos[i].AccountAlias] = remaining
+			fmto[amountKey] = remaining
 			fromTos[i].Amount = &remaining
 		}
 

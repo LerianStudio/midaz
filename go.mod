@@ -4,9 +4,9 @@ go 1.27.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/LerianStudio/lib-auth/v4 v4.0.0
-	github.com/LerianStudio/lib-commons/v7 v7.1.0
-	github.com/LerianStudio/lib-observability/v4 v4.0.4
+	github.com/LerianStudio/lib-auth/v4 v4.2.0
+	github.com/LerianStudio/lib-commons/v7 v7.1.1
+	github.com/LerianStudio/lib-observability/v4 v4.4.1
 	github.com/LerianStudio/lib-service-discovery/v2 v2.0.0
 	github.com/LerianStudio/lib-streaming/v4 v4.0.0
 	github.com/Masterminds/squirrel v1.5.4
@@ -182,12 +182,12 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.20.1 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/runtime v0.69.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/runtime v0.71.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.22.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.45.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.45.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.46.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0 // indirect
 	go.opentelemetry.io/otel/log v0.22.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.22.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect

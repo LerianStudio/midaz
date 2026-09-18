@@ -166,10 +166,29 @@ func classifyForProblem(err error) (code, msg, title, entityType string, status 
 	return "", "", "", "", 0, false
 }
 
-// fieldsToErrors remaps the two field-bearing 400 paths' flat fields map into the
-// RFC 9457 errors[] array (r3 §2.7). Location is FROZEN to the bare field key so
-// clients parse a stable shape. Returns nil when there are no fields (omitempty).
+// fieldsToErrors projects the platform-neutral ordered field-detail carrier or
+// remaps the two legacy field-bearing 400 paths' flat fields map into the RFC
+// 9457 errors[] array (r3 §2.7). Ordered details always win over a wrapped legacy
+// map so their stable caller-supplied order survives serialization. Legacy map
+// locations remain FROZEN to the bare field key. Returns nil when there are no
+// fields (omitempty).
 func fieldsToErrors(err error) []*huma.ErrorDetail {
+	var carrier *pkg.FieldErrorCarrier
+	if errors.As(err, &carrier) {
+		fields := carrier.FieldErrors()
+		if len(fields) > 0 {
+			out := make([]*huma.ErrorDetail, 0, len(fields))
+			for _, field := range fields {
+				out = append(out, &huma.ErrorDetail{
+					Location: field.Location,
+					Message:  field.Message,
+				})
+			}
+
+			return out
+		}
+	}
+
 	if e := (pkg.ValidationKnownFieldsError{}); errors.As(err, &e) && len(e.Fields) > 0 {
 		out := make([]*huma.ErrorDetail, 0, len(e.Fields))
 		for field, message := range e.Fields {

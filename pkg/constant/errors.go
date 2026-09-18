@@ -298,6 +298,7 @@ var (
 	ErrMidazRouteNotFound                   = errors.New("0232")
 	ErrDeductibleFeeExceedsAmount           = errors.New("0233")
 	ErrLedgerScopedQueryParameter           = errors.New("0235")
+	ErrDuplicateFeeKey                      = errors.New("0236")
 )
 
 // Tracer platform codes (migrated from TRC-xxxx; see docs/plans/2026-06-07-error-code-migration.md).
@@ -549,6 +550,28 @@ var (
 	// rather than silently stripped, so a caller learns its key was rejected instead of
 	// believing it was stored.
 	ErrReservedMetadataKey = errors.New("0512")
+	// ErrBalanceSeedRebuildInconsistent is returned when a cache-miss seed finds the
+	// balance row behind the operation trail, but the operation at the high-water mark
+	// carries no state to rebuild from: an after-value is missing, or its overdraft
+	// snapshot is not a decimal. The request is refused rather than served, because
+	// feeding the engine the stale row is how a balance silently forks.
+	ErrBalanceSeedRebuildInconsistent = errors.New("0513")
+	// ErrTransactionBatchCardinality is returned when the atomic direct-v2 batch
+	// has no transactions or exceeds the configured maximum. Args: observed
+	// transaction count, then the effective maximum (1..50).
+	ErrTransactionBatchCardinality = errors.New("0514")
+	// ErrTransactionBatchInputLegsLimitExceeded is returned when the aggregate
+	// input debit and credit leg count exceeds the request-wide limit. Args:
+	// observed input leg count, then the effective maximum.
+	ErrTransactionBatchInputLegsLimitExceeded = errors.New("0515")
+	// ErrTransactionBatchBudgetExceeded is returned when derived preparation work
+	// first crosses a post-expansion budget. Args: budget dimension, zero-based
+	// transaction index, observed value, then the effective maximum.
+	ErrTransactionBatchBudgetExceeded = errors.New("0516")
+	// ErrTransactionBatchStructuralValidation is the batch-only primary error
+	// for aggregated item structural diagnostics. The individual diagnostics
+	// remain field details; this sentinel is never used by singular routes.
+	ErrTransactionBatchStructuralValidation = errors.New("0517")
 )
 
 // List of CRM domain errors.

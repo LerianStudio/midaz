@@ -21,10 +21,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
-// These tests cover the grant READ: what the pipeline hands to the validation and
-// the script. Consumption is not asserted here because it is not done here — the
-// resolver never deletes, so a request that dies after it leaves the identifier
-// available for a retry.
+// These tests cover the grant READ: what the pipeline hands to static binding and
+// its selected atomic accounting path. Consumption is not asserted here because
+// the resolver never deletes, so a request that dies after it leaves the
+// identifier available for a retry.
 
 // grantResolverFixture wires a UseCase over a mock cache plus the span and logger
 // the resolver records into.

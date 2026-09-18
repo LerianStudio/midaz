@@ -52,6 +52,12 @@ import (
 
 const ApplicationName = "ledger"
 
+const (
+	defaultTransactionBatchMaxSize = 10
+	minTransactionBatchMaxSize     = 1
+	maxTransactionBatchMaxSize     = 50
+)
+
 // Config is the unified configuration struct for the ledger component.
 // It merges all fields previously spread across onboarding, transaction, and ledger configs.
 // Prefixed fields (Onb*/Txn*) map to domain-specific env vars; shared fields use common env vars.
@@ -165,6 +171,10 @@ type Config struct {
 
 	RouteTransactionalReadsToPrimary bool `env:"DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY"`
 
+	// Atomic transaction batch admission. Operators may lower the effective
+	// cardinality but cannot raise it above the public contract ceiling.
+	TransactionBatchMaxSize int `env:"TRANSACTION_BATCH_MAX_SIZE"`
+
 	// --- Onboarding MongoDB fields (MONGO_ONBOARDING_* env tags) ---
 	OnbPrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
 	OnbPrefixedMongoDBHost       string `env:"MONGO_ONBOARDING_HOST"`
@@ -270,6 +280,10 @@ type Config struct {
 	BalanceSyncBatchSize      int `env:"BALANCE_SYNC_BATCH_SIZE"`
 	BalanceSyncFlushTimeoutMs int `env:"BALANCE_SYNC_FLUSH_TIMEOUT_MS"`
 	BalanceSyncPollIntervalMs int `env:"BALANCE_SYNC_POLL_INTERVAL_MS"`
+	// BalanceSyncTTLKeepaliveIntervalMs is how often the TTL of every scheduled
+	// balance key is re-applied. Absent, invalid and out-of-range values are
+	// resolved by the worker, which never fails to start on this knob.
+	BalanceSyncTTLKeepaliveIntervalMs int `env:"BALANCE_SYNC_TTL_KEEPALIVE_INTERVAL_MS"`
 
 	// --- Streaming (lib-streaming producer) ---
 	// Default for all streaming knobs is OFF — a service with
@@ -382,6 +396,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	applyConfigDefaults(cfg)
+
+	if err := validateTransactionBatchConfig(cfg); err != nil {
+		return nil, err
+	}
 
 	if err := validateBootAuthGates(cfg); err != nil {
 		return nil, err
@@ -856,15 +874,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OnboardingMetadataRepo: onbMgo.metadataRepo,
 		OnboardingRedisRepo:    onbRedisRepo,
 		// Transaction domain
-		TransactionRepo:         txnPG.transactionRepo,
-		OperationRepo:           txnPG.operationRepo,
-		AssetRateRepo:           txnPG.assetRateRepo,
-		BalanceRepo:             txnPG.balanceRepo,
-		OperationRouteRepo:      txnPG.operationRouteRepo,
-		TransactionRouteRepo:    txnPG.transactionRouteRepo,
-		TransactionMetadataRepo: txnMgo.metadataRepo,
-		RabbitMQRepo:            rmq.producerRepo,
-		TransactionRedisRepo:    txnRedisRepo,
+		TransactionRepo:                       txnPG.transactionRepo,
+		OperationRepo:                         txnPG.operationRepo,
+		AssetRateRepo:                         txnPG.assetRateRepo,
+		BalanceRepo:                           txnPG.balanceRepo,
+		OperationRouteRepo:                    txnPG.operationRouteRepo,
+		TransactionRouteRepo:                  txnPG.transactionRouteRepo,
+		TransactionMetadataRepo:               txnMgo.metadataRepo,
+		RabbitMQRepo:                          rmq.producerRepo,
+		TransactionRedisRepo:                  txnRedisRepo,
+		AtomicTransactionBatchIdempotencyRepo: txnRedisRepo,
+		UUIDv7Generator:                       libCommons.GenerateUUIDv7,
+		Clock:                                 time.Now,
 		// Streaming
 		Streaming: streamingEmitter,
 		// Observability (D6)
@@ -909,6 +930,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// through the narrow TransactionReader port, satisfied directly by the query
 	// UseCase (signatures match), so command never imports the query package.
 	commandUseCase.TransactionReader = queryUseCase
+	commandUseCase.AtomicTransactionBatchProjectionReader = queryUseCase
 
 	// === CRM domain metrics (D6) ===
 	// The holder and instrument handlers share the SAME CRM use-case instance,
@@ -1008,7 +1030,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
 
 	// Transaction handlers
-	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase}
+	transactionHandler := &httpin.TransactionHandler{
+		Command:                 commandUseCase,
+		Query:                   queryUseCase,
+		TransactionBatchMaxSize: cfg.TransactionBatchMaxSize,
+	}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
 	balanceHandler := &httpin.BalanceHandler{Command: commandUseCase, Query: queryUseCase}
@@ -1409,9 +1435,10 @@ func initRedisConnection(cfg *Config, logger libLog.Logger) (*libRedis.Client, e
 // initBalanceSyncWorker creates the balance sync worker (multi-tenant or single-tenant).
 func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, commandUC *command.UseCase, pgManager *tmpostgres.Manager, tenantServiceName string) *BalanceSyncWorker {
 	syncCfg := BalanceSyncConfig{
-		BatchSize:      cfg.BalanceSyncBatchSize,
-		FlushTimeoutMs: cfg.BalanceSyncFlushTimeoutMs,
-		PollIntervalMs: cfg.BalanceSyncPollIntervalMs,
+		BatchSize:              cfg.BalanceSyncBatchSize,
+		FlushTimeoutMs:         cfg.BalanceSyncFlushTimeoutMs,
+		PollIntervalMs:         cfg.BalanceSyncPollIntervalMs,
+		TTLKeepaliveIntervalMs: cfg.BalanceSyncTTLKeepaliveIntervalMs,
 	}
 
 	var balanceSyncWorker *BalanceSyncWorker
@@ -1429,6 +1456,7 @@ func initBalanceSyncWorker(opts *Options, cfg *Config, logger libLog.Logger, com
 		libLog.Int("batch_size", effectiveCfg.BatchSize),
 		libLog.Int("flush_timeout_ms", effectiveCfg.FlushTimeoutMs),
 		libLog.Int("poll_interval_ms", effectiveCfg.PollIntervalMs),
+		libLog.Int("ttl_keepalive_interval_ms", effectiveCfg.TTLKeepaliveIntervalMs),
 	)
 
 	return balanceSyncWorker
@@ -1915,6 +1943,13 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.RedisMinRetryBackoff, 8)
 	intDefault(&cfg.RedisMaxRetryBackoff, 1)
 
+	// TransactionBatchMaxSize defaults to the operational limit when the
+	// environment variable is absent or blank. An explicit zero must survive to
+	// startup validation and fail closed instead of silently becoming 10.
+	if strings.TrimSpace(os.Getenv("TRANSACTION_BATCH_MAX_SIZE")) == "" {
+		cfg.TransactionBatchMaxSize = defaultTransactionBatchMaxSize
+	}
+
 	// Bulk Recorder defaults
 	// BulkRecorderEnabled defaults to true when the env var is not set or empty.
 	// This treats both unset and empty string as "use default" for safer behavior.
@@ -1958,6 +1993,21 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceSyncBatchSize, 50)
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
+	intDefault(&cfg.BalanceSyncTTLKeepaliveIntervalMs, defaultKeepaliveIntervalMs)
+}
+
+func validateTransactionBatchConfig(cfg *Config) error {
+	if cfg.TransactionBatchMaxSize < minTransactionBatchMaxSize ||
+		cfg.TransactionBatchMaxSize > maxTransactionBatchMaxSize {
+		return fmt.Errorf(
+			"TRANSACTION_BATCH_MAX_SIZE must be between %d and %d, got %d",
+			minTransactionBatchMaxSize,
+			maxTransactionBatchMaxSize,
+			cfg.TransactionBatchMaxSize,
+		)
+	}
+
+	return nil
 }
 
 // buildTracerReserver constructs the tracer reservation HTTP client when the

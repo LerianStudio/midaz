@@ -19,6 +19,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/workers"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 )
 
 // componentsMT bundles every object that the bootstrap builds for
@@ -269,6 +270,12 @@ func buildComponentsMT(
 
 // buildPgManagerOptions assembles the option list for tmpostgres.NewManager.
 //
+// WithModule(constant.ModuleName) is mandatory: lib-commons resolves the
+// per-tenant ConnectionSettings by indexing TenantConfig.Databases[module].
+// Without it the lookup falls through to the root-level settings that
+// tenant-manager never populates, and every tenant pool silently runs on the
+// library fallback (25/5) regardless of what operators configured.
+//
 // MaxOpenConns / MaxIdleConns are forwarded only when explicitly configured —
 // passing 0 to lib-commons' WithMaxOpenConns is treated as "unbounded" and
 // would override its sensible fallback (25/5). Production leaves both env
@@ -278,6 +285,7 @@ func buildComponentsMT(
 // the gocyclo budget.
 func buildPgManagerOptions(cfg *Config, logger libLog.Logger) []tmpostgres.Option {
 	opts := []tmpostgres.Option{
+		tmpostgres.WithModule(constant.ModuleName),
 		tmpostgres.WithLogger(logger),
 		tmpostgres.WithMaxTenantPools(cfg.MultiTenantMaxTenantPools),
 		tmpostgres.WithIdleTimeout(time.Duration(cfg.MultiTenantIdleTimeoutSec) * time.Second),

@@ -43,8 +43,9 @@ type ProcessBalanceOperationsInput struct {
 	AccountBlockExceptionGrant *mtransaction.AccountBlockExceptionGrant
 }
 
-// ProcessBalanceOperations validates balance rules and executes the atomic Lua
-// script that mutates balances in Redis.
+// ProcessBalanceOperations is the nil-engine compatibility fallback. It
+// validates balance rules and executes the legacy atomic Lua script that
+// mutates balances in Redis.
 //
 // When input.TransactionInput is non-nil (new transactions), balance rules
 // (eligibility, asset codes, sending/receiving permissions) are validated

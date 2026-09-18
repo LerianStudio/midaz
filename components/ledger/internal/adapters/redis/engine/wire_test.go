@@ -111,6 +111,66 @@ func TestPrepareExecutionPreservesTransactionAndSnapshotOrder(t *testing.T) {
 	require.Len(t, wire.Balances, 1)
 }
 
+func TestPrepareExecutionEnforcesTrustedCountBoundaries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("exact limits", func(t *testing.T) {
+		input, limits, resolved := validWireExecution()
+		limits.MaxTransactions, limits.MaxPostings, limits.MaxBalances = 1, 1, 1
+
+		prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+		require.NoError(t, err)
+		require.NotNil(t, prepared)
+	})
+
+	t.Run("transaction excess", func(t *testing.T) {
+		input, limits, resolved := validWireExecution()
+		expandWireTransactions(&input, 2)
+		limits.MaxTransactions = 1
+
+		prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+		require.ErrorContains(t, err, "transaction or balance limits")
+		require.Nil(t, prepared)
+	})
+
+	t.Run("posting excess", func(t *testing.T) {
+		input, limits, resolved := validWireExecution()
+		second := input.Execution.Transactions[0].Postings[0]
+		second.Ref = "debit-1"
+		input.Execution.Transactions[0].Postings = append(input.Execution.Transactions[0].Postings, second)
+		limits.MaxPostings = 1
+
+		prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+		require.ErrorContains(t, err, "posting limit")
+		require.Nil(t, prepared)
+	})
+
+	t.Run("balance excess", func(t *testing.T) {
+		input, limits, resolved := validWireExecution()
+		addWireBalance(&input, &resolved)
+		limits.MaxBalances = 1
+
+		prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+		require.ErrorContains(t, err, "transaction or balance limits")
+		require.Nil(t, prepared)
+	})
+}
+
+func TestPrepareExecutionAcceptsProductionTransactionMaximum(t *testing.T) {
+	t.Parallel()
+
+	input, _, resolved := validWireExecution()
+	expandWireTransactions(&input, maxTransactionsPerExecution)
+	prepared, err := prepareExecution(context.Background(), input, hardLimits(), resolved)
+	require.NoError(t, err)
+	require.NotNil(t, prepared)
+
+	expandWireTransactions(&input, maxTransactionsPerExecution+1)
+	prepared, err = prepareExecution(context.Background(), input, hardLimits(), resolved)
+	require.ErrorContains(t, err, "transaction or balance limits")
+	require.Nil(t, prepared)
+}
+
 func TestPrepareExecutionRejectsInvalidInputs(t *testing.T) {
 	t.Parallel()
 
@@ -287,6 +347,91 @@ func TestPrepareExecutionCarriesBlockedAccountControl(t *testing.T) {
 	require.True(t, wire.Balances[0].Snapshot.Blocked)
 }
 
+func TestPrepareExecutionCarriesAccountBlockExceptionAfterBalanceKeys(t *testing.T) {
+	t.Parallel()
+
+	input, limits, resolved := validWireExecutionWithGrant()
+	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+
+	exception := input.Execution.Transactions[0].AccountBlockException
+	require.NotNil(t, exception)
+	require.Equal(t, []string{
+		resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection,
+		resolved.Balances["@source#default"].Balance,
+		resolved.Balances["@source#default"].Deleted,
+		resolved.Balances["@source#default"].LegacyDeleted,
+		resolved.AccountBlockExceptions[exception.ExceptionID],
+	}, prepared.Keys)
+
+	var wire wireRequest
+	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
+	require.Len(t, wire.Transactions, 1)
+	require.Equal(t, &wireAccountBlockException{
+		KeyIndex: 9, ExceptionID: exception.ExceptionID.String(), Alias: "@source",
+		Amount: "0.0000000000000000001", PrimaryPostingRef: "debit-0",
+	}, wire.Transactions[0].AccountBlockException)
+	require.NotContains(t, string(prepared.Payload), resolved.AccountBlockExceptions[exception.ExceptionID])
+}
+
+func TestPrepareExecutionRejectsInvalidAccountBlockExceptionInputs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mutate func(*command.EngineExecution, *resolvedExecutionKeys)
+	}{
+		{"nil id", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.ExceptionID = uuid.Nil
+		}},
+		{"empty alias", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.Alias = ""
+		}},
+		{"zero amount", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.Amount = decimal.Zero
+		}},
+		{"unknown posting", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.PrimaryPostingRef = "unknown"
+		}},
+		{"overdraft primary", func(input *command.EngineExecution, resolved *resolvedExecutionKeys) {
+			balance := &input.Execution.Balances[0]
+			delete(resolved.Balances, balance.BalanceRef)
+			balance.Key, balance.BalanceRef = "overdraft", "@source#overdraft"
+			input.Execution.Transactions[0].Postings[0].BalanceRef = balance.BalanceRef
+			resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys("tenant:fixture:balance:{transactions}:@source#overdraft")
+		}},
+		{"alias mismatch", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.Alias = "@other"
+		}},
+		{"amount mismatch", func(input *command.EngineExecution, _ *resolvedExecutionKeys) {
+			input.Execution.Transactions[0].AccountBlockException.Amount = decimal.NewFromInt(1)
+		}},
+		{"missing resolved key", func(input *command.EngineExecution, resolved *resolvedExecutionKeys) {
+			delete(resolved.AccountBlockExceptions, input.Execution.Transactions[0].AccountBlockException.ExceptionID)
+		}},
+		{"balance key collision", func(input *command.EngineExecution, resolved *resolvedExecutionKeys) {
+			id := input.Execution.Transactions[0].AccountBlockException.ExceptionID
+			resolved.AccountBlockExceptions[id] = resolved.Balances["@source#default"].Balance
+		}},
+		{"grant key without hash tag", func(input *command.EngineExecution, resolved *resolvedExecutionKeys) {
+			id := input.Execution.Transactions[0].AccountBlockException.ExceptionID
+			resolved.AccountBlockExceptions[id] = "tenant:fixture:account_block_exception:" + id.String()
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			input, limits, resolved := validWireExecutionWithGrant()
+			test.mutate(&input, &resolved)
+			prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+			require.Error(t, err)
+			require.Nil(t, prepared)
+		})
+	}
+}
+
 func TestPrepareExecutionCanceledContext(t *testing.T) {
 	t.Parallel()
 
@@ -334,6 +479,59 @@ func validWireExecution() (command.EngineExecution, Limits, resolvedExecutionKey
 	balanceKey := prefix + "balance:{transactions}:" + scope + ":@source#default"
 	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + cachepolicy.EngineRecoverQueue, Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Protection: prefix + "engine:{transactions}:protection:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": testResolvedBalanceKeys(balanceKey)}}
 	return input, Limits{MaxTransactions: 10, MaxPostings: 100, MaxBalances: 100, MaxCompletionPlanBytes: 4096, MaxRequestBytes: 16384, MaxPreparedBytes: 1048576}, resolved
+}
+
+func validWireExecutionWithGrant() (command.EngineExecution, Limits, resolvedExecutionKeys) {
+	input, limits, resolved := validWireExecution()
+	exceptionID := uuid.MustParse("6e0ebc70-6039-4edf-b039-4bb5d85afafe")
+	posting := input.Execution.Transactions[0].Postings[0]
+	input.Execution.Transactions[0].AccountBlockException = &accounting.AccountBlockException{
+		ExceptionID: exceptionID, Alias: "@source", Amount: posting.Amount, PrimaryPostingRef: posting.Ref,
+	}
+	resolved.AccountBlockExceptions = map[uuid.UUID]string{
+		exceptionID: "tenant:fixture:account_block_exception:{transactions}:" + input.Execution.OrganizationID.String() + ":" + input.Execution.LedgerID.String() + ":" + exceptionID.String(),
+	}
+
+	return input, limits, resolved
+}
+
+func expandWireTransactions(input *command.EngineExecution, count int) {
+	template := input.Execution.Transactions[0]
+	templateGuard := input.Guards[0]
+	templatePlan := input.CompletionPlans[0]
+	input.Execution.Transactions = make([]accounting.Transaction, 0, count)
+	input.Guards = make([]command.ExecutionGuard, 0, count)
+	input.CompletionPlans = make([]command.CompletionPlanRecord, 0, count)
+
+	for index := range count {
+		transactionID := uuid.NewSHA1(template.ID, []byte{byte(index), byte(index >> 8)})
+		transaction := template
+		transaction.ID = transactionID
+		transaction.Postings = append([]accounting.Posting(nil), template.Postings...)
+		guard := templateGuard
+		guard.TransactionID = transactionID
+		guard.NextToken = transactionID.String()
+		plan := templatePlan
+		plan.TransactionID = transactionID
+		plan.Payload = append(json.RawMessage(nil), templatePlan.Payload...)
+
+		input.Execution.Transactions = append(input.Execution.Transactions, transaction)
+		input.Guards = append(input.Guards, guard)
+		input.CompletionPlans = append(input.CompletionPlans, plan)
+	}
+}
+
+func addWireBalance(input *command.EngineExecution, resolved *resolvedExecutionKeys) {
+	balance := input.Execution.Balances[0]
+	balance.ID = uuid.MustParse("0d174365-c8e6-4557-aeb8-672e446fa9cc")
+	balance.AccountID = uuid.MustParse("8e081845-44c7-451a-970f-97673183819c")
+	balance.Alias = "@secondary"
+	balance.BalanceRef = balance.Alias + "#" + balance.Key
+	input.Execution.Balances = append(input.Execution.Balances, balance)
+	resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys(
+		"tenant:fixture:balance:{transactions}:" + input.Execution.OrganizationID.String() + ":" +
+			input.Execution.LedgerID.String() + ":" + balance.BalanceRef,
+	)
 }
 
 func TestWireArraysAreNotNull(t *testing.T) {
@@ -458,8 +656,8 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 
 	t.Logf("v1 lower-bound bytes: original=%d frozen_recovery=%d v1_legs=%d wire_postings=%d snapshots=%d final_wire=%d", len(body), len(recovery), len(transaction.Send.Source.From)+len(transaction.Send.Distribute.To), len(request.Transactions[0].Postings), len(request.Balances), len(prepared.Payload))
 	require.Equal(t, 4193188, len(body))
-	require.Equal(t, 10490524, len(recovery))
-	require.Equal(t, 12251608, len(prepared.Payload))
+	require.Equal(t, 11175426, len(recovery))
+	require.Equal(t, 13063934, len(prepared.Payload))
 	require.Greater(t, len(recovery), len(body), "completion plan must retain transaction and stable projection data")
 	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry the completion plan plus engine postings and snapshots")
 	require.Equal(t, 2, len(request.Transactions[0].Postings), "v1 retains both logical legs; no v1 leg cap is introduced")
