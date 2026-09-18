@@ -241,9 +241,19 @@ permissions:
 roles:
   # Group bindings are CONFIRMED against the central Access Manager seed
   # (caradhras, deploy/pam-seed/init_data.json): the real groups are
-  # midaz-{editor,contributor,viewer}-group. The manifest only REFERENCES
+  # midaz-{editor,contributor,viewer}-group, plus the platform-owned admin-group
+  # that the editor role is also granted to. The manifest only REFERENCES
   # pre-existing groups, it never creates them — a name absent from the seed
   # reconciles into a role with zero members.
+  #
+  # admin-group is the PLATFORM admin group (lerian/admin-group, seeded, holds the
+  # console admin in every tier), written BARE like every other group name here —
+  # the reconciler composes the "lerian/" owner. The seed already binds
+  # midaz-editor-role to it, so naming it here MIRRORS the seed rather than
+  # widening anything, and it is what lets those per-product admin rows retire
+  # without locking the platform admin out of the ledger screens (decision of
+  # 2026-09-18, the br-sisbajud pattern). contributor and viewer are NOT granted to
+  # it, matching the seed: the editor tier already covers everything they reach.
   #
   # All THREE seeded tiers are declared. `contributor` is not decorative: the
   # seed's midaz-contributor-role grants the full resource set at get/post/patch
@@ -254,6 +264,8 @@ roles:
   - name: editor
     granted_to:
       - group: midaz-editor-group
+      # seed: midaz-editor-role -> lerian/admin-group (see the admin-group note above)
+      - group: admin-group
   - name: contributor
     granted_to:
       - group: midaz-contributor-group
