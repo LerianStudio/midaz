@@ -77,7 +77,11 @@ func (uc *UseCase) loadAccountClosingBalanceStates(ctx context.Context, organiza
 		libOpentelemetry.HandleSpanError(span, "Failed to list the account balances for closing", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to list the account balances for closing", libLog.Err(err))
 
-		return nil, fmt.Errorf("list account balances for closing: %w", err)
+		// A store that cannot answer leaves the balance list unknown, which is the
+		// same refusal as a cache that cannot answer it: the closing state could not
+		// be established. The driver's own error stays on the span and in the log and
+		// never reaches the caller, whose envelope carries the sentinel instead.
+		return nil, pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
 	}
 
 	states := make([]accountClosingBalanceState, 0, len(balances))

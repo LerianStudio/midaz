@@ -236,6 +236,26 @@ func TestLoadAccountClosingBalanceStatesReadsEveryBalanceAndItsLiveState(t *test
 	assert.Nil(t, states[1].Live)
 }
 
+// TestLoadAccountClosingBalanceStatesRefusesAnUnreadableBalanceStore proves the
+// store that owns the balance list refuses in the same class as the cache beside
+// it: without that list the closing state cannot be established at all, so the
+// caller receives the sentinel its envelope maps to 503 — never the driver's own
+// error, which would reach the client verbatim under the ledger's disabled
+// high-status scrub.
+func TestLoadAccountClosingBalanceStatesRefusesAnUnreadableBalanceStore(t *testing.T) {
+	m := newClosingBalanceMocks(t)
+
+	driverFailure := errors.New("pq: relation \"balance\" does not exist")
+
+	m.balance.EXPECT().ListByAccountID(gomock.Any(), closingOrgID, closingLedgerID, closingAccountID).
+		Return(nil, driverFailure)
+
+	_, err := m.uc.loadAccountClosingBalanceStates(context.Background(), closingOrgID, closingLedgerID, closingAccountID)
+
+	requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
+	assert.NotContains(t, err.Error(), "relation", "the driver's message stays on the span and in the log")
+}
+
 // TestLoadAccountClosingBalanceStatesRefusesAnUnreadableCache proves a cache read
 // failure is never read as "no live state": it leaves the balance unknown, so the
 // closing is refused as indeterminate.
