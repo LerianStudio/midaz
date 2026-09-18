@@ -26,6 +26,11 @@ const (
 	accountTag          = "Accounts"
 )
 
+// accountClosePath is the group-relative Huma path of the closing command. It
+// addresses the account by account_id, not by the id the rest of the surface uses,
+// and it is served on the /v2 contract ALONE — see RegisterAccountV2Routes.
+const accountClosePath = accountListPath + "/{account_id}/close"
+
 // RegisterAccountRoutes registers the eight /v1 account operations on the shared Huma
 // API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber group, so
 // the humafiber adapter registers on that group and Fiber prepends the version prefix).
@@ -120,12 +125,16 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 	}, h.CountAccounts)
 }
 
-// RegisterAccountV2Routes registers the eight /v2 account operations on the shared
-// Huma API. It is the /v2 half of RegisterAccountRoutes: identical paths, authz tuples,
-// tenant chain and summaries, differing only in the operation IDs and in the holder
-// seam — the five account-bearing ops bind the /v2 shells (canonical mmodel.Account
-// bodies, HolderOnV2 on create), while DELETE and the HEAD count carry no account and
-// therefore bind the same handler methods as /v1.
+// RegisterAccountV2Routes registers the nine /v2 account operations on the shared
+// Huma API. Eight of them are the /v2 half of RegisterAccountRoutes: identical paths,
+// authz tuples, tenant chain and summaries, differing only in the operation IDs and in
+// the holder seam — the five account-bearing ops bind the /v2 shells (canonical
+// mmodel.Account bodies, HolderOnV2 on create), while DELETE and the HEAD count carry
+// no account and therefore bind the same handler methods as /v1.
+//
+// The ninth, the closing command, has no /v1 twin at all: it is a new operation, so no
+// v1 SDK binds it and publishing a deprecated copy of a route that never shipped would
+// buy nothing. RegisterAccountRoutes deliberately does not register it.
 //
 // opSuffix distinguishes the operation IDs one version group publishes from another's —
 // see v2OpSuffix.
@@ -208,6 +217,17 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // X-Total-Count header + empty 204 body.
 	}, h.CountAccounts)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "closeAccount" + opSuffix,
+		Method:        http.MethodPost,
+		Path:          accountClosePath,
+		Summary:       "Close an account",
+		Description:   "Closes an account whose balances are all exactly zero and which holds no pending transaction, preserving its history and refusing every later movement. The command takes no body and the closing instant is read back as the account's closedAt.",
+		Tags:          []string{accountTag},
+		Security:      secAccountBearer,
+		DefaultStatus: http.StatusNoContent, // bodiless 204.
+	}, h.CloseAccountV2)
 }
 
 // RegisterAccountRoutesToApp wires the account surface onto the /v1 contract:
@@ -224,6 +244,7 @@ func RegisterAccountRoutesToApp(group fiber.Router, api huma.API, auth *middlewa
 // surface.
 func RegisterAccountV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	attachAccountRouteChain(group, auth, routeOptions)
+	attachAccountCloseRouteChain(group, auth, routeOptions)
 	RegisterAccountV2Routes(api, h, v2OpSuffix)
 }
 
@@ -259,4 +280,23 @@ func attachAccountRouteChain(group fiber.Router, auth *middleware.AuthClient, ro
 	routeGet(group, externalPath, protectedMidaz(auth, "accounts", "get", routeOptions, parse))
 	routeDelete(group, idPath, protectedMidaz(auth, "accounts", "delete", routeOptions, parse))
 	routeHead(group, countPath, protectedMidaz(auth, "accounts", "head", routeOptions, parse))
+}
+
+// attachAccountCloseRouteChain attaches the guard chain of the closing command,
+// kept apart from attachAccountRouteChain because that one is SHARED by every
+// version group: attaching the closing path there would raise a Fiber route on /v1
+// for an operation the /v1 Huma contract does not serve.
+//
+// The chain is the one the account surface already uses —
+// protectedMidaz(auth,"accounts","post") (= auth.Authorize("midaz","accounts","post")
+// + tenant PostAuthMiddlewares) + ParseUUIDPathParameters("account") — because
+// closing is an operation on the account, not a resource of its own. The path param
+// is named account_id, which is in cn.UUIDPathParameters, so the same middleware
+// answers a malformed identifier with the canonical 400.
+func attachAccountCloseRouteChain(group fiber.Router, auth *middleware.AuthClient, routeOptions *pkgHTTP.ProtectedRouteOptions) {
+	const closePath = "/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/close"
+
+	parse := pkgHTTP.ParseUUIDPathParameters("account")
+
+	routePost(group, closePath, protectedMidaz(auth, "accounts", "post", routeOptions, parse))
 }

@@ -186,3 +186,45 @@ func (handler *AccountHandler) UpdateAccountV2(ctx context.Context, in *UpdateAc
 
 	return &UpdateAccountV2Response{Status: http.StatusOK, Body: account}, nil
 }
+
+// --- POST /accounts/{account_id}/close ----------------------------------------
+
+// CloseAccountRequest is the close request envelope. The operation takes NO body:
+// closing is a transition of the account, with nothing for the caller to state
+// about it — no reason, no drain destination, no reopening option.
+//
+// The account is addressed by account_id rather than by the id the rest of the
+// account surface uses, and the name is what makes the param UUID-parsed by the
+// shared ParseUUIDPathParameters middleware.
+type CloseAccountRequest struct {
+	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
+	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
+	AccountID      string `path:"account_id" doc:"Account ID (UUID)"`
+}
+
+// CloseAccountResponse has NO Body field: paired with DefaultStatus 204 it makes
+// Huma emit a bodiless 204.
+type CloseAccountResponse struct{}
+
+// CloseAccountV2 delegates to the closeAccount core; returns a bodiless 204.
+//
+// It is served on the /v2 contract alone: the operation is new, so no v1 SDK binds
+// it. The protection of a closed account is NOT versioned in the same way — a
+// movement on either contract is refused once the account is closed.
+func (handler *AccountHandler) CloseAccountV2(ctx context.Context, in *CloseAccountRequest) (*CloseAccountResponse, error) {
+	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	accountID, err := parsePathUUID(in.AccountID, "account_id")
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	if err := handler.closeAccount(ctx, orgID, ledgerID, accountID); err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	return &CloseAccountResponse{}, nil
+}
