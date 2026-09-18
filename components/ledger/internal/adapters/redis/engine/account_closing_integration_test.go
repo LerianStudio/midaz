@@ -53,6 +53,8 @@ func TestIntegrationAccountClosingRefusesAClosedAccountBeforeAnyWrite(t *testing
 	_, err := f.run(t)
 	require.ErrorContains(t, err, `"code":"account_closed"`)
 	require.Equal(t, before, f.capture(t), "a closed account refuses before any accounting write")
+	require.Equal(t, int64(0), container.Client.Exists(context.Background(), f.resolved.Balances["@source#default"].Balance).Val(),
+		"a refused admission seeds no balance")
 }
 
 func TestIntegrationAccountClosingRefusesAnAccountBeingClosed(t *testing.T) {
@@ -69,6 +71,8 @@ func TestIntegrationAccountClosingRefusesAnAccountBeingClosed(t *testing.T) {
 	_, err := f.run(t)
 	require.ErrorContains(t, err, `"code":"account_closing_in_progress"`)
 	require.Equal(t, before, f.capture(t), "a closing in progress refuses before any accounting write")
+	require.Equal(t, int64(0), container.Client.Exists(context.Background(), f.resolved.Balances["@source#default"].Balance).Val(),
+		"a refused admission seeds no balance, so the list the closing is validating cannot grow")
 }
 
 func TestIntegrationAccountClosingAdmitsAProtectedSeedOnAColdCache(t *testing.T) {
