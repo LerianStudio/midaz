@@ -296,9 +296,26 @@ func (a *accountClosingAttempt) retain() {
 	a.admission.MarkIndeterminate()
 }
 
+// accountClosingCleanupTimeout bounds the cleanup that runs once the attempt knows
+// its own outcome. It is the deadline of the cleanup itself, not of the request:
+// the caller is already leaving, and a cache that stopped answering must not hold
+// it any longer than this.
+const accountClosingCleanupTimeout = 5 * time.Second
+
 // releaseAccountClosingAttempt gives back the protection of this attempt: the
 // closing marker first, the ownership after, both only where the key still carries
 // this attempt's token.
+//
+// The cleanup runs on a context DECOUPLED from the request, with a deadline of its
+// own. A cancelled request is one of the reasons a marker exists in the first
+// place, so a cleanup inheriting that cancellation would abandon exactly the
+// protection it was installed to release. Nothing else is touched: a marker or
+// ownership carrying another attempt's token, the account's blocking and its
+// permissions are all outside what this attempt installed.
+//
+// It never reports failure. The refusal that brought the attempt here is the
+// answer the caller gets, and a cleanup that could not run leaves its keys for
+// reconciliation rather than replacing that answer with its own.
 //
 // A retained attempt is left untouched. Removing the marker of a write that may
 // still land is the one thing this cleanup must never do, and no amount of elapsed
@@ -308,18 +325,25 @@ func (uc *UseCase) releaseAccountClosingAttempt(ctx context.Context, attempt *ac
 		return
 	}
 
-	logger := libObservability.NewLoggerFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), accountClosingCleanupTimeout)
+	defer cancel()
+
+	cleanupCtx, span := tracer.Start(cleanupCtx, "exec.release_account_closing_attempt")
+	defer span.End()
 
 	if !attempt.markerReleased {
-		released, err := uc.TransactionRedisRepo.ReleaseAccountClosingAttempt(ctx, attempt.organizationID, attempt.ledgerID, attempt.accountID, attempt.token)
+		released, err := uc.TransactionRedisRepo.ReleaseAccountClosingAttempt(cleanupCtx, attempt.organizationID, attempt.ledgerID, attempt.accountID, attempt.token)
 		if err != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Failed to remove the account closing marker", libLog.Err(err))
+			libOpentelemetry.HandleSpanError(span, "Failed to remove the account closing marker", err)
+			logger.Log(cleanupCtx, libLog.LevelWarn, "Failed to remove the account closing marker", libLog.Err(err))
 		}
 
 		if !released && err == nil {
-			logger.Log(ctx, libLog.LevelDebug, "The account closing marker was not owned at release")
+			logger.Log(cleanupCtx, libLog.LevelDebug, "The account closing marker was not owned at release")
 		}
 	}
 
-	attempt.admission.Release(ctx)
+	attempt.admission.Release(cleanupCtx)
 }
