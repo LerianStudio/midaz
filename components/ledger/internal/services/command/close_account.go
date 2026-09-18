@@ -12,6 +12,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -21,6 +22,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -101,7 +104,49 @@ func (uc *UseCase) CloseAccount(ctx context.Context, organizationID, ledgerID, a
 		return time.Time{}, err
 	}
 
-	return uc.finalizeAccountClosing(ctx, span, logger, attempt, states)
+	closedAt, err = uc.finalizeAccountClosing(ctx, span, logger, attempt, states)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	uc.emitAccountClosedEvent(ctx, span, logger, organizationID, ledgerID, accountID, closedAt)
+
+	return closedAt, nil
+}
+
+// emitAccountClosedEvent publishes account.closed for a closing that finished.
+//
+// Anchor: the single path that answers success. The finalization it follows has
+// already recorded the instant, evicted the cached balances, installed the closed
+// marker and removed the closing one, so nothing the event announces can still be
+// in doubt. Every other path — a refusal, a technical failure, a finalization whose
+// outcome stayed unknown — leaves this call unreached, and a repeat of the command
+// is refused as already closed before it, which is what keeps one closing to one
+// event.
+//
+// IMPORTANT posture: a build or emit failure is recorded and logged at Warn, never
+// returned. The closing is durable in the account row and the answer stays 204.
+// There is no outbox behind it, so a process that dies here loses the event rather
+// than replaying it — the closing state remains queryable, which is what consumers
+// fall back on.
+//
+// The instant is the database's, carried through from the conditional write: no
+// clock of this process reaches either the payload or the timestamp.
+//
+// Wire-format mapping lives in pkg/streaming/events/account_closed.go; payload
+// changes belong there, not here.
+func (uc *UseCase) emitAccountClosedEvent(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	organizationID, ledgerID, accountID uuid.UUID,
+	closedAt time.Time,
+) {
+	pkgStreaming.EmitBrokerBestEffort(ctx, span, logger, uc.Streaming, events.AccountClosedDefinition.Key(),
+		func(tenantID string) (libStreaming.EmitRequest, error) {
+			return events.NewAccountClosed(accountID.String(), organizationID.String(), ledgerID.String(), closedAt).
+				ToEmitRequest(tenantID, closedAt)
+		})
 }
 
 // verifyAccountClosingEligibleAccount answers the questions that do not need the
