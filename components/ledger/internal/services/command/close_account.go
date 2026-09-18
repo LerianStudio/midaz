@@ -121,10 +121,24 @@ func (uc *UseCase) verifyAccountClosingEligibleAccount(
 ) error {
 	acc, err := uc.AccountRepo.Find(readrouting.WithPrimaryRead(ctx), organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to read the account to close", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to read the account to close", libLog.Err(err))
+		// The repository answers a missing row with a business error and everything
+		// else — a lost connection, a deadline, a scan failure — with the driver's
+		// own. Only the first describes the account; the second says the closing
+		// state could not be established at all, which is the dependency refusal
+		// rather than a fact about this account.
+		if pkg.IsBusinessError(err) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to read the account to close", err)
+			logger.Log(ctx, libLog.LevelWarn, "Failed to read the account to close", libLog.Err(err))
 
-		return err
+			return err
+		}
+
+		indeterminate := pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to read the account to close", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to read the account to close", libLog.Err(err))
+
+		return indeterminate
 	}
 
 	if acc == nil {
@@ -171,8 +185,22 @@ func (uc *UseCase) protectAccountClosing(
 ) (*accountClosingAttempt, error) {
 	admission, err := uc.acquireAccountAdmission(ctx, organizationID, ledgerID, accountID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to protect the account for closing", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to protect the account for closing", libLog.Err(err))
+		// The acquisition refuses in two classes: another operation holding the
+		// account, which is the coordination doing its job, and a protection surface
+		// that could not be read at all, which is a dependency failing. The second
+		// must reach the span as the technical failure the guard already recorded it
+		// as, or this span would stay green over a red one.
+		const message = "Failed to protect the account for closing"
+
+		if isAccountClosingIndeterminate(err) {
+			libOpentelemetry.HandleSpanError(span, message, err)
+			logger.Log(ctx, libLog.LevelError, message, libLog.Err(err))
+
+			return nil, err
+		}
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
+		logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
 
 		return nil, err
 	}
@@ -192,10 +220,10 @@ func (uc *UseCase) protectAccountClosing(
 		libOpentelemetry.HandleSpanError(span, "Failed to install the account closing marker", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to install the account closing marker", libLog.Err(err))
 
-		// The marker write may have landed with its answer lost, so the account stays
-		// protected and reconciliation resolves it.
+		// The marker write may have landed with its answer lost, so the account keeps
+		// both its marker and its ownership and reconciliation resolves them. Nothing
+		// is cleaned up here on purpose.
 		attempt.retain()
-		uc.releaseAccountClosingAttempt(ctx, attempt)
 
 		return nil, indeterminate
 	}
