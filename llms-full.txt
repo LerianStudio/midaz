@@ -516,7 +516,7 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0516` ErrTransactionBatchBudgetExceeded — derived post-fee work or serialized state exceeds a fixed batch budget (HTTP 422)
 - `0517` ErrTransactionBatchStructuralValidation — one or more batch items fail structural validation (HTTP 400)
 
-#### Overdraft Feature Error Codes (0167–0176)
+#### Overdraft Feature Error Codes (0167–0175, 0492)
 - `0167` ErrOverdraftLimitExceeded — transaction exceeds overdraft limit
 - `0168` ErrDirectOperationOnInternalBalance — user operation targets internal-scope balance
 - `0169` ErrDeletionOfInternalBalance — delete targets internal-scope balance
@@ -526,10 +526,10 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0173` ErrOverdraftLimitBelowUsage — cannot reduce limit below current usage
 - `0174` ErrStaleBalanceVersion — balance modified between read and write (retry needed)
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
-- `0176` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
+- `0492` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
 #### Settings / Reservation Error Codes (0176–0178)
-- `0176` ErrInvalidSettingsFieldValue — settings field value fails validation
+- `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{id}/settings` reject identically
 - `0177` ErrTransactionReservationDenied — tracer reservation denied (limit/rule)
 - `0178` ErrTransactionReservationUnavailable — tracer reservation service unavailable
 
