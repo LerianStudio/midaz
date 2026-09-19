@@ -657,6 +657,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		addCleanup(func() { _ = rmq.producerRepo.Close() })
 	}
 
+	if rmq != nil && rmq.writeBehindConnection != nil {
+		addCleanup(func() { _ = rmq.writeBehindConnection.Close() })
+	}
+
 	// Pass PG and Mongo managers to RabbitMQ components for per-message tenant resolution
 	if rmq != nil {
 		rmq.pgManager = txnPG.pgManager
@@ -887,6 +891,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		AtomicTransactionBatchIdempotencyRepo: txnRedisRepo,
 		UUIDv7Generator:                       libCommons.GenerateUUIDv7,
 		Clock:                                 time.Now,
+		TransactionWriteBehindDispatcher:      rmq.writeBehindDispatcher,
+		TransactionWriteBehindAsync:           cfg.RabbitMQTransactionAsync,
+		TransactionEvidenceResolver:           rabbitEngineEvidenceResolver{repository: txnRedisRepo},
 		// Streaming
 		Streaming: streamingEmitter,
 		// Observability (D6)
@@ -918,7 +925,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		// cache. The decorator implements the same port, so nothing downstream
 		// learns whether an answer was computed or served; with no Valkey it
 		// passes straight through and the dashboard is slower, never wrong.
-		DashboardRepo: dashboardCache.NewDashboardCache(txnPG.dashboardRepo, redisConnection, 0, logger),
+		DashboardRepo:          dashboardCache.NewDashboardCache(txnPG.dashboardRepo, redisConnection, 0, logger),
+		EngineWriteBehindCodec: command.EngineWriteBehindEvidenceCodec{},
 		// Observability (D6)
 		MetricsFactory: metricsFactory,
 	}
@@ -981,12 +989,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// Cache the per-(org,ledger) fee-package set so a transaction create on a
 	// ledger with no fee packages skips the Mongo lookup; invalidated on package CUD.
 	fees.useCase.PackageCache = txnRedisRepo
-
-	// Wire consumer with UseCase (registers handler or creates MultiQueueConsumer)
-	if err := rmq.wireConsumer(commandUseCase); err != nil {
-		doCleanup()
-		return nil, err
-	}
 
 	// === Handlers ===
 
@@ -1192,7 +1194,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		recoveryMongo = txnMgo.mongoManager
 	}
 
-	if err := configureAppliedTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo); err != nil {
+	if err := configureAppliedTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo, cfg.BulkRecorderMaxRowsPerInsert); err != nil {
 		doCleanup()
 
 		return nil, fmt.Errorf("failed to configure engine finalization: %w", err)
@@ -1202,6 +1204,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		doCleanup()
 
 		return nil, fmt.Errorf("failed to configure engine: %w", err)
+	}
+
+	// Register RabbitMQ handlers only after every completion dependency has been
+	// configured. The dispatcher snapshots these ports and must never rely on a
+	// later lazy lookup to become ready.
+	if err := rmq.wireConsumer(commandUseCase); err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("failed to configure transaction consumer: %w", err)
 	}
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Engine configured as the default accounting path")

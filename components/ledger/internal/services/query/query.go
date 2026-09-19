@@ -97,6 +97,12 @@ type UseCase struct {
 	// TransactionRedisRepo provides an abstraction on top of the transaction redis consumer.
 	TransactionRedisRepo txRedis.RedisRepository
 
+	// EngineWriteBehindRepo resolves versioned accounting evidence for immediate
+	// point lookup. When nil, the concrete TransactionRedisRepo is used if it
+	// implements the narrow port.
+	EngineWriteBehindRepo  txRedis.EngineWriteBehindRepository
+	EngineWriteBehindCodec EngineWriteBehindEvidenceCodec
+
 	// --- RabbitMQ ---
 
 	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.

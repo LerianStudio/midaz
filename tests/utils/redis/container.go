@@ -83,14 +83,15 @@ type ContainerResult struct {
 
 // SetupContainer starts a Redis container for integration testing.
 // Returns client and connection info.
-func SetupContainer(t *testing.T) *ContainerResult {
-	t.Helper()
-	return SetupContainerWithConfig(t, DefaultContainerConfig())
+func SetupContainer(tb testing.TB) *ContainerResult {
+	tb.Helper()
+	return SetupContainerWithConfig(tb, DefaultContainerConfig())
 }
 
 // SetupContainerWithConfig starts a Redis container with custom configuration.
-func SetupContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResult {
-	t.Helper()
+func SetupContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResult {
+	tb.Helper()
+	t := tb
 
 	ctx := context.Background()
 
@@ -212,15 +213,16 @@ func SetupContainerOnNetworkWithConfig(t *testing.T, cfg ContainerConfig, networ
 
 // CreateConnection creates a libRedis.Client wrapper for testing
 // using the provided Redis address.
-func CreateConnection(t *testing.T, addr string) *libRedis.Client {
-	t.Helper()
-	return CreateConnectionWithDB(t, addr, 0)
+func CreateConnection(tb testing.TB, addr string) *libRedis.Client {
+	tb.Helper()
+	return CreateConnectionWithDB(tb, addr, 0)
 }
 
 // CreateConnectionWithDB creates a libRedis.Client wrapper pinned to one
 // logical database. Use it with SetupReusableContainer.
-func CreateConnectionWithDB(t *testing.T, addr string, db int) *libRedis.Client {
-	t.Helper()
+func CreateConnectionWithDB(tb testing.TB, addr string, db int) *libRedis.Client {
+	tb.Helper()
+	t := tb
 
 	conn, err := libRedis.New(context.Background(), libRedis.Config{
 		Topology: libRedis.Topology{

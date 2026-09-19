@@ -119,16 +119,23 @@ revert, commit, or cancel that reaches the engine:
    validates live grants, evaluates ordered postings in memory, serializes every
    output, and finally calls `commitPreparedExecution` to publish balances plus
    recovery evidence and delete consumed grants before writing the receipt.
-8. On a confirmed result, `AppliedTransactionCompleter.Complete` projects or
-   verifies the transaction, operations, and metadata. Completion failure returns
-   an error to the request but does not undo accounting.
-9. After validating the durable outcome, the normal path asks
+8. On a confirmed result, the command composes the public response and lookup
+   from immutable evidence. With `RABBITMQ_TRANSACTION_ASYNC=true`, it publishes
+   the versioned write-behind envelope with mandatory routing and publisher
+   confirms. A confirmed publish returns immediately; a failed or uncertain
+   publish enters the idempotent synchronous completion fallback. With async
+   disabled, completion runs synchronously.
+9. SQL/MongoDB failure after accounting is confirmed is deferred to recovery and
+   does not turn the already-applied financial operation into an HTTP failure.
+   The recovery record was written atomically with accounting. Events are emitted
+   only after SQL and frozen metadata are confirmed.
+10. After validating a durable outcome, the completion path asks
    `EngineRecoveryAcknowledger` to read the exact raw version-2 record, validate
    that it represents the completed execution, and run the protected
    exact-value ACK. The ACK removes only `recover`; it updates acknowledgment
    and terminal proof and, when terminal conditions hold, schedules future
    receipt/guard cleanup atomically.
-10. A missing record is already acknowledged. If this best-effort synchronous
+11. A missing record is already acknowledged. If this best-effort synchronous
    ACK fails or observes a replacement, the request still succeeds because the
    accounting result and projections are durable. A record that remains is
    handled by `EngineRecoveryConsumer`; an uncertain response may also mean the
@@ -145,23 +152,28 @@ flowchart LR
     E --> G[Apply in memory and prepare all output]
     G --> H[commitPreparedExecution]
     H --> I[Balances plus guard, recovery record, and receipt]
-    I --> J[Return or receipt-replay result]
-    J --> K[AppliedTransactionCompleter]
+    I --> J[Compose response and indexed lookup]
+    J --> P{Async enabled}
+    P -->|yes| Q[Mandatory Rabbit publish plus confirm]
+    Q -->|confirmed| R[Return success]
+    Q -->|failed or uncertain| K[AppliedTransactionCompleter fallback]
+    P -->|no| K
     I --> L[EngineRecoveryConsumer]
     L --> K
     K --> M[SQL and MongoDB confirmed]
+    K -->|failure| L
     M --> N[Read exact recover record]
     N --> O[Protected exact ACK and retention schedule]
     N -->|failure or replacement| L
 ```
 
-The normal request owns the first, best-effort ACK attempt after durable
-completion. The recovery consumer remains the fallback for a crash before ACK,
-a canceled context, Redis failure, an uncertain response, or a retained
-replacement. Both paths use the same exact protected operation; neither uses a
-plain `HDEL`. A successful ACK removes the recovery member but not the receipt,
-guard, or protection fields. Their later deletion remains owned by the bounded
-cleanup runner.
+The Rabbit consumer, synchronous fallback, and recovery consumer all use the
+same causal projector. Recovery retries a bounded number of times per cycle and
+then increments a source-specific attempt counter. At the quarantine threshold,
+it persists the exact raw envelope to PostgreSQL before conditionally removing
+that exact Redis value. If quarantine is unavailable, persistence fails, or the
+record was replaced concurrently, Redis evidence remains. None of these paths
+has an accounting-engine capability.
 
 Annotation/NOTED transactions intentionally do not enter this story. The legacy
 balance and backup paths remain readable during rollout, but production bootstrap
@@ -373,19 +385,22 @@ Balance reads request the primary, and cancellation is checked again after route
 lookup. These preparation functions do not mutate balances; only the subsequent
 engine execution can approve the transaction and publish monetary state.
 
-Pending commit/cancel confirms the transaction and its operations in scoped
-primary SQL before bootstrapping a missing `PENDING` guard. Existing terminal
-guards are never replaced. A terminal SQL transaction retains the existing
-not-pending error even when its pending body has already been cleared.
+Pending commit/cancel resolves the freshest indexed engine evidence first and
+falls back to scoped primary SQL. If the hold projection is still pending, the
+new execution carries an immutable predecessor reference and recovery projects
+the hold before its transition. A missing `PENDING` guard is bootstrapped;
+existing terminal guards are never replaced.
 Cancellation reads source balances only and derives any historical repayment
 cap from persisted operations, never from current overdraft debt. Cloning the
 persisted input preserves JSON numeric metadata without a float conversion.
 Each action captures its own stable execution identity and timestamps before execution.
 
 Revert creates a new child transaction with the original transaction as its
-parent. Its v2 path performs a new tracer reservation and does not inherit the
-original transaction's tracer skip. Neither revert nor pending transitions
-rewrite the engine recover record through the legacy write-behind path.
+parent. It may resolve an unprojected origin from indexed evidence and records
+that execution as an origin dependency. Its v2 path performs a new tracer
+reservation and does not inherit the original transaction's tracer skip. Neither
+revert nor pending transitions rewrite the engine recover record through the
+legacy write-behind path.
 
 ## Precision and cache representation
 

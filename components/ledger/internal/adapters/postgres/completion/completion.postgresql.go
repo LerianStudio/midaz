@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -32,19 +33,28 @@ type operationRepository interface {
 // Store persists a frozen execution in the existing transaction and operation
 // tables. It does not execute balance accounting or perform backup cleanup.
 type Store struct {
-	transactions transactionRepository
-	operations   operationRepository
+	transactions     transactionRepository
+	operations       operationRepository
+	maxRowsPerInsert int
 }
 
+const defaultMaxRowsPerInsert = 1000
+
 var (
-	_ command.TransactionWriteStore            = (*Store)(nil)
-	_ command.TransactionWriteStoreWithOutcome = (*Store)(nil)
+	_ command.TransactionWriteStore                = (*Store)(nil)
+	_ command.TransactionWriteStoreWithOutcome     = (*Store)(nil)
+	_ command.TransactionBulkWriteStoreWithOutcome = (*Store)(nil)
 )
 
 // NewStore shares the existing transaction and operation repositories. Tenant
 // connection selection is delegated to the transaction repository's BeginTx.
-func NewStore(transactions transactionRepository, operations operationRepository) *Store {
-	return &Store{transactions: transactions, operations: operations}
+func NewStore(transactions transactionRepository, operations operationRepository, maxRowsPerInsert ...int) *Store {
+	maxRows := defaultMaxRowsPerInsert
+	if len(maxRowsPerInsert) > 0 && maxRowsPerInsert[0] > 0 {
+		maxRows = maxRowsPerInsert[0]
+	}
+
+	return &Store{transactions: transactions, operations: operations, maxRowsPerInsert: maxRows}
 }
 
 // Persist inserts or verifies all expected rows in a single SQL transaction.
@@ -126,6 +136,267 @@ func (store *Store) PersistWithOutcome(ctx context.Context, record command.Trans
 		TransactionStatus: transactionStatus,
 		LifecyclePhase:    persistedLifecyclePhase(allowInsert, record.ExpectedStatus),
 	}, nil
+}
+
+// PersistBulkWithOutcome persists a same-scope group atomically. It locks known
+// transaction rows by canonical ID, orders in-group hold/origin dependencies
+// before their consumers, batches operation inserts, and verifies every row
+// before the single commit. Returned outcomes remain correlated by input index.
+//
+//nolint:gocognit,gocyclo // one SQL transaction must keep validation, ordering, locking, persistence, and outcome correlation together
+func (store *Store) PersistBulkWithOutcome(ctx context.Context, records []command.TransactionWriteSet) (outcomes []command.TransactionPersistenceOutcome, err error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(records) == 0 {
+		return []command.TransactionPersistenceOutcome{}, nil
+	}
+
+	if store == nil || store.transactions == nil || store.operations == nil {
+		return nil, fmt.Errorf("recovery SQL repositories are not configured")
+	}
+
+	for _, record := range records {
+		if err := validateRecord(record); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := validateBulkScope(records); err != nil {
+		return nil, err
+	}
+
+	ordered, err := orderBulkRecords(records)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := store.transactions.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin bulk recovery persistence: %w", err)
+	}
+
+	if tx == nil {
+		return nil, fmt.Errorf("begin bulk recovery persistence returned a nil transaction")
+	}
+
+	committed := false
+	defer func() {
+		if !committed {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				err = errors.Join(err, fmt.Errorf("rollback bulk recovery persistence: %w", rollbackErr))
+				outcomes = nil
+			}
+		}
+	}()
+
+	querier, ok := tx.(repository.DBQuerier)
+	if !ok {
+		return nil, repository.ErrQueryContextNotSupported
+	}
+
+	if err := lockBulkTransactions(ctx, querier, records); err != nil {
+		return nil, err
+	}
+
+	outcomes = make([]command.TransactionPersistenceOutcome, len(records))
+	changed := make([]bool, len(records))
+	finalStatuses := make(map[string]string, len(records))
+	operations := make([]*operation.Operation, 0)
+
+	for _, index := range ordered {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		record := records[index]
+
+		allowInsert, status, err := store.persistTransaction(ctx, tx, querier, record)
+		if err != nil {
+			return nil, fmt.Errorf("persist bulk transaction %s: %w", record.Transaction.ID, err)
+		}
+
+		changed[index] = allowInsert
+
+		finalStatuses[record.Transaction.ID] = status
+		if allowInsert {
+			operations = append(operations, record.Transaction.Operations...)
+		}
+	}
+
+	maxRows := store.maxRowsPerInsert
+	if maxRows <= 0 {
+		maxRows = defaultMaxRowsPerInsert
+	}
+
+	for start := 0; start < len(operations); start += maxRows {
+		end := min(start+maxRows, len(operations))
+
+		chunk := append([]*operation.Operation(nil), operations[start:end]...)
+		if _, err := store.operations.CreateBulkTx(ctx, tx, chunk); err != nil {
+			return nil, fmt.Errorf("persist bulk recovery operations: %w", err)
+		}
+	}
+
+	for _, index := range ordered {
+		for _, row := range records[index].Transaction.Operations {
+			if err := verifyOperation(ctx, querier, row); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit bulk recovery persistence: %w", err)
+	}
+
+	committed = true
+
+	for index, record := range records {
+		outcomes[index] = command.TransactionPersistenceOutcome{
+			TransactionStatus: finalStatuses[record.Transaction.ID],
+			LifecyclePhase:    persistedLifecyclePhase(changed[index], record.ExpectedStatus),
+		}
+	}
+
+	return outcomes, nil
+}
+
+func validateBulkScope(records []command.TransactionWriteSet) error {
+	organizationID := records[0].Transaction.OrganizationID
+
+	ledgerID := records[0].Transaction.LedgerID
+	for _, record := range records[1:] {
+		if record.Transaction.OrganizationID != organizationID || record.Transaction.LedgerID != ledgerID {
+			return conflict("bulk recovery group spans organization or ledger scope")
+		}
+	}
+
+	return nil
+}
+
+//nolint:gocognit,gocyclo // the bounded topological sort keeps every dependency validation fail-closed in one pass
+func orderBulkRecords(records []command.TransactionWriteSet) ([]int, error) {
+	dependencies := make([]map[int]struct{}, len(records))
+	dependents := make([][]int, len(records))
+
+	byTransaction := make(map[string][]int, len(records))
+	for index, record := range records {
+		byTransaction[record.Transaction.ID] = append(byTransaction[record.Transaction.ID], index)
+	}
+
+	for index, record := range records {
+		dependencies[index] = make(map[int]struct{}, 2)
+
+		if record.ExpectedStatus != "" {
+			for _, candidate := range byTransaction[record.Transaction.ID] {
+				if candidate != index && records[candidate].Action == "hold" && records[candidate].ExpectedStatus == "" {
+					dependencies[index][candidate] = struct{}{}
+					break
+				}
+			}
+		}
+
+		if record.Transaction.ParentTransactionID != nil {
+			for _, candidate := range byTransaction[*record.Transaction.ParentTransactionID] {
+				if candidate != index && records[candidate].ExpectedStatus == "" {
+					dependencies[index][candidate] = struct{}{}
+					break
+				}
+			}
+		}
+	}
+
+	for index, required := range dependencies {
+		for dependency := range required {
+			dependents[dependency] = append(dependents[dependency], index)
+		}
+	}
+
+	ready := make([]int, 0, len(records))
+	for index, required := range dependencies {
+		if len(required) == 0 {
+			ready = append(ready, index)
+		}
+	}
+
+	less := func(left, right int) bool {
+		leftID, rightID := records[left].Transaction.ID, records[right].Transaction.ID
+		if leftID != rightID {
+			return leftID < rightID
+		}
+
+		return left < right
+	}
+
+	ordered := make([]int, 0, len(records))
+	for len(ready) > 0 {
+		sort.Slice(ready, func(i, j int) bool { return less(ready[i], ready[j]) })
+		current := ready[0]
+		ready = ready[1:]
+
+		ordered = append(ordered, current)
+		for _, dependent := range dependents[current] {
+			delete(dependencies[dependent], current)
+
+			if len(dependencies[dependent]) == 0 {
+				ready = append(ready, dependent)
+			}
+		}
+	}
+
+	if len(ordered) != len(records) {
+		return nil, conflict("cyclic bulk recovery dependency")
+	}
+
+	return ordered, nil
+}
+
+func lockBulkTransactions(ctx context.Context, querier repository.DBQuerier, records []command.TransactionWriteSet) error {
+	identities := make(map[string]struct{}, len(records))
+	for _, record := range records {
+		identities[record.Transaction.ID] = struct{}{}
+	}
+
+	ids := make([]string, 0, len(identities))
+	for id := range identities {
+		ids = append(ids, id)
+	}
+
+	sort.Strings(ids)
+	placeholders := make([]string, len(ids))
+
+	args := make([]any, len(ids))
+	for index, id := range ids {
+		placeholders[index] = fmt.Sprintf("$%d", index+1)
+		args[index] = id
+	}
+
+	query := "SELECT id FROM transaction WHERE id IN (" + strings.Join(placeholders, ",") + ") ORDER BY id FOR UPDATE"
+
+	rows, err := querier.QueryContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("lock bulk recovery transactions: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("decode locked bulk recovery transaction: %w", err)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read locked bulk recovery transactions: %w", err)
+	}
+
+	return nil
 }
 
 func persistedLifecyclePhase(changed bool, expectedStatus string) string {

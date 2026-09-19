@@ -139,41 +139,85 @@ func (uc *UseCase) executeCreateEngine(
 }
 
 func (uc *UseCase) finalizeCreateEngineResult(ctx context.Context, logger libLog.Logger, run *createTransactionRun, outcome EngineExecutionOutcome) (*transaction.Transaction, error) {
-	envelope, err := createEngineEnvelope(outcome)
+	writeBehind, err := createEngineWriteBehindEnvelope(outcome)
 	if err != nil {
 		return nil, err
 	}
 
-	completion, err := uc.AppliedTransactionCompleter.Complete(ctx, envelope)
+	record := &writeBehind.Record
+
+	views, err := BuildTransactionEvidenceViews(*record)
 	if err != nil {
 		return nil, err
 	}
 
-	expectedStatus := run.status
-	if expectedStatus == constant.CREATED {
-		expectedStatus = constant.APPROVED
-	}
-
-	if completion.Outcome.TransactionStatus != expectedStatus {
-		return nil, fmt.Errorf("%w: create completer confirmed %q, expected %q", ErrTransactionCompletionConflict, completion.Outcome.TransactionStatus, expectedStatus)
-	}
-
-	tran := completion.Record.Transaction
+	tran := views.InitialResponse
 	if tran == nil {
-		return nil, invalidTransactionCompletionRecord("create completer returned no materialized transaction")
+		return nil, invalidTransactionCompletionRecord("create evidence returned no materialized transaction")
 	}
 
-	uc.acknowledgeEngineRecovery(ctx, logger, envelope, completion)
+	projected := false
+	dispatched := false
 
-	if run.status == constant.CREATED {
-		created := constant.CREATED
-		tran.Status = transaction.Status{Code: created, Description: &created}
+	if uc.TransactionWriteBehindAsync && uc.TransactionWriteBehindDispatcher != nil {
+		if dispatchErr := uc.TransactionWriteBehindDispatcher.DispatchTransactionWriteBehind(ctx, writeBehind); dispatchErr == nil {
+			dispatched = true
+
+			uc.recordEngineWriteBehindProjection(ctx, "async", "published")
+		} else {
+			uc.recordEngineWriteBehindProjection(ctx, "fallback", "failed")
+			logger.Log(ctx, libLog.LevelWarn, "Engine write-behind publish failed or was uncertain; using synchronous projection fallback",
+				libLog.String("transaction_id", record.TransactionID.String()),
+				libLog.String("execution_id", record.ExecutionID.String()),
+				libLog.Err(dispatchErr))
+		}
+	}
+
+	if !dispatched {
+		completion, completionErr := completeTransactionWriteBehindFallback(ctx, writeBehind, uc.TransactionEvidenceResolver, uc.AppliedTransactionCompleter)
+		if completionErr != nil {
+			path := "sync"
+			if uc.TransactionWriteBehindAsync {
+				path = "fallback"
+			}
+
+			uc.recordEngineWriteBehindProjection(ctx, path, "deferred")
+			// Accounting is already confirmed and its recovery envelope was written
+			// atomically by the engine. Projection failure is therefore deferred,
+			// not reported as a failed financial operation.
+			logger.Log(ctx, libLog.LevelWarn, "Applied transaction projection deferred to recovery",
+				libLog.String("transaction_id", record.TransactionID.String()),
+				libLog.String("execution_id", record.ExecutionID.String()),
+				libLog.Err(completionErr))
+		} else {
+			path := "sync"
+			if uc.TransactionWriteBehindAsync {
+				path = "fallback"
+			}
+
+			uc.recordEngineWriteBehindProjection(ctx, path, "completed")
+
+			expectedStatus := run.status
+			if expectedStatus == constant.CREATED {
+				expectedStatus = constant.APPROVED
+			}
+
+			if completion.Outcome.TransactionStatus != expectedStatus {
+				return nil, fmt.Errorf("%w: create completer confirmed %q, expected %q", ErrTransactionCompletionConflict, completion.Outcome.TransactionStatus, expectedStatus)
+			}
+
+			projected = true
+
+			uc.acknowledgeEngineRecovery(ctx, logger, record, completion)
+		}
 	}
 
 	bgCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
 	go uc.SetTransactionIdempotencyValue(bgCtx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, *tran, run.idempotencyTTL)
 
-	uc.sendLogTransactionAuditQueueAsync(bgCtx, tran.Operations, run.organizationID, run.ledgerID, tran.IDtoUUID())
+	if projected {
+		uc.sendLogTransactionAuditQueueAsync(bgCtx, tran.Operations, run.organizationID, run.ledgerID, tran.IDtoUUID())
+	}
 
 	return tran, nil
 }
@@ -234,7 +278,11 @@ func (uc *UseCase) buildCreateEngineExecution(run *createTransactionRun, frozen 
 		IntentFingerprint: fingerprint,
 		RetentionSeconds:  idempotencyRetentionSeconds(run.idempotencyTTL),
 		Guards:            []ExecutionGuard{frozen.guard},
-		CompletionPlans:   []CompletionPlanRecord{{TransactionID: run.transactionID, Payload: raw}},
+		CompletionPlans: []CompletionPlanRecord{{
+			TransactionID: run.transactionID,
+			Payload:       raw,
+			Dependencies:  append([]TransactionEvidenceReference(nil), run.dependencies...),
+		}},
 	}
 
 	return PreparedEngineExecution{Execution: execution, CompletionPlans: []TransactionCompletionPlan{payload}}, nil
@@ -264,6 +312,22 @@ func createEngineEnvelope(outcome EngineExecutionOutcome) (*TransactionCompletio
 		TransactionID: payload.TransactionID,
 		Payload:       string(outcome.Prepared.Execution.CompletionPlans[0].Payload),
 		Result:        *outcome.Result,
+	}, nil
+}
+
+func createEngineWriteBehindEnvelope(outcome EngineExecutionOutcome) (*TransactionWriteBehindEnvelope, error) {
+	record, err := createEngineEnvelope(outcome)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TransactionWriteBehindEnvelope{
+		FormatVersion:    TransactionWriteBehindFormatVersion,
+		ApplicationState: TransactionApplicationConfirmed,
+		ReplayState:      TransactionReplayReconstructible,
+		DurabilityState:  TransactionDurabilityPending,
+		Record:           *record,
+		Dependencies:     append([]TransactionEvidenceReference{}, outcome.Prepared.Execution.CompletionPlans[0].Dependencies...),
 	}, nil
 }
 

@@ -79,7 +79,8 @@ if replayTTL == 0 then
     if not receiptDecoded or type(receipt) ~= "table" or
        receipt.formatVersion ~= 1 or receipt.organizationId ~= ARGV[5] or
        receipt.ledgerId ~= ARGV[6] or receipt.executionId ~= ARGV[2] or
-       type(receipt.protection) ~= "table" or receipt.protection.formatVersion ~= 1 or
+       type(receipt.protection) ~= "table" or
+       (receipt.protection.formatVersion ~= 1 and receipt.protection.formatVersion ~= 2) or
        type(receipt.protection.retentionSeconds) ~= "number" or
        receipt.protection.retentionSeconds < 1 or receipt.protection.retentionSeconds > 604800 or
        receipt.protection.retentionSeconds % 1 ~= 0 or

@@ -299,10 +299,11 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		Receipts:               "engine:" + cachepolicy.HashTag + ":receipts:" + scope,
 		Guards:                 "engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		Protection:             "engine:" + cachepolicy.HashTag + ":protection:" + scope,
+		TransactionIndex:       "engine:" + cachepolicy.HashTag + ":transaction-index:" + scope,
 		Balances:               make(map[string]resolvedBalanceKeys, len(request.Balances)),
 		AccountBlockExceptions: make(map[uuid.UUID]string, len(request.Transactions)),
 	}
-	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection} {
+	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection, &resolved.TransactionIndex} {
 		prefixed, err := tmvalkey.GetKeyContext(ctx, *key)
 		if err != nil {
 			return resolvedExecutionKeys{}, err
@@ -373,7 +374,7 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 		}
 
 		switch failure.Code {
-		case "invalid_json", "invalid_protocol", "invalid_balance", "balance_identity_mismatch", "wrong_key_type", "execution_fingerprint_conflict", "execution_guard_conflict", "version_overflow", "invalid_companion", "prepared_bytes_exceeded", "request_bytes_exceeded", "serialization_failed", "script_runtime_failed":
+		case "invalid_json", "invalid_protocol", "invalid_balance", "balance_identity_mismatch", "wrong_key_type", "execution_fingerprint_conflict", "execution_guard_conflict", "version_overflow", "invalid_companion", "prepared_bytes_exceeded", "request_bytes_exceeded", "serialization_failed", "script_runtime_failed", "dependency_evidence_missing", "dependency_evidence_conflict", "dependency_evidence_invalid", "transaction_state_conflict":
 			return technical(failure.Code, false, err)
 		case "indeterminate", "execution_outcome_unknown", "invalid_receipt":
 			return technical(failure.Code, true, err)
@@ -390,8 +391,8 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 
 		allowed := make(map[string]bool, len(request.Balances))
 
-		balanceKeyEnd := 5 + 3*len(request.Balances)
-		for i := 5; i < balanceKeyEnd; i += 3 {
+		balanceKeyEnd := 6 + 3*len(request.Balances)
+		for i := 6; i < balanceKeyEnd; i += 3 {
 			allowed[keys[i]] = true
 		}
 

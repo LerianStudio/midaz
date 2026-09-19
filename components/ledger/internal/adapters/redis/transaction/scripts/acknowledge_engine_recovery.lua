@@ -2,15 +2,16 @@
 -- Use of this source code is governed by the Elastic License 2.0
 -- that can be found in the LICENSE file.
 
--- KEYS: selected recovery hash, optional legacy attempt hash, receipt hash,
---       guard hash, protection hash, cleanup schedule, and optionally the
---       atomic-batch idempotency record plus execution index.
+-- KEYS: selected recovery hash, source-specific attempt hash, receipt hash,
+--       guard hash, protection hash, cleanup schedule, protected evidence
+--       hash, transaction index hash, and optionally the atomic-batch
+--       idempotency record plus execution index.
 -- ARGV: recovery field, exact envelope, attempt field, transaction UUID,
 --       execution UUID, terminal flag (0|1), durable completion unix millis,
---       clear legacy attempt flag (0|1), and optionally the exact receipt
+--       legacy recovery source flag (0|1), and optionally the exact receipt
 --       token, batch owner, complete record, organization UUID, ledger UUID.
-local batchMode = #KEYS == 8 and #ARGV == 13
-if (#KEYS ~= 6 or #ARGV ~= 8) and not batchMode then
+local batchMode = #KEYS == 10 and #ARGV == 13
+if (#KEYS ~= 8 or #ARGV ~= 8) and not batchMode then
     return redis.error_reply("ERR invalid protected recovery acknowledgement arguments")
 end
 
@@ -26,11 +27,16 @@ end
 
 for index = 1, 5 do
     local key = KEYS[index]
-    if index ~= 2 or ARGV[8] == "1" then
-        local kind = redisType(key)
-        if kind ~= "none" and kind ~= "hash" then
-            return redis.error_reply("WRONGTYPE protected recovery acknowledgement requires hashes")
-        end
+    local kind = redisType(key)
+    if kind ~= "none" and kind ~= "hash" then
+        return redis.error_reply("WRONGTYPE protected recovery acknowledgement requires hashes")
+    end
+end
+
+for index = 7, 8 do
+    local kind = redisType(KEYS[index])
+    if kind ~= "none" and kind ~= "hash" then
+        return redis.error_reply("WRONGTYPE protected write-behind artifacts must be hashes")
     end
 end
 
@@ -40,7 +46,7 @@ if scheduleKind ~= "none" and scheduleKind ~= "zset" then
 end
 
 if batchMode then
-    for index = 7, 8 do
+    for index = 9, 10 do
         local kind = redisType(KEYS[index])
         if kind ~= "none" and kind ~= "string" then
             return redis.error_reply("WRONGTYPE atomic batch finalization requires string keys")
@@ -76,20 +82,36 @@ local function decodeReceipt(raw, expectedExecution)
         return nil, "receipt scope differs"
     end
     local p = receipt.protection
-    if type(p) ~= "table" or p.formatVersion ~= 1 or type(p.retentionSeconds) ~= "number" or
+    if type(p) ~= "table" or (p.formatVersion ~= 1 and p.formatVersion ~= 2) or type(p.retentionSeconds) ~= "number" or
         p.retentionSeconds < 1 or p.retentionSeconds > 604800 or p.retentionSeconds % 1 ~= 0 or
         type(p.transactions) ~= "table" or type(p.recoveryFields) ~= "table" or
         type(p.acknowledged) ~= "table" or type(p.terminalCompletedAtMs) ~= "table" or
-        #p.transactions == 0 or #p.transactions ~= #p.recoveryFields then
+        #p.transactions == 0 or #p.transactions ~= #p.recoveryFields or
+        (p.formatVersion == 2 and (type(p.indexFields) ~= "table" or #p.indexFields ~= #p.transactions)) then
         return nil, "invalid receipt protection"
     end
     return receipt, nil
 end
 
+local function markDurabilityComplete(raw)
+    local pending = '"durabilityState":"pending"'
+    local complete = '"durabilityState":"complete"'
+    local first, last = string.find(raw, pending, 1, true)
+    if not first or string.find(raw, pending, last + 1, true) then
+        return nil
+    end
+
+    return string.sub(raw, 1, first - 1) .. complete .. string.sub(raw, last + 1)
+end
+
 local currentRaw = redis.call("HGET", KEYS[3], executionID)
 if not currentRaw then
+    local decoded, possibleEnvelope = pcall(cjson.decode, expected)
+    if decoded and type(possibleEnvelope) == "table" and possibleEnvelope.applicationState ~= nil then
+        return redis.error_reply("ERR write-behind receipt is missing")
+    end
     redis.call("HDEL", KEYS[1], field)
-    if ARGV[8] == "1" then redis.call("HDEL", KEYS[2], ARGV[3]) end
+    redis.call("HDEL", KEYS[2], ARGV[3])
     return 1
 end
 
@@ -100,15 +122,74 @@ if receipt.protection == nil then
     -- recovery is durably acknowledged, but their receipt and guard stay
     -- persistent indefinitely.
     redis.call("HDEL", KEYS[1], field)
-    if ARGV[8] == "1" then redis.call("HDEL", KEYS[2], ARGV[3]) end
+    redis.call("HDEL", KEYS[2], ARGV[3])
     return 1
 end
 
 local member = false
+local memberIndex = false
 for index, id in ipairs(receipt.protection.transactions) do
-    if id == transactionID and receipt.protection.recoveryFields[index] == field then member = true end
+    if id == transactionID and receipt.protection.recoveryFields[index] == field then
+        member = true
+        memberIndex = index
+    end
 end
 if not member then return redis.error_reply("ERR recovery is not a member of its receipt") end
+
+local completedEvidence, completedIndex
+if receipt.protection.formatVersion == 2 then
+    if ARGV[8] ~= "0" or receipt.protection.indexFields[memberIndex] ~= transactionID then
+        return redis.error_reply("ERR invalid indexed recovery source")
+    end
+    local envelopeDecoded, envelope = pcall(cjson.decode, expected)
+    if not envelopeDecoded or type(envelope) ~= "table" or envelope.formatVersion ~= 1 or
+        envelope.applicationState ~= "confirmed" or envelope.replayState ~= "reconstructible" or
+        envelope.durabilityState ~= "pending" or type(envelope.record) ~= "table" or
+        envelope.record.formatVersion ~= 2 or envelope.record.tenantId ~= receipt.tenantId or
+        envelope.record.organizationId ~= receipt.organizationId or envelope.record.ledgerId ~= receipt.ledgerId or
+        envelope.record.transactionId ~= transactionID or envelope.record.executionId ~= executionID then
+        return redis.error_reply("ERR invalid write-behind recovery envelope")
+    end
+    local rawIndex = redis.call("HGET", KEYS[8], transactionID)
+    if not rawIndex then return redis.error_reply("ERR transaction evidence index is missing") end
+    local indexDecoded, index = pcall(cjson.decode, rawIndex)
+    if not indexDecoded or type(index) ~= "table" or index.formatVersion ~= 1 or
+        index.tenantId ~= receipt.tenantId or index.organizationId ~= receipt.organizationId or
+        index.ledgerId ~= receipt.ledgerId or index.transactionId ~= transactionID or
+        index.applicationState ~= "confirmed" or
+        (index.replayState ~= "reconstructible" and index.replayState ~= "materialized") or
+        (index.durabilityState ~= "pending" and index.durabilityState ~= "complete") or
+        type(index.dependencies) ~= "table" then
+        return redis.error_reply("ERR transaction evidence index differs")
+    end
+    completedEvidence = markDurabilityComplete(expected)
+    if not completedEvidence then
+        return redis.error_reply("ERR write-behind recovery envelope durability marker differs")
+    end
+    if index.executionId == executionID then
+        if index.recoveryField ~= field or index.receiptField ~= executionID or
+            index.replayState ~= "reconstructible" or index.durabilityState ~= "pending" then
+            return redis.error_reply("ERR current transaction evidence index differs")
+        end
+        completedIndex = markDurabilityComplete(rawIndex)
+        if not completedIndex then
+            return redis.error_reply("ERR transaction evidence index durability marker differs")
+        end
+    else
+        local protectsPredecessor = false
+        for _, dependency in ipairs(index.dependencies) do
+            if type(dependency) == "table" and dependency.kind == "predecessor" and
+                dependency.tenantId == receipt.tenantId and dependency.organizationId == receipt.organizationId and
+                dependency.ledgerId == receipt.ledgerId and dependency.transactionId == transactionID and
+                dependency.executionId == executionID then
+                protectsPredecessor = true
+            end
+        end
+        if not protectsPredecessor then
+            return redis.error_reply("ERR delayed recovery is not protected by current index")
+        end
+    end
+end
 
 receipt.protection.acknowledged[transactionID] = true
 if terminal then
@@ -186,11 +267,11 @@ if batchMode then
         return redis.error_reply("ERR atomic batch receipt scope differs")
     end
 
-    local indexTarget = redis.call("GET", KEYS[8])
-    if not indexTarget or indexTarget ~= KEYS[7] then
+    local indexTarget = redis.call("GET", KEYS[10])
+    if not indexTarget or indexTarget ~= KEYS[9] then
         return redis.error_reply("ERR atomic batch execution index differs")
     end
-    local currentBatchRaw = redis.call("GET", KEYS[7])
+    local currentBatchRaw = redis.call("GET", KEYS[9])
     local currentBatchDecoded, currentBatch = pcall(cjson.decode, currentBatchRaw or "")
     if not currentBatchDecoded or type(currentBatch) ~= "table" or
        (currentBatch.formatVersion ~= 1 and currentBatch.formatVersion ~= 2) or currentBatch.ownerToken ~= ARGV[10] or
@@ -262,11 +343,15 @@ end
 -- Every validation and read happens before the acknowledgement deletion. Only
 -- deterministic hash writes remain afterward.
 if batchPayload then
-    redis.call("SET", KEYS[7], batchPayload, "EX", batchRetentionSeconds)
-    redis.call("SET", KEYS[8], KEYS[7], "EX", batchRetentionSeconds)
+    redis.call("SET", KEYS[9], batchPayload, "EX", batchRetentionSeconds)
+    redis.call("SET", KEYS[10], KEYS[9], "EX", batchRetentionSeconds)
+end
+if completedEvidence then
+    redis.call("HSET", KEYS[7], field, completedEvidence)
+    if completedIndex then redis.call("HSET", KEYS[8], transactionID, completedIndex) end
 end
 redis.call("HDEL", KEYS[1], field)
-if ARGV[8] == "1" then redis.call("HDEL", KEYS[2], ARGV[3]) end
+redis.call("HDEL", KEYS[2], ARGV[3])
 for linkedExecution, linked in pairs(receipts) do
     redis.call("HSET", KEYS[3], linkedExecution, cjson.encode(linked))
 end

@@ -15,18 +15,19 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
+//nolint:gocyclo // immutable capture, replay finalization, dispatch, and fallback are one ordered durability boundary
 func (uc *UseCase) completeAtomicTransactionBatch(
 	ctx context.Context,
 	logger libLog.Logger,
 	run *atomicTransactionBatchRun,
 	outcome EngineExecutionOutcome,
 ) ([]*transaction.Transaction, error) {
-	records, err := atomicTransactionBatchCompletionRecords(outcome)
+	envelopes, err := atomicTransactionBatchWriteBehindEnvelopes(outcome)
 	if err != nil {
 		return nil, err
 	}
 
-	if run == nil || len(run.items) != len(records) {
+	if run == nil || len(run.items) != len(envelopes) {
 		return nil, invalidTransactionCompletionRecord("atomic batch items do not match completion records")
 	}
 
@@ -34,53 +35,26 @@ func (uc *UseCase) completeAtomicTransactionBatch(
 		return nil, invalidTransactionCompletionRecord("atomic batch completer is not configured")
 	}
 
-	transactions := make([]*transaction.Transaction, len(records))
-
-	completions := make([]TransactionCompletionResult, len(records))
-	for index := range records {
+	transactions := make([]*transaction.Transaction, len(envelopes))
+	for index := range envelopes {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 
-		completion, err := uc.AppliedTransactionCompleter.Complete(ctx, records[index])
+		views, err := BuildTransactionEvidenceViews(envelopes[index].Record)
 		if err != nil {
-			return nil, fmt.Errorf("complete atomic transaction batch item %d: %w", index, err)
+			return nil, fmt.Errorf("compose atomic transaction batch item %d: %w", index, err)
 		}
 
-		expectedStatus := run.items[index].status
-		if expectedStatus == constant.CREATED {
-			expectedStatus = constant.APPROVED
-		}
-
-		if completion.Outcome.TransactionStatus != expectedStatus {
-			return nil, fmt.Errorf(
-				"%w: atomic batch completer confirmed %q for item %d, expected %q",
-				ErrTransactionCompletionConflict,
-				completion.Outcome.TransactionStatus,
-				index,
-				expectedStatus,
-			)
-		}
-
-		tran := completion.Record.Transaction
+		tran := views.InitialResponse
 		if tran == nil || tran.ID != run.items[index].transactionID.String() {
-			return nil, invalidTransactionCompletionRecord("atomic batch completer returned a mismatched transaction")
-		}
-
-		if run.items[index].status == constant.CREATED {
-			created := constant.CREATED
-			tran.Status = transaction.Status{Code: created, Description: &created}
+			return nil, invalidTransactionCompletionRecord("atomic batch evidence returned a mismatched transaction")
 		}
 
 		transactions[index] = tran
-		completions[index] = completion
 
 		if err := uc.captureAtomicTransactionBatchInitialResponse(ctx, run, run.items[index].transactionID, tran); err != nil {
 			return nil, err
-		}
-
-		if index < len(records)-1 {
-			uc.acknowledgeEngineRecovery(ctx, logger, records[index], completion)
 		}
 	}
 
@@ -88,10 +62,98 @@ func (uc *UseCase) completeAtomicTransactionBatch(
 		return nil, err
 	}
 
-	last := len(records) - 1
-	uc.acknowledgeEngineRecovery(ctx, logger, records[last], completions[last])
+	dispatched := uc.TransactionWriteBehindAsync && uc.TransactionWriteBehindDispatcher != nil
+	if dispatched {
+		for index := range envelopes {
+			if err := uc.TransactionWriteBehindDispatcher.DispatchTransactionWriteBehind(ctx, envelopes[index]); err != nil {
+				dispatched = false
+
+				uc.recordEngineWriteBehindProjection(ctx, "fallback", "failed")
+
+				logger.Log(ctx, libLog.LevelWarn, "Atomic batch write-behind publish failed or was uncertain; using synchronous projection fallback",
+					libLog.Int("item_index", index), libLog.Err(err))
+
+				break
+			}
+		}
+	}
+
+	if dispatched {
+		uc.recordEngineWriteBehindProjection(ctx, "bulk", "published")
+		return transactions, nil
+	}
+
+	fallbackPath := "bulk"
+	if uc.TransactionWriteBehindAsync {
+		fallbackPath = "fallback"
+	}
+
+	completions, err := uc.completeAtomicTransactionBatchFallback(ctx, envelopes)
+	if err != nil {
+		uc.recordEngineWriteBehindProjection(ctx, fallbackPath, "deferred")
+		logger.Log(ctx, libLog.LevelWarn, "Atomic batch projection deferred to recovery", libLog.Err(err))
+
+		return transactions, nil
+	}
+
+	uc.recordEngineWriteBehindProjection(ctx, fallbackPath, "completed")
+
+	for index, completion := range completions {
+		expectedStatus := run.items[index].status
+		if expectedStatus == constant.CREATED {
+			expectedStatus = constant.APPROVED
+		}
+
+		if completion.Outcome.TransactionStatus != expectedStatus {
+			return nil, fmt.Errorf("%w: atomic batch completer confirmed %q for item %d, expected %q",
+				ErrTransactionCompletionConflict, completion.Outcome.TransactionStatus, index, expectedStatus)
+		}
+
+		uc.acknowledgeEngineRecovery(ctx, logger, &envelopes[index].Record, completion)
+	}
 
 	return transactions, nil
+}
+
+func (uc *UseCase) completeAtomicTransactionBatchFallback(
+	ctx context.Context,
+	envelopes []*TransactionWriteBehindEnvelope,
+) ([]TransactionCompletionResult, error) {
+	if bulk, ok := uc.AppliedTransactionCompleter.(AppliedTransactionBulkCompleter); ok {
+		return CompleteTransactionWriteBehindBulk(ctx, envelopes, uc.TransactionEvidenceResolver, bulk)
+	}
+
+	completions := make([]TransactionCompletionResult, len(envelopes))
+	for index, envelope := range envelopes {
+		completion, err := completeTransactionWriteBehindFallback(ctx, envelope, uc.TransactionEvidenceResolver, uc.AppliedTransactionCompleter)
+		if err != nil {
+			return nil, fmt.Errorf("complete atomic transaction batch item %d: %w", index, err)
+		}
+
+		completions[index] = completion
+	}
+
+	return completions, nil
+}
+
+func atomicTransactionBatchWriteBehindEnvelopes(outcome EngineExecutionOutcome) ([]*TransactionWriteBehindEnvelope, error) {
+	records, err := atomicTransactionBatchCompletionRecords(outcome)
+	if err != nil {
+		return nil, err
+	}
+
+	envelopes := make([]*TransactionWriteBehindEnvelope, len(records))
+	for index, record := range records {
+		envelopes[index] = &TransactionWriteBehindEnvelope{
+			FormatVersion: TransactionWriteBehindFormatVersion, ApplicationState: TransactionApplicationConfirmed,
+			ReplayState: TransactionReplayReconstructible, DurabilityState: TransactionDurabilityPending,
+			Record: *record,
+			Dependencies: append([]TransactionEvidenceReference{},
+				outcome.Prepared.Execution.CompletionPlans[index].Dependencies...),
+		}
+	}
+
+	return envelopes, nil
 }
 
 func atomicTransactionBatchCompletionRecords(

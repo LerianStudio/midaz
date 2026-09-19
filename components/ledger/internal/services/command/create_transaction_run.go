@@ -20,6 +20,7 @@ type createTransactionRun struct {
 	organizationID      uuid.UUID
 	ledgerID            uuid.UUID
 	parentTransactionID uuid.UUID
+	dependencies        []TransactionEvidenceReference
 	transactionID       uuid.UUID
 	transactionDate     time.Time
 

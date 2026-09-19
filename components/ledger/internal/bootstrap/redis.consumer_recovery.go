@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
+	transactionquarantine "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -64,7 +66,18 @@ type recoveryCleanupOwner interface {
 	CleanupEngineRecovery(context.Context, time.Time, int) (txRedis.RecoveryCleanupResult, error)
 }
 
-const recoveryCleanupBatchSize = 100
+const (
+	recoveryCleanupBatchSize              = 100
+	transactionWriteBehindRecoveryVersion = command.TransactionWriteBehindFormatVersion
+	engineRecoveryAttemptLimit            = 3
+	engineRecoveryInitialBackoff          = 10 * time.Millisecond
+)
+
+var errRecoveryRecordChanged = errors.New("recovery record changed during completion")
+
+type recoveryAttemptTracker interface {
+	IncrementRecoveryAttempt(context.Context, txRedis.RecoveryQueueSource, string) (int64, error)
+}
 
 // recoveryRecordCompleter is the only capability exposed to the engine
 // recovery consumer. It can complete durable projections and acknowledge the
@@ -73,7 +86,9 @@ type recoveryRecordCompleter struct {
 	logger         libLog.Logger
 	queue          txRedis.RedisRepository
 	completer      command.AppliedTransactionCompleter
+	resolver       command.TransactionEvidenceResolver
 	batchFinalizer command.AtomicTransactionBatchRecoveryFinalizer
+	quarantineRepo transactionquarantine.Repository
 	clock          func() time.Time
 	metricsFactory *metrics.MetricsFactory
 }
@@ -83,9 +98,14 @@ func (r *RedisQueueConsumer) newRecoveryRecordCompleter() *recoveryRecordComplet
 		logger:         r.Logger,
 		queue:          r.queue,
 		completer:      r.appliedTransactionCompleter,
+		quarantineRepo: r.quarantineRepo,
 		clock:          r.recoveryClock,
 		metricsFactory: r.metricsFactory,
 	}
+	if repository, ok := r.queue.(txRedis.EngineWriteBehindRepository); ok {
+		completion.resolver = rabbitEngineEvidenceResolver{repository: repository}
+	}
+
 	if r.Command != nil && r.Command.AtomicTransactionBatchIdempotencyRepo != nil {
 		completion.batchFinalizer = r.Command
 	}
@@ -155,6 +175,8 @@ func recoveryRecordVersion(raw string) (int, error) {
 	}
 
 	found := false
+	version := 0
+	hasRecord := false
 
 	for decoder.More() {
 		name, err := decoder.Token()
@@ -172,11 +194,24 @@ func recoveryRecordVersion(raw string) (int, error) {
 			return 0, errors.New("invalid recovery field")
 		}
 
+		if field == "record" {
+			hasRecord = true
+		}
+
 		if !strings.EqualFold(field, "formatVersion") {
 			continue
 		}
 
-		if found || field != "formatVersion" || !bytes.Equal(bytes.TrimSpace(value), []byte("2")) {
+		if found || field != "formatVersion" {
+			return 0, errors.New("unsupported or ambiguous backup version")
+		}
+
+		switch {
+		case bytes.Equal(bytes.TrimSpace(value), []byte("1")):
+			version = transactionWriteBehindRecoveryVersion
+		case bytes.Equal(bytes.TrimSpace(value), []byte("2")):
+			version = command.TransactionCompletionFormatVersion
+		default:
 			return 0, errors.New("unsupported or ambiguous backup version")
 		}
 
@@ -184,7 +219,11 @@ func recoveryRecordVersion(raw string) (int, error) {
 	}
 
 	if found {
-		return command.TransactionCompletionFormatVersion, nil
+		if version == transactionWriteBehindRecoveryVersion && !hasRecord {
+			return 0, errors.New("unsupported or ambiguous backup version")
+		}
+
+		return version, nil
 	}
 
 	return 0, nil
@@ -215,10 +254,21 @@ func (r *RedisQueueConsumer) handleInvalidBackupRecord(ctx context.Context, span
 }
 
 func decodeRecoveryRecord(ctx context.Context, field, raw string) (*command.TransactionCompletionRecord, time.Time, error) {
-	envelope, err := command.DecodeTransactionCompletionRecord([]byte(raw))
+	writeBehind, ttl, err := decodeRecoveryEnvelope(ctx, field, raw)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
+
+	return &writeBehind.Record, ttl, nil
+}
+
+func decodeRecoveryEnvelope(ctx context.Context, field, raw string) (*command.TransactionWriteBehindEnvelope, time.Time, error) {
+	writeBehind, err := command.DecodeTransactionWriteBehindEnvelope([]byte(raw))
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+
+	envelope := &writeBehind.Record
 
 	if envelope.TenantID != tmcore.GetTenantIDContext(ctx) {
 		return nil, time.Time{}, errors.New("recovery tenant differs from authenticated scope")
@@ -233,7 +283,7 @@ func decodeRecoveryRecord(ctx context.Context, field, raw string) (*command.Tran
 		return nil, time.Time{}, err
 	}
 
-	return envelope, payload.TTL, nil
+	return writeBehind, payload.TTL, nil
 }
 
 func recoveryRecordEligible(ttl, now time.Time) bool {
@@ -243,6 +293,224 @@ func recoveryRecordEligible(ttl, now time.Time) bool {
 func (r *recoveryRecordCompleter) process(ctx context.Context, source txRedis.RecoveryQueueSource, field, raw string, envelope *command.TransactionCompletionRecord) {
 	if err := r.complete(ctx, source, field, raw, envelope); err != nil {
 		r.logger.Log(ctx, libLog.LevelError, "Version-two record retained after recovery failure", libLog.String("source", string(source)), libLog.String("redis_key", field), libLog.Err(err))
+	}
+}
+
+func (r *recoveryRecordCompleter) processEngine(ctx context.Context, field, raw string, envelope *command.TransactionWriteBehindEnvelope) {
+	var err error
+	for attempt := 1; attempt <= engineRecoveryAttemptLimit; attempt++ {
+		err = r.completeWriteBehind(ctx, txRedis.RecoveryQueueSourceEngineRecover, field, raw, envelope)
+		if err == nil || errors.Is(err, errRecoveryRecordChanged) {
+			return
+		}
+
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+			break
+		}
+
+		if attempt < engineRecoveryAttemptLimit {
+			if waitErr := waitRecoveryBackoff(ctx, engineRecoveryInitialBackoff*time.Duration(1<<(attempt-1))); waitErr != nil {
+				err = waitErr
+				break
+			}
+		}
+	}
+
+	r.logger.Log(ctx, libLog.LevelError, "Engine recovery record retained after bounded retries",
+		libLog.String("redis_key", field), libLog.Int("attempts", engineRecoveryAttemptLimit), libLog.Err(err))
+
+	if ctx.Err() == nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		r.quarantineEngineRecovery(ctx, field, raw, envelope, err)
+	}
+}
+
+func waitRecoveryBackoff(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func (r *recoveryRecordCompleter) quarantineEngineRecovery(
+	ctx context.Context,
+	field, raw string,
+	envelope *command.TransactionWriteBehindEnvelope,
+	cause error,
+) {
+	tracker, ok := r.queue.(recoveryAttemptTracker)
+	if !ok {
+		r.logger.Log(ctx, libLog.LevelError, "Engine recovery attempt tracking is not configured; record retained",
+			libLog.String("redis_key", field))
+
+		return
+	}
+
+	attempts, err := tracker.IncrementRecoveryAttempt(ctx, txRedis.RecoveryQueueSourceEngineRecover, field)
+	if err != nil {
+		r.logger.Log(ctx, libLog.LevelError, "Failed to increment engine recovery attempt; record retained",
+			libLog.String("redis_key", field), libLog.Err(err))
+
+		return
+	}
+
+	if attempts < QuarantineThreshold {
+		return
+	}
+
+	if r.quarantineRepo == nil {
+		r.logger.Log(ctx, libLog.LevelError, "Quarantine repository not configured; engine recovery record retained",
+			libLog.String("redis_key", field), libLog.Int("attempts", int(attempts)))
+
+		return
+	}
+
+	if envelope == nil {
+		return
+	}
+
+	payloadDigest := sha256.Sum256([]byte(raw))
+
+	record := &transactionquarantine.QuarantineRecord{
+		OrganizationID: envelope.Record.OrganizationID,
+		LedgerID:       envelope.Record.LedgerID,
+		TransactionID:  envelope.Record.TransactionID,
+		RedisKey:       fmt.Sprintf("engine_recover:%s:%x", field, payloadDigest),
+		Payload:        []byte(raw),
+		FailureReason:  "engine_projection_failure",
+		Attempts:       int(attempts),
+		FirstFailedAt:  time.Now(),
+		QuarantinedAt:  time.Now(),
+	}
+	if err := r.quarantineRepo.Insert(ctx, record); err != nil {
+		r.logger.Log(ctx, libLog.LevelError, "Failed to persist engine recovery quarantine; record retained",
+			libLog.String("redis_key", field), libLog.Err(err))
+
+		return
+	}
+
+	acknowledger, ok := r.queue.(recoveryRecordAcknowledger)
+	if !ok {
+		r.logger.Log(ctx, libLog.LevelError, "Engine recovery quarantine persisted but exact removal is not configured; record retained",
+			libLog.String("redis_key", field))
+
+		return
+	}
+
+	status, err := acknowledger.CompareAndDeleteRecoveryFrom(ctx, txRedis.RecoveryQueueSourceEngineRecover, field, raw)
+	if err != nil {
+		r.logger.Log(ctx, libLog.LevelError, "Engine recovery quarantine persisted but exact removal failed; record retained",
+			libLog.String("redis_key", field), libLog.Err(err))
+
+		return
+	}
+
+	if status == txRedis.RecoveryAckReplaced {
+		r.logger.Log(ctx, libLog.LevelWarn, "Engine recovery record changed during quarantine; replacement retained",
+			libLog.String("redis_key", field))
+
+		return
+	}
+
+	r.logger.Log(ctx, libLog.LevelError, "Engine recovery record quarantined after bounded retries",
+		libLog.String("redis_key", field), libLog.String("failure_reason", record.FailureReason),
+		libLog.Int("attempts", int(attempts)), libLog.Err(cause))
+}
+
+// completeWriteBehind is the shared engine projection path used by RabbitMQ
+// and recovery. It resolves predecessor/origin evidence before projection and
+// intentionally has no accounting-engine capability.
+func (r *recoveryRecordCompleter) completeWriteBehind(
+	ctx context.Context,
+	source txRedis.RecoveryQueueSource,
+	field, raw string,
+	envelope *command.TransactionWriteBehindEnvelope,
+) error {
+	startedAt := time.Now()
+	outcome := recoveryMetricOutcomeCompleted
+
+	metricsCtx := ctx
+	defer func() { r.emitRecoveryMetrics(metricsCtx, source, outcome, time.Since(startedAt)) }()
+
+	if err := ctx.Err(); err != nil {
+		outcome = recoveryMetricOutcomeContextCanceled
+		return err
+	}
+
+	if r.completer == nil {
+		outcome = recoveryMetricOutcomeNotConfigured
+		return errors.New("applied transaction completer is not configured")
+	}
+
+	if !supportsRecoveryAcknowledgment(r.queue, source) {
+		outcome = recoveryMetricOutcomeNotConfigured
+		return errors.New("conditional balance recovery acknowledgment is not configured")
+	}
+
+	completionCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	completed, err := command.CompleteTransactionWriteBehind(completionCtx, envelope, r.resolver, r.completer)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			outcome = recoveryMetricOutcomeContextCanceled
+		} else {
+			outcome = recoveryMetricOutcomeFinalizationFailed
+		}
+
+		return fmt.Errorf("complete recovered transaction write-behind: %w", err)
+	}
+
+	if err := completionCtx.Err(); err != nil {
+		outcome = recoveryMetricOutcomeContextCanceled
+		return err
+	}
+
+	var batchFinalization *command.AtomicTransactionBatchRecoveryFinalization
+	if source == txRedis.RecoveryQueueSourceEngineRecover && r.batchFinalizer != nil {
+		batchFinalization, err = r.batchFinalizer.PrepareAtomicTransactionBatchRecoveryFinalization(
+			completionCtx, &envelope.Record, completed.Current,
+		)
+		if err != nil {
+			outcome = recoveryMetricOutcomeFinalizationFailed
+			return fmt.Errorf("prepare atomic transaction batch recovery finalization: %w", err)
+		}
+	}
+
+	status, acknowledgmentOutcome, err := r.acknowledgeCompletion(
+		completionCtx, source, field, raw, &envelope.Record, completed.Current, batchFinalization,
+	)
+	if acknowledgmentOutcome != "" {
+		outcome = acknowledgmentOutcome
+	}
+
+	if err != nil {
+		if acknowledgmentOutcome == "" {
+			outcome = recoveryMetricOutcomeAckFailed
+		}
+
+		return fmt.Errorf("acknowledge engine recovery: %w", err)
+	}
+
+	switch status {
+	case txRedis.RecoveryAckMissing, txRedis.RecoveryAckDeleted:
+		return nil
+	case txRedis.RecoveryAckReplaced:
+		outcome = recoveryMetricOutcomeRecordChanged
+		return fmt.Errorf("%w; replacement retained", errRecoveryRecordChanged)
+	case txRedis.RecoveryAckFinalizationRequired:
+		outcome = recoveryMetricOutcomeFinalizationFailed
+		return errors.New("atomic transaction batch finalization response is not ready; recovery record retained")
+	case txRedis.RecoveryAckReceiptChanged:
+		outcome = recoveryMetricOutcomeRecordChanged
+		return fmt.Errorf("%w; atomic transaction batch receipt changed", errRecoveryRecordChanged)
+	default:
+		outcome = recoveryMetricOutcomeInvalidAck
+		return errors.New("invalid conditional recovery acknowledgment result")
 	}
 }
 
@@ -396,10 +664,12 @@ func (r *recoveryRecordCompleter) AcknowledgeEngineRecovery(
 		return nil
 	}
 
-	stored, err := command.DecodeTransactionCompletionRecord([]byte(raw))
+	writeBehind, err := command.DecodeTransactionWriteBehindEnvelope([]byte(raw))
 	if err != nil {
 		return fmt.Errorf("decode engine recovery record: %w", err)
 	}
+
+	stored := &writeBehind.Record
 
 	if err := sameRecoveryCompletionRecord(envelope, stored); err != nil {
 		return err

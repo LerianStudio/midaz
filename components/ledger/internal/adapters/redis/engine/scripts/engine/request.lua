@@ -64,7 +64,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
     local request = decodeJSON(raw)
     requireObject(request)
     -- Validate the execution envelope and the fixed positions of shared keys.
-    if smallInteger(request.protocolVersion, 1) ~= 1 then technical("invalid_protocol", "unsupported protocol version") end
+    if smallInteger(request.protocolVersion, 2) ~= 2 then technical("invalid_protocol", "unsupported protocol version") end
     text(request.tenantId, true)
     uuid(request.organizationId)
     uuid(request.ledgerId)
@@ -72,7 +72,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
     text(request.intentFingerprint, false)
     if smallInteger(request.retentionSeconds, 604800) < 1 then technical("invalid_protocol", "invalid retention window") end
     if request.receiptField ~= request.executionId then technical("invalid_protocol", "invalid receipt field") end
-    if smallInteger(request.scheduleKeyIndex, #KEYS) ~= 1 or smallInteger(request.recoveryKeyIndex, #KEYS) ~= 2 or smallInteger(request.receiptKeyIndex, #KEYS) ~= 3 or smallInteger(request.guardKeyIndex, #KEYS) ~= 4 or smallInteger(request.protectionKeyIndex, #KEYS) ~= 5 then
+    if smallInteger(request.scheduleKeyIndex, #KEYS) ~= 1 or smallInteger(request.recoveryKeyIndex, #KEYS) ~= 2 or smallInteger(request.receiptKeyIndex, #KEYS) ~= 3 or smallInteger(request.guardKeyIndex, #KEYS) ~= 4 or smallInteger(request.protectionKeyIndex, #KEYS) ~= 5 or smallInteger(request.transactionIndexKeyIndex, #KEYS) ~= 6 then
         technical("invalid_protocol", "invalid shared key indices")
     end
     requireArray(request.balances)
@@ -85,7 +85,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         requireObject(transaction)
         if transaction.accountBlockException ~= nil then grantCount = grantCount + 1 end
     end
-    if #KEYS ~= 5 + 3 * #request.balances + grantCount then technical("invalid_protocol", "invalid execution cardinality") end
+    if #KEYS ~= 6 + 3 * #request.balances + grantCount then technical("invalid_protocol", "invalid execution cardinality") end
     -- All physical keys must be unique and use the same transaction hash tag so
     -- the complete execution belongs to one Redis Cluster slot.
     local seenKeys = {}
@@ -104,11 +104,11 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         requireObject(balance)
         logicalRef(balance.balanceRef)
         if refs[balance.balanceRef] then technical("invalid_protocol", "duplicate balance reference") end
-        if smallInteger(balance.keyIndex, #KEYS) ~= 3 + 3 * i or smallInteger(balance.deleteKeyIndex, #KEYS) ~= 4 + 3 * i or smallInteger(balance.legacyDeleteKeyIndex, #KEYS) ~= 5 + 3 * i then
+        if smallInteger(balance.keyIndex, #KEYS) ~= 4 + 3 * i or smallInteger(balance.deleteKeyIndex, #KEYS) ~= 5 + 3 * i or smallInteger(balance.legacyDeleteKeyIndex, #KEYS) ~= 6 + 3 * i then
             technical("invalid_protocol", "invalid balance key indices")
         end
-        local expectedMarker, replacements = KEYS[3 + 3 * i]:gsub(balance_cache_namespace_prefix, balance_deletion_marker_namespace_prefix, 1)
-        if replacements ~= 1 or KEYS[4 + 3 * i] ~= expectedMarker or KEYS[5 + 3 * i] ~= KEYS[3 + 3 * i] .. balance_deletion_marker_suffix then
+        local expectedMarker, replacements = KEYS[4 + 3 * i]:gsub(balance_cache_namespace_prefix, balance_deletion_marker_namespace_prefix, 1)
+        if replacements ~= 1 or KEYS[5 + 3 * i] ~= expectedMarker or KEYS[6 + 3 * i] ~= KEYS[4 + 3 * i] .. balance_deletion_marker_suffix then
             technical("invalid_protocol", "invalid deletion marker key")
         end
         local seed = balance.snapshot
@@ -141,7 +141,43 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         text(transaction.nextGuard, false)
         if transaction.expectedGuard == transaction.nextGuard then technical("invalid_protocol", "execution guard must advance") end
         text(transaction.completionPlan, false)
-        requireObject(decodeJSON(transaction.completionPlan))
+        local completion = decodeJSON(transaction.completionPlan)
+        requireObject(completion)
+        transaction.completion = completion
+        requireArray(transaction.dependencies)
+        if #transaction.dependencies > 2 then technical("invalid_protocol", "too many transaction dependencies") end
+        local dependencyKinds, dependencyIdentities = {}, {}
+        local hasParent = completion.parentTransactionId ~= nil and completion.parentTransactionId ~= nullValue
+        local originMatched = not hasParent
+        for _, dependency in ipairs(transaction.dependencies) do
+            requireObject(dependency)
+            if dependency.kind ~= "predecessor" and dependency.kind ~= "origin" then
+                technical("invalid_protocol", "invalid transaction dependency kind")
+            end
+            if dependency.tenantId ~= request.tenantId or dependency.organizationId ~= request.organizationId or dependency.ledgerId ~= request.ledgerId then
+                technical("invalid_protocol", "transaction dependency scope mismatch")
+            end
+            uuid(dependency.transactionId)
+            uuid(dependency.executionId)
+            if dependency.transactionId == transaction.id and dependency.executionId == request.executionId then
+                technical("invalid_protocol", "cyclic transaction dependency")
+            end
+            local identity = dependency.kind .. ":" .. dependency.transactionId .. ":" .. dependency.executionId
+            if dependencyKinds[dependency.kind] or dependencyIdentities[identity] then
+                technical("invalid_protocol", "ambiguous transaction dependency")
+            end
+            dependencyKinds[dependency.kind], dependencyIdentities[identity] = true, true
+            if dependency.kind == "predecessor" and dependency.transactionId ~= transaction.id then
+                technical("invalid_protocol", "invalid predecessor transaction")
+            end
+            if dependency.kind == "origin" then
+                if not hasParent or dependency.transactionId ~= completion.parentTransactionId or dependency.transactionId == transaction.id then
+                    technical("invalid_protocol", "invalid origin transaction")
+                end
+                originMatched = true
+            end
+        end
+        if not originMatched then technical("invalid_protocol", "missing origin transaction dependency") end
         requireArray(transaction.balanceRequirements)
         requireArray(transaction.postings)
         if #transaction.postings == 0 then technical("invalid_protocol", "empty transaction postings") end
@@ -174,7 +210,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
             if seed.key == "overdraft" or seed.alias ~= grant.alias or cmp_decimal(primary.posting.amount, grant.amount) ~= 0 then
                 technical("invalid_protocol", "account-block exception does not match primary posting")
             end
-            local expectedKeyIndex = 5 + 3 * #request.balances + grantOrdinal
+            local expectedKeyIndex = 6 + 3 * #request.balances + grantOrdinal
             if smallInteger(grant.keyIndex, #KEYS) ~= expectedKeyIndex then technical("invalid_protocol", "invalid account-block exception key index") end
             local suffix = ":" .. grant.exceptionId
             if KEYS[expectedKeyIndex]:sub(-#suffix) ~= suffix then technical("invalid_protocol", "invalid account-block exception key") end

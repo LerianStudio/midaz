@@ -53,3 +53,11 @@ type TransactionWriteStore interface {
 type TransactionWriteStoreWithOutcome interface {
 	PersistWithOutcome(context.Context, TransactionWriteSet) (TransactionPersistenceOutcome, error)
 }
+
+// TransactionBulkWriteStoreWithOutcome persists one authenticated
+// organization/ledger scope in a single SQL transaction. Outcomes preserve the
+// input order even when causal dependencies require a different lock/write
+// order. Callers group different scopes before invoking this capability.
+type TransactionBulkWriteStoreWithOutcome interface {
+	PersistBulkWithOutcome(context.Context, []TransactionWriteSet) ([]TransactionPersistenceOutcome, error)
+}

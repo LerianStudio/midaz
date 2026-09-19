@@ -49,3 +49,41 @@ type TransactionReader interface {
 	// GetOperationRouteByID returns a single operation route.
 	GetOperationRouteByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.OperationRoute, error)
 }
+
+// TransactionProjectionResolution describes the freshest transaction view
+// available to lifecycle writes. ExecutionID is present when the view came
+// from pending engine evidence and must be retained as a causal dependency.
+type TransactionProjectionResolution struct {
+	Transaction *transaction.Transaction
+	ExecutionID uuid.UUID
+	Pending     bool
+}
+
+// TransactionProjectionResolver is optional so non-engine readers and older
+// test doubles keep the narrow TransactionReader contract. Bootstrap's query
+// use case implements it with Redis evidence first and primary SQL fallback.
+type TransactionProjectionResolver interface {
+	ResolveTransactionProjection(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, uuid.UUID, bool, error)
+}
+
+func resolveTransactionProjection(
+	ctx context.Context,
+	reader TransactionReader,
+	organizationID, ledgerID, transactionID uuid.UUID,
+) (*TransactionProjectionResolution, error) {
+	if resolver, ok := reader.(TransactionProjectionResolver); ok {
+		tran, executionID, pending, err := resolver.ResolveTransactionProjection(ctx, organizationID, ledgerID, transactionID)
+		if err != nil {
+			return nil, err
+		}
+
+		return &TransactionProjectionResolution{Transaction: tran, ExecutionID: executionID, Pending: pending}, nil
+	}
+
+	tran, err := reader.GetTransactionWithOperationsByID(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TransactionProjectionResolution{Transaction: tran}, nil
+}

@@ -101,11 +101,11 @@ func TestCreateAtomicTransactionBatchV2_CompletesAndAcknowledgesPartitionsInOrde
 	require.Len(t, acknowledgmentDelegate.records, len(transactionIDs))
 
 	assert.Equal(t, []string{
-		"complete:" + transactionIDs[0].String(),
 		"capture:" + transactionIDs[0].String(),
-		"ack:" + transactionIDs[0].String(),
-		"complete:" + transactionIDs[1].String(),
 		"capture:" + transactionIDs[1].String(),
+		"complete:" + transactionIDs[0].String(),
+		"complete:" + transactionIDs[1].String(),
+		"ack:" + transactionIDs[0].String(),
 		"ack:" + transactionIDs[1].String(),
 	}, order)
 	assert.Equal(t, len(transactionIDs), repository.captures)
@@ -125,7 +125,33 @@ func TestCreateAtomicTransactionBatchV2_CompletesAndAcknowledgesPartitionsInOrde
 	require.Len(t, engine.executions, 1)
 }
 
-func TestCreateAtomicTransactionBatchV2_CompletionFailureLeavesLaterRecordsForRecovery(t *testing.T) {
+func TestEngineWriteBehindAtomicTransactionBatchFinalizesReplayBeforeAsyncProjection(t *testing.T) {
+	repository := &atomicTransactionBatchClaimRepositoryFake{}
+	engine := &applyingAtomicTransactionBatchEngine{t: t}
+	uc, input, transactionIDs, _ := atomicTransactionBatchExecutionFixture(
+		t, repository, engine, atomicTransactionBatchExecutionReserver(),
+	)
+	completion := &createAppliedTransactionCompleter{
+		outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
+	}
+	dispatcher := &createWriteBehindDispatcherStub{}
+	uc.AppliedTransactionCompleter = completion
+	uc.TransactionWriteBehindAsync = true
+	uc.TransactionWriteBehindDispatcher = dispatcher
+
+	result, err := uc.CreateAtomicTransactionBatchV2(context.Background(), input)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, result.Transactions, len(transactionIDs))
+	require.Equal(t, len(transactionIDs), repository.captures)
+	require.Equal(t, 1, repository.finalizations)
+	require.Equal(t, len(transactionIDs), dispatcher.calls)
+	require.Empty(t, completion.envelopes, "confirmed async publication must not block on SQL/Mongo")
+	require.Len(t, engine.executions, 1, "projection transport must never reapply accounting")
+}
+
+func TestCreateAtomicTransactionBatchV2_CompletionFailureReturnsFrozenReplayAndLeavesAllRecordsForRecovery(t *testing.T) {
 	cause := errors.New("durable projection unavailable")
 	repository := &atomicTransactionBatchClaimRepositoryFake{}
 	engine := &applyingAtomicTransactionBatchEngine{t: t}
@@ -154,18 +180,17 @@ func TestCreateAtomicTransactionBatchV2_CompletionFailureLeavesLaterRecordsForRe
 	}
 
 	result, err := uc.CreateAtomicTransactionBatchV2(context.Background(), input)
-	require.ErrorIs(t, err, cause)
-	assert.Nil(t, result)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, result.Transactions, len(transactionIDs))
 	assert.Equal(t, []string{
 		"complete:" + transactionIDs[0].String(),
-		"ack:" + transactionIDs[0].String(),
 		"complete:" + transactionIDs[1].String(),
 	}, order)
 	require.Len(t, completionDelegate.envelopes, 2)
-	require.Len(t, acknowledgmentDelegate.records, 1)
-	assert.Equal(t, transactionIDs[0], acknowledgmentDelegate.records[0].TransactionID)
+	require.Empty(t, acknowledgmentDelegate.records)
 	assert.Equal(t, 1, repository.handoffs)
-	assert.Zero(t, repository.finalizations)
+	assert.Equal(t, 1, repository.finalizations)
 	assert.Zero(t, repository.aborts)
 	assert.Zero(t, repository.deletes)
 	require.Len(t, engine.executions, 1, "completion failure must never retry accounting")
@@ -201,14 +226,9 @@ func TestCreateAtomicTransactionBatchV2_FinalizationFailureRetainsLastRecoveryRe
 	result, err := uc.CreateAtomicTransactionBatchV2(context.Background(), input)
 	require.ErrorIs(t, err, cause)
 	assert.Nil(t, result)
-	assert.Equal(t, []string{
-		"complete:" + transactionIDs[0].String(),
-		"ack:" + transactionIDs[0].String(),
-		"complete:" + transactionIDs[1].String(),
-	}, order)
+	assert.Empty(t, order)
 	assert.Equal(t, 1, repository.finalizations)
-	require.Len(t, completionDelegate.envelopes, len(transactionIDs))
-	require.Len(t, acknowledgmentDelegate.records, 1)
-	assert.Equal(t, transactionIDs[0], acknowledgmentDelegate.records[0].TransactionID)
+	require.Empty(t, completionDelegate.envelopes)
+	require.Empty(t, acknowledgmentDelegate.records)
 	require.Len(t, engine.executions, 1, "terminal finalization failure must never retry accounting")
 }

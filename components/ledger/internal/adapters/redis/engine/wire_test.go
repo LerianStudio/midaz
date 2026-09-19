@@ -53,14 +53,14 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 
 	var wire wireRequest
 	require.NoError(t, json.Unmarshal(first.Payload, &wire))
-	require.Equal(t, 1, wire.ProtocolVersion)
+	require.Equal(t, 2, wire.ProtocolVersion)
 	require.Equal(t, resolved.TenantID, wire.TenantID)
 	require.Equal(t, input.Execution.OrganizationID.String(), wire.OrganizationID)
 	require.Equal(t, input.Execution.LedgerID.String(), wire.LedgerID)
 	require.Equal(t, input.Execution.ExecutionID.String(), wire.ExecutionID)
 	require.Equal(t, input.IntentFingerprint, wire.IntentFingerprint)
 	require.Equal(t, []string{
-		resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection,
+		resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection, resolved.TransactionIndex,
 		resolved.Balances["@source#default"].Balance, resolved.Balances["@source#default"].Deleted,
 		resolved.Balances["@source#default"].LegacyDeleted,
 	}, first.Keys)
@@ -69,11 +69,12 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	require.Equal(t, 3, wire.ReceiptKeyIndex)
 	require.Equal(t, 4, wire.GuardKeyIndex)
 	require.Equal(t, 5, wire.ProtectionKeyIndex)
+	require.Equal(t, 6, wire.TransactionIndexKeyIndex)
 	require.Equal(t, defaultRetentionSeconds, wire.RetentionSeconds)
 	require.Len(t, wire.Balances, 1)
-	require.Equal(t, 6, wire.Balances[0].KeyIndex)
-	require.Equal(t, 7, wire.Balances[0].DeleteKeyIndex)
-	require.Equal(t, 8, wire.Balances[0].LegacyDeleteKeyIndex)
+	require.Equal(t, 7, wire.Balances[0].KeyIndex)
+	require.Equal(t, 8, wire.Balances[0].DeleteKeyIndex)
+	require.Equal(t, 9, wire.Balances[0].LegacyDeleteKeyIndex)
 	require.Equal(t, "9223372036854775807", wire.Balances[0].Snapshot.Version)
 	require.Equal(t, "12345678901234567890.1234567890123456789", wire.Balances[0].Snapshot.Available)
 	require.Equal(t, "0.0000000000000000001", wire.Transactions[0].Postings[0].Amount)
@@ -88,6 +89,32 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	input.CompletionPlans[0].Payload[0] = '['
 	input.Execution.Transactions[0].Postings[0].Ref = "changed"
 	require.Equal(t, first.Payload, second.Payload, "prepared bytes must not alias input storage")
+}
+
+func TestEngineWriteBehindAtomicTransactionBatchBudgetCountsDependenciesAndIndexWire(t *testing.T) {
+	input, limits, resolved := validWireExecution()
+	transactionID := input.Execution.Transactions[0].ID
+	dependency := command.TransactionEvidenceReference{
+		Kind: command.TransactionDependencyPredecessor, TenantID: resolved.TenantID,
+		OrganizationID: input.Execution.OrganizationID, LedgerID: input.Execution.LedgerID,
+		TransactionID: transactionID, ExecutionID: uuid.New(),
+	}
+
+	without, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+	input.CompletionPlans[0].Dependencies = []command.TransactionEvidenceReference{dependency}
+	dependencyPayload, err := json.Marshal(input.CompletionPlans[0].Dependencies)
+	require.NoError(t, err)
+	limits.MaxCompletionPlanBytes = len(input.CompletionPlans[0].Payload) + len(dependencyPayload)
+	with, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+	require.Greater(t, len(with.Payload), len(without.Payload))
+	require.Contains(t, string(with.Payload), `"kind":"predecessor"`)
+	require.Contains(t, string(with.Payload), `"transactionIndexKeyIndex":6`)
+
+	limits.MaxCompletionPlanBytes--
+	_, err = prepareExecution(context.Background(), input, limits, resolved)
+	require.ErrorContains(t, err, "completion plan exceeds byte limit")
 }
 
 func TestPrepareExecutionPreservesTransactionAndSnapshotOrder(t *testing.T) {
@@ -357,7 +384,7 @@ func TestPrepareExecutionCarriesAccountBlockExceptionAfterBalanceKeys(t *testing
 	exception := input.Execution.Transactions[0].AccountBlockException
 	require.NotNil(t, exception)
 	require.Equal(t, []string{
-		resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection,
+		resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection, resolved.TransactionIndex,
 		resolved.Balances["@source#default"].Balance,
 		resolved.Balances["@source#default"].Deleted,
 		resolved.Balances["@source#default"].LegacyDeleted,
@@ -368,7 +395,7 @@ func TestPrepareExecutionCarriesAccountBlockExceptionAfterBalanceKeys(t *testing
 	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
 	require.Len(t, wire.Transactions, 1)
 	require.Equal(t, &wireAccountBlockException{
-		KeyIndex: 9, ExceptionID: exception.ExceptionID.String(), Alias: "@source",
+		KeyIndex: 10, ExceptionID: exception.ExceptionID.String(), Alias: "@source",
 		Amount: "0.0000000000000000001", PrimaryPostingRef: "debit-0",
 	}, wire.Transactions[0].AccountBlockException)
 	require.NotContains(t, string(prepared.Payload), resolved.AccountBlockExceptions[exception.ExceptionID])
@@ -477,7 +504,7 @@ func validWireExecution() (command.EngineExecution, Limits, resolvedExecutionKey
 	prefix := "tenant:fixture:"
 	scope := organizationID.String() + ":" + ledgerID.String()
 	balanceKey := prefix + "balance:{transactions}:" + scope + ":@source#default"
-	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + cachepolicy.EngineRecoverQueue, Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Protection: prefix + "engine:{transactions}:protection:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": testResolvedBalanceKeys(balanceKey)}}
+	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: prefix + "schedule:{transactions}:balance-sync-v2", Recovery: prefix + cachepolicy.EngineRecoverQueue, Receipts: prefix + "engine:{transactions}:receipts:" + scope, Guards: prefix + "engine:{transactions}:guards:" + scope, Protection: prefix + "engine:{transactions}:protection:" + scope, TransactionIndex: prefix + "engine:{transactions}:transaction-index:" + scope, Balances: map[string]resolvedBalanceKeys{"@source#default": testResolvedBalanceKeys(balanceKey)}}
 	return input, Limits{MaxTransactions: 10, MaxPostings: 100, MaxBalances: 100, MaxCompletionPlanBytes: 4096, MaxRequestBytes: 16384, MaxPreparedBytes: 1048576}, resolved
 }
 
@@ -565,9 +592,9 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 		wantBytes  int
 		maxTouched int
 	}{
-		{name: "two postings", postings: 2, pool: 2, wantBytes: 2272, maxTouched: 2},
-		{name: "ten postings", postings: 10, pool: 20, wantBytes: 13868, maxTouched: 10},
-		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 66314, maxTouched: 50},
+		{name: "two postings", postings: 2, pool: 2, wantBytes: 2320, maxTouched: 2},
+		{name: "ten postings", postings: 10, pool: 20, wantBytes: 13916, maxTouched: 10},
+		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 66363, maxTouched: 50},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -648,7 +675,7 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 	recovery, err := command.EncodeTransactionCompletionPlan(payload)
 	require.NoError(t, err)
 
-	limits := Limits{MaxTransactions: 1, MaxPostings: 2, MaxBalances: 2, MaxCompletionPlanBytes: len(recovery) + 1, MaxRequestBytes: bodyLimit * 4, MaxPreparedBytes: bodyLimit * 4}
+	limits := Limits{MaxTransactions: 1, MaxPostings: 2, MaxBalances: 2, MaxCompletionPlanBytes: len(recovery) + len(`[]`) + 1, MaxRequestBytes: bodyLimit * 4, MaxPreparedBytes: bodyLimit * 4}
 	inputExecution := command.EngineExecution{Execution: request, IntentFingerprint: "immutable-intent", Guards: []command.ExecutionGuard{{TransactionID: txID, ExpectedToken: "old", NextToken: "next"}}, CompletionPlans: []command.CompletionPlanRecord{{TransactionID: txID, Payload: recovery}}}
 	resolved := sizingResolvedKeys(request.Balances)
 	prepared, err := prepareExecution(context.Background(), inputExecution, limits, resolved)
@@ -657,7 +684,7 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 	t.Logf("v1 lower-bound bytes: original=%d frozen_recovery=%d v1_legs=%d wire_postings=%d snapshots=%d final_wire=%d", len(body), len(recovery), len(transaction.Send.Source.From)+len(transaction.Send.Distribute.To), len(request.Transactions[0].Postings), len(request.Balances), len(prepared.Payload))
 	require.Equal(t, 4193188, len(body))
 	require.Equal(t, 11175426, len(recovery))
-	require.Equal(t, 13063934, len(prepared.Payload))
+	require.Equal(t, 13063982, len(prepared.Payload))
 	require.Greater(t, len(recovery), len(body), "completion plan must retain transaction and stable projection data")
 	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry the completion plan plus engine postings and snapshots")
 	require.Equal(t, 2, len(request.Transactions[0].Postings), "v1 retains both logical legs; no v1 leg cap is introduced")
@@ -804,7 +831,7 @@ func prepareTransactionBodyWithFees(t *testing.T, feeCount int) preparedSize {
 	}
 	limits := Limits{
 		MaxTransactions: 1, MaxPostings: len(translated.Postings), MaxBalances: len(pool.Snapshots),
-		MaxCompletionPlanBytes: len(recovery) + 1, MaxRequestBytes: 16 * 1024 * 1024, MaxPreparedBytes: 16 * 1024 * 1024,
+		MaxCompletionPlanBytes: len(recovery) + len(`[]`) + 1, MaxRequestBytes: 16 * 1024 * 1024, MaxPreparedBytes: 16 * 1024 * 1024,
 	}
 	execution := command.EngineExecution{
 		Execution: request, IntentFingerprint: "immutable-intent",
@@ -865,7 +892,7 @@ func nearV1Body(t *testing.T, target int) ([]byte, ledgerin.CreateTransactionReq
 func fixedSizingTime() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 func sizingResolvedKeys(balances []accounting.BalanceSnapshot) resolvedExecutionKeys {
-	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: "tenant:fixture:schedule:{transactions}", Recovery: "tenant:fixture:recovery:{transactions}", Receipts: "tenant:fixture:receipts:{transactions}", Guards: "tenant:fixture:guards:{transactions}", Protection: "tenant:fixture:protection:{transactions}", Balances: make(map[string]resolvedBalanceKeys, len(balances))}
+	resolved := resolvedExecutionKeys{TenantID: "fixture", Schedule: "tenant:fixture:schedule:{transactions}", Recovery: "tenant:fixture:recovery:{transactions}", Receipts: "tenant:fixture:receipts:{transactions}", Guards: "tenant:fixture:guards:{transactions}", Protection: "tenant:fixture:protection:{transactions}", TransactionIndex: "tenant:fixture:transaction-index:{transactions}", Balances: make(map[string]resolvedBalanceKeys, len(balances))}
 	for _, balance := range balances {
 		key := "tenant:fixture:balance:{transactions}:" + balance.BalanceRef
 		resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys(key)

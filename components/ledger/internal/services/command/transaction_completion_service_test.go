@@ -8,7 +8,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"math"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,11 +33,14 @@ type finalizationStoreStub struct {
 }
 
 type finalizationOutcomeStoreStub struct {
-	outcome   TransactionPersistenceOutcome
-	err       error
-	legacyErr error
-	records   []TransactionWriteSet
-	calls     *[]string
+	outcome      TransactionPersistenceOutcome
+	err          error
+	legacyErr    error
+	records      []TransactionWriteSet
+	bulkOutcomes []TransactionPersistenceOutcome
+	bulkErr      error
+	bulkRecords  []TransactionWriteSet
+	calls        *[]string
 }
 
 func (store *finalizationOutcomeStoreStub) Persist(context.Context, TransactionWriteSet) error {
@@ -52,6 +57,19 @@ func (store *finalizationOutcomeStoreStub) PersistWithOutcome(ctx context.Contex
 	}
 
 	return store.outcome, store.err
+}
+
+func (store *finalizationOutcomeStoreStub) PersistBulkWithOutcome(ctx context.Context, records []TransactionWriteSet) ([]TransactionPersistenceOutcome, error) {
+	*store.calls = append(*store.calls, "sql-bulk-with-outcome")
+	store.bulkRecords = append(store.bulkRecords, records...)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if store.bulkErr != nil {
+		return nil, store.bulkErr
+	}
+
+	return append([]TransactionPersistenceOutcome(nil), store.bulkOutcomes...), nil
 }
 
 func (store *finalizationStoreStub) Persist(ctx context.Context, record TransactionWriteSet) error {
@@ -85,6 +103,62 @@ type finalizationEventPublisherStub struct {
 	calls        *[]string
 	transactions []*postgresTransaction.Transaction
 	phases       []string
+}
+
+type concurrentFinalizationStore struct {
+	mu      sync.Mutex
+	created bool
+	calls   int
+}
+
+func (store *concurrentFinalizationStore) Persist(ctx context.Context, record TransactionWriteSet) error {
+	_, err := store.PersistWithOutcome(ctx, record)
+	return err
+}
+
+func (store *concurrentFinalizationStore) PersistWithOutcome(ctx context.Context, _ TransactionWriteSet) (TransactionPersistenceOutcome, error) {
+	if err := ctx.Err(); err != nil {
+		return TransactionPersistenceOutcome{}, err
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	store.calls++
+	phase := TransactionLifecyclePhaseNoop
+	if !store.created {
+		store.created = true
+		phase = TransactionLifecyclePhaseCreated
+	}
+
+	return TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED, LifecyclePhase: phase}, nil
+}
+
+type concurrentFinalizationMetadata struct {
+	mu   sync.Mutex
+	data map[string]*mongodb.Metadata
+}
+
+func (repo *concurrentFinalizationMetadata) Create(_ context.Context, collection string, metadata *mongodb.Metadata) error {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	key := collection + ":" + metadata.EntityID
+	if repo.data[key] == nil {
+		cloned := *metadata
+		cloned.Data = maps.Clone(metadata.Data)
+		repo.data[key] = &cloned
+	}
+	return nil
+}
+
+func (repo *concurrentFinalizationMetadata) FindByEntity(_ context.Context, collection, id string) (*mongodb.Metadata, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	stored := repo.data[collection+":"+id]
+	if stored == nil {
+		return nil, nil
+	}
+	cloned := *stored
+	cloned.Data = maps.Clone(stored.Data)
+	return &cloned, nil
 }
 
 func (publisher *finalizationEventPublisherStub) PublishAppliedTransactionEvents(_ context.Context, tran *postgresTransaction.Transaction, phase string) {
@@ -170,6 +244,30 @@ func finalizationDependencies() (*TransactionCompletionService, *finalizationSto
 	metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
 
 	return NewTransactionCompletionService(store, metadata), store, metadata, &calls
+}
+
+func bulkFinalizationFixtures(t testing.TB) (context.Context, []*TransactionCompletionRecord) {
+	t.Helper()
+	payload, result := recoveryContractFixture(t)
+	first := recoveryContractEnvelope(t, payload, result)
+
+	secondPayload, secondResult := recoveryContractFixture(t)
+	secondPayload.TransactionID = uuid.MustParse("77777777-7777-4777-8777-777777777777")
+	secondPayload.ExecutionID = uuid.MustParse("99999999-9999-4999-8999-999999999999")
+	secondPayload.TransactionInput.Metadata = map[string]any{"purpose": "bulk"}
+	for index := range secondPayload.OperationSpecs {
+		secondPayload.OperationSpecs[index].TransactionID = secondPayload.TransactionID
+	}
+	for index := range secondResult.Movements {
+		secondResult.Movements[index].TransactionID = secondPayload.TransactionID
+	}
+	var err error
+	secondPayload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(secondPayload))
+	require.NoError(t, err)
+	second := recoveryContractEnvelope(t, secondPayload, secondResult)
+
+	ctx := tmcore.ContextWithTenantID(context.Background(), secondPayload.TenantID)
+	return ctx, []*TransactionCompletionRecord{&first, &second}
 }
 
 func TestTransactionCompletionServiceConfirmsSQLAndMetadata(t *testing.T) {
@@ -438,6 +536,152 @@ func TestTransactionCompletionServiceWithEventsUsesReportedLifecyclePhase(t *tes
 			require.Len(t, publisher.transactions, 1)
 		})
 	}
+}
+
+func TestEngineWriteBehindTransactionCompletionBulkSharesProjectionPipeline(t *testing.T) {
+	ctx, records := bulkFinalizationFixtures(t)
+	calls := []string{}
+	store := &finalizationOutcomeStoreStub{
+		bulkOutcomes: []TransactionPersistenceOutcome{
+			{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseCreated},
+			{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseNoop},
+		},
+		calls: &calls,
+	}
+	metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
+	publisher := &finalizationEventPublisherStub{calls: &calls}
+	service, err := NewTransactionCompletionServiceWithEvents(store, metadata, publisher)
+	require.NoError(t, err)
+
+	results, err := service.CompleteBulk(ctx, records)
+
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	require.Len(t, store.bulkRecords, 2)
+	assert.Equal(t, records[0].TransactionID.String(), results[0].Record.Transaction.ID)
+	assert.Equal(t, records[1].TransactionID.String(), results[1].Record.Transaction.ID)
+	assert.Equal(t, TransactionLifecyclePhaseCreated, results[0].Outcome.LifecyclePhase)
+	assert.Equal(t, TransactionLifecyclePhaseNoop, results[1].Outcome.LifecyclePhase)
+	assert.Equal(t, []string{TransactionLifecyclePhaseCreated, TransactionLifecyclePhaseNoop}, publisher.phases)
+	require.Len(t, publisher.transactions, 2)
+	firstPublish := -1
+	lastMetadata := -1
+	for index, call := range calls {
+		if call == "publish" && firstPublish == -1 {
+			firstPublish = index
+		}
+		if call == "find:"+constant.EntityOperation {
+			lastMetadata = index
+		}
+	}
+	require.Greater(t, firstPublish, lastMetadata, "events must wait until every unit has confirmed metadata")
+}
+
+func TestEngineWriteBehindTransactionCompletionBulkRetainsFailureForRetry(t *testing.T) {
+	ctx, records := bulkFinalizationFixtures(t)
+	failure := errors.New("mongo unavailable")
+	calls := []string{}
+	store := &finalizationOutcomeStoreStub{
+		bulkOutcomes: []TransactionPersistenceOutcome{
+			{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseCreated},
+			{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseCreated},
+		},
+		calls: &calls,
+	}
+	metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata), createErr: failure}
+	publisher := &finalizationEventPublisherStub{calls: &calls}
+	service, err := NewTransactionCompletionServiceWithEvents(store, metadata, publisher)
+	require.NoError(t, err)
+
+	results, err := service.CompleteBulk(ctx, records)
+
+	require.ErrorIs(t, err, failure)
+	assert.Nil(t, results)
+	assert.Len(t, store.bulkRecords, 2, "SQL completion remains retryable by the retained evidence")
+	assert.Empty(t, publisher.transactions, "no event is published for a partially projected group")
+}
+
+func TestEngineWriteBehindTransactionCompletionBulkRejectsUncorrelatedOutcome(t *testing.T) {
+	ctx, records := bulkFinalizationFixtures(t)
+	calls := []string{}
+	store := &finalizationOutcomeStoreStub{
+		bulkOutcomes: []TransactionPersistenceOutcome{{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseCreated}},
+		calls:        &calls,
+	}
+	metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
+
+	results, err := NewTransactionCompletionService(store, metadata).CompleteBulk(ctx, records)
+
+	require.ErrorIs(t, err, ErrTransactionCompletionConflict)
+	assert.Nil(t, results)
+	assert.Equal(t, []string{"sql-bulk-with-outcome"}, calls)
+}
+
+func TestEngineWriteBehindTransactionCompletionBulkPreservesLateHoldProjection(t *testing.T) {
+	payload, execution := recoveryContractFixture(t)
+	payload.Action = constant.ActionHold
+	payload.TransactionStatus = constant.PENDING
+	payload.TransactionInput.Pending = true
+	var err error
+	payload.IntentFingerprint, err = ComputeEngineIntentFingerprint(recoveryContractIntent(payload))
+	require.NoError(t, err)
+	record := recoveryContractEnvelope(t, payload, execution)
+	ctx := tmcore.ContextWithTenantID(context.Background(), payload.TenantID)
+	calls := []string{}
+	store := &finalizationOutcomeStoreStub{
+		bulkOutcomes: []TransactionPersistenceOutcome{{TransactionStatus: constant.APPROVED, LifecyclePhase: TransactionLifecyclePhaseNoop}},
+		calls:        &calls,
+	}
+	metadata := &finalizationMetadataStub{calls: &calls, data: make(map[string]*mongodb.Metadata)}
+
+	results, err := NewTransactionCompletionService(store, metadata).CompleteBulk(ctx, []*TransactionCompletionRecord{&record})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, constant.PENDING, results[0].Record.Transaction.Status.Code, "the frozen hold projection must not be rewritten from a later SQL status")
+	assert.Equal(t, constant.APPROVED, results[0].Outcome.TransactionStatus)
+	assert.Equal(t, TransactionLifecyclePhaseNoop, results[0].Outcome.LifecyclePhase)
+}
+
+func TestEngineWriteBehindTransactionCompletionConvergesConcurrentProjectors(t *testing.T) {
+	ctx, record := finalizationFixture(t)
+	store := &concurrentFinalizationStore{}
+	metadata := &concurrentFinalizationMetadata{data: make(map[string]*mongodb.Metadata)}
+	service := NewTransactionCompletionService(store, metadata)
+
+	const projectors = 3
+	results := make(chan TransactionCompletionResult, projectors)
+	errors := make(chan error, projectors)
+	var wait sync.WaitGroup
+	for range projectors {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			result, err := service.Complete(ctx, record)
+			results <- result
+			errors <- err
+		}()
+	}
+	wait.Wait()
+	close(results)
+	close(errors)
+
+	for err := range errors {
+		require.NoError(t, err)
+	}
+	created, noop := 0, 0
+	for result := range results {
+		switch result.Outcome.LifecyclePhase {
+		case TransactionLifecyclePhaseCreated:
+			created++
+		case TransactionLifecyclePhaseNoop:
+			noop++
+		}
+	}
+	assert.Equal(t, 1, created)
+	assert.Equal(t, projectors-1, noop)
+	assert.Equal(t, projectors, store.calls)
+	assert.Len(t, metadata.data, 2, "fallback, consumer, and recovery must converge on the same frozen metadata")
 }
 
 func TestTransactionCompletionServiceSelectsTheRequestedPersistenceCapability(t *testing.T) {

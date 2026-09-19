@@ -52,6 +52,7 @@ type pendingEngineTransition struct {
 	ledgerSettings    mmodel.LedgerSettings
 	honoredTracerSkip bool
 	action            string
+	dependencies      []TransactionEvidenceReference
 	stableContext     pendingEngineStableContext
 }
 
@@ -91,7 +92,7 @@ func (uc *UseCase) transitionPendingWithEngine(
 
 	recordEngineAccountBlockExceptionBypass(span, engineState.transaction.AccountBlockException)
 
-	prepared, err := buildPendingEngineExecution(transition.persisted, transition.input, transition.validate, engineState, transition.stableContext, transition.action)
+	prepared, err := buildPendingEngineExecution(transition.persisted, transition.input, transition.validate, engineState, transition.stableContext, transition.action, transition.dependencies)
 	if err != nil {
 		unlock()
 		return nil, err
@@ -144,12 +145,14 @@ func (uc *UseCase) preparePendingEngineTransition(ctx context.Context, run *pend
 		return pendingEngineTransition{}, fmt.Errorf("confirm pending transaction identity: %w", ErrInvalidTransactionCompletionRecord)
 	}
 
-	persisted, err := uc.TransactionReader.GetTransactionWithOperationsByID(
-		readrouting.WithPrimaryRead(ctx), run.organizationID, run.ledgerID, transactionID,
+	resolution, err := resolveTransactionProjection(
+		readrouting.WithPrimaryRead(ctx), uc.TransactionReader, run.organizationID, run.ledgerID, transactionID,
 	)
 	if err != nil {
 		return pendingEngineTransition{}, err
 	}
+
+	persisted := resolution.Transaction
 
 	if err := validatePersistedCompletionTransition(persisted, run.organizationID, run.ledgerID, transactionID, run.status); err != nil {
 		return pendingEngineTransition{}, err
@@ -175,12 +178,20 @@ func (uc *UseCase) preparePendingEngineTransition(ctx context.Context, run *pend
 	}
 
 	_, _, headerID, _ := libObservability.NewTrackingFromContext(ctx)
+
 	prepared.stableContext = pendingEngineStableContext{
 		executionID: executionID, organizationID: run.organizationID, ledgerID: run.ledgerID,
 		tenantID: tmcore.GetTenantIDContext(ctx), headerID: headerID,
 		enqueuedAt: time.Now(), actionDate: time.Now(), transactionUpdated: time.Now(), operationUpdated: time.Now(),
 		parentID: prepared.stableContext.parentID,
 		guard:    ExecutionGuard{TransactionID: transactionID, ExpectedToken: constant.PENDING, NextToken: run.status},
+	}
+	if resolution.Pending && resolution.ExecutionID != uuid.Nil {
+		prepared.dependencies = []TransactionEvidenceReference{{
+			Kind: TransactionDependencyPredecessor, TenantID: prepared.stableContext.tenantID,
+			OrganizationID: run.organizationID, LedgerID: run.ledgerID,
+			TransactionID: transactionID, ExecutionID: resolution.ExecutionID,
+		}}
 	}
 
 	return prepared, nil
@@ -325,6 +336,7 @@ func buildPendingEngineExecution(
 	prepared enginePreparedTransaction,
 	stableContext pendingEngineStableContext,
 	action string,
+	dependencies []TransactionEvidenceReference,
 ) (PreparedEngineExecution, error) {
 	payload := TransactionCompletionPlan{
 		FormatVersion:        TransactionCompletionFormatVersion,
@@ -379,36 +391,78 @@ func buildPendingEngineExecution(
 		},
 		IntentFingerprint: fingerprint,
 		Guards:            []ExecutionGuard{stableContext.guard},
-		CompletionPlans:   []CompletionPlanRecord{{TransactionID: payload.TransactionID, Payload: raw}},
+		CompletionPlans: []CompletionPlanRecord{{
+			TransactionID: payload.TransactionID,
+			Payload:       raw,
+			Dependencies:  append([]TransactionEvidenceReference(nil), dependencies...),
+		}},
 	}
 
 	return PreparedEngineExecution{Execution: execution, CompletionPlans: []TransactionCompletionPlan{payload}}, nil
 }
 
 func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, logger libLog.Logger, expectedStatus string, outcome EngineExecutionOutcome) (*transaction.Transaction, error) {
-	envelope, err := createEngineEnvelope(outcome)
+	writeBehind, err := createEngineWriteBehindEnvelope(outcome)
 	if err != nil {
 		return nil, err
 	}
 
-	completion, err := uc.AppliedTransactionCompleter.Complete(ctx, envelope)
+	record := &writeBehind.Record
+
+	views, err := BuildTransactionEvidenceViews(*record)
 	if err != nil {
 		return nil, err
 	}
 
-	if completion.Outcome.TransactionStatus != expectedStatus {
-		return nil, fmt.Errorf("%w: pending completer confirmed %q, expected %q", ErrTransactionCompletionConflict, completion.Outcome.TransactionStatus, expectedStatus)
-	}
-
-	tran := completion.Record.Transaction
+	tran := views.InitialResponse
 	if tran == nil {
-		return nil, invalidTransactionCompletionRecord("pending completer returned no materialized transaction")
+		return nil, invalidTransactionCompletionRecord("pending evidence returned no materialized transaction")
 	}
 
-	uc.acknowledgeEngineRecovery(ctx, logger, envelope, completion)
+	projected := false
+	dispatched := false
+
+	if uc.TransactionWriteBehindAsync && uc.TransactionWriteBehindDispatcher != nil {
+		if dispatchErr := uc.TransactionWriteBehindDispatcher.DispatchTransactionWriteBehind(ctx, writeBehind); dispatchErr == nil {
+			dispatched = true
+
+			uc.recordEngineWriteBehindProjection(ctx, "async", "published")
+		} else {
+			uc.recordEngineWriteBehindProjection(ctx, "fallback", "failed")
+			logger.Log(ctx, libLog.LevelWarn, "Pending write-behind publish failed or was uncertain; using synchronous projection fallback",
+				libLog.String("transaction_id", record.TransactionID.String()), libLog.Err(dispatchErr))
+		}
+	}
+
+	if !dispatched {
+		completion, completionErr := completeTransactionWriteBehindFallback(ctx, writeBehind, uc.TransactionEvidenceResolver, uc.AppliedTransactionCompleter)
+
+		projectionPath := "sync"
+		if uc.TransactionWriteBehindAsync {
+			projectionPath = "fallback"
+		}
+
+		if completionErr != nil {
+			uc.recordEngineWriteBehindProjection(ctx, projectionPath, "deferred")
+			logger.Log(ctx, libLog.LevelWarn, "Pending transaction projection deferred to recovery",
+				libLog.String("transaction_id", record.TransactionID.String()), libLog.Err(completionErr))
+		} else {
+			uc.recordEngineWriteBehindProjection(ctx, projectionPath, "completed")
+
+			if completion.Outcome.TransactionStatus != expectedStatus {
+				return nil, fmt.Errorf("%w: pending completer confirmed %q, expected %q", ErrTransactionCompletionConflict, completion.Outcome.TransactionStatus, expectedStatus)
+			}
+
+			projected = true
+
+			uc.acknowledgeEngineRecovery(ctx, logger, record, completion)
+		}
+	}
 
 	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
-	uc.sendLogTransactionAuditQueueAsync(tenantCtx, tran.Operations, envelope.OrganizationID, envelope.LedgerID, envelope.TransactionID)
+	if projected {
+		uc.sendLogTransactionAuditQueueAsync(tenantCtx, tran.Operations, record.OrganizationID, record.LedgerID, record.TransactionID)
+	}
 
 	return tran, nil
 }

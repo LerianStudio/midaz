@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -84,6 +85,8 @@ type rabbitMQComponents struct {
 	mongoManager          *tmmongo.Manager        // nil in single-tenant mode; used by consumer handler for per-tenant Mongo resolution
 	rabbitmqManager       *tmrabbitmq.Manager     // nil in single-tenant mode; used by event dispatcher to close tenant RabbitMQ connections
 	metricsFactory        *metrics.MetricsFactory // nil in single-tenant mode or when telemetry disabled; used for tenant metrics emission
+	writeBehindDispatcher command.TransactionWriteBehindDispatcher
+	writeBehindConnection *libRabbitmq.RabbitMQConnection
 
 	// wireConsumer is a callback that wires the consumer with the UseCase.
 	// Must be called after UseCase creation because the handler needs UseCase.
@@ -110,6 +113,8 @@ func initRabbitMQ(
 // initMultiTenantRabbitMQ initializes RabbitMQ in multi-tenant mode.
 // Uses tmrabbitmq.Manager for per-tenant vhost connections with LRU eviction.
 // No circuit breaker is needed; the Manager manages its own connection lifecycle.
+//
+//nolint:gocognit // tenant-aware consumers and the isolated confirmed publisher are wired atomically here
 func initMultiTenantRabbitMQ(
 	opts *Options,
 	cfg *Config,
@@ -169,6 +174,22 @@ func initMultiTenantRabbitMQ(
 		return nil, fmt.Errorf("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE is required for multi-tenant consumer")
 	}
 
+	var writeBehindDispatcher command.TransactionWriteBehindDispatcher
+
+	if cfg.RabbitMQTransactionAsync {
+		engineProducer, err := rabbitmq.NewMultiTenantEngineWriteBehindProducerFromManager(
+			tenantRabbitMQ,
+			os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
+			os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
+			defaultEngineWriteBehindPublishTimeout(cfg),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		writeBehindDispatcher = engineWriteBehindDispatcher{publisher: engineProducer}
+	}
+
 	// Store metricsFactory for tenant metrics emission (nil-safe: checked before use)
 	var metricsFactory *metrics.MetricsFactory
 	if telemetry != nil {
@@ -176,10 +197,11 @@ func initMultiTenantRabbitMQ(
 	}
 
 	rmqComponents := &rabbitMQComponents{
-		producerRepo:        producer,
-		multiTenantConsumer: consumer,
-		rabbitmqManager:     tenantRabbitMQ,
-		metricsFactory:      metricsFactory,
+		producerRepo:          producer,
+		multiTenantConsumer:   consumer,
+		rabbitmqManager:       tenantRabbitMQ,
+		metricsFactory:        metricsFactory,
+		writeBehindDispatcher: writeBehindDispatcher,
 	}
 
 	// wireConsumer registers the BTO handler on the MultiTenantConsumer.
@@ -187,6 +209,11 @@ func initMultiTenantRabbitMQ(
 	// can be set after initRabbitMQ returns (they are initialized in initPostgres/initMongo
 	// and wired in config.go before wireConsumer is called).
 	rmqComponents.wireConsumer = func(useCase *command.UseCase) error {
+		dispatcher, err := newRabbitTransactionDispatcher(useCase, rabbitEngineMultiTenant, false, rmqComponents.metricsFactory)
+		if err != nil {
+			return fmt.Errorf("failed to configure multi-tenant transaction consumer: %w", err)
+		}
+
 		if err := consumer.Register(
 			queueName,
 			func(ctx context.Context, delivery amqp.Delivery) error {
@@ -196,7 +223,7 @@ func initMultiTenantRabbitMQ(
 					return err
 				}
 
-				if err := handlerBTO(ctx, delivery.Body, useCase); err != nil {
+				if err := dispatcher.handle(ctx, delivery.Body); err != nil {
 					logger.Log(ctx, libLog.LevelError, "Failed to process consumer message", libLog.Err(err))
 					return err
 				}
@@ -392,6 +419,32 @@ func initSingleTenantRabbitMQ(
 		circuitBreakerManager: circuitBreakerManager,
 	}
 
+	if cfg.RabbitMQTransactionAsync {
+		engineConnection := &libRabbitmq.RabbitMQConnection{
+			ConnectionStringSource: rabbitSource,
+			HealthCheckURL:         cfg.RabbitMQHealthCheckURL,
+			Host:                   cfg.RabbitMQHost,
+			Port:                   cfg.RabbitMQPortAMQP,
+			User:                   cfg.RabbitMQUser,
+			Pass:                   cfg.RabbitMQPass,
+			VHost:                  cfg.RabbitMQVHost,
+			Logger:                 logger,
+		}
+
+		engineProducer, engineErr := rabbitmq.NewSingleTenantEngineWriteBehindProducer(
+			engineConnection,
+			os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
+			os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
+			defaultEngineWriteBehindPublishTimeout(cfg),
+		)
+		if engineErr != nil {
+			return nil, engineErr
+		}
+
+		rmq.writeBehindDispatcher = engineWriteBehindDispatcher{publisher: engineProducer}
+		rmq.writeBehindConnection = engineConnection
+	}
+
 	// wireConsumer creates the single-tenant consumer with dedicated connection credentials.
 	// Deferred to after UseCase creation because NewMultiQueueConsumer registers the handler internally.
 	rmq.wireConsumer = func(useCase *command.UseCase) error {
@@ -437,12 +490,32 @@ func initSingleTenantRabbitMQ(
 			)
 		}
 
-		rmq.multiQueueConsumer = NewMultiQueueConsumer(routes, useCase, telemetry.MetricsFactory)
+		multiQueueConsumer, err := NewMultiQueueConsumer(routes, useCase, shouldUseBulkMode(cfg), telemetry.MetricsFactory)
+		if err != nil {
+			routes.StopConsumers()
+
+			return fmt.Errorf("failed to configure transaction consumer: %w", err)
+		}
+
+		rmq.multiQueueConsumer = multiQueueConsumer
 
 		return nil
 	}
 
 	return rmq, nil
+}
+
+func defaultEngineWriteBehindPublishTimeout(cfg *Config) time.Duration {
+	if cfg == nil || cfg.RabbitMQOperationTimeout == "" {
+		return 5 * time.Second
+	}
+
+	timeout, err := time.ParseDuration(cfg.RabbitMQOperationTimeout)
+	if err != nil || timeout <= 0 {
+		return 5 * time.Second
+	}
+
+	return timeout
 }
 
 // allowInsecureMultiTenantHTTP returns true when the tenant-manager URL uses plain HTTP

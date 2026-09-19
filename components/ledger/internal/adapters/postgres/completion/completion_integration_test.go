@@ -24,12 +24,35 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
 type recoverySQLInfra struct {
-	store *Store
-	db    *sql.DB
+	store        *Store
+	db           *sql.DB
+	transactions *countingTransactionRepository
+	operations   *countingOperationRepository
+}
+
+type countingTransactionRepository struct {
+	transactionRepository
+	beginCount int
+}
+
+func (repo *countingTransactionRepository) BeginTx(ctx context.Context) (repository.DBTransaction, error) {
+	repo.beginCount++
+	return repo.transactionRepository.BeginTx(ctx)
+}
+
+type countingOperationRepository struct {
+	operationRepository
+	createBulkCount int
+}
+
+func (repo *countingOperationRepository) CreateBulkTx(ctx context.Context, tx repository.DBExecutor, rows []*operation.Operation) (*repository.BulkInsertResult, error) {
+	repo.createBulkCount++
+	return repo.operationRepository.CreateBulkTx(ctx, tx, rows)
 }
 
 func setupRecoverySQL(t *testing.T) recoverySQLInfra {
@@ -40,9 +63,13 @@ func setupRecoverySQL(t *testing.T) recoverySQLInfra {
 	dsn := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
 	migrations := pgtestutil.FindMigrationsPath(t, "transaction")
 	client := pgtestutil.CreatePostgresClient(t, dsn, dsn, container.Config.DBName, migrations)
+	transactions := &countingTransactionRepository{transactionRepository: transaction.NewTransactionPostgreSQLRepository(client, false)}
+	operations := &countingOperationRepository{operationRepository: operation.NewOperationPostgreSQLRepository(client)}
 	return recoverySQLInfra{
-		store: NewStore(transaction.NewTransactionPostgreSQLRepository(client), operation.NewOperationPostgreSQLRepository(client)),
-		db:    container.DB,
+		store:        NewStore(transactions, operations),
+		db:           container.DB,
+		transactions: transactions,
+		operations:   operations,
 	}
 }
 
@@ -62,6 +89,14 @@ func recoverySQLState(t *testing.T, db *sql.DB) [2]string {
 	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY id), '[]'::jsonb)::text FROM transaction t`).Scan(&state[0]))
 	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(o) ORDER BY id), '[]'::jsonb)::text FROM operation o`).Scan(&state[1]))
 	return state
+}
+
+func recoverySQLProjection(t *testing.T, db *sql.DB, transactionID string) [2]string {
+	t.Helper()
+	var projection [2]string
+	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT (to_jsonb(t)-'id')::text FROM transaction t WHERE id=$1`, transactionID).Scan(&projection[0]))
+	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(o)-'id'-'transaction_id' ORDER BY id), '[]'::jsonb)::text FROM operation o WHERE transaction_id=$1`, transactionID).Scan(&projection[1]))
+	return projection
 }
 
 func TestIntegrationRecoverySQLStore(t *testing.T) {
@@ -282,6 +317,216 @@ func TestIntegrationRecoverySQLStore(t *testing.T) {
 		row.RouteCode = nil
 		require.ErrorIs(t, infra.store.Persist(t.Context(), record), command.ErrTransactionCompletionConflict)
 		require.Equal(t, before, recoverySQLState(t, infra.db))
+	})
+}
+
+func TestIntegrationEngineWriteBehindCausalCompletion(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires PostgreSQL")
+	}
+	infra := setupRecoverySQL(t)
+
+	for _, scenario := range []struct {
+		action, terminal, conflicting string
+	}{
+		{action: "commit", terminal: constant.APPROVED, conflicting: constant.CANCELED},
+		{action: "cancel", terminal: constant.CANCELED, conflicting: constant.APPROVED},
+	} {
+		t.Run(scenario.action+" before hold", func(t *testing.T) {
+			pending := recoverySQLRecord(t)
+			pending.Action, pending.Transaction.Status.Code = "hold", constant.PENDING
+			pending.Transaction.Body = mtransaction.Transaction{Pending: true, Send: mtransaction.Send{Asset: "USD", Value: *pending.Transaction.Amount}}
+
+			terminal := pending
+			terminalTransaction := *pending.Transaction
+			terminal.Transaction = &terminalTransaction
+			terminal.Action, terminal.ExpectedStatus, terminal.Transaction.Status.Code = scenario.action, constant.PENDING, scenario.terminal
+			terminal.Transaction.UpdatedAt = terminal.Transaction.CreatedAt.Add(time.Second)
+			row := *pending.Transaction.Operations[0]
+			row.ID = uuid.NewSHA1(uuid.MustParse(pending.Transaction.ID), []byte("causal:"+scenario.action)).String()
+			row.CreatedAt, row.UpdatedAt = terminal.Transaction.UpdatedAt, terminal.Transaction.UpdatedAt
+			terminal.Transaction.Operations = []*operation.Operation{&row}
+
+			before := recoverySQLState(t, infra.db)
+			require.ErrorIs(t, infra.store.Persist(t.Context(), terminal), command.ErrTransactionCompletionConflict)
+			require.Equal(t, before, recoverySQLState(t, infra.db), "a terminal execution cannot synthesize a missing hold")
+
+			require.NoError(t, infra.store.Persist(t.Context(), pending))
+			require.NoError(t, infra.store.Persist(t.Context(), terminal))
+			durable := recoverySQLState(t, infra.db)
+			require.NoError(t, infra.store.Persist(t.Context(), terminal))
+			require.NoError(t, infra.store.Persist(t.Context(), pending))
+			require.Equal(t, durable, recoverySQLState(t, infra.db), "duplicates and a late hold must converge without regression")
+
+			conflicting := terminal
+			conflictingTransaction := *terminal.Transaction
+			conflicting.Transaction = &conflictingTransaction
+			conflicting.Transaction.Status.Code = scenario.conflicting
+			if scenario.action == "commit" {
+				conflicting.Action = "cancel"
+			} else {
+				conflicting.Action = "commit"
+			}
+			require.ErrorIs(t, infra.store.Persist(t.Context(), conflicting), command.ErrTransactionCompletionConflict)
+			require.Equal(t, durable, recoverySQLState(t, infra.db), "a real terminal conflict must not alter durable state")
+		})
+	}
+
+	t.Run("revert before origin", func(t *testing.T) {
+		origin := recoverySQLRecord(t)
+		revert := origin
+		revertTransaction := *origin.Transaction
+		revert.Transaction = &revertTransaction
+		revert.Transaction.ID = uuid.NewSHA1(uuid.MustParse(origin.Transaction.ID), []byte("revert")).String()
+		revert.Transaction.ParentTransactionID = &origin.Transaction.ID
+		revert.Transaction.CreatedAt = origin.Transaction.CreatedAt.Add(time.Second)
+		revert.Transaction.UpdatedAt = revert.Transaction.CreatedAt
+		revert.Action = "revert"
+		revertRow := *origin.Transaction.Operations[0]
+		revertRow.ID = uuid.NewSHA1(uuid.MustParse(revert.Transaction.ID), []byte("operation")).String()
+		revertRow.TransactionID = revert.Transaction.ID
+		revertRow.CreatedAt, revertRow.UpdatedAt = revert.Transaction.CreatedAt, revert.Transaction.UpdatedAt
+		revert.Transaction.Operations = []*operation.Operation{&revertRow}
+
+		before := recoverySQLState(t, infra.db)
+		require.Error(t, infra.store.Persist(t.Context(), revert), "the parent foreign key must reject a revert whose origin is absent")
+		require.Equal(t, before, recoverySQLState(t, infra.db))
+
+		require.NoError(t, infra.store.Persist(t.Context(), origin))
+		require.NoError(t, infra.store.Persist(t.Context(), revert))
+		durable := recoverySQLState(t, infra.db)
+		require.NoError(t, infra.store.Persist(t.Context(), revert))
+		require.NoError(t, infra.store.Persist(t.Context(), origin))
+		require.Equal(t, durable, recoverySQLState(t, infra.db), "origin and revert duplicates must converge")
+
+		conflicting := revert
+		conflictingTransaction := *revert.Transaction
+		conflicting.Transaction = &conflictingTransaction
+		changedAmount := conflicting.Transaction.Amount.Add(decimal.NewFromInt(1))
+		conflicting.Transaction.Amount = &changedAmount
+		require.ErrorIs(t, infra.store.Persist(t.Context(), conflicting), command.ErrTransactionCompletionConflict)
+		require.Equal(t, durable, recoverySQLState(t, infra.db), "immutable revert conflict must not alter durable state")
+	})
+}
+
+func TestIntegrationEngineWriteBehindBulk(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires PostgreSQL")
+	}
+	infra := setupRecoverySQL(t)
+
+	t.Run("correlates terminal before hold with one group commit", func(t *testing.T) {
+		pending := recoverySQLRecord(t)
+		pending.Action, pending.Transaction.Status.Code = "hold", constant.PENDING
+		pending.Transaction.Body = mtransaction.Transaction{Pending: true, Send: mtransaction.Send{Asset: "USD", Value: *pending.Transaction.Amount}}
+
+		terminal := pending
+		terminalTransaction := *pending.Transaction
+		terminal.Transaction = &terminalTransaction
+		terminal.Action, terminal.ExpectedStatus, terminal.Transaction.Status.Code = "commit", constant.PENDING, constant.APPROVED
+		terminal.Transaction.UpdatedAt = terminal.Transaction.CreatedAt.Add(time.Second)
+		terminalRow := *pending.Transaction.Operations[0]
+		terminalRow.ID = uuid.NewSHA1(uuid.MustParse(pending.Transaction.ID), []byte("bulk:commit")).String()
+		terminalRow.CreatedAt, terminalRow.UpdatedAt = terminal.Transaction.UpdatedAt, terminal.Transaction.UpdatedAt
+		terminal.Transaction.Operations = []*operation.Operation{&terminalRow}
+
+		beginCount := infra.transactions.beginCount
+		outcomes, err := infra.store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{terminal, pending})
+		require.NoError(t, err)
+		require.Equal(t, beginCount+1, infra.transactions.beginCount, "two messages in one scope must share one SQL transaction")
+		require.Equal(t, []command.TransactionPersistenceOutcome{
+			{TransactionStatus: constant.APPROVED, LifecyclePhase: command.TransactionLifecyclePhaseUpdated},
+			{TransactionStatus: constant.APPROVED, LifecyclePhase: command.TransactionLifecyclePhaseCreated},
+		}, outcomes, "outcomes must remain correlated to input order after causal reordering")
+
+		durable := recoverySQLState(t, infra.db)
+		outcomes, err = infra.store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{terminal, pending})
+		require.NoError(t, err)
+		require.Equal(t, command.TransactionLifecyclePhaseNoop, outcomes[0].LifecyclePhase)
+		require.Equal(t, command.TransactionLifecyclePhaseNoop, outcomes[1].LifecyclePhase)
+		require.Equal(t, durable, recoverySQLState(t, infra.db), "bulk duplicate must only verify durable rows")
+	})
+
+	t.Run("orders revert after origin in the same group", func(t *testing.T) {
+		origin := recoverySQLRecord(t)
+		origin.Transaction.ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+		origin.Transaction.Operations[0].TransactionID = origin.Transaction.ID
+		origin.Transaction.Operations[0].ID = "eeeeeeee-eeee-5eee-8eee-eeeeeeeeeeee"
+
+		revert := recoverySQLRecord(t)
+		revert.Transaction.ID = "11111111-1111-4111-8111-111111111112"
+		revert.Transaction.ParentTransactionID = &origin.Transaction.ID
+		revert.Transaction.CreatedAt = origin.Transaction.CreatedAt.Add(time.Second)
+		revert.Transaction.UpdatedAt = revert.Transaction.CreatedAt
+		revert.Transaction.Operations[0].TransactionID = revert.Transaction.ID
+		revert.Transaction.Operations[0].ID = "11111111-1111-5111-8111-111111111112"
+		revert.Transaction.Operations[0].CreatedAt = revert.Transaction.CreatedAt
+		revert.Transaction.Operations[0].UpdatedAt = revert.Transaction.UpdatedAt
+		revert.Action = "revert"
+
+		outcomes, err := infra.store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{revert, origin})
+		require.NoError(t, err, "the origin dependency must override lexical transaction order")
+		require.Len(t, outcomes, 2)
+		require.Equal(t, constant.APPROVED, outcomes[0].TransactionStatus)
+		require.Equal(t, constant.APPROVED, outcomes[1].TransactionStatus)
+	})
+
+	t.Run("chunks operation rows at configured limit", func(t *testing.T) {
+		record := recoverySQLRecord(t)
+		for index := 1; index < 3; index++ {
+			row := *record.Transaction.Operations[0]
+			row.ID = uuid.NewSHA1(uuid.MustParse(record.Transaction.ID), []byte("bulk-row:"+string(rune('0'+index)))).String()
+			record.Transaction.Operations = append(record.Transaction.Operations, &row)
+		}
+		limited := NewStore(infra.transactions, infra.operations, 1)
+		bulkCalls := infra.operations.createBulkCount
+		_, err := limited.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{record})
+		require.NoError(t, err)
+		require.Equal(t, bulkCalls+3, infra.operations.createBulkCount)
+	})
+
+	t.Run("rolls back the complete scope group on conflict", func(t *testing.T) {
+		existing := recoverySQLRecord(t)
+		require.NoError(t, infra.store.Persist(t.Context(), existing))
+		before := recoverySQLState(t, infra.db)
+
+		newRecord := recoverySQLRecord(t)
+		newRecord.Transaction.ID = "00000000-0000-4000-8000-000000000001"
+		newRecord.Transaction.Operations[0].TransactionID = newRecord.Transaction.ID
+		newRecord.Transaction.Operations[0].ID = "00000000-0000-5000-8000-000000000002"
+
+		conflicting := recoverySQLRecord(t)
+		changedAmount := conflicting.Transaction.Amount.Add(decimal.NewFromInt(1))
+		conflicting.Transaction.Amount = &changedAmount
+
+		_, err := infra.store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{newRecord, conflicting})
+		require.ErrorIs(t, err, command.ErrTransactionCompletionConflict)
+		require.Equal(t, before, recoverySQLState(t, infra.db), "an earlier insert in the failed group must be rolled back")
+	})
+
+	t.Run("deduplicates equivalent units without losing correlation", func(t *testing.T) {
+		record := recoverySQLRecord(t)
+		outcomes, err := infra.store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{record, record})
+		require.NoError(t, err)
+		require.Equal(t, command.TransactionLifecyclePhaseCreated, outcomes[0].LifecyclePhase)
+		require.Equal(t, command.TransactionLifecyclePhaseNoop, outcomes[1].LifecyclePhase)
+	})
+
+	t.Run("matches individual persistence", func(t *testing.T) {
+		individual := recoverySQLRecord(t)
+		bulk := recoverySQLRecord(t)
+		bulk.Transaction.ID = uuid.NewSHA1(uuid.MustParse(individual.Transaction.ID), []byte("bulk-equivalent")).String()
+		bulk.Transaction.Operations[0].TransactionID = bulk.Transaction.ID
+		bulk.Transaction.Operations[0].ID = uuid.NewSHA1(uuid.MustParse(individual.Transaction.Operations[0].ID), []byte("bulk-equivalent")).String()
+
+		require.NoError(t, infra.store.Persist(t.Context(), individual))
+		_, err := infra.store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{bulk})
+		require.NoError(t, err)
+		require.Equal(
+			t,
+			recoverySQLProjection(t, infra.db, individual.Transaction.ID),
+			recoverySQLProjection(t, infra.db, bulk.Transaction.ID),
+		)
 	})
 }
 

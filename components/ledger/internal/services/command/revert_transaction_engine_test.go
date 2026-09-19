@@ -34,6 +34,38 @@ type revertEngineReader struct {
 	reads    int
 }
 
+type revertProjectionReader struct {
+	TransactionReader
+	executionID uuid.UUID
+}
+
+func (reader *revertProjectionReader) ResolveTransactionProjection(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+	uuid.UUID,
+) (*transaction.Transaction, uuid.UUID, bool, error) {
+	return &transaction.Transaction{}, reader.executionID, true, nil
+}
+
+func TestEngineWriteBehindRevertBindsUnprojectedOriginEvidence(t *testing.T) {
+	organizationID, ledgerID, originID := uuid.New(), uuid.New(), uuid.New()
+	executionID := uuid.New()
+	uc := &UseCase{
+		TransactionReader:           &revertProjectionReader{executionID: executionID},
+		TransactionEvidenceResolver: &transactionEvidenceResolverStub{},
+	}
+	run := &createTransactionRun{organizationID: organizationID, ledgerID: ledgerID}
+	ctx := tmcore.ContextWithTenantID(t.Context(), "tenant-revert-evidence")
+
+	require.NoError(t, uc.attachRevertOriginDependency(ctx, run, originID))
+	require.Equal(t, []TransactionEvidenceReference{{
+		Kind: TransactionDependencyOrigin, TenantID: "tenant-revert-evidence",
+		OrganizationID: organizationID, LedgerID: ledgerID,
+		TransactionID: originID, ExecutionID: executionID,
+	}}, run.dependencies)
+}
+
 func (reader *revertEngineReader) GetBalances(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 	reader.reads++
 	balances := make([]*mmodel.Balance, 0, len(aliases))
