@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,8 +45,8 @@ func TestDirectV2ForeignLedgerTransactionRoute(t *testing.T) {
 	// accounts under the same aliases. The only difference between the control
 	// request and the two refused ones is the ledger the legs are scoped to.
 	other := h.withSecondLedger(t)
-	other.seedBalance(t, "@foreign-payer", "BRL", decimal.NewFromInt(1000), "deposit")
-	other.seedBalance(t, "@foreign-receiver", "BRL", decimal.Zero, "deposit")
+	foreignPayerID := other.seedBalance(t, "@foreign-payer", "BRL", decimal.NewFromInt(1000), "deposit")
+	foreignReceiverID := other.seedBalance(t, "@foreign-receiver", "BRL", decimal.Zero, "deposit")
 
 	ownBody := h.v2RoutedBody("own ledger route", "BRL", "100", routes.transaction,
 		[]string{h.v2RoutedLeg("@foreign-payer", "100", routes.sources[0])},
@@ -71,7 +72,7 @@ func TestDirectV2ForeignLedgerTransactionRoute(t *testing.T) {
 		resp := other.createV2Direct(t, app, foreignBody, nil)
 		require.Equalf(t, 404, resp.status, "a foreign-ledger route must be not-found, not a server fault: %s", string(resp.rawBody))
 		assert.Equal(t, "0105", resp.body["code"], "body: %s", string(resp.rawBody))
-		other.assertNoOperations(t)
+		other.assertNoMoneyMoved(t, foreignPayerID, foreignReceiverID)
 	})
 
 	t.Run("cold miss caches the not found sentinel", func(t *testing.T) {
@@ -85,7 +86,7 @@ func TestDirectV2ForeignLedgerTransactionRoute(t *testing.T) {
 		require.NotEqualf(t, 500, resp.status, "the sentinel branch must not fall back to a server fault: %s", string(resp.rawBody))
 		require.Equalf(t, 404, resp.status, "the retry inside the sentinel TTL must answer like the first attempt: %s", string(resp.rawBody))
 		assert.Equal(t, "0105", resp.body["code"], "body: %s", string(resp.rawBody))
-		other.assertNoOperations(t)
+		other.assertNoMoneyMoved(t, foreignPayerID, foreignReceiverID)
 	})
 }
 
@@ -107,9 +108,15 @@ func (h *feeHarness) withSecondLedger(t *testing.T) *feeHarness {
 	return &other
 }
 
-// assertNoOperations proves a refused request moved no money in this ledger.
-func (h *feeHarness) assertNoOperations(t *testing.T) {
+// assertNoMoneyMoved proves a refused request moved no money in this ledger: the seeded
+// balances still read what they were seeded with, and no operation row was written. The
+// balance half is the load-bearing one — a refusal that left a hold or a debit on the payer
+// while writing no operation row would satisfy the row count alone.
+func (h *feeHarness) assertNoMoneyMoved(t *testing.T, payerID, receiverID uuid.UUID) {
 	t.Helper()
+
+	assertBalance(t, h, payerID, "1000")
+	assertBalance(t, h, receiverID, "0")
 
 	var operations int
 
