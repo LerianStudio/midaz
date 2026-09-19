@@ -80,7 +80,7 @@ func TestProperty_SentinelDetection_OnlyExactMatch(t *testing.T) {
 		}
 
 		if isSentinel {
-			// Exact sentinel: must return ErrDatabaseItemNotFound with NO DB call.
+			// Exact sentinel: must return the route-not-found business error (0105) with NO DB call.
 			// No TransactionRouteRepo mock expectations — gomock will fail if DB is called.
 			uc.TransactionRouteRepo = nil
 
@@ -118,11 +118,11 @@ func TestProperty_SentinelDetection_OnlyExactMatch(t *testing.T) {
 		_, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 		// The key invariant: non-sentinel bytes must NEVER produce a sentinel-path response.
-		// If we get ErrDatabaseItemNotFound, it must be from the DB fallback (which we set up),
+		// If we get the route-not-found business error (0105), it must be from the DB fallback (which we set up),
 		// not from sentinel detection. We verify this by confirming the function did attempt DB access.
 		// Since we're here (non-sentinel), the function either:
 		//   a) Successfully deserialized msgpack -> returns (data, nil)
-		//   b) Failed msgpack -> called DB -> got our mock ErrDatabaseItemNotFound
+		//   b) Failed msgpack -> called DB -> our mock returned ErrDatabaseItemNotFound -> mapped to 0105
 		// Both are correct non-sentinel behavior. The property holds as long as we reach here
 		// without panic and without gomock failures (which would mean unexpected calls).
 		_ = err
