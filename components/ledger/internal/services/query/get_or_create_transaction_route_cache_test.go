@@ -713,3 +713,49 @@ func requireTransactionRouteNotFound(t *testing.T, err error, msgAndArgs ...any)
 	require.True(t, errors.As(err, &entityNotFound), msgAndArgs...)
 	require.Equal(t, "0105", entityNotFound.Code, msgAndArgs...)
 }
+
+// TestGetOrCreateTransactionRouteCache_SentinelArmStaysCheap pins the one property that makes
+// negative caching worth having: a retry inside the sentinel TTL must cost almost nothing. The
+// arm touches no Postgres and no Redis write, so its rate is bounded only by the caller — which
+// is exactly the midaz#2506 shape, a plugin pointed at the wrong ledger retrying in a loop.
+//
+// pkg.ValidateBusinessError rebuilds midaz's entire 426-entry business-error catalogue, with all
+// of its fmt.Sprintf calls, on every invocation (~500 allocations, ~63 KB) before doing a single
+// map lookup. Calling it inside this arm would make the I/O-free shortcut the most expensive
+// branch in the function, so the error is built once at package level instead.
+func TestGetOrCreateTransactionRouteCache_SentinelArmStaysCheap(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	// No TransactionRouteRepo set — any DB touch fails the test.
+	uc := &UseCase{
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), expectedKey).
+		Return([]byte("NOT_FOUND"), nil).
+		AnyTimes()
+
+	ctx := context.Background()
+
+	var lastErr error
+
+	allocs := testing.AllocsPerRun(20, func() {
+		_, lastErr = uc.GetOrCreateTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)
+	})
+
+	requireTransactionRouteNotFound(t, lastErr, "the cheap arm must still answer with the 404 identity")
+
+	// The ceiling is the error catalogue, not a micro-benchmark: rebuilding it costs ~500
+	// allocations, while the arm itself plus the gomock stub costs well under 100.
+	assert.Lessf(t, allocs, 100.0, "the sentinel arm allocated %.0f objects per call; it must not rebuild the business-error catalogue", allocs)
+}
