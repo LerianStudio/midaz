@@ -118,7 +118,7 @@ type TracerSettings struct {
 	FailPosture string `json:"failPosture" example:"open"`
 
 	// TimeoutMs is the per-call tracer reserve timeout, in milliseconds.
-	// Default: 250.
+	// Accepted range: 1..30000. Default: 250.
 	TimeoutMs int `json:"timeoutMs" example:"250"`
 }
 
@@ -137,6 +137,17 @@ const (
 
 // defaultTracerTimeoutMs is the canonical default per-call tracer reserve timeout.
 const defaultTracerTimeoutMs = 250
+
+// Accepted range for TracerSettings.TimeoutMs, checked at write time.
+// The ceiling matches the tracer REST client's 30s global HTTP timeout: a
+// per-call timeout above that safety net could never take effect.
+const (
+	TracerTimeoutMsMin = 1
+	TracerTimeoutMsMax = 30000
+)
+
+// tracerTimeoutMsAllowedRange is the range as reported to the caller in the 0176 message.
+const tracerTimeoutMsAllowedRange = "1..30000"
 
 // defaultTracerSettings is the canonical source of default tracer settings.
 // Tracer integration is off by default for backwards compatibility.
@@ -269,6 +280,23 @@ func parseSettingsNumber(value any) (int, bool) {
 		return v, true
 	case int64:
 		return int(v), true
+	default:
+		return 0, false
+	}
+}
+
+// settingsNumberValue coerces a JSON-unmarshaled numeric value into a float64,
+// preserving the fractional part so range checks run on the value as sent rather
+// than on the truncated int parseSettingsNumber produces. Returns false for any
+// non-numeric value.
+func settingsNumberValue(value any) (float64, bool) {
+	switch v := value.(type) {
+	case float64:
+		return v, true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
 	default:
 		return 0, false
 	}
@@ -421,11 +449,11 @@ func validateSettingsFieldType(value any, expectedType, fieldPath string) error 
 	return nil
 }
 
-// validateSettingsFieldValue enforces enum membership for fields whose value
-// space is narrower than their primitive type. The type-only check in
-// validateSettingsFieldType cannot reject a well-typed but out-of-set value
-// (e.g. tracer.mode = "enfroce"); this is where that is caught at write time.
-// Fields without an enum constraint pass through unchanged.
+// validateSettingsFieldValue enforces enum membership and numeric ranges for
+// fields whose value space is narrower than their primitive type. The type-only
+// check in validateSettingsFieldType cannot reject a well-typed but out-of-space
+// value (e.g. tracer.mode = "enfroce", tracer.timeoutMs = 0); this is where that
+// is caught at write time. Fields without such a constraint pass through unchanged.
 func validateSettingsFieldValue(parentKey, nestedKey string, value any, fieldPath string) error {
 	if parentKey != "tracer" {
 		return nil
@@ -449,6 +477,11 @@ func validateSettingsFieldValue(parentKey, nestedKey string, value any, fieldPat
 
 		if _, ok := allowedTracerFailPostures[str]; !ok {
 			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, "open, closed")
+		}
+	case "timeoutMs":
+		num, ok := settingsNumberValue(value)
+		if !ok || num < TracerTimeoutMsMin || num > TracerTimeoutMsMax {
+			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, tracerTimeoutMsAllowedRange)
 		}
 	}
 
