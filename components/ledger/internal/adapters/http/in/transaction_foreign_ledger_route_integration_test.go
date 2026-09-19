@@ -8,6 +8,8 @@ package in
 
 import (
 	"bytes"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -15,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
@@ -34,7 +38,6 @@ import (
 // claim — the sentinel branch must answer exactly like the database branch.
 func TestDirectV2ForeignLedgerTransactionRoute(t *testing.T) {
 	h := setupFeeHarness(t)
-	h.enableAccountingEngine(t)
 	routes := h.seedDirectRoutes(t, 1, 1)
 	app := h.newV2App()
 
@@ -115,12 +118,92 @@ func (h *feeHarness) withSecondLedger(t *testing.T) *feeHarness {
 func (h *feeHarness) assertNoMoneyMoved(t *testing.T, payerID, receiverID uuid.UUID) {
 	t.Helper()
 
-	assertBalance(t, h, payerID, "1000")
-	assertBalance(t, h, receiverID, "0")
+	for _, want := range []struct {
+		id     uuid.UUID
+		amount string
+	}{{payerID, "1000"}, {receiverID, "0"}} {
+		got := postgrestestutil.GetBalanceAvailable(t, h.db, want.id)
+		assert.Truef(t, got.Equal(decimal.RequireFromString(want.amount)),
+			"balance %s: got %s, want %s", want.id, got, want.amount)
+	}
 
 	var operations int
 
 	err := h.db.QueryRow(`SELECT COUNT(*) FROM operation WHERE organization_id=$1 AND ledger_id=$2`, h.orgID, h.ledgerID).Scan(&operations)
 	require.NoError(t, err, "count operations after rejected request")
 	assert.Zero(t, operations)
+}
+
+// directRouteFixture is the route set a route-validating direct create needs: one
+// transaction route plus the operation routes linked to it, split by side.
+type directRouteFixture struct {
+	transaction  uuid.UUID
+	sources      []uuid.UUID
+	destinations []uuid.UUID
+}
+
+// seedDirectRoutes turns route validation on for the harness ledger and seeds the
+// route set a direct create must satisfy. It also wires the two route repositories
+// onto the shared query use case: setupFeeHarness leaves them nil because every
+// other proof in this package runs with validateRoutes off, and the route cache
+// reads TransactionRouteRepo the moment it is on.
+func (h *feeHarness) seedDirectRoutes(t *testing.T, sourceCount, destinationCount int) directRouteFixture {
+	t.Helper()
+
+	h.queryUC.OperationRouteRepo = operationroute.NewOperationRoutePostgreSQLRepository(h.pgConn)
+	h.queryUC.TransactionRouteRepo = transactionroute.NewTransactionRoutePostgreSQLRepository(h.pgConn)
+
+	postgrestestutil.SetLedgerSettings(t, h.db, h.ledgerID, map[string]any{
+		"accounting": map[string]any{"validateRoutes": true},
+	})
+
+	fixture := directRouteFixture{
+		transaction:  postgrestestutil.CreateTestTransactionRouteSimple(t, h.db, h.orgID, h.ledgerID, "foreign ledger direct route"),
+		sources:      make([]uuid.UUID, 0, sourceCount),
+		destinations: make([]uuid.UUID, 0, destinationCount),
+	}
+
+	for i := range sourceCount {
+		id := h.seedDirectOperationRoute(t, fmt.Sprintf("direct source %d", i+1), "source", "debit")
+		fixture.sources = append(fixture.sources, id)
+		postgrestestutil.CreateTestOperationTransactionRouteLink(t, h.db, id, fixture.transaction)
+	}
+
+	for i := range destinationCount {
+		id := h.seedDirectOperationRoute(t, fmt.Sprintf("direct destination %d", i+1), "destination", "credit")
+		fixture.destinations = append(fixture.destinations, id)
+		postgrestestutil.CreateTestOperationTransactionRouteLink(t, h.db, id, fixture.transaction)
+	}
+
+	return fixture
+}
+
+// seedDirectOperationRoute creates one operation route and gives it a "direct"
+// accounting entry in the named direction, which is what places it under the
+// direct action of the route cache.
+func (h *feeHarness) seedDirectOperationRoute(t *testing.T, title, operationType, direction string) uuid.UUID {
+	t.Helper()
+
+	id := postgrestestutil.CreateTestOperationRouteSimple(t, h.db, h.orgID, h.ledgerID, title, operationType)
+	entries := fmt.Sprintf(`{"direct":{"%s":{"code":"%s","description":"%s"}}}`,
+		direction, id.String(), title)
+	res, err := h.db.Exec(`UPDATE operation_route SET accounting_entries=$1::jsonb WHERE id=$2`, entries, id)
+	require.NoError(t, err, "seed operation route accounting entries")
+	affected, err := res.RowsAffected()
+	require.NoError(t, err, "read seeded operation route count")
+	require.EqualValues(t, 1, affected)
+
+	return id
+}
+
+// v2RoutedLeg builds a v2 leg with its canonical operation route.
+func (h *feeHarness) v2RoutedLeg(alias, amount string, operationRouteID uuid.UUID) string {
+	return `{"alias":"` + alias + `",` + h.v2Scope() + `,"amount":"` + amount +
+		`","operationRouteId":"` + operationRouteID.String() + `"}`
+}
+
+// v2RoutedBody is v2Body with the canonical transaction route attached.
+func (h *feeHarness) v2RoutedBody(description, asset, amount string, transactionRouteID uuid.UUID, debits, credits []string) string {
+	return strings.TrimSuffix(h.v2Body(description, asset, amount, debits, credits), "}") +
+		`,"routeId":"` + transactionRouteID.String() + `"}`
 }
