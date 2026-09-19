@@ -7,6 +7,7 @@ package mmodel
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
@@ -655,6 +656,17 @@ func TestValidateSettings(t *testing.T) {
 			wantErr:     true,
 			errContains: "tracer.timeoutMs",
 			wantErrCode: "0148",
+		},
+		{
+			name: "tracer timeoutMs NaN rejected",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": math.NaN(),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
 		},
 		{
 			name: "null tracer timeoutMs is valid",

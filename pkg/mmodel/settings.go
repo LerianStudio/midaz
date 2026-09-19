@@ -7,6 +7,7 @@ package mmodel
 import (
 	"fmt"
 	"maps"
+	"math"
 	"sort"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -480,7 +481,9 @@ func validateSettingsFieldValue(parentKey, nestedKey string, value any, fieldPat
 		}
 	case "timeoutMs":
 		num, ok := settingsNumberValue(value)
-		if !ok || num < TracerTimeoutMsMin || num > TracerTimeoutMsMax {
+		// NaN compares false against both bounds, so it has to be named
+		// explicitly or it would reach the int conversion, which is undefined.
+		if !ok || math.IsNaN(num) || num < TracerTimeoutMsMin || num > TracerTimeoutMsMax {
 			return pkg.ValidateBusinessError(constant.ErrInvalidSettingsFieldValue, "LedgerSettings", fieldPath, tracerTimeoutMsAllowedRange)
 		}
 	}
