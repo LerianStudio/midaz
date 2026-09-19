@@ -24,7 +24,7 @@ import (
 // value. The function must never panic regardless of what Redis returns.
 //
 // Three code paths are targeted:
-//  1. NOT_FOUND sentinel bytes -> returns ErrDatabaseItemNotFound
+//  1. NOT_FOUND sentinel bytes -> returns the typed transaction-route-not-found error (code 0105)
 //  2. Valid msgpack bytes -> deserializes to TransactionRouteCache
 //  3. Any other bytes (corrupted/truncated/garbage) -> falls back to DB
 func FuzzGetOrCreateTransactionRouteCacheBytes(f *testing.F) {
