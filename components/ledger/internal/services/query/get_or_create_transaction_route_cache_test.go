@@ -423,7 +423,8 @@ func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
 }
 
 // TestGetOrCreateTransactionRouteCache_CacheHit_NotFoundSentinel tests that when Redis returns the NOT_FOUND
-// sentinel value, the function returns ErrDatabaseItemNotFound immediately without making a DB call.
+// sentinel value, the function returns the transaction-route-not-found business error (0105)
+// immediately without making a DB call.
 func TestGetOrCreateTransactionRouteCache_CacheHit_NotFoundSentinel(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
