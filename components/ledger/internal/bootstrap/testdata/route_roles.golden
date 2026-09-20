@@ -58,6 +58,9 @@ GET	/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id	onboarding
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/balances	transaction
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	transaction
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history	transaction
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/dashboard/assets	transaction
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/dashboard/metrics	transaction
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/dashboard/volume	transaction
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes	transaction
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	transaction
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios	onboarding
@@ -99,6 +102,9 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	t
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	fees
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	fees
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/assets	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/metrics	transaction
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/volume	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	transaction
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/packages	fees

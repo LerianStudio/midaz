@@ -329,6 +329,7 @@ func fullSurfaceHumaDeps(auth *middleware.AuthClient, setup *unifiedRouteSetup) 
 		&httpin.AssetRateHandler{},
 		&httpin.BalanceHandler{}, &httpin.OperationHandler{}, &httpin.OperationRouteHandler{}, &httpin.TransactionRouteHandler{},
 		&httpin.TransactionHandler{},
+		&httpin.DashboardHandler{},
 		&httpin.HolderHandler{}, &httpin.InstrumentHandler{}, &httpin.HolderAccountsHandler{}, &httpin.EncryptionHandler{},
 		&httpin.AuditHandler{},
 		&httpin.PackageHandler{}, &httpin.FeeHandler{}, &httpin.BillingPackageHandler{}, &httpin.BillingCalculateHandler{},

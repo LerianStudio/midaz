@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	dashboardRepo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/dashboard"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
@@ -74,6 +75,11 @@ type UseCase struct {
 
 	// TransactionRouteRepo provides an abstraction on top of the transaction route data source.
 	TransactionRouteRepo transactionroute.Repository
+
+	// DashboardRepo answers the three dashboard reads. Bootstrap binds either
+	// the postgres repository or the Valkey read-through cache that decorates
+	// it, so nothing here learns whether an answer was computed or served.
+	DashboardRepo dashboardRepo.Repository
 
 	// --- MongoDB (separate per domain) ---
 
