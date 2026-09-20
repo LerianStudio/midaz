@@ -25,33 +25,31 @@ half-supplied pair, an unparseable date, an end at or before the start, or a
 range over **90 days** is a 400 (`0498`).
 
 Both bounds snap to the minute and normalise to UTC, half-open `[from, to)`.
-The snapping is what makes a relative period name the same window for every
-caller inside a minute; without it every cache key is unique and the cache
-never hits. **The start rounds DOWN and the end rounds UP**, so the window is
-always a superset of what was asked for — rounding the end down instead hid the
-most recent 60 seconds of decisions, which is a fraud console reporting zero
-fraud half a minute after blocking a transaction. Staleness is therefore
-bounded by up to TWO minute steps plus one TTL; `updatedAt` reports when the
-figures were computed.
+Snapping is what makes a relative period name the same window for every caller
+inside a minute; without it every cache key is unique and the cache never hits.
+**The start rounds DOWN and the end rounds UP**, so the window is always a
+superset of what was asked for — rounding the end down instead hid the most
+recent 60 seconds of decisions, a fraud console reporting zero fraud half a
+minute after blocking a transaction. Staleness is bounded by up to TWO minute
+steps plus one TTL; `updatedAt` says when the figures were computed.
 
 `/volume` returns one point per UTC calendar day the window TOUCHES, so
 `?period=7d` from mid-afternoon spans 8 calendar days and returns **8 points,
-not 7**. A caller must render the points it is given rather than assume a count.
+not 7**. Render the points given; never assume a count.
 
 ## Bodies
 
-JSON, camelCase, amounts as decimal **strings**, rates as fractions in `[0,1]`,
-every response carrying `windowStart`, `windowEnd`, `updatedAt`.
-
-**Money is per asset, always.** `amountSavedByAsset` is the figure; a
-cross-asset total would not be money. `amountSaved`/`asset` are populated only
-when exactly one asset carried blocked volume, absent otherwise.
-
-`volume` buckets by **day for every period** (`date` is `YYYY-MM-DD` on the
-wire, and a day bucket caps the series at 91 points). `fraud-types` splits by
-`transaction_type` only — `sub_type` is a free VARCHAR with no enum, so it
-would give a chart an unbounded axis. `activeRules`/`activeLimits` are
+JSON, camelCase, rates as fractions in `[0,1]`, every response carrying
+`windowStart`, `windowEnd`, `updatedAt`. `activeRules`/`activeLimits` are
 point-in-time, not windowed.
+
+`amountSavedByAsset` is the money figure (convention rule 8);
+`amountSaved`/`asset` are populated only when exactly one asset carried blocked
+volume, absent otherwise. Amounts are decimal **strings** whose VALUE is exact
+end to end — decimal from the database to the wire, never through a float — but
+whose SCALE is not: decimal normalises it, so a stored `41000.00` renders
+`"41000"` and `10352080.80` renders `"10352080.8"`. Format to the asset's
+exponent rather than echoing the string.
 
 `top-rules` reports at most ten rules, ordered by `matches` descending then
 `name` ascending so a tie renders identically on every refresh. `executions`
@@ -70,8 +68,8 @@ Valkey read-through, TTL **60s**, key
 `tenant:{tenantID}:tracer:dashboard:{endpoint}:{window}`; responses carry
 `Cache-Control: private, max-age=60`. It reuses the tenant-manager Pub/Sub
 client — Tracer's only Valkey connection — and never opens a second. Without
-one (single-tenant mode) it passes through: slower, never wrong. An outage, an
-undecodable entry and a miss are all handled as a miss; errors are never cached.
+one (single-tenant mode) it passes through: slower, never wrong. Failure
+semantics are convention rule 7.
 
 ## Cost
 
@@ -105,19 +103,28 @@ pgx caches a server-side prepared statement per connection. PostgreSQL plans the
 first five executions against the real parameters, then under the default
 `plan_cache_mode=auto` switches to a **generic** plan built with no knowledge of
 them — which cannot know a 90-day window holds 25% of the table rather than the
-~0.3% its default selectivity assumes, so it drops the parallel scan and the
-Memoize node. One pooled connection, eight consecutive `/top-rules` executions:
+~0.3% its default selectivity assumes. One pooled connection, eight consecutive
+`/top-rules` executions:
 
 ```
 default (cache statement): 105  95  95  95  94 | 323 323 321  ms
 pgx.QueryExecModeExec:     104  95  94  93  95 |  94  95  96  ms
 ```
 
-So every windowed read passes `windowPlanMode` (`pgx.QueryExecModeExec`) first,
-which uses an unnamed statement PostgreSQL always plans against the given
-parameters. `dashboard_plan_mode_test.go` asserts the argument is present:
-dropping it breaks no test and no row, it just makes the service quietly
-several times slower after five minutes of uptime.
+What the generic plan discards is the **LATERAL fan-out plan** — the parallel
+scan and the Memoize over the unnested rule ids — not anything about the shared
+`created_at` predicate: `/metrics` and `/volume` do not regress at all over the
+same eight executions, and `/fraud-types` loses 1.7x. All four reads carry
+`windowPlanMode` (`pgx.QueryExecModeExec`) anyway, because its cost on the two
+that do not regress is zero within noise and one rule is easier to keep true
+than two exceptions.
+
+Two guards, because the obvious one is not enough. `dashboard_plan_mode_test.go`
+asserts the argument is passed; the integration suite counts
+`pg_prepared_statements.generic_plans` after eight executions on one connection
+and requires zero. A timing assertion was tried and rejected — on a small test
+fixture a generic plan costs nothing measurable, so it passed against code with
+the mode removed.
 
 ### Operating limit
 
@@ -134,7 +141,13 @@ The bound runs out near **340,000 rows in the window**: about **3,800
 validations/day** on the 90-day view, 11,000/day on the default 30-day view,
 48,000/day on 7 days. (The fixture is 2,740/day.) Above that rate the other
 three endpoints stay well inside budget — they are 3-6x cheaper per row — and
-`/top-rules` needs either a shorter maximum window or the rollup below.
+`/top-rules` needs either a shorter maximum window or a rollup table.
+
+**Read those rows-per-day figures with the fan-out attached.** `/top-rules`
+aggregates one row per rule EVALUATED, and the fixture evaluates three rules per
+validation. A tenant running 50-150 active rules fans out proportionally further
+and reaches the limit far sooner — the number that binds is evaluated rules per
+day, not validations per day, and 340,000 is roughly 1,000,000 of those.
 
 ### Index
 
@@ -142,19 +155,16 @@ Migration `000024` adds `idx_transaction_validations_dashboard`, a covering
 index on `created_at` INCLUDE (decision, transaction_type, asset, amount,
 processing_time_ms). Measured on this fixture:
 
-- **56MB** beside a 300MB table, and 56MB either way — built by the migration
-  against existing rows, or grown by a million inserts. They match because
-  `created_at` is monotonic, so every insert lands on the rightmost page and
-  packs like a fresh build. A table whose physical order had been destroyed
-  would grow a larger index from page splits.
-- **+0.6 to +0.7us per validation insert** (medians of seven 50,000-row batches
-  with the index, against seven without). The table already carries nine other
-  indexes costing ~15us of maintenance per row, so this is about 4% more.
+It costs **56MB** beside a 300MB table and **+0.6 to +0.7us** per validation
+insert, about 4% of the write's existing index maintenance. It buys **1.4-1.7x**
+on `/metrics` and `/fraud-types` — not feasibility: those reads meet the 200ms
+bound without it at a million rows (worst case 115ms). What it buys is headroom.
+The migration carries the measurements and how they were taken.
 
 **Index-only depends on the visibility map.** Pages autovacuum has not marked
 all-visible still cost a heap fetch, so a trail under heavy write with starved
 autovacuum degrades toward the pre-index timings. `VACUUM FULL` resets the map
-entirely and every read reverts to a bitmap-heap plan until a plain `VACUUM`
+entirely and every read reverts to a heap-reading plan until a plain `VACUUM`
 runs.
 
 The rule arrays are **not** indexed and must not be. A btree over `UUID[]`
@@ -163,51 +173,47 @@ carries one entry per array, and ~167 active rule ids overflow the tuple limit
 INSERT — a validation that cannot be recorded against an append-only trail. A
 GIN index answers containment, not the per-rule aggregation `/top-rules` needs.
 
-If the limit is reached, a rollup table (per rule per day) is the next option,
-trading write amplification for a bounded read. Not built: nothing measured
-needs it yet, and the write cost is a product decision.
-
 ## Adding `/dashboard` to another product
 
-1. **One base, `GET` only.** A dashboard owns no state.
-2. **One window contract.** A closed period set with a documented default, or
-   an explicit RFC3339 pair, mutually exclusive, hard-capped. Snap both bounds
-   to the cache TTL's granularity, normalise to UTC, keep it half-open — and
-   snap the END UP. Rounding it down hides the newest decisions, which on a
-   fraud console is indistinguishable from "nothing is wrong".
-3. **The error message must name the parameters the API registers.** Huma
-   silently drops an unregistered query param, so a caller obeying a message
-   that says `startDate` gets HTTP 200 for the default window and reads the
-   wrong number. Assert the names against the generated spec, not a second copy
-   in the message.
-4. **One bounded aggregation per endpoint.** One statement on an indexed
-   timestamp, no unbounded scan, no N+1. Publish a total and its breakdown from
-   the SAME statement (`GROUPING SETS`) — two statements are two instants, and
-   a cached pair that disagrees with itself lies for the whole TTL.
-5. **Prove the cost on a fixture with production's physical layout.** For an
-   append-only trail that means a monotonic timestamp and correlation 1.0. A
-   fixture that scatters the key measures a table you will never have, in
-   either direction: it made one query here look impossible and would make
-   another look free.
-6. **Force a custom plan on every parameterised window query.** A cached
+Assume the hygiene any Lerian service already has: one `GET`-only base that owns
+no state, one bounded aggregation per endpoint with no unbounded scan and no
+N+1, the tenant from the validated JWT rather than a parameter, `updatedAt` on
+every body. The seven rules below are the ones this lane paid for in defects.
+
+1. **Snap the window to the cache TTL's granularity, and snap the END UP.** A
+   closed period set with a default, or an explicit RFC3339 pair, mutually
+   exclusive and hard-capped; UTC, half-open. Rounding the end down hides the
+   newest decisions — on a fraud console, indistinguishable from "all clear".
+2. **The error message must name the parameters the API registers.** Huma drops
+   an unregistered query param silently, so a caller obeying a message that says
+   `startDate` gets HTTP 200 for the default window and reads the wrong number.
+   Assert the names against the generated spec, never a second copy.
+3. **Publish a total and its breakdown from the SAME statement** (`GROUPING
+   SETS`). Two statements are two instants, and a cached pair that disagrees
+   with itself lies for the whole TTL.
+4. **Prove the cost on a fixture with production's physical layout** — for an
+   append-only trail, a monotonic timestamp and correlation 1.0. A scattered
+   fixture measures a table you will never have, in both directions: here it made
+   one query look impossible and one index look 7x more valuable than it is.
+5. **Force a custom plan on every parameterised window query.** A cached
    prepared statement goes generic after five executions per connection, and a
-   generic plan cannot know the window's selectivity. Assert the exec-mode
-   argument in a test: removing it breaks no behaviour, only speed, and only
-   after a few minutes of uptime.
-7. **Record plan, milliseconds and the operating limit.** Cost is linear in
-   rows IN THE WINDOW, so the useful number is validations/day at the widest
-   window, not rows in the table. Justify each new index with its measured
-   write cost. A query that cannot meet the bound is reported, not quietly
-   shipped.
-8. **Read-through cache, TTL = the window granularity, with single-flight.**
-   Key by tenant, endpoint, window. Every key rotates on the same wall-clock
-   tick, so without coalescing every viewer misses at once and each runs the
-   full aggregation. Run the shared computation on a context detached from the
-   request that opened it, or the first viewer to close a tab fails all the
-   others. Reuse the existing connection, pass through when there is none,
-   treat every cache failure as a miss, never cache an error.
-9. **Tenant from the validated JWT**, never a parameter. It belongs in the key
-   and the connection, nowhere on the wire.
-10. **Money per asset.** Never one headline figure summed across assets.
-11. **`updatedAt` on every body**, and report a zero rather than omitting a row:
-    "this rule guards nothing" is the answer an operator most needs.
+   generic plan cannot know the window's selectivity. Pin it against
+   `pg_prepared_statements.generic_plans`, not a stopwatch: on a small fixture a
+   generic plan costs nothing measurable, so a timing assertion passes against
+   code with the fix removed.
+6. **Record plan, milliseconds and the operating limit.** Cost is linear in rows
+   IN THE WINDOW, so the useful number is throughput at the widest window plus
+   the fan-out it assumes. Justify each index with its measured write cost, and
+   say whether it buys feasibility or only headroom.
+7. **Read-through cache, TTL = the window granularity, with single-flight.** Key
+   by tenant, endpoint, window. Every key rotates on the same wall-clock tick, so
+   without coalescing every viewer misses at once and each runs the aggregation.
+   Detach the shared computation from the request that opened it, and build that
+   context INSIDE the shared call — a `defer cancel()` in the caller's frame
+   hands the flight's lifetime straight back to whoever opened it. Reuse the
+   existing connection, pass through when there is none, treat every cache
+   failure as a miss, never cache an error.
+8. **Money per asset, and a zero is an answer.** Never one figure summed across
+   assets; keep the value exact end to end and let consumers format the scale.
+   Report a zero rather than omitting a row — "this rule guards nothing" is what
+   an operator most needs to see.

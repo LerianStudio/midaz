@@ -126,7 +126,8 @@ func explicitDashboardWindow(startDate, endDate string) (DashboardWindow, error)
 	// would accept an empty range (startDate == endDate becomes a one-minute
 	// window) and reject an exactly-90-day range whose end carries seconds.
 	// The window that reaches the database is therefore at most the cap plus
-	// one granularity step, which is the price of a cacheable window.
+	// TWO granularity steps — the start rounds down and the end rounds up, so
+	// each bound can move by one — which is the price of a cacheable window.
 	if !to.After(from) {
 		return DashboardWindow{}, fmt.Errorf("%w: endDate must be after startDate", constant.ErrInvalidDashboardWindow)
 	}
@@ -192,6 +193,13 @@ type DashboardMetrics struct {
 
 	// AmountSavedByAsset is the sum of the amounts of DENY decisions in the
 	// window, split by asset. Always present; empty when nothing was blocked.
+	//
+	// The VALUE is exact end to end — decimal from the scan to the wire, never
+	// through a float — but the SCALE is not preserved, because decimal
+	// normalises it: a stored 41000.00 renders "41000" and 10352080.80 renders
+	// "10352080.8". A consumer formats to the asset's exponent rather than
+	// echoing the string, or it will show a money field with varying decimal
+	// places.
 	AmountSavedByAsset []AssetAmount `json:"amountSavedByAsset"`
 
 	// AmountSaved and Asset are the single-asset convenience pair: populated

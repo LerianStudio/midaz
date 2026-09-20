@@ -8,17 +8,36 @@
 -- WHY. The dashboard reads (GET /v1/dashboard/metrics and /fraud-types) are
 -- bounded aggregations over created_at. idx_transaction_validations_created
 -- already narrows the window, but decision, transaction_type, asset, amount and
--- processing_time_ms live only in the heap, so every row in the window cost a
--- random heap fetch. Measured on a seeded 1,000,000-row trail (365 days of
--- history, PostgreSQL 17, 256MB shared_buffers), median of three warm runs:
+-- processing_time_ms live only in the heap, so every row in the window costs a
+-- heap fetch. Measured on the seeded 1,000,000-row trail
+-- (scripts/seed_dashboard_benchmark.sql, 365 days, PostgreSQL 17, 256MB
+-- shared_buffers), EXPLAIN (ANALYZE), median of three warm runs, by dropping
+-- this index and putting it back:
 --
---   metrics      before: 7d  34ms | 30d 224ms | 90d 325ms   (bitmap heap scan)
---                after:  7d   8ms | 30d  32ms | 90d 103ms   (index-only scan)
---   fraud-types  before: 7d  33ms | 30d 105ms | 90d 117ms   (bitmap heap scan)
---                after:  7d   5ms | 30d  22ms | 90d  41ms   (index-only scan)
+--   metrics      without: 7d 10.6ms | 30d 47.6ms | 90d 115.2ms  (Index Scan)
+--                with:    7d  6.7ms | 30d 28.1ms | 90d  81.0ms  (Index Only Scan)
+--   fraud-types  without: 7d  8.9ms | 30d 33.2ms | 90d  45.0ms  (Index Scan)
+--                with:    7d  5.1ms | 30d 20.7ms | 90d  28.6ms  (Index Only Scan)
 --
--- The volume read needs created_at alone and is already served index-only by
--- idx_transaction_validations_created, which therefore stays.
+-- So it buys 1.4x to 1.7x, and the honest statement of the case is that the
+-- reads MEET the 200ms bound without it at 1,000,000 rows (worst case, metrics
+-- over 90 days, 115ms). What it buys is headroom: it removes the heap fetch
+-- from the two reads that need columns beyond the timestamp, which pushes the
+-- operating limit further out and keeps the bound reachable as the trail grows.
+--
+-- An earlier version of this comment claimed a 7x gain (30d 224ms -> 32ms).
+-- That was measured on a benchmark fixture which scattered created_at randomly
+-- over the year. This table is append-only and its rows never move, so its
+-- physical order always matches created_at: a window is one contiguous heap
+-- stretch, and the pre-index plan is an Index Scan over adjacent pages rather
+-- than the bitmap heap scan over ~90% of the table the old fixture produced.
+-- The 7x was real for a table shape this one cannot reach.
+--
+-- The volume read needs created_at alone and is served index-only by
+-- idx_transaction_validations_created either way (measured identical, 83ms at
+-- 90 days with and without). /top-rules is likewise unaffected: it must read
+-- the rule arrays from the heap, which no covering index can carry (below).
+-- Both reads keep this index only because it costs them nothing.
 --
 -- COST. 56MB alongside a 300MB table at 1,000,000 rows. That figure is the same
 -- whether the index is BUILT by this migration against existing rows or GROWN
