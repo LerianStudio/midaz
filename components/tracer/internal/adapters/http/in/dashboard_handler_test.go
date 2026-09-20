@@ -58,6 +58,16 @@ func (s *dashboardServiceStub) FraudTypes(_ context.Context, w model.DashboardWi
 	return &model.DashboardFraudTypes{Types: []model.FraudTypeSlice{}}, nil
 }
 
+func (s *dashboardServiceStub) TopRules(_ context.Context, w model.DashboardWindow) (*model.DashboardTopRules, error) {
+	s.gotWindow, s.calls = w, s.calls+1
+
+	if s.err != nil {
+		return nil, s.err
+	}
+
+	return &model.DashboardTopRules{Rules: []model.TopRule{}}, nil
+}
+
 // dashboardTestNow is a hardcoded instant: the handler resolves a relative
 // period against its clock, so the clock must not move under the assertions.
 func dashboardTestNow() time.Time {
@@ -159,6 +169,9 @@ func TestDashboardHandler_RejectsBadWindowWithoutQuerying(t *testing.T) {
 
 			_, fraudErr := handler.GetFraudTypesHuma(context.Background(), &in)
 			require.Error(t, fraudErr)
+
+			_, topErr := handler.GetTopRulesHuma(context.Background(), &in)
+			require.Error(t, topErr)
 		})
 	}
 }
@@ -219,9 +232,13 @@ func TestDashboardHandler_AllReadsCarryCacheControl(t *testing.T) {
 	fraud, err := handler.GetFraudTypesHuma(ctx, &DashboardWindowInputHuma{})
 	require.NoError(t, err)
 
+	topRules, err := handler.GetTopRulesHuma(ctx, &DashboardWindowInputHuma{})
+	require.NoError(t, err)
+
 	assert.Equal(t, dashboardCacheControl, metrics.CacheControl)
 	assert.Equal(t, dashboardCacheControl, volume.CacheControl)
 	assert.Equal(t, dashboardCacheControl, fraud.CacheControl)
+	assert.Equal(t, dashboardCacheControl, topRules.CacheControl)
 	assert.Equal(t, "private, max-age=60", dashboardCacheControl,
 		"private because the figures are one tenant's; 60s because that is the cache TTL")
 }

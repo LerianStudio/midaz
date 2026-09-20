@@ -25,6 +25,7 @@ type DashboardService interface {
 	Metrics(ctx context.Context, window model.DashboardWindow) (*model.DashboardMetrics, error)
 	Volume(ctx context.Context, window model.DashboardWindow) (*model.DashboardVolume, error)
 	FraudTypes(ctx context.Context, window model.DashboardWindow) (*model.DashboardFraudTypes, error)
+	TopRules(ctx context.Context, window model.DashboardWindow) (*model.DashboardTopRules, error)
 }
 
 // DashboardHandler serves the operator dashboard reads.
@@ -119,4 +120,14 @@ func (h *DashboardHandler) getFraudTypes(ctx context.Context, in DashboardWindow
 	}
 
 	return h.service.FraudTypes(ctx, window)
+}
+
+// getTopRules is the transport-agnostic core of GET /v1/dashboard/top-rules.
+func (h *DashboardHandler) getTopRules(ctx context.Context, in DashboardWindowInput) (*model.DashboardTopRules, error) {
+	window, err := h.resolveWindow(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+
+	return h.service.TopRules(ctx, window)
 }

@@ -29,9 +29,24 @@ type countingRepo struct {
 	metrics    atomic.Int64
 	volume     atomic.Int64
 	fraudTypes atomic.Int64
+	topRules   atomic.Int64
 
 	processed int64
 	err       error
+}
+
+func (r *countingRepo) TopRules(_ context.Context, w model.DashboardWindow) (*model.DashboardTopRules, error) {
+	r.topRules.Add(1)
+
+	if r.err != nil {
+		return nil, r.err
+	}
+
+	return &model.DashboardTopRules{
+		Rules:       []model.TopRule{{Name: "high-value-wire", Matches: r.processed, Executions: r.processed}},
+		WindowStart: w.From,
+		WindowEnd:   w.To,
+	}, nil
 }
 
 func (r *countingRepo) Metrics(_ context.Context, w model.DashboardWindow) (*model.DashboardMetrics, error) {

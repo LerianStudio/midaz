@@ -128,6 +128,61 @@ const fraudTypesQuery = `
 	GROUP BY transaction_type
 	ORDER BY flagged DESC, transaction_type ASC`
 
+// topRulesQuery ranks the rules by how often they fired in the window.
+//
+// ONE pass over the window, and the single most expensive statement of the
+// four. The fan-out is the reason: CROSS JOIN LATERAL unnest turns each
+// validation into one row per rule it evaluated (three in the benchmark
+// fixture), so the aggregate sees ~3x the rows the other endpoints do and the
+// arrays force a heap read the covering index cannot serve.
+//
+// matches counts the same unnested rows FILTERed to those the rule actually
+// matched. That is only correct because matched_rule_ids is a SUBSET of
+// evaluated_rule_ids by construction: the engine appends every rule id to
+// EvaluatedRuleIDs BEFORE testing whether it matched
+// (internal/services/query/complete_evaluator.go, "// c. Track in
+// EvaluatedRuleIDs"), and the decision maker assembles matched ids from the
+// deny, review and allow sets, each of which the same loop produced. Were that
+// ever to change, a matched-but-not-evaluated rule would silently vanish from
+// this panel rather than error, so the invariant is asserted by an integration
+// test rather than left to this comment.
+//
+// productType is read from the RULE's own scopes, not from the traffic. The
+// traffic answer needs mode() WITHIN GROUP over the unnested rows, which forces
+// a full sort per group and measured 48 -> 200 ms at 30 days; it is also the
+// wrong answer, describing what the rule happened to see rather than what it
+// is configured to guard.
+//
+// The rule arrays are NOT indexed and must not be. A btree over them would
+// carry one entry per array, and an array of ~167 active rule ids exceeds the
+// btree tuple limit ("index row size 2712 exceeds btree version 4 maximum
+// 2704") — which fails the INSERT, losing a validation that cannot be
+// retried against an append-only trail. A GIN index answers containment, not
+// the per-rule aggregation this needs.
+const topRulesQuery = `
+	SELECT r.name,
+		(SELECT sc->>'transactionType'
+		   FROM jsonb_array_elements(r.scopes) sc
+		  WHERE sc ? 'transactionType'
+		  LIMIT 1) AS product_type,
+		s.matches,
+		s.executions,
+		COALESCE(s.matches::float8 / NULLIF(s.executions, 0), 0) AS detection_rate,
+		COALESCE(s.avg_ms, 0) AS avg_ms
+	FROM (
+		SELECT u.rule_id,
+			COUNT(*) AS executions,
+			COUNT(*) FILTER (WHERE u.rule_id = ANY (v.matched_rule_ids)) AS matches,
+			AVG(v.processing_time_ms) FILTER (WHERE u.rule_id = ANY (v.matched_rule_ids)) AS avg_ms
+		FROM transaction_validations v
+		CROSS JOIN LATERAL unnest(v.evaluated_rule_ids) AS u(rule_id)
+		WHERE v.created_at >= $1 AND v.created_at < $2
+		GROUP BY u.rule_id
+	) s
+	JOIN rules r ON r.id = s.rule_id
+	ORDER BY s.matches DESC, r.name ASC
+	LIMIT $3`
+
 // Metrics returns the headline dashboard panel for the window.
 func (r *DashboardRepository) Metrics(ctx context.Context, window model.DashboardWindow) (*model.DashboardMetrics, error) {
 	ctx, span, logger := r.startSpan(ctx, "repository.dashboard.metrics")
@@ -302,6 +357,54 @@ func (r *DashboardRepository) FraudTypes(ctx context.Context, window model.Dashb
 		for i := range result.Types {
 			result.Types[i].Percentage = float64(result.Types[i].Count) / denominator
 		}
+	}
+
+	return result, nil
+}
+
+// TopRules returns the busiest rules in the window.
+func (r *DashboardRepository) TopRules(ctx context.Context, window model.DashboardWindow) (*model.DashboardTopRules, error) {
+	ctx, span, logger := r.startSpan(ctx, "repository.dashboard.top_rules")
+	defer span.End()
+
+	db, err := r.conn.GetDB(ctx)
+	if err != nil {
+		return nil, fail(ctx, span, logger, "dashboard top rules: get database connection", err)
+	}
+
+	rows, err := db.QueryContext(ctx, topRulesQuery, window.From, window.To, model.DashboardTopRulesLimit)
+	if err != nil {
+		return nil, fail(ctx, span, logger, "dashboard top rules: querying", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	result := &model.DashboardTopRules{
+		Rules:       make([]model.TopRule, 0, model.DashboardTopRulesLimit),
+		WindowStart: window.From,
+		WindowEnd:   window.To,
+		UpdatedAt:   r.clock.Now().UTC(),
+	}
+
+	for rows.Next() {
+		var (
+			rule        model.TopRule
+			productType sql.NullString
+		)
+
+		if err := rows.Scan(&rule.Name, &productType, &rule.Matches, &rule.Executions,
+			&rule.DetectionRate, &rule.AvgProcessingMs); err != nil {
+			return nil, fail(ctx, span, logger, "dashboard top rules: scanning row", err)
+		}
+
+		// A rule scoped to no transaction type applies to all of them, which
+		// the wire renders as an absent productType rather than a made-up one.
+		rule.ProductType = productType.String
+
+		result.Rules = append(result.Rules, rule)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fail(ctx, span, logger, "dashboard top rules: iterating rows", err)
 	}
 
 	return result, nil

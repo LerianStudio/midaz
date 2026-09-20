@@ -43,6 +43,7 @@ const (
 	metricsEndpoint    = "metrics"
 	volumeEndpoint     = "volume"
 	fraudTypesEndpoint = "fraud-types"
+	topRulesEndpoint   = "top-rules"
 )
 
 // DashboardCache decorates a DashboardRepository with a Valkey read-through
@@ -88,6 +89,13 @@ func (c *DashboardCache) Volume(ctx context.Context, window model.DashboardWindo
 // FraudTypes serves the flagged breakdown from cache when it is there.
 func (c *DashboardCache) FraudTypes(ctx context.Context, window model.DashboardWindow) (*model.DashboardFraudTypes, error) {
 	return getOrCompute(ctx, c, fraudTypesEndpoint, window, c.inner.FraudTypes)
+}
+
+// TopRules serves the busiest-rules panel from cache when it is there. It is
+// the read that most needs the cache: it is the only one of the four that
+// cannot be answered from an index alone.
+func (c *DashboardCache) TopRules(ctx context.Context, window model.DashboardWindow) (*model.DashboardTopRules, error) {
+	return getOrCompute(ctx, c, topRulesEndpoint, window, c.inner.TopRules)
 }
 
 // getOrCompute is the whole cache. It is a package-level generic rather than

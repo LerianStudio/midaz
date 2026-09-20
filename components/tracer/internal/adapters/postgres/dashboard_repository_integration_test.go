@@ -446,3 +446,140 @@ func explain(t *testing.T, db *sql.DB, query string, window model.DashboardWindo
 
 	return plan.String()
 }
+
+// seedRule inserts an ACTIVE rule scoped to the given transaction type, or to
+// none when scopedType is empty, and returns its id.
+func seedRule(t *testing.T, db *sql.DB, name, scopedType string) uuid.UUID {
+	t.Helper()
+
+	scopes := `[]`
+	if scopedType != "" {
+		scopes = fmt.Sprintf(`[{"transactionType":%q}]`, scopedType)
+	}
+
+	id := uuid.New()
+	_, err := db.Exec(`
+		INSERT INTO rules (id, name, expression, action, scopes, status, activated_at)
+		VALUES ($1,$2,'amount > 1','DENY',$3::jsonb,'ACTIVE',now())`,
+		id, name+"-"+id.String()[:8], scopes)
+	require.NoError(t, err)
+
+	return id
+}
+
+func TestDashboardRepository_TopRules_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	window := dashboardWindowAt(t, 10)
+
+	// wire fires often, card fires rarely, quiet is evaluated on everything and
+	// never fires. quiet is the row a MATCHED-only query would drop, and it is
+	// the one an operator most needs: a rule guarding nothing.
+	wire := seedRule(t, db, "dashboard-top-wire", "WIRE")
+	card := seedRule(t, db, "dashboard-top-card", "CARD")
+	quiet := seedRule(t, db, "dashboard-top-quiet", "")
+
+	all := []uuid.UUID{wire, card, quiet}
+
+	seedValidations(t, db, window, []seededValidation{
+		{dayOffset: 0, decision: "DENY", transactionType: "WIRE", asset: "USD", amount: "1.00", processingMs: 10, matchedRules: []uuid.UUID{wire}, evaluatedRules: all},
+		{dayOffset: 0, decision: "DENY", transactionType: "WIRE", asset: "USD", amount: "1.00", processingMs: 30, matchedRules: []uuid.UUID{wire}, evaluatedRules: all},
+		{dayOffset: 1, decision: "REVIEW", transactionType: "WIRE", asset: "USD", amount: "1.00", processingMs: 50, matchedRules: []uuid.UUID{wire}, evaluatedRules: all},
+		{dayOffset: 1, decision: "DENY", transactionType: "CARD", asset: "USD", amount: "1.00", processingMs: 90, matchedRules: []uuid.UUID{card}, evaluatedRules: all},
+		{dayOffset: 2, decision: "ALLOW", transactionType: "PIX", asset: "USD", amount: "1.00", processingMs: 5, evaluatedRules: all},
+	})
+
+	result, err := newDashboardTestRepo(t, db).TopRules(context.Background(), window)
+	require.NoError(t, err)
+
+	byName := map[string]model.TopRule{}
+	for _, r := range result.Rules {
+		byName[ruleSuffixKey(r.Name)] = r
+	}
+
+	require.Contains(t, byName, "wire")
+	assert.EqualValues(t, 3, byName["wire"].Matches)
+	assert.EqualValues(t, 5, byName["wire"].Executions, "every validation in the window evaluated it")
+	assert.InDelta(t, 3.0/5.0, byName["wire"].DetectionRate, 1e-9)
+	assert.InDelta(t, 30.0, byName["wire"].AvgProcessingMs, 1e-9,
+		"the mean latency of the validations it MATCHED (10, 30, 50), never the 5 it merely saw")
+	assert.Equal(t, "WIRE", byName["wire"].ProductType, "read from the rule's own scope")
+
+	require.Contains(t, byName, "card")
+	assert.EqualValues(t, 1, byName["card"].Matches)
+	assert.Equal(t, "CARD", byName["card"].ProductType)
+
+	require.Contains(t, byName, "quiet")
+	assert.EqualValues(t, 0, byName["quiet"].Matches, "a rule that guards nothing must still be reported")
+	assert.EqualValues(t, 5, byName["quiet"].Executions)
+	assert.InDelta(t, 0.0, byName["quiet"].DetectionRate, 1e-9)
+	assert.InDelta(t, 0.0, byName["quiet"].AvgProcessingMs, 1e-9, "no matches means no latency, not a NULL on the wire")
+	assert.Empty(t, byName["quiet"].ProductType, "a rule scoped to no transaction type reports none")
+
+	// Ordering is part of the contract: an unstable order makes the panel
+	// flicker between identical readings on every refresh.
+	assert.Equal(t, "wire", ruleSuffixKey(result.Rules[0].Name), "most matches first")
+}
+
+// ruleSuffixKey recovers the stable half of a seeded rule name ("dashboard-top-wire-1a2b3c4d").
+func ruleSuffixKey(name string) string {
+	parts := strings.Split(name, "-")
+	if len(parts) < 2 {
+		return name
+	}
+
+	return parts[len(parts)-2]
+}
+
+// TestDashboardRepository_TopRulesMatchedSubsetOfEvaluated_Integration asserts
+// the invariant the whole single-pass query rests on.
+//
+// matches is counted by FILTERing the rows produced by unnesting
+// evaluated_rule_ids, so a rule that appears in matched_rule_ids but NOT in
+// evaluated_rule_ids contributes nothing — it vanishes from the panel silently
+// instead of erroring. The engine cannot produce that today: it appends every
+// rule id to EvaluatedRuleIDs before testing whether the rule matched, and the
+// decision maker assembles matched ids from the deny, review and allow sets
+// that same loop filled. This test is what turns that reading of the code into
+// something a future change has to break on purpose.
+func TestDashboardRepository_TopRulesMatchedSubsetOfEvaluated_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	window := dashboardWindowAt(t, 11)
+
+	evaluated := seedRule(t, db, "dashboard-subset-seen", "PIX")
+	phantom := seedRule(t, db, "dashboard-subset-phantom", "PIX")
+
+	// The second row violates the invariant on purpose: phantom matched without
+	// having been evaluated.
+	seedValidations(t, db, window, []seededValidation{
+		{dayOffset: 0, decision: "DENY", transactionType: "PIX", asset: "USD", amount: "1.00", processingMs: 10, matchedRules: []uuid.UUID{evaluated}, evaluatedRules: []uuid.UUID{evaluated}},
+		{dayOffset: 1, decision: "DENY", transactionType: "PIX", asset: "USD", amount: "1.00", processingMs: 10, matchedRules: []uuid.UUID{phantom}, evaluatedRules: []uuid.UUID{evaluated}},
+	})
+
+	result, err := newDashboardTestRepo(t, db).TopRules(context.Background(), window)
+	require.NoError(t, err)
+
+	names := map[string]bool{}
+	for _, r := range result.Rules {
+		names[ruleSuffixKey(r.Name)] = true
+	}
+
+	assert.False(t, names["phantom"],
+		"a rule matched but never evaluated is invisible to this query — if this ever fails, "+
+			"the engine started writing matched ids outside evaluated ids and the panel is under-reporting")
+
+	// And the invariant itself, asserted against the trail rather than the code:
+	// every validation the engine writes must satisfy matched ⊆ evaluated. The
+	// phantom row above is the ONLY violation in the whole table, so a count of
+	// exactly one proves both that the check works and that nothing else breaks it.
+	var violations int
+	require.NoError(t, db.QueryRow(`
+		SELECT COUNT(*) FROM transaction_validations
+		WHERE created_at >= $1 AND created_at < $2
+		  AND NOT (matched_rule_ids <@ evaluated_rule_ids)`,
+		window.From, window.To).Scan(&violations))
+	assert.Equal(t, 1, violations, "only the deliberately-planted row violates matched ⊆ evaluated")
+}

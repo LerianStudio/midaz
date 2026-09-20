@@ -18,10 +18,10 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
-// GetDashboardQuery serves the three dashboard reads. The three share one type
+// GetDashboardQuery serves the four dashboard reads. They share one type
 // because they share everything that matters: the same window, the same
 // repository, the same tracing shape and the same tenant. Splitting them into
-// three near-identical services would multiply the wiring without separating
+// four near-identical services would multiply the wiring without separating
 // anything.
 type GetDashboardQuery struct {
 	repo DashboardRepository
@@ -101,6 +101,29 @@ func (q *GetDashboardQuery) FraudTypes(ctx context.Context, window model.Dashboa
 	span.SetAttributes(attribute.Int64("app.response.total_flagged", types.TotalFlagged))
 
 	return types, nil
+}
+
+// TopRules returns the busiest-rules panel for the window.
+func (q *GetDashboardQuery) TopRules(ctx context.Context, window model.DashboardWindow) (*model.DashboardTopRules, error) {
+	ctx, span, done := q.begin(ctx, "service.dashboard.top_rules", window)
+	defer done()
+
+	if err := ctx.Err(); err != nil {
+		libOtel.HandleSpanError(span, "Context cancelled before repository call", err)
+
+		return nil, fmt.Errorf("dashboard top rules: %w", err)
+	}
+
+	topRules, err := q.repo.TopRules(ctx, window)
+	if err != nil {
+		libOtel.HandleSpanError(span, "Failed to read dashboard top rules", err)
+
+		return nil, fmt.Errorf("dashboard top rules: %w", err)
+	}
+
+	span.SetAttributes(attribute.Int("app.response.rules", len(topRules.Rules)))
+
+	return topRules, nil
 }
 
 // begin opens the span and enriches the logger, returning the span plus the

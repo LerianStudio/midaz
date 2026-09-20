@@ -37,4 +37,8 @@ type DashboardRepository interface {
 	// FraudTypes returns the flagged (DENY + REVIEW) breakdown by transaction
 	// type across the window.
 	FraudTypes(ctx context.Context, window model.DashboardWindow) (*model.DashboardFraudTypes, error)
+
+	// TopRules returns the busiest rules in the window, capped at
+	// model.DashboardTopRulesLimit.
+	TopRules(ctx context.Context, window model.DashboardWindow) (*model.DashboardTopRules, error)
 }

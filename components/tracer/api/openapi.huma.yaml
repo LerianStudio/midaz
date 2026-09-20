@@ -249,6 +249,30 @@ components:
         - windowEnd
         - updatedAt
       type: object
+    DashboardTopRules:
+      additionalProperties: false
+      properties:
+        rules:
+          items:
+            $ref: "#/components/schemas/TopRule"
+          type:
+            - array
+            - "null"
+        updatedAt:
+          format: date-time
+          type: string
+        windowEnd:
+          format: date-time
+          type: string
+        windowStart:
+          format: date-time
+          type: string
+      required:
+        - rules
+        - windowStart
+        - windowEnd
+        - updatedAt
+      type: object
     DashboardVolume:
       additionalProperties: false
       properties:
@@ -808,6 +832,44 @@ components:
           type: string
       required:
         - segmentId
+      type: object
+    TopRule:
+      additionalProperties: false
+      properties:
+        avgProcessingMs:
+          examples:
+            - 41.2
+          format: double
+          type: number
+        detectionRate:
+          examples:
+            - 0.063
+          format: double
+          type: number
+        executions:
+          examples:
+            - 20536
+          format: int64
+          type: integer
+        matches:
+          examples:
+            - 1287
+          format: int64
+          type: integer
+        name:
+          examples:
+            - high-value-wire
+          type: string
+        productType:
+          examples:
+            - WIRE
+          type: string
+      required:
+        - name
+        - matches
+        - executions
+        - detectionRate
+        - avgProcessingMs
       type: object
     TransactionActionResponse:
       additionalProperties: false
@@ -1527,6 +1589,67 @@ paths:
         - BearerAuth: []
         - ApiKeyAuth: []
       summary: Get dashboard headline metrics
+      tags:
+        - Dashboard
+  /dashboard/top-rules:
+    get:
+      description: Returns up to ten rules ordered by how often they matched, with the number of validations that evaluated each, its detection rate, and the mean end-to-end latency of the validations it matched.
+      operationId: getDashboardTopRules
+      parameters:
+        - description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
+          explode: false
+          in: query
+          name: period
+          schema:
+            description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
+            type: string
+        - description: Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Window start (RFC3339). Requires end_date. Mutually exclusive with period.
+            type: string
+        - description: Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Window end (RFC3339), exclusive. Requires start_date. Window may not exceed 90 days.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardTopRules"
+          description: OK
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      summary: Get the busiest rules in the window
       tags:
         - Dashboard
   /dashboard/volume:

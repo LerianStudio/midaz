@@ -13,7 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
-// This file registers the three dashboard reads on Huma, following the pattern
+// This file registers the four dashboard reads on Huma, following the pattern
 // established in rule_handler_huma.go. Conventions carried verbatim:
 //
 //   - Query params carry NO validation struct tag (only doc:). The imperative
@@ -32,7 +32,7 @@ import (
 // of a proxy holding a window the server has already recomputed.
 const dashboardCacheControl = "private, max-age=60"
 
-// DashboardWindowInputHuma is the Huma request envelope shared by the three
+// DashboardWindowInputHuma is the Huma request envelope shared by the four
 // reads. Every param is a plain string with only doc: — see the file header.
 type DashboardWindowInputHuma struct {
 	Period    string `query:"period" doc:"Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."`
@@ -62,6 +62,11 @@ type (
 		CacheControl string `header:"Cache-Control"`
 		Body         *model.DashboardFraudTypes
 	}
+	// DashboardTopRulesOutputHuma is the response for GET /v1/dashboard/top-rules.
+	DashboardTopRulesOutputHuma struct {
+		CacheControl string `header:"Cache-Control"`
+		Body         *model.DashboardTopRules
+	}
 )
 
 // dashboardOp builds the shared per-operation definition for a dashboard read.
@@ -77,7 +82,7 @@ func dashboardOp(opID, path, summary, description string) huma.Operation {
 	}
 }
 
-// RegisterDashboardRoutes mounts the three dashboard read operations.
+// RegisterDashboardRoutes mounts the four dashboard read operations.
 func RegisterDashboardRoutes(api huma.API, h *DashboardHandler) {
 	const base = "/dashboard"
 
@@ -95,6 +100,11 @@ func RegisterDashboardRoutes(api huma.API, h *DashboardHandler) {
 		"Get dashboard flagged-traffic breakdown",
 		"Returns DENY + REVIEW decisions broken down by transaction type, with each type's share of the flagged traffic."),
 		h.GetFraudTypesHuma)
+
+	huma.Register(api, dashboardOp("getDashboardTopRules", base+"/top-rules",
+		"Get the busiest rules in the window",
+		"Returns up to ten rules ordered by how often they matched, with the number of validations that evaluated each, its detection rate, and the mean end-to-end latency of the validations it matched."),
+		h.GetTopRulesHuma)
 }
 
 // GetMetricsHuma serves GET /v1/dashboard/metrics.
@@ -125,4 +135,14 @@ func (h *DashboardHandler) GetFraudTypesHuma(ctx context.Context, in *DashboardW
 	}
 
 	return &DashboardFraudTypesOutputHuma{CacheControl: dashboardCacheControl, Body: types}, nil
+}
+
+// GetTopRulesHuma serves GET /v1/dashboard/top-rules.
+func (h *DashboardHandler) GetTopRulesHuma(ctx context.Context, in *DashboardWindowInputHuma) (*DashboardTopRulesOutputHuma, error) {
+	topRules, err := h.getTopRules(ctx, in.input())
+	if err != nil {
+		return nil, humaProblem(err)
+	}
+
+	return &DashboardTopRulesOutputHuma{CacheControl: dashboardCacheControl, Body: topRules}, nil
 }
