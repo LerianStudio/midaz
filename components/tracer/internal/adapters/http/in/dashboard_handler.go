@@ -9,9 +9,11 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -63,15 +65,23 @@ func (h *DashboardHandler) resolveWindow(ctx context.Context, in DashboardWindow
 }
 
 // badWindow renders an invalid window as the canonical validation error. The
-// underlying reason travels in the span, not to the caller: the canonical
-// message already names every way a window can be wrong.
+// specific reason ("unsupported period 45d", "window may not exceed 90 days")
+// goes to the span and the log, not to the caller: the canonical message
+// already names every way a window can be wrong, and an operator debugging a
+// console stuck on a 400 needs which one it was.
 func (h *DashboardHandler) badWindow(ctx context.Context, err error) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.dashboard.invalid_window")
+	spanCtx, span := tracer.Start(ctx, "handler.dashboard.invalid_window")
 	defer span.End()
 
 	libOtel.HandleSpanBusinessErrorEvent(span, "Invalid dashboard window", err)
+
+	// A window error is the caller's mistake, not the service's, so it is
+	// logged at Debug: a client looping on a bad period must not be able to
+	// fill an operator's logs.
+	logging.WithTrace(spanCtx, logger).Log(spanCtx, libLog.LevelDebug,
+		"rejected dashboard window", libLog.Err(err))
 
 	if !errors.Is(err, constant.ErrInvalidDashboardWindow) {
 		// Unreachable: NewDashboardWindow only ever wraps this sentinel.

@@ -92,6 +92,7 @@ func buildTracerHumaAPI() huma.API {
 		Reservation:           &ReservationHandler{},
 		ResTenantMW:           func(c fiber.Ctx) error { return c.Next() },
 		AuditEvent:            &AuditEventHandler{},
+		Dashboard:             &DashboardHandler{},
 	})
 
 	return humaAPI

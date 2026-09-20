@@ -11,6 +11,7 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
@@ -18,6 +19,7 @@ import (
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
+	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
@@ -128,27 +130,21 @@ const fraudTypesQuery = `
 
 // Metrics returns the headline dashboard panel for the window.
 func (r *DashboardRepository) Metrics(ctx context.Context, window model.DashboardWindow) (*model.DashboardMetrics, error) {
-	ctx, span := r.startSpan(ctx, "repository.dashboard.metrics")
+	ctx, span, logger := r.startSpan(ctx, "repository.dashboard.metrics")
 	defer span.End()
 
 	db, err := r.conn.GetDB(ctx)
 	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to get database connection", err)
-
-		return nil, fmt.Errorf("dashboard metrics: get database connection: %w", err)
+		return nil, fail(ctx, span, logger, "dashboard metrics: get database connection", err)
 	}
 
 	metrics, err := scanMetrics(ctx, db, window)
 	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to aggregate dashboard metrics", err)
-
-		return nil, err
+		return nil, fail(ctx, span, logger, "dashboard metrics", err)
 	}
 
 	if err := db.QueryRowContext(ctx, activeCountsQuery).Scan(&metrics.ActiveRules, &metrics.ActiveLimits); err != nil {
-		libOtel.HandleSpanError(span, "Failed to count active rules and limits", err)
-
-		return nil, fmt.Errorf("dashboard metrics: scanning active counts: %w", err)
+		return nil, fail(ctx, span, logger, "dashboard metrics: scanning active counts", err)
 	}
 
 	metrics.WindowStart = window.From
@@ -216,21 +212,17 @@ func scanMetrics(ctx context.Context, db pgdb.DB, window model.DashboardWindow) 
 
 // Volume returns the per-day validation counts across the window.
 func (r *DashboardRepository) Volume(ctx context.Context, window model.DashboardWindow) (*model.DashboardVolume, error) {
-	ctx, span := r.startSpan(ctx, "repository.dashboard.volume")
+	ctx, span, logger := r.startSpan(ctx, "repository.dashboard.volume")
 	defer span.End()
 
 	db, err := r.conn.GetDB(ctx)
 	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to get database connection", err)
-
-		return nil, fmt.Errorf("dashboard volume: get database connection: %w", err)
+		return nil, fail(ctx, span, logger, "dashboard volume: get database connection", err)
 	}
 
 	rows, err := db.QueryContext(ctx, volumeQuery, window.From, window.To)
 	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to aggregate dashboard volume", err)
-
-		return nil, fmt.Errorf("dashboard volume: querying: %w", err)
+		return nil, fail(ctx, span, logger, "dashboard volume: querying", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -248,9 +240,7 @@ func (r *DashboardRepository) Volume(ctx context.Context, window model.Dashboard
 		)
 
 		if err := rows.Scan(&bucket, &count); err != nil {
-			libOtel.HandleSpanError(span, "Failed to scan dashboard volume row", err)
-
-			return nil, fmt.Errorf("dashboard volume: scanning row: %w", err)
+			return nil, fail(ctx, span, logger, "dashboard volume: scanning row", err)
 		}
 
 		volume.Points = append(volume.Points, model.VolumePoint{
@@ -260,9 +250,7 @@ func (r *DashboardRepository) Volume(ctx context.Context, window model.Dashboard
 	}
 
 	if err := rows.Err(); err != nil {
-		libOtel.HandleSpanError(span, "Failed to iterate dashboard volume rows", err)
-
-		return nil, fmt.Errorf("dashboard volume: iterating rows: %w", err)
+		return nil, fail(ctx, span, logger, "dashboard volume: iterating rows", err)
 	}
 
 	return volume, nil
@@ -270,21 +258,17 @@ func (r *DashboardRepository) Volume(ctx context.Context, window model.Dashboard
 
 // FraudTypes returns the flagged breakdown by transaction type.
 func (r *DashboardRepository) FraudTypes(ctx context.Context, window model.DashboardWindow) (*model.DashboardFraudTypes, error) {
-	ctx, span := r.startSpan(ctx, "repository.dashboard.fraud_types")
+	ctx, span, logger := r.startSpan(ctx, "repository.dashboard.fraud_types")
 	defer span.End()
 
 	db, err := r.conn.GetDB(ctx)
 	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to get database connection", err)
-
-		return nil, fmt.Errorf("dashboard fraud types: get database connection: %w", err)
+		return nil, fail(ctx, span, logger, "dashboard fraud types: get database connection", err)
 	}
 
 	rows, err := db.QueryContext(ctx, fraudTypesQuery, window.From, window.To)
 	if err != nil {
-		libOtel.HandleSpanError(span, "Failed to aggregate dashboard fraud types", err)
-
-		return nil, fmt.Errorf("dashboard fraud types: querying: %w", err)
+		return nil, fail(ctx, span, logger, "dashboard fraud types: querying", err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -299,9 +283,7 @@ func (r *DashboardRepository) FraudTypes(ctx context.Context, window model.Dashb
 		var slice model.FraudTypeSlice
 
 		if err := rows.Scan(&slice.Type, &slice.Count, &slice.Total); err != nil {
-			libOtel.HandleSpanError(span, "Failed to scan dashboard fraud type row", err)
-
-			return nil, fmt.Errorf("dashboard fraud types: scanning row: %w", err)
+			return nil, fail(ctx, span, logger, "dashboard fraud types: scanning row", err)
 		}
 
 		result.TotalFlagged += slice.Count
@@ -309,9 +291,7 @@ func (r *DashboardRepository) FraudTypes(ctx context.Context, window model.Dashb
 	}
 
 	if err := rows.Err(); err != nil {
-		libOtel.HandleSpanError(span, "Failed to iterate dashboard fraud type rows", err)
-
-		return nil, fmt.Errorf("dashboard fraud types: iterating rows: %w", err)
+		return nil, fail(ctx, span, logger, "dashboard fraud types: iterating rows", err)
 	}
 
 	// Shares are computed here rather than in SQL: a window with no flagged
@@ -327,9 +307,28 @@ func (r *DashboardRepository) FraudTypes(ctx context.Context, window model.Dashb
 	return result, nil
 }
 
-// startSpan opens the repository span with the request's tracer.
-func (r *DashboardRepository) startSpan(ctx context.Context, name string) (context.Context, trace.Span) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+// startSpan opens the repository span and returns the trace-enriched logger
+// alongside it, so a failure is both recorded on the span and visible in the
+// logs with its trace id attached.
+func (r *DashboardRepository) startSpan(ctx context.Context, name string) (context.Context, trace.Span, libLog.Logger) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	return tracer.Start(ctx, name)
+	ctx, span := tracer.Start(ctx, name)
+
+	return ctx, span, logging.WithTrace(ctx, logger)
+}
+
+// fail records an error on the span and in the log, then wraps it. Every
+// failure path in this file goes through it, so none of them can report to one
+// destination and not the other.
+func fail(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error) error {
+	wrapped := fmt.Errorf("%s: %w", message, err)
+
+	libOtel.HandleSpanError(span, message, wrapped)
+
+	if logger != nil {
+		logger.Log(ctx, libLog.LevelError, message, libLog.Err(err))
+	}
+
+	return wrapped
 }
