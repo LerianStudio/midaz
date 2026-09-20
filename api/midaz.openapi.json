@@ -25237,9 +25237,6 @@
         "properties": {
           "code": {
             "description": "Stable, machine-readable domain error code scoped to the emitting service (format: <SERVICE>-NNNN).",
-            "examples": [
-              "ERR-0001"
-            ],
             "type": "string"
           },
           "detail": {
