@@ -66,13 +66,24 @@ func TestDashboardReadsNeverGetAGenericPlan_Integration(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	for _, tc := range []struct{ name, fragment string }{
-		{"metrics", "GROUPING SETS"},
-		{"volume", "AT TIME ZONE"},
-		{"fraud-types", "GROUP BY transaction_type"},
-		{"top-rules", "CROSS JOIN LATERAL"},
+	for _, tc := range []struct{ name, fragment, query string }{
+		{"metrics", "GROUPING SETS", metricsQuery},
+		{"volume", "AT TIME ZONE", volumeQuery},
+		{"fraud-types", "GROUP BY transaction_type", fraudTypesQuery},
+		{"top-rules", "CROSS JOIN LATERAL", topRulesQuery},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// Positive control, and it has to come first. The two assertions
+			// below are both "this count is zero", which a subtest that matches
+			// NOTHING satisfies perfectly: reword the query — qualify a column,
+			// say `GROUP BY v.transaction_type` — and the fragment stops
+			// matching, no rows come back, and the subtest passes for ever
+			// against code it is supposed to condemn. Proven by rewording this
+			// exact fragment against a build with windowPlanMode removed: the
+			// other three failed and fraud-types passed.
+			require.Containsf(t, tc.query, tc.fragment,
+				"the %s fragment no longer occurs in its query: this subtest is asserting nothing", tc.name)
+
 			var (
 				cached  int
 				generic int

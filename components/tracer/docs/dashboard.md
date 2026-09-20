@@ -178,7 +178,7 @@ GIN index answers containment, not the per-rule aggregation `/top-rules` needs.
 Assume the hygiene any Lerian service already has: one `GET`-only base that owns
 no state, one bounded aggregation per endpoint with no unbounded scan and no
 N+1, the tenant from the validated JWT rather than a parameter, `updatedAt` on
-every body. The seven rules below are the ones this lane paid for in defects.
+every body. The eight rules below are the ones this lane paid for in defects.
 
 1. **Snap the window to the cache TTL's granularity, and snap the END UP.** A
    closed period set with a default, or an explicit RFC3339 pair, mutually
