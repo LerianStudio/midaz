@@ -111,31 +111,31 @@ const metricsQuery = `
 // generating up to $4's date would publish a trailing day that is empty by
 // construction rather than because nothing happened.
 //
-// Per day the statement emits one total row (any status, any asset) and one
-// row per asset carrying that day's settled volume, from the same grouping-set
-// discipline as metricsQuery. A day with no rows survives the join as the
-// total row alone, with the aggregate columns NULL, which COALESCE turns into
-// an honest zero.
+// The aggregate is ONE plain GROUP BY (day, asset) and the day's own total is
+// summed from its asset rows in Go. That is exact rather than merely close,
+// because asset_code is NOT NULL: every transaction lands in exactly one asset
+// bucket, so the asset rows of a day partition that day. Asking SQL for the day
+// total as a second grouping set — the shape /metrics uses, where the sets are
+// genuinely different questions — measured 1211ms against 883ms at 90 days on a
+// seeded million-row window, because the shared `bucket` prefix pushed the
+// planner off a hash aggregate and onto a GroupAggregate that sorted the whole
+// window to disk (32MB external merge). One grouping set, no sort of that kind,
+// and the arithmetic moves to the one place it cannot disagree with itself.
 const volumeQuery = `
-	WITH windowed AS (
-		SELECT (created_at AT TIME ZONE 'UTC')::date AS bucket, asset_code, status, amount
+	WITH agg AS (
+		SELECT
+			(created_at AT TIME ZONE 'UTC')::date AS bucket,
+			asset_code,
+			COUNT(*) AS transactions,
+			COUNT(*) FILTER (WHERE status = ANY($5)) AS settled_transactions,
+			COALESCE(SUM(amount) FILTER (WHERE status = ANY($5)), 0) AS settled_amount
 		FROM "transaction"
 		WHERE organization_id = $1
 		  AND ledger_id = $2
 		  AND created_at >= $3
 		  AND created_at < $4
 		  AND deleted_at IS NULL
-	),
-	agg AS (
-		SELECT
-			bucket,
-			GROUPING(asset_code) AS no_asset,
-			asset_code,
-			COUNT(*) AS transactions,
-			COUNT(*) FILTER (WHERE status = ANY($5)) AS settled_transactions,
-			COALESCE(SUM(amount) FILTER (WHERE status = ANY($5)), 0) AS settled_amount
-		FROM windowed
-		GROUP BY GROUPING SETS ((bucket), (bucket, asset_code))
+		GROUP BY 1, 2
 	),
 	days AS (
 		SELECT generate_series(
@@ -146,14 +146,13 @@ const volumeQuery = `
 	)
 	SELECT
 		d.bucket,
-		COALESCE(a.no_asset, 1) AS no_asset,
 		a.asset_code,
 		COALESCE(a.transactions, 0),
 		COALESCE(a.settled_transactions, 0),
 		COALESCE(a.settled_amount, 0)
 	FROM days d
 	LEFT JOIN agg a ON a.bucket = d.bucket
-	ORDER BY d.bucket ASC, no_asset DESC, a.asset_code ASC`
+	ORDER BY d.bucket ASC, a.asset_code ASC NULLS FIRST`
 
 // assetsQuery reads the ledger's CURRENT position per asset off the balance
 // table. It carries no created_at predicate because it aggregates no history:
@@ -324,42 +323,46 @@ func (r *DashboardPostgreSQLRepository) Volume(ctx context.Context, organization
 	for rows.Next() {
 		var (
 			bucket              time.Time
-			noAsset             int
 			asset               sql.NullString
 			transactions        int64
 			settledTransactions int64
 			settledAmount       decimal.Decimal
 		)
 
-		if err := rows.Scan(&bucket, &noAsset, &asset, &transactions, &settledTransactions, &settledAmount); err != nil {
+		if err := rows.Scan(&bucket, &asset, &transactions, &settledTransactions, &settledAmount); err != nil {
 			return nil, fail(ctx, span, logger, "dashboard volume: scanning row", err)
 		}
 
 		date := bucket.Format(time.DateOnly)
 
-		// The statement orders by day, and within a day emits the total row
-		// before its asset rows, so the point a row belongs to is always the
+		// The statement orders by day and the join emits every day, so a new
+		// date always opens a new point and the point a row belongs to is the
 		// one most recently appended.
-		if noAsset == 1 {
+		if len(volume.Points) == 0 || volume.Points[len(volume.Points)-1].Date != date {
 			volume.Points = append(volume.Points, mmodel.DashboardVolumePoint{
-				Date:         date,
-				Transactions: transactions,
-				ByAsset:      make([]mmodel.DashboardAssetVolume, 0),
+				Date:    date,
+				ByAsset: make([]mmodel.DashboardAssetVolume, 0),
 			})
+		}
 
+		point := &volume.Points[len(volume.Points)-1]
+
+		// A day the window touched but nothing landed in survives the LEFT JOIN
+		// with no asset at all. It is already appended above with its zero
+		// count and empty breakdown, which is the whole reason the day series
+		// is generated rather than read off the data.
+		if !asset.Valid {
 			continue
 		}
 
-		if len(volume.Points) == 0 || volume.Points[len(volume.Points)-1].Date != date {
-			return nil, fail(ctx, span, logger, "dashboard volume: row order",
-				fmt.Errorf("asset row for %s arrived before its day total", date))
-		}
+		// The day's own total is the sum over its assets. asset_code is NOT
+		// NULL, so those rows partition the day exactly.
+		point.Transactions += transactions
 
 		if settledTransactions == 0 {
 			continue
 		}
 
-		point := &volume.Points[len(volume.Points)-1]
 		point.ByAsset = append(point.ByAsset, mmodel.DashboardAssetVolume{
 			Asset:        asset.String,
 			Amount:       settledAmount,
