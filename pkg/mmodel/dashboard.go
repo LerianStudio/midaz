@@ -22,14 +22,14 @@ import (
 // A consumer formats to the asset's exponent rather than echoing the string,
 // and never passes the value through a binary float.
 
-// DashboardAssetVolume is one asset's settled volume inside a window.
+// LedgerDashboardAssetVolume is one asset's settled volume inside a window.
 //
 // Amount is the sum of transaction.amount over SETTLED transactions only
 // (constant.SettledTransactionStatuses — APPROVED), and Transactions counts
 // exactly the rows that sum contains. The pair therefore always describes the
 // same set of rows: a reader can divide one by the other and get an average
 // that means something.
-type DashboardAssetVolume struct {
+type LedgerDashboardAssetVolume struct {
 	// Asset is the asset code the volume was carried in.
 	Asset string `json:"asset" example:"BRL"`
 	// Amount is the settled volume in that asset, as an exact decimal string.
@@ -38,9 +38,9 @@ type DashboardAssetVolume struct {
 	Transactions int64 `json:"transactions" example:"128"`
 }
 
-// DashboardMetrics is the headline panel: how much traffic the window carried,
+// LedgerDashboardMetrics is the headline panel: how much traffic the window carried,
 // how it was decided, and how much money actually moved in each asset.
-type DashboardMetrics struct {
+type LedgerDashboardMetrics struct {
 	// Total is every transaction created in the window, whatever its status and
 	// whatever asset it carried. It is the one figure in this type that is NOT
 	// per asset, and it is a count rather than money.
@@ -61,7 +61,7 @@ type DashboardMetrics struct {
 	// settled row rather than unwinding the first, so 1000 EUR posted and then
 	// reverted is 2000 EUR across 2 transactions here — that is the throughput
 	// the ledger actually carried.
-	VolumeByAsset []DashboardAssetVolume `json:"volumeByAsset"`
+	VolumeByAsset []LedgerDashboardAssetVolume `json:"volumeByAsset"`
 
 	// ReversalsByAsset is the reverted part of that gross figure: the settled
 	// transactions in the window that carry a parent_transaction_id, which is
@@ -71,52 +71,52 @@ type DashboardMetrics struct {
 	// Net is `volume − reversals` and is deliberately NOT a field: it is the
 	// operator's arithmetic, and publishing it would make the console carry a
 	// second money definition that has to stay in step with this one.
-	ReversalsByAsset []DashboardAssetVolume `json:"reversalsByAsset" doc:"The reverted part of the gross volume: settled transactions carrying a parent_transaction_id, per asset. Net is volume minus reversals and is deliberately not a field."`
+	ReversalsByAsset []LedgerDashboardAssetVolume `json:"reversalsByAsset" doc:"The reverted part of the gross volume: settled transactions carrying a parent_transaction_id, per asset. Net is volume minus reversals and is deliberately not a field."`
 
 	WindowStart time.Time `json:"windowStart"`
 	WindowEnd   time.Time `json:"windowEnd"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-// DashboardVolumePoint is one UTC calendar day of the volume series.
+// LedgerDashboardVolumePoint is one UTC calendar day of the volume series.
 //
 // Transactions counts EVERY transaction created that day, matching
-// DashboardMetrics.Total's rule, so the points sum to it. ByAsset applies
-// DashboardMetrics.VolumeByAsset's settled rule to that day alone, so summing a
+// LedgerDashboardMetrics.Total's rule, so the points sum to it. ByAsset applies
+// LedgerDashboardMetrics.VolumeByAsset's settled rule to that day alone, so summing a
 // given asset's Amount across the points reproduces that asset's entry in
 // /metrics. Those two identities are what let an operator reconcile the chart
 // against the headline instead of wondering which one is lying.
-type DashboardVolumePoint struct {
+type LedgerDashboardVolumePoint struct {
 	// Date is the UTC calendar day, rendered YYYY-MM-DD.
 	Date string `json:"date" example:"2026-09-19"`
 	// Transactions is every transaction created that day, any status, any asset.
 	Transactions int64 `json:"transactions" example:"212"`
 	// ByAsset is that day's settled volume per asset. Empty on a day that
 	// settled nothing, including a day with PENDING traffic only.
-	ByAsset []DashboardAssetVolume `json:"byAsset"`
+	ByAsset []LedgerDashboardAssetVolume `json:"byAsset"`
 }
 
-// DashboardVolume is the per-day series over the window.
+// LedgerDashboardVolume is the per-day series over the window.
 //
 // Every UTC calendar day the window TOUCHES is present, including days with no
 // transactions, which carry Transactions 0 and an empty ByAsset. A window is
 // half-open and its bounds snap to the minute rather than to midnight, so a 7d
 // window opened mid-afternoon touches EIGHT days: the partial day it started
 // in and the partial day it ends in. That is the contract, not an off-by-one.
-type DashboardVolume struct {
-	Points      []DashboardVolumePoint `json:"points"`
-	WindowStart time.Time              `json:"windowStart"`
-	WindowEnd   time.Time              `json:"windowEnd"`
-	UpdatedAt   time.Time              `json:"updatedAt"`
+type LedgerDashboardVolume struct {
+	Points      []LedgerDashboardVolumePoint `json:"points"`
+	WindowStart time.Time                    `json:"windowStart"`
+	WindowEnd   time.Time                    `json:"windowEnd"`
+	UpdatedAt   time.Time                    `json:"updatedAt"`
 }
 
-// DashboardAssetPosition is the ledger's CURRENT position in one asset.
+// LedgerDashboardAssetPosition is the ledger's CURRENT position in one asset.
 //
 // Available and OnHold are summed from the balance table, whose values are
 // DECIMAL with each row's scale already folded in (migration 000005), so the
 // sum is exact whatever precision the individual accounts hold the asset at.
 // The sum is per asset and there is nowhere here to put a cross-asset total.
-type DashboardAssetPosition struct {
+type LedgerDashboardAssetPosition struct {
 	// Asset is the asset code.
 	Asset string `json:"asset" example:"BRL"`
 	// Accounts is how many DISTINCT accounts hold a balance in this asset. An
@@ -129,14 +129,14 @@ type DashboardAssetPosition struct {
 	OnHold decimal.Decimal `json:"onHold" example:"1200.00"`
 }
 
-// DashboardAssets is the current position per asset.
+// LedgerDashboardAssets is the current position per asset.
 //
 // It carries NO window and ignores any window parameter: a balance is a
 // running total the ledger maintains, not something aggregated over history,
 // so "the position over the last 7 days" is not a question the balance table
 // can answer. Reading it is proportional to the ledger's account count, never
 // to its transaction history.
-type DashboardAssets struct {
-	Assets    []DashboardAssetPosition `json:"assets"`
-	UpdatedAt time.Time                `json:"updatedAt"`
+type LedgerDashboardAssets struct {
+	Assets    []LedgerDashboardAssetPosition `json:"assets"`
+	UpdatedAt time.Time                      `json:"updatedAt"`
 }

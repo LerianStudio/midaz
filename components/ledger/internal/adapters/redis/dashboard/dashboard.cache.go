@@ -115,17 +115,17 @@ func NewDashboardCache(inner postgresDashboard.Repository, provider ClientProvid
 
 // Metrics serves the headline panel from cache when it is there, and computes
 // and stores it when it is not.
-func (c *DashboardCache) Metrics(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.DashboardMetrics, error) {
+func (c *DashboardCache) Metrics(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardMetrics, error) {
 	return getOrCompute(ctx, c, c.windowKey(metricsEndpoint, organizationID, ledgerID, window),
-		func(ctx context.Context) (*mmodel.DashboardMetrics, error) {
+		func(ctx context.Context) (*mmodel.LedgerDashboardMetrics, error) {
 			return c.inner.Metrics(ctx, organizationID, ledgerID, window)
 		})
 }
 
 // Volume serves the per-day series from cache when it is there.
-func (c *DashboardCache) Volume(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.DashboardVolume, error) {
+func (c *DashboardCache) Volume(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardVolume, error) {
 	return getOrCompute(ctx, c, c.windowKey(volumeEndpoint, organizationID, ledgerID, window),
-		func(ctx context.Context) (*mmodel.DashboardVolume, error) {
+		func(ctx context.Context) (*mmodel.LedgerDashboardVolume, error) {
 			return c.inner.Volume(ctx, organizationID, ledgerID, window)
 		})
 }
@@ -137,9 +137,9 @@ func (c *DashboardCache) Volume(ctx context.Context, organizationID, ledgerID uu
 // happened to select, answering one question several times over. It is the
 // cheapest of the three reads and still cached, because N viewers coalescing
 // onto one answer is the point rather than the cost of any single read.
-func (c *DashboardCache) Assets(ctx context.Context, organizationID, ledgerID uuid.UUID) (*mmodel.DashboardAssets, error) {
+func (c *DashboardCache) Assets(ctx context.Context, organizationID, ledgerID uuid.UUID) (*mmodel.LedgerDashboardAssets, error) {
 	return getOrCompute(ctx, c, c.scopeKey(assetsEndpoint, organizationID, ledgerID),
-		func(ctx context.Context) (*mmodel.DashboardAssets, error) {
+		func(ctx context.Context) (*mmodel.LedgerDashboardAssets, error) {
 			return c.inner.Assets(ctx, organizationID, ledgerID)
 		})
 }

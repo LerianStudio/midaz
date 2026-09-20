@@ -73,7 +73,7 @@ func (handler *DashboardHandler) resolveWindow(period, startDate, endDate string
 }
 
 // getDashboardMetrics owns the span + service call for the headline panel.
-func (handler *DashboardHandler) getDashboardMetrics(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.DashboardMetrics, error) {
+func (handler *DashboardHandler) getDashboardMetrics(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardMetrics, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_dashboard_metrics")
@@ -90,7 +90,7 @@ func (handler *DashboardHandler) getDashboardMetrics(ctx context.Context, organi
 }
 
 // getDashboardVolume owns the span + service call for the per-day series.
-func (handler *DashboardHandler) getDashboardVolume(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.DashboardVolume, error) {
+func (handler *DashboardHandler) getDashboardVolume(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardVolume, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_dashboard_volume")
@@ -107,7 +107,7 @@ func (handler *DashboardHandler) getDashboardVolume(ctx context.Context, organiz
 }
 
 // getDashboardAssets owns the span + service call for the current position.
-func (handler *DashboardHandler) getDashboardAssets(ctx context.Context, organizationID, ledgerID uuid.UUID) (*mmodel.DashboardAssets, error) {
+func (handler *DashboardHandler) getDashboardAssets(ctx context.Context, organizationID, ledgerID uuid.UUID) (*mmodel.LedgerDashboardAssets, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_dashboard_assets")

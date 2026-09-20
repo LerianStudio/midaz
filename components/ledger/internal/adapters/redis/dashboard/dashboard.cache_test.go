@@ -60,7 +60,7 @@ type countingRepo struct {
 
 var _ postgresDashboard.Repository = (*countingRepo)(nil)
 
-func (r *countingRepo) Metrics(_ context.Context, _, _ uuid.UUID, window dashboard.Window) (*mmodel.DashboardMetrics, error) {
+func (r *countingRepo) Metrics(_ context.Context, _, _ uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardMetrics, error) {
 	r.enter()
 
 	r.mu.Lock()
@@ -73,16 +73,16 @@ func (r *countingRepo) Metrics(_ context.Context, _, _ uuid.UUID, window dashboa
 		return nil, err
 	}
 
-	return &mmodel.DashboardMetrics{
+	return &mmodel.LedgerDashboardMetrics{
 		Total:         7,
 		ByStatus:      map[string]int64{"APPROVED": 7},
-		VolumeByAsset: []mmodel.DashboardAssetVolume{{Asset: "BRL", Amount: decimal.RequireFromString(amount), Transactions: 7}},
+		VolumeByAsset: []mmodel.LedgerDashboardAssetVolume{{Asset: "BRL", Amount: decimal.RequireFromString(amount), Transactions: 7}},
 		WindowStart:   window.From,
 		WindowEnd:     window.To,
 	}, nil
 }
 
-func (r *countingRepo) Volume(_ context.Context, _, _ uuid.UUID, window dashboard.Window) (*mmodel.DashboardVolume, error) {
+func (r *countingRepo) Volume(_ context.Context, _, _ uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardVolume, error) {
 	r.enter()
 
 	r.mu.Lock()
@@ -95,18 +95,18 @@ func (r *countingRepo) Volume(_ context.Context, _, _ uuid.UUID, window dashboar
 		return nil, err
 	}
 
-	return &mmodel.DashboardVolume{
-		Points: []mmodel.DashboardVolumePoint{{
+	return &mmodel.LedgerDashboardVolume{
+		Points: []mmodel.LedgerDashboardVolumePoint{{
 			Date:         "2026-09-20",
 			Transactions: 3,
-			ByAsset:      []mmodel.DashboardAssetVolume{{Asset: "BRL", Amount: decimal.RequireFromString(amount), Transactions: 3}},
+			ByAsset:      []mmodel.LedgerDashboardAssetVolume{{Asset: "BRL", Amount: decimal.RequireFromString(amount), Transactions: 3}},
 		}},
 		WindowStart: window.From,
 		WindowEnd:   window.To,
 	}, nil
 }
 
-func (r *countingRepo) Assets(_ context.Context, _, _ uuid.UUID) (*mmodel.DashboardAssets, error) {
+func (r *countingRepo) Assets(_ context.Context, _, _ uuid.UUID) (*mmodel.LedgerDashboardAssets, error) {
 	r.enter()
 
 	r.mu.Lock()
@@ -119,8 +119,8 @@ func (r *countingRepo) Assets(_ context.Context, _, _ uuid.UUID) (*mmodel.Dashbo
 		return nil, err
 	}
 
-	return &mmodel.DashboardAssets{
-		Assets: []mmodel.DashboardAssetPosition{{
+	return &mmodel.LedgerDashboardAssets{
+		Assets: []mmodel.LedgerDashboardAssetPosition{{
 			Asset: "BRL", Accounts: 2,
 			Available: decimal.RequireFromString(amount),
 			OnHold:    decimal.Zero,
@@ -494,7 +494,7 @@ func TestDashboardCache_CoalescesConcurrentMisses(t *testing.T) {
 
 	var (
 		wg      sync.WaitGroup
-		results = make([]*mmodel.DashboardMetrics, viewers)
+		results = make([]*mmodel.LedgerDashboardMetrics, viewers)
 		errs    = make([]error, viewers)
 	)
 
@@ -540,7 +540,7 @@ func TestDashboardCache_OneCallerHangingUpDoesNotCancelTheOthers(t *testing.T) {
 	var (
 		wg        sync.WaitGroup
 		stayerErr error
-		stayer    *mmodel.DashboardMetrics
+		stayer    *mmodel.LedgerDashboardMetrics
 		leaverErr error
 	)
 

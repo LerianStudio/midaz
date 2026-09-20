@@ -70,17 +70,17 @@ type (
 	// GetDashboardMetricsResponse is the response for GET /dashboard/metrics.
 	GetDashboardMetricsResponse struct {
 		CacheControl string `header:"Cache-Control"`
-		Body         *mmodel.DashboardMetrics
+		Body         *mmodel.LedgerDashboardMetrics
 	}
 	// GetDashboardVolumeResponse is the response for GET /dashboard/volume.
 	GetDashboardVolumeResponse struct {
 		CacheControl string `header:"Cache-Control"`
-		Body         *mmodel.DashboardVolume
+		Body         *mmodel.LedgerDashboardVolume
 	}
 	// GetDashboardAssetsResponse is the response for GET /dashboard/assets.
 	GetDashboardAssetsResponse struct {
 		CacheControl string `header:"Cache-Control"`
-		Body         *mmodel.DashboardAssets
+		Body         *mmodel.LedgerDashboardAssets
 	}
 )
 

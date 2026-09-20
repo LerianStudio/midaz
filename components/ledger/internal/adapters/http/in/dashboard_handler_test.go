@@ -43,45 +43,45 @@ type stubDashboardRepo struct {
 	err       error
 }
 
-func (s *stubDashboardRepo) Metrics(_ context.Context, org, ledger uuid.UUID, window dashboard.Window) (*mmodel.DashboardMetrics, error) {
+func (s *stubDashboardRepo) Metrics(_ context.Context, org, ledger uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardMetrics, error) {
 	s.record(org, ledger, window)
 
 	if s.err != nil {
 		return nil, s.err
 	}
 
-	return &mmodel.DashboardMetrics{
+	return &mmodel.LedgerDashboardMetrics{
 		Total:         3,
 		ByStatus:      map[string]int64{constant.APPROVED: 3},
-		VolumeByAsset: []mmodel.DashboardAssetVolume{{Asset: "BRL", Amount: decimal.RequireFromString("30.00"), Transactions: 3}},
+		VolumeByAsset: []mmodel.LedgerDashboardAssetVolume{{Asset: "BRL", Amount: decimal.RequireFromString("30.00"), Transactions: 3}},
 		WindowStart:   window.From,
 		WindowEnd:     window.To,
 	}, nil
 }
 
-func (s *stubDashboardRepo) Volume(_ context.Context, org, ledger uuid.UUID, window dashboard.Window) (*mmodel.DashboardVolume, error) {
+func (s *stubDashboardRepo) Volume(_ context.Context, org, ledger uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardVolume, error) {
 	s.record(org, ledger, window)
 
 	if s.err != nil {
 		return nil, s.err
 	}
 
-	return &mmodel.DashboardVolume{
-		Points:      []mmodel.DashboardVolumePoint{{Date: "2026-09-20", Transactions: 3, ByAsset: nil}},
+	return &mmodel.LedgerDashboardVolume{
+		Points:      []mmodel.LedgerDashboardVolumePoint{{Date: "2026-09-20", Transactions: 3, ByAsset: nil}},
 		WindowStart: window.From,
 		WindowEnd:   window.To,
 	}, nil
 }
 
-func (s *stubDashboardRepo) Assets(_ context.Context, org, ledger uuid.UUID) (*mmodel.DashboardAssets, error) {
+func (s *stubDashboardRepo) Assets(_ context.Context, org, ledger uuid.UUID) (*mmodel.LedgerDashboardAssets, error) {
 	s.record(org, ledger, dashboard.Window{})
 
 	if s.err != nil {
 		return nil, s.err
 	}
 
-	return &mmodel.DashboardAssets{
-		Assets: []mmodel.DashboardAssetPosition{{
+	return &mmodel.LedgerDashboardAssets{
+		Assets: []mmodel.LedgerDashboardAssetPosition{{
 			Asset: "BRL", Accounts: 2,
 			Available: decimal.RequireFromString("100.00"),
 			OnHold:    decimal.Zero,

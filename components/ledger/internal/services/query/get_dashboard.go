@@ -18,7 +18,7 @@ import (
 
 // GetDashboardMetrics returns the window's transaction count, its breakdown by
 // status, and the settled volume per asset.
-func (uc *UseCase) GetDashboardMetrics(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.DashboardMetrics, error) {
+func (uc *UseCase) GetDashboardMetrics(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardMetrics, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_dashboard_metrics")
@@ -37,7 +37,7 @@ func (uc *UseCase) GetDashboardMetrics(ctx context.Context, organizationID, ledg
 }
 
 // GetDashboardVolume returns one point per UTC calendar day the window touches.
-func (uc *UseCase) GetDashboardVolume(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.DashboardVolume, error) {
+func (uc *UseCase) GetDashboardVolume(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardVolume, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_dashboard_volume")
@@ -57,7 +57,7 @@ func (uc *UseCase) GetDashboardVolume(ctx context.Context, organizationID, ledge
 
 // GetDashboardAssets returns the ledger's current position per asset. It takes
 // no window: a balance is a running total, not an aggregate over history.
-func (uc *UseCase) GetDashboardAssets(ctx context.Context, organizationID, ledgerID uuid.UUID) (*mmodel.DashboardAssets, error) {
+func (uc *UseCase) GetDashboardAssets(ctx context.Context, organizationID, ledgerID uuid.UUID) (*mmodel.LedgerDashboardAssets, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_dashboard_assets")

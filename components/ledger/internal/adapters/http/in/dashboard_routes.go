@@ -46,7 +46,7 @@ func RegisterDashboardRoutes(api huma.API, h *DashboardHandler, opSuffix string)
 	)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getDashboardMetrics" + opSuffix,
+		OperationID: "getLedgerDashboardMetrics" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        base + "/metrics",
 		Summary:     "Get ledger dashboard metrics",
@@ -63,7 +63,7 @@ func RegisterDashboardRoutes(api huma.API, h *DashboardHandler, opSuffix string)
 	}, h.GetDashboardMetrics)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getDashboardVolume" + opSuffix,
+		OperationID: "getLedgerDashboardVolume" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        base + "/volume",
 		Summary:     "Get ledger dashboard volume series",
@@ -77,7 +77,7 @@ func RegisterDashboardRoutes(api huma.API, h *DashboardHandler, opSuffix string)
 	}, h.GetDashboardVolume)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "getDashboardAssets" + opSuffix,
+		OperationID: "getLedgerDashboardAssets" + opSuffix,
 		Method:      http.MethodGet,
 		Path:        base + "/assets",
 		Summary:     "Get ledger current position per asset",

@@ -236,7 +236,7 @@ func NewDashboardPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...b
 }
 
 // Metrics returns the headline dashboard panel for the window.
-func (r *DashboardPostgreSQLRepository) Metrics(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.DashboardMetrics, error) {
+func (r *DashboardPostgreSQLRepository) Metrics(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardMetrics, error) {
 	ctx, span, logger := r.startSpan(ctx, "postgres.dashboard.metrics", organizationID, ledgerID)
 	defer span.End()
 
@@ -252,10 +252,10 @@ func (r *DashboardPostgreSQLRepository) Metrics(ctx context.Context, organizatio
 	}
 	defer func() { _ = rows.Close() }()
 
-	metrics := &mmodel.DashboardMetrics{
+	metrics := &mmodel.LedgerDashboardMetrics{
 		ByStatus:         newStatusCounts(),
-		VolumeByAsset:    make([]mmodel.DashboardAssetVolume, 0),
-		ReversalsByAsset: make([]mmodel.DashboardAssetVolume, 0),
+		VolumeByAsset:    make([]mmodel.LedgerDashboardAssetVolume, 0),
+		ReversalsByAsset: make([]mmodel.LedgerDashboardAssetVolume, 0),
 		WindowStart:      window.From,
 		WindowEnd:        window.To,
 		UpdatedAt:        r.now(),
@@ -297,7 +297,7 @@ type metricsRow struct {
 }
 
 // applyTo folds one row into the metrics entity.
-func (row metricsRow) applyTo(metrics *mmodel.DashboardMetrics) {
+func (row metricsRow) applyTo(metrics *mmodel.LedgerDashboardMetrics) {
 	switch {
 	case row.noAsset == 1 && row.noStatus == 1:
 		metrics.Total = row.transactions
@@ -315,7 +315,7 @@ func (row metricsRow) applyTo(metrics *mmodel.DashboardMetrics) {
 			return
 		}
 
-		metrics.VolumeByAsset = append(metrics.VolumeByAsset, mmodel.DashboardAssetVolume{
+		metrics.VolumeByAsset = append(metrics.VolumeByAsset, mmodel.LedgerDashboardAssetVolume{
 			Asset:        row.asset.String,
 			Amount:       row.settledAmount,
 			Transactions: row.settledTransactions,
@@ -325,7 +325,7 @@ func (row metricsRow) applyTo(metrics *mmodel.DashboardMetrics) {
 		// one more FILTER pair rather than a second pass — so the two figures
 		// cannot disagree about which transactions the window contained.
 		if row.reversalTransactions > 0 {
-			metrics.ReversalsByAsset = append(metrics.ReversalsByAsset, mmodel.DashboardAssetVolume{
+			metrics.ReversalsByAsset = append(metrics.ReversalsByAsset, mmodel.LedgerDashboardAssetVolume{
 				Asset:        row.asset.String,
 				Amount:       row.reversalAmount,
 				Transactions: row.reversalTransactions,
@@ -335,7 +335,7 @@ func (row metricsRow) applyTo(metrics *mmodel.DashboardMetrics) {
 }
 
 // Volume returns the gap-filled per-day series across the window.
-func (r *DashboardPostgreSQLRepository) Volume(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.DashboardVolume, error) {
+func (r *DashboardPostgreSQLRepository) Volume(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardVolume, error) {
 	ctx, span, logger := r.startSpan(ctx, "postgres.dashboard.volume", organizationID, ledgerID)
 	defer span.End()
 
@@ -351,8 +351,8 @@ func (r *DashboardPostgreSQLRepository) Volume(ctx context.Context, organization
 	}
 	defer func() { _ = rows.Close() }()
 
-	volume := &mmodel.DashboardVolume{
-		Points:      make([]mmodel.DashboardVolumePoint, 0),
+	volume := &mmodel.LedgerDashboardVolume{
+		Points:      make([]mmodel.LedgerDashboardVolumePoint, 0),
 		WindowStart: window.From,
 		WindowEnd:   window.To,
 		UpdatedAt:   r.now(),
@@ -377,9 +377,9 @@ func (r *DashboardPostgreSQLRepository) Volume(ctx context.Context, organization
 		// date always opens a new point and the point a row belongs to is the
 		// one most recently appended.
 		if len(volume.Points) == 0 || volume.Points[len(volume.Points)-1].Date != date {
-			volume.Points = append(volume.Points, mmodel.DashboardVolumePoint{
+			volume.Points = append(volume.Points, mmodel.LedgerDashboardVolumePoint{
 				Date:    date,
-				ByAsset: make([]mmodel.DashboardAssetVolume, 0),
+				ByAsset: make([]mmodel.LedgerDashboardAssetVolume, 0),
 			})
 		}
 
@@ -401,7 +401,7 @@ func (r *DashboardPostgreSQLRepository) Volume(ctx context.Context, organization
 			continue
 		}
 
-		point.ByAsset = append(point.ByAsset, mmodel.DashboardAssetVolume{
+		point.ByAsset = append(point.ByAsset, mmodel.LedgerDashboardAssetVolume{
 			Asset:        asset.String,
 			Amount:       settledAmount,
 			Transactions: settledTransactions,
@@ -416,7 +416,7 @@ func (r *DashboardPostgreSQLRepository) Volume(ctx context.Context, organization
 }
 
 // Assets returns the ledger's current position per asset.
-func (r *DashboardPostgreSQLRepository) Assets(ctx context.Context, organizationID, ledgerID uuid.UUID) (*mmodel.DashboardAssets, error) {
+func (r *DashboardPostgreSQLRepository) Assets(ctx context.Context, organizationID, ledgerID uuid.UUID) (*mmodel.LedgerDashboardAssets, error) {
 	ctx, span, logger := r.startSpan(ctx, "postgres.dashboard.assets", organizationID, ledgerID)
 	defer span.End()
 
@@ -432,13 +432,13 @@ func (r *DashboardPostgreSQLRepository) Assets(ctx context.Context, organization
 	}
 	defer func() { _ = rows.Close() }()
 
-	assets := &mmodel.DashboardAssets{
-		Assets:    make([]mmodel.DashboardAssetPosition, 0),
+	assets := &mmodel.LedgerDashboardAssets{
+		Assets:    make([]mmodel.LedgerDashboardAssetPosition, 0),
 		UpdatedAt: r.now(),
 	}
 
 	for rows.Next() {
-		var position mmodel.DashboardAssetPosition
+		var position mmodel.LedgerDashboardAssetPosition
 
 		if err := rows.Scan(&position.Asset, &position.Accounts, &position.Available, &position.OnHold); err != nil {
 			return nil, fail(ctx, span, logger, "dashboard assets: scanning row", err)

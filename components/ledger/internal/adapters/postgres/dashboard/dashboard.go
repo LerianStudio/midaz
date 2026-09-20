@@ -35,13 +35,13 @@ import (
 type Repository interface {
 	// Metrics returns the window's transaction count, its breakdown by status,
 	// and the settled volume per asset.
-	Metrics(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.DashboardMetrics, error)
+	Metrics(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardMetrics, error)
 
 	// Volume returns one point per UTC calendar day the window touches, days
 	// with no transactions included and zero-valued.
-	Volume(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.DashboardVolume, error)
+	Volume(ctx context.Context, organizationID, ledgerID uuid.UUID, window dashboard.Window) (*mmodel.LedgerDashboardVolume, error)
 
 	// Assets returns the ledger's current position per asset. It takes no
 	// window: a balance is a running total, not an aggregate over history.
-	Assets(ctx context.Context, organizationID, ledgerID uuid.UUID) (*mmodel.DashboardAssets, error)
+	Assets(ctx context.Context, organizationID, ledgerID uuid.UUID) (*mmodel.LedgerDashboardAssets, error)
 }

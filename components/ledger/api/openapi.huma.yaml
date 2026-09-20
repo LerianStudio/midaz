@@ -2001,160 +2001,6 @@ components:
         - debits
         - credits
       type: object
-    DashboardAssetPosition:
-      additionalProperties: false
-      properties:
-        accounts:
-          examples:
-            - 42
-          format: int64
-          type: integer
-        asset:
-          examples:
-            - BRL
-          type: string
-        available:
-          examples:
-            - "128400.55"
-          type: string
-        onHold:
-          examples:
-            - "1200.00"
-          type: string
-      required:
-        - asset
-        - accounts
-        - available
-        - onHold
-      type: object
-    DashboardAssetVolume:
-      additionalProperties: false
-      properties:
-        amount:
-          examples:
-            - "41000.00"
-          type: string
-        asset:
-          examples:
-            - BRL
-          type: string
-        transactions:
-          examples:
-            - 128
-          format: int64
-          type: integer
-      required:
-        - asset
-        - amount
-        - transactions
-      type: object
-    DashboardAssets:
-      additionalProperties: false
-      properties:
-        assets:
-          items:
-            $ref: "#/components/schemas/DashboardAssetPosition"
-          type:
-            - array
-            - "null"
-        updatedAt:
-          format: date-time
-          type: string
-      required:
-        - assets
-        - updatedAt
-      type: object
-    DashboardMetrics:
-      additionalProperties: false
-      properties:
-        byStatus:
-          additionalProperties:
-            format: int64
-            type: integer
-          type: object
-        reversalsByAsset:
-          description: "The reverted part of the gross volume: settled transactions carrying a parent_transaction_id, per asset. Net is volume minus reversals and is deliberately not a field."
-          items:
-            $ref: "#/components/schemas/DashboardAssetVolume"
-          type:
-            - array
-            - "null"
-        total:
-          examples:
-            - 1420
-          format: int64
-          type: integer
-        updatedAt:
-          format: date-time
-          type: string
-        volumeByAsset:
-          items:
-            $ref: "#/components/schemas/DashboardAssetVolume"
-          type:
-            - array
-            - "null"
-        windowEnd:
-          format: date-time
-          type: string
-        windowStart:
-          format: date-time
-          type: string
-      required:
-        - total
-        - byStatus
-        - volumeByAsset
-        - reversalsByAsset
-        - windowStart
-        - windowEnd
-        - updatedAt
-      type: object
-    DashboardVolume:
-      additionalProperties: false
-      properties:
-        points:
-          items:
-            $ref: "#/components/schemas/DashboardVolumePoint"
-          type:
-            - array
-            - "null"
-        updatedAt:
-          format: date-time
-          type: string
-        windowEnd:
-          format: date-time
-          type: string
-        windowStart:
-          format: date-time
-          type: string
-      required:
-        - points
-        - windowStart
-        - windowEnd
-        - updatedAt
-      type: object
-    DashboardVolumePoint:
-      additionalProperties: false
-      properties:
-        byAsset:
-          items:
-            $ref: "#/components/schemas/DashboardAssetVolume"
-          type:
-            - array
-            - "null"
-        date:
-          examples:
-            - "2026-09-19"
-          type: string
-        transactions:
-          examples:
-            - 212
-          format: int64
-          type: integer
-      required:
-        - date
-        - transactions
-        - byAsset
-      type: object
     Distribute:
       additionalProperties: false
       properties:
@@ -3210,6 +3056,160 @@ components:
         - createdAt
         - updatedAt
         - deletedAt
+      type: object
+    LedgerDashboardAssetPosition:
+      additionalProperties: false
+      properties:
+        accounts:
+          examples:
+            - 42
+          format: int64
+          type: integer
+        asset:
+          examples:
+            - BRL
+          type: string
+        available:
+          examples:
+            - "128400.55"
+          type: string
+        onHold:
+          examples:
+            - "1200.00"
+          type: string
+      required:
+        - asset
+        - accounts
+        - available
+        - onHold
+      type: object
+    LedgerDashboardAssetVolume:
+      additionalProperties: false
+      properties:
+        amount:
+          examples:
+            - "41000.00"
+          type: string
+        asset:
+          examples:
+            - BRL
+          type: string
+        transactions:
+          examples:
+            - 128
+          format: int64
+          type: integer
+      required:
+        - asset
+        - amount
+        - transactions
+      type: object
+    LedgerDashboardAssets:
+      additionalProperties: false
+      properties:
+        assets:
+          items:
+            $ref: "#/components/schemas/LedgerDashboardAssetPosition"
+          type:
+            - array
+            - "null"
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+        - assets
+        - updatedAt
+      type: object
+    LedgerDashboardMetrics:
+      additionalProperties: false
+      properties:
+        byStatus:
+          additionalProperties:
+            format: int64
+            type: integer
+          type: object
+        reversalsByAsset:
+          description: "The reverted part of the gross volume: settled transactions carrying a parent_transaction_id, per asset. Net is volume minus reversals and is deliberately not a field."
+          items:
+            $ref: "#/components/schemas/LedgerDashboardAssetVolume"
+          type:
+            - array
+            - "null"
+        total:
+          examples:
+            - 1420
+          format: int64
+          type: integer
+        updatedAt:
+          format: date-time
+          type: string
+        volumeByAsset:
+          items:
+            $ref: "#/components/schemas/LedgerDashboardAssetVolume"
+          type:
+            - array
+            - "null"
+        windowEnd:
+          format: date-time
+          type: string
+        windowStart:
+          format: date-time
+          type: string
+      required:
+        - total
+        - byStatus
+        - volumeByAsset
+        - reversalsByAsset
+        - windowStart
+        - windowEnd
+        - updatedAt
+      type: object
+    LedgerDashboardVolume:
+      additionalProperties: false
+      properties:
+        points:
+          items:
+            $ref: "#/components/schemas/LedgerDashboardVolumePoint"
+          type:
+            - array
+            - "null"
+        updatedAt:
+          format: date-time
+          type: string
+        windowEnd:
+          format: date-time
+          type: string
+        windowStart:
+          format: date-time
+          type: string
+      required:
+        - points
+        - windowStart
+        - windowEnd
+        - updatedAt
+      type: object
+    LedgerDashboardVolumePoint:
+      additionalProperties: false
+      properties:
+        byAsset:
+          items:
+            $ref: "#/components/schemas/LedgerDashboardAssetVolume"
+          type:
+            - array
+            - "null"
+        date:
+          examples:
+            - "2026-09-19"
+          type: string
+        transactions:
+          examples:
+            - 212
+          format: int64
+          type: integer
+      required:
+        - date
+        - transactions
+        - byAsset
       type: object
     LedgerSettings:
       additionalProperties: false
@@ -8042,7 +8042,7 @@ paths:
     get:
       deprecated: true
       description: "Returns the ledger's CURRENT position in each asset — how many distinct accounts hold it, and the summed available and on-hold figures — read from the balance table. It takes NO window and ignores any window parameter a caller sends: a balance is a running total, not an aggregate over history. Amounts are exact decimal strings, per asset, never summed across assets."
-      operationId: getDashboardAssets
+      operationId: getLedgerDashboardAssets
       parameters:
         - description: Organization ID (UUID)
           in: path
@@ -8063,7 +8063,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardAssets"
+                $ref: "#/components/schemas/LedgerDashboardAssets"
           description: OK
           headers:
             Cache-Control:
@@ -8096,7 +8096,7 @@ paths:
     get:
       deprecated: true
       description: Returns, for the window, the total number of transactions, the count of each status the ledger knows, and the settled volume per asset. Volume sums transaction.amount over SETTLED transactions only — status APPROVED, the only status whose transactions moved money — and is reported PER ASSET with no cross-asset total, because adding two assets together does not produce money. Amounts are exact decimal strings whose scale is not normative; format them with the asset's own exponent and never parse them as a binary float. Volume is GROSS of reversals; reversalsByAsset is the reverted part; net = volume - reversals is the operator's arithmetic, not a field.
-      operationId: getDashboardMetrics
+      operationId: getLedgerDashboardMetrics
       parameters:
         - description: Organization ID (UUID)
           in: path
@@ -8138,7 +8138,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardMetrics"
+                $ref: "#/components/schemas/LedgerDashboardMetrics"
           description: OK
           headers:
             Cache-Control:
@@ -8171,7 +8171,7 @@ paths:
     get:
       deprecated: true
       description: Returns one point per UTC calendar day the window TOUCHES, including days with no transactions, which are present with transactions 0 and an empty byAsset. A window is half-open and snaps to the minute rather than to midnight, so a 7d window opened mid-afternoon returns EIGHT points. Each point's transactions counts every status; its byAsset applies the same settled rule as /metrics. Summing the points reproduces /metrics exactly, and is likewise GROSS of reversals.
-      operationId: getDashboardVolume
+      operationId: getLedgerDashboardVolume
       parameters:
         - description: Organization ID (UUID)
           in: path
@@ -8213,7 +8213,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardVolume"
+                $ref: "#/components/schemas/LedgerDashboardVolume"
           description: OK
           headers:
             Cache-Control:
@@ -14703,7 +14703,7 @@ paths:
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/assets:
     get:
       description: "Returns the ledger's CURRENT position in each asset — how many distinct accounts hold it, and the summed available and on-hold figures — read from the balance table. It takes NO window and ignores any window parameter a caller sends: a balance is a running total, not an aggregate over history. Amounts are exact decimal strings, per asset, never summed across assets."
-      operationId: getDashboardAssetsV2
+      operationId: getLedgerDashboardAssetsV2
       parameters:
         - description: Organization ID (UUID)
           in: path
@@ -14724,7 +14724,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardAssets"
+                $ref: "#/components/schemas/LedgerDashboardAssets"
           description: OK
           headers:
             Cache-Control:
@@ -14756,7 +14756,7 @@ paths:
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/metrics:
     get:
       description: Returns, for the window, the total number of transactions, the count of each status the ledger knows, and the settled volume per asset. Volume sums transaction.amount over SETTLED transactions only — status APPROVED, the only status whose transactions moved money — and is reported PER ASSET with no cross-asset total, because adding two assets together does not produce money. Amounts are exact decimal strings whose scale is not normative; format them with the asset's own exponent and never parse them as a binary float. Volume is GROSS of reversals; reversalsByAsset is the reverted part; net = volume - reversals is the operator's arithmetic, not a field.
-      operationId: getDashboardMetricsV2
+      operationId: getLedgerDashboardMetricsV2
       parameters:
         - description: Organization ID (UUID)
           in: path
@@ -14798,7 +14798,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardMetrics"
+                $ref: "#/components/schemas/LedgerDashboardMetrics"
           description: OK
           headers:
             Cache-Control:
@@ -14830,7 +14830,7 @@ paths:
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/volume:
     get:
       description: Returns one point per UTC calendar day the window TOUCHES, including days with no transactions, which are present with transactions 0 and an empty byAsset. A window is half-open and snaps to the minute rather than to midnight, so a 7d window opened mid-afternoon returns EIGHT points. Each point's transactions counts every status; its byAsset applies the same settled rule as /metrics. Summing the points reproduces /metrics exactly, and is likewise GROSS of reversals.
-      operationId: getDashboardVolumeV2
+      operationId: getLedgerDashboardVolumeV2
       parameters:
         - description: Organization ID (UUID)
           in: path
@@ -14872,7 +14872,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DashboardVolume"
+                $ref: "#/components/schemas/LedgerDashboardVolume"
           description: OK
           headers:
             Cache-Control:
