@@ -51,6 +51,7 @@ type testRouterDeps struct {
 	ReservationService           *mocks.MockReservationService
 	TransactionValidationService *mocks.MockTransactionValidationService
 	AuditEventService            *MockAuditEventService
+	DashboardService             DashboardService
 	guardCfg                     middleware.AuthGuardConfig
 	openAPIDocsEnabled           bool
 	t                            *testing.T
@@ -68,6 +69,7 @@ func newTestRouterDeps(t *testing.T, guardCfg middleware.AuthGuardConfig) *testR
 		ReservationService:           mocks.NewMockReservationService(ctrl),
 		TransactionValidationService: mocks.NewMockTransactionValidationService(ctrl),
 		AuditEventService:            NewMockAuditEventService(ctrl),
+		DashboardService:             &dashboardServiceStub{},
 		guardCfg:                     guardCfg,
 		t:                            t,
 	}
@@ -113,6 +115,7 @@ func (d *testRouterDeps) build() *fiber.App {
 		ReservationService:           reservationService,
 		TransactionValidationService: d.TransactionValidationService,
 		AuditEventService:            d.AuditEventService,
+		DashboardService:             d.DashboardService,
 		Guard:                        guard,
 		Clock:                        clk,
 	})

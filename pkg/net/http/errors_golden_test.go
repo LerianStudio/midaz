@@ -507,6 +507,7 @@ func allSentinels() map[string]error {
 		"ErrValidationInvalidMerchantCountry":         constant.ErrValidationInvalidMerchantCountry,
 		"ErrValidationMerchantIDRequired":             constant.ErrValidationMerchantIDRequired,
 		"ErrInvalidTransactionValidationFilters":      constant.ErrInvalidTransactionValidationFilters,
+		"ErrInvalidDashboardWindow":                   constant.ErrInvalidDashboardWindow,
 		"ErrTransactionValidationNotFound":            constant.ErrTransactionValidationNotFound,
 		"ErrListValidationsTimeout":                   constant.ErrListValidationsTimeout,
 		"ErrTransactionValidationIDRequired":          constant.ErrTransactionValidationIDRequired,
