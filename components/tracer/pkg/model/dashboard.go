@@ -36,6 +36,12 @@ const (
 	// transactions — the one failure a fraud console must not have, because it
 	// is indistinguishable from "nothing is wrong".
 	DashboardWindowGranularity = time.Minute
+
+	// DashboardTopRulesLimit caps the top-rules panel. Ten is what the console
+	// renders; it is not a caller-supplied page size, because the query's cost is
+	// in the aggregation over the window and not in the rows it returns, so a
+	// larger limit would buy a caller nothing and a paging contract even less.
+	DashboardTopRulesLimit = 10
 )
 
 // dashboardPeriods maps the three supported relative periods to their length.
@@ -66,7 +72,7 @@ type DashboardWindow struct {
 }
 
 // NewDashboardWindow normalizes the query parameters of a dashboard read into a
-// window. period and the startDate/endDate pair are mutually exclusive: naming
+// window. period and the start_date/end_date pair are mutually exclusive: naming
 // both is a caller error rather than a silent precedence rule nobody can guess.
 //
 // now is injected (never time.Now()) so the caller's clock is the service
@@ -76,7 +82,7 @@ func NewDashboardWindow(period, startDate, endDate string, now time.Time) (Dashb
 	hasDates := startDate != "" || endDate != ""
 
 	if hasPeriod && hasDates {
-		return DashboardWindow{}, fmt.Errorf("%w: period and startDate/endDate are mutually exclusive", constant.ErrInvalidDashboardWindow)
+		return DashboardWindow{}, fmt.Errorf("%w: period and start_date/end_date are mutually exclusive", constant.ErrInvalidDashboardWindow)
 	}
 
 	if hasDates {
@@ -270,4 +276,56 @@ type DashboardFraudTypes struct {
 	WindowStart  time.Time        `json:"windowStart"`
 	WindowEnd    time.Time        `json:"windowEnd"`
 	UpdatedAt    time.Time        `json:"updatedAt"`
+}
+
+// TopRule is one rule's contribution to the window's traffic.
+//
+// Executions counts the validations that EVALUATED the rule; Matches counts
+// those where it fired. DetectionRate is Matches/Executions, so a rule that
+// never fires reads 0 rather than being absent — "this rule guards nothing"
+// is the answer an operator most needs and the one a MATCHED-only query
+// silently withholds.
+//
+// AvgProcessingMs averages the whole validation's latency over the MATCHED
+// validations, not the rule's own evaluation cost, which the trail does not
+// record per rule. It answers "are the validations this rule fires on slow",
+// never "is this rule slow"; the field name and this sentence are the only
+// things standing between a reader and the wrong conclusion.
+type TopRule struct {
+	// Name is the rule's name, the label the console renders.
+	Name string `json:"name" example:"high-value-wire"`
+	// ProductType is the transaction type the rule is SCOPED to (CARD, WIRE,
+	// PIX, CRYPTO), read from the rule's own scopes — never inferred from the
+	// traffic it happened to see. Empty when the rule scopes no transaction
+	// type, which means it applies to all of them.
+	ProductType string `json:"productType,omitempty" example:"WIRE"`
+	// Matches is the number of validations in the window where the rule fired.
+	Matches int64 `json:"matches" example:"1287"`
+	// Executions is the number of validations in the window that evaluated the
+	// rule, whether or not it fired.
+	Executions int64 `json:"executions" example:"20536"`
+	// DetectionRate is Matches/Executions as a fraction in [0,1]. Zero when the
+	// rule was never evaluated.
+	DetectionRate float64 `json:"detectionRate" example:"0.063"`
+	// AvgProcessingMs is the mean end-to-end validation latency over the
+	// validations this rule matched. Zero when it matched none. See the type
+	// comment: this is the validation's latency, not the rule's.
+	AvgProcessingMs float64 `json:"avgProcessingMs" example:"41.2"`
+}
+
+// DashboardTopRules is the busiest rules in the window.
+//
+// Capped at DashboardTopRulesLimit rows and ordered by Matches descending,
+// then by Name ascending so a tie renders the same way on every refresh — an
+// unstable order makes a dashboard flicker between two identical readings and
+// reads as data changing when nothing has.
+//
+// Rules that were evaluated but have since been deleted do not appear: the
+// rows are joined to the rule table to read the name and scope, so a rule with
+// no row has no name to render.
+type DashboardTopRules struct {
+	Rules       []TopRule `json:"rules"`
+	WindowStart time.Time `json:"windowStart"`
+	WindowEnd   time.Time `json:"windowEnd"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }

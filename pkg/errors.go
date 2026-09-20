@@ -2727,7 +2727,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrInvalidDashboardWindow.Error(),
 			Title:      "Invalid Dashboard Window",
-			Message:    "Invalid dashboard window: use period (7d, 30d, 90d) or startDate/endDate (RFC3339, at most 90 days apart), never both.",
+			Message:    "Invalid dashboard window: use period (7d, 30d, 90d) or start_date/end_date (RFC3339, at most 90 days apart), never both.",
 		},
 		constant.ErrTransactionValidationNotFound: EntityNotFoundError{
 			EntityType: entityType,
