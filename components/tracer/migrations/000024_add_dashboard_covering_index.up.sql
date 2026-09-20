@@ -1,0 +1,50 @@
+-- ============================================
+-- Migration: 000024_add_dashboard_covering_index
+-- Description: Covering index that lets the operator dashboard aggregate the
+--              validation trail without touching the heap.
+-- Date: 2026-09-20
+-- ============================================
+--
+-- WHY. The dashboard reads (GET /v1/dashboard/metrics and /fraud-types) are
+-- bounded aggregations over created_at. idx_transaction_validations_created
+-- already narrows the window, but decision, transaction_type, asset, amount and
+-- processing_time_ms live only in the heap, so every row in the window cost a
+-- random heap fetch. Measured on a seeded 1,000,000-row trail (365 days of
+-- history, PostgreSQL 17, 256MB shared_buffers), median of three warm runs:
+--
+--   metrics      before: 7d  34ms | 30d 224ms | 90d 325ms   (bitmap heap scan)
+--                after:  7d   8ms | 30d  32ms | 90d 103ms   (index-only scan)
+--   fraud-types  before: 7d  33ms | 30d 105ms | 90d 117ms   (bitmap heap scan)
+--                after:  7d   5ms | 30d  22ms | 90d  41ms   (index-only scan)
+--
+-- The volume read needs created_at alone and is already served index-only by
+-- idx_transaction_validations_created, which therefore stays.
+--
+-- COST. 56MB alongside a 300MB table at 1,000,000 rows, and one extra B-tree
+-- insert on the validate hot path: 20,000 inserts measured 565ms without this
+-- index and 750ms with it, i.e. +9.3 microseconds per validation against a
+-- per-request budget of 29ms (docs/tracer/INVARIANTS.md section 4).
+--
+-- The columns are INCLUDE (payload) rather than key columns: nothing filters or
+-- sorts on them, so carrying them in the key would only widen every internal
+-- page and slow the descent. The two UUID[] columns are deliberately NOT
+-- included — their width is unbounded (one element per evaluated rule), and a
+-- row wide enough to overflow the B-tree tuple limit would fail its INSERT,
+-- which on this table means a validation that cannot be recorded.
+--
+-- CONCURRENTLY, following the monorepo precedent for an index on a table in a
+-- hot write path (components/ledger/migrations/transaction/000029): a plain
+-- CREATE INDEX holds a lock that blocks the validate path for the duration of
+-- the build. IF NOT EXISTS keeps a replay a clean no-op (Migration Renumbering
+-- Invariant, docs/tracer/INVARIANTS.md).
+--
+-- OPERATIONAL NOTE. The index-only plan requires the visibility map: pages
+-- autovacuum has not yet marked all-visible still cost a heap fetch. A trail
+-- under sustained write with autovacuum starved degrades back toward the
+-- pre-index timings above. This was measured: VACUUM FULL, which leaves the
+-- visibility map unset, returned every one of these reads to the bitmap heap
+-- plan until a plain VACUUM ran.
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transaction_validations_dashboard
+ON transaction_validations (created_at)
+INCLUDE (decision, transaction_type, asset, amount, processing_time_ms);

@@ -474,6 +474,12 @@ var (
 	ErrReadyzRedisPingFailed                  = errors.New("0494")
 	ErrReadyzTenantManagerUnavailable         = errors.New("0495")
 	ErrReadyzStreamingUnhealthy               = errors.New("0496")
+	// ErrInvalidDashboardWindow is returned when a dashboard read names an
+	// unsupported period, supplies period together with startDate/endDate, or
+	// asks for a range longer than 90 days. The window is what bounds every
+	// dashboard aggregation, so a window the service cannot honor is rejected
+	// rather than widened.
+	ErrInvalidDashboardWindow = errors.New("0498")
 	// 0499 is intentionally skipped: it is the last slot of the reserved Tracer platform block (0328-0499); 0500 starts fresh beyond all documented blocks.
 	ErrInvalidAccountTypeDirection = errors.New("0500")
 	// ErrSchemaMigrationPending is returned when a statement names a column the
