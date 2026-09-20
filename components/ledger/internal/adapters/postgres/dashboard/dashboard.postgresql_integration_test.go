@@ -93,6 +93,12 @@ func (i *dashboardInfra) insertTransaction(t *testing.T, ledgerID uuid.UUID, sta
 // the original APPROVED, which is why volume is gross and the reverted part
 // needs its own figure. Returns nothing; the parent is any existing row id.
 func (i *dashboardInfra) insertReversal(t *testing.T, ledgerID, parentID uuid.UUID, asset, amount string, createdAt time.Time) {
+	i.insertReversalWithStatus(t, ledgerID, parentID, asset, amount, constant.APPROVED, createdAt)
+}
+
+// insertReversalWithStatus writes a reversal leg at an arbitrary status, so a
+// case can plant one that never settled.
+func (i *dashboardInfra) insertReversalWithStatus(t *testing.T, ledgerID, parentID uuid.UUID, asset, amount, status string, createdAt time.Time) {
 	t.Helper()
 
 	value, err := decimal.NewFromString(amount)
@@ -103,7 +109,7 @@ func (i *dashboardInfra) insertReversal(t *testing.T, ledgerID, parentID uuid.UU
 			(id, description, status, amount, asset_code, chart_of_accounts_group_name,
 			 organization_id, ledger_id, parent_transaction_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
-		uuid.Must(libCommons.GenerateUUIDv7()), "reversal", constant.APPROVED, value, asset, "default",
+		uuid.Must(libCommons.GenerateUUIDv7()), "reversal", status, value, asset, "default",
 		i.orgID, ledgerID, parentID, createdAt)
 	require.NoError(t, err)
 }
@@ -1044,6 +1050,34 @@ func TestIntegration_DashboardVolume_IsUnchangedByReversalSeparation(t *testing.
 
 	assert.Equal(t, "2000", total.String(), "/volume is gross, same as /metrics")
 	assert.Equal(t, int64(2), count)
+}
+
+// TestIntegration_DashboardMetrics_NonSettledReversalIsExcluded guards the
+// settled filter on the reversal COUNT, not just on its amount. Today every
+// reversal is written APPROVED, so dropping `status = ANY($5)` from the count
+// alone changes nothing and the whole suite stays green — a latent gap rather
+// than a live defect. If a pending or cancelled reversal ever becomes
+// reachable, the two columns disagree and the entry publishes an asset with
+// amount 0 and a non-zero count, which reads as money that was reverted for
+// nothing. One fixture row closes it.
+func TestIntegration_DashboardMetrics_NonSettledReversalIsExcluded(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	parent := infra.insertTransactionReturningID(t, infra.ledgerID, "EUR", "900", anchor.Add(-3*time.Hour))
+	infra.insertReversalWithStatus(t, infra.ledgerID, parent, "EUR", "900", constant.CANCELED, anchor.Add(-time.Hour))
+
+	metrics, err := infra.repo.Metrics(context.Background(), infra.orgID, infra.ledgerID, windowAround(24*time.Hour))
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(2), metrics.Total, "both rows are transactions")
+	assert.Equal(t, int64(1), metrics.ByStatus[constant.CANCELED])
+
+	require.Len(t, metrics.VolumeByAsset, 1)
+	assert.Equal(t, "900", metrics.VolumeByAsset[0].Amount.String(),
+		"a cancelled reversal moved no money, so volume is the original alone")
+
+	assert.Empty(t, metrics.ReversalsByAsset,
+		"a reversal that never settled is not a reverted amount, in the count as much as in the money")
 }
 
 // TestIntegration_DashboardAssets_EmptyLedgerAnswersEmptyArray.
