@@ -33,20 +33,31 @@ var _ query.DashboardRepository = (*DashboardRepository)(nil)
 // refuses to fall back to the root pool, so nothing here needs — or is
 // allowed — a tenant parameter.
 //
-// COST CONTRACT. Each method below is ONE statement bounded by created_at and
-// served by an index-only scan; none of them fetches a heap row. Measured on a
-// seeded 1,000,000-row trail (365 days of history, PostgreSQL 17, 256MB
+// COST CONTRACT. Each method below is ONE statement bounded by created_at,
+// every one of them inside a 200ms budget at 1,000,000 rows. Measured
+// end-to-end over HTTP on the seeded trail
+// (scripts/seed_dashboard_benchmark.sql, 365 days, PostgreSQL 17, 256MB
 // shared_buffers), median of three warm runs:
 //
-//	metrics      7d   8ms | 30d  32ms | 90d 103ms  (idx_tv_dashboard)
-//	volume       7d   9ms | 30d  35ms | 90d  98ms  (idx_transaction_validations_created)
-//	fraud-types  7d   5ms | 30d  22ms | 90d  41ms  (idx_tv_dashboard)
+//	metrics      7d   7ms | 30d  23ms | 90d  67ms  index-only, idx_tv_dashboard
+//	volume       7d   5ms | 30d  18ms | 90d  53ms  index-only, idx_tv_created
+//	fraud-types  7d   5ms | 30d  15ms | 90d  25ms  index-only, idx_tv_dashboard
+//	top-rules    7d  29ms | 30d  46ms | 90d 106ms  index scan + HEAP
+//
+// Three of the four never touch the heap. TopRules does, and cannot be made
+// not to: it reads matched_rule_ids and evaluated_rule_ids, whose unbounded
+// width keeps them out of any covering index (see topRulesQuery), so it pays
+// ~11,800 buffers at 90 days against ~1,800 for metrics. It is the endpoint
+// that binds the operating limit, and the one the cache protects most.
+//
+// Every windowed statement passes windowPlanMode; read that comment before
+// changing how these are issued.
 //
 // The index-only property depends on the visibility map: pages autovacuum has
 // not yet marked all-visible still cost a heap fetch, so a trail under heavy
-// write with autovacuum starved degrades toward the plain bitmap-heap plan
-// (which measured 3-7x slower on the same data). That is a tuning property of
-// the deployment, not of these statements.
+// write with autovacuum starved degrades toward a plain index scan over the
+// heap (measured 1.4-1.7x slower on the same data). That is a tuning property
+// of the deployment, not of these statements.
 type DashboardRepository struct {
 	conn  pgdb.Connection
 	clock clock.Clock
@@ -63,22 +74,6 @@ func NewDashboardRepository(conn pgdb.Connection, clk clock.Clock) *DashboardRep
 	return &DashboardRepository{conn: conn, clock: clk}
 }
 
-// metricsQuery aggregates the window twice in one pass: once over every row
-// (the grouping set `()`, which yields the headline counters) and once per
-// asset (which yields the blocked volume split). Both aggregations read the
-// same rows in the same statement, so the per-asset blocked amounts sum to the
-// headline blocked count exactly. Two statements could not promise that: they
-// are two instants, and the dashboard publishes total and breakdown side by
-// side and caches the pair for a minute.
-//
-// is_total is GROUPING(): 1 on the grand-total row, 0 on the per-asset rows.
-// The total sorts first so the scan can rely on reading it before any asset
-// row, and assets follow in descending blocked volume with a name tiebreak, so
-// two assets with equal exposure keep a stable order between reads.
-//
-// Every column the statement touches — created_at, decision, asset, amount,
-// processing_time_ms — lives in idx_tv_dashboard, which is what keeps this an
-// index-only scan.
 // windowPlanMode forces every windowed dashboard read to be planned against
 // the window it was actually handed.
 //
@@ -103,12 +98,38 @@ func NewDashboardRepository(conn pgdb.Connection, clk clock.Clock) *DashboardRep
 // under a millisecond on these four statements and is not visible in the
 // end-to-end numbers.
 //
-// It is applied to all four windowed reads rather than only the one that
-// breaches today: the cause is the range predicate on created_at, which all
-// four share, so one rule is easier to keep true than three exceptions.
-// activeCountsQuery takes no parameters and is therefore unaffected.
+// The cause is specific, and it is NOT simply the created_at predicate all four
+// reads share. Measured over eight executions each, /metrics and /volume do not
+// regress at all (66/65/66/66/66 | 68/65/65 ms and 67/61/60/62/61 | 60/60/60
+// ms): their plans hold up without the window's selectivity. What the generic
+// plan discards is the LATERAL fan-out plan — the parallel scan and the Memoize
+// over the unnested rule ids — which is why /top-rules loses 3.4x and
+// /fraud-types, whose aggregate is also parameter-sensitive, loses 1.7x.
+//
+// The mode is nevertheless applied to all four. Its cost on the two that do not
+// regress is zero within noise (measured: 66/65/65/66/65/65/65/65 ms under this
+// mode against 66/64/64/64/64/66/64/64 default), and one rule that holds for
+// every windowed read is easier to keep true than two exceptions that have to
+// be re-measured whenever a query changes shape. activeCountsQuery takes no
+// parameters and is therefore unaffected.
 const windowPlanMode = pgx.QueryExecModeExec
 
+// metricsQuery aggregates the window twice in one pass: once over every row
+// (the grouping set `()`, which yields the headline counters) and once per
+// asset (which yields the blocked volume split). Both aggregations read the
+// same rows in the same statement, so the per-asset blocked amounts sum to the
+// headline blocked count exactly. Two statements could not promise that: they
+// are two instants, and the dashboard publishes total and breakdown side by
+// side and caches the pair for a minute.
+//
+// is_total is GROUPING(): 1 on the grand-total row, 0 on the per-asset rows.
+// The total sorts first so the scan can rely on reading it before any asset
+// row, and assets follow in descending blocked volume with a name tiebreak, so
+// two assets with equal exposure keep a stable order between reads.
+//
+// Every column the statement touches — created_at, decision, asset, amount,
+// processing_time_ms — lives in idx_tv_dashboard, which is what keeps this an
+// index-only scan.
 const metricsQuery = `
 	SELECT
 		GROUPING(asset) AS is_total,
