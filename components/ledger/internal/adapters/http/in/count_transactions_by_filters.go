@@ -16,14 +16,17 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// validTransactionStatuses contains the allowlist of valid transaction statuses for filtering.
-var validTransactionStatuses = map[string]bool{
-	constant.CREATED:  true,
-	constant.APPROVED: true,
-	constant.PENDING:  true,
-	constant.CANCELED: true,
-	constant.NOTED:    true,
-}
+// validTransactionStatuses is the allowlist of transaction statuses this filter
+// accepts, derived from constant.TransactionStatuses so the filter and the
+// dashboard's byStatus breakdown can never disagree on what statuses exist.
+var validTransactionStatuses = func() map[string]bool {
+	allowed := make(map[string]bool, len(constant.TransactionStatuses))
+	for _, status := range constant.TransactionStatuses {
+		allowed[status] = true
+	}
+
+	return allowed
+}()
 
 // countTransactionsByFilters counts the transactions matching filter within the
 // org+ledger scope.

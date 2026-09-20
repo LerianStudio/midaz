@@ -59,6 +59,12 @@ type HumaMountDeps struct {
 	// Transaction handler: money-write ops, transaction count, and the /v2 create.
 	Transaction *TransactionHandler
 
+	// Dashboard serves the three read-only aggregate reads. It carries
+	// TransactionOptions like its money-read siblings — the figures come from the
+	// transaction and balance tables — but authorizes under its OWN resource, so
+	// the aggregate view is grantable and withholdable apart from row-level reads.
+	Dashboard *DashboardHandler
+
 	// CRM handlers. HolderAccounts, Encryption and Audit may be nil; the CRM
 	// registrar mounts neither the Fiber guard chain nor the Huma terminal for a nil
 	// handler, matching the pre-Huma nil-guard posture.
@@ -140,16 +146,24 @@ func (d HumaMountDeps) registerOnboardingRoutes(group fiber.Router, api huma.API
 }
 
 // registerMoneyReadRoutes mounts the /v1 resources that share the money-read guard
-// chain: balance, operation-read, transaction-count, operation-route and
-// transaction-route. Every member carries TransactionOptions ([authAssertion,
-// WithTenantDB]) and authorizes against the "midaz" appName (protectedMidaz) — a
-// uniform policy, unlike the onboarding group above.
+// chain: balance, operation-read, transaction-count, operation-route,
+// transaction-route and dashboard. Every member carries TransactionOptions
+// ([authAssertion, WithTenantDB]) and authorizes against the "midaz" appName
+// (protectedMidaz) — a uniform policy, unlike the onboarding group above.
+//
+// dashboard is the one member whose authz RESOURCE is not its path's parent: it
+// carries TransactionOptions because its figures live in the transaction
+// database, but authorizes under the "midaz" appName's own "dashboard" resource,
+// so an aggregate money view can be granted without row-level transaction or
+// balance reads and withheld while those are granted (see
+// registerDashboardRoutesToApp).
 func (d HumaMountDeps) registerMoneyReadRoutes(group fiber.Router, api huma.API) {
 	RegisterBalanceRoutesToApp(group, api, d.Auth, d.Balance, d.TransactionOptions)
 	RegisterOperationRoutesToApp(group, api, d.Auth, d.Operation, d.TransactionOptions)
 	RegisterCountTransactionRoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterOperationRouteRoutesToApp(group, api, d.Auth, d.OperationRoute, d.TransactionOptions)
 	RegisterTransactionRouteRoutesToApp(group, api, d.Auth, d.TransactionRoute, d.TransactionOptions)
+	RegisterDashboardRoutesToApp(group, api, d.Auth, d.Dashboard, d.TransactionOptions)
 }
 
 // MountV2 registers the /v2 Huma terminals + Fiber auth/tenant chain on the /v2 version
@@ -207,6 +221,12 @@ func (d HumaMountDeps) registerMoneyReadRoutes(group fiber.Router, api huma.API)
 // RegisterOperationRouteRoutesToApp). transaction-routes likewise carry TransactionOptions
 // and authorize against the "midaz" appName (protectedMidaz), exactly as on v1 (see
 // registerMoneyReadRoutes / RegisterTransactionRouteRoutesToApp).
+//
+// dashboard is a straight mirror of its v1 twin: same paths, same handler, same
+// ("midaz","dashboard","get") tuple and the same TransactionOptions. It is served on BOTH
+// contracts on purpose — MarkV1OperationsDeprecated flags every /v1 operation, so a new
+// surface published on /v1 alone would be born deprecated in the contract SDK generators
+// read, while /v1 is the path the console binds to.
 func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterOrganizationV2RoutesToApp(group, api, d.Auth, d.Organization, d.OnboardingOptions)
 	RegisterLedgerV2RoutesToApp(group, api, d.Auth, d.Ledger, d.OnboardingOptions)
@@ -234,6 +254,7 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterCompositionV2RoutesToApp(group, api, d.Auth, d.Composition, d.CompositionOptions)
 	RegisterOperationRouteV2RoutesToApp(group, api, d.Auth, d.OperationRoute, d.TransactionOptions)
 	RegisterTransactionRouteV2RoutesToApp(group, api, d.Auth, d.TransactionRoute, d.TransactionOptions)
+	RegisterDashboardV2RoutesToApp(group, api, d.Auth, d.Dashboard, d.TransactionOptions)
 }
 
 // AssembleHumaContract builds one independent Huma contract instance on group and

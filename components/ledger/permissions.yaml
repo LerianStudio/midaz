@@ -21,12 +21,13 @@
 # the other direction: every seeded grant appears here, and every route-backed pair
 # appears here.
 #
-# ONE route-backed pair is NOT yet in the seed: (account-block-exceptions, post).
-# The resource is new here, so until the central seed (caradhras
-# deploy/pam-seed/init_data.json) grants it to the editor tier, the declaration is a
-# SUPERSET of the seed on that one pair rather than a mirror. The route enforces it
-# either way — an environment whose policy store has not learned the resource simply
-# answers 403, which is the fail-closed direction for a block bypass.
+# TWO route-backed pairs are NOT yet in the seed: (account-block-exceptions, post)
+# and (dashboard, get). Both resources are new here, so until the central seed
+# (caradhras deploy/pam-seed/init_data.json) grants them, the declaration is a
+# SUPERSET of the seed on those pairs rather than a mirror. The routes enforce
+# them either way — an environment whose policy store has not learned a resource
+# simply answers 403, which is the fail-closed direction for a block bypass and
+# for an aggregate money view alike.
 #
 # `resource` is written BARE — the central reconciler composes the "midaz/"
 # prefix. The `action` is the HTTP verb the guard authorizes under
@@ -105,6 +106,22 @@ permissions:
   - { resource: billing-packages, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: billing-packages, action: patch,  effect: allow, roles: [editor] }
   - { resource: billing-packages, action: delete, effect: allow, roles: [editor] }
+
+  # dashboard (dashboard_routes.go registerDashboardRoutesToApp; /v1 and /v2)
+  #
+  # A DEDICATED resource rather than a borrowed transactions/balances grant. The
+  # three reads publish AGGREGATE money figures over both tables, so folding them
+  # into either grant would silently widen what that grant means — a
+  # transactions:get would start disclosing balance positions. Read-only, so
+  # `get` is the only verb and all three tiers hold it.
+  #
+  # Like (account-block-exceptions, post) above, this pair is NOT yet in the
+  # central seed (caradhras deploy/pam-seed/init_data.json), so the declaration is
+  # a SUPERSET of the seed on it until that lands. A policy-enforcing environment
+  # whose store has not learned the resource answers 403, which is the
+  # fail-closed direction; components/ledger/docs/dashboard.md states the
+  # dependency for operators.
+  - { resource: dashboard, action: get, effect: allow, roles: [editor, contributor, viewer] }
 
   # encryption (encryption_routes.go registerEncryptionRoutesToApp)
   - { resource: encryption, action: post, effect: allow, roles: [editor, contributor] }
