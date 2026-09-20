@@ -22,12 +22,19 @@ const (
 	// DashboardDefaultPeriod is the period applied when the caller names none.
 	DashboardDefaultPeriod = "30d"
 
-	// DashboardWindowGranularity is the resolution both bounds are truncated
-	// to. It equals the cache TTL on purpose: truncating here is what makes a
+	// DashboardWindowGranularity is the resolution both bounds are snapped to.
+	// It equals the cache TTL on purpose: snapping here is what makes a
 	// relative period ("last 30 days") name the SAME window for every caller
 	// inside the same minute, which is the only reason a cache entry can ever
 	// be hit. Without it every request would carry a microsecond-unique "now"
 	// and compute its own aggregation.
+	//
+	// The start rounds DOWN and the end rounds UP, so the window is always a
+	// superset of what the caller named. Rounding the end DOWN instead hid up
+	// to 60 seconds of the most recent decisions, which a live run caught as a
+	// dashboard reporting zero fraud half a minute after blocking two
+	// transactions — the one failure a fraud console must not have, because it
+	// is indistinguishable from "nothing is wrong".
 	DashboardWindowGranularity = time.Minute
 )
 
@@ -85,7 +92,7 @@ func NewDashboardWindow(period, startDate, endDate string, now time.Time) (Dashb
 		return DashboardWindow{}, fmt.Errorf("%w: unsupported period %q (want 7d, 30d or 90d)", constant.ErrInvalidDashboardWindow, period)
 	}
 
-	to := now.UTC().Truncate(DashboardWindowGranularity)
+	to := ceilWindowBound(now)
 
 	return DashboardWindow{From: to.Add(-length), To: to, Period: period}, nil
 }
@@ -108,9 +115,12 @@ func explicitDashboardWindow(startDate, endDate string) (DashboardWindow, error)
 		return DashboardWindow{}, fmt.Errorf("%w: endDate is not RFC3339", constant.ErrInvalidDashboardWindow)
 	}
 
-	from = from.UTC().Truncate(DashboardWindowGranularity)
-	to = to.UTC().Truncate(DashboardWindowGranularity)
-
+	// Both checks run on what the caller WROTE, before snapping. Snapping
+	// widens the window by under a minute at each end, so validating after it
+	// would accept an empty range (startDate == endDate becomes a one-minute
+	// window) and reject an exactly-90-day range whose end carries seconds.
+	// The window that reaches the database is therefore at most the cap plus
+	// one granularity step, which is the price of a cacheable window.
 	if !to.After(from) {
 		return DashboardWindow{}, fmt.Errorf("%w: endDate must be after startDate", constant.ErrInvalidDashboardWindow)
 	}
@@ -119,7 +129,21 @@ func explicitDashboardWindow(startDate, endDate string) (DashboardWindow, error)
 		return DashboardWindow{}, fmt.Errorf("%w: window may not exceed 90 days", constant.ErrInvalidDashboardWindow)
 	}
 
-	return DashboardWindow{From: from, To: to}, nil
+	return DashboardWindow{From: from.UTC().Truncate(DashboardWindowGranularity), To: ceilWindowBound(to)}, nil
+}
+
+// ceilWindowBound snaps a window end UP to the next granularity boundary. An
+// instant already on a boundary is left alone, so a caller naming an exact
+// minute gets exactly that minute rather than a spurious extra one.
+func ceilWindowBound(t time.Time) time.Time {
+	utc := t.UTC()
+
+	floor := utc.Truncate(DashboardWindowGranularity)
+	if floor.Equal(utc) {
+		return floor
+	}
+
+	return floor.Add(DashboardWindowGranularity)
 }
 
 // CacheKey renders the window as the stable fragment of a cache key. It names

@@ -51,7 +51,8 @@ func TestNewDashboardWindow_Periods(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.want, window.To.Sub(window.From), "window length")
-			assert.Equal(t, now.Truncate(time.Minute), window.To, "To is truncated to the minute")
+			assert.Equal(t, now.Truncate(time.Minute).Add(time.Minute), window.To,
+				"To rounds UP to the minute, so traffic in the current minute is not hidden")
 			assert.Equal(t, time.UTC, window.To.Location(), "window is UTC")
 		})
 	}
@@ -128,6 +129,8 @@ func TestNewDashboardWindow_NinetyDaysExactlyIsAccepted(t *testing.T) {
 	window, err := model.NewDashboardWindow("", start.Format(time.RFC3339), end.Format(time.RFC3339), now)
 	require.NoError(t, err)
 
+	// Both bounds already sit on a minute boundary, so snapping is a no-op and
+	// the accepted window is exactly the cap.
 	assert.Equal(t, model.DashboardMaxWindow, window.To.Sub(window.From))
 	assert.Empty(t, window.Period, "an explicit range names no period")
 }
@@ -143,8 +146,8 @@ func TestNewDashboardWindow_ExplicitDatesAreTruncatedAndUTC(t *testing.T) {
 	window, err := model.NewDashboardWindow("", start.Format(time.RFC3339), end.Format(time.RFC3339), fixedNow(t))
 	require.NoError(t, err)
 
-	assert.Equal(t, start.UTC().Truncate(time.Minute), window.From)
-	assert.Equal(t, end.UTC().Truncate(time.Minute), window.To)
+	assert.Equal(t, start.UTC().Truncate(time.Minute), window.From, "start rounds down")
+	assert.Equal(t, end.UTC().Truncate(time.Minute).Add(time.Minute), window.To, "end rounds up")
 }
 
 // The cache key is the whole reason the window is truncated. Two reads a few
@@ -302,4 +305,55 @@ func TestDashboardMetrics_ApplyRates_NeverSumsAcrossAssets(t *testing.T) {
 	assert.Empty(t, metrics.AmountSaved)
 	assert.NotEqual(t, "650", metrics.AmountSaved, "650 is not money in any asset")
 	assert.Len(t, metrics.AmountSavedByAsset, 3, "the breakdown is what the caller renders")
+}
+
+// REGRESSION (found by the live smoke, 2026-09-20): the window end must never
+// exclude traffic that has already been recorded. Truncating `to` DOWN to the
+// minute hid up to 60 seconds of the most recent decisions, so a tenant that
+// blocked two transactions half a minute ago saw a dashboard reporting zero
+// fraud — the worst failure a fraud console has, because it is indistinguishable
+// from "nothing is wrong".
+func TestNewDashboardWindow_EndIncludesTheCurrentMinute(t *testing.T) {
+	t.Parallel()
+
+	now := fixedNow(t) // :30:12.345 — mid-minute on purpose
+
+	window, err := model.NewDashboardWindow("30d", "", "", now)
+	require.NoError(t, err)
+
+	assert.True(t, window.To.After(now),
+		"a validation recorded at %s must fall inside a window ending at %s", now, window.To)
+	assert.Equal(t, now.Truncate(time.Minute).Add(time.Minute), window.To,
+		"the end rounds UP to the minute, so nothing already recorded is hidden")
+}
+
+// An explicit range is treated the same way and for the same reason: the window
+// is a superset of what the caller named, never a subset.
+func TestNewDashboardWindow_ExplicitEndRoundsUp(t *testing.T) {
+	t.Parallel()
+
+	start := "2026-09-01T10:00:00Z"
+	end := "2026-09-08T10:15:42Z"
+
+	window, err := model.NewDashboardWindow("", start, end, fixedNow(t))
+	require.NoError(t, err)
+
+	assert.Equal(t, time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC), window.From,
+		"the start rounds DOWN, so nothing at the beginning is hidden either")
+	assert.Equal(t, time.Date(2026, 9, 8, 10, 16, 0, 0, time.UTC), window.To)
+}
+
+// Rounding up must not break the quantisation the cache depends on.
+func TestNewDashboardWindow_RoundingUpKeepsTheKeyStable(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, 9, 20, 14, 30, 1, 0, time.UTC)
+
+	first, err := model.NewDashboardWindow("30d", "", "", base)
+	require.NoError(t, err)
+
+	second, err := model.NewDashboardWindow("30d", "", "", base.Add(55*time.Second))
+	require.NoError(t, err)
+
+	assert.Equal(t, first.CacheKey(), second.CacheKey(), "same minute, same entry")
 }

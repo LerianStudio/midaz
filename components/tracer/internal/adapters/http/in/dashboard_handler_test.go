@@ -107,8 +107,8 @@ func TestDashboardHandler_HonoursNamedPeriod(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.want, stub.gotWindow.To.Sub(stub.gotWindow.From))
-			assert.Equal(t, dashboardTestNow().Truncate(time.Minute), stub.gotWindow.To,
-				"the window ends at the service clock (truncated to the minute), never time.Now()")
+			assert.Equal(t, dashboardTestNow().Truncate(time.Minute).Add(time.Minute), stub.gotWindow.To,
+				"the window ends at the service clock rounded up to the minute, never time.Now()")
 		})
 	}
 }
@@ -196,7 +196,8 @@ func TestDashboardHandler_ExplicitDateRange(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), stub.gotWindow.From)
-	assert.Equal(t, time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC), stub.gotWindow.To)
+	assert.Equal(t, time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC), stub.gotWindow.To,
+		"both bounds already sit on a minute, so snapping changes neither")
 	assert.Empty(t, stub.gotWindow.Period)
 }
 
