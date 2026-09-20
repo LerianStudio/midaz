@@ -2018,8 +2018,6 @@ components:
       properties:
         code:
           description: "Stable, machine-readable domain error code scoped to the emitting service (format: <SERVICE>-NNNN)."
-          examples:
-            - ERR-0001
           type: string
         detail:
           description: A human-readable explanation specific to this occurrence of the problem.
