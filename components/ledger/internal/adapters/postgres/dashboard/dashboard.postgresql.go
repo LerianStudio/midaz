@@ -79,12 +79,14 @@ const windowPlanMode = pgx.QueryExecModeExec
 // Row order is fixed so the scan can read the grand total before anything else
 // and never has to look ahead: total first, then the status rows, then the
 // asset rows.
-// Volume is GROSS of reversals, and the reverted part is reported beside it
-// rather than subtracted from it (Fred, 2026-09-20). revert_transaction.go
-// writes the reversal as a NEW settled row carrying parent_transaction_id and
-// leaves the original APPROVED, so 1000 EUR posted then reverted is 2000 EUR
-// across 2 transactions — the throughput the ledger actually carried. Net is
-// volume − reversals, the operator's arithmetic, deliberately not a field.
+// settled_amount is GROSS: every settled leg inside the window is counted,
+// reversal legs included (Fred, 2026-09-20). revert_transaction.go writes the
+// reversal as a NEW settled row carrying parent_transaction_id and leaves the
+// original APPROVED, so 1000 EUR posted then reverted is 2000 EUR across 2
+// transactions — the throughput the ledger carried. reversal_amount is the
+// part of that made of reversal legs, same window and same settled filter.
+// Subtracting one from the other is not a net figure: whether the reversed
+// original also falls inside the window changes the answer.
 const metricsQuery = `
 	SELECT
 		GROUPING(asset_code) AS no_asset,

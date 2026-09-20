@@ -57,21 +57,25 @@ type LedgerDashboardMetrics struct {
 	// VolumeByAsset holds one entry per asset that carried at least one settled
 	// transaction in the window. Empty when the window settled nothing.
 	//
-	// Volume is GROSS of reversals. Reverting a transaction writes a second
-	// settled row rather than unwinding the first, so 1000 EUR posted and then
-	// reverted is 2000 EUR across 2 transactions here — that is the throughput
-	// the ledger actually carried.
+	// It is the GROSS settled amount: every settled leg inside the window is
+	// counted, reversal legs included. Reverting does not unwind the original,
+	// so 1000 EUR posted and then reverted inside one window appears here as
+	// 2000 EUR over 2 transactions — the throughput the ledger carried.
 	VolumeByAsset []LedgerDashboardAssetVolume `json:"volumeByAsset"`
 
-	// ReversalsByAsset is the reverted part of that gross figure: the settled
-	// transactions in the window that carry a parent_transaction_id, which is
-	// what a reversal leg is. Same shape as VolumeByAsset, same window, same
-	// scan. Empty when the window reverted nothing.
+	// ReversalsByAsset is the part of that gross volume made of reversal legs:
+	// the settled transactions inside the window whose parent_transaction_id is
+	// set. Same window, same settled filter, same shape, same scan. Empty when
+	// the window reverted nothing.
 	//
-	// Net is `volume − reversals` and is deliberately NOT a field: it is the
-	// operator's arithmetic, and publishing it would make the console carry a
-	// second money definition that has to stay in step with this one.
-	ReversalsByAsset []LedgerDashboardAssetVolume `json:"reversalsByAsset" doc:"The reverted part of the gross volume: settled transactions carrying a parent_transaction_id, per asset. Net is volume minus reversals and is deliberately not a field."`
+	// A true net figure is NOT derivable from these two alone. Subtracting one
+	// from the other gives the settled amount excluding reversal legs, which is
+	// not net, because whether the reversed original also falls inside the
+	// window changes the answer: a window holding both legs of a 1000 EUR
+	// post-and-revert reads 2000 and 1000 while nothing net moved, and a window
+	// holding only the reversal leg reads 1000 and 1000. A consumer that needs
+	// net reads the transactions.
+	ReversalsByAsset []LedgerDashboardAssetVolume `json:"reversalsByAsset" doc:"The part of the gross volume made of reversal legs: settled transactions inside the window whose parent_transaction_id is set, per asset. A true net is not derivable from volume and reversals alone, because it depends on whether each reversed original also falls inside the window."`
 
 	WindowStart time.Time `json:"windowStart"`
 	WindowEnd   time.Time `json:"windowEnd"`

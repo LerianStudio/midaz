@@ -956,9 +956,12 @@ func TestIntegration_DashboardAssets_ExcludesExternalWhateverItsCase(t *testing.
 // Reverting does not unwind the original: revert_transaction.go writes a NEW
 // settled row carrying parent_transaction_id and leaves the original APPROVED.
 // Fred's definition (2026-09-20): volume stays GROSS — it is the throughput the
-// ledger carried — and the reverted part gets its own figure beside it, so an
-// operator who wants net computes volume − reversals rather than reading a
-// third number that could drift out of step.
+// ledger carried — and the reverted part gets its own figure beside it.
+//
+// Neither figure is a net one and no subtraction of the two produces net, as
+// TestIntegration_DashboardMetrics_ReversalStraddlingTheWindow below shows: the
+// same pair of legs answers three different ways depending on which of them the
+// window contains. A consumer that needs net reads the transactions.
 // =============================================================================
 
 // TestIntegration_DashboardMetrics_VolumeIsGrossAndReversalsSeparated.
@@ -1078,6 +1081,59 @@ func TestIntegration_DashboardMetrics_NonSettledReversalIsExcluded(t *testing.T)
 
 	assert.Empty(t, metrics.ReversalsByAsset,
 		"a reversal that never settled is not a reverted amount, in the count as much as in the money")
+}
+
+// TestIntegration_DashboardMetrics_ReversalStraddlingTheWindow proves the three
+// readings docs/dashboard.md publishes, and with them why no subtraction of
+// reversals from volume is a net figure: the same pair of legs answers three
+// different ways depending on which of them the window contains.
+func TestIntegration_DashboardMetrics_ReversalStraddlingTheWindow(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	// The original lands 30 h before the anchor, its reversal 1 h before, so a
+	// 24 h window holds only the reversal and a 48 h window holds both.
+	parent := infra.insertTransactionReturningID(t, infra.ledgerID, "EUR", "1000", anchor.Add(-30*time.Hour))
+	infra.insertReversal(t, infra.ledgerID, parent, "EUR", "1000", anchor.Add(-time.Hour))
+
+	read := func(d time.Duration) (string, string) {
+		t.Helper()
+
+		metrics, err := infra.repo.Metrics(context.Background(), infra.orgID, infra.ledgerID, windowAround(d))
+		require.NoError(t, err)
+
+		volume := "0"
+		if len(metrics.VolumeByAsset) == 1 {
+			volume = metrics.VolumeByAsset[0].Amount.String()
+		}
+
+		reversals := "0"
+		if len(metrics.ReversalsByAsset) == 1 {
+			reversals = metrics.ReversalsByAsset[0].Amount.String()
+		}
+
+		return volume, reversals
+	}
+
+	volume, reversals := read(48 * time.Hour)
+	assert.Equal(t, "2000", volume, "both legs: volume is gross")
+	assert.Equal(t, "1000", reversals, "both legs: nothing net moved, yet the pair does not say so")
+
+	volume, reversals = read(24 * time.Hour)
+	assert.Equal(t, "1000", volume, "only the reversal: it is a settled leg like any other")
+	assert.Equal(t, "1000", reversals, "only the reversal: the whole of this window's volume is a reversal")
+
+	// A window holding only the original: shift the anchor back by closing the
+	// window before the reversal landed.
+	onlyOriginal := dashboard.Window{From: anchor.Add(-36 * time.Hour), To: anchor.Add(-24 * time.Hour)}
+
+	metrics, err := infra.repo.Metrics(context.Background(), infra.orgID, infra.ledgerID, onlyOriginal)
+	require.NoError(t, err)
+
+	require.Len(t, metrics.VolumeByAsset, 1)
+	assert.Equal(t, "1000", metrics.VolumeByAsset[0].Amount.String(),
+		"only the original: money that was later reverted still reads as volume")
+	assert.Empty(t, metrics.ReversalsByAsset,
+		"only the original: the reversal is outside the window, so nothing here is reverted")
 }
 
 // TestIntegration_DashboardAssets_EmptyLedgerAnswersEmptyArray.

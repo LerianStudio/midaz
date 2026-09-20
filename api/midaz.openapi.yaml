@@ -3072,9 +3072,12 @@ paths:
         reported PER ASSET with no cross-asset total, because adding two assets
         together does not produce money. Amounts are exact decimal strings whose
         scale is not normative; format them with the asset's own exponent and
-        never parse them as a binary float. Volume is GROSS of reversals;
-        reversalsByAsset is the reverted part; net = volume - reversals is the
-        operator's arithmetic, not a field.
+        never parse them as a binary float. volumeByAsset is the GROSS settled
+        amount: every settled leg inside the window, reversal legs included.
+        reversalsByAsset is the part of it made of reversal legs, same window
+        and same settled filter. A true net is NOT derivable from the two alone,
+        because it depends on whether each reversed original also falls inside
+        the window; a consumer that needs net reads the transactions.
       operationId: getLedgerDashboardMetrics
       parameters:
         - description: Organization ID (UUID)
@@ -9845,9 +9848,12 @@ paths:
         reported PER ASSET with no cross-asset total, because adding two assets
         together does not produce money. Amounts are exact decimal strings whose
         scale is not normative; format them with the asset's own exponent and
-        never parse them as a binary float. Volume is GROSS of reversals;
-        reversalsByAsset is the reverted part; net = volume - reversals is the
-        operator's arithmetic, not a field.
+        never parse them as a binary float. volumeByAsset is the GROSS settled
+        amount: every settled leg inside the window, reversal legs included.
+        reversalsByAsset is the part of it made of reversal legs, same window
+        and same settled filter. A true net is NOT derivable from the two alone,
+        because it depends on whether each reversed original also falls inside
+        the window; a consumer that needs net reads the transactions.
       operationId: getLedgerDashboardMetricsV2
       parameters:
         - description: Organization ID (UUID)
@@ -17992,9 +17998,11 @@ components:
           type: object
         reversalsByAsset:
           description: >-
-            The reverted part of the gross volume: settled transactions carrying
-            a parent_transaction_id, per asset. Net is volume minus reversals
-            and is deliberately not a field.
+            The part of the gross volume made of reversal legs: settled
+            transactions inside the window whose parent_transaction_id is set,
+            per asset. A true net is not derivable from volume and reversals
+            alone, because it depends on whether each reversed original also
+            falls inside the window.
           items:
             $ref: '#/components/schemas/LedgerDashboardAssetVolume'
           type:
