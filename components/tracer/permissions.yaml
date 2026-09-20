@@ -63,6 +63,14 @@ permissions:
   # streaming-manifest — event catalog (streaming_manifest_route.go:48)
   - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
 
+  # dashboard — read-only aggregates over the validation trail (routes.go, the
+  # /v1/dashboard group). The figures are derived from the SAME rows the
+  # validations resource already exposes row by row, so the grant follows the
+  # validations/get tiers exactly: a role that may read a validation may read a
+  # count of validations, and a role that may not, may not. audit-viewer is
+  # included because it already reads the audit trail of those same decisions.
+  - { resource: dashboard, action: get, effect: allow, roles: [editor, validator, viewer, audit-viewer] }
+
 roles:
   # Group bindings are CONFIRMED against the central Access Manager seed
   # (caradhras, deploy/pam-seed/init_data.json): the real groups are

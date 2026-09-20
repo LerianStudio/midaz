@@ -2723,6 +2723,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Transaction Validation Filters",
 			Message:    "Invalid transaction validation filter parameters.",
 		},
+		constant.ErrInvalidDashboardWindow: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidDashboardWindow.Error(),
+			Title:      "Invalid Dashboard Window",
+			Message:    "Invalid dashboard window: use period (7d, 30d, 90d) or start_date/end_date (RFC3339, at most 90 days apart), never both.",
+		},
 		constant.ErrTransactionValidationNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionValidationNotFound.Error(),
