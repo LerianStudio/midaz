@@ -114,6 +114,29 @@ func (i *dashboardInfra) insertBalance(t *testing.T, ledgerID, accountID uuid.UU
 	require.NoError(t, err)
 }
 
+// insertExternalBalance writes the ledger's `@external/<asset>` counterparty
+// row. Midaz issues money by debiting this account, so its `available` is a
+// POSITIVE mirror of everything the ledger ever put into circulation — the
+// reason /assets must not sum it alongside the accounts that hold the money.
+func (i *dashboardInfra) insertExternalBalance(t *testing.T, ledgerID uuid.UUID, asset, available string) {
+	t.Helper()
+
+	availableValue, err := decimal.NewFromString(available)
+	require.NoError(t, err)
+
+	_, err = i.db.Exec(`
+		INSERT INTO balance
+			(id, organization_id, ledger_id, account_id, alias, asset_code, key,
+			 available, on_hold, account_type, direction, allow_sending, allow_receiving,
+			 created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'default', $7, 0, $8, 'debit', true, true, $9, $9)`,
+		uuid.Must(libCommons.GenerateUUIDv7()), i.orgID, ledgerID,
+		uuid.Must(libCommons.GenerateUUIDv7()),
+		constant.DefaultExternalAccountAliasPrefix+asset, asset,
+		availableValue, constant.ExternalAccountType, anchor)
+	require.NoError(t, err)
+}
+
 // windowAround returns the half-open window [anchor-d, anchor).
 func windowAround(d time.Duration) dashboard.Window {
 	return dashboard.Window{From: anchor.Add(-d), To: anchor}
@@ -680,6 +703,37 @@ func TestIntegration_DashboardAssets_ExcludesSoftDeletedAndOtherLedger(t *testin
 	assert.Equal(t, int64(1), assets.Assets[0].Accounts)
 	assert.True(t, decimal.RequireFromString("1.00").Equal(assets.Assets[0].Available),
 		"got %s", assets.Assets[0].Available)
+}
+
+// TestIntegration_DashboardAssets_ExcludesExternalCounterparty pins the money
+// rule that matters most on this endpoint. The `@external/<asset>` account is
+// the contra side of every issuance: when 1200 BRL is put into circulation the
+// external row reads +1200 while the accounts holding it read 1200 between
+// them. Summing every balance row therefore reports 2400 for a ledger that
+// holds 1200, and an operator reading "available" would see double the money
+// that exists. Measured live on 2026-09-20 before this exclusion: a ledger
+// holding 1200 BRL answered 1900 available (1200 external + 700 remaining on
+// the customer account), which is neither the position nor the issuance.
+func TestIntegration_DashboardAssets_ExcludesExternalCounterparty(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	holder := uuid.Must(libCommons.GenerateUUIDv7())
+	second := uuid.Must(libCommons.GenerateUUIDv7())
+
+	infra.insertBalance(t, infra.ledgerID, holder, "BRL", "default", "700.00", "500.00")
+	infra.insertBalance(t, infra.ledgerID, second, "BRL", "default", "0", "0")
+	infra.insertExternalBalance(t, infra.ledgerID, "BRL", "1200.00")
+
+	assets, err := infra.repo.Assets(context.Background(), infra.orgID, infra.ledgerID)
+	require.NoError(t, err)
+
+	require.Len(t, assets.Assets, 1)
+	assert.Equal(t, int64(2), assets.Assets[0].Accounts,
+		"the external counterparty is not one of the ledger's accounts")
+	assert.True(t, decimal.RequireFromString("700.00").Equal(assets.Assets[0].Available),
+		"available must be what the ledger's accounts hold, got %s", assets.Assets[0].Available)
+	assert.True(t, decimal.RequireFromString("500.00").Equal(assets.Assets[0].OnHold),
+		"got %s", assets.Assets[0].OnHold)
 }
 
 // TestIntegration_DashboardAssets_EmptyLedgerAnswersEmptyArray.

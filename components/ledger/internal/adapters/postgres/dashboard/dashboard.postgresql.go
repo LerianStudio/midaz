@@ -179,6 +179,13 @@ const volumeQuery = `
 // overdraft_used (migration 000031) is deliberately not folded into either
 // figure. It is credit consumed, not a position held, and adding it to
 // available would report money the ledger does not have.
+// The `@external/<asset>` counterparty is excluded. It is the contra side of
+// every issuance, so its `available` is a positive mirror of all money the
+// ledger ever put into circulation; summing it alongside the accounts that
+// hold that money reports roughly twice the position. Measured live on
+// 2026-09-20: a ledger holding 1200 BRL answered 1900 available before this
+// exclusion. The marker is account_type, not the alias prefix, so an account
+// that is external by type is excluded however it happens to be named.
 const assetsQuery = `
 	SELECT
 		asset_code,
@@ -189,6 +196,7 @@ const assetsQuery = `
 	WHERE organization_id = $1
 	  AND ledger_id = $2
 	  AND deleted_at IS NULL
+	  AND account_type <> $3
 	GROUP BY asset_code
 	ORDER BY asset_code ASC`
 
@@ -387,7 +395,8 @@ func (r *DashboardPostgreSQLRepository) Assets(ctx context.Context, organization
 		return nil, fail(ctx, span, logger, "dashboard assets: get database connection", err)
 	}
 
-	rows, err := db.QueryContext(ctx, assetsQuery, windowPlanMode, organizationID, ledgerID)
+	rows, err := db.QueryContext(ctx, assetsQuery, windowPlanMode,
+		organizationID, ledgerID, constant.ExternalAccountType)
 	if err != nil {
 		return nil, fail(ctx, span, logger, "dashboard assets: querying", err)
 	}
