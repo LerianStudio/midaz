@@ -1083,6 +1083,37 @@ func TestIntegration_DashboardMetrics_NonSettledReversalIsExcluded(t *testing.T)
 		"a reversal that never settled is not a reverted amount, in the count as much as in the money")
 }
 
+// A lone non-settled reversal never reaches the reversal AMOUNT, because an
+// entry is emitted only when the reversal COUNT is above zero. So the settled
+// filter on the money itself needs a window where a settled reversal is
+// already emitting an entry and a non-settled one sits beside it.
+func TestIntegration_DashboardMetrics_ReversalAmountExcludesTheNonSettled(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	reverted := infra.insertTransactionReturningID(t, infra.ledgerID, "EUR", "900", anchor.Add(-4*time.Hour))
+	infra.insertReversal(t, infra.ledgerID, reverted, "EUR", "900", anchor.Add(-3*time.Hour))
+
+	abandoned := infra.insertTransactionReturningID(t, infra.ledgerID, "EUR", "1000", anchor.Add(-2*time.Hour))
+	infra.insertReversalWithStatus(t, infra.ledgerID, abandoned, "EUR", "1000", constant.CANCELED, anchor.Add(-time.Hour))
+
+	metrics, err := infra.repo.Metrics(context.Background(), infra.orgID, infra.ledgerID, windowAround(24*time.Hour))
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(4), metrics.Total, "two originals and two reversal legs")
+
+	require.Len(t, metrics.VolumeByAsset, 1)
+	assert.Equal(t, "2800", metrics.VolumeByAsset[0].Amount.String(),
+		"gross is both originals plus the settled reversal leg, never the cancelled one")
+	assert.Equal(t, int64(3), metrics.VolumeByAsset[0].Transactions)
+
+	require.Len(t, metrics.ReversalsByAsset, 1)
+	assert.Equal(t, "EUR", metrics.ReversalsByAsset[0].Asset)
+	assert.Equal(t, "900", metrics.ReversalsByAsset[0].Amount.String(),
+		"the cancelled reversal reverted nothing, so its 1000 is not reverted money")
+	assert.Equal(t, int64(1), metrics.ReversalsByAsset[0].Transactions,
+		"and it is not a reverted transaction either")
+}
+
 // TestIntegration_DashboardMetrics_ReversalStraddlingTheWindow proves the three
 // readings docs/dashboard.md publishes, and with them why no subtraction of
 // reversals from volume is a net figure: the same pair of legs answers three
