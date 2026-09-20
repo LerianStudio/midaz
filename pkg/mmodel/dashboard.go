@@ -56,7 +56,22 @@ type DashboardMetrics struct {
 
 	// VolumeByAsset holds one entry per asset that carried at least one settled
 	// transaction in the window. Empty when the window settled nothing.
+	//
+	// Volume is GROSS of reversals. Reverting a transaction writes a second
+	// settled row rather than unwinding the first, so 1000 EUR posted and then
+	// reverted is 2000 EUR across 2 transactions here — that is the throughput
+	// the ledger actually carried.
 	VolumeByAsset []DashboardAssetVolume `json:"volumeByAsset"`
+
+	// ReversalsByAsset is the reverted part of that gross figure: the settled
+	// transactions in the window that carry a parent_transaction_id, which is
+	// what a reversal leg is. Same shape as VolumeByAsset, same window, same
+	// scan. Empty when the window reverted nothing.
+	//
+	// Net is `volume − reversals` and is deliberately NOT a field: it is the
+	// operator's arithmetic, and publishing it would make the console carry a
+	// second money definition that has to stay in step with this one.
+	ReversalsByAsset []DashboardAssetVolume `json:"reversalsByAsset" doc:"The reverted part of the gross volume: settled transactions carrying a parent_transaction_id, per asset. Net is volume minus reversals and is deliberately not a field."`
 
 	WindowStart time.Time `json:"windowStart"`
 	WindowEnd   time.Time `json:"windowEnd"`

@@ -55,7 +55,9 @@ func RegisterDashboardRoutes(api huma.API, h *DashboardHandler, opSuffix string)
 			"transactions only — status APPROVED, the only status whose transactions moved money — and is " +
 			"reported PER ASSET with no cross-asset total, because adding two assets together does not produce " +
 			"money. Amounts are exact decimal strings whose scale is not normative; format them with the asset's " +
-			"own exponent and never parse them as a binary float.",
+			"own exponent and never parse them as a binary float. Volume is GROSS of reversals; " +
+			"reversalsByAsset is the reverted part; net = volume - reversals is the operator's arithmetic, not " +
+			"a field.",
 		Tags:     []string{tag},
 		Security: secDashboardBearer,
 	}, h.GetDashboardMetrics)
@@ -69,7 +71,7 @@ func RegisterDashboardRoutes(api huma.API, h *DashboardHandler, opSuffix string)
 			"transactions, which are present with transactions 0 and an empty byAsset. A window is half-open and " +
 			"snaps to the minute rather than to midnight, so a 7d window opened mid-afternoon returns EIGHT " +
 			"points. Each point's transactions counts every status; its byAsset applies the same settled rule as " +
-			"/metrics. Summing the points reproduces /metrics exactly.",
+			"/metrics. Summing the points reproduces /metrics exactly, and is likewise GROSS of reversals.",
 		Tags:     []string{tag},
 		Security: secDashboardBearer,
 	}, h.GetDashboardVolume)

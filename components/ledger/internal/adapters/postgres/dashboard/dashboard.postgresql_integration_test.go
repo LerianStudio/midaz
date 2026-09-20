@@ -88,6 +88,48 @@ func (i *dashboardInfra) insertTransaction(t *testing.T, ledgerID uuid.UUID, sta
 	require.NoError(t, err)
 }
 
+// insertReversal writes a settled reversal leg: a transaction row carrying a
+// parent_transaction_id. revert_transaction.go writes exactly this and leaves
+// the original APPROVED, which is why volume is gross and the reverted part
+// needs its own figure. Returns nothing; the parent is any existing row id.
+func (i *dashboardInfra) insertReversal(t *testing.T, ledgerID, parentID uuid.UUID, asset, amount string, createdAt time.Time) {
+	t.Helper()
+
+	value, err := decimal.NewFromString(amount)
+	require.NoError(t, err)
+
+	_, err = i.db.Exec(`
+		INSERT INTO "transaction"
+			(id, description, status, amount, asset_code, chart_of_accounts_group_name,
+			 organization_id, ledger_id, parent_transaction_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
+		uuid.Must(libCommons.GenerateUUIDv7()), "reversal", constant.APPROVED, value, asset, "default",
+		i.orgID, ledgerID, parentID, createdAt)
+	require.NoError(t, err)
+}
+
+// insertTransactionReturningID writes one settled transaction and hands back
+// its id so a reversal can point at it.
+func (i *dashboardInfra) insertTransactionReturningID(t *testing.T, ledgerID uuid.UUID, asset, amount string, createdAt time.Time) uuid.UUID {
+	t.Helper()
+
+	value, err := decimal.NewFromString(amount)
+	require.NoError(t, err)
+
+	id := uuid.Must(libCommons.GenerateUUIDv7())
+
+	_, err = i.db.Exec(`
+		INSERT INTO "transaction"
+			(id, description, status, amount, asset_code, chart_of_accounts_group_name,
+			 organization_id, ledger_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
+		id, "fixture", constant.APPROVED, value, asset, "default",
+		i.orgID, ledgerID, createdAt)
+	require.NoError(t, err)
+
+	return id
+}
+
 // insertBalance writes one balance row. available and onHold are decimal
 // STRINGS so a fixture states an exact money value and no float is involved in
 // producing the number the assertion then checks.
@@ -792,6 +834,23 @@ func TestIntegration_DashboardMetrics_MoneyIsDecimalNotFloat(t *testing.T) {
 		"the wire must carry a quoted exact string, not a JSON number: %s", raw)
 	assert.Contains(t, string(raw), `"amount":"0.3"`,
 		"the wire must carry a quoted exact string, not a JSON number: %s", raw)
+
+	// reversalsByAsset carries money too, so it gets the same guarantee.
+	reversed := infra.insertTransactionReturningID(t, infra.ledgerID, "EUR", twoPow53, anchor.Add(-5*time.Hour))
+	infra.insertReversal(t, infra.ledgerID, reversed, "EUR", "1", anchor.Add(-6*time.Hour))
+	infra.insertReversal(t, infra.ledgerID, reversed, "EUR", twoPow53, anchor.Add(-7*time.Hour))
+
+	metrics, err = infra.repo.Metrics(context.Background(), infra.orgID, infra.ledgerID, windowAround(24*time.Hour))
+	require.NoError(t, err)
+
+	require.Len(t, metrics.ReversalsByAsset, 1)
+	assert.Equal(t, twoPow53Plus1, metrics.ReversalsByAsset[0].Amount.String(),
+		"float64 answers %s here: the +1 falls off past 2^53", twoPow53)
+
+	raw, err = json.Marshal(metrics)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"reversalsByAsset":[{"asset":"EUR","amount":"`+twoPow53Plus1+`"`,
+		"the reverted figure must be a quoted exact string too: %s", raw)
 }
 
 // TestIntegration_DashboardVolume_MoneyIsDecimalNotFloat.
@@ -883,6 +942,108 @@ func TestIntegration_DashboardAssets_ExcludesExternalWhateverItsCase(t *testing.
 		"an external row is not one of the ledger's accounts however it is spelled")
 	assert.Equal(t, "250", assets.Assets[0].Available.String(),
 		"a mixed-case external row must not reach the position, got %s", assets.Assets[0].Available)
+}
+
+// =============================================================================
+// REVERSALS
+//
+// Reverting does not unwind the original: revert_transaction.go writes a NEW
+// settled row carrying parent_transaction_id and leaves the original APPROVED.
+// Fred's definition (2026-09-20): volume stays GROSS — it is the throughput the
+// ledger carried — and the reverted part gets its own figure beside it, so an
+// operator who wants net computes volume − reversals rather than reading a
+// third number that could drift out of step.
+// =============================================================================
+
+// TestIntegration_DashboardMetrics_VolumeIsGrossAndReversalsSeparated.
+func TestIntegration_DashboardMetrics_VolumeIsGrossAndReversalsSeparated(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	parent := infra.insertTransactionReturningID(t, infra.ledgerID, "EUR", "1000", anchor.Add(-2*time.Hour))
+	infra.insertReversal(t, infra.ledgerID, parent, "EUR", "1000", anchor.Add(-time.Hour))
+
+	metrics, err := infra.repo.Metrics(context.Background(), infra.orgID, infra.ledgerID, windowAround(24*time.Hour))
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(2), metrics.Total, "both legs are transactions")
+
+	require.Len(t, metrics.VolumeByAsset, 1)
+	assert.Equal(t, "2000", metrics.VolumeByAsset[0].Amount.String(),
+		"volume is gross: the ledger carried both legs")
+	assert.Equal(t, int64(2), metrics.VolumeByAsset[0].Transactions)
+
+	require.Len(t, metrics.ReversalsByAsset, 1)
+	assert.Equal(t, "EUR", metrics.ReversalsByAsset[0].Asset)
+	assert.Equal(t, "1000", metrics.ReversalsByAsset[0].Amount.String(),
+		"the reverted part is the reversal leg alone")
+	assert.Equal(t, int64(1), metrics.ReversalsByAsset[0].Transactions)
+}
+
+// TestIntegration_DashboardMetrics_NoReversalsAnswersEmptyArray: the field is
+// present and empty, never null — a console that reads null has to branch.
+func TestIntegration_DashboardMetrics_NoReversalsAnswersEmptyArray(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	infra.insertTransaction(t, infra.ledgerID, constant.APPROVED, "BRL", "10.00", anchor.Add(-time.Hour), nil)
+
+	metrics, err := infra.repo.Metrics(context.Background(), infra.orgID, infra.ledgerID, windowAround(24*time.Hour))
+	require.NoError(t, err)
+
+	assert.NotNil(t, metrics.ReversalsByAsset)
+	assert.Empty(t, metrics.ReversalsByAsset)
+
+	raw, err := json.Marshal(metrics)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"reversalsByAsset":[]`,
+		"the wire must carry an empty array, not null: %s", raw)
+}
+
+// TestIntegration_DashboardMetrics_ReversalsNeverSumAcrossAssets.
+func TestIntegration_DashboardMetrics_ReversalsNeverSumAcrossAssets(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	eur := infra.insertTransactionReturningID(t, infra.ledgerID, "EUR", "1000", anchor.Add(-3*time.Hour))
+	brl := infra.insertTransactionReturningID(t, infra.ledgerID, "BRL", "50.25", anchor.Add(-3*time.Hour))
+	infra.insertReversal(t, infra.ledgerID, eur, "EUR", "1000", anchor.Add(-time.Hour))
+	infra.insertReversal(t, infra.ledgerID, brl, "BRL", "50.25", anchor.Add(-time.Hour))
+
+	metrics, err := infra.repo.Metrics(context.Background(), infra.orgID, infra.ledgerID, windowAround(24*time.Hour))
+	require.NoError(t, err)
+
+	byAsset := map[string]decimal.Decimal{}
+	for _, entry := range metrics.ReversalsByAsset {
+		byAsset[entry.Asset] = entry.Amount
+	}
+
+	require.Len(t, metrics.ReversalsByAsset, 2)
+	assert.Equal(t, "1000", byAsset["EUR"].String())
+	assert.Equal(t, "50.25", byAsset["BRL"].String())
+}
+
+// TestIntegration_DashboardVolume_IsUnchangedByReversalSeparation: /volume
+// stays gross and grows no field. The reversal leg is a settled transaction
+// like any other and counts in the day it landed.
+func TestIntegration_DashboardVolume_IsUnchangedByReversalSeparation(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	parent := infra.insertTransactionReturningID(t, infra.ledgerID, "EUR", "1000", anchor.Add(-2*time.Hour))
+	infra.insertReversal(t, infra.ledgerID, parent, "EUR", "1000", anchor.Add(-time.Hour))
+
+	volume, err := infra.repo.Volume(context.Background(), infra.orgID, infra.ledgerID, windowAround(24*time.Hour))
+	require.NoError(t, err)
+
+	total := decimal.Zero
+	count := int64(0)
+
+	for _, point := range volume.Points {
+		for _, entry := range point.ByAsset {
+			total = total.Add(entry.Amount)
+			count += entry.Transactions
+		}
+	}
+
+	assert.Equal(t, "2000", total.String(), "/volume is gross, same as /metrics")
+	assert.Equal(t, int64(2), count)
 }
 
 // TestIntegration_DashboardAssets_EmptyLedgerAnswersEmptyArray.

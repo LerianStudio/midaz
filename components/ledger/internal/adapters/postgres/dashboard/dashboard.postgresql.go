@@ -79,6 +79,12 @@ const windowPlanMode = pgx.QueryExecModeExec
 // Row order is fixed so the scan can read the grand total before anything else
 // and never has to look ahead: total first, then the status rows, then the
 // asset rows.
+// Volume is GROSS of reversals, and the reverted part is reported beside it
+// rather than subtracted from it (Fred, 2026-09-20). revert_transaction.go
+// writes the reversal as a NEW settled row carrying parent_transaction_id and
+// leaves the original APPROVED, so 1000 EUR posted then reverted is 2000 EUR
+// across 2 transactions — the throughput the ledger actually carried. Net is
+// volume − reversals, the operator's arithmetic, deliberately not a field.
 const metricsQuery = `
 	SELECT
 		GROUPING(asset_code) AS no_asset,
@@ -87,7 +93,9 @@ const metricsQuery = `
 		status,
 		COUNT(*) AS transactions,
 		COUNT(*) FILTER (WHERE status = ANY($5)) AS settled_transactions,
-		COALESCE(SUM(amount) FILTER (WHERE status = ANY($5)), 0) AS settled_amount
+		COALESCE(SUM(amount) FILTER (WHERE status = ANY($5)), 0) AS settled_amount,
+		COUNT(*) FILTER (WHERE status = ANY($5) AND parent_transaction_id IS NOT NULL) AS reversal_transactions,
+		COALESCE(SUM(amount) FILTER (WHERE status = ANY($5) AND parent_transaction_id IS NOT NULL), 0) AS reversal_amount
 	FROM "transaction"
 	WHERE organization_id = $1
 	  AND ledger_id = $2
@@ -245,17 +253,19 @@ func (r *DashboardPostgreSQLRepository) Metrics(ctx context.Context, organizatio
 	defer func() { _ = rows.Close() }()
 
 	metrics := &mmodel.DashboardMetrics{
-		ByStatus:      newStatusCounts(),
-		VolumeByAsset: make([]mmodel.DashboardAssetVolume, 0),
-		WindowStart:   window.From,
-		WindowEnd:     window.To,
-		UpdatedAt:     r.now(),
+		ByStatus:         newStatusCounts(),
+		VolumeByAsset:    make([]mmodel.DashboardAssetVolume, 0),
+		ReversalsByAsset: make([]mmodel.DashboardAssetVolume, 0),
+		WindowStart:      window.From,
+		WindowEnd:        window.To,
+		UpdatedAt:        r.now(),
 	}
 
 	for rows.Next() {
 		var row metricsRow
 		if err := rows.Scan(&row.noAsset, &row.noStatus, &row.asset, &row.status,
-			&row.transactions, &row.settledTransactions, &row.settledAmount); err != nil {
+			&row.transactions, &row.settledTransactions, &row.settledAmount,
+			&row.reversalTransactions, &row.reversalAmount); err != nil {
 			return nil, fail(ctx, span, logger, "dashboard metrics: scanning row", err)
 		}
 
@@ -275,13 +285,15 @@ func (r *DashboardPostgreSQLRepository) Metrics(ctx context.Context, organizatio
 // but reading a NULL as "this is the total row" would silently turn a schema
 // change that relaxed either column into a corrupted headline.
 type metricsRow struct {
-	noAsset             int
-	noStatus            int
-	asset               sql.NullString
-	status              sql.NullString
-	transactions        int64
-	settledTransactions int64
-	settledAmount       decimal.Decimal
+	noAsset              int
+	noStatus             int
+	asset                sql.NullString
+	status               sql.NullString
+	transactions         int64
+	settledTransactions  int64
+	settledAmount        decimal.Decimal
+	reversalTransactions int64
+	reversalAmount       decimal.Decimal
 }
 
 // applyTo folds one row into the metrics entity.
@@ -308,6 +320,17 @@ func (row metricsRow) applyTo(metrics *mmodel.DashboardMetrics) {
 			Amount:       row.settledAmount,
 			Transactions: row.settledTransactions,
 		})
+
+		// The reverted part of that same gross figure. Same scan, same rows —
+		// one more FILTER pair rather than a second pass — so the two figures
+		// cannot disagree about which transactions the window contained.
+		if row.reversalTransactions > 0 {
+			metrics.ReversalsByAsset = append(metrics.ReversalsByAsset, mmodel.DashboardAssetVolume{
+				Asset:        row.asset.String,
+				Amount:       row.reversalAmount,
+				Transactions: row.reversalTransactions,
+			})
+		}
 	}
 }
 

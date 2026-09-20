@@ -12,7 +12,7 @@ policy-enforcing environment answers 403 until it lands.
 |---|---|
 | `/metrics` | `total`, `byStatus` (every status the enum knows, `0` when absent), `volumeByAsset` |
 | `/volume` | one point per UTC calendar day the window touches |
-| `/assets` | position per asset from `balance`; no window (window params ignored) |
+| `/assets` | position per asset from `balance`; no window (params ignored) |
 
 ## Window
 
@@ -42,6 +42,14 @@ moved; `PENDING`, `CANCELED`, `NOTED` never moved money. Non-settled rows still
 count in `total` and `byStatus`, so those disagreeing is expected. Statuses come
 from `constant.TransactionStatuses` and the settled set is a SQL parameter, so a
 new status needs no change here.
+
+**Volume is gross of reversals; `reversalsByAsset` is the reverted part; net =
+volume − reversals is the operator's arithmetic, not a field.** Reverting writes
+a NEW settled row carrying `parent_transaction_id` and leaves the original
+`APPROVED`, so 1000 EUR posted then reverted reads 2000 EUR over 2 transactions
+— the throughput the ledger carried. `/metrics` reports the reverted part per
+asset from the same scan (one more FILTER pair, no second pass); `/volume` is
+gross too and grows no field.
 
 `/assets` sums `available` and `on_hold` **as stored**: migration
 `000005_update_balance` made both `DECIMAL` and dropped `scale`, so there is no

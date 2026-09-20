@@ -2072,6 +2072,13 @@ components:
             format: int64
             type: integer
           type: object
+        reversalsByAsset:
+          description: "The reverted part of the gross volume: settled transactions carrying a parent_transaction_id, per asset. Net is volume minus reversals and is deliberately not a field."
+          items:
+            $ref: "#/components/schemas/DashboardAssetVolume"
+          type:
+            - array
+            - "null"
         total:
           examples:
             - 1420
@@ -2096,6 +2103,7 @@ components:
         - total
         - byStatus
         - volumeByAsset
+        - reversalsByAsset
         - windowStart
         - windowEnd
         - updatedAt
@@ -8087,7 +8095,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/metrics:
     get:
       deprecated: true
-      description: Returns, for the window, the total number of transactions, the count of each status the ledger knows, and the settled volume per asset. Volume sums transaction.amount over SETTLED transactions only — status APPROVED, the only status whose transactions moved money — and is reported PER ASSET with no cross-asset total, because adding two assets together does not produce money. Amounts are exact decimal strings whose scale is not normative; format them with the asset's own exponent and never parse them as a binary float.
+      description: Returns, for the window, the total number of transactions, the count of each status the ledger knows, and the settled volume per asset. Volume sums transaction.amount over SETTLED transactions only — status APPROVED, the only status whose transactions moved money — and is reported PER ASSET with no cross-asset total, because adding two assets together does not produce money. Amounts are exact decimal strings whose scale is not normative; format them with the asset's own exponent and never parse them as a binary float. Volume is GROSS of reversals; reversalsByAsset is the reverted part; net = volume - reversals is the operator's arithmetic, not a field.
       operationId: getDashboardMetrics
       parameters:
         - description: Organization ID (UUID)
@@ -8162,7 +8170,7 @@ paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/volume:
     get:
       deprecated: true
-      description: Returns one point per UTC calendar day the window TOUCHES, including days with no transactions, which are present with transactions 0 and an empty byAsset. A window is half-open and snaps to the minute rather than to midnight, so a 7d window opened mid-afternoon returns EIGHT points. Each point's transactions counts every status; its byAsset applies the same settled rule as /metrics. Summing the points reproduces /metrics exactly.
+      description: Returns one point per UTC calendar day the window TOUCHES, including days with no transactions, which are present with transactions 0 and an empty byAsset. A window is half-open and snaps to the minute rather than to midnight, so a 7d window opened mid-afternoon returns EIGHT points. Each point's transactions counts every status; its byAsset applies the same settled rule as /metrics. Summing the points reproduces /metrics exactly, and is likewise GROSS of reversals.
       operationId: getDashboardVolume
       parameters:
         - description: Organization ID (UUID)
@@ -14747,7 +14755,7 @@ paths:
         - Dashboard (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/metrics:
     get:
-      description: Returns, for the window, the total number of transactions, the count of each status the ledger knows, and the settled volume per asset. Volume sums transaction.amount over SETTLED transactions only — status APPROVED, the only status whose transactions moved money — and is reported PER ASSET with no cross-asset total, because adding two assets together does not produce money. Amounts are exact decimal strings whose scale is not normative; format them with the asset's own exponent and never parse them as a binary float.
+      description: Returns, for the window, the total number of transactions, the count of each status the ledger knows, and the settled volume per asset. Volume sums transaction.amount over SETTLED transactions only — status APPROVED, the only status whose transactions moved money — and is reported PER ASSET with no cross-asset total, because adding two assets together does not produce money. Amounts are exact decimal strings whose scale is not normative; format them with the asset's own exponent and never parse them as a binary float. Volume is GROSS of reversals; reversalsByAsset is the reverted part; net = volume - reversals is the operator's arithmetic, not a field.
       operationId: getDashboardMetricsV2
       parameters:
         - description: Organization ID (UUID)
@@ -14821,7 +14829,7 @@ paths:
         - Dashboard (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/volume:
     get:
-      description: Returns one point per UTC calendar day the window TOUCHES, including days with no transactions, which are present with transactions 0 and an empty byAsset. A window is half-open and snaps to the minute rather than to midnight, so a 7d window opened mid-afternoon returns EIGHT points. Each point's transactions counts every status; its byAsset applies the same settled rule as /metrics. Summing the points reproduces /metrics exactly.
+      description: Returns one point per UTC calendar day the window TOUCHES, including days with no transactions, which are present with transactions 0 and an empty byAsset. A window is half-open and snaps to the minute rather than to midnight, so a 7d window opened mid-afternoon returns EIGHT points. Each point's transactions counts every status; its byAsset applies the same settled rule as /metrics. Summing the points reproduces /metrics exactly, and is likewise GROSS of reversals.
       operationId: getDashboardVolumeV2
       parameters:
         - description: Organization ID (UUID)
