@@ -134,6 +134,7 @@ func buildHumaMountDepsWithNilHandlers(setup *unifiedRouteSetup) httpin.HumaMoun
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, nil,
 		nil,
+		nil,
 		nil, nil, nil, nil, nil,
 		nil, nil, nil, nil,
 		nil,

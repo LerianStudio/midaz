@@ -91,6 +91,12 @@ GET	/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	3
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id	1
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history	3
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id/history	1
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/dashboard/assets	3
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/dashboard/assets	1
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/dashboard/metrics	3
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/dashboard/metrics	1
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/dashboard/volume	3
+GET	/v1/organizations/:organization_id/ledgers/:ledger_id/dashboard/volume	1
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes	3
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes	1
 GET	/v1/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	3
@@ -170,6 +176,12 @@ GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/billing-packages/:id	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/assets	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/assets	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/metrics	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/metrics	1
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/volume	3
+GET	/v2/organizations/:organization_id/ledgers/:ledger_id/dashboard/volume	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	3
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes	1
 GET	/v2/organizations/:organization_id/ledgers/:ledger_id/operation-routes/:operation_route_id	3
