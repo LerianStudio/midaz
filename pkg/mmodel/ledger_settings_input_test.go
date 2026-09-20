@@ -95,6 +95,13 @@ func TestLedgerSettingsInput_ToSparseMap(t *testing.T) {
 			want: map[string]any{"tracer": map[string]any{"timeoutMs": 1500}},
 		},
 		{
+			name: "tracer timeoutMs zero is emitted, not dropped as an unset pointer",
+			input: &LedgerSettingsInput{
+				Tracer: &TracerSettingsInput{TimeoutMs: testutils.Ptr(0)},
+			},
+			want: map[string]any{"tracer": map[string]any{"timeoutMs": 0}},
+		},
+		{
 			name: "overrides allowFeeSkip only",
 			input: &LedgerSettingsInput{
 				Overrides: &OverridePolicyInput{AllowFeeSkip: testutils.Ptr(true)},
@@ -305,8 +312,8 @@ func TestLedgerSettingsInput_ToSparseMap_ParseRoundTrip(t *testing.T) {
 	onlyFeeSkip := DefaultLedgerSettings()
 	onlyFeeSkip.Overrides.AllowFeeSkip = true
 
-	explicitZeroTimeout := DefaultLedgerSettings()
-	explicitZeroTimeout.Tracer.TimeoutMs = 0
+	explicitLowerBoundTimeout := DefaultLedgerSettings()
+	explicitLowerBoundTimeout.Tracer.TimeoutMs = TracerTimeoutMsMin
 
 	tests := []struct {
 		name  string
@@ -344,9 +351,9 @@ func TestLedgerSettingsInput_ToSparseMap_ParseRoundTrip(t *testing.T) {
 			want:  onlyFeeSkip,
 		},
 		{
-			name:  "explicitly sent zero timeout overrides the default",
-			input: &LedgerSettingsInput{Tracer: &TracerSettingsInput{TimeoutMs: testutils.Ptr(0)}},
-			want:  explicitZeroTimeout,
+			name:  "explicitly sent lower-bound timeout overrides the default",
+			input: &LedgerSettingsInput{Tracer: &TracerSettingsInput{TimeoutMs: testutils.Ptr(TracerTimeoutMsMin)}},
+			want:  explicitLowerBoundTimeout,
 		},
 		{
 			name: "all nine fields set round-trips exactly",
@@ -436,6 +443,18 @@ func TestLedgerSettingsInput_ToSparseMap_ErrorFieldPathIsDeterministic(t *testin
 			input:         &LedgerSettingsInput{Tracer: &TracerSettingsInput{FailPosture: testutils.Ptr("")}},
 			wantCode:      "0176",
 			wantFieldPath: "tracer.failPosture",
+		},
+		{
+			name:          "zero tracer timeoutMs reports tracer.timeoutMs",
+			input:         &LedgerSettingsInput{Tracer: &TracerSettingsInput{TimeoutMs: testutils.Ptr(0)}},
+			wantCode:      "0176",
+			wantFieldPath: "tracer.timeoutMs",
+		},
+		{
+			name:          "tracer timeoutMs above upper bound reports tracer.timeoutMs",
+			input:         &LedgerSettingsInput{Tracer: &TracerSettingsInput{TimeoutMs: testutils.Ptr(30001)}},
+			wantCode:      "0176",
+			wantFieldPath: "tracer.timeoutMs",
 		},
 	}
 
