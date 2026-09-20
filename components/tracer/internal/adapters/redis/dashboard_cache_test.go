@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -33,10 +34,19 @@ type countingRepo struct {
 
 	processed int64
 	err       error
+
+	// block, when non-nil, holds every read inside the repository until it is
+	// closed. It is how the single-flight test gets N callers to overlap
+	// without a sleep deciding whether the test passes.
+	block chan struct{}
 }
 
-func (r *countingRepo) TopRules(_ context.Context, w model.DashboardWindow) (*model.DashboardTopRules, error) {
+func (r *countingRepo) TopRules(ctx context.Context, w model.DashboardWindow) (*model.DashboardTopRules, error) {
 	r.topRules.Add(1)
+
+	if err := r.wait(ctx); err != nil {
+		return nil, err
+	}
 
 	if r.err != nil {
 		return nil, r.err
@@ -49,8 +59,30 @@ func (r *countingRepo) TopRules(_ context.Context, w model.DashboardWindow) (*mo
 	}, nil
 }
 
-func (r *countingRepo) Metrics(_ context.Context, w model.DashboardWindow) (*model.DashboardMetrics, error) {
+// wait blocks the caller until block is closed, if a test armed one. It
+// honours ctx, because a fake that ignores cancellation makes every test about
+// cancellation pass whatever the code does — the first version of this helper
+// took no context and the flight-detachment test below passed against an
+// implementation that had no detachment in it.
+func (r *countingRepo) wait(ctx context.Context) error {
+	if r.block == nil {
+		return nil
+	}
+
+	select {
+	case <-r.block:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (r *countingRepo) Metrics(ctx context.Context, w model.DashboardWindow) (*model.DashboardMetrics, error) {
 	r.metrics.Add(1)
+
+	if err := r.wait(ctx); err != nil {
+		return nil, err
+	}
 
 	if r.err != nil {
 		return nil, r.err
@@ -64,8 +96,12 @@ func (r *countingRepo) Metrics(_ context.Context, w model.DashboardWindow) (*mod
 	}, nil
 }
 
-func (r *countingRepo) Volume(_ context.Context, w model.DashboardWindow) (*model.DashboardVolume, error) {
+func (r *countingRepo) Volume(ctx context.Context, w model.DashboardWindow) (*model.DashboardVolume, error) {
 	r.volume.Add(1)
+
+	if err := r.wait(ctx); err != nil {
+		return nil, err
+	}
 
 	if r.err != nil {
 		return nil, r.err
@@ -78,8 +114,12 @@ func (r *countingRepo) Volume(_ context.Context, w model.DashboardWindow) (*mode
 	}, nil
 }
 
-func (r *countingRepo) FraudTypes(_ context.Context, w model.DashboardWindow) (*model.DashboardFraudTypes, error) {
+func (r *countingRepo) FraudTypes(ctx context.Context, w model.DashboardWindow) (*model.DashboardFraudTypes, error) {
 	r.fraudTypes.Add(1)
+
+	if err := r.wait(ctx); err != nil {
+		return nil, err
+	}
 
 	if r.err != nil {
 		return nil, r.err
@@ -351,4 +391,178 @@ func TestDashboardCache_ZeroTTLUsesDefault(t *testing.T) {
 	keys := server.Keys()
 	require.Len(t, keys, 1)
 	assert.Equal(t, tracerRedis.DefaultTTL, server.TTL(keys[0]))
+}
+
+// getCounter counts completed Valkey reads, so the coalescing test below can
+// wait for a fact instead of for a duration.
+type getCounter struct{ gets atomic.Int64 }
+
+func (h *getCounter) DialHook(next goredis.DialHook) goredis.DialHook { return next }
+
+func (h *getCounter) ProcessPipelineHook(next goredis.ProcessPipelineHook) goredis.ProcessPipelineHook {
+	return next
+}
+
+func (h *getCounter) ProcessHook(next goredis.ProcessHook) goredis.ProcessHook {
+	return func(ctx context.Context, cmd goredis.Cmder) error {
+		err := next(ctx, cmd)
+
+		if cmd.Name() == "get" {
+			h.gets.Add(1)
+		}
+
+		return err
+	}
+}
+
+// TestDashboardCacheCoalescesConcurrentMisses pins the behaviour that makes
+// the cache protect the database rather than merely accelerate it.
+//
+// Every tenant's key rotates on the same wall-clock minute, because the window
+// is truncated to the minute. So the moment an entry expires, every dashboard
+// panel open anywhere misses at once, and without coalescing each of those
+// misses runs its own aggregation over the window. On the /top-rules panel
+// that is 146 ms of database work per concurrent viewer, every minute, on a
+// query that reads ~92 MB of heap — the exact load on the database the cache
+// was introduced to avoid.
+//
+// Getting this deterministic takes two barriers, and the second one is the
+// subtle one. The first caller is let in ALONE and held inside the repository,
+// so the flight is registered before anyone else arrives. But a latecomer is
+// not safely on the flight the moment it is scheduled: it first reads Valkey,
+// and releasing the flight during that read lets it arrive to find the key
+// already gone and start a second computation. So the test also waits until
+// every caller's Valkey read has COMPLETED before releasing the repository.
+// Waiting only for the goroutines to start made this fail about one run in ten
+// under a full-suite load, reporting 2.
+func TestDashboardCacheCoalescesConcurrentMisses(t *testing.T) {
+	const callers = 24
+
+	server := miniredis.RunT(t)
+	client := goredis.NewClient(&goredis.Options{Addr: server.Addr()})
+	reads := &getCounter{}
+
+	client.AddHook(reads)
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	repo := &countingRepo{processed: 42, block: make(chan struct{})}
+	cache := tracerRedis.NewDashboardCache(repo, client, time.Minute, nil)
+	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-coalesce")
+	window := testWindow(t, "30d")
+
+	var (
+		wg      sync.WaitGroup
+		failure atomic.Value
+	)
+
+	call := func() {
+		defer wg.Done()
+
+		if _, err := cache.TopRules(ctx, window); err != nil {
+			failure.Store(err)
+		}
+	}
+
+	// Barrier 1: caller 1 opens the flight and blocks inside the repository.
+	// singleflight registers the key before invoking the function, so once the
+	// repository has been entered the flight is joinable.
+	wg.Add(1)
+
+	go call()
+
+	require.Eventually(t, func() bool { return repo.topRules.Load() == 1 }, 10*time.Second, time.Millisecond,
+		"the first caller never reached the repository")
+
+	wg.Add(callers - 1)
+
+	for range callers - 1 {
+		go call()
+	}
+
+	// Barrier 2: every caller has finished its Valkey read and has nothing left
+	// to do but join the flight, which is a mutex acquisition rather than a
+	// round trip.
+	require.Eventually(t, func() bool { return reads.gets.Load() == callers }, 10*time.Second, time.Millisecond,
+		"not every caller reached the cache read")
+
+	close(repo.block)
+	wg.Wait()
+
+	if err, ok := failure.Load().(error); ok {
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, int64(1), repo.topRules.Load(),
+		"%d callers arriving during an open flight must reach the database once, not %d times",
+		callers, repo.topRules.Load())
+}
+
+// TestDashboardCacheFlightSurvivesTheCallerThatOpenedIt pins the half of
+// coalescing that is easy to get wrong.
+//
+// Sharing one computation between callers means sharing its fate. If the
+// computation runs on the context of whichever caller happened to arrive
+// first, that caller closing its browser tab cancels the database read every
+// other viewer is blocked on, and a dozen dashboards error for a request that
+// was doing fine. Coalescing would then have introduced exactly the outage it
+// exists to prevent.
+//
+// So the flight is detached: the first caller leaves with its own
+// context.Canceled, and the second still gets the answer.
+func TestDashboardCacheFlightSurvivesTheCallerThatOpenedIt(t *testing.T) {
+	server := miniredis.RunT(t)
+	client := goredis.NewClient(&goredis.Options{Addr: server.Addr()})
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	repo := &countingRepo{processed: 7, block: make(chan struct{})}
+	cache := tracerRedis.NewDashboardCache(repo, client, time.Minute, nil)
+	window := testWindow(t, "30d")
+
+	base := tmcore.ContextWithTenantID(context.Background(), "tenant-detached")
+	leaverCtx, leave := context.WithCancel(base)
+
+	var (
+		wg               sync.WaitGroup
+		leaverErr        error
+		stayerAnswer     *model.DashboardTopRules
+		stayerErr        error
+		leaverIn, stayIn = make(chan struct{}), make(chan struct{})
+	)
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+
+		close(leaverIn)
+
+		_, leaverErr = cache.TopRules(leaverCtx, window)
+	}()
+
+	// The leaver opens the flight; the stayer joins it.
+	<-leaverIn
+
+	go func() {
+		defer wg.Done()
+
+		close(stayIn)
+
+		stayerAnswer, stayerErr = cache.TopRules(base, window)
+	}()
+
+	<-stayIn
+
+	// Give both goroutines a turn to reach the cache, then abandon the first
+	// and release the database.
+	assert.Eventually(t, func() bool { return repo.topRules.Load() >= 1 }, time.Second, time.Millisecond)
+	leave()
+	close(repo.block)
+	wg.Wait()
+
+	require.ErrorIs(t, leaverErr, context.Canceled, "the caller that hung up gets its own cancellation")
+	require.NoError(t, stayerErr, "a caller whose context is alive must not inherit another caller's cancellation")
+	require.NotNil(t, stayerAnswer)
+	assert.Equal(t, int64(7), stayerAnswer.Rules[0].Matches)
 }

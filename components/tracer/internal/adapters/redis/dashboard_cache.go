@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	goredis "github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
@@ -28,6 +29,14 @@ import (
 var _ query.DashboardRepository = (*DashboardCache)(nil)
 
 const (
+	// flightTimeout bounds a coalesced computation. The flight is deliberately
+	// detached from the request that started it (see getOrCompute), so it needs
+	// a deadline of its own or a stalled database would leave an orphan flight
+	// holding the key forever and every later caller would join it instead of
+	// retrying. It is far above the slowest measured read (146 ms for
+	// /top-rules over 90 days), so it bounds a pathology, never normal work.
+	flightTimeout = 30 * time.Second
+
 	// DefaultTTL is how long a computed dashboard answer is served before it is
 	// recomputed. It equals model.DashboardWindowGranularity: the window is
 	// truncated to the minute, so a shorter TTL would recompute an answer that
@@ -63,6 +72,19 @@ type DashboardCache struct {
 	client goredis.UniversalClient
 	ttl    time.Duration
 	logger libLog.Logger
+
+	// flights coalesces concurrent misses on the same key into one database
+	// read. It is keyed by the tenant-prefixed cache key, so two tenants asking
+	// for the same window never share a flight.
+	//
+	// It matters more here than in a typical cache because every key expires on
+	// the same wall-clock minute: the window is truncated to the minute, so the
+	// entry for "last 30 days" changes name for everyone simultaneously and
+	// every open dashboard misses in the same instant. Without coalescing that
+	// is one full aggregation per viewer per minute; /top-rules alone reads
+	// ~92 MB of heap and takes 146 ms at 90 days, so a dozen viewers turn a
+	// cached dashboard into a recurring load spike on the database.
+	flights singleflight.Group
 }
 
 // NewDashboardCache wraps inner with a Valkey read-through cache. A nil client
@@ -135,14 +157,45 @@ func getOrCompute[T any](
 
 	cache.debug(ctx, "dashboard cache miss", key, endpoint)
 
-	value, err := compute(ctx, window)
-	if err != nil {
-		return nil, err
+	// One flight per key: the losers of the race wait for the winner's answer
+	// instead of running the same aggregation again.
+	//
+	// The flight runs on a context DETACHED from the request that opened it.
+	// Without that, the first caller to hang up — a viewer closing the tab —
+	// cancels the query every other viewer is waiting on, and they all get an
+	// error for a request that was proceeding fine. Coalescing would have
+	// introduced the very failure it was added to prevent. WithoutCancel keeps
+	// the tenant id and trace that the key and the logs are built from, and
+	// drops only the cancellation; flightTimeout supplies the bound that the
+	// request's own deadline used to.
+	flightCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), flightTimeout)
+	defer cancel()
+
+	result := cache.flights.DoChan(key, func() (any, error) {
+		computed, err := compute(flightCtx, window)
+		if err != nil {
+			return nil, err
+		}
+
+		cache.write(flightCtx, key, computed)
+
+		return computed, nil
+	})
+
+	select {
+	case <-ctx.Done():
+		// This caller gave up. The flight continues for whoever else is on it.
+		return nil, ctx.Err()
+	case answer := <-result:
+		if answer.Err != nil {
+			return nil, answer.Err
+		}
+
+		// The type assertion cannot fail: the only producer of this key's value
+		// is the closure above, which returns *T. Guarding it anyway would mean
+		// inventing a behaviour for a case that cannot arise.
+		return answer.Val.(*T), nil
 	}
-
-	cache.write(ctx, key, value)
-
-	return value, nil
 }
 
 // key renders the tenant-prefixed cache key for one endpoint and window.
