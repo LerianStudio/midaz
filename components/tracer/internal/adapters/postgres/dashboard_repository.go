@@ -13,6 +13,7 @@ import (
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
+	"github.com/jackc/pgx/v5"
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
@@ -78,6 +79,36 @@ func NewDashboardRepository(conn pgdb.Connection, clk clock.Clock) *DashboardRep
 // Every column the statement touches — created_at, decision, asset, amount,
 // processing_time_ms — lives in idx_tv_dashboard, which is what keeps this an
 // index-only scan.
+// windowPlanMode forces every windowed dashboard read to be planned against
+// the window it was actually handed.
+//
+// Without it these reads get 3.4x slower after five minutes of uptime, and
+// nothing in the code changes to explain it. pgx's default exec mode caches a
+// SERVER-SIDE prepared statement per connection; PostgreSQL plans the first
+// five executions against the real parameters and then, under the default
+// plan_cache_mode=auto, switches to a GENERIC plan built with no knowledge of
+// them. A generic plan cannot know a window holds 25% of the table rather than
+// the 0.3% its default selectivity assumes, so it drops the parallel scan and
+// the Memoize node, and /top-rules over 90 days goes from 95 ms to 323 ms —
+// past the 200 ms budget these reads are held to.
+//
+// Measured on 1,000,000 rows, one pooled connection, eight consecutive
+// executions of the /top-rules query:
+//
+//	default (cache statement): 105 95 95 95 94 | 323 323 321  ms
+//	QueryExecModeExec:         104 95 94 93 95 |  94  95  96  ms
+//
+// QueryExecModeExec uses an unnamed prepared statement, which PostgreSQL
+// always plans against the given parameters. The re-planning it pays for is
+// under a millisecond on these four statements and is not visible in the
+// end-to-end numbers.
+//
+// It is applied to all four windowed reads rather than only the one that
+// breaches today: the cause is the range predicate on created_at, which all
+// four share, so one rule is easier to keep true than three exceptions.
+// activeCountsQuery takes no parameters and is therefore unaffected.
+const windowPlanMode = pgx.QueryExecModeExec
+
 const metricsQuery = `
 	SELECT
 		GROUPING(asset) AS is_total,
@@ -214,7 +245,7 @@ func (r *DashboardRepository) Metrics(ctx context.Context, window model.Dashboar
 // total arrives first (is_total DESC), so the asset rows that follow can be
 // appended without a second pass.
 func scanMetrics(ctx context.Context, db pgdb.DB, window model.DashboardWindow) (*model.DashboardMetrics, error) {
-	rows, err := db.QueryContext(ctx, metricsQuery, window.From, window.To)
+	rows, err := db.QueryContext(ctx, metricsQuery, windowPlanMode, window.From, window.To)
 	if err != nil {
 		return nil, fmt.Errorf("dashboard metrics: querying: %w", err)
 	}
@@ -275,7 +306,7 @@ func (r *DashboardRepository) Volume(ctx context.Context, window model.Dashboard
 		return nil, fail(ctx, span, logger, "dashboard volume: get database connection", err)
 	}
 
-	rows, err := db.QueryContext(ctx, volumeQuery, window.From, window.To)
+	rows, err := db.QueryContext(ctx, volumeQuery, windowPlanMode, window.From, window.To)
 	if err != nil {
 		return nil, fail(ctx, span, logger, "dashboard volume: querying", err)
 	}
@@ -321,7 +352,7 @@ func (r *DashboardRepository) FraudTypes(ctx context.Context, window model.Dashb
 		return nil, fail(ctx, span, logger, "dashboard fraud types: get database connection", err)
 	}
 
-	rows, err := db.QueryContext(ctx, fraudTypesQuery, window.From, window.To)
+	rows, err := db.QueryContext(ctx, fraudTypesQuery, windowPlanMode, window.From, window.To)
 	if err != nil {
 		return nil, fail(ctx, span, logger, "dashboard fraud types: querying", err)
 	}
@@ -372,7 +403,7 @@ func (r *DashboardRepository) TopRules(ctx context.Context, window model.Dashboa
 		return nil, fail(ctx, span, logger, "dashboard top rules: get database connection", err)
 	}
 
-	rows, err := db.QueryContext(ctx, topRulesQuery, window.From, window.To, model.DashboardTopRulesLimit)
+	rows, err := db.QueryContext(ctx, topRulesQuery, windowPlanMode, window.From, window.To, model.DashboardTopRulesLimit)
 	if err != nil {
 		return nil, fail(ctx, span, logger, "dashboard top rules: querying", err)
 	}
