@@ -168,10 +168,18 @@ func getOrCompute[T any](
 	// the tenant id and trace that the key and the logs are built from, and
 	// drops only the cancellation; flightTimeout supplies the bound that the
 	// request's own deadline used to.
-	flightCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), flightTimeout)
-	defer cancel()
-
+	//
+	// The context is built INSIDE the closure, and that placement is the whole
+	// fix rather than a style choice. Built in this frame instead, its deferred
+	// cancel belongs to whichever caller happened to open the flight: that
+	// caller returns the moment it hangs up, its cancel fires, and the detached
+	// context dies under every other viewer still waiting — putting back by
+	// hand exactly the cancellation WithoutCancel had severed. Only the flight's
+	// own goroutine may own the flight's lifetime.
 	result := cache.flights.DoChan(key, func() (any, error) {
+		flightCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), flightTimeout)
+		defer cancel()
+
 		computed, err := compute(flightCtx, window)
 		if err != nil {
 			return nil, err
