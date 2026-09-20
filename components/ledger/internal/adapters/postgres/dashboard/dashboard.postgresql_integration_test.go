@@ -10,10 +10,10 @@ package dashboard
 // INTEGRATION TESTS — dashboard repository
 //
 // Every case here runs the real statements against a real PostgreSQL. The
-// money rules this endpoint family publishes — never sum across assets, divide
-// by the per-row scale before summing, count only settled transactions as
-// volume, exclude soft-deleted rows — are all properties of the SQL, so a
-// mocked database would assert nothing about any of them.
+// money rules this endpoint family publishes — never sum across assets, keep
+// every sum exact in decimal, count only settled transactions as volume,
+// exclude soft-deleted rows and the external counterparty — are all properties
+// of the SQL, so a mocked database would assert nothing about any of them.
 //
 //	go test -tags integration -run TestIntegration_Dashboard -v -count=1 \
 //	    ./components/ledger/internal/adapters/postgres/dashboard/
@@ -23,6 +23,7 @@ package dashboard
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -734,6 +735,127 @@ func TestIntegration_DashboardAssets_ExcludesExternalCounterparty(t *testing.T) 
 		"available must be what the ledger's accounts hold, got %s", assets.Assets[0].Available)
 	assert.True(t, decimal.RequireFromString("500.00").Equal(assets.Assets[0].OnHold),
 		"got %s", assets.Assets[0].OnHold)
+}
+
+// =============================================================================
+// FLOAT DISCRIMINATION
+//
+// These three cases exist because the precision fixtures above do NOT
+// discriminate. 1.00+0.05+0.1 and 0.25+0.2 print identically through float64
+// and through decimal, so a pipeline that had silently become float64 passed
+// them: a reviewer cast each SQL sum to float8 and all three reads survived.
+//
+// Every pair below DISAGREES under float64:
+//
+//	9007199254740992 + 1 -> float64 answers 9007199254740992. 2^53 is the last
+//	                        integer it can represent, so the +1 vanishes.
+//	0.1 + 0.2            -> float64 answers 0.30000000000000004.
+//
+// Each case also asserts the MARSHALLED JSON, because exactness inside Go is
+// worth nothing if the wire carries a bare JSON number: the console has to
+// receive a QUOTED string it can hand to a decimal formatter, and a number
+// would be through float64 before its code ever ran.
+// =============================================================================
+
+// twoPow53 is the largest integer float64 represents exactly. One more than it
+// is the cheapest proof that a money path is not going through a float.
+const (
+	twoPow53      = "9007199254740992"
+	twoPow53Plus1 = "9007199254740993"
+)
+
+// TestIntegration_DashboardMetrics_MoneyIsDecimalNotFloat.
+func TestIntegration_DashboardMetrics_MoneyIsDecimalNotFloat(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	infra.insertTransaction(t, infra.ledgerID, constant.APPROVED, "BRL", twoPow53, anchor.Add(-time.Hour), nil)
+	infra.insertTransaction(t, infra.ledgerID, constant.APPROVED, "BRL", "1", anchor.Add(-2*time.Hour), nil)
+	infra.insertTransaction(t, infra.ledgerID, constant.APPROVED, "USD", "0.1", anchor.Add(-3*time.Hour), nil)
+	infra.insertTransaction(t, infra.ledgerID, constant.APPROVED, "USD", "0.2", anchor.Add(-4*time.Hour), nil)
+
+	metrics, err := infra.repo.Metrics(context.Background(), infra.orgID, infra.ledgerID, windowAround(24*time.Hour))
+	require.NoError(t, err)
+
+	byAsset := map[string]decimal.Decimal{}
+	for _, entry := range metrics.VolumeByAsset {
+		byAsset[entry.Asset] = entry.Amount
+	}
+
+	assert.Equal(t, twoPow53Plus1, byAsset["BRL"].String(),
+		"float64 answers %s here: the +1 falls off past 2^53", twoPow53)
+	assert.Equal(t, "0.3", byAsset["USD"].String(),
+		"float64 answers 0.30000000000000004 here")
+
+	raw, err := json.Marshal(metrics)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"amount":"`+twoPow53Plus1+`"`,
+		"the wire must carry a quoted exact string, not a JSON number: %s", raw)
+	assert.Contains(t, string(raw), `"amount":"0.3"`,
+		"the wire must carry a quoted exact string, not a JSON number: %s", raw)
+}
+
+// TestIntegration_DashboardVolume_MoneyIsDecimalNotFloat.
+func TestIntegration_DashboardVolume_MoneyIsDecimalNotFloat(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	infra.insertTransaction(t, infra.ledgerID, constant.APPROVED, "BRL", twoPow53, anchor.Add(-time.Hour), nil)
+	infra.insertTransaction(t, infra.ledgerID, constant.APPROVED, "BRL", "1", anchor.Add(-2*time.Hour), nil)
+	infra.insertTransaction(t, infra.ledgerID, constant.APPROVED, "USD", "0.1", anchor.Add(-3*time.Hour), nil)
+	infra.insertTransaction(t, infra.ledgerID, constant.APPROVED, "USD", "0.2", anchor.Add(-4*time.Hour), nil)
+
+	volume, err := infra.repo.Volume(context.Background(), infra.orgID, infra.ledgerID, windowAround(24*time.Hour))
+	require.NoError(t, err)
+
+	byAsset := map[string]decimal.Decimal{}
+
+	for _, point := range volume.Points {
+		for _, entry := range point.ByAsset {
+			byAsset[entry.Asset] = byAsset[entry.Asset].Add(entry.Amount)
+		}
+	}
+
+	assert.Equal(t, twoPow53Plus1, byAsset["BRL"].String(),
+		"float64 answers %s here: the +1 falls off past 2^53", twoPow53)
+	assert.Equal(t, "0.3", byAsset["USD"].String(),
+		"float64 answers 0.30000000000000004 here")
+
+	raw, err := json.Marshal(volume)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"amount":"`+twoPow53Plus1+`"`,
+		"the wire must carry a quoted exact string, not a JSON number: %s", raw)
+	assert.Contains(t, string(raw), `"amount":"0.3"`,
+		"the wire must carry a quoted exact string, not a JSON number: %s", raw)
+}
+
+// TestIntegration_DashboardAssets_MoneyIsDecimalNotFloat carries both pairs on
+// one asset: the integer pair in available, the fractional pair in on_hold, so
+// a float anywhere in either column is caught.
+func TestIntegration_DashboardAssets_MoneyIsDecimalNotFloat(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	accountA := uuid.Must(libCommons.GenerateUUIDv7())
+	accountB := uuid.Must(libCommons.GenerateUUIDv7())
+
+	infra.insertBalance(t, infra.ledgerID, accountA, "BRL", "default", twoPow53, "0.1")
+	infra.insertBalance(t, infra.ledgerID, accountB, "BRL", "default", "1", "0.2")
+
+	assets, err := infra.repo.Assets(context.Background(), infra.orgID, infra.ledgerID)
+	require.NoError(t, err)
+
+	require.Len(t, assets.Assets, 1)
+	position := assets.Assets[0]
+
+	assert.Equal(t, twoPow53Plus1, position.Available.String(),
+		"float64 answers %s here: the +1 falls off past 2^53", twoPow53)
+	assert.Equal(t, "0.3", position.OnHold.String(),
+		"float64 answers 0.30000000000000004 here")
+
+	raw, err := json.Marshal(assets)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"available":"`+twoPow53Plus1+`"`,
+		"the wire must carry a quoted exact string, not a JSON number: %s", raw)
+	assert.Contains(t, string(raw), `"onHold":"0.3"`,
+		"the wire must carry a quoted exact string, not a JSON number: %s", raw)
 }
 
 // TestIntegration_DashboardAssets_EmptyLedgerAnswersEmptyArray.
