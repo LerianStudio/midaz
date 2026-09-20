@@ -1,0 +1,80 @@
+-- ============================================
+-- Migration: 000024_add_dashboard_covering_index
+-- Description: Covering index that lets the operator dashboard aggregate the
+--              validation trail without touching the heap.
+-- Date: 2026-09-20
+-- ============================================
+--
+-- WHY. The dashboard reads (GET /v1/dashboard/metrics and /fraud-types) are
+-- bounded aggregations over created_at. idx_transaction_validations_created
+-- already narrows the window, but decision, transaction_type, asset, amount and
+-- processing_time_ms live only in the heap, so every row in the window costs a
+-- heap fetch. Measured on the seeded 1,000,000-row trail
+-- (scripts/seed_dashboard_benchmark.sql, 365 days, PostgreSQL 17, 256MB
+-- shared_buffers), EXPLAIN (ANALYZE), median of three warm runs, by dropping
+-- this index and putting it back:
+--
+--   metrics      without: 7d 10.6ms | 30d 47.6ms | 90d 115.2ms  (Index Scan)
+--                with:    7d  6.7ms | 30d 28.1ms | 90d  81.0ms  (Index Only Scan)
+--   fraud-types  without: 7d  8.9ms | 30d 33.2ms | 90d  45.0ms  (Index Scan)
+--                with:    7d  5.1ms | 30d 20.7ms | 90d  28.6ms  (Index Only Scan)
+--
+-- So it buys 1.4x to 1.7x, and the honest statement of the case is that the
+-- reads MEET the 200ms bound without it at 1,000,000 rows (worst case, metrics
+-- over 90 days, 115ms). What it buys is headroom: it removes the heap fetch
+-- from the two reads that need columns beyond the timestamp, which pushes the
+-- operating limit further out and keeps the bound reachable as the trail grows.
+--
+-- An earlier version of this comment claimed a 7x gain (30d 224ms -> 32ms).
+-- That was measured on a benchmark fixture which scattered created_at randomly
+-- over the year. This table is append-only and its rows never move, so its
+-- physical order always matches created_at: a window is one contiguous heap
+-- stretch, and the pre-index plan is an Index Scan over adjacent pages rather
+-- than the bitmap heap scan over ~90% of the table the old fixture produced.
+-- The 7x was real for a table shape this one cannot reach.
+--
+-- The volume read needs created_at alone and is served index-only by
+-- idx_transaction_validations_created either way (measured identical, 83ms at
+-- 90 days with and without). /top-rules is likewise unaffected: it must read
+-- the rule arrays from the heap, which no covering index can carry (below).
+-- Both reads keep this index only because it costs them nothing.
+--
+-- COST. 56MB alongside a 300MB table at 1,000,000 rows. That figure is the same
+-- whether the index is BUILT by this migration against existing rows or GROWN
+-- by a million inserts, because created_at is monotonic on an append-only trail
+-- so every insert lands on the rightmost page and packs like a fresh build. A
+-- table whose physical order had been destroyed would grow a larger index from
+-- page splits.
+--
+-- The write cost is one extra B-tree insert on the validate hot path:
+-- +0.6 to +0.7 microseconds per validation, measured as the median of seven
+-- 50,000-row batches with this index against seven without, on a table already
+-- holding 1,000,000 rows. The table already carries nine other indexes costing
+-- roughly 15 microseconds of maintenance per row, so this adds about 4% to
+-- that, against a per-request budget of 29ms (docs/tracer/INVARIANTS.md
+-- section 4). An earlier estimate of +9.3 microseconds was taken on an empty
+-- table and overstated it by more than tenfold.
+--
+-- The columns are INCLUDE (payload) rather than key columns: nothing filters or
+-- sorts on them, so carrying them in the key would only widen every internal
+-- page and slow the descent. The two UUID[] columns are deliberately NOT
+-- included — their width is unbounded (one element per evaluated rule), and a
+-- row wide enough to overflow the B-tree tuple limit would fail its INSERT,
+-- which on this table means a validation that cannot be recorded.
+--
+-- CONCURRENTLY, following the monorepo precedent for an index on a table in a
+-- hot write path (components/ledger/migrations/transaction/000029): a plain
+-- CREATE INDEX holds a lock that blocks the validate path for the duration of
+-- the build. IF NOT EXISTS keeps a replay a clean no-op (Migration Renumbering
+-- Invariant, docs/tracer/INVARIANTS.md).
+--
+-- OPERATIONAL NOTE. The index-only plan requires the visibility map: pages
+-- autovacuum has not yet marked all-visible still cost a heap fetch. A trail
+-- under sustained write with autovacuum starved degrades back toward the
+-- pre-index timings above. This was measured: VACUUM FULL, which leaves the
+-- visibility map unset, returned every one of these reads to the bitmap heap
+-- plan until a plain VACUUM ran.
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transaction_validations_dashboard
+ON transaction_validations (created_at)
+INCLUDE (decision, transaction_type, asset, amount, processing_time_ms);

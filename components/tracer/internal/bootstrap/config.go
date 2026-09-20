@@ -23,6 +23,7 @@ import (
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/cel"
@@ -31,6 +32,7 @@ import (
 	httpMiddleware "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in/middleware"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
+	tracerRedis "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/observability"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
@@ -1126,6 +1128,22 @@ func initHTTPServer(
 	authHost string,
 ) (*HTTPServer, *services.ReservationService, error) {
 	_ = ctx // reserved for future ctx-aware initialization (e.g., when NewValidationService takes ctx)
+
+	// Init the dashboard read stack: bounded postgres aggregations behind a
+	// Valkey read-through cache. The cache reuses the tenant-manager Pub/Sub
+	// client — the service's ONLY Valkey connection — rather than opening a
+	// second one. In single-tenant mode there is no such client, so the
+	// decorator degrades to a straight pass-through to postgres: the dashboard
+	// is slower without a cache, never wrong.
+	dashboardService := query.NewGetDashboardQuery(
+		tracerRedis.NewDashboardCache(
+			postgres.NewDashboardRepository(pgConn, clk),
+			dashboardCacheClient(mtComponents),
+			tracerRedis.DefaultTTL,
+			logger,
+		),
+	)
+
 	// Init Transaction Validation repository and queries
 	transactionValidationRepo := postgres.NewTransactionValidationRepositoryWithConnection(pgConn)
 	getTransactionValidationQuery := query.NewGetTransactionValidationQuery(transactionValidationRepo)
@@ -1262,6 +1280,7 @@ func initHTTPServer(
 		ReservationService:           reservationService,
 		TransactionValidationService: transactionValidationService,
 		AuditEventService:            auditEventService,
+		DashboardService:             dashboardService,
 		Guard:                        authGuard,
 		Clock:                        clk,
 		MultiTenantEnabled:           cfg.MultiTenantEnabled,
@@ -1287,6 +1306,18 @@ func initHTTPServer(
 	}
 
 	return httpServer, reservationService, nil
+}
+
+// dashboardCacheClient returns the Valkey client the dashboard cache should
+// use, or nil in single-tenant mode where the tenant-manager Pub/Sub client
+// (the service's only Valkey connection) is never built. Extracted so the nil
+// check reads once and cannot drift from the nil-tolerance the cache promises.
+func dashboardCacheClient(mtComponents *componentsMT) redis.UniversalClient {
+	if mtComponents == nil {
+		return nil
+	}
+
+	return mtComponents.redisClient
 }
 
 // initGRPCServer builds the opt-in reservation gRPC server. It returns nil (no
