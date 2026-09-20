@@ -7,6 +7,7 @@ package mmodel
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
@@ -563,6 +564,119 @@ func TestValidateSettings(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "tracer timeoutMs lower bound accepted",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(1),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "tracer timeoutMs upper bound accepted",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(30000),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "tracer timeoutMs fraction within range accepted",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(250.7),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "tracer timeoutMs zero rejected with field-value error",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(0),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer timeoutMs negative rejected with field-value error",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(-250),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer timeoutMs above upper bound rejected",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(30001),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer timeoutMs fraction below lower bound rejected",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": float64(0.5),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer timeoutMs zero as int rejected",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": int(0),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "tracer timeoutMs as string rejected as type error not value error",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": "0",
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0148",
+		},
+		{
+			name: "tracer timeoutMs NaN rejected",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": math.NaN(),
+				},
+			},
+			wantErr:     true,
+			errContains: "tracer.timeoutMs",
+			wantErrCode: "0176",
+		},
+		{
+			name: "null tracer timeoutMs is valid",
+			input: map[string]any{
+				"tracer": map[string]any{
+					"timeoutMs": nil,
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -584,6 +698,11 @@ func TestValidateSettings(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTracerTimeoutMsDefaultWithinRange(t *testing.T) {
+	assert.GreaterOrEqual(t, defaultTracerTimeoutMs, TracerTimeoutMsMin)
+	assert.LessOrEqual(t, defaultTracerTimeoutMs, TracerTimeoutMsMax)
 }
 
 func TestDeepMergeSettings(t *testing.T) {
