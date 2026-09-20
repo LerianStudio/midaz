@@ -67,9 +67,10 @@ never itself be reverted (`revert_transaction.go:172`,
 `ErrTransactionIDIsAlreadyARevert`), so the count is never a chain depth; a
 `PENDING` original cannot be reverted at all (`revert_transaction.go:179`
 requires `APPROVED`); and a reversal carries the original's amount exactly
-(`transaction.go:296` builds the reversal from `*t.Amount`, and the revert path
-never calls `applyFees` — its only two call sites are
-`create_transaction_v2.go:188` and `create_atomic_transaction_batch_v2.go:374`).
+(`components/ledger/internal/adapters/postgres/transaction/transaction.go:296`
+builds it from `*t.Amount`, and the revert path never calls `applyFees`, whose
+only two call sites are `create_transaction_v2.go:188` and
+`create_atomic_transaction_batch_v2.go:374`).
 `parent_transaction_id` is originated by one function, the revert one
 (`revert_transaction.go:239`), so the figure counts reversals and nothing else.
 
