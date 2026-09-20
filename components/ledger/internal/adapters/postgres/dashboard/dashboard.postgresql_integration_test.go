@@ -119,7 +119,7 @@ func (i *dashboardInfra) insertBalance(t *testing.T, ledgerID, accountID uuid.UU
 // row. Midaz issues money by debiting this account, so its `available` is a
 // POSITIVE mirror of everything the ledger ever put into circulation — the
 // reason /assets must not sum it alongside the accounts that hold the money.
-func (i *dashboardInfra) insertExternalBalance(t *testing.T, ledgerID uuid.UUID, asset, available string) {
+func (i *dashboardInfra) insertExternalBalance(t *testing.T, ledgerID uuid.UUID, asset, available, accountType string) {
 	t.Helper()
 
 	availableValue, err := decimal.NewFromString(available)
@@ -134,7 +134,7 @@ func (i *dashboardInfra) insertExternalBalance(t *testing.T, ledgerID uuid.UUID,
 		uuid.Must(libCommons.GenerateUUIDv7()), i.orgID, ledgerID,
 		uuid.Must(libCommons.GenerateUUIDv7()),
 		constant.DefaultExternalAccountAliasPrefix+asset, asset,
-		availableValue, constant.ExternalAccountType, anchor)
+		availableValue, accountType, anchor)
 	require.NoError(t, err)
 }
 
@@ -723,7 +723,7 @@ func TestIntegration_DashboardAssets_ExcludesExternalCounterparty(t *testing.T) 
 
 	infra.insertBalance(t, infra.ledgerID, holder, "BRL", "default", "700.00", "500.00")
 	infra.insertBalance(t, infra.ledgerID, second, "BRL", "default", "0", "0")
-	infra.insertExternalBalance(t, infra.ledgerID, "BRL", "1200.00")
+	infra.insertExternalBalance(t, infra.ledgerID, "BRL", "1200.00", constant.ExternalAccountType)
 
 	assets, err := infra.repo.Assets(context.Background(), infra.orgID, infra.ledgerID)
 	require.NoError(t, err)
@@ -856,6 +856,33 @@ func TestIntegration_DashboardAssets_MoneyIsDecimalNotFloat(t *testing.T) {
 		"the wire must carry a quoted exact string, not a JSON number: %s", raw)
 	assert.Contains(t, string(raw), `"onHold":"0.3"`,
 		"the wire must carry a quoted exact string, not a JSON number: %s", raw)
+}
+
+// TestIntegration_DashboardAssets_ExcludesExternalWhateverItsCase is the second
+// half of the external rule. `create_account.go` has normalised account_type to
+// lowercase only since 3cd8a0423 (2026-07-13), so a row written before that, or
+// restored from an older dump, can carry `External`. An exact-match exclusion
+// lets such a row through and publishes the counterparty mirror — a NEGATIVE
+// number on a real ledger — as the position. The comparison is therefore
+// case-insensitive on purpose.
+func TestIntegration_DashboardAssets_ExcludesExternalWhateverItsCase(t *testing.T) {
+	infra := setupDashboardInfra(t)
+
+	holder := uuid.Must(libCommons.GenerateUUIDv7())
+	infra.insertBalance(t, infra.ledgerID, holder, "USD", "default", "250.00", "0")
+
+	for _, spelling := range []string{"External", "EXTERNAL", "eXtErNaL"} {
+		infra.insertExternalBalance(t, infra.ledgerID, "USD", "-999", spelling)
+	}
+
+	assets, err := infra.repo.Assets(context.Background(), infra.orgID, infra.ledgerID)
+	require.NoError(t, err)
+
+	require.Len(t, assets.Assets, 1)
+	assert.Equal(t, int64(1), assets.Assets[0].Accounts,
+		"an external row is not one of the ledger's accounts however it is spelled")
+	assert.Equal(t, "250", assets.Assets[0].Available.String(),
+		"a mixed-case external row must not reach the position, got %s", assets.Assets[0].Available)
 }
 
 // TestIntegration_DashboardAssets_EmptyLedgerAnswersEmptyArray.

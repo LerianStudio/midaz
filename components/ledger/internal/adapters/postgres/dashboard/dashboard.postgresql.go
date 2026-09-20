@@ -186,6 +186,13 @@ const volumeQuery = `
 // 2026-09-20: a ledger holding 1200 BRL answered 1900 available before this
 // exclusion. The marker is account_type, not the alias prefix, so an account
 // that is external by type is excluded however it happens to be named.
+//
+// The comparison is case-insensitive on purpose. create_account.go has
+// normalised the type to lowercase only since 3cd8a0423 (2026-07-13), so a row
+// written before that, or restored from an older dump, can read `External`; an
+// exact match lets it through and publishes the counterparty mirror, a negative
+// number, as the ledger's position. $3 is already lowercase, so only the column
+// is folded. Same form as holder_backfill.go:251.
 const assetsQuery = `
 	SELECT
 		asset_code,
@@ -196,7 +203,7 @@ const assetsQuery = `
 	WHERE organization_id = $1
 	  AND ledger_id = $2
 	  AND deleted_at IS NULL
-	  AND account_type <> $3
+	  AND lower(account_type) <> $3
 	GROUP BY asset_code
 	ORDER BY asset_code ASC`
 
