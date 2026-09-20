@@ -20,10 +20,21 @@
 -- The volume read needs created_at alone and is already served index-only by
 -- idx_transaction_validations_created, which therefore stays.
 --
--- COST. 56MB alongside a 300MB table at 1,000,000 rows, and one extra B-tree
--- insert on the validate hot path: 20,000 inserts measured 565ms without this
--- index and 750ms with it, i.e. +9.3 microseconds per validation against a
--- per-request budget of 29ms (docs/tracer/INVARIANTS.md section 4).
+-- COST. 56MB alongside a 300MB table at 1,000,000 rows. That figure is the same
+-- whether the index is BUILT by this migration against existing rows or GROWN
+-- by a million inserts, because created_at is monotonic on an append-only trail
+-- so every insert lands on the rightmost page and packs like a fresh build. A
+-- table whose physical order had been destroyed would grow a larger index from
+-- page splits.
+--
+-- The write cost is one extra B-tree insert on the validate hot path:
+-- +0.6 to +0.7 microseconds per validation, measured as the median of seven
+-- 50,000-row batches with this index against seven without, on a table already
+-- holding 1,000,000 rows. The table already carries nine other indexes costing
+-- roughly 15 microseconds of maintenance per row, so this adds about 4% to
+-- that, against a per-request budget of 29ms (docs/tracer/INVARIANTS.md
+-- section 4). An earlier estimate of +9.3 microseconds was taken on an empty
+-- table and overstated it by more than tenfold.
 --
 -- The columns are INCLUDE (payload) rather than key columns: nothing filters or
 -- sorts on them, so carrying them in the key would only widen every internal
