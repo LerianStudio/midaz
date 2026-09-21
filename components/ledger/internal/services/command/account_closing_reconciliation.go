@@ -94,6 +94,8 @@ func (uc *UseCase) ReconcileAccountClosings(ctx context.Context) AccountClosingR
 
 	start := time.Now()
 
+	var markersExhausted bool
+
 	for cursor, page := uint64(0), 0; page < maxAccountClosingReconcilePages; page++ {
 		if ctx.Err() != nil {
 			break
@@ -119,11 +121,13 @@ func (uc *UseCase) ReconcileAccountClosings(ctx context.Context) AccountClosingR
 
 		cursor = scan.Cursor
 		if cursor == 0 {
+			markersExhausted = true
+
 			break
 		}
 	}
 
-	uc.countAbandonedAccountOwnerships(ctx, logger, &stats)
+	ownershipsExhausted := uc.countAbandonedAccountOwnerships(ctx, logger, &stats)
 
 	span.SetAttributes(
 		attribute.Int("app.account_closing.reconciled_markers", stats.Scanned),
@@ -134,11 +138,15 @@ func (uc *UseCase) ReconcileAccountClosings(ctx context.Context) AccountClosingR
 	)
 
 	// A pass whose scans both walked to the end is what the age measure counts as
-	// reconciliation having run. One that aborted on a scan reached an unknown part
-	// of the namespace, so advancing the instant would report coverage it never had.
+	// reconciliation having run. One that aborted on a scan, or that hit the page
+	// cap before its cursor returned to zero, reached only an unknown part of the
+	// namespace, so advancing the instant would report coverage it never had. The
+	// next pass simply continues: no cursor is persisted between invocations.
 	complete := ctx.Err() == nil &&
 		stats.failures[accountClosingStageScanMarkers] == 0 &&
-		stats.failures[accountClosingStageScanOwnerships] == 0
+		stats.failures[accountClosingStageScanOwnerships] == 0 &&
+		markersExhausted &&
+		ownershipsExhausted
 
 	reportAccountClosingReconciliation(ctx, logger, stats, complete)
 
@@ -242,8 +250,12 @@ func (uc *UseCase) readReconciledClosingInstant(ctx context.Context, scope txRed
 //
 // It runs the same steps the attempt would have, in the same order and with the
 // instant the database already holds: the cached balances go first, the negative
-// cache next, and the marker last. A step that fails leaves the protection in
-// place for the next pass, which is why none of them is best-effort here.
+// cache next. The administrative ownership this attempt installed is released
+// before its closing marker is removed, because the marker is the only retry
+// anchor reconciliation has — once it is gone an ownership release that then fails
+// would orphan the ownership forever (it carries no TTL). A step that fails leaves
+// the protection in place for the next pass, which is why none of them is
+// best-effort here.
 func (uc *UseCase) completeReconciledAccountClosing(
 	ctx context.Context,
 	logger libLog.Logger,
@@ -282,6 +294,15 @@ func (uc *UseCase) completeReconciledAccountClosing(
 		return
 	}
 
+	if _, err := uc.releaseReconciledOwnership(ctx, scope, attempt.Token); err != nil {
+		stats.Retained++
+		stats.fail(accountClosingStageReleaseOwnership)
+
+		logger.Log(ctx, libLog.LevelWarn, "Failed to release the ownership of a reconciled closing while reconciling", libLog.Err(err))
+
+		return
+	}
+
 	if _, err := uc.TransactionRedisRepo.ReleaseAccountClosingAttempt(ctx, scope.OrganizationID, scope.LedgerID, scope.AccountID, attempt.Token); err != nil {
 		stats.Retained++
 		stats.fail(accountClosingStageReleaseClosedMarker)
@@ -291,18 +312,19 @@ func (uc *UseCase) completeReconciledAccountClosing(
 		return
 	}
 
-	uc.releaseReconciledOwnership(ctx, logger, scope, attempt.Token, stats)
-
 	stats.Completed++
 }
 
 // releaseAbortedAccountClosing gives back the protection of an attempt that never
 // issued its closing write.
 //
-// The removal is conditional on that exact phase, which is what makes it safe
-// without knowing whether the owner is still running: an owner that advanced in
-// the meantime no longer matches, and one whose marker is removed here can no
-// longer record a write intent, so it cannot write either.
+// The administrative ownership is released before the closing marker, for the
+// same reason as completeReconciledAccountClosing: the marker is the retry anchor,
+// and the ownership carries no TTL to fall back on if it is orphaned. The marker
+// removal is conditional on that exact phase, which is what makes it safe without
+// knowing whether the owner is still running: an owner that advanced in the
+// meantime no longer matches, and one whose marker is removed here can no longer
+// record a write intent, so it cannot write either.
 func (uc *UseCase) releaseAbortedAccountClosing(
 	ctx context.Context,
 	logger libLog.Logger,
@@ -310,6 +332,15 @@ func (uc *UseCase) releaseAbortedAccountClosing(
 	attempt txRedis.AccountClosingAttempt,
 	stats *AccountClosingReconciliationStats,
 ) {
+	if _, err := uc.releaseReconciledOwnership(ctx, scope, attempt.Token); err != nil {
+		stats.Retained++
+		stats.fail(accountClosingStageReleaseOwnership)
+
+		logger.Log(ctx, libLog.LevelWarn, "Failed to release the ownership of an aborted closing while reconciling", libLog.Err(err))
+
+		return
+	}
+
 	released, err := uc.TransactionRedisRepo.ReleaseAccountClosingMarker(ctx, scope.OrganizationID, scope.LedgerID, scope.AccountID, attempt.Token)
 	if err != nil {
 		stats.Retained++
@@ -326,20 +357,16 @@ func (uc *UseCase) releaseAbortedAccountClosing(
 		return
 	}
 
-	uc.releaseReconciledOwnership(ctx, logger, scope, attempt.Token, stats)
-
 	stats.Released++
 }
 
 // releaseReconciledOwnership drops the administrative ownership that belongs to
 // the same attempt, conditionally on its token so an ownership another operation
-// took afterwards is never touched.
-func (uc *UseCase) releaseReconciledOwnership(ctx context.Context, logger libLog.Logger, scope txRedis.AccountProtectionScope, token string, stats *AccountClosingReconciliationStats) {
-	if _, err := uc.TransactionRedisRepo.ReleaseAccountAdminOwnership(ctx, scope.OrganizationID, scope.LedgerID, scope.AccountID, token); err != nil {
-		stats.fail(accountClosingStageReleaseOwnership)
-
-		logger.Log(ctx, libLog.LevelWarn, "Failed to release the ownership of a reconciled closing", libLog.Err(err))
-	}
+// took afterwards is never touched. The returned bool reports whether this call
+// actually released it; a caller may proceed either way, as long as err is nil —
+// false with no error means the ownership was no longer there to release.
+func (uc *UseCase) releaseReconciledOwnership(ctx context.Context, scope txRedis.AccountProtectionScope, token string) (bool, error) {
+	return uc.TransactionRedisRepo.ReleaseAccountAdminOwnership(ctx, scope.OrganizationID, scope.LedgerID, scope.AccountID, token)
 }
 
 // countAbandonedAccountOwnerships measures the ownerships still installed once the
@@ -350,10 +377,14 @@ func (uc *UseCase) releaseReconciledOwnership(ctx context.Context, logger libLog
 // result decides it, and it is not readable from a key. They are counted as
 // backlog and left exactly where they are: releasing one would let a closing
 // validate a balance list that work can still change.
-func (uc *UseCase) countAbandonedAccountOwnerships(ctx context.Context, logger libLog.Logger, stats *AccountClosingReconciliationStats) {
+//
+// It reports whether the scan walked the whole ownership namespace: false when it
+// stopped on a cancelled context, a scan failure, or the page cap with a nonzero
+// cursor still outstanding.
+func (uc *UseCase) countAbandonedAccountOwnerships(ctx context.Context, logger libLog.Logger, stats *AccountClosingReconciliationStats) bool {
 	for cursor, page := uint64(0), 0; page < maxAccountClosingReconcilePages; page++ {
 		if ctx.Err() != nil {
-			return
+			return false
 		}
 
 		scan, err := uc.TransactionRedisRepo.ScanAccountAdminOwnerships(ctx, cursor, accountClosingReconcileScanCount)
@@ -362,7 +393,7 @@ func (uc *UseCase) countAbandonedAccountOwnerships(ctx context.Context, logger l
 
 			logger.Log(ctx, libLog.LevelWarn, "Failed to scan the account administrative ownerships", libLog.Err(err))
 
-			return
+			return false
 		}
 
 		stats.Unreadable += scan.Unreadable
@@ -370,7 +401,9 @@ func (uc *UseCase) countAbandonedAccountOwnerships(ctx context.Context, logger l
 
 		cursor = scan.Cursor
 		if cursor == 0 {
-			return
+			return true
 		}
 	}
+
+	return false
 }

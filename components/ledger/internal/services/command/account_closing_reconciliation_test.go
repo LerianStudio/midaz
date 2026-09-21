@@ -126,8 +126,55 @@ func TestReconcileAccountClosings_KeepsAnAttemptThatMovedOn(t *testing.T) {
 	m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), closeOrgID, closeLedgerID, []uuid.UUID{closeAccountID}).
 		Return(map[uuid.UUID]*time.Time{closeAccountID: nil}, nil)
 
+	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, reconcileToken).
+		Return(false, nil)
 	m.redis.EXPECT().ReleaseAccountClosingMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, reconcileToken).
 		Return(false, nil)
+
+	stats := m.uc.ReconcileAccountClosings(context.Background())
+
+	assert.Equal(t, 1, stats.Retained)
+	assert.Zero(t, stats.Released)
+}
+
+// TestReconcileAccountClosings_KeepsTheMarkerWhenOwnershipReleaseFails covers Fix
+// D: the ownership carries no TTL, so if it cannot be released the closing marker
+// stays as the retry anchor — the pass reports Retained, never Completed, and never
+// removes the marker.
+func TestReconcileAccountClosings_KeepsTheMarkerWhenOwnershipReleaseFails(t *testing.T) {
+	m := newCloseAccountMocks(t)
+
+	recorded := closeInstant
+
+	m.expectMarkerDiscovered()
+	m.expectAttemptRead(true)
+	m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), closeOrgID, closeLedgerID, []uuid.UUID{closeAccountID}).
+		Return(map[uuid.UUID]*time.Time{closeAccountID: &recorded}, nil)
+	m.balance.EXPECT().ListByAccountID(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
+		Return([]*mmodel.Balance{closeEligibleBalance()}, nil)
+	m.redis.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil)
+	m.redis.EXPECT().SetAccountClosedMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, recorded).Return(nil)
+	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, reconcileToken).
+		Return(false, errors.New("ownership store unavailable"))
+
+	stats := m.uc.ReconcileAccountClosings(context.Background())
+
+	assert.Equal(t, 1, stats.Retained)
+	assert.Zero(t, stats.Completed)
+}
+
+// TestReconcileAccountClosings_KeepsTheMarkerWhenAnAbortedOwnershipReleaseFails
+// covers Fix D on the abort path: the same no-TTL ownership risk applies before an
+// attempt ever issued its write, so the marker also stays there.
+func TestReconcileAccountClosings_KeepsTheMarkerWhenAnAbortedOwnershipReleaseFails(t *testing.T) {
+	m := newCloseAccountMocks(t)
+
+	m.expectMarkerDiscovered()
+	m.expectAttemptRead(false)
+	m.account.EXPECT().ListClosedAtByIDs(gomock.Any(), closeOrgID, closeLedgerID, []uuid.UUID{closeAccountID}).
+		Return(map[uuid.UUID]*time.Time{closeAccountID: nil}, nil)
+	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, reconcileToken).
+		Return(false, errors.New("ownership store unavailable"))
 
 	stats := m.uc.ReconcileAccountClosings(context.Background())
 
