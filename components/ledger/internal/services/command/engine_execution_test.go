@@ -125,15 +125,13 @@ func TestValidatePreparedEngineExecutionRejectsMissingExtraAndReorderedCorrelati
 			p.CompletionPlans = append(p.CompletionPlans, p.CompletionPlans[0])
 		}},
 		{name: "reordered transactions", mutate: func(p *PreparedEngineExecution) {
-			p.Execution.Execution.Transactions[0], p.Execution.Execution.Transactions[1] =
-				p.Execution.Execution.Transactions[1], p.Execution.Execution.Transactions[0]
+			p.Execution.Execution.Transactions[0], p.Execution.Execution.Transactions[1] = p.Execution.Execution.Transactions[1], p.Execution.Execution.Transactions[0]
 		}},
 		{name: "reordered guards", mutate: func(p *PreparedEngineExecution) {
 			p.Execution.Guards[0], p.Execution.Guards[1] = p.Execution.Guards[1], p.Execution.Guards[0]
 		}},
 		{name: "reordered embedded plans", mutate: func(p *PreparedEngineExecution) {
-			p.Execution.CompletionPlans[0], p.Execution.CompletionPlans[1] =
-				p.Execution.CompletionPlans[1], p.Execution.CompletionPlans[0]
+			p.Execution.CompletionPlans[0], p.Execution.CompletionPlans[1] = p.Execution.CompletionPlans[1], p.Execution.CompletionPlans[0]
 		}},
 		{name: "reordered typed plans", mutate: func(p *PreparedEngineExecution) {
 			p.CompletionPlans[0], p.CompletionPlans[1] = p.CompletionPlans[1], p.CompletionPlans[0]

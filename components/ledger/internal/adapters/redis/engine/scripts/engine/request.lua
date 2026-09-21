@@ -79,6 +79,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
 	request.evidenceKeyIndex = evidenceKeyIndex
     requireArray(request.balances)
     requireArray(request.transactions)
+    requireArray(request.accounts)
     if #request.transactions == 0 or #request.transactions > maximumTransactions or #request.balances > maximumBalances then
         technical("invalid_protocol", "execution exceeds transaction or balance limit")
     end
@@ -87,7 +88,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         requireObject(transaction)
         if transaction.accountBlockException ~= nil then grantCount = grantCount + 1 end
     end
-    if #KEYS ~= 7 + 3 * #request.balances + grantCount then technical("invalid_protocol", "invalid execution cardinality") end
+    if #KEYS ~= 7 + 3 * #request.balances + grantCount + 3 * #request.accounts then technical("invalid_protocol", "invalid execution cardinality") end
     -- All physical keys must be unique and use the same transaction hash tag so
     -- the complete execution belongs to one Redis Cluster slot.
     local seenKeys = {}
@@ -128,6 +129,39 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         end
         refs[balance.balanceRef], ids[seed.id], accounts[seed.accountId], aliases[seed.alias] = seed, true, seed, seed.accountId
     end
+    -- Validate the account protection block that closes the key inventory: one
+    -- closing, closed and administrative ownership key per account of the pool, in
+    -- ascending account order. Every key must end in its own account identifier, so
+    -- the controls of one account can never be served from another's key.
+    local protection = {}
+    local protectionBase, previousAccountId = 7 + 3 * #request.balances + grantCount, nil
+    for i, account in ipairs(request.accounts) do
+        requireObject(account)
+        uuid(account.accountId)
+        if previousAccountId and account.accountId <= previousAccountId then
+            technical("invalid_protocol", "unordered account protection block")
+        end
+        previousAccountId = account.accountId
+        local base = protectionBase + 3 * (i - 1)
+        if smallInteger(account.closingKeyIndex, #KEYS) ~= base + 1 or smallInteger(account.closedKeyIndex, #KEYS) ~= base + 2 or smallInteger(account.ownershipKeyIndex, #KEYS) ~= base + 3 then
+            technical("invalid_protocol", "invalid account protection key indices")
+        end
+        local suffix = ":" .. account.accountId
+        for offset = 1, 3 do
+            if KEYS[base + offset]:sub(-#suffix) ~= suffix then technical("invalid_protocol", "invalid account protection key") end
+        end
+        -- An empty token is the normal declaration of a caller that owns no
+        -- admission; it may then use only balances the cache already holds.
+        text(account.admissionToken, true)
+        account.closingKeyIndex, account.closedKeyIndex, account.ownershipKeyIndex = base + 1, base + 2, base + 3
+        protection[account.accountId] = account
+    end
+    for accountId in pairs(accounts) do
+        if not protection[accountId] then
+            technical("invalid_protocol", "balance account is missing from the account protection block")
+        end
+    end
+    request.accountProtection = protection
     -- Validate transaction correlation, guard advancement, recovery payloads,
     -- and the closed set of balance references used by requirements and postings.
     local transactions, grantOrdinal, postingCount = {}, 0, 0

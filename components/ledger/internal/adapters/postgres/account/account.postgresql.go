@@ -27,7 +27,9 @@ import (
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -81,8 +83,16 @@ func accountColumns(withHolder bool) []string {
 		"deleted_at",
 		"blocked",
 		holderCheckSkipped,
+		"closed_at",
 	}
 }
+
+// ErrAccountCloseNotApplied reports that a conditional close matched no row: the
+// account does not exist in the scope, is soft-deleted, or is already closed. The
+// three are indistinguishable from the statement's result alone, so the caller
+// resolves which one it is with an authoritative read — a zero-row result is NOT
+// evidence that the account is absent.
+var ErrAccountCloseNotApplied = errors.New("errAccountCloseNotApplied")
 
 // Repository provides an interface for operations related to account entities.
 // It defines methods for creating, retrieving, updating, and deleting accounts in the database.
@@ -108,6 +118,26 @@ type Repository interface {
 	ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error)
 	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error)
 	Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error
+	// CloseAccount records the closing instant of one live, open account and
+	// returns the instant the database generated. The write is conditional on
+	// deleted_at IS NULL AND closed_at IS NULL, so concurrent attempts resolve
+	// themselves: at most one applies, and a repeat over a confirmed closing
+	// never overwrites the original instant. It is the only write that touches
+	// closed_at.
+	//
+	// A statement that matched no row returns ErrAccountCloseNotApplied, which
+	// does not say WHICH of absent, deleted or already-closed it was.
+	CloseAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (time.Time, error)
+	// ListClosedAtByIDs returns the closing instant of each requested account,
+	// read from the PRIMARY inside a read-only transaction. A closing that
+	// committed moments ago must be visible to the caller that decides whether a
+	// balance may still be admitted, and a replica cannot promise that.
+	//
+	// The map carries one entry per row found: a nil value is an open account and
+	// a non-nil value its closing instant. An account absent from the map has no
+	// row in the scope and therefore no closing to report. Soft-deleted rows are
+	// included, so a closing survives a later deletion of the account.
+	ListClosedAtByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]*time.Time, error)
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
 	// ListExternalAccountsByAssetCode returns the live (not soft-deleted) accounts of
@@ -384,6 +414,7 @@ func scanAccountRows(rows *sql.Rows) ([]*mmodel.Account, error) {
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			return nil, mapReadError(err)
 		}
@@ -586,6 +617,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.DeletedAt,
 		&acc.Blocked,
 		&acc.HolderCheckSkipped,
+		&acc.ClosedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
@@ -663,6 +695,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.DeletedAt,
 		&acc.Blocked,
 		&acc.HolderCheckSkipped,
+		&acc.ClosedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
@@ -741,6 +774,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.DeletedAt,
 		&acc.Blocked,
 		&acc.HolderCheckSkipped,
+		&acc.ClosedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, constant.EntityAccount)
@@ -883,6 +917,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			mapped := mapReadError(err)
 
@@ -968,6 +1003,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			mapped := mapReadError(err)
 
@@ -986,6 +1022,32 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 	}
 
 	return accounts, nil
+}
+
+// applyAccountUpdateFields adds the SET clauses a generic account update may
+// write. The list is closed by construction: closed_at is absent from it and
+// from applyNullableFields, so neither an entity carrying a closing instant nor
+// a NullFields entry naming closedAt can reach the column. Only the close
+// command writes it.
+func applyAccountUpdateFields(builder squirrel.UpdateBuilder, acc *mmodel.Account, record *AccountPostgreSQLModel) squirrel.UpdateBuilder {
+	if acc.Name != "" {
+		builder = builder.Set("name", record.Name)
+	}
+
+	if !acc.Status.IsEmpty() {
+		builder = builder.Set("status", record.Status)
+		builder = builder.Set("status_description", record.StatusDescription)
+	}
+
+	if !libCommons.IsNilOrEmpty(acc.Alias) {
+		builder = builder.Set("alias", record.Alias)
+	}
+
+	if acc.Blocked != nil {
+		builder = builder.Set("blocked", *acc.Blocked)
+	}
+
+	return applyNullableFields(builder, acc, record)
 }
 
 // applyNullableFields applies nullable field updates (segmentId, entityId, portfolioId)
@@ -1029,26 +1091,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	record := &AccountPostgreSQLModel{}
 	record.FromEntity(acc)
 
-	builder := squirrel.Update(r.tableName)
-
-	if acc.Name != "" {
-		builder = builder.Set("name", record.Name)
-	}
-
-	if !acc.Status.IsEmpty() {
-		builder = builder.Set("status", record.Status)
-		builder = builder.Set("status_description", record.StatusDescription)
-	}
-
-	if !libCommons.IsNilOrEmpty(acc.Alias) {
-		builder = builder.Set("alias", record.Alias)
-	}
-
-	if acc.Blocked != nil {
-		builder = builder.Set("blocked", *acc.Blocked)
-	}
-
-	builder = applyNullableFields(builder, acc, record)
+	builder := applyAccountUpdateFields(squirrel.Update(r.tableName), acc, record)
 
 	record.UpdatedAt = time.Now()
 	builder = builder.Set("updated_at", record.UpdatedAt)
@@ -1155,6 +1198,197 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	return nil
 }
 
+// CloseAccount records the closing instant of one live, open account.
+func (r *AccountPostgreSQLRepository) CloseAccount(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (time.Time, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.close_account")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.String("app.request.account_id", id.String()),
+	)
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return time.Time{}, err
+	}
+
+	// now() is the database's, not the process's: the instant has to come from the
+	// same clock that serializes the write, so two racing closings cannot disagree
+	// about which one landed first.
+	builder := squirrel.Update(r.tableName).
+		Set("closed_at", squirrel.Expr("now()")).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"id": id}).
+		Where(squirrel.Expr("deleted_at IS NULL")).
+		Where(squirrel.Expr("closed_at IS NULL")).
+		Suffix("RETURNING closed_at").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := builder.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return time.Time{}, err
+	}
+
+	var closedAt sql.NullTime
+
+	if err := db.QueryRowContext(ctx, query, args...).Scan(&closedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetAttributes(attribute.Int64("db.rows_affected", 0))
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Conditional close matched no row", ErrAccountCloseNotApplied)
+
+			return time.Time{}, ErrAccountCloseNotApplied
+		}
+
+		mapped := mapReadError(err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to execute close query", mapped)
+
+		return time.Time{}, mapped
+	}
+
+	if !closedAt.Valid {
+		err := fmt.Errorf("close of account %s returned a null closing instant", id)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to read the closing instant", err)
+
+		return time.Time{}, err
+	}
+
+	span.SetAttributes(attribute.Int64("db.rows_affected", 1))
+
+	return closedAt.Time, nil
+}
+
+func (r *AccountPostgreSQLRepository) ListClosedAtByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]*time.Time, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_account_closed_at_by_ids")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("app.request.organization_id", organizationID.String()),
+		attribute.String("app.request.ledger_id", ledgerID.String()),
+		attribute.Int("app.request.account_ids_count", len(ids)),
+	)
+
+	closingStates := make(map[uuid.UUID]*time.Time, len(ids))
+
+	if len(ids) == 0 {
+		return closingStates, nil
+	}
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	query, args, err := squirrel.Select("id", "closed_at").
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return nil, err
+	}
+
+	// The primary is not a routing preference here but a correctness requirement:
+	// an account closed a moment ago must look closed to whoever decides whether a
+	// balance may still be admitted, and replica lag would report it as open. The
+	// intent is therefore stamped on the read context instead of being inherited
+	// from the caller, and the seam is asked to honor it unconditionally.
+	readCtx := readrouting.WithPrimaryRead(ctx)
+
+	reader, release, _, err := readseam.AcquireReadFrom(readCtx, db, true)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to acquire the primary read", err)
+
+		return nil, err
+	}
+
+	defer func() {
+		if release == nil {
+			return
+		}
+
+		if releaseErr := release(); releaseErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to release the primary read", releaseErr)
+		}
+	}()
+
+	rows, err := reader.QueryContext(readCtx, query, args...)
+	if err != nil {
+		mapped := mapReadError(err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", mapped)
+
+		return nil, mapped
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			id       uuid.UUID
+			closedAt sql.NullTime
+		)
+
+		if err := rows.Scan(&id, &closedAt); err != nil {
+			mapped := mapReadError(err)
+
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", mapped)
+
+			return nil, mapped
+		}
+
+		if closedAt.Valid {
+			instant := closedAt.Time.UTC()
+			closingStates[id] = &instant
+
+			continue
+		}
+
+		closingStates[id] = nil
+	}
+
+	if err := rows.Err(); err != nil {
+		mapped := mapReadError(err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", mapped)
+
+		return nil, mapped
+	}
+
+	// The cursor has to be released before the deferred release finalizes the
+	// read-only transaction, so that finalization is not racing an open result set.
+	if err := rows.Close(); err != nil {
+		mapped := mapReadError(err)
+
+		libOpentelemetry.HandleSpanError(span, "Failed to close rows", mapped)
+
+		return nil, mapped
+	}
+
+	span.SetAttributes(attribute.Int("db.rows_returned", len(closingStates)))
+
+	return closingStates, nil
+}
+
 // ListAccountsByIDs list Accounts entity from the database using the provided IDs.
 func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -1219,6 +1453,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			mapped := mapReadError(err)
 
@@ -1303,6 +1538,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			mapped := mapReadError(err)
 
@@ -1399,6 +1635,7 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 			&acc.DeletedAt,
 			&acc.Blocked,
 			&acc.HolderCheckSkipped,
+			&acc.ClosedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 

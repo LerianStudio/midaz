@@ -57,6 +57,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 		require.NoError(t, err)
 
+		ctx := admitEngineSeeds(t, ctx, inspector, input.Execution)
 		result, err := adapter.Execute(ctx, input)
 		require.NoError(t, err)
 		requireJSONEqual(t, multiTransactionAcceptanceResult(), result)
@@ -92,7 +93,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		require.NoError(t, inspector.Set(ctx, keys.Balances[live.BalanceRef].Balance, encoded, 0).Err())
 		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 		require.NoError(t, err)
-		result, err := adapter.Execute(ctx, input)
+		result, err := adapter.Execute(admitEngineSeeds(t, ctx, inspector, input.Execution), input)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.Equal(t, int64(8), result.Movements[0].Before.Version)

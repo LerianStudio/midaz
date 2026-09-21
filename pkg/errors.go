@@ -617,6 +617,48 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Balance Seed Rebuild Inconsistent Error",
 			Message:    "The request could not be completed because the current state of this balance could not be established from its operation history. Please retry shortly.",
 		},
+		constant.ErrAccountAlreadyClosed: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountAlreadyClosed.Error(),
+			Title:      "Account Already Closed Error",
+			Message:    "The account is already closed and cannot be closed again. The recorded closing instant is preserved; please review the account state and try again if this was unexpected.",
+		},
+		constant.ErrAccountClosingInProgress: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountClosingInProgress.Error(),
+			Title:      "Account Closing In Progress Error",
+			Message:    "Another closing attempt is currently deciding the state of this account. Please wait for it to conclude and try again.",
+		},
+		constant.ErrAccountBalanceNotZero: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountBalanceNotZero.Error(),
+			Title:      "Account Balance Not Zero Error",
+			Message:    "The account cannot be closed because at least one of its balances still holds available funds, funds on hold or used overdraft. Please settle every balance to exactly zero and try again.",
+		},
+		constant.ErrAccountHasPendingTransactions: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountHasPendingTransactions.Error(),
+			Title:      "Account Has Pending Transactions Error",
+			Message:    "The account cannot be closed because a pending transaction still holds its funds. Please commit or cancel those transactions and try again.",
+		},
+		constant.ErrAccountClosingPersistencePending: EntityConflictError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountClosingPersistencePending.Error(),
+			Title:      "Account Closing Persistence Pending Error",
+			Message:    "The account cannot be closed yet because earlier work on it has not finished being persisted. No transaction is reapplied; please try again shortly.",
+		},
+		constant.ErrAccountClosed: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountClosed.Error(),
+			Title:      "Account Closed Error",
+			Message:    "The operation could not be completed because the account is closed. A closed account accepts no further movements, and unblocking it does not reopen it.",
+		},
+		constant.ErrAccountClosingProtectionIndeterminate: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountClosingProtectionIndeterminate.Error(),
+			Title:      "Account Closing Protection Indeterminate Error",
+			Message:    "The request could not be completed because the state of this account could not be established. Please retry shortly.",
+		},
 		constant.ErrOverdraftRouteNotConfigured: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       constant.ErrOverdraftRouteNotConfigured.Error(),

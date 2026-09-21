@@ -61,10 +61,12 @@ type integrationResult struct {
 }
 
 type integrationFixture struct {
-	input    command.EngineExecution
-	limits   Limits
-	resolved resolvedExecutionKeys
-	client   redis.UniversalClient
+	input          command.EngineExecution
+	limits         Limits
+	resolved       resolvedExecutionKeys
+	client         redis.UniversalClient
+	prefix         string
+	protectionKeys []string
 }
 
 func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrationFixture {
@@ -85,7 +87,12 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 			Balance: replace(pair.Balance), Deleted: replace(pair.Deleted), LegacyDeleted: replace(pair.LegacyDeleted),
 		}
 	}
-	fixture := &integrationFixture{input: input, limits: limits, resolved: resolved, client: client}
+	resolved.Accounts = make(map[uuid.UUID]resolvedAccountKeys)
+	fixture := &integrationFixture{input: input, limits: limits, resolved: resolved, client: client, prefix: prefix}
+	// The fixture owns the administrative admission of its accounts, as a
+	// cache-miss balance load does, so an execution may seed a balance the cache
+	// does not hold. Tests that exercise the closing controls reshape these keys.
+	fixture.syncAccountProtection(t)
 	t.Cleanup(func() {
 		keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection}
 		for _, pair := range fixture.resolved.Balances {
@@ -94,9 +101,34 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 		for _, key := range fixture.resolved.AccountBlockExceptions {
 			keys = append(keys, key)
 		}
+		keys = append(keys, fixture.protectionKeys...)
 		require.NoError(t, client.Del(context.Background(), keys...).Err())
 	})
 	return fixture
+}
+
+// syncAccountProtection keeps the account protection block in step with the pool a
+// test assembled and takes the administrative ownership of every account it adds,
+// as a cache-miss balance load does. An entry a test already shaped is preserved.
+func (f *integrationFixture) syncAccountProtection(t *testing.T) {
+	t.Helper()
+
+	wanted := testResolvedAccountKeys(f.prefix, f.input.Execution, testAdmissionToken)
+	accounts := make(map[uuid.UUID]resolvedAccountKeys, len(wanted))
+
+	for accountID, protection := range wanted {
+		if existing, exists := f.resolved.Accounts[accountID]; exists {
+			accounts[accountID] = existing
+
+			continue
+		}
+
+		accounts[accountID] = protection
+		f.protectionKeys = append(f.protectionKeys, protection.Closing, protection.Closed, protection.Ownership)
+		require.NoError(t, f.client.Set(context.Background(), protection.Ownership, testAdmissionToken, 0).Err())
+	}
+
+	f.resolved.Accounts = accounts
 }
 
 func (f *integrationFixture) addCompanion(available string) {
@@ -146,6 +178,7 @@ func (f *integrationFixture) addGrant(t *testing.T, alias, amount string) string
 
 func (f *integrationFixture) prepared(t *testing.T) *preparedExecution {
 	t.Helper()
+	f.syncAccountProtection(t)
 	prepared, err := prepareExecution(context.Background(), f.input, f.limits, f.resolved)
 	require.NoError(t, err)
 	return prepared

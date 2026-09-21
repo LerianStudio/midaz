@@ -25,7 +25,7 @@ func TestIntegrationDelayedFinalizationKeepsReplayProtectionThroughFullWindow(t 
 	adapter, err := newAdapterWithLimits(provider, limits)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := admitEngineSeeds(t, context.Background(), client, input.Execution)
 	first, err := adapter.Execute(ctx, input)
 	require.NoError(t, err)
 	resolved, err := resolveAdapterKeys(ctx, input.Execution)

@@ -38,13 +38,16 @@ type pendingLifecycleReader struct {
 	balances  []*mmodel.Balance
 	persisted *postgresTransaction.Transaction
 	settings  mmodel.LedgerSettings
+	// client lets the stub take the administrative admission of the accounts it
+	// serves, as the real cache-miss load does.
+	client redis.UniversalClient
 }
 
 func (r *pendingLifecycleReader) GetParsedLedgerSettings(context.Context, uuid.UUID, uuid.UUID) (mmodel.LedgerSettings, error) {
 	return r.settings, nil
 }
 
-func (r *pendingLifecycleReader) GetBalances(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+func (r *pendingLifecycleReader) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 	out := make([]*mmodel.Balance, 0, len(aliases))
 	for _, alias := range aliases {
 		for _, balance := range r.balances {
@@ -52,6 +55,9 @@ func (r *pendingLifecycleReader) GetBalances(_ context.Context, _, _ uuid.UUID, 
 				out = append(out, balance)
 			}
 		}
+	}
+	if err := adoptSeedAdmission(ctx, r.client, organizationID, ledgerID, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -285,6 +291,7 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			organizationID := uuid.MustParse("91111111-1111-4111-8111-111111111111")
 			ledgerID := uuid.MustParse("92222222-2222-4222-8222-222222222222")
 			reader := &pendingLifecycleReader{
+				client:   client,
 				settings: mmodel.LedgerSettings{Tracer: mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce}},
 				balances: []*mmodel.Balance{
 					adapterCreateBalance(organizationID, ledgerID, "93333333-3333-4333-8333-333333333333", "94444444-4444-4444-8444-444444444444", "@source", 100, 7),
@@ -426,6 +433,7 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	organizationID := uuid.MustParse("a1111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("a2222222-2222-4222-8222-222222222222")
 	reader := &pendingLifecycleReader{
+		client:   client,
 		settings: mmodel.LedgerSettings{Tracer: mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce}},
 		balances: []*mmodel.Balance{
 			adapterCreateBalance(organizationID, ledgerID, "a3333333-3333-4333-8333-333333333333", "a4444444-4444-4444-8444-444444444444", "@source", 100, 7),
@@ -496,6 +504,11 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	reader.balances[0].Available = decimal.NewFromInt(70)
 	reader.balances[0].OnHold = decimal.NewFromInt(30)
 	reader.balances[0].Version = 8
+	// The transitions below read a warm cache, seed nothing and therefore take no
+	// administrative admission of their own. That is what lets two of them contend
+	// inside the engine instead of on the ownership of their accounts.
+	reader.client = nil
+	warmBalanceCache(t, ctx, client, organizationID, ledgerID, reader.balances)
 	executor.arm()
 	transitionInput := command.PendingTransitionInput{
 		OrganizationID: organizationID,
@@ -602,6 +615,7 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	organizationID := uuid.MustParse("b1111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("b2222222-2222-4222-8222-222222222222")
 	reader := &pendingLifecycleReader{
+		client: client,
 		balances: []*mmodel.Balance{
 			adapterCreateBalance(organizationID, ledgerID, "b3333333-3333-4333-8333-333333333333", "b4444444-4444-4444-8444-444444444444", "@source", 100, 7),
 			adapterCreateBalance(organizationID, ledgerID, "b5555555-5555-4555-8555-555555555555", "b6666666-6666-4666-8666-666666666666", "@target", 20, 3),
@@ -672,6 +686,11 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	reader.balances[0].Available = decimal.NewFromInt(70)
 	reader.balances[0].OnHold = decimal.NewFromInt(30)
 	reader.balances[0].Version = 8
+	// The transitions below read a warm cache, seed nothing and therefore take no
+	// administrative admission of their own. That is what lets two of them contend
+	// inside the engine instead of on the ownership of their accounts.
+	reader.client = nil
+	warmBalanceCache(t, ctx, client, organizationID, ledgerID, reader.balances)
 	transitionInput := command.PendingTransitionInput{
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,

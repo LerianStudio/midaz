@@ -440,6 +440,54 @@ live_observed: unknown
 unit: "1"
 ```
 
+### account_closing_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:90-94
+description: Account closing attempts by bounded outcome. `indeterminate` is the protection that could not be read at all (0520), and is deliberately separate from a refusal the coordination answered on purpose.
+labels: [outcome]
+label_values: [closed, refused, indeterminate, technical_error]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### account_closing_refusals_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:98-102
+description: Account closing attempts that did not close the account, by the bounded reason that stopped them. Derived from the registry sentinel, never from the error text.
+labels: [reason]
+label_values: [already_closed, closing_in_progress, balance_not_zero, pending_transactions, persistence_pending, account_closed, protection_indeterminate, external_account, account_not_found, business_other, technical]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### account_closing_reconciliation_markers_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:106-110
+description: Closing markers seen by one reconciliation pass, by bounded outcome. `scanned` is the denominator of the pass and is NOT disjoint from the other values.
+labels: [outcome]
+label_values: [scanned, completed, released, retained, unreadable]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### account_closing_reconciliation_failures_total
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:114-118
+description: Reconciliation steps that could not complete, by bounded stage. A scan stage firing means the pass never walked the namespace, which is also what withholds the last-success instant below.
+labels: [stage]
+label_values: [scan_markers, scan_ownerships, read_marker, read_account, list_balances, evict_balance, install_closed_marker, release_closed_marker, release_aborted_marker, release_ownership]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
 ---
 
 ## Histograms
@@ -524,6 +572,17 @@ live_observed: unknown
 unit: "1"
 ```
 
+### account_closing_reconciliation_duration_ms_milliseconds
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:145-150
+description: Duration of one account closing reconciliation pass, both namespace walks included. The duration of a single CLOSING is not declared separately: it rides domain_operation_duration_ms{component="ledger",operation="close_account"}.
+labels: []
+label_cardinality_estimate: none
+live_observed: unknown
+unit: "ms"
+```
+
 Milliseconds rather than seconds throughout: the factory exposes `Int64Histogram`, so
 sub-second latencies would truncate to zero in seconds. Reasoning recorded at
 `pkg/utils/metrics.go:312-314`.
@@ -531,6 +590,32 @@ sub-second latencies would truncate to zero in seconds. Reasoning recorded at
 ---
 
 ## Gauges
+
+### account_closing_reconciliation_backlog_ratio
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:124-128
+declared_name: account_closing_reconciliation_backlog
+description: Account protection still installed after a reconciliation pass. An absolute count despite the _ratio suffix. A backlog that stops draining means closing, balance creation and cache-miss admission stay blocked on those accounts while no request is failing.
+instrument_type: Int64Gauge (synchronous, MetricsFactory.Gauge().Set)
+labels: [kind]
+label_values: [ownership, retained]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+### account_closing_reconciliation_last_success_timestamp_seconds
+
+```yaml
+declared_at: components/ledger/internal/services/command/account_closing_telemetry.go:138-142
+declared_name: account_closing_reconciliation_last_success_timestamp
+description: Unix instant of the last pass that walked both protection namespaces without a scan failure. The AGE of the reconciliation is `time() - metric`; a pass that aborted on a scan deliberately does not advance it.
+instrument_type: Int64Gauge (synchronous, MetricsFactory.Gauge().Set)
+labels: []
+live_observed: unknown
+unit: "s"
+```
 
 ### redis_backup_queue_depth_ratio
 

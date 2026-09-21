@@ -33,8 +33,8 @@ func MapEngineError(request accounting.Execution, err error) error {
 
 	var technicalErr engineTechnicalError
 	if errors.As(err, &technicalErr) {
-		if technicalErr.EngineFailureCode() == "execution_guard_conflict" && !technicalErr.OutcomeIndeterminate() {
-			return pkg.ValidateBusinessError(constant.ErrPendingTransactionLocked, balanceValidationEntity)
+		if mapped := mapEngineProtectionFailure(technicalErr); mapped != nil {
+			return mapped
 		}
 
 		return fmt.Errorf("engine technical failure: %w", err)
@@ -55,6 +55,31 @@ func MapEngineError(request accounting.Execution, err error) error {
 	}
 
 	return mapEnginePostingFailure(posting, failure, err)
+}
+
+// mapEngineProtectionFailure translates the engine codes that describe a control
+// the caller can act on, rather than a failure of the engine itself. It answers
+// nil for everything else, which keeps its cause for the caller's boundary.
+//
+// Every one of them is decided in the preflight, so an indeterminate outcome can
+// never carry them: such a result may have moved money and must stay technical.
+func mapEngineProtectionFailure(err engineTechnicalError) error {
+	if err.OutcomeIndeterminate() {
+		return nil
+	}
+
+	switch err.EngineFailureCode() {
+	case "execution_guard_conflict":
+		return pkg.ValidateBusinessError(constant.ErrPendingTransactionLocked, balanceValidationEntity)
+	case "account_closed":
+		return pkg.ValidateBusinessError(constant.ErrAccountClosed, constant.EntityAccount)
+	case "account_closing_in_progress":
+		return pkg.ValidateBusinessError(constant.ErrAccountClosingInProgress, constant.EntityAccount)
+	case "admission_not_confirmed", "account_protection_unreadable":
+		return pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
+	default:
+		return nil
+	}
 }
 
 func mapEngineRequirementFailure(request accounting.Execution, failure *accounting.Failure, cause error) error {

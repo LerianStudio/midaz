@@ -560,3 +560,89 @@ func hashTagOf(t *testing.T, key string) string {
 
 	return key[start : end+1]
 }
+
+// TestAccountProtectionKeys locks the shape of the three account-scoped
+// protection keys. Each is addressed by the complete scope — organization,
+// ledger and account — so a key can never be resolved from the account alone,
+// and each lives in a namespace of its own so it can never be mistaken for a
+// balance blob.
+func TestAccountProtectionKeys(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	accountID := uuid.MustParse("018f2c1e-6a3b-7c4d-8e5f-0a1b2c3d4e5f")
+	scope := "550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8:018f2c1e-6a3b-7c4d-8e5f-0a1b2c3d4e5f"
+
+	tests := []struct {
+		name     string
+		got      string
+		expected string
+	}{
+		{
+			name:     "closing marker",
+			got:      AccountClosingMarkerKey(orgID, ledgerID, accountID),
+			expected: "account-closing:{transactions}:" + scope,
+		},
+		{
+			name:     "closed marker",
+			got:      AccountClosedMarkerKey(orgID, ledgerID, accountID),
+			expected: "account-closed:{transactions}:" + scope,
+		},
+		{
+			name:     "administrative ownership",
+			got:      AccountAdminOwnershipKey(orgID, ledgerID, accountID),
+			expected: "account-admin-ownership:{transactions}:" + scope,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.expected, tt.got)
+		})
+	}
+}
+
+// TestAccountProtectionKeys_ShareBalanceHashSlot locks the co-location the
+// protection keys need: they sit in the slot the account's balance keys already
+// occupy, so a future multi-key EVAL over a marker and a balance stays legal in
+// Redis Cluster.
+func TestAccountProtectionKeys_ShareBalanceHashSlot(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	accountID := uuid.New()
+
+	balanceKey := BalanceInternalKey(orgID, ledgerID, "@closing_account#default")
+
+	for _, key := range []string{
+		AccountClosingMarkerKey(orgID, ledgerID, accountID),
+		AccountClosedMarkerKey(orgID, ledgerID, accountID),
+		AccountAdminOwnershipKey(orgID, ledgerID, accountID),
+	} {
+		assert.Equal(t, hashTagOf(t, balanceKey), hashTagOf(t, key),
+			"a protection key must share the balance keys' hash slot")
+	}
+}
+
+// TestAccountProtectionKeys_AreDistinctPerScope proves the scope isolation the
+// markers promise: changing any one of organization, ledger or account yields a
+// different key, so a closing can never leak across scopes.
+func TestAccountProtectionKeys_AreDistinctPerScope(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+
+	base := AccountClosingMarkerKey(orgID, ledgerID, accountID)
+
+	assert.NotEqual(t, base, AccountClosingMarkerKey(uuid.New(), ledgerID, accountID))
+	assert.NotEqual(t, base, AccountClosingMarkerKey(orgID, uuid.New(), accountID))
+	assert.NotEqual(t, base, AccountClosingMarkerKey(orgID, ledgerID, uuid.New()))
+	assert.NotEqual(t, base, AccountClosedMarkerKey(orgID, ledgerID, accountID))
+	assert.NotEqual(t, base, AccountAdminOwnershipKey(orgID, ledgerID, accountID))
+}
