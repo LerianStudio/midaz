@@ -7,6 +7,7 @@ package in
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -391,7 +392,7 @@ func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, replayed, err := handler.Command.RevertTransactionV2(ctx, command.RevertTransactionInput{
+	result, replayed, err := handler.Command.RevertTransactionV2(ctx, command.RevertTransactionInput{
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		TransactionID:  txID,
@@ -401,10 +402,43 @@ func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
+	if result == nil {
+		return nil, pkgHTTP.HumaProblem(errors.New("revert transaction command returned no result"))
+	}
+
+	if result.Group != nil {
+		groupID := result.Group.BatchID.String()
+		var revertedGroupID *string
+		if result.RevertedGroupID != nil {
+			value := result.RevertedGroupID.String()
+			revertedGroupID = &value
+		}
+
+		transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Group.Transactions))
+		for index := range result.Group.Transactions {
+			transactions[index] = &AtomicTransactionBatchV2Transaction{
+				TransactionV2: newTransactionV2(result.Group.Transactions[index]),
+				Order:         index + 1,
+			}
+		}
+
+		return &CreateTransactionOutputV2{
+			Status:              http.StatusCreated,
+			IdempotencyReplayed: replayedHeader(replayed),
+			Body: &CreateTransactionV2Response{
+				GroupID:         &groupID,
+				RevertedGroupID: revertedGroupID,
+				Transactions:    transactions,
+			},
+		}, nil
+	}
+	if result.Transaction == nil {
+		return nil, pkgHTTP.HumaProblem(errors.New("revert transaction command returned an empty singular result"))
+	}
 
 	return &CreateTransactionOutputV2{
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(replayed),
-		Body:                &CreateTransactionV2Response{TransactionV2: newTransactionV2(tran)},
+		Body:                &CreateTransactionV2Response{TransactionV2: newTransactionV2(result.Transaction)},
 	}, nil
 }

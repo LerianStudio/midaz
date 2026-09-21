@@ -521,7 +521,7 @@ func TestRegisterTransactionV2Routes_RevertResponseDocumentsSingularOrCrossLedge
 
 	group, ok := oapi.Components.Schemas.Map()["CrossLedgerTransactionGroupV2"]
 	require.True(t, ok)
-	assert.ElementsMatch(t, []string{"groupId", "revertedGroupId", "transactions"}, group.Required)
+	assert.ElementsMatch(t, []string{"groupId", "transactions"}, group.Required)
 	assert.Contains(t, group.Properties, "revertedGroupId")
 }
 

@@ -6,7 +6,7 @@ package command
 
 import (
 	"context"
-	"errors"
+	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -78,18 +78,13 @@ func (uc *UseCase) RevertTransactionV1(ctx context.Context, in RevertTransaction
 	ctx, span := tracer.Start(ctx, "command.revert_transaction_v1")
 	defer span.End()
 
-	target, err := uc.revertTarget(ctx, in)
-	if err != nil {
-		return nil, false, err
-	}
+	transactionReverted, target, err := uc.prepareRevertTransaction(ctx, span, in)
 	if target != nil && target.GroupID != nil {
 		err := pkg.ValidateBusinessError(constant.ErrCrossLedgerRevertRequiresV2, constant.EntityTransaction)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cross-ledger revert requires v2", err)
 
 		return nil, false, err
 	}
-
-	transactionReverted, err := uc.prepareRevertTransaction(ctx, span, in)
 	if err != nil {
 		return nil, false, err
 	}
@@ -128,12 +123,21 @@ func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransaction
 	ctx, span := tracer.Start(ctx, "command.revert_transaction_v2")
 	defer span.End()
 
-	target, err := uc.revertTarget(ctx, in)
+	transactionReverted, target, err := uc.prepareRevertTransaction(ctx, span, in)
 	if err != nil {
+		if target != nil && target.GroupID != nil {
+			err = uc.withCrossLedgerRevertMemberError(ctx, in, target, err)
+		}
+
 		return nil, false, err
 	}
 	if target != nil && target.GroupID != nil {
-		group, revertedGroupID, err := uc.RevertCrossLedgerGroupV2(ctx, in)
+		revertedGroupID, parseErr := uuid.Parse(*target.GroupID)
+		if parseErr != nil {
+			return nil, false, fmt.Errorf("parse cross-ledger transaction group id: %w", parseErr)
+		}
+
+		group, err := uc.revertCrossLedgerGroupV2(ctx, span, logger, in, revertedGroupID)
 		if err != nil {
 			return nil, false, err
 		}
@@ -142,11 +146,6 @@ func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransaction
 			Group:           group,
 			RevertedGroupID: &revertedGroupID,
 		}, group.Replayed, nil
-	}
-
-	transactionReverted, err := uc.prepareRevertTransaction(ctx, span, in)
-	if err != nil {
-		return nil, false, err
 	}
 
 	run := uc.newRevertRun(in, transactionReverted)
@@ -164,24 +163,11 @@ func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransaction
 	return &RevertTransactionV2Result{Transaction: tranReverted}, replayed, nil
 }
 
-func (uc *UseCase) revertTarget(ctx context.Context, in RevertTransactionInput) (*transaction.Transaction, error) {
-	if uc.TransactionReader == nil {
-		return nil, errors.New("transaction reader is not configured")
-	}
-
-	return uc.TransactionReader.GetTransactionByID(
-		readrouting.WithPrimaryRead(ctx),
-		in.OrganizationID,
-		in.LedgerID,
-		in.TransactionID,
-	)
-}
-
 // prepareRevertTransaction runs the revert eligibility gate — no parent, not already a
 // revert, APPROVED status, non-empty reversal, every routed operation bidirectional — and
 // returns the reversal payload TransactionRevert reconstructs from the persisted parent
 // operations.
-func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span, in RevertTransactionInput) (mtransaction.Transaction, error) {
+func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span, in RevertTransactionInput) (mtransaction.Transaction, *transaction.Transaction, error) {
 	// Route ONLY the transaction and parent reads of the eligibility gate to the primary
 	// via a dedicated ctx: a revert issued right after its create must read its own
 	// write, and on a primary+replica deploy a lagging replica answers not-found for a
@@ -194,22 +180,28 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 	if err != nil {
 		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve Parent Transaction on query", err)
 
-		return mtransaction.Transaction{}, err
+		return mtransaction.Transaction{}, nil, err
 	}
 
 	if parent != nil {
 		err = pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
+		if parent.GroupID != nil {
+			tran, lookupErr := uc.TransactionReader.GetTransactionByID(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
+			if lookupErr == nil {
+				return mtransaction.Transaction{}, tran, err
+			}
+		}
 
-		return mtransaction.Transaction{}, err
+		return mtransaction.Transaction{}, nil, err
 	}
 
 	resolution, err := resolveTransactionProjection(readCtx, uc.TransactionReader, in.OrganizationID, in.LedgerID, in.TransactionID)
 	if err != nil {
 		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
-		return mtransaction.Transaction{}, err
+		return mtransaction.Transaction{}, nil, err
 	}
 
 	tran := resolution.Transaction
@@ -223,7 +215,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		if err != nil {
 			spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
-			return mtransaction.Transaction{}, err
+			return mtransaction.Transaction{}, nil, err
 		}
 	}
 
@@ -232,7 +224,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
 
-		return mtransaction.Transaction{}, err
+		return mtransaction.Transaction{}, tran, err
 	}
 
 	if tran.Status.Code != constant.APPROVED {
@@ -240,7 +232,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction CantRevert Transaction", err)
 
-		return mtransaction.Transaction{}, err
+		return mtransaction.Transaction{}, tran, err
 	}
 
 	transactionReverted := tran.TransactionRevert()
@@ -249,7 +241,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction can't be reverted", err)
 
-		return mtransaction.Transaction{}, err
+		return mtransaction.Transaction{}, tran, err
 	}
 
 	// Validate bidirectional routes: operations with a route_id require
@@ -265,14 +257,14 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid routeId format on operation during revert validation", parseValidationErr)
 
-			return mtransaction.Transaction{}, parseValidationErr
+			return mtransaction.Transaction{}, tran, parseValidationErr
 		}
 
 		operationRoute, routeErr := uc.TransactionReader.GetOperationRouteByID(ctx, in.OrganizationID, in.LedgerID, nil, routeUUID)
 		if routeErr != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to retrieve operation route for revert validation", routeErr)
 
-			return mtransaction.Transaction{}, routeErr
+			return mtransaction.Transaction{}, tran, routeErr
 		}
 
 		if operationRoute != nil && operationRoute.OperationType != "bidirectional" {
@@ -280,11 +272,11 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route is not bidirectional", err)
 
-			return mtransaction.Transaction{}, err
+			return mtransaction.Transaction{}, tran, err
 		}
 	}
 
-	return transactionReverted, nil
+	return transactionReverted, tran, nil
 }
 
 func (uc *UseCase) attachRevertOriginDependency(ctx context.Context, run *createTransactionRun, originID uuid.UUID) error {

@@ -13,6 +13,7 @@ import (
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -47,13 +48,12 @@ func (uc *UseCase) RevertCrossLedgerGroupV2(
 		return nil, uuid.Nil, err
 	}
 
-	target, err := uc.TransactionReader.GetTransactionByID(
-		readrouting.WithPrimaryRead(ctx),
-		in.OrganizationID,
-		in.LedgerID,
-		in.TransactionID,
-	)
+	_, target, err := uc.prepareRevertTransaction(ctx, span, in)
 	if err != nil {
+		if target != nil && target.GroupID != nil {
+			err = uc.withCrossLedgerRevertMemberError(ctx, in, target, err)
+		}
+
 		return nil, uuid.Nil, err
 	}
 	if target == nil || target.GroupID == nil {
@@ -68,19 +68,34 @@ func (uc *UseCase) RevertCrossLedgerGroupV2(
 		return nil, uuid.Nil, fmt.Errorf("parse cross-ledger transaction group id: %w", err)
 	}
 
+	result, err := uc.revertCrossLedgerGroupV2(ctx, span, logger, in, revertedGroupID)
+	if err != nil {
+		return nil, uuid.Nil, err
+	}
+
+	return result, revertedGroupID, nil
+}
+
+func (uc *UseCase) revertCrossLedgerGroupV2(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	in RevertTransactionInput,
+	revertedGroupID uuid.UUID,
+) (*CreateAtomicTransactionBatchV2Result, error) {
 	reader, ok := uc.TransactionReader.(TransactionGroupReader)
 	if !ok {
-		return nil, uuid.Nil, errors.New("cross-ledger transaction group reader is not configured")
+		return nil, errors.New("cross-ledger transaction group reader is not configured")
 	}
 
 	members, err := reader.FindTransactionsByGroupID(readrouting.WithPrimaryRead(ctx), revertedGroupID)
 	if err != nil {
-		return nil, uuid.Nil, err
+		return nil, err
 	}
 	if err := validateCrossLedgerRevertMembers(in.TransactionID, revertedGroupID, members); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cross-ledger transaction group is incomplete", err)
 
-		return nil, uuid.Nil, err
+		return nil, err
 	}
 
 	span.SetAttributes(
@@ -94,37 +109,37 @@ func (uc *UseCase) RevertCrossLedgerGroupV2(
 		if partErr != nil {
 			message := fmt.Sprintf("transaction %s in ledger %s is not revertible", member.ID, member.LedgerID)
 
-			return nil, uuid.Nil, withAtomicTransactionBatchItemError(partErr, index, message)
+			return nil, withAtomicTransactionBatchItemError(partErr, index, message)
 		}
 
 		parts[index] = part
 	}
 
 	if uc.UUIDv7Generator == nil {
-		return nil, uuid.Nil, errors.New("cross-ledger revert UUIDv7 generator is not configured")
+		return nil, errors.New("cross-ledger revert UUIDv7 generator is not configured")
 	}
 
 	newGroupID, err := uc.UUIDv7Generator()
 	if err != nil {
-		return nil, uuid.Nil, fmt.Errorf("generate cross-ledger revert group id: %w", err)
+		return nil, fmt.Errorf("generate cross-ledger revert group id: %w", err)
 	}
 	if newGroupID == uuid.Nil {
-		return nil, uuid.Nil, errors.New("cross-ledger revert UUIDv7 generator returned a nil group id")
+		return nil, errors.New("cross-ledger revert UUIDv7 generator returned a nil group id")
 	}
 
 	batch, err := buildCrossLedgerRevertBatchInput(in, revertedGroupID, newGroupID, parts)
 	if err != nil {
-		return nil, uuid.Nil, err
+		return nil, err
 	}
 
 	result, err := uc.CreateAtomicTransactionBatchV2(ctx, batch)
 	if err != nil {
-		return nil, uuid.Nil, err
+		return nil, err
 	}
 
 	recordRevertReplay(ctx, span, logger, in.TransactionID, result.Replayed)
 
-	return result, revertedGroupID, nil
+	return result, nil
 }
 
 func (uc *UseCase) prepareCrossLedgerRevertPart(
@@ -152,7 +167,7 @@ func (uc *UseCase) prepareCrossLedgerRevertPart(
 		return preparedCrossLedgerRevertPart{}, fmt.Errorf("parse cross-ledger member transaction id: %w", err)
 	}
 
-	reversal, err := uc.prepareRevertTransaction(ctx, span, RevertTransactionInput{
+	reversal, _, err := uc.prepareRevertTransaction(ctx, span, RevertTransactionInput{
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		TransactionID:  transactionID,
@@ -266,6 +281,42 @@ func validateCrossLedgerRevertMembers(
 	}
 
 	return nil
+}
+
+func (uc *UseCase) withCrossLedgerRevertMemberError(
+	ctx context.Context,
+	in RevertTransactionInput,
+	target *transaction.Transaction,
+	primary error,
+) error {
+	if target == nil || target.GroupID == nil {
+		return primary
+	}
+
+	groupID, err := uuid.Parse(*target.GroupID)
+	if err != nil {
+		return primary
+	}
+	reader, ok := uc.TransactionReader.(TransactionGroupReader)
+	if !ok {
+		return primary
+	}
+	members, err := reader.FindTransactionsByGroupID(readrouting.WithPrimaryRead(ctx), groupID)
+	if err != nil {
+		return primary
+	}
+
+	for index, member := range members {
+		if member == nil || member.ID != in.TransactionID.String() {
+			continue
+		}
+
+		message := fmt.Sprintf("transaction %s in ledger %s is not revertible", member.ID, member.LedgerID)
+
+		return withAtomicTransactionBatchItemError(primary, index, message)
+	}
+
+	return primary
 }
 
 func originDependencyReference(

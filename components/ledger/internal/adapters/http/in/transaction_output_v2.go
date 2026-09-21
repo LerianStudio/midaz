@@ -359,8 +359,9 @@ type CreateTransactionOutputV2 struct {
 // leaves that embedding nil and returns the atomic group envelope fields.
 type CreateTransactionV2Response struct {
 	*TransactionV2
-	GroupID      *string                                `json:"groupId,omitempty" format:"uuid"`
-	Transactions []*AtomicTransactionBatchV2Transaction `json:"transactions,omitempty"`
+	GroupID         *string                                `json:"groupId,omitempty" format:"uuid"`
+	RevertedGroupID *string                                `json:"revertedGroupId,omitempty" format:"uuid"`
+	Transactions    []*AtomicTransactionBatchV2Transaction `json:"transactions,omitempty"`
 }
 
 // CrossLedgerTransactionGroupV2 is the documented cross-ledger branch of the
@@ -368,8 +369,9 @@ type CreateTransactionV2Response struct {
 // flattened so the historical singular JSON remains byte-compatible; this type
 // gives OpenAPI a strict group envelope whose two fields are both required.
 type CrossLedgerTransactionGroupV2 struct {
-	GroupID      string                                 `json:"groupId" format:"uuid"`
-	Transactions []*AtomicTransactionBatchV2Transaction `json:"transactions" nullable:"false" doc:"Created per-ledger transactions in deterministic decomposition order."`
+	GroupID         string                                 `json:"groupId" format:"uuid"`
+	RevertedGroupID *string                                `json:"revertedGroupId,omitempty" format:"uuid" doc:"Original group reversed by this group. Present only on grouped revert responses."`
+	Transactions    []*AtomicTransactionBatchV2Transaction `json:"transactions" nullable:"false" doc:"Created per-ledger transactions in deterministic decomposition order."`
 }
 
 // StateTransactionOutputV2 pins 201 (matching http.Created) and carries the resulting

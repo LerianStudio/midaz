@@ -104,10 +104,11 @@ func TestRevertCrossLedgerGroupV2_LocatesIneligibleMember(t *testing.T) {
 	first.GroupID = &groupID
 	second := revertibleOrigin()
 	second.GroupID = &groupID
+	revertGroupID := uuid.NewString()
 	reader := &revertReader{
 		byID:         first,
 		groupMembers: []*transaction.Transaction{first, second},
-		parent:       &transaction.Transaction{ID: uuid.NewString()},
+		parent:       &transaction.Transaction{ID: uuid.NewString(), GroupID: &revertGroupID},
 	}
 	uc := newRevertUseCase(t, reader)
 

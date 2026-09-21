@@ -141,7 +141,7 @@ func publishV2SingularTransactionResponseSchemas(api huma.API) {
 	}
 
 	singular := map[string]struct{}{
-		"createTransactionHoldV2": {}, "createTransactionBlockV2": {}, "createTransactionUnblockV2": {}, "revertTransactionV2": {},
+		"createTransactionHoldV2": {}, "createTransactionBlockV2": {}, "createTransactionUnblockV2": {},
 	}
 	t := reflect.TypeFor[TransactionV2]()
 
@@ -180,7 +180,7 @@ func publishV2DirectTransactionResponseSchema(api huma.API) {
 
 	for _, item := range api.OpenAPI().Paths {
 		for _, op := range operationsOf(item) {
-			if op.OperationID != "createTransactionDirectV2" {
+			if op.OperationID != "createTransactionDirectV2" && op.OperationID != "revertTransactionV2" {
 				continue
 			}
 
