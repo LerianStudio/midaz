@@ -94,6 +94,7 @@ func (reader *transitionEngineReader) ValidateAccountingRules(context.Context, u
 }
 
 func TestEngineWriteBehindPendingTransitionUsesUnprojectedPredecessorEvidence(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, constant.APPROVED)
 	predecessorExecutionID := uuid.New()
 	uc.TransactionReader = &pendingProjectionReader{transitionEngineReader: reader, executionID: predecessorExecutionID}
