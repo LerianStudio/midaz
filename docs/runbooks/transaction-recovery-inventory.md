@@ -15,7 +15,7 @@ shared dependency-aware applied-transaction completer; it is not input to
 | Family | Storage contract | Persisted format |
 | --- | --- | --- |
 | Legacy pending and backup records | tenant-scoped `backup_queue:{transactions}` hash | unversioned `TransactionRedisQueue`; historical version-2 engine envelopes remain readable |
-| Engine recovery records | tenant-scoped `engine:{transactions}:recover` hash | write-behind envelope `formatVersion=1` containing immutable completion record/payload `formatVersion=2`; legacy bare completion v2 remains readable |
+| Engine recovery records | tenant-scoped `engine:{transactions}:recover` hash | write-behind envelope `formatVersion=1` containing immutable completion record/payload `formatVersion=2`; `result.appliedAtUnixMicro` is optional for pre-upgrade records; legacy bare completion v2 remains readable |
 | Engine recovery attempts | tenant-scoped `engine:{transactions}:recover:attempts` hash | integer counter keyed by tenant-scoped transaction/execution field |
 | Execution receipts | `engine:{transactions}:receipts:{organization}:{ledger}` hash | receipt v1, classified separately with or without protection v1 |
 | Transaction guards | `engine:{transactions}:guards:{organization}:{ledger}` hash | opaque lifecycle token |

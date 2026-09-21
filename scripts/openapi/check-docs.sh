@@ -28,6 +28,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 OPENAPI_DIR="${ROOT_DIR}/scripts/openapi"
+YAMLJSON_PACKAGE="./scripts/openapi/cmd/yamljson"
 
 # Huma OAS 3.1 dumps that must agree on shared metadata, as
 # "<label>|<repo-relative path>". Each component publishes a single dump carrying its
@@ -83,8 +84,8 @@ require_jq() {
 }
 
 # Emit a Huma OAS 3.1 dump as JSON on stdout, given a "<label>|<path>" entry. jq
-# cannot read YAML, so we convert via the same bundled js-yaml the generator uses
-# for its JSON twin.
+# cannot read YAML, so use the repository's Go converter (the same one that
+# produces the consolidated JSON twin).
 huma_dump_json() {
     local entry="$1"
     local label="${entry%%|*}"
@@ -94,11 +95,7 @@ huma_dump_json() {
         fail "Missing Huma dump for '${label}' at ${file}. Run 'make generate-docs' first."
     fi
 
-    NODE_PATH="${OPENAPI_DIR}/node_modules" node -e '
-        const yaml = require("js-yaml");
-        const fs = require("fs");
-        process.stdout.write(JSON.stringify(yaml.load(fs.readFileSync(process.argv[1], "utf8"))));
-    ' "${file}"
+    go -C "${ROOT_DIR}" run "${YAMLJSON_PACKAGE}" "${file}"
 }
 
 # Read a Huma dump field as canonical JSON (sorted keys) for byte comparison.
