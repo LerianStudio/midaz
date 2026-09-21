@@ -50,6 +50,7 @@ func (uc *UseCase) CreateCrossLedgerTransactionV2(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if uc.UUIDv7Generator == nil {
 		return nil, errors.New("cross-ledger transaction UUIDv7 generator is not configured")
 	}
@@ -58,6 +59,7 @@ func (uc *UseCase) CreateCrossLedgerTransactionV2(
 	if err != nil {
 		return nil, fmt.Errorf("generate cross-ledger transaction group id: %w", err)
 	}
+
 	if groupID == uuid.Nil {
 		return nil, errors.New("cross-ledger transaction UUIDv7 generator returned a nil group id")
 	}
@@ -81,6 +83,7 @@ func buildCrossLedgerAtomicBatchInput(
 	for index, scope := range in.Scopes.Debits {
 		scopes.from[index] = atomicTransactionBatchLedgerRef{organizationID: scope.OrganizationID, ledgerID: scope.LedgerID}
 	}
+
 	for index, scope := range in.Scopes.Credits {
 		scopes.to[index] = atomicTransactionBatchLedgerRef{organizationID: scope.OrganizationID, ledgerID: scope.LedgerID}
 	}
@@ -101,6 +104,7 @@ func buildCrossLedgerAtomicBatchInput(
 			OriginalIndex:  index,
 		}
 	}
+
 	if len(items) > 0 {
 		items[0].AccountBlockExceptionID = in.AccountBlockExceptionID
 	}

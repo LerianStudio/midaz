@@ -51,6 +51,7 @@ func normalizeCreateCrossLedgerTransactionV2Body(in CreateTransactionV2Request, 
 	if err := validateTransactionV2SidesPresent(in.Debits, in.Credits); err != nil {
 		return normalizedCrossLedgerTransactionV2Body{}, err
 	}
+
 	if err := validateTransactionV2AccountBlockExceptionSurface(pending, in.AccountBlockExceptionID); err != nil {
 		return normalizedCrossLedgerTransactionV2Body{}, err
 	}
@@ -59,10 +60,12 @@ func normalizeCreateCrossLedgerTransactionV2Body(in CreateTransactionV2Request, 
 	if err != nil {
 		return normalizedCrossLedgerTransactionV2Body{}, err
 	}
+
 	from, err := normalizeTransactionV2Legs(in.Asset, in.OperationRouteID, in.Debits, true, "debits")
 	if err != nil {
 		return normalizedCrossLedgerTransactionV2Body{}, err
 	}
+
 	to, err := normalizeTransactionV2Legs(in.Asset, in.OperationRouteID, in.Credits, false, "credits")
 	if err != nil {
 		return normalizedCrossLedgerTransactionV2Body{}, err
@@ -96,12 +99,15 @@ func resolveTransactionV2LegScopes(
 		if err := (v2ScopeRef{scope: scope, ref: ref}).requireComplete(); err != nil {
 			return err
 		}
+
 		for _, existing := range unique {
 			if existing.namesSameAs(scope) {
 				return nil
 			}
 		}
+
 		unique = append(unique, scope)
+
 		return nil
 	}
 
@@ -111,6 +117,7 @@ func resolveTransactionV2LegScopes(
 			return nil, nil, nil, err
 		}
 	}
+
 	for index, leg := range credits {
 		creditScopes[index] = TransactionV2Scope{OrganizationID: leg.OrganizationID, LedgerID: leg.LedgerID}
 		if err := appendScope(creditScopes[index], legReference("credits", index)); err != nil {

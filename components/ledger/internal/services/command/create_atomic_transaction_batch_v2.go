@@ -367,7 +367,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchItems(
 			return err
 		}
 
-		if err := uc.prepareAtomicTransactionBatchItem(ctx, span, logger, run, &run.items[index]); err != nil {
+		if err := uc.prepareAtomicTransactionBatchItem(ctx, span, logger, &run.items[index]); err != nil {
 			return withAtomicTransactionBatchRunItemError(err, &run.items[index], "transaction preparation failed")
 		}
 	}
@@ -387,7 +387,6 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 	ctx context.Context,
 	span trace.Span,
 	logger libLog.Logger,
-	run *atomicTransactionBatchRun,
 	item *atomicTransactionBatchItemRun,
 ) error {
 	if err := validatePositiveTransactionValue(ctx, span, logger, item.input.Send.Value); err != nil {

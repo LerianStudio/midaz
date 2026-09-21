@@ -90,10 +90,12 @@ func (handler *TransactionHandler) CreateAtomicTransactionBatchV2(
 		if err != nil {
 			return nil, pkgHTTP.HumaProblem(err)
 		}
+
 		organizationID, ledgerID, err := parseOrgLedger(scope.OrganizationID, scope.LedgerID)
 		if err != nil {
 			return nil, pkgHTTP.HumaProblem(err)
 		}
+
 		items[index] = command.CreateAtomicTransactionBatchV2ItemInput{
 			OrganizationID:          organizationID,
 			LedgerID:                ledgerID,

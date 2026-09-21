@@ -396,6 +396,7 @@ func prepareBalances(ctx context.Context, request accounting.Execution, limits L
 		if !ok || !validSnapshotIdentity(balance) {
 			return nil, nil, fmt.Errorf("invalid accounting balance identity")
 		}
+
 		scopeRef := scopedBalanceRef(organizationID, ledgerID, balance.BalanceRef)
 		scopeAlias := scopedBalanceRef(organizationID, ledgerID, balance.Alias)
 
@@ -446,7 +447,7 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 		guard, hasGuard := guards[transaction.ID]
 
 		completionPlan, hasCompletionPlan := completionPlans[transaction.ID]
-		if !hasScope || transaction.ID == uuid.Nil || transactionIDs[transaction.ID] || !hasGuard || !hasCompletionPlan {
+		if !validTransactionPreparationCorrelation(transaction.ID, hasScope, transactionIDs, hasGuard, hasCompletionPlan) {
 			return nil, fmt.Errorf("invalid accounting transaction correlation")
 		}
 
@@ -472,8 +473,7 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 		}
 
 		for _, requirement := range transaction.BalanceRequirements {
-			if _, exists := balances[scopedBalanceRef(organizationID, ledgerID, requirement.BalanceRef)]; !exists || strings.TrimSpace(requirement.AssetCode) == "" ||
-				(requirement.Permission != accounting.BalancePermissionSend && requirement.Permission != accounting.BalancePermissionReceive) {
+			if !validPreparedBalanceRequirement(requirement, balances, organizationID, ledgerID) {
 				return nil, fmt.Errorf("invalid accounting balance requirement")
 			}
 
@@ -508,6 +508,28 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 	}
 
 	return preparedTransactions, nil
+}
+
+func validTransactionPreparationCorrelation(
+	transactionID uuid.UUID,
+	hasScope bool,
+	transactionIDs map[uuid.UUID]bool,
+	hasGuard bool,
+	hasCompletionPlan bool,
+) bool {
+	return hasScope && transactionID != uuid.Nil && !transactionIDs[transactionID] && hasGuard && hasCompletionPlan
+}
+
+func validPreparedBalanceRequirement(
+	requirement accounting.BalanceRequirement,
+	balances map[string]accounting.BalanceSnapshot,
+	organizationID, ledgerID uuid.UUID,
+) bool {
+	_, exists := balances[scopedBalanceRef(organizationID, ledgerID, requirement.BalanceRef)]
+	validPermission := requirement.Permission == accounting.BalancePermissionSend ||
+		requirement.Permission == accounting.BalancePermissionReceive
+
+	return exists && strings.TrimSpace(requirement.AssetCode) != "" && validPermission
 }
 
 func prepareAccountBlockException(exception *accounting.AccountBlockException, postings []accounting.Posting, balances map[string]accounting.BalanceSnapshot, organizationID, ledgerID uuid.UUID, keyIndex, maxBytes int) (*wireAccountBlockException, error) {
@@ -649,19 +671,15 @@ func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, m
 	}
 
 	keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection, resolved.TransactionIndex, resolved.Evidence}
+
 	for _, balance := range request.Balances {
 		organizationID, ledgerID, ok := effectiveBalanceScope(request, balance)
 		if !ok {
 			return nil, fmt.Errorf("invalid accounting balance scope")
 		}
-		pair, exists := resolved.Balances[scopedBalanceRef(organizationID, ledgerID, balance.BalanceRef)]
-		if !exists && organizationID == request.OrganizationID && ledgerID == request.LedgerID {
-			pair, exists = resolved.Balances[balance.BalanceRef]
-		}
 
-		expectedMarker, validBalanceKey := cachepolicy.DeletionMarkerKey(pair.Balance)
-		if !exists || !validBalanceKey || pair.Deleted != expectedMarker ||
-			pair.LegacyDeleted != pair.Balance+cachepolicy.DeletionMarkerSuffix {
+		pair, exists := findResolvedBalanceKeys(request, resolved, balance, organizationID, ledgerID)
+		if !exists || !validResolvedBalanceKeys(pair) {
 			return nil, fmt.Errorf("invalid resolved accounting balance keys")
 		}
 
@@ -690,6 +708,29 @@ func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, m
 	}
 
 	return keys, nil
+}
+
+func findResolvedBalanceKeys(
+	request accounting.Execution,
+	resolved resolvedExecutionKeys,
+	balance accounting.BalanceSnapshot,
+	organizationID, ledgerID uuid.UUID,
+) (resolvedBalanceKeys, bool) {
+	pair, exists := resolved.Balances[scopedBalanceRef(organizationID, ledgerID, balance.BalanceRef)]
+	if exists || organizationID != request.OrganizationID || ledgerID != request.LedgerID {
+		return pair, exists
+	}
+
+	pair, exists = resolved.Balances[balance.BalanceRef]
+
+	return pair, exists
+}
+
+func validResolvedBalanceKeys(pair resolvedBalanceKeys) bool {
+	expectedMarker, validBalanceKey := cachepolicy.DeletionMarkerKey(pair.Balance)
+
+	return validBalanceKey && pair.Deleted == expectedMarker &&
+		pair.LegacyDeleted == pair.Balance+cachepolicy.DeletionMarkerSuffix
 }
 
 func appendAccountBlockExceptionKeys(request accounting.Execution, resolved resolvedExecutionKeys, keys []string) ([]string, error) {
@@ -740,6 +781,7 @@ func appendAccountProtectionKeys(resolved resolvedExecutionKeys, keys []string, 
 	return keys, nil
 }
 
+//nolint:unused // retained as the single-scope unit-test seam
 func prepareSnapshot(balance accounting.BalanceSnapshot, maxBytes int) (wireBalanceSnapshot, error) {
 	return prepareSnapshotWithScope(balance, balance.OrganizationID, balance.LedgerID, maxBytes)
 }
@@ -764,6 +806,7 @@ func prepareSnapshotWithScope(balance accounting.BalanceSnapshot, organizationID
 	if organizationID != uuid.Nil {
 		organizationScope = organizationID.String()
 	}
+
 	if ledgerID != uuid.Nil {
 		ledgerScope = ledgerID.String()
 	}
@@ -794,6 +837,7 @@ func effectiveItemScope(primaryOrganizationID, primaryLedgerID, organizationID, 
 	if organizationID == uuid.Nil && ledgerID == uuid.Nil {
 		return primaryOrganizationID, primaryLedgerID, primaryOrganizationID != uuid.Nil && primaryLedgerID != uuid.Nil
 	}
+
 	if organizationID == uuid.Nil || ledgerID == uuid.Nil {
 		return uuid.Nil, uuid.Nil, false
 	}

@@ -775,9 +775,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		PlaceholderFormat(squirrel.Dollar)
 
 	findAll = applyCreatedAtRange(findAll, filter)
-	if filter.GroupID != nil {
-		findAll = findAll.Where(squirrel.Expr("group_id = ?", *filter.GroupID))
-	}
+	findAll = applyGroupIDFilter(findAll, filter)
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {
@@ -1419,9 +1417,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		PlaceholderFormat(squirrel.Dollar)
 
 	subQuery = applyCreatedAtRange(subQuery, filter)
-	if filter.GroupID != nil {
-		subQuery = subQuery.Where(squirrel.Expr("group_id = ?", *filter.GroupID))
-	}
+	subQuery = applyGroupIDFilter(subQuery, filter)
 
 	if len(ids) > 0 {
 		subQuery = subQuery.Where(squirrel.Expr("id = ANY(?)", pq.Array(ids)))
@@ -1704,6 +1700,14 @@ func applyCreatedAtRange(builder squirrel.SelectBuilder, pagination http.Paginat
 	return builder.
 		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
 		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)})
+}
+
+func applyGroupIDFilter(builder squirrel.SelectBuilder, pagination http.Pagination) squirrel.SelectBuilder {
+	if pagination.GroupID == nil {
+		return builder
+	}
+
+	return builder.Where(squirrel.Expr("group_id = ?", *pagination.GroupID))
 }
 
 // derefString safely dereferences a *string, returning "" if nil.

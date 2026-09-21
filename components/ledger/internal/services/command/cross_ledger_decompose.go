@@ -126,19 +126,21 @@ func resolveCrossLedgerLegs(
 	remaining := total
 
 	for _, leg := range legs {
-		value := decimal.Zero
+		var value decimal.Decimal
 
 		switch {
 		case leg.Amount != nil:
 			if leg.Amount.Asset != asset {
 				return nil, decimal.Zero, pkg.ValidateBusinessError(constant.ErrCrossLedgerAssetMismatch, constant.EntityTransaction)
 			}
+
 			value = leg.Amount.Value
 		case leg.Share != nil:
 			percentageOfPercentage := leg.Share.PercentageOfPercentage
 			if percentageOfPercentage == 0 {
 				percentageOfPercentage = 100
 			}
+
 			value = total.
 				Mul(decimal.NewFromInt(leg.Share.Percentage)).
 				Div(decimal.NewFromInt(100)).

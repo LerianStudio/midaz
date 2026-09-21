@@ -473,6 +473,7 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 	}
 
 	byRef := make(map[string]accounting.BalanceSnapshot)
+
 	for index := range run.items {
 		for _, snapshot := range run.items[index].prepared.pool.Snapshots {
 			byRef[atomicTransactionBatchScopedSnapshotRef(snapshot)] = snapshot
@@ -487,6 +488,7 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 		item := &run.items[index]
 		for _, balance := range run.items[index].prepared.pool.ExplicitBalances {
 			ref := atomicTransactionBatchPreparedBalanceRef(balance)
+
 			scopedRef := atomicTransactionBatchScopedRef(item.organizationID, item.ledgerID, ref)
 			if snapshot, ok := byRef[scopedRef]; ok {
 				if _, exists := seen[scopedRef]; !exists {
@@ -501,6 +503,7 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 			}
 
 			companionRef := mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), constant.OverdraftBalanceKey)
+
 			companionScopedRef := atomicTransactionBatchScopedRef(item.organizationID, item.ledgerID, companionRef)
 			if snapshot, ok := byRef[companionScopedRef]; ok {
 				if _, exists := seen[companionScopedRef]; !exists {

@@ -316,6 +316,7 @@ func BuildTransactionWriteSet(payload TransactionCompletionPlan, result accounti
 		groupID := payload.GroupID.String()
 		tran.GroupID = &groupID
 	}
+
 	if payload.ParentTransactionID != nil {
 		parentID := payload.ParentTransactionID.String()
 		tran.ParentTransactionID = &parentID

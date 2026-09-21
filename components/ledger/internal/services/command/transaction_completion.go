@@ -415,6 +415,7 @@ func ValidateTransactionCompletion(input EngineExecution) error {
 
 func validateCompletionBalanceRequirements(request accounting.Execution, organizationID, ledgerID uuid.UUID, requirements []accounting.BalanceRequirement) error {
 	snapshots := request.Balances
+
 	known := make(map[string]struct{}, len(snapshots))
 	for _, snapshot := range snapshots {
 		snapshotOrganizationID, snapshotLedgerID := completionBalanceScope(request, snapshot)
@@ -467,6 +468,7 @@ func validateCompletionExecutionFingerprint(request accounting.Execution, tenant
 
 func validateCompletionSnapshotIdentities(request accounting.Execution, organizationID, ledgerID uuid.UUID, projections []OperationRecordSpec) error {
 	snapshots := request.Balances
+
 	byRef := make(map[string]accounting.BalanceSnapshot, len(snapshots))
 	for _, snapshot := range snapshots {
 		snapshotOrganizationID, snapshotLedgerID := completionBalanceScope(request, snapshot)
@@ -502,6 +504,7 @@ func transactionCompletionIntent(transaction accounting.Transaction, payload Tra
 		intent.OrganizationID = payload.OrganizationID.String()
 		intent.LedgerID = payload.LedgerID.String()
 	}
+
 	if transaction.AccountBlockException != nil {
 		exceptionID := transaction.AccountBlockException.ExceptionID
 		intent.AccountBlockExceptionID = &exceptionID
@@ -533,6 +536,7 @@ func validateCompletionExecutionIdentity(input EngineExecution) error {
 
 func validateCompletionExecutionScope(input EngineExecution, transaction accounting.Transaction, payload *TransactionCompletionPlan) error {
 	request := input.Execution
+
 	organizationID, ledgerID := completionTransactionScope(request, transaction)
 	if payload.TransactionID != transaction.ID || payload.ExecutionID != request.ExecutionID || payload.OrganizationID != organizationID || payload.LedgerID != ledgerID || payload.IntentFingerprint != input.IntentFingerprint {
 		return invalidTransactionCompletionRecord("recovery scope does not match execution")

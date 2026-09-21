@@ -124,6 +124,7 @@ func (uc *UseCase) completeAtomicTransactionBatchFallback(
 			organizationID string
 			ledgerID       string
 		}
+
 		type scopedEnvelope struct {
 			index    int
 			envelope *TransactionWriteBehindEnvelope
@@ -131,6 +132,7 @@ func (uc *UseCase) completeAtomicTransactionBatchFallback(
 
 		order := make([]completionScope, 0)
 		groups := make(map[completionScope][]scopedEnvelope)
+
 		for index, envelope := range envelopes {
 			scope := completionScope{
 				organizationID: envelope.Record.OrganizationID.String(),
@@ -139,20 +141,25 @@ func (uc *UseCase) completeAtomicTransactionBatchFallback(
 			if _, exists := groups[scope]; !exists {
 				order = append(order, scope)
 			}
+
 			groups[scope] = append(groups[scope], scopedEnvelope{index: index, envelope: envelope})
 		}
 
 		completions := make([]TransactionCompletionResult, len(envelopes))
+
 		for _, scope := range order {
 			group := groups[scope]
+
 			batch := make([]*TransactionWriteBehindEnvelope, len(group))
 			for index := range group {
 				batch[index] = group[index].envelope
 			}
+
 			completed, err := CompleteTransactionWriteBehindBulk(ctx, batch, uc.TransactionEvidenceResolver, bulk)
 			if err != nil {
 				return nil, err
 			}
+
 			for index := range completed {
 				completions[group[index].index] = completed[index]
 			}

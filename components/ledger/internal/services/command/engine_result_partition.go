@@ -64,6 +64,7 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 
 		transaction := request.Transactions[transactionIndex]
 		organizationID, ledgerID := completionTransactionScope(request, transaction)
+
 		balanceKey := completionScopedBalanceRef(organizationID, ledgerID, movement.BalanceRef)
 		if _, balanceExists := balances[balanceKey]; !balanceExists {
 			return nil, invalidTransactionCompletionRecord("engine movement references an unknown balance")
@@ -133,6 +134,7 @@ func indexEngineResultBalances(request accounting.Execution) (map[string]account
 		}
 
 		organizationID, ledgerID := completionBalanceScope(request, balance)
+
 		key := completionScopedBalanceRef(organizationID, ledgerID, balance.BalanceRef)
 		if _, duplicate := byRef[key]; duplicate {
 			return nil, invalidTransactionCompletionRecord("execution contains a duplicate balance reference")
@@ -164,6 +166,7 @@ func validateGlobalEngineFinal(
 	for index, snapshot := range final {
 		organizationID, ledgerID := completionBalanceScope(request, snapshot)
 		key := completionScopedBalanceRef(organizationID, ledgerID, snapshot.BalanceRef)
+
 		balance, exists := balances[key]
 		if !exists || key != firstTouch[index] {
 			return nil, invalidTransactionCompletionRecord("engine final snapshot order does not match first touch")

@@ -103,14 +103,17 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
+
 	normalized, err := normalizeCreateCrossLedgerTransactionV2Body(payload, pending)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
+
 	transactionInput := normalized.transaction
 	if operationTypeOverride != "" {
 		transactionInput.OperationTypeOverride = operationTypeOverride
 	}
+
 	exceptionID, err := payload.AccountBlockException()
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -125,6 +128,7 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 		if err != nil {
 			return nil, pkgHTTP.HumaProblem(err)
 		}
+
 		result, err := handler.Command.CreateCrossLedgerTransactionV2(ctx, command.CreateCrossLedgerTransactionV2Input{
 			Transaction: transactionInput, Scopes: scopes, AccountBlockExceptionID: exceptionID,
 			CanonicalRequest: rawBody, IdempotencyKey: idempotencyKey,
@@ -135,6 +139,7 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 		}
 
 		groupID := result.BatchID.String()
+
 		transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Transactions))
 		for index := range result.Transactions {
 			transactions[index] = &AtomicTransactionBatchV2Transaction{TransactionV2: newTransactionV2(result.Transactions[index]), Order: index + 1}
@@ -185,6 +190,7 @@ func parseCrossLedgerTransactionScopes(normalized normalizedCrossLedgerTransacti
 		if err != nil {
 			return command.CrossLedgerLegScope{}, err
 		}
+
 		return command.CrossLedgerLegScope{OrganizationID: organizationID, LedgerID: ledgerID}, nil
 	}
 
@@ -193,30 +199,27 @@ func parseCrossLedgerTransactionScopes(normalized normalizedCrossLedgerTransacti
 		if err != nil {
 			return command.CrossLedgerTransactionScopes{}, err
 		}
+
 		result.Debits[index] = parsed
 	}
+
 	for index, scope := range normalized.creditScopes {
 		parsed, err := parse(scope)
 		if err != nil {
 			return command.CrossLedgerTransactionScopes{}, err
 		}
+
 		result.Credits[index] = parsed
 	}
 
 	return result, nil
 }
 
-// decodeAndBuildV2Transaction decodes+validates the flat v2 body imperatively (the SAME
-// http.DecodeAndValidate the v1 create ops run), translates it to the canonical
-// Transaction with the caller's pending intent, and stamps the optional Operation.Type
-// override. It returns the transaction alongside the scope Translate resolved from the
-// legs, which together are exactly what createTransactionV2 hands to the funnel — so this
-// is the unit seam for asserting both the translate+stamp result and the resolved scope.
-// It also returns the single-use account-block exception the body presented, or nil when
-// it presented none. The identifier deliberately does NOT ride on the canonical
-// Transaction: it is a per-request authorization, not part of the transaction, and the
-// canonical struct is persisted in the body JSONB and doubles as the read model — a
-// consumed grant has no business surviving in either.
+// decodeAndBuildV2Transaction is retained as the narrow unit seam for the
+// singular create decoder. Production now uses the multi-scope normalizer
+// directly so direct requests can branch into cross-ledger orchestration.
+//
+//nolint:unused // exercised directly by contract tests
 func decodeAndBuildV2Transaction(rawBody []byte, pending bool, operationTypeOverride string) (mtransaction.Transaction, TransactionV2Scope, *uuid.UUID, error) {
 	payload, err := decodeCreateTransactionV2Body(rawBody)
 	if err != nil {

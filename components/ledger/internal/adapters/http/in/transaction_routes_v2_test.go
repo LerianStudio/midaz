@@ -674,10 +674,11 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsBothSides(t *testing.T) 
 var v2CreateBodyScopeFields = []string{"organizationId", "ledgerId"}
 
 // TestRegisterTransactionV2Routes_CreateBodyDocumentsTheScope asserts the published create-body
-// component states where the organization and ledger are named and that all accounts must agree
-// on one pair. The create endpoint names no scope, so a client that cannot read this off the
-// contract has nowhere else to look; and the agreement rule has no structural expression in a
-// flat schema, so prose is the only place it can be stated.
+// component states where the organization and ledger are named and distinguishes direct's
+// multi-ledger contract from the single-scope hold/block/unblock actions. The create endpoint
+// names no scope, so a client that cannot read this off the contract has nowhere else to look;
+// and the action-dependent rule has no structural expression in a flat shared schema, so prose
+// is the only place it can be stated.
 func TestRegisterTransactionV2Routes_CreateBodyDocumentsTheScope(t *testing.T) {
 	t.Parallel()
 
@@ -692,8 +693,10 @@ func TestRegisterTransactionV2Routes_CreateBodyDocumentsTheScope(t *testing.T) {
 			"%s description must name the %s field an account carries", v2CreateBodySchemaName, field)
 	}
 
-	assert.Containsf(t, schema.Description, "SAME pair",
-		"%s description must state that every account names the same organization and ledger", v2CreateBodySchemaName)
+	assert.Containsf(t, schema.Description, "direct action accepts multiple enabled ledgers",
+		"%s description must document direct's multi-ledger scope", v2CreateBodySchemaName)
+	assert.Containsf(t, schema.Description, "hold, block and unblock still require every leg to name the same pair",
+		"%s description must preserve the single-scope rule for unsupported actions", v2CreateBodySchemaName)
 
 	// The two fields live on the leg component, which every leg of either side shares.
 	legSchema, ok := oapi.Components.Schemas.Map()[v2LegSchemaName]
