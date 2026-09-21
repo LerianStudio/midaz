@@ -187,7 +187,12 @@ func (uc *UseCase) prepareCrossLedgerRevertPart(
 	if err != nil {
 		return preparedCrossLedgerRevertPart{}, err
 	}
-	if resolution.ExecutionID != uuid.Nil {
+	// Durable origins can be reverted from their primary projection without
+	// retaining engine evidence. Only an origin that is still pending projection
+	// needs a causal dependency; completed evidence may already have been reaped
+	// and, for cross-ledger groups, belongs to the origin execution's coordinator
+	// scope rather than the reversed batch's first ledger.
+	if resolution.Pending && resolution.ExecutionID != uuid.Nil {
 		part.dependency = originDependencyReference(
 			tmcore.GetTenantIDContext(ctx),
 			organizationID,
