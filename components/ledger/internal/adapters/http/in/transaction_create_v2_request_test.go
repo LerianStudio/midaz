@@ -407,11 +407,16 @@ func TestCreateTransactionV2Request_DecodeLegGroups(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "leg field outside the exposed group is an unknown field",
+			name: "balance key is a known leg field",
 			body: `{"asset":"BRL","amount":"1000",` +
-				`"debits":[{"alias":"@person1",` + scopeJSON + `,"balanceKey":"default"}],` +
+				`"debits":[{"alias":"@person1",` + scopeJSON + `,"amount":"1000","balanceKey":"food"}],` +
 				`"credits":[{"alias":"@person2",` + scopeJSON + `,"amount":"1000"}]}`,
-			wantErr: true,
+			verify: func(t *testing.T, in CreateTransactionV2Request) {
+				t.Helper()
+
+				require.Len(t, in.Debits, 1)
+				assert.Equal(t, "food", in.Debits[0].BalanceKey)
+			},
 		},
 	}
 
@@ -433,6 +438,22 @@ func TestCreateTransactionV2Request_DecodeLegGroups(t *testing.T) {
 			tt.verify(t, in)
 		})
 	}
+}
+
+func TestCreateTransactionV2Request_TranslatePreservesBalanceKeys(t *testing.T) {
+	t.Parallel()
+
+	input := validV2Input()
+	input.Debits[0].BalanceKey = "food"
+
+	got, _, err := input.Translate(false)
+	require.NoError(t, err)
+	require.Len(t, got.Send.Source.From, 1)
+	require.Len(t, got.Send.Distribute.To, 1)
+	assert.Equal(t, "food", got.Send.Source.From[0].BalanceKey,
+		"an explicit v2 balanceKey must reach the canonical debit leg")
+	assert.Empty(t, got.Send.Distribute.To[0].BalanceKey,
+		"an omitted v2 balanceKey must stay empty until ApplyDefaultBalanceKeys")
 }
 
 // TestCreateTransactionV2Request_Translate exercises the flat -> canonical mapping

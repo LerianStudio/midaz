@@ -159,6 +159,47 @@ func TestTransactionV2LegRequest_DescriptionLengthBound(t *testing.T) {
 	}
 }
 
+func TestTransactionV2LegRequest_BalanceKeyValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		balanceKey  string
+		wantErr     bool
+		wantMessage string
+	}{
+		{name: "named balance", balanceKey: "food"},
+		{name: "at the length cap", balanceKey: strings.Repeat("k", 100)},
+		{name: "leading whitespace", balanceKey: " food", wantErr: true, wantMessage: "debits[0].balanceKey"},
+		{name: "one past the length cap", balanceKey: strings.Repeat("k", 101), wantErr: true, wantMessage: "debits[0].balanceKey"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := `{"asset":"BRL","amount":"100",` +
+				`"debits":[{"alias":"@srcA",` + scopeJSON + `,"amount":"100","balanceKey":"` + tt.balanceKey + `"}],` +
+				`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`
+
+			var input CreateTransactionV2Request
+			_, err := nethttp.DecodeAndValidate([]byte(body), &input)
+			if !tt.wantErr {
+				require.NoError(t, err)
+				require.Len(t, input.Debits, 1)
+				assert.Equal(t, tt.balanceKey, input.Debits[0].BalanceKey)
+
+				return
+			}
+
+			require.Error(t, err)
+			fields := requireKnownFieldsError(t, err, constant.ErrBadRequest)
+			assert.Contains(t, fields["balanceKey"], tt.wantMessage,
+				"the 400 response must identify the indexed leg field")
+		})
+	}
+}
+
 // TestCreateTransactionV2Request_LegArrayCap locks the published per-side leg cap. It is the only
 // bound on the leg count: the request-body byte limit alone admits tens of thousands of legs,
 // each carrying its own downstream cost.

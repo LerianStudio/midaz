@@ -21,6 +21,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	postgrescompletion "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
@@ -28,6 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
@@ -266,6 +268,58 @@ func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 		requireCachedAvailable(t, fixture, ledgerID, "@ordered-b", 0)
 		requireCachedAvailable(t, fixture, ledgerID, "@ordered-c", 100)
 		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, finalBalanceID))
+	})
+
+	t.Run("named balance is preserved by an atomic batch item", func(t *testing.T) {
+		ledgerID := fixture.newLedger(t)
+		defaultID, destinationID := seedTransfer(
+			t,
+			fixture.infra.pgContainer.DB,
+			fixture.infra.orgID,
+			ledgerID,
+			"@batch-named-source",
+			"@batch-named-destination",
+			1000,
+		)
+		foodID := seedAdditionalBalanceForV2(
+			t,
+			fixture.infra.pgContainer.DB,
+			fixture.infra.orgID,
+			ledgerID,
+			"@batch-named-source",
+			"food",
+			500,
+		)
+
+		transaction := atomicBatchTransfer(
+			fixture.infra.orgID,
+			ledgerID,
+			"named balance batch",
+			"@batch-named-source",
+			"@batch-named-destination",
+			100,
+		)
+		transaction.Debits[0].BalanceKey = "food"
+
+		result := decodeAtomicBatchResponse(
+			t,
+			postAtomicBatch(t, fixture.app, []CreateTransactionV2Request{transaction}, "named-balance-batch"),
+			http.StatusCreated,
+		)
+		require.Len(t, result.Transactions, 1)
+		require.Len(t, result.Transactions[0].Operations, 2)
+		for _, operation := range result.Transactions[0].Operations {
+			if operation.AccountAlias == "@batch-named-source" {
+				assert.Equal(t, "food", operation.BalanceKey)
+			}
+		}
+
+		requireCachedBalanceAvailable(t, context.Background(), fixture.infra, ledgerID, "@batch-named-source", "food", 400)
+		requireCachedBalanceAvailable(t, context.Background(), fixture.infra, ledgerID, "@batch-named-source", cn.DefaultBalanceKey, 1000)
+		requireCachedBalanceAvailable(t, context.Background(), fixture.infra, ledgerID, "@batch-named-destination", cn.DefaultBalanceKey, 100)
+		requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, defaultID))
+		requireDecimalEqual(t, decimal.NewFromInt(500), postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, foodID))
+		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, destinationID))
 	})
 
 	t.Run("reversed order refuses without mutation", func(t *testing.T) {
