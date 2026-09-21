@@ -78,7 +78,7 @@ type Repository interface {
 
 // BalanceHWMRef addresses one balance in a high-water-mark lookup. The account ID
 // travels with the balance ID because it is the leading column of
-// idx_operation_account_balance_pit: without it the lookup cannot match the index
+// idx_operation_account_balance_pit_recorded: without it the lookup cannot match the index
 // prefix.
 type BalanceHWMRef struct {
 	AccountID uuid.UUID
@@ -135,8 +135,12 @@ var operationColumnList = []string{
 // operationColumns is derived from operationColumnList for use with squirrel.Select.
 var operationColumns = strings.Join(operationColumnList, ", ")
 
+// PointInTimeRecordedAtExpression is the authoritative PIT axis. Legacy rows
+// written before recorded_at was introduced retain their created_at behavior.
+const PointInTimeRecordedAtExpression = "COALESCE(recorded_at, created_at)"
+
 // operationPointInTimeColumns contains only the columns needed for point-in-time balance queries.
-// These columns are served by idx_operation_account_balance_pit via heap fetches (the index
+// These columns are served by idx_operation_account_balance_pit_recorded via heap fetches (the index
 // is a lean key-only index without INCLUDE columns for optimal storage).
 // Note: 'id' is included for cursor pagination support in list queries.
 var operationPointInTimeColumns = []string{
@@ -148,10 +152,16 @@ var operationPointInTimeColumns = []string{
 	"available_balance_after",
 	"on_hold_balance_after",
 	"balance_version_after",
-	"created_at",
+	PointInTimeRecordedAtExpression + " AS recorded_at",
 	// snapshot propagates through point-in-time queries so historical balance
 	// reconstruction surfaces the same overdraft context as live reads.
 	"snapshot",
+}
+
+var operationPointInTimeProjectedColumns = []string{
+	"id", "balance_id", "account_id", "asset_code", "balance_key",
+	"available_balance_after", "on_hold_balance_after", "balance_version_after",
+	"recorded_at", "snapshot",
 }
 
 // NewOperationPostgreSQLRepository returns a new instance of OperationPostgreSQLRepository using the given Postgres connection.
@@ -631,7 +641,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.ChartOfAccounts,
 			&operation.OrganizationID,
 			&operation.LedgerID,
-			&operation.CreatedAt,
+			&operation.RecordedAt,
 			&operation.UpdatedAt,
 			&operation.DeletedAt,
 			&operation.Route,
@@ -1255,11 +1265,11 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 // newest created_at would then elect an intermediate version as the mark — which reads as
 // "the row is only slightly behind" and rebuilds the seed short, permanently.
 //
-// Cost of that choice, accepted deliberately: idx_operation_account_balance_pit orders by
-// created_at, so the balance's entries under the (organization, ledger, account, balance)
-// prefix are scanned and sorted for a top-1 instead of being read in index order. The
-// query runs only on a cache miss, and a dedicated index would need a migration, which
-// this work explicitly rules out.
+// Cost of that choice, accepted deliberately: idx_operation_account_balance_pit_recorded orders by
+// recording time, so the balance's entries under the (organization, ledger, account, balance)
+// prefix are scanned and sorted for a top-1 instead of being read in index order. The query
+// runs only on a cache miss; a second index dedicated to the version-first HWM path is outside
+// this change's point-in-time scope.
 func (r *OperationPostgreSQLRepository) ListLatestByBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, refs []BalanceHWMRef) (hwm map[string]*Operation, err error) {
 	if len(refs) == 0 {
 		return map[string]*Operation{}, nil
@@ -1326,7 +1336,7 @@ func (r *OperationPostgreSQLRepository) ListLatestByBalances(ctx context.Context
 			&operation.AvailableBalanceAfter,
 			&operation.OnHoldBalanceAfter,
 			&operation.VersionBalanceAfter,
-			&operation.CreatedAt,
+			&operation.RecordedAt,
 			&operation.Snapshot,
 		); scanErr != nil {
 			return nil, fmt.Errorf("scan balance high-water mark: %w", scanErr)
@@ -1344,8 +1354,8 @@ func (r *OperationPostgreSQLRepository) ListLatestByBalances(ctx context.Context
 
 // buildBalanceHWMQuery assembles the high-water-mark lookup. DISTINCT ON keeps the first
 // row per balance, and the ORDER BY that decides which row that is leads with
-// balance_version_after — deliberately diverging from idx_operation_account_balance_pit,
-// which leads with created_at. See ListLatestByBalances for why the version has to win
+// balance_version_after — deliberately diverging from idx_operation_account_balance_pit_recorded,
+// which leads with recording time. See ListLatestByBalances for why the version has to win
 // and what that ordering costs.
 func buildBalanceHWMQuery(tableName string, organizationID, ledgerID uuid.UUID, refs []BalanceHWMRef) (string, []any, error) {
 	pairs := make(squirrel.Or, 0, len(refs))
@@ -1387,16 +1397,16 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 	}
 
 	// Build query to find the last operation for this balance before the timestamp
-	// Uses optimized column list (9 columns vs 26) to match idx_operation_account_balance_pit
+	// Uses the optimized PIT column list aligned with idx_operation_account_balance_pit_recorded.
 	findQuery := squirrel.Select(operationPointInTimeColumns...).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"account_id": accountID}).
 		Where(squirrel.Eq{"balance_id": balanceID}).
-		Where(squirrel.LtOrEq{"created_at": timestamp}).
+		Where(squirrel.Expr(PointInTimeRecordedAtExpression+" <= ?", timestamp)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC", "balance_version_after DESC", "id DESC").
+		OrderBy(PointInTimeRecordedAtExpression+" DESC", "balance_version_after DESC", "id DESC").
 		Limit(1).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -1420,7 +1430,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationBeforeTimestamp(ctx con
 		&operation.AvailableBalanceAfter,
 		&operation.OnHoldBalanceAfter,
 		&operation.VersionBalanceAfter,
-		&operation.CreatedAt,
+		&operation.RecordedAt,
 		&operation.Snapshot,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1467,19 +1477,19 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 
 	// Build query using DISTINCT ON to get the last operation per balance_id
 	// PostgreSQL DISTINCT ON returns the first row for each distinct value based on ORDER BY
-	// Uses optimized column list (9 columns vs 26) to enable Index-Only Scan with covering index
+	// Uses the optimized PIT column list aligned with the expression index.
 	findQuery := squirrel.Select("DISTINCT ON (balance_id) "+strings.Join(operationPointInTimeColumns, ", ")).
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"account_id": accountID}).
-		Where(squirrel.LtOrEq{"created_at": timestamp}).
+		Where(squirrel.Expr(PointInTimeRecordedAtExpression+" <= ?", timestamp)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("balance_id", "created_at DESC", "balance_version_after DESC", "id DESC").
+		OrderBy("balance_id", PointInTimeRecordedAtExpression+" DESC", "balance_version_after DESC", "id DESC").
 		PlaceholderFormat(squirrel.Dollar)
 
 	// Apply pagination on the outer query
-	outerQuery := squirrel.Select(operationPointInTimeColumns...).
+	outerQuery := squirrel.Select(operationPointInTimeProjectedColumns...).
 		FromSelect(findQuery, "sub").
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -1515,7 +1525,7 @@ func (r *OperationPostgreSQLRepository) FindLastOperationsForAccountBeforeTimest
 			&operation.AvailableBalanceAfter,
 			&operation.OnHoldBalanceAfter,
 			&operation.VersionBalanceAfter,
-			&operation.CreatedAt,
+			&operation.RecordedAt,
 			&operation.Snapshot,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)

@@ -116,7 +116,7 @@ type OperationPointInTimeModel struct {
 	AvailableBalanceAfter *decimal.Decimal // Available balance after operation
 	OnHoldBalanceAfter    *decimal.Decimal // On-hold balance after operation
 	VersionBalanceAfter   *int64           // Balance version after operation
-	CreatedAt             time.Time        // Creation timestamp (used as UpdatedAt for balance)
+	RecordedAt            time.Time        // Server-side timestamp used as UpdatedAt for balance
 	// Snapshot holds the pre-marshalled JSONB payload for the operation.snapshot
 	// column. Point-in-time queries carry it through so historical balance
 	// reconstruction surfaces the same overdraft context as live reads.
@@ -138,7 +138,7 @@ func (t *OperationPointInTimeModel) ToEntity() *Operation {
 		AssetCode:    t.AssetCode,
 		BalanceKey:   t.BalanceKey,
 		BalanceAfter: balanceAfter,
-		CreatedAt:    t.CreatedAt,
+		RecordedAt:   &t.RecordedAt,
 	}
 
 	// Always-populated snapshot contract: default to zero values, then

@@ -9,6 +9,7 @@ package operation
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -1291,6 +1292,68 @@ func TestIntegration_OperationRepository_PointInTimeUsesRecordedAt(t *testing.T)
 	)
 	require.NoError(t, err)
 	require.Equal(t, operationA, legacy.ID, "legacy rows must participate through created_at")
+}
+
+func TestIntegration_RecordedAtPITQueriesUseExpressionIndex(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	_ = createRepository(t, container)
+	ids := createTestDependencies(t, container)
+	cutoff := time.Date(2026, time.September, 21, 12, 0, 0, 0, time.UTC)
+
+	tx, err := container.DB.Begin()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, tx.Rollback()) }()
+	_, err = tx.Exec("SET LOCAL enable_seqscan = off")
+	require.NoError(t, err)
+
+	queries := map[string]struct {
+		sql  string
+		args []any
+	}{
+		"single balance": {
+			sql: `SELECT id FROM operation
+				WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3 AND balance_id = $4
+				  AND COALESCE(recorded_at, created_at) <= $5 AND deleted_at IS NULL
+				ORDER BY COALESCE(recorded_at, created_at) DESC, balance_version_after DESC, id DESC LIMIT 1`,
+			args: []any{ids.OrgID, ids.LedgerID, ids.AccountID, ids.BalanceID, cutoff},
+		},
+		"account balances": {
+			sql: `SELECT DISTINCT ON (balance_id) balance_id FROM operation
+				WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3
+				  AND COALESCE(recorded_at, created_at) <= $4 AND deleted_at IS NULL
+				ORDER BY balance_id, COALESCE(recorded_at, created_at) DESC, balance_version_after DESC, id DESC`,
+			args: []any{ids.OrgID, ids.LedgerID, ids.AccountID, cutoff},
+		},
+		"balance history CTE": {
+			sql: `WITH latest_ops AS (
+				SELECT DISTINCT ON (balance_id) balance_id, available_balance_after
+				FROM operation
+				WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3
+				  AND COALESCE(recorded_at, created_at) <= $4 AND deleted_at IS NULL
+				ORDER BY balance_id, COALESCE(recorded_at, created_at) DESC, balance_version_after DESC, id DESC
+			) SELECT b.id, COALESCE(o.available_balance_after, 0) FROM balance b LEFT JOIN latest_ops o ON b.id = o.balance_id
+			  WHERE b.organization_id = $1 AND b.ledger_id = $2 AND b.account_id = $3`,
+			args: []any{ids.OrgID, ids.LedgerID, ids.AccountID, cutoff},
+		},
+	}
+
+	for name, query := range queries {
+		t.Run(name, func(t *testing.T) {
+			rows, err := tx.Query("EXPLAIN "+query.sql, query.args...)
+			require.NoError(t, err)
+			defer rows.Close()
+
+			var plan strings.Builder
+			for rows.Next() {
+				var line string
+				require.NoError(t, rows.Scan(&line))
+				plan.WriteString(line)
+				plan.WriteByte('\n')
+			}
+			require.NoError(t, rows.Err())
+			require.Contains(t, plan.String(), "idx_operation_account_balance_pit_recorded", plan.String())
+		})
+	}
 }
 
 // TestIntegration_OperationRepository_DecimalPrecision_Preserved tests that

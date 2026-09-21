@@ -30,14 +30,14 @@ func readTransactionMigrationFile(t *testing.T, fileName string) string {
 func TestOperationPointInTimeMigration_SemanticShape(t *testing.T) {
 	t.Parallel()
 
-	pointInTimeUp := readTransactionMigrationFile(t, "000017_add_idx_operation_point_in_time.up.sql")
-	pointInTimeDown := readTransactionMigrationFile(t, "000017_add_idx_operation_point_in_time.down.sql")
+	pointInTimeUp := readTransactionMigrationFile(t, "000037_add_idx_operation_point_in_time_recorded.up.sql")
+	legacyIndexRemoval := readTransactionMigrationFile(t, "000038_drop_idx_operation_point_in_time.up.sql")
 
 	// Verify the unified lean index with balance_version_after in key, no INCLUDE columns
-	assert.Contains(t, pointInTimeUp, "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_operation_account_balance_pit")
-	assert.Contains(t, pointInTimeUp, "ON operation (organization_id, ledger_id, account_id, balance_id, created_at DESC, balance_version_after DESC)")
+	assert.Contains(t, pointInTimeUp, "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_operation_account_balance_pit_recorded")
+	assert.Contains(t, pointInTimeUp, "ON operation (organization_id, ledger_id, account_id, balance_id, (COALESCE(recorded_at, created_at)) DESC, balance_version_after DESC)")
 	assert.NotContains(t, pointInTimeUp, "INCLUDE (", "lean index must not have INCLUDE columns")
 	assert.Contains(t, pointInTimeUp, "WHERE deleted_at IS NULL")
 
-	assert.Contains(t, pointInTimeDown, "DROP INDEX CONCURRENTLY IF EXISTS idx_operation_account_balance_pit;")
+	assert.Contains(t, legacyIndexRemoval, "DROP INDEX CONCURRENTLY IF EXISTS idx_operation_account_balance_pit;")
 }
