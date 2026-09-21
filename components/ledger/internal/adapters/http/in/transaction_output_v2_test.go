@@ -154,6 +154,30 @@ func TestCreateTransactionV2Response_CrossLedgerEnvelope(t *testing.T) {
 	assert.NotContains(t, body, "id", "a group envelope must not masquerade as one transaction")
 }
 
+func TestCreateTransactionV2Response_CrossLedgerRevertEnvelope(t *testing.T) {
+	t.Parallel()
+
+	groupID := "88888888-8888-4888-8888-888888888888"
+	revertedGroupID := "99999999-9999-4999-8999-999999999999"
+	response := &CreateTransactionV2Response{
+		GroupID:         &groupID,
+		RevertedGroupID: &revertedGroupID,
+		Transactions: []*AtomicTransactionBatchV2Transaction{
+			{TransactionV2: newTransactionV2(buildCanonicalTransactionFixture()), Order: 1},
+		},
+	}
+
+	raw, err := json.Marshal(response)
+	require.NoError(t, err)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(raw, &body))
+	assert.Equal(t, groupID, body["groupId"])
+	assert.Equal(t, revertedGroupID, body["revertedGroupId"])
+	assert.Len(t, body["transactions"], 1)
+	assert.NotContains(t, body, "id", "a revert group envelope must not masquerade as one transaction")
+}
+
 // TestRegisterTransactionV2Routes_ResponseSchemaNotNamedTransaction locks the v2 response
 // component's name away from "Transaction": v1 and v2 already share 38 identically-shaped
 // schema names on the merged docs hub, and a v2 "Transaction" with a DIFFERENT shape (debit/
