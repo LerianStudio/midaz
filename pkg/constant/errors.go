@@ -233,6 +233,13 @@ var (
 	// ErrCrossLedgerNotEnabled is returned when a cross-ledger transaction
 	// references a ledger that has not opted in through crossLedger.enabled.
 	ErrCrossLedgerNotEnabled = errors.New("0249")
+	// ErrCrossLedgerAssetMismatch is returned when a cross-ledger request
+	// attempts to move more than one asset in the same atomic group.
+	ErrCrossLedgerAssetMismatch = errors.New("0250")
+	// ErrCrossLedgerRouteValidationUnsupported is returned when accounting
+	// route validation is enabled on a participating ledger. The synthetic
+	// external bridge legs do not have an accounting route in this milestone.
+	ErrCrossLedgerRouteValidationUnsupported = errors.New("0251")
 	// ErrOverdraftRouteNotConfigured is returned when route validation is
 	// enabled but the accounting route applied to an overdraft companion
 	// operation does not define an overdraft entry carrying the rubric for

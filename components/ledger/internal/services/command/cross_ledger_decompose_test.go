@@ -130,7 +130,7 @@ func TestDecomposeCrossLedgerTransaction_RejectsMixedAssets(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, constant.ErrCrossLedgerAssetMismatch)
+	assert.Contains(t, err.Error(), constant.ErrCrossLedgerAssetMismatch.Error())
 }
 
 func crossLedgerTestTransaction(total string, from, to []mtransaction.FromTo) mtransaction.Transaction {

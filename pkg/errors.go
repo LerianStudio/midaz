@@ -617,6 +617,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Cross-Ledger Not Enabled Error",
 			Message:    fmt.Sprintf("Ledger %v is not enabled for cross-ledger transactions. Enable crossLedger.enabled on every ledger involved.", args...),
 		},
+		constant.ErrCrossLedgerAssetMismatch: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerAssetMismatch.Error(),
+			Title:      "Cross-Ledger Asset Mismatch Error",
+			Message:    "Cross-ledger transactions must use the same asset on every leg.",
+		},
+		constant.ErrCrossLedgerRouteValidationUnsupported: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerRouteValidationUnsupported.Error(),
+			Title:      "Cross-Ledger Route Validation Unsupported Error",
+			Message:    "Cross-ledger transactions are not supported when accounting route validation is enabled on a participating ledger.",
+		},
 		constant.ErrBalanceSeedRebuildInconsistent: ServiceUnavailableError{
 			EntityType: entityType,
 			Code:       constant.ErrBalanceSeedRebuildInconsistent.Error(),
