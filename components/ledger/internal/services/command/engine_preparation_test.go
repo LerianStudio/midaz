@@ -225,10 +225,27 @@ func TestOrderedEngineValidationOperationsPreservesStaticHoldEntries(t *testing.
 	assert.Equal(t, "1", ops[1].Amount.Value.String())
 	assert.Equal(t, "2", ops[2].Amount.Value.String())
 	assert.Equal(t, "2", ops[3].Amount.Value.String())
-	legBalances, err := deduplicateBalances(ops)
+	legBalances, err := deduplicateEngineTestBalances(ops)
 	require.NoError(t, err)
 	require.Len(t, legBalances, 3)
 	require.NoError(t, mtransaction.ValidateBalancesRules(context.Background(), input.translation.TransactionInput, *input.translation.Validate, legBalances, nil))
+}
+
+func deduplicateEngineTestBalances(operations []mmodel.BalanceOperation) ([]*mtransaction.Balance, error) {
+	seen := make(map[string]bool, len(operations))
+	balances := make([]*mtransaction.Balance, 0, len(operations))
+	for _, operation := range operations {
+		if seen[operation.Alias] {
+			continue
+		}
+		seen[operation.Alias] = true
+		balance, err := operation.Balance.ToTransactionBalance()
+		if err != nil {
+			return nil, err
+		}
+		balances = append(balances, balance)
+	}
+	return balances, nil
 }
 
 func TestPrepareEngineCancellationDoesNotRequireDestinationBalance(t *testing.T) {

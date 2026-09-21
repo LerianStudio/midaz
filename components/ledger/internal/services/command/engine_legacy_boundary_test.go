@@ -62,6 +62,8 @@ func TestExecutableMonetaryCommandsDoNotCallLegacyBalanceMutation(t *testing.T) 
 		calls := sourceCalls(t, name)
 		assert.NotContains(t, calls, "ProcessBalanceOperations",
 			"%s must require the accounting engine instead of the legacy Lua writer", name)
+		assert.NotContains(t, calls, "ProcessBalanceAtomicOperation",
+			"%s must not call the legacy Redis atomic writer directly", name)
 		assert.NotContains(t, calls, "commitPendingBalances",
 			"%s must require the accounting engine instead of the legacy pending writer", name)
 	}

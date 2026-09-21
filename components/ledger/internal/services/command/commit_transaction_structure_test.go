@@ -49,7 +49,7 @@ func analyzeCommitCancelSkipSeam(t *testing.T, prepareSrc, pipelineSrc string) c
 
 	m := commitCancelSkipMetrics{settingsPos: -1, resolveSkipPos: -1}
 
-	prepare := findFuncDecl(t, prepareSrc, pendingPrepareFuncName)
+	prepare := findFuncDecl(t, prepareSrc, "preparePendingEngineIntent")
 
 	for i, stmt := range prepare.Body.List {
 		if m.settingsPos == -1 && stmtCallsMethod(stmt, "GetParsedLedgerSettings") {
@@ -62,7 +62,7 @@ func analyzeCommitCancelSkipSeam(t *testing.T, prepareSrc, pipelineSrc string) c
 		}
 	}
 
-	pipeline := findFuncDecl(t, pipelineSrc, pendingTransitionV2Func)
+	pipeline := findFuncDecl(t, pipelineSrc, "transitionPendingWithEngine")
 
 	for _, stmt := range pipeline.Body.List {
 		if call := findCallToMethod(stmt, "confirmReservationsByTransaction"); call != nil {
@@ -125,8 +125,8 @@ func stmtReferencesBodySkip(stmt ast.Stmt) bool {
 // zero-call behavior given the boolean is proven directly at the helpers in
 // transaction_reservation_anchor_test.go (the honored-skip subtests).
 func TestCommitCancel_TracerSkip(t *testing.T) {
-	prepareSrc := readTransportSource(t, pendingStepsFile, "func (uc *UseCase) "+pendingPrepareFuncName)
-	pipelineSrc := readTransportSource(t, pendingPipelineFile, "func (uc *UseCase) "+pendingTransitionV2Func)
+	prepareSrc := readTransportSource(t, "transition_pending_engine.go", "func (uc *UseCase) preparePendingEngineIntent")
+	pipelineSrc := readTransportSource(t, "transition_pending_engine.go", "func (uc *UseCase) transitionPendingWithEngine")
 
 	m := analyzeCommitCancelSkipSeam(t, prepareSrc, pipelineSrc)
 
@@ -147,14 +147,14 @@ func TestCommitCancel_TracerSkip(t *testing.T) {
 // seam that stops threading the flag or no longer reads the persisted body skip.
 func TestCommitCancel_TracerSkip_Bites(t *testing.T) {
 	leaky := `package command
-func (uc *UseCase) preparePendingTransition() error {
+func (uc *UseCase) preparePendingEngineIntent() error {
 	ledgerSettings, _ := uc.TransactionReader.GetParsedLedgerSettings()
 	honoredTracerSkip, _ := skip.ResolveSkipFor(req.Skip) // BUG: not tran.Body.Skip
 	_ = honoredTracerSkip
 	return nil
 }
 
-func (uc *UseCase) transitionPendingV2() error {
+func (uc *UseCase) transitionPendingWithEngine() error {
 	switch run.status {
 	case constant.APPROVED:
 		uc.confirmReservationsByTransaction(ledgerSettings.Tracer, txID) // BUG: no flag
@@ -173,14 +173,14 @@ func (uc *UseCase) transitionPendingV2() error {
 	assert.False(t, m.releaseCarriesFlag, "gate failed to bite: a release without the flag was reported as carrying it")
 
 	correct := `package command
-func (uc *UseCase) preparePendingTransition() error {
+func (uc *UseCase) preparePendingEngineIntent() error {
 	ledgerSettings, _ := uc.TransactionReader.GetParsedLedgerSettings()
 	honoredTracerSkip, _ := skip.ResolveSkipFor("tracer", run.tran.Body.Skip != nil && run.tran.Body.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
 	run.honoredTracerSkip = honoredTracerSkip
 	return nil
 }
 
-func (uc *UseCase) transitionPendingV2() error {
+func (uc *UseCase) transitionPendingWithEngine() error {
 	switch run.status {
 	case constant.APPROVED:
 		uc.confirmReservationsByTransaction(run.ledgerSettings.Tracer, txID, run.honoredTracerSkip)
@@ -317,86 +317,4 @@ func exprNames(expr ast.Expr, name string) bool {
 	}
 
 	return false
-}
-
-// TestCommitCancel_OverdraftEnrichmentCoversBothTransitions — the two-phase
-// overdraft wiring proof. Both transitions move funds on an overdrafted balance:
-// a cancel restores the held capacity, and a commit posts the destination credit
-// that repays outstanding overdraft. Enriching is what puts the companion leg in
-// front of ValidateAccountingRules (so the route's overdraft rubric is enforced),
-// into the atomic batch (so the companion balance moves in lock-step) and into
-// the fromTo slice (so BuildOperations persists the overdraft leg). Gating the
-// enrichment on the cancel alone silently drops all three on commit, which is a
-// money-correctness bug the enrichment unit tests cannot see — they never reach
-// this call site. Asserted over the live source AST.
-func TestCommitCancel_OverdraftEnrichmentCoversBothTransitions(t *testing.T) {
-	src := readTransportSource(t, pendingStepsFile, "func (uc *UseCase) "+pendingPrepareFuncName)
-
-	m := analyzeCommitCancelOverdraftSeam(t, src, src)
-
-	require.NotEqual(t, -1, m.enrichPos, "guarded enrichOverdraftOperations call not found in "+pendingPrepareFuncName)
-	require.NotEqual(t, -1, m.validatePos, "ValidateAccountingRules call not found")
-
-	assert.True(t, m.enrichStatuses["APPROVED"],
-		"the commit transition must enrich overdraft companions: its destination credit is what repays outstanding overdraft")
-	assert.True(t, m.enrichStatuses["CANCELED"],
-		"the cancel transition must enrich overdraft companions: it restores the capacity the hold consumed")
-
-	assert.Less(t, m.enrichPos, m.validatePos,
-		"enrichment must precede ValidateAccountingRules so the companion is subject to the route's overdraft rubric")
-	assert.True(t, m.companionsReachFromTo,
-		"the companion FromTo entries must be appended into fromTo so BuildOperations persists the overdraft operation")
-}
-
-// TestCommitCancel_OverdraftEnrichmentCoversBothTransitions_Bites proves the
-// analyzer bites on a seam that enriches on cancel only, validates before
-// enriching, or never threads the companions into fromTo.
-func TestCommitCancel_OverdraftEnrichmentCoversBothTransitions_Bites(t *testing.T) {
-	leaky := `package command
-func (uc *UseCase) preparePendingTransition() error {
-	routeCache, _ := uc.TransactionReader.ValidateAccountingRules(ctx, balanceOps, validate, action)
-	var companionFromTos []mtransaction.FromTo
-	if run.status == constant.CANCELED { // BUG: commit is not enriched
-		balanceOps, companionFromTos, _ = enrichOverdraftOperations(readCtx, balanceOps, validate)
-	}
-	_, _ = routeCache, companionFromTos
-	return nil
-}
-
-func (uc *UseCase) finalizePendingTransition() error {
-	return nil // BUG: the companions never reach fromTo
-}`
-
-	m := analyzeCommitCancelOverdraftSeam(t, leaky, leaky)
-
-	require.NotEqual(t, -1, m.enrichPos, "fixture sanity: the guarded enrichment must be present")
-
-	assert.False(t, m.enrichStatuses["APPROVED"],
-		"gate failed to bite: a cancel-only guard was reported as covering the commit")
-	assert.True(t, m.enrichStatuses["CANCELED"], "fixture sanity: the cancel status must be detected")
-	assert.Greater(t, m.enrichPos, m.validatePos,
-		"fixture sanity: this fixture validates before enriching")
-	assert.False(t, m.companionsReachFromTo,
-		"gate failed to bite: companions never appended into fromTo were reported as reaching it")
-
-	correct := `package command
-func (uc *UseCase) preparePendingTransition() error {
-	var companionFromTos []mtransaction.FromTo
-	if run.status == constant.APPROVED || run.status == constant.CANCELED {
-		balanceOps, companionFromTos, _ = enrichOverdraftOperations(readCtx, balanceOps, validate)
-	}
-	routeCache, _ := uc.TransactionReader.ValidateAccountingRules(ctx, balanceOps, validate, action)
-	_, _ = routeCache, companionFromTos
-	return nil
-}
-
-func (uc *UseCase) finalizePendingTransition() error {
-	run.fromTo = append(run.fromTo, run.companionFromTos...)
-	return nil
-}`
-
-	mc := analyzeCommitCancelOverdraftSeam(t, correct, correct)
-	assert.True(t, mc.enrichStatuses["APPROVED"] && mc.enrichStatuses["CANCELED"] && mc.companionsReachFromTo,
-		"fixture sanity: the correct shape must satisfy every fact")
-	assert.Less(t, mc.enrichPos, mc.validatePos, "fixture sanity: enrichment precedes validation")
 }

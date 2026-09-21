@@ -37,6 +37,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
@@ -132,14 +133,26 @@ func recoveryEngineExecution(t *testing.T) command.EngineExecution {
 	return input
 }
 
+func warmRecoveryEngineBalances(t *testing.T, ctx context.Context, client *redis.Client, input command.EngineExecution) {
+	t.Helper()
+
+	for _, balance := range input.Execution.Balances {
+		raw, err := balancecache.Encode(balance, balancecache.FormatDual)
+		require.NoError(t, err)
+
+		key := utils.BalanceInternalKey(input.Execution.OrganizationID, input.Execution.LedgerID, balance.BalanceRef)
+		require.NoError(t, client.Set(ctx, key, raw, 24*time.Hour).Err())
+	}
+}
+
 type recoveryEngineMetadataFault struct {
 	*mongodb.MetadataMongoDBRepository
-	fail bool
+	failures int
 }
 
 func (repo *recoveryEngineMetadataFault) Create(ctx context.Context, collection string, value *mongodb.Metadata) error {
-	if repo.fail && collection == constant.EntityOperation {
-		repo.fail = false
+	if repo.failures > 0 && collection == constant.EntityOperation {
+		repo.failures--
 
 		return errors.New("operation metadata unavailable after SQL commit")
 	}
@@ -176,10 +189,8 @@ func captureRecoveryEngineFinancialState(t *testing.T, client *redis.Client, rec
 	t.Helper()
 	state := captureRecoveryEngineState(t, client, recoverKey)
 	for key := range state {
-		if strings.HasPrefix(key, "engine:"+cachepolicy.HashTag+":receipts:") ||
-			strings.HasPrefix(key, "engine:"+cachepolicy.HashTag+":guards:") ||
-			strings.HasPrefix(key, "engine:"+cachepolicy.HashTag+":protection:") ||
-			key == txredis.EngineRecoveryCleanupSchedule {
+		if !strings.HasPrefix(key, "balance:"+cachepolicy.HashTag+":") &&
+			key != utils.BalanceSyncScheduleKey {
 			delete(state, key)
 		}
 	}
@@ -279,6 +290,7 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 
 	t.Run("synchronous completion acknowledges exact protected record", func(t *testing.T) {
 		input := recoveryEngineExecution(t)
+		warmRecoveryEngineBalances(t, ctx, client, input)
 		result, err := adapter.Execute(ctx, input)
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -287,9 +299,10 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 		raw, err := queue.ReadRecoveryMessage(ctx, txredis.RecoveryQueueSourceEngineRecover, field)
 		require.NoError(t, err)
 		require.NotEmpty(t, raw)
-		envelope, err := command.DecodeTransactionCompletionRecord([]byte(raw))
+		writeBehind, err := command.DecodeTransactionWriteBehindEnvelope([]byte(raw))
 		require.NoError(t, err)
-		payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
+		record := &writeBehind.Record
+		payload, err := command.DecodeTransactionCompletionPlan([]byte(record.Payload))
 		require.NoError(t, err)
 		rows, err := command.BuildOperationRecordsFromMovements(*payload, *result)
 		require.NoError(t, err)
@@ -298,12 +311,12 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 		recoverKey, _ := recoveryEngineKeys(t, client, field, raw, input.Execution.Balances[0].ID)
 		financialState := captureRecoveryEngineFinancialState(t, client, recoverKey)
 		finalizer := command.NewTransactionCompletionService(store, metadata)
-		completionResult, err := finalizer.Complete(ctx, envelope)
+		completionResult, err := finalizer.Complete(ctx, record)
 		require.NoError(t, err)
 
 		completedAt := time.Date(2026, time.September, 11, 15, 30, 0, 0, time.UTC)
 		coordinator := &recoveryRecordCompleter{queue: queue, clock: func() time.Time { return completedAt }}
-		require.NoError(t, coordinator.AcknowledgeEngineRecovery(ctx, envelope, completionResult))
+		require.NoError(t, coordinator.AcknowledgeEngineRecovery(ctx, record, completionResult))
 
 		remaining, err := queue.ReadRecoveryMessage(ctx, txredis.RecoveryQueueSourceEngineRecover, field)
 		require.NoError(t, err)
@@ -317,14 +330,18 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 		require.True(t, client.HExists(ctx, "engine:"+cachepolicy.HashTag+":protection:"+scope, input.Execution.Transactions[0].ID.String()).Val())
 	})
 
-	for _, metadataFailure := range []bool{false, true} {
-		name := "crash before finalization"
-		if metadataFailure {
-			name = "metadata failure retains recover record"
-		}
-
-		t.Run(name, func(t *testing.T) {
+	for _, testCase := range []struct {
+		name             string
+		metadataFailures int
+		retained         bool
+	}{
+		{name: "crash before finalization"},
+		{name: "transient metadata failure is retried", metadataFailures: 1},
+		{name: "persistent metadata failure retains recover record", metadataFailures: engineRecoveryAttemptLimit, retained: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
 			input := recoveryEngineExecution(t)
+			warmRecoveryEngineBalances(t, ctx, client, input)
 			result, err := adapter.Execute(ctx, input)
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -333,9 +350,9 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 			field := input.Execution.Transactions[0].ID.String() + ":" + input.Execution.ExecutionID.String()
 			raw, exists := messages[field]
 			require.True(t, exists, "the accounting execution must durably write recovery before its caller finalizes")
-			envelope, err := command.DecodeTransactionCompletionRecord([]byte(raw))
+			writeBehind, err := command.DecodeTransactionWriteBehindEnvelope([]byte(raw))
 			require.NoError(t, err)
-			payload, err := command.DecodeTransactionCompletionPlan([]byte(envelope.Payload))
+			payload, err := command.DecodeTransactionCompletionPlan([]byte(writeBehind.Record.Payload))
 			require.NoError(t, err)
 			rows, err := command.BuildOperationRecordsFromMovements(*payload, *result)
 			require.NoError(t, err)
@@ -347,22 +364,22 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 			currentBalance, err := balancecache.Encode(changed, balancecache.FormatDual)
 			require.NoError(t, err)
 			require.NoError(t, client.Set(ctx, balanceKey, currentBalance, 24*time.Hour).Err())
-			accountingState := captureRecoveryEngineState(t, client, recoverKey)
 			financialState := captureRecoveryEngineFinancialState(t, client, recoverKey)
-			fault := &recoveryEngineMetadataFault{MetadataMongoDBRepository: metadata, fail: metadataFailure}
+			fault := &recoveryEngineMetadataFault{MetadataMongoDBRepository: metadata, failures: testCase.metadataFailures}
 			finalizer := command.NewTransactionCompletionService(store, fault)
 			consumer := NewRedisQueueConsumer(recoveryQuietLogger{}, &command.UseCase{TransactionRedisRepo: queue}, nil).WithAppliedTransactionCompleter(finalizer)
 			require.Nil(t, consumer.Query)
 			consumer.readMessagesAndProcess(ctx)
 			assertRecoveryEngineSQL(t, pg.DB, payload, rows[0])
-			if metadataFailure {
+			if testCase.retained {
 				retained, err := queue.ReadAllRecoveryMessages(ctx, txredis.RecoveryQueueSourceEngineRecover)
 				require.NoError(t, err)
 				require.Equal(t, raw, retained[field], "metadata failure must retain the exact engine-written recover record")
 				operationMetadata, err := metadata.FindByEntity(ctx, constant.EntityOperation, rows[0].ID)
 				require.NoError(t, err)
 				require.Nil(t, operationMetadata)
-				require.Equal(t, accountingState, captureRecoveryEngineState(t, client, recoverKey))
+				require.Equal(t, financialState, captureRecoveryEngineFinancialState(t, client, recoverKey), "failed recovery must not mutate live balances, settings, schedule, or expiry")
+				fault.failures = 0
 				consumer.readMessagesAndProcess(ctx)
 				assertRecoveryEngineSQL(t, pg.DB, payload, rows[0])
 			}

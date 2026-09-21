@@ -145,13 +145,20 @@ func (uc *UseCase) preparePendingEngineTransition(ctx context.Context, run *pend
 		return pendingEngineTransition{}, err
 	}
 
-	if uc.TransactionReader == nil || isNilAppliedTransactionCompleter(uc.AppliedTransactionCompleter) {
-		return pendingEngineTransition{}, fmt.Errorf("engine transition dependencies are not configured")
-	}
-
 	transactionID, err := uuid.Parse(run.tran.ID)
 	if err != nil || transactionID == uuid.Nil {
 		return pendingEngineTransition{}, fmt.Errorf("confirm pending transaction identity: %w", ErrInvalidTransactionCompletionRecord)
+	}
+
+	// Preserve business-validation precedence before checking infrastructure.
+	// The transaction loaded by the command is already authoritative enough to
+	// reject a non-pending lifecycle request without touching the engine.
+	if err := validatePersistedCompletionTransition(run.tran, run.organizationID, run.ledgerID, transactionID, run.status); err != nil {
+		return pendingEngineTransition{}, err
+	}
+
+	if uc.TransactionReader == nil || isNilAppliedTransactionCompleter(uc.AppliedTransactionCompleter) {
+		return pendingEngineTransition{}, fmt.Errorf("engine transition dependencies are not configured")
 	}
 
 	resolution, err := resolveTransactionProjection(

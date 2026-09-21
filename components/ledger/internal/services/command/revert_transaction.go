@@ -397,41 +397,9 @@ func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger l
 		mtransaction.PropagateRouteValidation(ctx, run.validate, run.status)
 	}
 
-	if uc.Engine != nil {
-		tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, false)
+	tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, false)
 
-		return tran, false, err
-	}
-
-	ctx, err = uc.stageBalances(ctx, span, logger, run)
-	if err != nil {
-		return nil, false, err
-	}
-
-	run.result, err = uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
-		OrganizationID:    run.organizationID,
-		LedgerID:          run.ledgerID,
-		TransactionID:     run.transactionID,
-		TransactionInput:  &run.input,
-		Validate:          run.validate,
-		BalanceOperations: run.balanceOps,
-		TransactionStatus: run.status,
-	})
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to process balance operations", libLog.Err(err))
-
-		uc.rollbackCreateSeed(ctx, logger, run)
-
-		return nil, false, err
-	}
-
-	tran, err := uc.finalizeCreatedTransaction(ctx, span, logger, run)
-	if err != nil {
-		return nil, false, err
-	}
-
-	return tran, false, nil
+	return tran, false, err
 }
 
 // createRevertV2 posts a reversal under the /v2 contract: the per-call skip controls

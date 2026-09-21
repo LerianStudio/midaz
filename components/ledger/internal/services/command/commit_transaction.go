@@ -133,24 +133,12 @@ func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransiti
 		return nil, err
 	}
 
-	if uc.Engine != nil {
-		tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, unlock, false)
-		if err != nil {
-			recordCommandError(ctx, span, logger, "Failed to transition transaction with engine", err)
-		}
-
-		return tran, err
+	tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, unlock, false)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to transition transaction with engine", err)
 	}
 
-	if err := uc.preparePendingTransition(ctx, span, logger, run, unlock); err != nil {
-		return nil, err
-	}
-
-	if err := uc.commitPendingBalances(ctx, span, logger, run, unlock); err != nil {
-		return nil, err
-	}
-
-	return uc.finalizePendingTransition(ctx, span, logger, run)
+	return tran, err
 }
 
 // transitionPendingV2 is the /v2 state-transition pipeline: the /v1 sequence plus
@@ -173,8 +161,7 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 	}
 
 	// Resolve the optional commit grant immediately after acquiring the pending
-	// lock. Both the engine and the nil-engine fallback receive the same live
-	// grant, and a miss releases the lock before either balance path begins.
+	// lock. A miss releases the lock before accounting begins.
 	run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(ctx, span, logger,
 		run.organizationID, run.ledgerID, run.accountBlockExceptionID)
 	if err != nil {
@@ -183,31 +170,10 @@ func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransiti
 		return nil, err
 	}
 
-	if uc.Engine != nil {
-		tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, unlock, true)
-		if err != nil {
-			recordCommandError(ctx, span, logger, "Failed to transition transaction with engine", err)
-		}
-
-		return tran, err
+	tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, unlock, true)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to transition transaction with engine", err)
 	}
 
-	if err := uc.preparePendingTransition(ctx, span, logger, run, unlock); err != nil {
-		return nil, err
-	}
-
-	if err := uc.commitPendingBalances(ctx, span, logger, run, unlock); err != nil {
-		return nil, err
-	}
-
-	identity := run.reservationIdentity()
-
-	switch run.status {
-	case constant.APPROVED:
-		uc.confirmReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, identity, run.honoredTracerSkip)
-	case constant.CANCELED:
-		uc.releaseReservationsByTransaction(ctx, span, logger, run.ledgerSettings.Tracer, identity, run.honoredTracerSkip)
-	}
-
-	return uc.finalizePendingTransition(ctx, span, logger, run)
+	return tran, err
 }

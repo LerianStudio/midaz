@@ -62,6 +62,7 @@ func TestCreateTransactionEngineRequiresFinalizationBeforePreparation(t *testing
 	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 	executor := &scriptedEngine{}
 	uc.Engine = executor
+	uc.AppliedTransactionCompleter = nil
 
 	_, _, err := uc.CreateTransactionV1(context.Background(), CreateTransactionV1Input{
 		OrganizationID: uuid.MustParse("91111111-1111-4111-8111-111111111111"),

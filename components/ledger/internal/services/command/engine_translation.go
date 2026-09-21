@@ -207,6 +207,13 @@ func newOperationRecordSpec(input EngineTranslationInput, leg mtransaction.FromT
 		description = input.TransactionInput.Description
 	}
 
+	if input.TransactionInput.OperationTypeOverride != "" {
+		// BLOCK/UNBLOCK are projection labels only. The posting type and
+		// direction still express the monetary debit/credit executed by the
+		// engine, while the durable operation row preserves the API contract.
+		rowType = input.TransactionInput.OperationTypeOverride
+	}
+
 	var stableRouteID *string
 
 	if routeID != "" {

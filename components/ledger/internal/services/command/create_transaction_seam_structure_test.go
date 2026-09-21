@@ -112,7 +112,7 @@ func analyzeSeamFunc(t *testing.T, src, funcName string) seamMetrics {
 			}
 		}
 
-		if m.stageBalancesPos == -1 && stmtCallsMethod(stmt, "stageBalances") {
+		if m.stageBalancesPos == -1 && (stmtCallsMethod(stmt, "stageBalances") || stmtCallsMethod(stmt, "createTransactionWithEngine")) {
 			m.stageBalancesPos = i
 		}
 
@@ -235,15 +235,15 @@ func TestFeeSeamStructure_SeamPrecedesBalanceStaging(t *testing.T) {
 	}
 
 	if m.stageBalancesPos == -1 {
-		t.Fatal("Gate 2: stageBalances step not found")
+		t.Fatal("Gate 2: accounting delegation not found")
 	}
 
 	if m.applyFeesPos >= m.stageBalancesPos {
-		t.Errorf("Gate 2: applyFees (pos %d) must precede stageBalances (pos %d)", m.applyFeesPos, m.stageBalancesPos)
+		t.Errorf("Gate 2: applyFees (pos %d) must precede accounting delegation (pos %d)", m.applyFeesPos, m.stageBalancesPos)
 	}
 
 	if m.secondValidatePos >= m.stageBalancesPos {
-		t.Errorf("Gate 2: second validate (pos %d) must precede stageBalances (pos %d)", m.secondValidatePos, m.stageBalancesPos)
+		t.Errorf("Gate 2: second validate (pos %d) must precede accounting delegation (pos %d)", m.secondValidatePos, m.stageBalancesPos)
 	}
 
 	if m.applyFeesPos >= m.secondValidatePos {

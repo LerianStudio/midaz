@@ -18,6 +18,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
@@ -83,6 +84,32 @@ func normalizeTransactionSendLegs(input *mtransaction.Transaction) {
 
 	mtransaction.MutateConcatAliases(input.Send.Source.From)
 	mtransaction.MutateConcatAliases(input.Send.Distribute.To)
+}
+
+// createNotedTransaction preserves the annotation contract without entering
+// either accounting implementation. NOTED transactions load and validate their
+// referenced balances only to build immutable operation snapshots; they never
+// mutate live balance state.
+func (uc *UseCase) createNotedTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, run *createTransactionRun) (*transaction.Transaction, error) {
+	ctx, err := uc.stageBalances(ctx, span, logger, run)
+	if err != nil {
+		return nil, err
+	}
+
+	snapshots := make([]*mmodel.Balance, 0, len(run.balanceOps))
+	for _, balanceOperation := range run.balanceOps {
+		if balanceOperation.Balance == nil {
+			continue
+		}
+
+		snapshot := *balanceOperation.Balance
+		snapshot.Alias = balanceOperation.Alias
+		snapshots = append(snapshots, &snapshot)
+	}
+
+	run.result = &mmodel.BalanceAtomicResult{Before: snapshots, After: snapshots}
+
+	return uc.finalizeCreatedTransaction(ctx, span, logger, run)
 }
 
 // stageBalances seeds the backup queue, loads the balances behind the validated
@@ -191,15 +218,9 @@ func (uc *UseCase) stageBalances(ctx context.Context, span trace.Span, logger li
 	return ctx, nil
 }
 
-// finalizeCreatedTransaction turns the committed balance result into the
-// transaction row: it splices the split-alias legs and the overdraft companions
-// into fromTo, builds the operation records, updates the backup entry, writes the
-// transaction and hands the idempotency slot and the audit queue their background
-// work.
-//
-// Nothing here rolls back. The balance has already moved, so the idempotency key
-// keeps duplicate mutations away and the backup queue is what reconstructs the
-// transaction on failure.
+// finalizeCreatedTransaction persists the nonmonetary NOTED path. It turns the
+// immutable balance snapshots into annotation operations without changing live
+// balances, then writes the transaction and completes its idempotency/audit work.
 func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, run *createTransactionRun) (*transaction.Transaction, error) {
 	balancesBefore, balancesAfter := run.result.Before, run.result.After
 
@@ -248,11 +269,8 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 		libOpentelemetry.HandleSpanError(span, "Failed to build operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to build operations", libLog.Err(err))
 
-		// Idempotency key and backup queue entry are intentionally preserved here.
-		// Balances were already mutated by the Lua script (ProcessBalanceOperations),
-		// so the backup queue is the recovery mechanism — the Kiwi consumer will
-		// reconstruct and persist the transaction from the backup entry.
-		// Deleting the idempotency key would allow duplicate balance mutations on retry.
+		// Preserve the existing NOTED failure contract. No live balance mutation
+		// occurred; the queued annotation remains available for projection repair.
 		return nil, err
 	}
 

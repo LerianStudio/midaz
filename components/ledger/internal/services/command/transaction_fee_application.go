@@ -25,8 +25,8 @@ import (
 // method only adapts the ledger transaction into the engine's FeeCalculate
 // envelope and copies the mutated Send back out. The caller MUST re-run
 // ValidateSendSourceAndDistribute after this returns nil so the fee legs reach
-// the persistence path (BuildOperations / ProcessBalanceOperations /
-// WriteTransaction) through a single reassigned validate pointer.
+// the accounting-engine preparation and completion path through a single
+// reassigned validate pointer.
 //
 // Only the /v2 create pipeline calls it. The /v1 transaction contract does not
 // include fees, so a /v1 create posts exactly as authored and never reaches the

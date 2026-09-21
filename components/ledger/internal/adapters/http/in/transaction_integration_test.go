@@ -29,7 +29,6 @@ import (
 	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v7/commons/rabbitmq"
-	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"
@@ -37,18 +36,19 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vmihailenco/msgpack/v5"
 	"go.uber.org/mock/gomock"
 
 	ledgerMiddleware "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in/middleware"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	postgrescompletion "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
+	redisengine "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/engine"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
@@ -74,6 +74,49 @@ type testInfra struct {
 	app            *fiber.App
 	orgID          uuid.UUID
 	ledgerID       uuid.UUID
+}
+
+type testEngineEvidenceResolver struct {
+	repository redis.EngineWriteBehindRepository
+}
+
+type testEngineWriteBehindDispatcher struct {
+	publisher *rabbitmq.EngineWriteBehindProducer
+}
+
+func (dispatcher testEngineWriteBehindDispatcher) DispatchTransactionWriteBehind(
+	ctx context.Context,
+	envelope *command.TransactionWriteBehindEnvelope,
+) error {
+	body, err := command.EncodeTransactionWriteBehindEnvelope(*envelope)
+	if err != nil {
+		return err
+	}
+
+	return dispatcher.publisher.Publish(ctx, rabbitmq.EngineWriteBehindMessage{
+		TenantID:      envelope.Record.TenantID,
+		TransactionID: envelope.Record.TransactionID,
+		ExecutionID:   envelope.Record.ExecutionID,
+		Body:          body,
+	})
+}
+
+func (resolver testEngineEvidenceResolver) ResolveTransactionEvidence(
+	ctx context.Context,
+	reference command.TransactionEvidenceReference,
+) (*command.TransactionWriteBehindEnvelope, error) {
+	raw, _, err := resolver.repository.GetEngineTransactionEvidence(
+		ctx,
+		reference.OrganizationID,
+		reference.LedgerID,
+		reference.TransactionID,
+		reference.ExecutionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return command.DecodeTransactionWriteBehindEnvelope(raw)
 }
 
 // setupTestInfra initializes all containers and creates the handler.
@@ -114,6 +157,8 @@ func setupTestInfra(t *testing.T) *testInfra {
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
+	engine, err := redisengine.NewAdapter(redisConn)
+	require.NoError(t, err, "failed to create accounting engine")
 
 	// Store repositories for test assertions
 	infra.redisRepo = redisRepo
@@ -129,14 +174,22 @@ func setupTestInfra(t *testing.T) *testInfra {
 		OperationRouteRepo:      operationRouteRepo,
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
+		EngineWriteBehindRepo:   redisRepo,
+		EngineWriteBehindCodec:  command.EngineWriteBehindEvidenceCodec{},
 	}
 	commandUC := &command.UseCase{
-		TransactionRepo:         transactionRepo,
-		OperationRepo:           operationRepo,
-		BalanceRepo:             balanceRepo,
-		TransactionMetadataRepo: metadataRepo,
-		TransactionRedisRepo:    redisRepo,
-		TransactionReader:       queryUC,
+		TransactionRepo:             transactionRepo,
+		OperationRepo:               operationRepo,
+		BalanceRepo:                 balanceRepo,
+		TransactionMetadataRepo:     metadataRepo,
+		TransactionRedisRepo:        redisRepo,
+		TransactionReader:           queryUC,
+		TransactionEvidenceResolver: testEngineEvidenceResolver{repository: redisRepo},
+		Engine:                      engine,
+		AppliedTransactionCompleter: command.NewTransactionCompletionService(
+			postgrescompletion.NewStore(transactionRepo, operationRepo),
+			metadataRepo,
+		),
 	}
 
 	// Create handler
@@ -611,35 +664,22 @@ func (mq *testMultiQueueConsumer) run() error {
 	return mq.consumerRoutes.RunConsumers()
 }
 
-// handlerBTOQueue processes messages from the balance transaction operation queue.
-// This mirrors the logic in bootstrap.MultiQueueConsumer.handlerBTOQueue.
+// handlerBTOQueue completes immutable engine evidence without applying balances.
+// It mirrors the engine-aware branch of the production RabbitMQ dispatcher.
 func (mq *testMultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
-	defer span.End()
-
-	logger.Log(ctx, libLog.LevelInfo, "Processing message from balance_retry_queue_fifo")
-
-	var message mmodel.Queue
-
-	err := msgpack.Unmarshal(body, &message)
+	envelope, err := command.DecodeTransactionWriteBehindEnvelope(body)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Error unmarshalling message JSON", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error unmarshalling balance message JSON: %v", err))
 		return err
 	}
 
-	logger.Log(ctx, libLog.LevelInfo, fmt.Sprintf("Transaction message consumed: %s", message.QueueData[0].ID))
+	_, err = command.CompleteTransactionWriteBehind(
+		ctx,
+		envelope,
+		mq.useCase.TransactionEvidenceResolver,
+		mq.useCase.AppliedTransactionCompleter,
+	)
 
-	err = mq.useCase.CreateBalanceTransactionOperationsAsync(ctx, message)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Error creating transaction", err)
-		logger.Log(ctx, libLog.LevelError, fmt.Sprintf("Error creating transaction: %v", err))
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // setupAsyncTestInfra initializes all containers including RabbitMQ and creates the handler with async support.
@@ -712,6 +752,8 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	metadataRepo := mongodb.NewMetadataMongoDBRepository(mongoConn)
 	redisRepo, err := redis.NewConsumerRedis(redisConn)
 	require.NoError(t, err, "failed to create Redis repository")
+	engine, err := redisengine.NewAdapter(redisConn)
+	require.NoError(t, err, "failed to create accounting engine")
 
 	// Store Redis repository for test assertions
 	infra.redisRepo = redisRepo
@@ -728,6 +770,13 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	}
 	producerRepo, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 	require.NoError(t, err, "failed to create RabbitMQ producer")
+	engineProducer, err := rabbitmq.NewSingleTenantEngineWriteBehindProducer(
+		rabbitMQConnection,
+		"test.transaction.exchange",
+		"test.transaction.key",
+		5*time.Second,
+	)
+	require.NoError(t, err, "failed to create engine write-behind producer")
 
 	// Create use cases with RabbitMQ producer
 	queryUC := &query.UseCase{
@@ -738,15 +787,28 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		AccountRepo:             newAbsentAccountRepo(t),
 		TransactionMetadataRepo: metadataRepo,
 		TransactionRedisRepo:    redisRepo,
+		EngineWriteBehindRepo:   redisRepo,
+		EngineWriteBehindCodec:  command.EngineWriteBehindEvidenceCodec{},
 	}
+	completionService := command.NewTransactionCompletionService(
+		postgrescompletion.NewStore(transactionRepo, operationRepo),
+		metadataRepo,
+	)
 	infra.commandUC = &command.UseCase{
-		TransactionRepo:         transactionRepo,
-		OperationRepo:           operationRepo,
-		BalanceRepo:             balanceRepo,
-		TransactionMetadataRepo: metadataRepo,
-		TransactionRedisRepo:    redisRepo,
-		RabbitMQRepo:            producerRepo,
-		TransactionReader:       queryUC,
+		TransactionRepo:             transactionRepo,
+		OperationRepo:               operationRepo,
+		BalanceRepo:                 balanceRepo,
+		TransactionMetadataRepo:     metadataRepo,
+		TransactionRedisRepo:        redisRepo,
+		RabbitMQRepo:                producerRepo,
+		TransactionReader:           queryUC,
+		TransactionEvidenceResolver: testEngineEvidenceResolver{repository: redisRepo},
+		TransactionWriteBehindDispatcher: testEngineWriteBehindDispatcher{
+			publisher: engineProducer,
+		},
+		TransactionWriteBehindAsync: true,
+		Engine:                      engine,
+		AppliedTransactionCompleter: completionService,
 	}
 
 	// Create handler

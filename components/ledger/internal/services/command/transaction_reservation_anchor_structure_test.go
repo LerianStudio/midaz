@@ -35,36 +35,37 @@ func TestTransitionPendingV1_NeverReferencesReservationSeams(t *testing.T) {
 }
 
 func TestTransitionPendingV2_DrivesTheReservationLifecycleAfterTheCommit(t *testing.T) {
-	src := readTransportSource(t, pendingPipelineFile, "func (uc *UseCase) "+pendingTransitionV2Func)
+	const engineFunc = "transitionPendingWithEngine"
+	src := readTransportSource(t, "transition_pending_engine.go", "func (uc *UseCase) "+engineFunc)
 
-	names := calledNames(t, src, pendingTransitionV2Func)
+	names := calledNames(t, src, engineFunc)
 
-	commitAt := indexOfName(names, "commitPendingBalances")
+	commitAt := indexOfName(names, "ExecutePreparedEngine")
 	if commitAt == -1 {
-		t.Fatal("transitionPendingV2 does not call commitPendingBalances — the pipeline shape changed")
+		t.Fatal("transitionPendingWithEngine does not call ExecutePreparedEngine — the pipeline shape changed")
 	}
 
 	for _, seam := range byTransactionSeams {
 		at := indexOfName(names, seam)
 		if at == -1 {
-			t.Errorf("transitionPendingV2 does not call %s — the /v2 contract includes the PENDING reservation lifecycle", seam)
+			t.Errorf("transitionPendingWithEngine does not call %s — the /v2 contract includes the PENDING reservation lifecycle", seam)
 
 			continue
 		}
 
 		if at <= commitAt {
-			t.Errorf("transitionPendingV2 calls %s (pos %d) before commitPendingBalances (pos %d) — the reservation is flipped only once the balances have moved", seam, at, commitAt)
+			t.Errorf("transitionPendingWithEngine calls %s (pos %d) before ExecutePreparedEngine (pos %d) — the reservation is flipped only once accounting succeeds", seam, at, commitAt)
 		}
 	}
 
-	finalizeAt := indexOfName(names, pendingFinalizeFuncName)
+	finalizeAt := indexOfName(names, "finalizePendingEngineResult")
 	if finalizeAt == -1 {
-		t.Fatal("transitionPendingV2 does not call finalizePendingTransition — the pipeline shape changed")
+		t.Fatal("transitionPendingWithEngine does not call finalizePendingEngineResult — the pipeline shape changed")
 	}
 
 	for _, seam := range byTransactionSeams {
 		if at := indexOfName(names, seam); at != -1 && at > finalizeAt {
-			t.Errorf("transitionPendingV2 calls %s (pos %d) after finalizePendingTransition (pos %d) — a failed write must not follow an already-flipped reservation", seam, at, finalizeAt)
+			t.Errorf("transitionPendingWithEngine calls %s (pos %d) after finalizePendingEngineResult (pos %d)", seam, at, finalizeAt)
 		}
 	}
 }
