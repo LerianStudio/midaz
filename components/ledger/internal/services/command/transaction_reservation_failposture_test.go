@@ -133,15 +133,15 @@ func TestTracerFailClosedDoesNotMarkSkipped(t *testing.T) {
 
 // ---- Gate 5 (fail-closed): structural proof of the call-site mechanics --------
 
-const createSeamFuncName = "CreateTransactionV2"
+const createEngineSeamFuncName = "executeCreateEngine"
 
 // failClosedSeamMetrics captures the statement-list ordering facts the Gate-5
 // structural assertion relies on, all within CreateTransactionV2.
 type failClosedSeamMetrics struct {
 	reservePos          int  // index of the reserveTransaction call (-1 if absent)
-	rejectRollbackSeed  bool // rollbackCreateSeed appears inside the reservationReject branch
+	rejectRollbackClaim bool // rollbackCreateClaim appears inside the reservationReject branch
 	rejectReturnsBefore bool // the reject branch returns (no fall-through to the balance commit)
-	processBalancePos   int  // index of the top-level ProcessBalanceOperations call (-1)
+	executeEnginePos    int  // index of the top-level ExecutePreparedEngine call (-1)
 }
 
 // analyzeFailClosedSeam walks CreateTransactionV2 and extracts the ordering
@@ -161,31 +161,37 @@ func analyzeFailClosedSeam(t *testing.T, src string) failClosedSeamMetrics {
 	var fn *ast.FuncDecl
 
 	for _, decl := range file.Decls {
-		if d, ok := decl.(*ast.FuncDecl); ok && d.Name.Name == createSeamFuncName {
+		if d, ok := decl.(*ast.FuncDecl); ok && d.Name.Name == createEngineSeamFuncName {
 			fn = d
 			break
 		}
 	}
 
 	if fn == nil || fn.Body == nil {
-		t.Fatalf("function %q not found or has no body", createSeamFuncName)
+		t.Fatalf("function %q not found or has no body", createEngineSeamFuncName)
 	}
 
-	m := failClosedSeamMetrics{reservePos: -1, processBalancePos: -1}
+	m := failClosedSeamMetrics{reservePos: -1, executeEnginePos: -1}
 
 	for i, stmt := range fn.Body.List {
 		if m.reservePos == -1 && stmtCallsMethod(stmt, "reserveTransaction") {
 			m.reservePos = i
 		}
 
-		if m.processBalancePos == -1 && stmtCallsMethod(stmt, "ProcessBalanceOperations") {
-			m.processBalancePos = i
+		if m.executeEnginePos == -1 && stmtCallsFunc(stmt, "ExecutePreparedEngine") {
+			m.executeEnginePos = i
 		}
 
-		if ifStmt, ok := stmt.(*ast.IfStmt); ok && isReservationRejectGuard(ifStmt) {
-			m.rejectRollbackSeed = blockCallsMethod(ifStmt.Body, "rollbackCreateSeed")
+		ast.Inspect(stmt, func(node ast.Node) bool {
+			ifStmt, ok := node.(*ast.IfStmt)
+			if !ok || !isReservationRejectGuard(ifStmt) {
+				return true
+			}
+
+			m.rejectRollbackClaim = blockCallsMethod(ifStmt.Body, "rollbackCreateClaim")
 			m.rejectReturnsBefore = blockEndsInReturn(ifStmt.Body)
-		}
+			return false
+		})
 	}
 
 	return m
@@ -250,18 +256,18 @@ func blockEndsInReturn(block *ast.BlockStmt) bool {
 // source so a future reorder that drops the release or falls through to the
 // balance commit fails this gate.
 func TestTracerFailClosedReject_ReleasesIdempotencyAndSkipsBalanceCommit(t *testing.T) {
-	src := readSeamSource(t) // reads create_transaction_v2.go (shared with the fee-seam gate)
+	src := readTransportSource(t, "create_transaction_engine.go", "func (uc *UseCase) executeCreateEngine")
 
 	m := analyzeFailClosedSeam(t, src)
 
 	require.NotEqual(t, -1, m.reservePos, "reserveTransaction call not found in CreateTransactionV2")
-	require.NotEqual(t, -1, m.processBalancePos, "ProcessBalanceOperations call not found")
+	require.NotEqual(t, -1, m.executeEnginePos, "ExecutePreparedEngine call not found")
 
-	assert.Less(t, m.reservePos, m.processBalancePos,
+	assert.Less(t, m.reservePos, m.executeEnginePos,
 		"the reserve anchor must precede the balance commit (reject before any balance move)")
 
-	assert.True(t, m.rejectRollbackSeed,
-		"fail-closed reject branch must roll back the idempotency claim and the Redis-queue seed (rollbackCreateSeed)")
+	assert.True(t, m.rejectRollbackClaim,
+		"fail-closed reject branch must roll back the idempotency claim")
 	assert.True(t, m.rejectReturnsBefore,
 		"fail-closed reject branch must return — it must NOT fall through to ProcessBalanceOperations")
 }
@@ -272,25 +278,25 @@ func TestTracerFailClosedReject_ReleasesIdempotencyAndSkipsBalanceCommit(t *test
 func TestTracerFailClosedSeam_Bites(t *testing.T) {
 	// Fixture 1: reject branch missing the rollback and the return.
 	leaky := `package command
-func (uc *UseCase) CreateTransactionV2() error {
+func (uc *UseCase) executeCreateEngine() error {
 	reservation := uc.reserveTransaction()
 	if reservation.Kind == reservationReject {
 		// BUG: neither rolls back the claim and seed nor returns
 		_ = reservation.Err
 	}
-	result, err := uc.ProcessBalanceOperations()
+	result, err := ExecutePreparedEngine()
 	_ = result
 	return err
 }`
 
 	m := analyzeFailClosedSeam(t, leaky)
 
-	if m.reservePos == -1 || m.processBalancePos == -1 {
-		t.Fatalf("Gate 5 fixture sanity: missing positions reserve=%d processBalance=%d", m.reservePos, m.processBalancePos)
+	if m.reservePos == -1 || m.executeEnginePos == -1 {
+		t.Fatalf("Gate 5 fixture sanity: missing positions reserve=%d executeEngine=%d", m.reservePos, m.executeEnginePos)
 	}
 
-	if m.rejectRollbackSeed {
-		t.Error("Gate 5 failed to bite: a reject branch with no rollbackCreateSeed was reported as rolling back")
+	if m.rejectRollbackClaim {
+		t.Error("Gate 5 failed to bite: a reject branch with no rollbackCreateClaim was reported as rolling back")
 	}
 
 	if m.rejectReturnsBefore {
@@ -299,24 +305,24 @@ func (uc *UseCase) CreateTransactionV2() error {
 
 	// Fixture 2: the canonical, correct shape must pass both reject facts.
 	correct := `package command
-func (uc *UseCase) CreateTransactionV2() error {
+func (uc *UseCase) executeCreateEngine() error {
 	reservation := uc.reserveTransaction()
 	if reservation.Kind == reservationReject {
-		uc.rollbackCreateSeed()
+		uc.rollbackCreateClaim()
 		return reservation.Err
 	}
-	result, err := uc.ProcessBalanceOperations()
+	result, err := ExecutePreparedEngine()
 	_ = result
 	return err
 }`
 
 	mc := analyzeFailClosedSeam(t, correct)
-	if !(mc.rejectRollbackSeed && mc.rejectReturnsBefore) {
+	if !(mc.rejectRollbackClaim && mc.rejectReturnsBefore) {
 		t.Errorf("Gate 5 fixture sanity: the correct shape was not fully recognized: rollback=%v returns=%v",
-			mc.rejectRollbackSeed, mc.rejectReturnsBefore)
+			mc.rejectRollbackClaim, mc.rejectReturnsBefore)
 	}
 
-	if !(mc.reservePos < mc.processBalancePos) {
+	if !(mc.reservePos < mc.executeEnginePos) {
 		t.Error("Gate 5 fixture sanity: reserve should precede the balance commit in the correct shape")
 	}
 }

@@ -7,6 +7,7 @@
 package redis
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -71,6 +72,33 @@ func CreateBalanceOperationWithOnHold(organizationID, ledgerID uuid.UUID, alias,
 		},
 		InternalKey: internalKey,
 	}
+}
+
+// CreateBalanceOperationWithIdentity creates the indexed entry identity used by
+// the legacy transaction pipeline while keeping the balance identity itself
+// split into its canonical alias and key components.
+func CreateBalanceOperationWithIdentity(
+	organizationID, ledgerID uuid.UUID,
+	index int,
+	alias, key, assetCode, operation string,
+	amount, available, onHold decimal.Decimal,
+) mmodel.BalanceOperation {
+	op := CreateBalanceOperationWithOnHold(
+		organizationID,
+		ledgerID,
+		alias,
+		assetCode,
+		operation,
+		amount,
+		available,
+		onHold,
+		"deposit",
+	)
+	op.Alias = fmt.Sprintf("%d#%s#%s", index, alias, key)
+	op.Balance.Key = key
+	op.InternalKey = utils.BalanceInternalKey(organizationID, ledgerID, alias+"#"+key)
+
+	return op
 }
 
 // CreatePendingBalanceOperation creates a BalanceOperation for PENDING transaction testing.

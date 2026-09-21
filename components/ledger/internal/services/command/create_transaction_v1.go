@@ -181,38 +181,12 @@ func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransaction
 
 	run.action = mtransaction.StatusToAction(run.status)
 
-	if uc.Engine != nil && run.status != constant.NOTED {
-		tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, false)
+	if run.status == constant.NOTED {
+		tran, err := uc.createNotedTransaction(ctx, span, logger, run)
 		return tran, false, err
 	}
 
-	ctx, err = uc.stageBalances(ctx, span, logger, run)
-	if err != nil {
-		return nil, false, err
-	}
+	tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, false)
 
-	run.result, err = uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
-		OrganizationID:    run.organizationID,
-		LedgerID:          run.ledgerID,
-		TransactionID:     run.transactionID,
-		TransactionInput:  &run.input,
-		Validate:          run.validate,
-		BalanceOperations: run.balanceOps,
-		TransactionStatus: run.status,
-	})
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to process balance operations", libLog.Err(err))
-
-		uc.rollbackCreateSeed(ctx, logger, run)
-
-		return nil, false, err
-	}
-
-	tran, err := uc.finalizeCreatedTransaction(ctx, span, logger, run)
-	if err != nil {
-		return nil, false, err
-	}
-
-	return tran, false, nil
+	return tran, false, err
 }

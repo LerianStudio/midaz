@@ -114,7 +114,11 @@ func newVersionUseCase(t *testing.T, settings mmodel.LedgerSettings) (*UseCase, 
 
 	reader := &versionReader{settings: settings}
 
-	return &UseCase{TransactionRedisRepo: redisRepo, TransactionReader: reader}, reader, redisRepo
+	return &UseCase{
+		TransactionRedisRepo:        redisRepo,
+		TransactionReader:           reader,
+		AppliedTransactionCompleter: &createAppliedTransactionCompleter{},
+	}, reader, redisRepo
 }
 
 // TestCreateTransactionV1_SkipIsInert proves the /v1 contract carries no per-call skip
@@ -124,7 +128,6 @@ func TestCreateTransactionV1_SkipIsInert(t *testing.T) {
 	uc, reader, redisRepo := newVersionUseCase(t, mmodel.LedgerSettings{})
 
 	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
-	redisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	_, replayed, err := uc.CreateTransactionV1(context.Background(), CreateTransactionV1Input{
 		OrganizationID:    uuid.New(),
@@ -174,7 +177,6 @@ func TestCreateTransactionV2_SkipWithOptInProceeds(t *testing.T) {
 	uc, reader, redisRepo := newVersionUseCase(t, settings)
 
 	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
-	redisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 	_, _, err := uc.CreateTransactionV2(context.Background(), CreateTransactionV2Input{
 		OrganizationID:    uuid.New(),

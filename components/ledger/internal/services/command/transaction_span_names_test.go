@@ -34,8 +34,6 @@ var transactionSpanNames = []struct {
 	{"commit_transaction.go", "CancelTransactionV2", []string{"command.cancel_transaction_v2"}},
 	{"commit_transaction.go", "transitionPendingV1", []string{"command.transition_pending_transaction"}},
 	{"commit_transaction.go", "transitionPendingV2", []string{"command.transition_pending_transaction"}},
-	{"transition_pending_steps.go", "commitPendingBalances", []string{"command.transition_pending_transaction.pre_seed_backup"}},
-	{"transition_pending_steps.go", "finalizePendingTransition", []string{"command.transition_pending_transaction.send_to_redis_queue"}},
 	{"build_transaction_operations.go", "BuildOperations", []string{"command.build_transaction_operations"}},
 	{"build_transaction_operations.go", "buildDoubleEntryPendingOps", []string{"command.build_double_entry_pending_ops"}},
 	{"build_transaction_operations.go", "buildDoubleEntryCanceledOps", []string{"command.build_double_entry_canceled_ops"}},

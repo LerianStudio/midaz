@@ -107,9 +107,7 @@ func TestCreateTransactionV2_ReferencesVersionedSeamsInOrder(t *testing.T) {
 	order := []string{
 		"resolveTransactionSkips",
 		"applyFees",
-		"reserveTransaction",
-		"ProcessBalanceOperations",
-		"confirmReservations",
+		"createTransactionWithEngine",
 	}
 
 	previous := -1
@@ -124,6 +122,20 @@ func TestCreateTransactionV2_ReferencesVersionedSeamsInOrder(t *testing.T) {
 			t.Errorf("CreateTransactionV2 calls %s out of order (expected after the previous seam in %v)", name, order)
 		}
 
+		previous = at
+	}
+
+	engineNames := calledNames(t, readTransportSource(t, "create_transaction_engine.go", "func (uc *UseCase) executeCreateEngine"), "executeCreateEngine")
+	engineOrder := []string{"reserveTransaction", "ExecutePreparedEngine", "confirmReservations"}
+	previous = -1
+	for _, name := range engineOrder {
+		at := indexOfName(engineNames, name)
+		if at == -1 {
+			t.Fatalf("executeCreateEngine does not call %s", name)
+		}
+		if at <= previous {
+			t.Errorf("executeCreateEngine calls %s out of order (expected %v)", name, engineOrder)
+		}
 		previous = at
 	}
 }

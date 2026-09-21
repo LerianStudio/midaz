@@ -1026,9 +1026,14 @@ decimal strings are valid monetary representations and are projected exactly,
 without float conversion. Schema-version-2 new-only blobs retain strict
 canonical-string decoding and existing validation rules.
 
-The legacy accounting path remains only where the flow intentionally bypasses
-the engine and for compatibility with work created by older instances. Both paths
-retain dual-compatible cache parsing and repair handling.
+No executable monetary command bypasses the accounting engine. Create v1/v2,
+revert, commit, and cancel prepare immutable intent and execute through the same
+engine boundary; NOTED is the only separate path because it is nonmonetary. The
+pre-engine Redis atomic writer remains isolated in its adapter for compatibility
+and rollback verification, with no command-layer caller. The legacy backup
+consumer may still project work created by older instances, but it only persists
+already-applied snapshots and never calls either accounting writer. Engine recovery
+likewise completes durable projections and acknowledgments without re-execution.
 
 A v2 create, revert, or pending commit that presents an
 `accountBlockExceptionId` remains on the default engine path. Go binds the cached
@@ -1038,8 +1043,8 @@ account plus its overdraft companion from blocked/sending controls, and deletes
 the key in the same commit as the monetary mutation. The exception UUID is part
 of the immutable intent fingerprint. Receipt replay is checked first, so the same
 execution can replay after consumption; a different execution cannot reuse the
-grant. Executable v2 reversals have no nil-engine fallback: tests inject the engine
-dependencies just as production bootstrap does. Requests without a grant still
+grant. Executable monetary commands have no nil-engine fallback: tests inject the
+engine dependencies just as production bootstrap does. Requests without a grant still
 enforce the live account-block flag, deletion markers are never bypassed, and
 cancellation remains exempt without reading a grant. HOLD rejects a presented
 identifier with 0509 at the transport. NOTED remains on its nonmonetary path and
@@ -1048,8 +1053,9 @@ does not consume a grant; rejecting that combination is tracked separately.
 ### Cache writer compatibility
 
 The shared readers accept legacy, dual, and schema-version-2 new-only balance
-blobs. The default engine writer and the legacy atomic Lua writer both emit the
-dual representation. The legacy writer accepts legacy, mixed, and
+blobs. The default engine writer and the isolated legacy atomic Lua writer both
+emit the dual representation. The legacy writer is not reachable from executable
+command or recovery flows; it is retained for rollback verification and accepts legacy, mixed, and
 schema-version-2 new-only blobs; present uppercase values remain authoritative,
 including malformed values that must not fall back to lowerCamel shadows.
 
@@ -1112,8 +1118,8 @@ verified. The format report alone is not rollout evidence.
 
 Once new-only blobs are written, rollback requires a reader that accepts them.
 The dual-compatible reader is the minimum cache rollback target; a precompatible
-binary cannot safely resume against new-only data. Historical fixtures may remain
-after production fallback removal.
+binary cannot safely resume against new-only data. Historical legacy-writer
+fixtures may remain after command fallback removal.
 
 ## Verification and operational limits
 

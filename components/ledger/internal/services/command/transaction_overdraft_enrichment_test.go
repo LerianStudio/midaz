@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -841,65 +839,6 @@ func TestRejectInternalScopeBalances_AllowsTransactionalBalances(t *testing.T) {
 
 	err := rejectInternalScopeBalances(context.Background(), transactional)
 	require.NoError(t, err, "transactional balances and nil entries must pass through")
-}
-
-func TestAnnotateCanceledOverdraftAmounts_UsesPendingCompanionAmount(t *testing.T) {
-	release := mmodel.BalanceOperation{
-		Alias: "0#@alice#default",
-		Amount: mtransaction.Amount{
-			Value:                  decimal.NewFromInt(100),
-			Operation:              constant.RELEASE,
-			TransactionType:        constant.CANCELED,
-			RouteValidationEnabled: false,
-		},
-	}
-
-	tran := &transaction.Transaction{
-		Operations: []*operation.Operation{
-			{
-				Type:         libConstants.DEBIT,
-				BalanceKey:   constant.OverdraftBalanceKey,
-				AccountAlias: "@alice",
-				Amount:       operation.Amount{Value: decimalPtr(decimal.NewFromInt(50))},
-			},
-		},
-	}
-
-	annotated := annotateCanceledOverdraftAmounts([]mmodel.BalanceOperation{release}, tran)
-	require.Len(t, annotated, 1)
-	assert.True(t, annotated[0].Amount.OverdraftAmount.Equal(decimal.NewFromInt(50)),
-		"legacy RELEASE needs the exact pending overdraft deficit so Lua restores only the non-overdraft portion")
-}
-
-func TestAnnotateCanceledOverdraftAmounts_RouteValidationAnnotatesCreditOnly(t *testing.T) {
-	release := mmodel.BalanceOperation{
-		Alias: "0#@alice#default",
-		Amount: mtransaction.Amount{
-			Value:                  decimal.NewFromInt(100),
-			Operation:              constant.RELEASE,
-			TransactionType:        constant.CANCELED,
-			RouteValidationEnabled: true,
-		},
-	}
-	credit := release
-	credit.Amount.Operation = libConstants.CREDIT
-
-	tran := &transaction.Transaction{
-		Operations: []*operation.Operation{
-			{
-				Type:         libConstants.DEBIT,
-				BalanceKey:   constant.OverdraftBalanceKey,
-				AccountAlias: "@alice",
-				Amount:       operation.Amount{Value: decimalPtr(decimal.NewFromInt(20))},
-			},
-		},
-	}
-
-	annotated := annotateCanceledOverdraftAmounts([]mmodel.BalanceOperation{release, credit}, tran)
-	require.Len(t, annotated, 2)
-	assert.True(t, annotated[0].Amount.OverdraftAmount.IsZero(),
-		"route-validation RELEASE only clears OnHold; CREDIT carries the overdraft repayment override")
-	assert.True(t, annotated[1].Amount.OverdraftAmount.Equal(decimal.NewFromInt(20)))
 }
 
 func TestEnrichOverdraftOperations_CanceledReleaseAddsSourceCompanionCredit(t *testing.T) {
