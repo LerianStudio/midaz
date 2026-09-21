@@ -63,6 +63,11 @@ func (uc *UseCase) CanResolveEngineWriteBehind() bool {
 // pending index falls back to the PostgreSQL primary; corruption or missing
 // evidence behind an existing index fails closed instead of returning old SQL.
 //
+// An index read that fails on transport is not an absence: a reachable index
+// may already describe an execution SQL has not received, so the read
+// propagates instead of falling back. Only ErrEngineWriteBehindNotFound proves
+// there is no newer accounting state to miss.
+//
 //nolint:gocognit,gocyclo // the materialized/evidence/primary chain deliberately classifies each corruption and miss independently
 func (uc *UseCase) ResolveEngineWriteBehindTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*EngineTransactionResolution, error) {
 	repository := uc.EngineWriteBehindRepo
@@ -85,7 +90,7 @@ func (uc *UseCase) ResolveEngineWriteBehindTransaction(ctx context.Context, orga
 		}
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read engine transaction index: %w", err)
 		}
 
 		executionID, pending, err := uc.EngineWriteBehindCodec.DecodeEngineTransactionIndex(ctx, rawIndex, organizationID, ledgerID, transactionID)
