@@ -26,3 +26,19 @@ func TestValidateBusinessError_CrossLedgerNotEnabled(t *testing.T) {
 	assert.Equal(t, constant.EntityLedger, mapped.EntityType)
 	assert.Contains(t, mapped.Message, "ledger-id")
 }
+
+func TestValidateBusinessError_CrossLedgerRevertErrorsAreUnprocessable(t *testing.T) {
+	t.Parallel()
+
+	for _, code := range []error{
+		constant.ErrCrossLedgerRevertRequiresV2,
+		constant.ErrCrossLedgerGroupIncomplete,
+	} {
+		err := pkg.ValidateBusinessError(code, constant.EntityTransaction)
+		require.Error(t, err)
+
+		mapped, ok := err.(pkg.UnprocessableOperationError)
+		require.True(t, ok, "%s must be an HTTP 422 error, got %T", code, err)
+		assert.Equal(t, code.Error(), mapped.Code)
+	}
+}
