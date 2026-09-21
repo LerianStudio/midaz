@@ -83,6 +83,14 @@ func richAdapterExecution(t *testing.T) (command.EngineExecution, Limits) {
 	request.ExecutionID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":execution"))
 	request.OrganizationID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":organization"))
 	request.LedgerID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":ledger"))
+	for index := range request.Balances {
+		request.Balances[index].OrganizationID = request.OrganizationID
+		request.Balances[index].LedgerID = request.LedgerID
+	}
+	for index := range request.Transactions {
+		request.Transactions[index].OrganizationID = request.OrganizationID
+		request.Transactions[index].LedgerID = request.LedgerID
+	}
 	request.Transactions[0].ID = uuid.NewSHA1(uuid.NameSpaceOID, []byte(t.Name()+":transaction"))
 	request.Transactions[0].Postings[0].DrawPolicy = core.DrawForbidden
 	input := command.EngineExecution{Execution: request}
@@ -116,6 +124,7 @@ func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload
 	t.Helper()
 	require.Len(t, input.Execution.Transactions, 1)
 	transaction := command.EngineTransactionIntent{
+		OrganizationID: payload.OrganizationID.String(), LedgerID: payload.LedgerID.String(),
 		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID,
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,

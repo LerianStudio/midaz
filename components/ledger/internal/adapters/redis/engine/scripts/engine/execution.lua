@@ -117,16 +117,20 @@ local function loadBalancePool(request)
             current = clone(balance.snapshot)
             current.balanceRef = balance.balanceRef
         end
+        current.organizationId = balance.organizationId
+        current.ledgerId = balance.ledgerId
+        current.balanceRef = balance.balanceRef
         local item = {
             current = current, blob = blob, keyIndex = keyIndex, seeded = not raw,
             deleted = redis.call("EXISTS", KEYS[markerIndex], KEYS[legacyMarkerIndex]) > 0
         }
-        pool[balance.balanceRef] = item
+        pool[scopedBalanceRef(balance.organizationId, balance.ledgerId, balance.balanceRef)] = item
         -- Index the single internal overdraft companion for later draw or repay
         -- movements generated from a primary account posting.
         if current.key == "overdraft" then
-            if companions[current.accountId] then technical("invalid_balance", "multiple overdraft companions for one account") end
-            companions[current.accountId] = item
+            local companionRef = scopedBalanceRef(balance.organizationId, balance.ledgerId, current.accountId)
+            if companions[companionRef] then technical("invalid_balance", "multiple overdraft companions for one account") end
+            companions[companionRef] = item
         end
     end
     -- Limit repair is a separate precommit operation. Mixing repair with a money
@@ -237,7 +241,7 @@ local function validateAccountBlockExceptions(request, pool, companions)
         local grant = transaction.accountBlockException
         if grant then
             local posting = transaction.postings[grant.primaryPostingIndex]
-            local primary = pool[posting.balanceRef]
+            local primary = pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)]
             local key = KEYS[grant.keyIndex]
             expectRedisType(key, "string")
             local raw = redis.call("GET", key)
@@ -254,9 +258,10 @@ local function validateAccountBlockExceptions(request, pool, companions)
                 refuse("account_block_exception_invalid", txIndex - 1, grant.primaryPostingIndex - 1, posting.balanceRef)
             end
 
-            local exempt = { [primary.current.balanceRef] = true }
-            local companion = companions[primary.current.accountId]
-            if companion then exempt[companion.current.balanceRef] = true end
+            local primaryRef = scopedBalanceRef(transaction.organizationId, transaction.ledgerId, primary.current.balanceRef)
+            local exempt = { [primaryRef] = true }
+            local companion = companions[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, primary.current.accountId)]
+            if companion then exempt[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, companion.current.balanceRef)] = true end
             exemptions[txIndex] = exempt
             grantKeys[#grantKeys + 1] = key
         end
@@ -266,7 +271,8 @@ local function validateAccountBlockExceptions(request, pool, companions)
 end
 
 local function blockedByLiveControl(rejectBlockedBalances, item, exemptions)
-    return rejectBlockedBalances and item.current.blocked and not (exemptions and exemptions[item.current.balanceRef])
+    local ref = scopedBalanceRef(item.current.organizationId, item.current.ledgerId, item.current.balanceRef)
+    return rejectBlockedBalances and item.current.blocked and not (exemptions and exemptions[ref])
 end
 
 -- validateLiveBalanceAvailability rejects every requirement or posting that
@@ -277,18 +283,20 @@ local function validateLiveBalanceAvailability(request, pool, exemptions)
     for txIndex, transaction in ipairs(request.transactions) do
         local exempt = exemptions[txIndex]
         for _, requirement in ipairs(transaction.balanceRequirements) do
-            if pool[requirement.balanceRef].deleted then
+            local item = pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, requirement.balanceRef)]
+            if item.deleted then
                 refuse("balance_deleted", txIndex - 1, -1, requirement.balanceRef)
             end
-            if blockedByLiveControl(transaction.rejectBlockedBalances, pool[requirement.balanceRef], exempt) then
+            if blockedByLiveControl(transaction.rejectBlockedBalances, item, exempt) then
                 refuse("account_blocked", txIndex - 1, -1, requirement.balanceRef)
             end
         end
         for postingIndex, posting in ipairs(transaction.postings) do
-            if pool[posting.balanceRef].deleted then
+            local item = pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)]
+            if item.deleted then
                 refuse("balance_deleted", txIndex - 1, postingIndex - 1, posting.balanceRef)
             end
-            if blockedByLiveControl(transaction.rejectBlockedBalances, pool[posting.balanceRef], exempt) then
+            if blockedByLiveControl(transaction.rejectBlockedBalances, item, exempt) then
                 refuse("account_blocked", txIndex - 1, postingIndex - 1, posting.balanceRef)
             end
         end
@@ -336,11 +344,12 @@ local function applyTransactionsInMemory(request, pool, companions, exemptions, 
         -- Validate nonmonetary requirements against the live working state before
         -- applying any posting belonging to this transaction.
         for _, requirement in ipairs(transaction.balanceRequirements) do
-            local current = pool[requirement.balanceRef].current
+            local current = pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, requirement.balanceRef)].current
             if current.assetCode ~= requirement.assetCode then
                 refuse("asset_mismatch", txIndex - 1, -1, requirement.balanceRef)
             end
-            if requirement.permission == "send" and not current.allowSending and not (exempt and exempt[requirement.balanceRef]) then
+            local requirementRef = scopedBalanceRef(transaction.organizationId, transaction.ledgerId, requirement.balanceRef)
+            if requirement.permission == "send" and not current.allowSending and not (exempt and exempt[requirementRef]) then
                 refuse("sending_not_allowed", txIndex - 1, -1, requirement.balanceRef)
             end
             if requirement.permission == "receive" and not current.allowReceiving then
@@ -353,7 +362,7 @@ local function applyTransactionsInMemory(request, pool, companions, exemptions, 
         -- Apply the closed posting algebra first, then resolve any debt created or
         -- repaid by that primary transition.
         for postingIndex, posting in ipairs(transaction.postings) do
-            local item = pool[posting.balanceRef]
+            local item = pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)]
             touch(item, txIndex - 1, postingIndex - 1, transaction.rejectBlockedBalances, exempt)
             local current, nextState = item.current, clone(item.current)
             local external = current.accountType == "external"
@@ -383,7 +392,7 @@ local function applyTransactionsInMemory(request, pool, companions, exemptions, 
             -- companion balance so both sides of the debt remain explicit.
             local companion, companionNext, companionAmount, companionType
             if cmp_decimal(delta, "0") ~= 0 then
-                companion = companions[current.accountId]
+                companion = companions[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, current.accountId)]
                 if not companion then refuse("overdraft_companion_missing", txIndex - 1, postingIndex - 1, posting.balanceRef) end
                 if companion == item or companion.current.direction ~= "debit" or companion.current.balanceScope ~= "internal" or companion.current.accountType == "external" or companion.current.assetCode ~= current.assetCode then
                     technical("invalid_companion", "invalid overdraft companion")

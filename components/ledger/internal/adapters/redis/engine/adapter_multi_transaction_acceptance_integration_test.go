@@ -60,7 +60,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		ctx := admitEngineSeeds(t, ctx, inspector, input.Execution)
 		result, err := adapter.Execute(ctx, input)
 		require.NoError(t, err)
-		requireJSONEqual(t, multiTransactionAcceptanceResult(), result)
+		requireJSONEqual(t, multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID), result)
 
 		keys, err := resolveAdapterKeys(ctx, input.Execution)
 		require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		committed := captureAdapterState(t, inspector, keys)
 		replayed, err := adapter.Execute(ctx, input)
 		require.NoError(t, err)
-		requireJSONEqual(t, multiTransactionAcceptanceResult(), replayed)
+		requireJSONEqual(t, multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID), replayed)
 		require.Equal(t, committed, captureAdapterState(t, inspector, keys), "whole-execution replay must not apply money or refresh expirations")
 
 		conflict := refingerprintMultiTransactionAcceptance(t, input, "different immutable intent")
@@ -174,8 +174,60 @@ func TestIntegration_AdapterExecute_MultiTransactionAcceptance(t *testing.T) {
 		require.Equal(t, 1, proxy.count("EVALSHA"), "an unknown outcome must not retry the accounting command")
 		require.Equal(t, 1, proxy.count("EVAL"), "only the confirmed NOSCRIPT fallback may publish the execution")
 
-		expected := multiTransactionAcceptanceResult()
+		expected := multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID)
 		assertMultiTransactionAcceptanceState(t, inspector, keys, input, *expected)
+	})
+}
+
+func TestIntegration_AdapterExecute_MultiScopeAtomicity(t *testing.T) {
+	ctx := context.Background()
+	inspector, _, _ := newAdapterValkey(t)
+
+	t.Run("one receipt covers balances in two ledgers", func(t *testing.T) {
+		input, limits, foreignLedgerID := multiScopeAcceptanceExecution(t)
+		keys, err := resolveAdapterKeys(ctx, input.Execution)
+		require.NoError(t, err)
+		t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
+
+		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
+		require.NoError(t, err)
+		result, err := adapter.Execute(ctx, input)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, int64(1), inspector.HLen(ctx, keys.Receipts).Val())
+		require.Equal(t, int64(len(input.Execution.Transactions)), inspector.HLen(ctx, keys.Recovery).Val())
+
+		var sawPrimary, sawForeign bool
+		for _, balance := range result.Final {
+			sawPrimary = sawPrimary || balance.LedgerID == input.Execution.LedgerID
+			sawForeign = sawForeign || balance.LedgerID == foreignLedgerID
+		}
+		require.True(t, sawPrimary)
+		require.True(t, sawForeign)
+	})
+
+	t.Run("later foreign-ledger refusal publishes nothing", func(t *testing.T) {
+		input, limits, foreignLedgerID := multiScopeAcceptanceExecution(t)
+		for index := range input.Execution.Balances {
+			if input.Execution.Balances[index].LedgerID == foreignLedgerID && input.Execution.Balances[index].Key == "default" {
+				input.Execution.Balances[index].Blocked = true
+			}
+		}
+		input.Execution.Transactions[1].RejectBlockedBalances = true
+		keys, err := resolveAdapterKeys(ctx, input.Execution)
+		require.NoError(t, err)
+		t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
+		before := captureAdapterState(t, inspector, keys)
+
+		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
+		require.NoError(t, err)
+		result, err := adapter.Execute(ctx, input)
+		require.Nil(t, result)
+		var failure *core.Failure
+		require.ErrorAs(t, err, &failure)
+		require.Equal(t, core.FailureAccountBlocked, failure.Code)
+		require.Equal(t, 1, failure.TransactionIndex)
+		require.Equal(t, before, captureAdapterState(t, inspector, keys))
 	})
 }
 
@@ -218,6 +270,10 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 		{Ref: "t3-debit", BalanceRef: primary.BalanceRef, Type: core.PostingDebit, Amount: decimal.NewFromInt(8), DrawPolicy: core.DrawAllowed},
 	}}
 	request.Transactions = []core.Transaction{t1, t2, t3}
+	for index := range request.Transactions {
+		request.Transactions[index].OrganizationID = request.OrganizationID
+		request.Transactions[index].LedgerID = request.LedgerID
+	}
 	input.Guards = []command.ExecutionGuard{
 		{TransactionID: t1.ID, NextToken: "accepted-t1"},
 		{TransactionID: t2.ID, NextToken: "accepted-t2"},
@@ -282,6 +338,7 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 			projectionIntents[projectionIndex] = projection.Intent()
 		}
 		intents[index] = command.EngineTransactionIntent{
+			OrganizationID: payloads[index].OrganizationID.String(), LedgerID: payloads[index].LedgerID.String(),
 			TransactionID: transaction.ID, Action: base.Action, TransactionStatus: base.TransactionStatus,
 			TransactionDate: base.TransactionDate, TransactionCreatedAt: base.TransactionCreatedAt,
 			TransactionUpdatedAt: base.TransactionUpdatedAt, OperationUpdatedAt: base.OperationUpdatedAt,
@@ -305,6 +362,88 @@ func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution,
 	return input, limits
 }
 
+func multiScopeAcceptanceExecution(t *testing.T) (command.EngineExecution, Limits, uuid.UUID) {
+	t.Helper()
+	input, limits := multiTransactionAcceptanceExecution(t)
+	request := &input.Execution
+	foreignLedgerID := uuid.MustParse("91919191-9191-4919-8919-919191919191")
+	foreignAccountID := uuid.MustParse("92929292-9292-4929-8929-929292929292")
+
+	foreignPrimary := request.Balances[0]
+	foreignPrimary.OrganizationID = request.OrganizationID
+	foreignPrimary.LedgerID = foreignLedgerID
+	foreignPrimary.ID = uuid.MustParse("93939393-9393-4939-8939-939393939393")
+	foreignPrimary.AccountID = foreignAccountID
+	foreignPrimary.Available = decimal.NewFromInt(10)
+	foreignPrimary.OverdraftUsed = decimal.Zero
+	foreignPrimary.Version = 1
+	foreignCompanion := request.Balances[1]
+	foreignCompanion.OrganizationID = request.OrganizationID
+	foreignCompanion.LedgerID = foreignLedgerID
+	foreignCompanion.ID = uuid.MustParse("94949494-9494-4949-8949-949494949494")
+	foreignCompanion.AccountID = foreignAccountID
+	foreignCompanion.Available = decimal.Zero
+	foreignCompanion.Version = 1
+	request.Balances = append(request.Balances, foreignPrimary, foreignCompanion)
+	request.Transactions[1].OrganizationID = request.OrganizationID
+	request.Transactions[1].LedgerID = foreignLedgerID
+
+	payloads := make([]command.TransactionCompletionPlan, len(input.CompletionPlans))
+	for index := range input.CompletionPlans {
+		payload, err := command.DecodeTransactionCompletionPlan(input.CompletionPlans[index].Payload)
+		require.NoError(t, err)
+		payloads[index] = *payload
+	}
+	payloads[1].OrganizationID = request.OrganizationID
+	payloads[1].LedgerID = foreignLedgerID
+	for index := range payloads[1].OperationSpecs {
+		balance := &payloads[1].OperationSpecs[index].Balance
+		balance.OrganizationID = request.OrganizationID.String()
+		balance.LedgerID = foreignLedgerID.String()
+		balance.AccountID = foreignAccountID.String()
+		if balance.Key == "overdraft" {
+			balance.ID = foreignCompanion.ID.String()
+		} else {
+			balance.ID = foreignPrimary.ID.String()
+		}
+	}
+
+	intents := make([]command.EngineTransactionIntent, len(request.Transactions))
+	for index, transaction := range request.Transactions {
+		postingRefs := make([]string, len(transaction.Postings))
+		for postingIndex, posting := range transaction.Postings {
+			postingRefs[postingIndex] = posting.Ref
+		}
+		operationSpecs := make([]command.OperationRecordIntent, len(payloads[index].OperationSpecs))
+		for projectionIndex, projection := range payloads[index].OperationSpecs {
+			operationSpecs[projectionIndex] = projection.Intent()
+		}
+		intents[index] = command.EngineTransactionIntent{
+			OrganizationID: payloads[index].OrganizationID.String(), LedgerID: payloads[index].LedgerID.String(),
+			TransactionID: transaction.ID, Action: payloads[index].Action,
+			TransactionStatus: payloads[index].TransactionStatus, TransactionDate: payloads[index].TransactionDate,
+			TransactionCreatedAt: payloads[index].TransactionCreatedAt, TransactionUpdatedAt: payloads[index].TransactionUpdatedAt,
+			OperationUpdatedAt: payloads[index].OperationUpdatedAt, Input: payloads[index].TransactionInput,
+			PostingRefs: postingRefs, OperationSpecs: operationSpecs,
+		}
+	}
+	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{
+		TenantID: payloads[0].TenantID, OrganizationID: request.OrganizationID, LedgerID: request.LedgerID,
+		ExecutionID: request.ExecutionID, Transactions: intents,
+	})
+	require.NoError(t, err)
+	input.IntentFingerprint = fingerprint
+	for index := range payloads {
+		payloads[index].IntentFingerprint = fingerprint
+		encoded, err := command.EncodeTransactionCompletionPlan(payloads[index])
+		require.NoError(t, err)
+		input.CompletionPlans[index].Payload = encoded
+	}
+	require.NoError(t, command.ValidateTransactionCompletion(input))
+
+	return input, limits, foreignLedgerID
+}
+
 func refingerprintMultiTransactionAcceptance(t *testing.T, input command.EngineExecution, description string) command.EngineExecution {
 	t.Helper()
 	payloads := make([]command.TransactionCompletionPlan, len(input.CompletionPlans))
@@ -323,6 +462,7 @@ func refingerprintMultiTransactionAcceptance(t *testing.T, input command.EngineE
 			projectionIntents[projectionIndex] = projection.Intent()
 		}
 		intents[index] = command.EngineTransactionIntent{
+			OrganizationID: payload.OrganizationID.String(), LedgerID: payload.LedgerID.String(),
 			TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
 			TransactionDate: payload.TransactionDate, TransactionCreatedAt: payload.TransactionCreatedAt,
 			TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
@@ -345,9 +485,11 @@ func refingerprintMultiTransactionAcceptance(t *testing.T, input command.EngineE
 	return input
 }
 
-func multiTransactionAcceptanceResult() *core.ExecutionResult {
+func multiTransactionAcceptanceResult(organizationID, ledgerID uuid.UUID) *core.ExecutionResult {
 	primary := multiTransactionAcceptancePrimary()
 	companion := multiTransactionAcceptanceCompanion()
+	primary.OrganizationID, primary.LedgerID = organizationID, ledgerID
+	companion.OrganizationID, companion.LedgerID = organizationID, ledgerID
 	t1 := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	t2 := uuid.MustParse("12121212-1212-4212-8212-121212121212")
 	t3 := uuid.MustParse("13131313-1313-4313-8313-131313131313")
@@ -402,12 +544,13 @@ func assertMultiTransactionAcceptanceState(
 ) {
 	t.Helper()
 	ctx := context.Background()
-	expected := multiTransactionAcceptanceResult()
+	expected := multiTransactionAcceptanceResult(input.Execution.OrganizationID, input.Execution.LedgerID)
 	for _, balance := range expected.Final {
 		raw, err := inspector.Get(ctx, keys.Balances[balance.BalanceRef].Balance).Bytes()
 		require.NoError(t, err)
 		cached, err := balancecache.Decode(raw)
 		require.NoError(t, err)
+		balance.OrganizationID, balance.LedgerID = uuid.Nil, uuid.Nil
 		requireJSONEqual(t, balance, cached)
 	}
 

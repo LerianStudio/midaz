@@ -74,6 +74,10 @@ local function logicalRef(value)
     return value
 end
 
+local function scopedBalanceRef(organizationId, ledgerId, balanceRef)
+    return organizationId .. ":" .. ledgerId .. ":" .. balanceRef
+end
+
 -- money validates and canonicalizes a decimal string without changing its exact
 -- value. It removes redundant zeros and normalizes every representation of zero.
 local function money(value)

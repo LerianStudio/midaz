@@ -54,7 +54,7 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 
 	var wire wireRequest
 	require.NoError(t, json.Unmarshal(first.Payload, &wire))
-	require.Equal(t, 2, wire.ProtocolVersion)
+	require.Equal(t, 3, wire.ProtocolVersion)
 	require.Equal(t, resolved.TenantID, wire.TenantID)
 	require.Equal(t, input.Execution.OrganizationID.String(), wire.OrganizationID)
 	require.Equal(t, input.Execution.LedgerID.String(), wire.LedgerID)
@@ -108,7 +108,10 @@ func TestPrepareExecutionCarriesPerItemScopeInProtocolV3(t *testing.T) {
 	input.Execution.Transactions[0].OrganizationID = organizationID
 	input.Execution.Transactions[0].LedgerID = ledgerID
 
-	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+	ctx := core.ContextWithTenantID(context.Background(), "fixture")
+	resolved, err := resolveAdapterKeys(ctx, input.Execution)
+	require.NoError(t, err)
+	prepared, err := prepareExecution(ctx, input, limits, resolved)
 	require.NoError(t, err)
 
 	var wire wireRequest
@@ -134,7 +137,8 @@ func TestResolveAdapterKeysUsesBalanceAndTransactionScope(t *testing.T) {
 	ctx := core.ContextWithTenantID(context.Background(), "fixture")
 	resolved, err := resolveAdapterKeys(ctx, input.Execution)
 	require.NoError(t, err)
-	require.Contains(t, resolved.Balances["@source#default"].Balance, organizationID.String()+":"+ledgerID.String())
+	key := scopedBalanceRef(organizationID, ledgerID, "@source#default")
+	require.Contains(t, resolved.Balances[key].Balance, organizationID.String()+":"+ledgerID.String())
 	require.Contains(t, resolved.AccountBlockExceptions[input.Execution.Transactions[0].AccountBlockException.ExceptionID], organizationID.String()+":"+ledgerID.String())
 }
 
@@ -662,9 +666,9 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 		wantBytes  int
 		maxTouched int
 	}{
-		{name: "two postings", postings: 2, pool: 2, wantBytes: 2717, maxTouched: 2},
-		{name: "ten postings", postings: 10, pool: 20, wantBytes: 17221, maxTouched: 10},
-		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 82741, maxTouched: 50},
+		{name: "two postings", postings: 2, pool: 2, wantBytes: 3247, maxTouched: 2},
+		{name: "ten postings", postings: 10, pool: 20, wantBytes: 21567, maxTouched: 10},
+		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 104047, maxTouched: 50},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -754,7 +758,7 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 	t.Logf("v1 lower-bound bytes: original=%d frozen_recovery=%d v1_legs=%d wire_postings=%d snapshots=%d final_wire=%d", len(body), len(recovery), len(transaction.Send.Source.From)+len(transaction.Send.Distribute.To), len(request.Transactions[0].Postings), len(request.Balances), len(prepared.Payload))
 	require.Equal(t, 4193188, len(body))
 	require.Equal(t, 11175426, len(recovery))
-	require.Equal(t, 13064355, len(prepared.Payload))
+	require.Equal(t, 13064885, len(prepared.Payload))
 	require.Greater(t, len(recovery), len(body), "completion plan must retain transaction and stable projection data")
 	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry the completion plan plus engine postings and snapshots")
 	require.Equal(t, 2, len(request.Transactions[0].Postings), "v1 retains both logical legs; no v1 leg cap is introduced")

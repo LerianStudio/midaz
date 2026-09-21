@@ -11,7 +11,7 @@ atomic execution.
 | `json.lua` | Exact JSON parsing and deterministic serialization, including preservation of large numeric tokens. |
 | `protocol.lua` | Shared protocol primitives and validation of text, UUIDs, integers, references, and money. |
 | `balance_cache.lua` | Compatibility decoding, validation, and encoding of live balance-cache records. |
-| `request.lua` | Redis key-type checks and validation of the complete execution request. |
+| `request.lua` | Redis key-type checks and validation of the protocol-v3 execution request, including per-balance and per-transaction scope. |
 | `receipt.lua` | Validation and replay of engine execution receipts; this closes the lost-response window independently of HTTP idempotency. |
 | `posting_algebra.lua` | Monetary meaning of each supported posting type. |
 | `execution.lua` | Protection checks, live-state loading, in-memory application, write preparation, and commit. |
@@ -98,6 +98,10 @@ deletion marker, and compatibility deletion marker. After all balance triplets,
 each transaction that presents an account-block exception contributes exactly
 one grant key, in transaction order. The request carries the corresponding
 one-based key index; Lua verifies the tail position and exception-ID suffix.
+The seven shared keys remain owned by the execution's primary scope. Balance
+triplets and grant keys are derived from their balance or transaction scope;
+logical balance references are indexed by organization, ledger, and reference
+inside Lua so equal aliases in different ledgers cannot collide.
 
 The inventory closes with one triplet per account of the balance pool, in
 ascending account order: the account-closing marker, the account-closed marker,

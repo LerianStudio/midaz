@@ -26,7 +26,9 @@ func TestRequestContractRoundTrip(t *testing.T) {
 		LedgerID:       uuid.MustParse("c029e784-535d-4554-aae3-65b6e713687f"),
 		ExecutionID:    uuid.MustParse("95b4a433-59b3-4ac8-ad6f-e4be032ebca6"),
 		Transactions: []Transaction{{
-			ID: transactionID,
+			OrganizationID: uuid.MustParse("139c4166-2139-4f17-b282-fba78e8c4c2a"),
+			LedgerID:       uuid.MustParse("c029e784-535d-4554-aae3-65b6e713687f"),
+			ID:             transactionID,
 			AccountBlockException: &AccountBlockException{
 				ExceptionID: exceptionID, Alias: snapshot.Alias,
 				Amount:            decimal.RequireFromString("12345678901234567890.1234567890123456789"),
@@ -43,6 +45,8 @@ func TestRequestContractRoundTrip(t *testing.T) {
 		}},
 		Balances: []BalanceSnapshot{snapshot},
 	}
+	request.Balances[0].OrganizationID = request.OrganizationID
+	request.Balances[0].LedgerID = request.LedgerID
 
 	// Typed Go JSON round trips do not define the adapter's Lua wire DTO.
 	got := contractRoundTrip(t, request)
@@ -64,11 +68,15 @@ func TestRequestContractRoundTrip(t *testing.T) {
 func TestRequestContractOmitsAbsentAccountBlockException(t *testing.T) {
 	t.Parallel()
 
-	encoded, err := json.Marshal(Transaction{ID: uuid.MustParse("1a2cf884-cf82-4520-9833-07d85c73bc14")})
+	encoded, err := json.Marshal(Transaction{
+		OrganizationID: uuid.MustParse("139c4166-2139-4f17-b282-fba78e8c4c2a"),
+		LedgerID:       uuid.MustParse("c029e784-535d-4554-aae3-65b6e713687f"),
+		ID:             uuid.MustParse("1a2cf884-cf82-4520-9833-07d85c73bc14"),
+	})
 	if err != nil {
 		t.Fatalf("marshal transaction: %v", err)
 	}
-	if string(encoded) != `{"id":"1a2cf884-cf82-4520-9833-07d85c73bc14","rejectBlockedBalances":false,"balanceRequirements":null,"postings":null}` {
+	if string(encoded) != `{"organizationId":"139c4166-2139-4f17-b282-fba78e8c4c2a","ledgerId":"c029e784-535d-4554-aae3-65b6e713687f","id":"1a2cf884-cf82-4520-9833-07d85c73bc14","rejectBlockedBalances":false,"balanceRequirements":null,"postings":null}` {
 		t.Fatalf("absent account-block exception changed contract: %s", encoded)
 	}
 }

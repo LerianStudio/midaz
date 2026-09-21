@@ -64,7 +64,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
     local request = decodeJSON(raw)
     requireObject(request)
     -- Validate the execution envelope and the fixed positions of shared keys.
-    if smallInteger(request.protocolVersion, 2) ~= 2 then technical("invalid_protocol", "unsupported protocol version") end
+    if smallInteger(request.protocolVersion, 3) ~= 3 then technical("invalid_protocol", "unsupported protocol version") end
     text(request.tenantId, true)
     uuid(request.organizationId)
     uuid(request.ledgerId)
@@ -105,8 +105,11 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
     local refs, ids, accounts, aliases = {}, {}, {}, {}
     for i, balance in ipairs(request.balances) do
         requireObject(balance)
+        uuid(balance.organizationId)
+        uuid(balance.ledgerId)
         logicalRef(balance.balanceRef)
-        if refs[balance.balanceRef] then technical("invalid_protocol", "duplicate balance reference") end
+        local scopeRef = scopedBalanceRef(balance.organizationId, balance.ledgerId, balance.balanceRef)
+        if refs[scopeRef] then technical("invalid_protocol", "duplicate balance reference") end
         if smallInteger(balance.keyIndex, #KEYS) ~= 5 + 3 * i or smallInteger(balance.deleteKeyIndex, #KEYS) ~= 6 + 3 * i or smallInteger(balance.legacyDeleteKeyIndex, #KEYS) ~= 7 + 3 * i then
             technical("invalid_protocol", "invalid balance key indices")
         end
@@ -116,18 +119,22 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         end
         local seed = balance.snapshot
         requireObject(seed)
+        if seed.organizationId ~= balance.organizationId or seed.ledgerId ~= balance.ledgerId then
+            technical("invalid_protocol", "balance snapshot scope mismatch")
+        end
         canonicalMoney(seed.available)
         canonicalMoney(seed.onHold)
         canonicalMoney(seed.overdraftUsed)
         canonicalMoney(seed.overdraftLimit)
         validateSnapshot(seed)
         if balance.balanceRef ~= seed.alias .. "#" .. seed.key or ids[seed.id] then technical("invalid_protocol", "invalid balance identity") end
-        if aliases[seed.alias] and aliases[seed.alias] ~= seed.accountId then technical("invalid_protocol", "alias identifies different accounts") end
+        local scopeAlias = scopedBalanceRef(balance.organizationId, balance.ledgerId, seed.alias)
+        if aliases[scopeAlias] and aliases[scopeAlias] ~= seed.accountId then technical("invalid_protocol", "alias identifies different accounts") end
         local account = accounts[seed.accountId]
         if account and (account.alias ~= seed.alias or account.assetCode ~= seed.assetCode or account.accountType ~= seed.accountType) then
             technical("invalid_protocol", "inconsistent account identity")
         end
-        refs[balance.balanceRef], ids[seed.id], accounts[seed.accountId], aliases[seed.alias] = seed, true, seed, seed.accountId
+        refs[scopeRef], ids[seed.id], accounts[seed.accountId], aliases[scopeAlias] = seed, true, seed, seed.accountId
     end
     -- Validate the account protection block that closes the key inventory: one
     -- closing, closed and administrative ownership key per account of the pool, in
@@ -167,6 +174,8 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
     local transactions, grantOrdinal, postingCount = {}, 0, 0
     for _, transaction in ipairs(request.transactions) do
         requireObject(transaction)
+        uuid(transaction.organizationId)
+        uuid(transaction.ledgerId)
         uuid(transaction.id)
         if transactions[transaction.id] or transaction.guardField ~= transaction.id or transaction.recoveryField ~= transaction.id .. ":" .. request.executionId then
             technical("invalid_protocol", "invalid transaction correlation")
@@ -192,7 +201,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
             if dependency.kind ~= "predecessor" and dependency.kind ~= "origin" then
                 technical("invalid_protocol", "invalid transaction dependency kind")
             end
-            if dependency.tenantId ~= request.tenantId or dependency.organizationId ~= request.organizationId or dependency.ledgerId ~= request.ledgerId then
+            if dependency.tenantId ~= request.tenantId or dependency.organizationId ~= transaction.organizationId or dependency.ledgerId ~= transaction.ledgerId then
                 technical("invalid_protocol", "transaction dependency scope mismatch")
             end
             uuid(dependency.transactionId)
@@ -223,12 +232,12 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         postingCount = postingCount + #transaction.postings
         for _, requirement in ipairs(transaction.balanceRequirements) do
             validBalanceRequirement(requirement)
-            if not refs[requirement.balanceRef] then technical("invalid_protocol", "invalid balance requirement reference") end
+            if not refs[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, requirement.balanceRef)] then technical("invalid_protocol", "invalid balance requirement reference") end
         end
         local postingRefs = {}
         for postingIndex, posting in ipairs(transaction.postings) do
             validPosting(posting)
-            if postingRefs[posting.ref] or not refs[posting.balanceRef] then technical("invalid_protocol", "invalid posting reference") end
+            if postingRefs[posting.ref] or not refs[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)] then technical("invalid_protocol", "invalid posting reference") end
             postingRefs[posting.ref] = { posting = posting, index = postingIndex }
         end
         if transaction.accountBlockException ~= nil then
@@ -242,7 +251,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
             if cmp_decimal(grant.amount, "0") <= 0 then technical("invalid_protocol", "invalid account-block exception amount") end
             local primary = postingRefs[grant.primaryPostingRef]
             if not primary then technical("invalid_protocol", "unknown account-block exception posting") end
-            local seed = refs[primary.posting.balanceRef]
+            local seed = refs[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, primary.posting.balanceRef)]
             if seed.key == "overdraft" or seed.alias ~= grant.alias or cmp_decimal(primary.posting.amount, grant.amount) ~= 0 then
                 technical("invalid_protocol", "account-block exception does not match primary posting")
             end

@@ -119,6 +119,8 @@ type TransactionCompletionRecord struct {
 // EngineTransactionIntent contains only immutable intent, not calculated
 // postings, validation output, balance seeds, guards, or overdraft splits.
 type EngineTransactionIntent struct {
+	OrganizationID          string                          `json:"organizationId,omitempty"`
+	LedgerID                string                          `json:"ledgerId,omitempty"`
 	TransactionID           uuid.UUID                       `json:"transactionId"`
 	ParentTransactionID     *uuid.UUID                      `json:"parentTransactionId"`
 	FeesSkipped             bool                            `json:"feesSkipped"`
@@ -375,7 +377,7 @@ func ValidateTransactionCompletion(input EngineExecution) error {
 			return err
 		}
 
-		if err := validateCompletionExecutionScope(input, recovery.TransactionID, payload); err != nil {
+		if err := validateCompletionExecutionScope(input, transaction, payload); err != nil {
 			return err
 		}
 
@@ -390,11 +392,12 @@ func ValidateTransactionCompletion(input EngineExecution) error {
 			return err
 		}
 
-		if err := validateCompletionSnapshotIdentities(request.Balances, payload.OperationSpecs); err != nil {
+		organizationID, ledgerID := completionTransactionScope(request, transaction)
+		if err := validateCompletionSnapshotIdentities(request, organizationID, ledgerID, payload.OperationSpecs); err != nil {
 			return err
 		}
 
-		if err := validateCompletionBalanceRequirements(request.Balances, transaction.BalanceRequirements); err != nil {
+		if err := validateCompletionBalanceRequirements(request, organizationID, ledgerID, transaction.BalanceRequirements); err != nil {
 			return err
 		}
 
@@ -408,14 +411,16 @@ func ValidateTransactionCompletion(input EngineExecution) error {
 	return validateCompletionExecutionFingerprint(request, tenant, intents, input.IntentFingerprint)
 }
 
-func validateCompletionBalanceRequirements(snapshots []accounting.BalanceSnapshot, requirements []accounting.BalanceRequirement) error {
+func validateCompletionBalanceRequirements(request accounting.Execution, organizationID, ledgerID uuid.UUID, requirements []accounting.BalanceRequirement) error {
+	snapshots := request.Balances
 	known := make(map[string]struct{}, len(snapshots))
 	for _, snapshot := range snapshots {
-		known[snapshot.BalanceRef] = struct{}{}
+		snapshotOrganizationID, snapshotLedgerID := completionBalanceScope(request, snapshot)
+		known[completionScopedBalanceRef(snapshotOrganizationID, snapshotLedgerID, snapshot.BalanceRef)] = struct{}{}
 	}
 
 	for _, requirement := range requirements {
-		if _, exists := known[requirement.BalanceRef]; !exists || requirement.AssetCode == "" ||
+		if _, exists := known[completionScopedBalanceRef(organizationID, ledgerID, requirement.BalanceRef)]; !exists || requirement.AssetCode == "" ||
 			(requirement.Permission != accounting.BalancePermissionSend && requirement.Permission != accounting.BalancePermissionReceive) {
 			return invalidTransactionCompletionRecord("invalid execution balance requirement")
 		}
@@ -458,14 +463,16 @@ func validateCompletionExecutionFingerprint(request accounting.Execution, tenant
 	return nil
 }
 
-func validateCompletionSnapshotIdentities(snapshots []accounting.BalanceSnapshot, projections []OperationRecordSpec) error {
+func validateCompletionSnapshotIdentities(request accounting.Execution, organizationID, ledgerID uuid.UUID, projections []OperationRecordSpec) error {
+	snapshots := request.Balances
 	byRef := make(map[string]accounting.BalanceSnapshot, len(snapshots))
 	for _, snapshot := range snapshots {
-		byRef[snapshot.BalanceRef] = snapshot
+		snapshotOrganizationID, snapshotLedgerID := completionBalanceScope(request, snapshot)
+		byRef[completionScopedBalanceRef(snapshotOrganizationID, snapshotLedgerID, snapshot.BalanceRef)] = snapshot
 	}
 
 	for _, spec := range projections {
-		snapshot, exists := byRef[spec.BalanceRef]
+		snapshot, exists := byRef[completionScopedBalanceRef(organizationID, ledgerID, spec.BalanceRef)]
 		if !exists {
 			continue
 		}
@@ -488,6 +495,10 @@ func transactionCompletionIntent(transaction accounting.Transaction, payload Tra
 		PostingRefs:         make([]string, 0, len(transaction.Postings)),
 		BalanceRequirements: append([]accounting.BalanceRequirement(nil), transaction.BalanceRequirements...),
 		OperationSpecs:      make([]OperationRecordIntent, 0, len(payload.OperationSpecs)),
+	}
+	if transaction.OrganizationID != uuid.Nil || transaction.LedgerID != uuid.Nil {
+		intent.OrganizationID = payload.OrganizationID.String()
+		intent.LedgerID = payload.LedgerID.String()
 	}
 	if transaction.AccountBlockException != nil {
 		exceptionID := transaction.AccountBlockException.ExceptionID
@@ -518,13 +529,34 @@ func validateCompletionExecutionIdentity(input EngineExecution) error {
 	return nil
 }
 
-func validateCompletionExecutionScope(input EngineExecution, transactionID uuid.UUID, payload *TransactionCompletionPlan) error {
+func validateCompletionExecutionScope(input EngineExecution, transaction accounting.Transaction, payload *TransactionCompletionPlan) error {
 	request := input.Execution
-	if payload.TransactionID != transactionID || payload.ExecutionID != request.ExecutionID || payload.OrganizationID != request.OrganizationID || payload.LedgerID != request.LedgerID || payload.IntentFingerprint != input.IntentFingerprint {
+	organizationID, ledgerID := completionTransactionScope(request, transaction)
+	if payload.TransactionID != transaction.ID || payload.ExecutionID != request.ExecutionID || payload.OrganizationID != organizationID || payload.LedgerID != ledgerID || payload.IntentFingerprint != input.IntentFingerprint {
 		return invalidTransactionCompletionRecord("recovery scope does not match execution")
 	}
 
 	return nil
+}
+
+func completionTransactionScope(request accounting.Execution, transaction accounting.Transaction) (uuid.UUID, uuid.UUID) {
+	if transaction.OrganizationID == uuid.Nil && transaction.LedgerID == uuid.Nil {
+		return request.OrganizationID, request.LedgerID
+	}
+
+	return transaction.OrganizationID, transaction.LedgerID
+}
+
+func completionBalanceScope(request accounting.Execution, balance accounting.BalanceSnapshot) (uuid.UUID, uuid.UUID) {
+	if balance.OrganizationID == uuid.Nil && balance.LedgerID == uuid.Nil {
+		return request.OrganizationID, request.LedgerID
+	}
+
+	return balance.OrganizationID, balance.LedgerID
+}
+
+func completionScopedBalanceRef(organizationID, ledgerID uuid.UUID, ref string) string {
+	return organizationID.String() + ":" + ledgerID.String() + ":" + ref
 }
 
 func validateCompletionPostings(transaction accounting.Transaction, projections []OperationRecordSpec) error {

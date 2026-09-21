@@ -16,9 +16,15 @@ local function validateStoredResponse(raw, request)
     for _, transaction in ipairs(request.transactions) do
         local refs = {}
         for _, posting in ipairs(transaction.postings) do refs[posting.ref] = posting end
-        postings[transaction.id] = refs
+        postings[transaction.id] = {
+            organizationId = transaction.organizationId,
+            ledgerId = transaction.ledgerId,
+            refs = refs
+        }
     end
-    for _, balance in ipairs(request.balances) do seeds[balance.balanceRef] = balance.snapshot end
+    for _, balance in ipairs(request.balances) do
+        seeds[scopedBalanceRef(balance.organizationId, balance.ledgerId, balance.balanceRef)] = balance.snapshot
+    end
     -- Rebuild each balance's ordered version chain from the recorded movements.
     -- Every transition must advance exactly once and start where the prior one ended.
     local movementRefs, finalRefs, last = {}, {}, {}
@@ -29,7 +35,7 @@ local function validateStoredResponse(raw, request)
         text(movement.postingRef, false)
         logicalRef(movement.balanceRef)
         local transaction = postings[movement.transactionId]
-        local posting = transaction and transaction[movement.postingRef]
+        local posting = transaction and transaction.refs[movement.postingRef]
         if not posting or (movement.role == "primary" and (movement.balanceRef ~= posting.balanceRef or movement.type ~= posting.type)) then
             technical("invalid_receipt", "saved movement does not match execution")
         end
@@ -42,7 +48,7 @@ local function validateStoredResponse(raw, request)
         -- overdraft movement and on that account's reserved overdraft balance.
         if movement.role == "overdraft_companion" then
             local primary = response.movements[index - 1]
-            local seed = seeds[posting.balanceRef]
+            local seed = seeds[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)]
             if not primary or primary.role ~= "primary" or primary.transactionId ~= movement.transactionId or primary.postingRef ~= movement.postingRef or primary.overdraftDelta == "0" or movement.balanceRef ~= seed.alias .. "#overdraft" then
                 technical("invalid_receipt", "invalid saved companion correlation")
             end
@@ -63,27 +69,33 @@ local function validateStoredResponse(raw, request)
         if add_decimal(movement.before.version, "1") ~= movement.after.version then
             technical("invalid_receipt", "invalid saved movement version")
         end
-        local previous = last[movement.balanceRef]
+        local movementScopeRef = scopedBalanceRef(transaction.organizationId, transaction.ledgerId, movement.balanceRef)
+        local previous = last[movementScopeRef]
         if previous and encodeJSON(previous) ~= encodeJSON(movement.before) then
             technical("invalid_receipt", "broken saved movement chain")
         end
-        last[movement.balanceRef] = movement.after
+        last[movementScopeRef] = movement.after
     end
     -- Final snapshots must preserve seed identity and exactly match the last
     -- reconstructed state for every balance changed by the execution.
     for _, final in ipairs(response.final) do
         validateSnapshot(final)
+        if final.organizationId == nil then final.organizationId = request.organizationId end
+        if final.ledgerId == nil then final.ledgerId = request.ledgerId end
+        uuid(final.organizationId)
+        uuid(final.ledgerId)
         logicalRef(final.balanceRef)
-        local seed = seeds[final.balanceRef]
+        local finalScopeRef = scopedBalanceRef(final.organizationId, final.ledgerId, final.balanceRef)
+        local seed = seeds[finalScopeRef]
         if seed then
             for _, field in ipairs({ "id", "accountId", "accountType", "assetCode", "alias", "key" }) do
                 if final[field] ~= seed[field] then technical("invalid_receipt", "saved balance identity mismatch") end
             end
         end
-        if finalRefs[final.balanceRef] or not last[final.balanceRef] or encodeJSON(state(final, false)) ~= encodeJSON(last[final.balanceRef]) then
+        if finalRefs[finalScopeRef] or not last[finalScopeRef] or encodeJSON(state(final, false)) ~= encodeJSON(last[finalScopeRef]) then
             technical("invalid_receipt", "invalid saved final balance")
         end
-        finalRefs[final.balanceRef] = true
+        finalRefs[finalScopeRef] = true
     end
     for ref, _ in pairs(last) do
         if not finalRefs[ref] then technical("invalid_receipt", "missing saved final balance") end
