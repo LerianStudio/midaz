@@ -494,6 +494,34 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 	}
 }
 
+func TestRegisterTransactionV2Routes_DirectResponseDocumentsSingularOrCrossLedgerGroup(t *testing.T) {
+	t.Parallel()
+
+	oapi := registerIsolatedV2TransactionContractForTest()
+	direct := oapi.Paths["/transactions/direct"].Post
+	require.NotNil(t, direct)
+
+	response := direct.Responses["201"]
+	require.NotNil(t, response)
+	media := response.Content["application/json"]
+	require.NotNil(t, media)
+	require.NotNil(t, media.Schema)
+	require.Len(t, media.Schema.OneOf, 2,
+		"direct must document both its historical singular body and its cross-ledger group envelope")
+
+	refs := []string{media.Schema.OneOf[0].Ref, media.Schema.OneOf[1].Ref}
+	assert.ElementsMatch(t, []string{
+		"#/components/schemas/TransactionV2",
+		"#/components/schemas/CrossLedgerTransactionGroupV2",
+	}, refs)
+
+	group, ok := oapi.Components.Schemas.Map()["CrossLedgerTransactionGroupV2"]
+	require.True(t, ok)
+	assert.ElementsMatch(t, []string{"groupId", "transactions"}, group.Required)
+	assert.Contains(t, group.Properties, "groupId")
+	assert.Contains(t, group.Properties, "transactions")
+}
+
 // v2ContractAssemblies are the two documents the v2 create surface reaches a client through: the
 // ISOLATED bare document a test builds for component assertions (group-relative, no prefix), and
 // the REAL /v2-prefixed document the unified server assembles — buildUnifiedHumaAPI
