@@ -106,7 +106,7 @@ var operationColumnListPrefixed = []string{
 	"o.ledger_id", "o.created_at", "o.updated_at", "o.deleted_at", "o.route",
 	"o.balance_affected", "o.balance_key", "o.balance_version_before", "o.balance_version_after",
 	"o.direction", "o.route_id", "o.route_code", "o.route_description",
-	"o.snapshot",
+	"o.snapshot", "o.recorded_at",
 }
 
 // Repository provides an interface for operations related to transaction template entities.
@@ -1329,6 +1329,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&op.RouteCode,
 			&op.RouteDescription,
 			&op.Snapshot,
+			&op.RecordedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
@@ -1459,6 +1460,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			opVersionBalance, opVersionBalanceAfter                      *int64
 			opDirection, opRouteID, opRouteCode, opRouteDescription      *string
 			opSnapshot                                                   *json.RawMessage
+			opRecordedAt                                                 sql.NullTime
 		)
 
 		if err := rows.Scan(
@@ -1511,6 +1513,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&opRouteCode,
 			&opRouteDescription,
 			&opSnapshot,
+			&opRecordedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
 
@@ -1567,6 +1570,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 				RouteID:               opRouteID,
 				RouteCode:             opRouteCode,
 				RouteDescription:      opRouteDescription,
+				RecordedAt:            opRecordedAt,
 			}
 
 			if opSnapshot != nil {

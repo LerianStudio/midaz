@@ -326,10 +326,10 @@ end
 -- prepareExecutionWrites serializes every value and accounts for its byte cost
 -- before the first Redis write. This keeps all predictable allocation, encoding,
 -- and size failures on the safe precommit side of the execution boundary.
-local function prepareExecutionWrites(request, maximumPrepared, preparedProtection, movements, touched, transactionResults)
+local function prepareExecutionWrites(request, maximumPrepared, preparedProtection, movements, touched, transactionResults, appliedAtUnixMicro)
     local final = array()
     for _, item in ipairs(touched) do final[#final + 1] = snapshotCopy(item.current, false) end
-    local response = encodeJSON({ protocolVersion = 1, movements = movements, final = final })
+    local response = encodeJSON({ protocolVersion = 1, movements = movements, final = final, appliedAtUnixMicro = numberToken(appliedAtUnixMicro) })
     local preparedBytes = #response
     if preparedBytes > maximumPrepared then technical("prepared_bytes_exceeded", "response exceeds prepared byte budget") end
     -- A true no-op has no state to protect or recover and therefore publishes no
@@ -368,7 +368,8 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
             formatVersion = 2, tenantId = request.tenantId, organizationId = request.organizationId,
             ledgerId = request.ledgerId, executionId = request.executionId,
             intentFingerprint = request.intentFingerprint, transactionId = transaction.id,
-            payload = transaction.completionPlan, result = { movements = recoveryMovements, final = recoveryFinal }
+            payload = transaction.completionPlan,
+            result = { movements = recoveryMovements, final = recoveryFinal, appliedAtUnixMicro = numberToken(appliedAtUnixMicro) }
         }
         preparedRecoverRecords[#preparedRecoverRecords + 1] = {
             field = transaction.recoveryField,
@@ -420,10 +421,7 @@ end
 -- commitPreparedExecution is the only money-changing publication phase. Every
 -- argument has already been validated and serialized. Once commitStarted is set,
 -- any unexpected failure is indeterminate because Redis does not roll writes back.
-local function commitPreparedExecution(request, protectionKey, preparedBalances, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt)
-    local now = redis.call("TIME")
-    local score = tonumber(now[1]) + tonumber(now[2]) / 1000000
-
+local function commitPreparedExecution(request, protectionKey, preparedBalances, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score)
     -- Only prepared commands remain. Runtime failures here are indeterminate;
     -- Redis script execution does not roll back earlier successful writes.
     commitStarted = true
@@ -446,13 +444,17 @@ local function execute(request, maximumPrepared)
     local replay, preparedProtection, protectionKey = prepareExecutionProtection(request)
     if replay then return replay end
 
+    local now = redis.call("TIME")
+    local appliedAtUnixMicro = now[1] .. string.format("%06d", tonumber(now[2]))
+    local score = tonumber(now[1]) + tonumber(now[2]) / 1000000
+
     local pool, companions = loadBalancePool(request)
     local exemptions, grantKeys = validateAccountBlockExceptions(request, pool, companions)
     validateLiveBalanceAvailability(request, pool, exemptions)
 
     local movements, touched, transactionResults = applyTransactionsInMemory(request, pool, companions, exemptions)
     local response, preparedBalances, preparedRecoverRecords, preparedIndexes, receipt = prepareExecutionWrites(
-        request, maximumPrepared, preparedProtection, movements, touched, transactionResults
+        request, maximumPrepared, preparedProtection, movements, touched, transactionResults, appliedAtUnixMicro
     )
     if not preparedBalances then
         if #grantKeys > 0 then technical("invalid_protocol", "account-block exception execution has no movements") end
@@ -460,7 +462,7 @@ local function execute(request, maximumPrepared)
     end
 
     commitPreparedExecution(
-        request, protectionKey, preparedBalances, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt
+        request, protectionKey, preparedBalances, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score
     )
     return response
 end

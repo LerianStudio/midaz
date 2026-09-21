@@ -76,11 +76,12 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 	input.Execution.Balances[0].Version = 0
 	input.Execution.Balances[0].AllowOverdraft = true
 	input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(30)
-	input.CompletionPlans[0].Payload = json.RawMessage(`{"opaque":true,"version":9007199254740993}`)
+	input.CompletionPlans[0].Payload = json.RawMessage(`{"action":"direct","opaque":true,"version":9007199254740993}`)
 	prefix := "test:" + strings.ReplaceAll(t.Name(), "/", ":") + ":"
 	replace := func(key string) string { return strings.Replace(key, "tenant:fixture:", prefix, 1) }
 	resolved.Schedule, resolved.Recovery = replace(resolved.Schedule), replace(resolved.Recovery)
 	resolved.Receipts, resolved.Guards, resolved.Protection = replace(resolved.Receipts), replace(resolved.Guards), replace(resolved.Protection)
+	resolved.TransactionIndex, resolved.Evidence = replace(resolved.TransactionIndex), replace(resolved.Evidence)
 	for ref, pair := range resolved.Balances {
 		resolved.Balances[ref] = resolvedBalanceKeys{
 			Balance: replace(pair.Balance), Deleted: replace(pair.Deleted), LegacyDeleted: replace(pair.LegacyDeleted),
@@ -88,7 +89,7 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 	}
 	fixture := &integrationFixture{input: input, limits: limits, resolved: resolved, client: client}
 	t.Cleanup(func() {
-		keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection}
+		keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection, resolved.TransactionIndex, resolved.Evidence}
 		for _, pair := range fixture.resolved.Balances {
 			keys = append(keys, pair.Balance, pair.Deleted, pair.LegacyDeleted)
 		}
@@ -916,13 +917,15 @@ func TestIntegrationEngineReplayAndInt64(t *testing.T) {
 	require.Contains(t, recoverRecord, `"version":9007199254740993`)
 	require.Contains(t, recoverRecord, `"version":9007199254740994`)
 	var saved struct {
-		Payload string
-		Result  accounting.ExecutionResult
+		Record struct {
+			Payload string
+			Result  accounting.ExecutionResult
+		}
 	}
 	require.NoError(t, json.Unmarshal([]byte(recoverRecord), &saved))
-	require.Equal(t, int64(9007199254740994), saved.Result.Final[0].Version)
-	require.Equal(t, result.AppliedAtUnixMicro, saved.Result.AppliedAtUnixMicro)
-	require.Equal(t, string(f.input.CompletionPlans[0].Payload), saved.Payload)
+	require.Equal(t, int64(9007199254740994), saved.Record.Result.Final[0].Version)
+	require.Equal(t, result.AppliedAtUnixMicro, saved.Record.Result.AppliedAtUnixMicro)
+	require.Equal(t, string(f.input.CompletionPlans[0].Payload), saved.Record.Payload)
 	before := f.capture(t)
 	replay, err := f.run(t)
 	require.NoError(t, err)
@@ -941,6 +944,7 @@ func TestIntegrationEngineReplayAndInt64(t *testing.T) {
 	f.input.Execution.ExecutionID = uuid.MustParse("04079f3b-b8e1-43fa-b947-7fbc13a87b76")
 	f.input.Execution.Balances[0].Version = 9007199254740995
 	f.input.Guards[0].ExpectedToken, f.input.Guards[0].NextToken = f.input.Guards[0].NextToken, "next-transition"
+	require.NoError(t, container.Client.HDel(context.Background(), f.resolved.TransactionIndex, f.input.Execution.Transactions[0].ID.String()).Err())
 	raw, err = f.run(t)
 	require.NoError(t, err)
 	result = decodeIntegrationResult(t, raw)

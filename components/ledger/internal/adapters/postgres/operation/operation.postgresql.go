@@ -47,8 +47,12 @@ type OperationFilter struct {
 //
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=operation.postgresql_mock.go --package=operation . Repository
 type Repository interface {
+	// Create preserves a caller-provided engine apply time in recorded_at and
+	// otherwise stamps the repository clock once for the inserted row.
 	Create(ctx context.Context, operation *Operation) (*Operation, error)
 	CreateBulk(ctx context.Context, operations []*Operation) (*repository.BulkInsertResult, error)
+	// CreateBulkTx applies one repository timestamp to every row that does not
+	// already carry the engine apply time.
 	CreateBulkTx(ctx context.Context, tx repository.DBExecutor, operations []*Operation) (*repository.BulkInsertResult, error)
 	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
 	FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, opFilter OperationFilter, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)
@@ -86,6 +90,7 @@ type OperationPostgreSQLRepository struct {
 	connection    *libPostgres.Client
 	tableName     string
 	requireTenant bool
+	clock         func() time.Time
 }
 
 var operationColumnList = []string{
@@ -124,6 +129,7 @@ var operationColumnList = []string{
 	// Appended at the end to minimize scan-site churn — every site extends by
 	// one trailing field.
 	"snapshot",
+	"recorded_at",
 }
 
 // operationColumns is derived from operationColumnList for use with squirrel.Select.
@@ -153,12 +159,21 @@ func NewOperationPostgreSQLRepository(pc *libPostgres.Client, requireTenant ...b
 	c := &OperationPostgreSQLRepository{
 		connection: pc,
 		tableName:  "operation",
+		clock:      time.Now,
 	}
 	if len(requireTenant) > 0 {
 		c.requireTenant = requireTenant[0]
 	}
 
 	return c
+}
+
+func (r *OperationPostgreSQLRepository) now() time.Time {
+	if r.clock == nil {
+		return time.Now()
+	}
+
+	return r.clock()
 }
 
 // getDB resolves the PostgreSQL database connection for the current request.
@@ -202,6 +217,9 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 
 	record := &OperationPostgreSQLModel{}
 	record.FromEntity(operation)
+	if !record.RecordedAt.Valid {
+		record.RecordedAt = sql.NullTime{Time: r.now(), Valid: true}
+	}
 
 	insert := squirrel.
 		Insert(r.tableName).
@@ -238,6 +256,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 			record.RouteCode,
 			record.RouteDescription,
 			record.Snapshot,
+			record.RecordedAt,
 		).
 		PlaceholderFormat(squirrel.Dollar)
 
@@ -358,6 +377,8 @@ func (r *OperationPostgreSQLRepository) createBulkInternal(
 		}
 	}
 
+	recordedAt := r.now()
+
 	// Sort by ID (string UUID) to prevent deadlocks in concurrent bulk operations
 	sort.Slice(operations, func(i, j int) bool {
 		return operations[i].ID < operations[j].ID
@@ -369,7 +390,7 @@ func (r *OperationPostgreSQLRepository) createBulkInternal(
 	}
 
 	// Chunk into bulks of ~1,000 rows to stay within PostgreSQL's parameter limit
-	// Operation has 31 columns, so 1000 rows = 31,000 parameters (under 65,535 limit)
+	// Operation has 32 columns, so 1000 rows = 32,000 parameters (under 65,535 limit)
 	const chunkSize = 1000
 
 	for i := 0; i < len(operations); i += chunkSize {
@@ -384,7 +405,7 @@ func (r *OperationPostgreSQLRepository) createBulkInternal(
 
 		end := min(i+chunkSize, len(operations))
 
-		chunkResult, err := r.insertOperationChunk(ctx, db, operations[i:end])
+		chunkResult, err := r.insertOperationChunk(ctx, db, operations[i:end], recordedAt)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to insert operation chunk", err)
 			// Return partial result; Ignored stays 0 since remaining items were not processed (not duplicates)
@@ -415,7 +436,7 @@ type operationChunkInsertResult struct {
 // insertOperationChunk inserts a chunk of operations using multi-row INSERT.
 // Uses repository.DBExecutor to work with both dbresolver.DB and dbresolver.Tx.
 // Returns the count of inserted rows and their IDs for downstream filtering.
-func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context, db repository.DBExecutor, operations []*Operation) (*operationChunkInsertResult, error) {
+func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context, db repository.DBExecutor, operations []*Operation, recordedAt time.Time) (*operationChunkInsertResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.insert_operation_chunk")
@@ -430,6 +451,9 @@ func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context
 	for _, op := range operations {
 		record := &OperationPostgreSQLModel{}
 		record.FromEntity(op)
+		if !record.RecordedAt.Valid {
+			record.RecordedAt = sql.NullTime{Time: recordedAt, Valid: true}
+		}
 
 		builder = builder.Values(
 			record.ID,
@@ -463,6 +487,7 @@ func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context
 			record.RouteCode,
 			record.RouteDescription,
 			record.Snapshot,
+			record.RecordedAt,
 		)
 	}
 
@@ -619,6 +644,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.RouteCode,
 			&operation.RouteDescription,
 			&operation.Snapshot,
+			&operation.RecordedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -732,6 +758,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.RouteCode,
 			&operation.RouteDescription,
 			&operation.Snapshot,
+			&operation.RecordedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -820,6 +847,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.RouteCode,
 		&operation.RouteDescription,
 		&operation.Snapshot,
+		&operation.RecordedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOperation)
@@ -907,6 +935,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.RouteCode,
 		&operation.RouteDescription,
 		&operation.Snapshot,
+		&operation.RecordedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOperation)
@@ -1181,6 +1210,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.RouteCode,
 			&operation.RouteDescription,
 			&operation.Snapshot,
+			&operation.RecordedAt,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 

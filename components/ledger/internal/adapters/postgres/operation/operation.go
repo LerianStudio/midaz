@@ -85,6 +85,7 @@ type OperationPostgreSQLModel struct {
 	LedgerID              string           // Ledger ID
 	CreatedAt             time.Time        // Creation timestamp
 	UpdatedAt             time.Time        // Last update timestamp
+	RecordedAt            sql.NullTime     // Server-side ledger recording timestamp
 	DeletedAt             sql.NullTime     // Deletion timestamp (if soft-deleted)
 	Route                 *string          // Route
 	BalanceAffected       bool             // BalanceAffected default true
@@ -356,6 +357,9 @@ type Operation struct {
 	// format: date-time
 	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
 
+	// RecordedAt is the instant the ledger recorded this row; it never comes from the client.
+	RecordedAt *time.Time `json:"-"`
+
 	// Timestamp when the operation was deleted (if soft-deleted)
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -433,6 +437,11 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 		DeletedAt:       nil,
+	}
+
+	if t.RecordedAt.Valid {
+		recordedAtCopy := t.RecordedAt.Time
+		Operation.RecordedAt = &recordedAtCopy
 	}
 
 	if t.Route != nil {
@@ -557,6 +566,11 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 	if operation.DeletedAt != nil {
 		deletedAtCopy := *operation.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
+	}
+
+	if operation.RecordedAt != nil {
+		recordedAtCopy := *operation.RecordedAt
+		t.RecordedAt = sql.NullTime{Time: recordedAtCopy, Valid: true}
 	}
 
 	// Always marshal the snapshot — entity.Snapshot is a value type, never
