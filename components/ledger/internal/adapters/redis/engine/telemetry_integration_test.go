@@ -25,7 +25,7 @@ func TestIntegration_AdapterExecute_IndeterminateMetrics(t *testing.T) {
 	factory, err := metrics.NewMetricsFactory(meter.Meter("engine-test"), nil)
 	require.NoError(t, err)
 	ctx := libObservability.ContextWithMetricFactory(context.Background(), factory)
-	_, address, password := newAdapterValkey(t)
+	inspector, address, password := newAdapterValkey(t)
 	proxy := newAccountingProxy(t, address, true)
 	client := redis.NewClient(&redis.Options{
 		Addr: proxy.listener.Addr().String(), Password: password, DB: 2, Protocol: 2,
@@ -33,6 +33,7 @@ func TestIntegration_AdapterExecute_IndeterminateMetrics(t *testing.T) {
 	})
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
 	input, limits := richAdapterExecution(t)
+	ctx = admitEngineSeeds(t, ctx, inspector, input.Execution)
 	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, limits)
 	require.NoError(t, err)
 	result, err := adapter.Execute(ctx, input)
@@ -85,6 +86,7 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 	hook := &integrationCommandHook{}
 	client.AddHook(hook)
 	input, limits := richAdapterExecution(t)
+	ctx = admitEngineSeeds(t, ctx, client, input.Execution)
 	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, limits)
 	require.NoError(t, err)
 	first, err := adapter.Execute(ctx, input)

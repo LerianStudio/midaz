@@ -97,6 +97,7 @@ func TestIntegration_AdapterExecute_SurvivesSentinelMasterSwitch(t *testing.T) {
 	adapter, err := newAdapterWithLimits(provider, limits)
 	require.NoError(t, err)
 
+	ctx = admitEngineSeeds(t, ctx, shared, input.Execution)
 	initial, err := adapter.Execute(ctx, input)
 	require.NoError(t, err)
 	require.True(t, initial.Final[0].Available.Equal(decimal.NewFromInt(70)))

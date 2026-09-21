@@ -570,7 +570,10 @@ and its 25-argument stride per balance; the engine retains exactly three ARGV
 values. The engine key inventory begins with five shared keys, followed by three
 keys per balance (live value plus both deletion-marker forms), then one grant key
 for each transaction that presents an account-block exception, in transaction
-order. Balance-key bytes and the 24-hour balance-cache TTL are unchanged.
+order, and finally three account-protection keys — `closing`, `closed` and the
+administrative ownership — for each account of the declared balance pool, once per
+account in stable order. Balance-key bytes and the 24-hour balance-cache TTL are
+unchanged.
 
 Before the first write, the engine must:
 
@@ -590,9 +593,22 @@ Before the first write, the engine must:
    site. An unused pool balance with a marker must not block the request. Live
    cached money, settings, block state, and version supersede the request seed
    after identity validation.
-5. Execute transactions and postings in stable order against working state.
+5. Check the account-protection controls of every account whose balance the
+   execution actually uses. A `closed` value refuses with `account_closed`, a
+   `closing` value with `account_closing_in_progress`, and a value that is present
+   but unreadable with `account_protection_unreadable` — an unreadable control is
+   never read as an absence. The absence of both controls is the normal state of an
+   open account and refuses nothing; there is no `open` key. When a used balance is
+   NOT in the cache, the seed may only be admitted if the account's ownership key
+   carries the admission token the request declares; otherwise the execution is
+   refused with `admission_not_confirmed` before any write, with no automatic retry.
+   Companions repeat the check at their mutation site, and an unused pool balance
+   never causes a refusal. A proven receipt replay is answered before any of this,
+   so a recorded outcome survives the closing of its account. See
+   `docs/runbooks/account-closing-protection.md`.
+6. Execute transactions and postings in stable order against working state.
    Later transactions observe earlier intermediate results.
-6. Serialize all final blobs, per-transaction recovery envelopes, receipts,
+7. Serialize all final blobs, per-transaction recovery envelopes, receipts,
    guards, and the response, and prepare all command arguments.
 
 The earlier Go cache-aside read and this Lua read have different jobs. Go needs a
@@ -971,6 +987,13 @@ conflict boundary. Never regenerate expected rows merely to make a regression pa
 
 The engine is the default writer in this release. Rollout must retain compatible
 readers and both recovery consumers until legacy in-flight work has drained.
+
+Account closing has a rollout order of its own, because the protection is only as
+strong as the least current writer: every binary that admits or rewrites a balance
+blob must carry the coordinated admission before the close route is exposed, and
+there is no key to backfill for the accounts that stay open. The procedure, the
+rollback that keeps `closed_at`, and the reconciliation an operator can run are in
+`docs/runbooks/account-closing-protection.md`.
 
 The active `GetBalances` query, Redis transaction `ListBalanceByKey`, and
 `GetBalancesByKeys` use the shared read-only `DecodeForRead` projection. The

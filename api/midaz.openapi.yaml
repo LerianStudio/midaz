@@ -1204,6 +1204,10 @@ paths:
         - Midaz_Ledger_API_Accounts (v1)
     post:
       deprecated: true
+      description: >-
+        The closing instant is output only: a body naming closedAt or closed_at
+        at its root is refused with 400 whatever the value it carries, and the
+        stored instant is only ever written by the close command.
       operationId: createAccount
       parameters:
         - description: Organization ID (UUID)
@@ -2049,6 +2053,10 @@ paths:
         - Midaz_Ledger_API_Accounts (v1)
     patch:
       deprecated: true
+      description: >-
+        The closing instant is output only: a body naming closedAt or closed_at
+        at its root is refused with 400 whatever the value it carries, and the
+        stored instant is only ever written by the close command.
       operationId: updateAccount
       parameters:
         - description: Organization ID (UUID)
@@ -7825,6 +7833,10 @@ paths:
       tags:
         - Midaz_Ledger_API_Accounts (v2)
     post:
+      description: >-
+        The closing instant is output only: a body naming closedAt or closed_at
+        at its root is refused with 400 whatever the value it carries, and the
+        stored instant is only ever written by the close command.
       operationId: createAccountV2
       parameters:
         - description: Organization ID (UUID)
@@ -8417,6 +8429,72 @@ paths:
       summary: Get Account Balances history at date
       tags:
         - Midaz_Ledger_API_Balances (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/close:
+    post:
+      description: >-
+        Closes an account whose balances are all exactly zero and whose funds no
+        pending transaction still holds, preserving its history and refusing
+        every later movement. The command takes no body and the closing instant
+        is read back as the account's closedAt, which every account read then
+        exposes. An external account is never eligible (0074), balances that are
+        not exactly zero (0523) and a pending transaction still holding the
+        account's funds (0524) are refused with 422. An account already closed
+        (0521), an account whose closing is already in progress (0522) and an
+        account whose accounting persistence is still settling (0518) are
+        refused with 409, the last of which may be retried later. An
+        indeterminate protection or an unavailable dependency answers 503
+        (0520). Once the account is closed, any movement that would touch it is
+        refused with 0519, including the commit of a pending transaction that
+        names it as destination.
+      operationId: closeAccountV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: Account ID (UUID)
+          in: path
+          name: account_id
+          required: true
+          schema:
+            description: Account ID (UUID)
+            type: string
+      responses:
+        '204':
+          description: No Content
+        '422':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unprocessable Entity
+        '500':
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Close an account
+      tags:
+        - Midaz_Ledger_API_Accounts (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
       operationId: getAllOperationsByAccountV2
@@ -8716,6 +8794,10 @@ paths:
       tags:
         - Midaz_Ledger_API_Accounts (v2)
     patch:
+      description: >-
+        The closing instant is output only: a body naming closedAt or closed_at
+        at its root is refused with 400 whatever the value it carries, and the
+        stored instant is only ever written by the close command.
       operationId: updateAccountV2
       parameters:
         - description: Organization ID (UUID)
@@ -14828,6 +14910,17 @@ components:
           type:
             - boolean
             - 'null'
+        closedAt:
+          description: >-
+            Instant the account was closed, null while it is still open. Output
+            only: it is written exclusively by the close command and is refused
+            as an input field on create and update
+          examples:
+            - '2021-01-01T00:00:00Z'
+          format: date-time
+          type:
+            - string
+            - 'null'
         createdAt:
           examples:
             - '2021-01-01T00:00:00Z'
@@ -14919,6 +15012,7 @@ components:
         - createdAt
         - updatedAt
         - deletedAt
+        - closedAt
       type: object
     AccountBlockException:
       additionalProperties: false
@@ -15056,6 +15150,17 @@ components:
           type:
             - boolean
             - 'null'
+        closedAt:
+          description: >-
+            Instant the account was closed, null while it is still open. Output
+            only: it is written exclusively by the close command and is refused
+            as an input field on create and update
+          examples:
+            - '2021-01-01T00:00:00Z'
+          format: date-time
+          type:
+            - string
+            - 'null'
         createdAt:
           examples:
             - '2021-01-01T00:00:00Z'
@@ -15160,6 +15265,7 @@ components:
         - createdAt
         - updatedAt
         - deletedAt
+        - closedAt
       type: object
     AccountingEntries:
       additionalProperties: false

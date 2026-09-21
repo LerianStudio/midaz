@@ -44,6 +44,27 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 		attribute.String("app.request.request_id", requestID),
 	)
 
+	// Deleting balances changes the very list a closing validates, so it takes the
+	// same per-account ownership the closing does. The delete markers below keep
+	// their own keys and semantics; this only serializes the two administrative
+	// operations against each other.
+	admission, admissionErr := uc.acquireAccountAdmission(ctx, organizationID, ledgerID, accountID)
+	if admissionErr != nil {
+		err = admissionErr
+
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to protect the account for balance deletion", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to protect the account for balance deletion", libLog.Err(err))
+
+		return err
+	}
+
+	// writeIssued opens the window in which the ownership may no longer be given
+	// back on an unresolved failure: from the first persistence attempt onwards the
+	// outcome has to be proven, not assumed.
+	writeIssued := false
+
+	defer func() { resolveAccountAdmission(ctx, admission, writeIssued, err) }()
+
 	readCtx := readrouting.WithPrimaryRead(ctx)
 
 	balances, err := uc.BalanceRepo.ListByAccountID(readCtx, organizationID, ledgerID, accountID)
@@ -115,6 +136,8 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 			return err
 		}
 	}
+
+	writeIssued = true
 
 	if err := uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, accountID, false); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to toggle balance transfers for account on repo", err)

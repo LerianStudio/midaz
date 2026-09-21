@@ -119,6 +119,19 @@ func (uc *UseCase) stageBalances(ctx context.Context, span trace.Span, logger li
 		return ctx, err
 	}
 
+	// Availability on the compatibility and annotation paths: they admit balances
+	// without reaching the engine, where the same closing controls are read inside
+	// the atomic execution. A warm load would otherwise carry a balance of an
+	// account a closing already owns straight into the legacy writer.
+	if err := uc.ensureBalanceAccountsAvailable(ctx, run.organizationID, run.ledgerID, balances); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rejected transaction over an unavailable account", err)
+		logger.Log(ctx, libLog.LevelWarn, "Rejected transaction over an unavailable account", libLog.Err(err))
+
+		uc.rollbackCreateSeed(ctx, logger, run)
+
+		return ctx, err
+	}
+
 	// Scope protection on the CREATE path: SendTransactionToRedisQueue above
 	// runs with nil balances (the queue seed precedes GetBalances), so its
 	// built-in scope guard is a no-op for user-created transactions. Re-check

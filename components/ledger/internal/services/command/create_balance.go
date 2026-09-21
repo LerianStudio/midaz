@@ -35,7 +35,7 @@ import (
 // This function is the bootstrap path called inline from CreateAccount and
 // CreateAsset; it is not exposed via an HTTP route. The input's Key field
 // is ignored — the contract is encoded in the function name.
-func (uc *UseCase) CreateDefaultBalance(ctx context.Context, input mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
+func (uc *UseCase) CreateDefaultBalance(ctx context.Context, input mmodel.CreateBalanceInput) (_ *mmodel.Balance, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_default_balance")
@@ -48,6 +48,38 @@ func (uc *UseCase) CreateDefaultBalance(ctx context.Context, input mmodel.Create
 		attribute.String("app.request.asset_code", input.AssetCode),
 		attribute.String("app.request.account_type", input.AccountType),
 	)
+
+	// The account is normally brand-new here, but "normally" is not a guarantee:
+	// this path is also reached by retried compensation, and a closing racing the
+	// account creation would otherwise persist a balance into an account that is
+	// already being closed. So the default balance takes the same per-account
+	// ownership every other admitting writer takes.
+	//
+	// External is the one account type outside the coordination, because it is
+	// ineligible for closing (0074) and therefore has no closing to race. Its
+	// balance is provisioned by the asset flow, which must not depend on the
+	// transaction cache being reachable.
+	// writeIssued opens the window in which the ownership may no longer be given
+	// back on an unresolved failure.
+	writeIssued := false
+
+	if !strings.EqualFold(input.AccountType, constant.ExternalAccountType) {
+		admission, admissionErr := uc.acquireAccountAdmission(ctx, input.OrganizationID, input.LedgerID, input.AccountID)
+		if admissionErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to protect the account for the default balance", admissionErr)
+
+			return nil, admissionErr
+		}
+
+		defer func() { resolveAccountAdmission(ctx, admission, writeIssued, err) }()
+
+		if closedErr := uc.ensureAccountsNotClosed(ctx, input.OrganizationID, input.LedgerID, constant.ErrAccountClosed, input.AccountID); closedErr != nil {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Refused to create the default balance of a closed account", closedErr)
+			logger.Log(ctx, libLog.LevelWarn, "Refused to create the default balance of a closed account", libLog.Err(closedErr))
+
+			return nil, closedErr
+		}
+	}
 
 	// Defensive duplicate guard. The account is normally brand-new at this
 	// point, so no balance exists; this check catches retried compensation
@@ -99,6 +131,8 @@ func (uc *UseCase) CreateDefaultBalance(ctx context.Context, input mmodel.Create
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
+
+	writeIssued = true
 
 	created, err := uc.BalanceRepo.Create(ctx, newBalance)
 	if err != nil {

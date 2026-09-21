@@ -160,6 +160,64 @@ func AccountBlockExceptionInternalKey(organizationID, ledgerID, exceptionID uuid
 	return builder.String()
 }
 
+// AccountClosingMarkerKey returns a key with the following format to be used on redis cluster:
+// "account-closing:{transactions}:organizationID:ledgerID:accountID"
+//
+// The marker holds the token of the administrative attempt that is deciding or
+// finalizing a closing. It carries no releasing TTL: an attempt whose outcome is
+// unknown must keep the account protected until the write is resolved, and an
+// expiry would hand that decision to the clock.
+//
+// The {transactions} hash tag is the SAME literal tag BalanceInternalKey uses, so
+// the marker of an account lands in the slot its balance keys already occupy.
+func AccountClosingMarkerKey(organizationID, ledgerID, accountID uuid.UUID) string {
+	return accountProtectionKey("account-closing", organizationID, ledgerID, accountID)
+}
+
+// AccountClosedMarkerKey returns a key with the following format to be used on redis cluster:
+// "account-closed:{transactions}:organizationID:ledgerID:accountID"
+//
+// The marker holds the confirmed closing instant and is a NEGATIVE cache only:
+// PostgreSQL stays the source of truth, so its expiry never reopens anything. It
+// spares the authoritative read for an account that was already proven closed.
+func AccountClosedMarkerKey(organizationID, ledgerID, accountID uuid.UUID) string {
+	return accountProtectionKey("account-closed", organizationID, ledgerID, accountID)
+}
+
+// AccountAdminOwnershipKey returns a key with the following format to be used on redis cluster:
+// "account-admin-ownership:{transactions}:organizationID:ledgerID:accountID"
+//
+// The key holds the token of the administrative operation that currently owns the
+// account: a closing, a balance creation or deletion, or a cache-miss admission.
+// It is the coordination point those operations share so a closing validates a
+// stable balance list, and it exists only while an operation is active or awaiting
+// reconciliation.
+func AccountAdminOwnershipKey(organizationID, ledgerID, accountID uuid.UUID) string {
+	return accountProtectionKey("account-admin-ownership", organizationID, ledgerID, accountID)
+}
+
+// accountProtectionKey assembles one account-scoped protection key. The scope is
+// always complete — organization, ledger and account — so a key can never be
+// resolved from the account alone, and it never carries a balance alias suffix.
+func accountProtectionKey(namespace string, organizationID, ledgerID, accountID uuid.UUID) string {
+	var builder strings.Builder
+
+	// namespace + ":" + "{transactions}" + 3×UUID + 3×":"
+	builder.Grow(len(namespace) + 126)
+
+	builder.WriteString(namespace)
+	builder.WriteString(keySeparator)
+	builder.WriteString(cachepolicy.HashTag)
+	builder.WriteString(keySeparator)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(accountID.String())
+
+	return builder.String()
+}
+
 // IdempotencyReverseKey returns a key with the following format to be used on redis cluster:
 // "idempotency_reverse:{organizationID:ledgerID}:transactionID"
 // This key maps a transactionID to its idempotency key for reverse lookups.
