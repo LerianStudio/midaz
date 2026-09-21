@@ -124,6 +124,7 @@ type Repository interface {
 	BeginTx(ctx context.Context) (repository.DBTransaction, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
+	FindByGroupID(ctx context.Context, groupID uuid.UUID) ([]*Transaction, error)
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
@@ -947,6 +948,96 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 		}
 
 		transactions = append(transactions, transaction.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get rows", err)
+
+		return nil, err
+	}
+
+	return transactions, nil
+}
+
+// FindByGroupID retrieves every live transaction in a cross-ledger group for
+// the tenant-bound database connection. Organization and ledger are deliberately
+// not predicates: a group is the boundary that authorizes the cross-scope read.
+func (r *TransactionPostgreSQLRepository) FindByGroupID(ctx context.Context, groupID uuid.UUID) ([]*Transaction, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_transactions_by_group_id")
+	defer span.End()
+
+	db, release, err := r.acquireRead(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+	defer releaseRead(span, release)
+
+	findAll := squirrel.Select(transactionColumns).
+		From(r.tableName).
+		Where(squirrel.Expr("group_id = ?", groupID)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("created_at ASC", "id ASC").
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
+
+		return nil, err
+	}
+	defer rows.Close()
+
+	transactions := make([]*Transaction, 0)
+	for rows.Next() {
+		var record TransactionPostgreSQLModel
+		var body *string
+
+		if err := rows.Scan(
+			&record.ID,
+			&record.ParentTransactionID,
+			&record.GroupID,
+			&record.Description,
+			&record.Status,
+			&record.StatusDescription,
+			&record.Amount,
+			&record.AssetCode,
+			&record.ChartOfAccountsGroupName,
+			&record.LedgerID,
+			&record.OrganizationID,
+			&body,
+			&record.CreatedAt,
+			&record.UpdatedAt,
+			&record.DeletedAt,
+			&record.Route,
+			&record.RouteID,
+			&record.FeesSkipped,
+			&record.TracerSkipped,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
+
+			return nil, err
+		}
+
+		if !libCommons.IsNilOrEmpty(body) {
+			if err := json.Unmarshal([]byte(*body), &record.Body); err != nil {
+				libOpentelemetry.HandleSpanError(span, "Failed to unmarshal body", err)
+
+				return nil, err
+			}
+		}
+
+		transactions = append(transactions, record.ToEntity())
 	}
 
 	if err := rows.Err(); err != nil {

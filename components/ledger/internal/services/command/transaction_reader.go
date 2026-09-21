@@ -66,6 +66,14 @@ type TransactionProjectionResolver interface {
 	ResolveTransactionProjection(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, uuid.UUID, bool, error)
 }
 
+// TransactionGroupReader is the cross-ledger extension implemented by the
+// production query use case. It stays separate from TransactionReader so
+// singular transaction readers and focused test doubles do not gain an
+// unrelated cross-scope method.
+type TransactionGroupReader interface {
+	FindTransactionsByGroupID(context.Context, uuid.UUID) ([]*transaction.Transaction, error)
+}
+
 func resolveTransactionProjection(
 	ctx context.Context,
 	reader TransactionReader,
