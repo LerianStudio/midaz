@@ -34,6 +34,7 @@ const v2TransactionSchemaName = "TransactionV2"
 func buildCanonicalTransactionFixture() *transaction.Transaction {
 	amount := decimal.NewFromInt(1500)
 	parentID := "11111111-1111-1111-1111-111111111111"
+	groupID := "88888888-8888-8888-8888-888888888888"
 	routeID := "22222222-2222-2222-2222-222222222222"
 	statusDescription := "Active status"
 	createdAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -43,6 +44,7 @@ func buildCanonicalTransactionFixture() *transaction.Transaction {
 	return &transaction.Transaction{
 		ID:                       "33333333-3333-3333-3333-333333333333",
 		ParentTransactionID:      &parentID,
+		GroupID:                  &groupID,
 		Description:              "v2 fixture transaction",
 		Status:                   transaction.Status{Code: "APPROVED", Description: &statusDescription},
 		Amount:                   &amount,
@@ -80,6 +82,7 @@ func TestNewTransactionV2_RenamesSourceDestinationKeepsEverythingElse(t *testing
 
 	assert.Equal(t, canonical.ID, got.ID)
 	assert.Equal(t, canonical.ParentTransactionID, got.ParentTransactionID)
+	assert.Equal(t, canonical.GroupID, got.GroupID)
 	assert.Equal(t, canonical.Description, got.Description)
 	assert.Equal(t, canonical.Status.Code, got.Status.Code)
 	assert.Equal(t, canonical.Status.Description, got.Status.Description)

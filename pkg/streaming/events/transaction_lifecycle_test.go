@@ -24,6 +24,7 @@ var (
 	tranOrg      = uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ac11").String()
 	tranLed      = uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ac12").String()
 	tranParent   = uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ac13").String()
+	tranGroup    = uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ac15").String()
 	tranOpID     = uuid.MustParse("01965ed9-7fa4-75b2-8872-fc9e8509ac14").String()
 	tranAmount   = decimal.NewFromInt(1500)
 	approvedCode = constant.APPROVED
@@ -82,10 +83,13 @@ func TestTransactionLifecycleDefinitions_Keys(t *testing.T) {
 
 func TestNewTransactionPosted_MapsAllSourceFields(t *testing.T) {
 	src := minimalTransactionSource()
+	src.GroupID = &tranGroup
 	payload := events.NewTransactionPosted(src)
 
 	assert.Equal(t, src.ID, payload.ID)
 	assert.Nil(t, payload.ParentTransactionID, "posted has no parent")
+	require.NotNil(t, payload.GroupID)
+	assert.Equal(t, tranGroup, *payload.GroupID)
 	assert.Equal(t, src.OrganizationID, payload.OrganizationID)
 	assert.Equal(t, src.LedgerID, payload.LedgerID)
 	assert.Equal(t, approvedCode, payload.Status.Code)
