@@ -178,7 +178,7 @@ func assertPrefixesCoexist(t *testing.T, doc *huma.OpenAPI) {
 	}
 
 	require.Equal(t, 58, v1Keys, "path keys under /v1")
-	require.Equal(t, 72, v2Keys, "path keys under /v2")
+	require.Equal(t, 73, v2Keys, "path keys under /v2")
 
 	var overlap []string
 

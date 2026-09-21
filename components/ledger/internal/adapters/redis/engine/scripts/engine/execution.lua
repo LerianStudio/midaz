@@ -118,7 +118,7 @@ local function loadBalancePool(request)
             current.balanceRef = balance.balanceRef
         end
         local item = {
-            current = current, blob = blob, keyIndex = keyIndex,
+            current = current, blob = blob, keyIndex = keyIndex, seeded = not raw,
             deleted = redis.call("EXISTS", KEYS[markerIndex], KEYS[legacyMarkerIndex]) > 0
         }
         pool[balance.balanceRef] = item
@@ -134,6 +134,96 @@ local function loadBalancePool(request)
     if #normalization > 0 then error({ kind = "normalization", keys = normalization }, 0) end
 
     return pool, companions
+end
+
+-- loadAccountProtection reads the exceptional closing controls of every account
+-- of the declared pool inside this same atomic execution. PostgreSQL owns the
+-- closing state; these keys are the live controls a movement must honor.
+--
+-- A marker that exists but carries no value is a failure of the protection surface
+-- and refuses technically. That is deliberately distinct from the absence of both
+-- markers, which is the normal state of an open account and refuses nothing.
+--
+-- The two cases are told apart by the GET reply and nothing else: an absent key
+-- answers Lua `false`, an existing key with an empty value answers `""`. The
+-- comparisons below MUST stay value comparisons against `""`; a truthiness test
+-- collapses both replies into one and reads a protection failure as absence.
+local function loadAccountProtection(request)
+    local protection = {}
+    for _, account in ipairs(request.accounts) do
+        local closingKey, closedKey = KEYS[account.closingKeyIndex], KEYS[account.closedKeyIndex]
+        local ownershipKey = KEYS[account.ownershipKeyIndex]
+        expectRedisType(closingKey, "string")
+        expectRedisType(closedKey, "string")
+        expectRedisType(ownershipKey, "string")
+        local closing, closed = redis.call("GET", closingKey), redis.call("GET", closedKey)
+        local owner = redis.call("GET", ownershipKey)
+        if closing == "" or closed == "" or owner == "" then
+            technical("account_protection_unreadable", "account protection marker carries no value")
+        end
+        protection[account.accountId] = {
+            closing = closing and true or false, closed = closed and true or false,
+            owner = owner, token = account.admissionToken
+        }
+    end
+
+    return protection
+end
+
+-- validateAccountClosingMarkers refuses an execution over a closing or closed
+-- account before the balance pool is even read, so not even the precommit limit
+-- repair that a malformed cached balance would request can reach Redis.
+--
+-- Only the accounts this execution uses decide: a balance that merely sits in the
+-- declared pool is not a movement, and its account's closing refuses nothing. The
+-- declared account order makes the refusal deterministic.
+local function validateAccountClosingMarkers(request, protection)
+    local owners, used = {}, {}
+    for _, balance in ipairs(request.balances) do owners[balance.balanceRef] = balance.snapshot.accountId end
+    for _, transaction in ipairs(request.transactions) do
+        for _, requirement in ipairs(transaction.balanceRequirements) do used[owners[requirement.balanceRef]] = true end
+        for _, posting in ipairs(transaction.postings) do used[owners[posting.balanceRef]] = true end
+    end
+    for _, account in ipairs(request.accounts) do
+        local state = protection[account.accountId]
+        if used[account.accountId] then
+            if state.closed then technical("account_closed", "account is closed") end
+            if state.closing then technical("account_closing_in_progress", "account closing is in progress") end
+        end
+    end
+end
+
+-- validateAccountAvailability refuses one balance whose account may not take part
+-- in a new execution. It is unconditional by design: a closing is not a live block
+-- control, so cancellation, permissions, honored skips and a presented
+-- account-block exception never exempt it.
+--
+-- A balance the pool read from Redis is already admitted. One this execution would
+-- seed from the request fills a cache miss, and may do so only while the
+-- administrative ownership of its account still carries this caller's admission
+-- token: without it nothing proved the account was open when the seed was read.
+local function validateAccountAvailability(protection, item)
+    local state = protection[item.current.accountId]
+    if not state then technical("invalid_protocol", "balance account is missing from the account protection block") end
+    if state.closed then technical("account_closed", "account is closed") end
+    if state.closing then technical("account_closing_in_progress", "account closing is in progress") end
+    if item.seeded and (state.token == "" or state.owner ~= state.token) then
+        technical("admission_not_confirmed", "balance seed admission is not confirmed")
+    end
+end
+
+-- validateAccountClosingAvailability applies the account protection to every
+-- balance this execution actually uses. A companion that only sits in the pool is
+-- left alone; one that moves repeats the check at its own mutation site.
+local function validateAccountClosingAvailability(request, pool, protection)
+    for _, transaction in ipairs(request.transactions) do
+        for _, requirement in ipairs(transaction.balanceRequirements) do
+            validateAccountAvailability(protection, pool[requirement.balanceRef])
+        end
+        for _, posting in ipairs(transaction.postings) do
+            validateAccountAvailability(protection, pool[posting.balanceRef])
+        end
+    end
 end
 
 -- validateAccountBlockExceptions authorizes a transaction-scoped primary
@@ -208,12 +298,13 @@ end
 -- applyTransactionsInMemory evaluates ordered transactions against a shared
 -- working pool without issuing Redis writes. Later transactions observe state
 -- produced by earlier transactions in the same execution.
-local function applyTransactionsInMemory(request, pool, companions, exemptions)
+local function applyTransactionsInMemory(request, pool, companions, exemptions, protection)
     local movements, touched, touchedSet, transactionResults = array(), {}, {}, {}
-    -- touch repeats deletion and account-block protection at the exact mutation
-    -- site, including companion movements generated internally rather than
-    -- declared as postings.
+    -- touch repeats deletion, account-closing and account-block protection at the
+    -- exact mutation site, including companion movements generated internally
+    -- rather than declared as postings.
     local function touch(item, txIndex, postingIndex, rejectBlockedBalances, exempt)
+        validateAccountAvailability(protection, item)
         if item.deleted then refuse("balance_deleted", txIndex, postingIndex, item.current.balanceRef) end
         if blockedByLiveControl(rejectBlockedBalances, item, exempt) then
             refuse("account_blocked", txIndex, postingIndex, item.current.balanceRef)
@@ -448,11 +539,19 @@ local function execute(request, maximumPrepared)
     local appliedAtUnixMicro = now[1] .. string.format("%06d", tonumber(now[2]))
     local score = tonumber(now[1]) + tonumber(now[2]) / 1000000
 
+    -- The closing controls answer before the pool is read and before the grant is
+    -- even looked at: a movement over a closing or closed account is refused, never
+    -- exempted, and the single-use grant it presented stays unconsumed for the
+    -- account's own regularization.
+    local protection = loadAccountProtection(request)
+    validateAccountClosingMarkers(request, protection)
+
     local pool, companions = loadBalancePool(request)
+    validateAccountClosingAvailability(request, pool, protection)
     local exemptions, grantKeys = validateAccountBlockExceptions(request, pool, companions)
     validateLiveBalanceAvailability(request, pool, exemptions)
 
-    local movements, touched, transactionResults = applyTransactionsInMemory(request, pool, companions, exemptions)
+    local movements, touched, transactionResults = applyTransactionsInMemory(request, pool, companions, exemptions, protection)
     local response, preparedBalances, preparedRecoverRecords, preparedIndexes, receipt = prepareExecutionWrites(
         request, maximumPrepared, preparedProtection, movements, touched, transactionResults, appliedAtUnixMicro
     )

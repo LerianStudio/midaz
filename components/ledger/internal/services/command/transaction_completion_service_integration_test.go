@@ -304,7 +304,7 @@ func TestIntegrationTransactionCompletionServiceSQLAndMongo(t *testing.T) {
 	migrations := pgtestutil.FindMigrationsPath(t, "transaction")
 	dsn := pgtestutil.BuildConnectionString(pg.Host, pg.Port, pg.Config)
 	pgConnection := pgtestutil.CreatePostgresClient(t, dsn, dsn, pg.Config.DBName, migrations)
-	store := completion.NewStore(transaction.NewTransactionPostgreSQLRepository(pgConnection), operation.NewOperationPostgreSQLRepository(pgConnection))
+	store := completion.NewStore(transaction.NewTransactionPostgreSQLRepository(pgConnection, false), operation.NewOperationPostgreSQLRepository(pgConnection))
 	mongoConfig := mongotestutil.DefaultContainerConfig()
 	mongoConfig.Image = "mongo:8"
 	mongoContainer := mongotestutil.SetupContainerWithConfig(t, mongoConfig)

@@ -58,6 +58,12 @@ var deleteIfValueLua string
 //go:embed scripts/expire_if_value.lua
 var expireIfValueLua string
 
+//go:embed scripts/mark_account_closing_write.lua
+var markAccountClosingWriteLua string
+
+//go:embed scripts/delete_account_closing_attempt.lua
+var deleteAccountClosingAttemptLua string
+
 //go:embed scripts/normalize_balance_limit.lua
 var normalizeBalanceLimitLua string
 
@@ -82,6 +88,8 @@ var (
 	updateBalanceAllowFlagsScript   = redis.NewScript(updateBalanceAllowFlagsLua)
 	deleteIfValueScript             = redis.NewScript(deleteIfValueLua)
 	expireIfValueScript             = redis.NewScript(expireIfValueLua)
+	markAccountClosingWriteScript   = redis.NewScript(markAccountClosingWriteLua)
+	deleteAccountClosingScript      = redis.NewScript(deleteAccountClosingAttemptLua)
 	normalizeBalanceLimitScript     = redis.NewScript(normalizeBalanceLimitLua)
 	compareDeleteRecoveryScript     = redis.NewScript(compareDeleteRecoveryLua)
 	acknowledgeEngineRecoveryScript = redis.NewScript(acknowledgeEngineRecoveryLua)
@@ -128,6 +136,10 @@ type SyncKey struct {
 
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=consumer.redis_mock.go --package=redis . RedisRepository
 type RedisRepository interface {
+	// AccountProtectionRepository carries the account-scoped closing markers and the
+	// administrative ownership. They live on the same cache the balances do, so the
+	// services that admit or delete balances reach them through this same handle.
+	AccountProtectionRepository
 	// Set stores a key-value pair with a TTL.
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	// SetNX stores a key-value pair only if the key does not already exist (atomic).
@@ -174,6 +186,12 @@ type RedisRepository interface {
 	ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error)
 	// ReadAllMessagesFromQueue reads all messages from the backup queue.
 	ReadAllMessagesFromQueue(ctx context.Context) (map[string]string, error)
+	// ScanRecoveryMessages reads one bounded page of one recovery hash with HSCAN,
+	// so a caller can walk the existing records without HGETALL and without
+	// changing their format, their acknowledgment or their retention. The cursor
+	// belongs to the caller and to ONE hash: the two recovery origins are walked
+	// with independent cursors and are never merged by field.
+	ScanRecoveryMessages(ctx context.Context, source RecoveryQueueSource, cursor uint64, count int64) (RecoveryScanPage, error)
 	// RemoveMessageFromQueue removes a specific message from the backup queue by key.
 	RemoveMessageFromQueue(ctx context.Context, key string) error
 	// IncrementBackupAttempt atomically increments the failure counter for a backup

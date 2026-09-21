@@ -151,6 +151,10 @@ func TestGetBalances(t *testing.T) {
 		Return(map[string]*operation.Operation{}, nil).
 		AnyTimes()
 
+	// Every cache miss also coordinates its seed with closing; these accounts were
+	// never closed, so the protection answers absence throughout.
+	expectOpenAccountAdmission(mockRedisRepo, mockAccountRepo)
+
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
@@ -228,7 +232,7 @@ func TestGetBalances(t *testing.T) {
 			EXPECT().
 			ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{"alias2#default", "alias3#default"}).
 			Return(databaseBalances, nil).
-			Times(1)
+			Times(2)
 
 		mockAccountRepo.
 			EXPECT().
@@ -391,13 +395,16 @@ func TestGetBalances_CacheProjection(t *testing.T) {
 				Return(map[string]*operation.Operation{}, nil).
 				AnyTimes()
 
+			expectOpenAccountAdmission(mockRedisRepo, mockAccountRepo)
+
 			internalKey := utils.BalanceInternalKey(organizationID, ledgerID, alias)
 			mockRedisRepo.EXPECT().Get(gomock.Any(), internalKey).Return(tt.cached, nil)
 
 			if tt.wantDatabase {
 				blocked := false
 				mockBalanceRepo.EXPECT().ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, []string{alias}).
-					Return([]*mmodel.Balance{{ID: uuid.New().String(), Alias: "@alice", Key: "default", AccountID: accountID.String(), Available: decimal.NewFromInt(999)}}, nil)
+					Return([]*mmodel.Balance{{ID: uuid.New().String(), Alias: "@alice", Key: "default", AccountID: accountID.String(), Available: decimal.NewFromInt(999)}}, nil).
+					Times(2)
 				mockAccountRepo.EXPECT().ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{accountID}).
 					Return([]*mmodel.Account{{ID: accountID.String(), Blocked: &blocked}}, nil)
 			}
@@ -650,6 +657,8 @@ func TestGetBalances_BlockedHydration(t *testing.T) {
 			Return(map[string]*operation.Operation{}, nil).
 			AnyTimes()
 
+		expectOpenAccountAdmission(mockRedisRepo, mockAccountRepo)
+
 		return &UseCase{
 			BalanceRepo:          mockBalanceRepo,
 			AccountRepo:          mockAccountRepo,
@@ -689,7 +698,7 @@ func TestGetBalances_BlockedHydration(t *testing.T) {
 		mockBalanceRepo.EXPECT().
 			ListByAliasesWithKeys(gomock.Any(), organizationID, ledgerID, aliases).
 			Return(databaseBalances, nil).
-			Times(1)
+			Times(2)
 
 		mockAccountRepo.EXPECT().
 			ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, gomock.Any()).
@@ -793,7 +802,7 @@ func TestGetBalances_BlockedHydration(t *testing.T) {
 			Return([]*mmodel.Balance{
 				{ID: uuid.New().String(), AccountID: accountID.String(), Alias: "@miss", Key: "default"},
 			}, nil).
-			Times(1)
+			Times(2)
 
 		lookupErr := errors.New("account lookup failed")
 		mockAccountRepo.EXPECT().

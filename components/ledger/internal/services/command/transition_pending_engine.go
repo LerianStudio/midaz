@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -64,6 +65,12 @@ func (uc *UseCase) transitionPendingWithEngine(
 	unlock func(),
 	tracerEligible bool,
 ) (*transaction.Transaction, error) {
+	// The transition reloads the balances of the pending transaction. A cache miss
+	// admits its seed only inside the engine, so the ownership that load takes has
+	// to survive until the execution answers.
+	ctx, admissions := accountprotection.ContextWithSink(ctx)
+	defer admissions.Release(ctx)
+
 	transition, err := uc.preparePendingEngineTransition(ctx, run)
 	if err != nil {
 		unlock()
@@ -99,6 +106,8 @@ func (uc *UseCase) transitionPendingWithEngine(
 	}
 
 	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)
+	resolveEngineAdmissions(admissions, prepared.Execution.Execution, outcome, executeErr)
+
 	if executeErr != nil {
 		if !outcome.Executed {
 			unlock()

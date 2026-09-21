@@ -20,6 +20,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -60,6 +61,12 @@ func (uc *UseCase) executeCreateEngine(
 	run *createTransactionRun,
 	tracerEligible bool,
 ) (*transaction.Transaction, error) {
+	// Every balance this execution uses is loaded below. A cache miss admits its
+	// seed only inside the engine, so the administrative ownership the load takes
+	// has to survive until the execution answers.
+	ctx, admissions := accountprotection.ContextWithSink(ctx)
+	defer admissions.Release(ctx)
+
 	if isNilAppliedTransactionCompleter(uc.AppliedTransactionCompleter) {
 		uc.rollbackCreateClaim(ctx, run)
 		return nil, fmt.Errorf("applied transaction completer is not configured")
@@ -115,6 +122,8 @@ func (uc *UseCase) executeCreateEngine(
 	}
 
 	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)
+	resolveEngineAdmissions(admissions, prepared.Execution.Execution, outcome, executeErr)
+
 	if executeErr != nil {
 		if !outcome.Executed || confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
 			uc.rollbackCreateClaim(ctx, run)

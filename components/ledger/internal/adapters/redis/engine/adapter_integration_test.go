@@ -197,6 +197,7 @@ func TestIntegration_AdapterExecute_TransportAndReceipt(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, shared.Close()) })
 			provider := &integrationClientProvider{client: shared}
 			input, limits := richAdapterExecution(t)
+			ctx := admitEngineSeeds(t, ctx, inspector, input.Execution)
 			adapter, err := newAdapterWithLimits(provider, limits)
 			require.NoError(t, err)
 			result, err := adapter.Execute(ctx, input)
@@ -248,6 +249,7 @@ func TestIntegration_AdapterExecute_UsesSharedCommandHooks(t *testing.T) {
 	shared.AddHook(hook)
 
 	input, limits := richAdapterExecution(t)
+	ctx = admitEngineSeeds(t, ctx, shared, input.Execution)
 	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: shared}, limits)
 	require.NoError(t, err)
 	_, err = adapter.Execute(ctx, input)
@@ -319,7 +321,7 @@ func TestIntegration_AdapterExecute_WritesDualBalanceCacheContract(t *testing.T)
 
 			adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 			require.NoError(t, err)
-			result, err := adapter.Execute(ctx, input)
+			result, err := adapter.Execute(admitEngineSeeds(t, ctx, inspector, input.Execution), input)
 			require.NoError(t, err)
 			require.NotNil(t, result)
 
@@ -394,6 +396,7 @@ func TestIntegration_AdapterExecute_PostWriteFailureIsIndeterminate(t *testing.T
 	})
 	t.Cleanup(func() { require.NoError(t, shared.Close()) })
 	input, limits := richAdapterExecution(t)
+	ctx = admitEngineSeeds(t, ctx, inspector, input.Execution)
 	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: shared}, limits)
 	require.NoError(t, err)
 	keys, err := resolveAdapterKeys(ctx, input.Execution)
@@ -429,6 +432,7 @@ func TestIntegration_AdapterExecute_CorruptReceiptIsIndeterminate(t *testing.T) 
 	for _, corrupted := range []string{`{`, `[]`, `{}`, `{"formatVersion":1}`, "empty saved response"} {
 		t.Run(corrupted, func(t *testing.T) {
 			input, limits := richAdapterExecution(t)
+			ctx := admitEngineSeeds(t, ctx, inspector, input.Execution)
 			adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 			require.NoError(t, err)
 			_, err = adapter.Execute(ctx, input)

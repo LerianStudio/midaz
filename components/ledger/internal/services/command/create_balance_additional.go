@@ -94,6 +94,32 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidBalanceSettings, constant.EntityBalance)
 	}
 
+	// The ownership is taken before the account is inspected and held until the
+	// creation has a known SQL result, so a closing that starts meanwhile either
+	// waits for this creation or refuses it — never validates a balance list that
+	// is still growing. The companion provisioned below belongs to the same
+	// account, so it is already covered and asks for no ownership of its own.
+	admission, err := uc.acquireAccountAdmission(ctx, organizationID, ledgerID, accountID)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to protect the account for balance creation", err)
+
+		return nil, err
+	}
+
+	// writeIssued opens the window in which the ownership may no longer be given
+	// back on an unresolved failure: from the first persistence attempt onwards the
+	// outcome has to be proven, not assumed.
+	writeIssued := false
+
+	defer func() { resolveAccountAdmission(ctx, admission, writeIssued, err) }()
+
+	if err := uc.ensureAccountsNotClosed(ctx, organizationID, ledgerID, constant.ErrAccountClosed, accountID); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Refused to create a balance on a closed account", err)
+		logger.Log(ctx, libLog.LevelWarn, "Refused to create a balance on a closed account", libLog.Err(err))
+
+		return nil, err
+	}
+
 	existingBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, strings.ToLower(cbi.Key))
 	if err != nil {
 		var notFound pkg.EntityNotFoundError
@@ -176,6 +202,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 		syntheticCurrent := *additionalBalance
 		syntheticCurrent.Settings = nil
 
+		writeIssued = true
+
 		companion, oerr := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, &syntheticCurrent, cbi.Settings)
 		if oerr != nil {
 			return nil, oerr
@@ -183,6 +211,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 		overdraftCompanion = companion
 	}
+
+	writeIssued = true
 
 	created, err := uc.BalanceRepo.Create(ctx, additionalBalance)
 	if err != nil {

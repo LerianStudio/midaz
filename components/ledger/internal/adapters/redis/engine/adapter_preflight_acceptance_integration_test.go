@@ -52,6 +52,7 @@ func TestIntegration_AdapterExecute_IsolatesSameAliasAcrossAuthenticatedScopes(t
 			adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 			require.NoError(t, err)
 
+			ctx = admitEngineSeeds(t, ctx, inspector, input.Execution)
 			result, err := adapter.Execute(ctx, input)
 			require.NoError(t, err)
 			require.Len(t, result.Final, 1)
