@@ -611,6 +611,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Reservation Unavailable Error",
 			Message:    "The transaction could not be completed because the usage-limit service is temporarily unavailable and this ledger is configured to reject transactions when it cannot be reached. Please retry shortly.",
 		},
+		constant.ErrCrossLedgerNotEnabled: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerNotEnabled.Error(),
+			Title:      "Cross-Ledger Not Enabled Error",
+			Message:    fmt.Sprintf("Ledger %v is not enabled for cross-ledger transactions. Enable crossLedger.enabled on every ledger involved.", args...),
+		},
 		constant.ErrBalanceSeedRebuildInconsistent: ServiceUnavailableError{
 			EntityType: entityType,
 			Code:       constant.ErrBalanceSeedRebuildInconsistent.Error(),

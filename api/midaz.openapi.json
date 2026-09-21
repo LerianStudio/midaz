@@ -25971,6 +25971,33 @@
         ],
         "type": "object"
       },
+      "CrossLedgerSettings": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "CrossLedgerSettingsInput": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "examples": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "Distribute": {
         "additionalProperties": false,
         "properties": {
@@ -27708,6 +27735,9 @@
           "accounting": {
             "$ref": "#/components/schemas/AccountingValidation"
           },
+          "crossLedger": {
+            "$ref": "#/components/schemas/CrossLedgerSettings"
+          },
           "overrides": {
             "$ref": "#/components/schemas/OverridePolicy"
           },
@@ -27718,7 +27748,8 @@
         "required": [
           "accounting",
           "tracer",
-          "overrides"
+          "overrides",
+          "crossLedger"
         ],
         "type": "object"
       },
@@ -27727,6 +27758,9 @@
         "properties": {
           "accounting": {
             "$ref": "#/components/schemas/AccountingValidationInput"
+          },
+          "crossLedger": {
+            "$ref": "#/components/schemas/CrossLedgerSettingsInput"
           },
           "overrides": {
             "$ref": "#/components/schemas/OverridePolicyInput"

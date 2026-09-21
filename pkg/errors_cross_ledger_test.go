@@ -22,7 +22,7 @@ func TestValidateBusinessError_CrossLedgerNotEnabled(t *testing.T) {
 
 	mapped, ok := err.(pkg.UnprocessableOperationError)
 	require.True(t, ok, "cross-ledger policy refusal must be an HTTP 422 error, got %T", err)
-	assert.Equal(t, "0200", mapped.Code)
+	assert.Equal(t, "0249", mapped.Code)
 	assert.Equal(t, constant.EntityLedger, mapped.EntityType)
 	assert.Contains(t, mapped.Message, "ledger-id")
 }

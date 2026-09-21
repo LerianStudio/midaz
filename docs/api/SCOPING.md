@@ -177,6 +177,14 @@ the transport side, `transaction_fee_seam_structure_test.go` and
 `transaction_route_version_structure_test.go` (every route binds the use case matching its
 version).
 
+### Cross-ledger enablement is a `/v2` contract
+
+`crossLedger.enabled` is an operator's per-ledger opt-in. The policy resolver accepts only
+ledgers that explicitly enable it and returns `0249` (HTTP 422) when one is disabled. This
+setting does not retroactively change `/v1`: the existing `/v2` scope gate remains in force
+until the cross-ledger execution flow consumes this policy. A `/v1` transaction therefore
+cannot acquire this new rejection class merely because its ledger setting changed.
+
 ### Transaction skips are a `/v2` body field
 
 The two per-call transaction controls — `skip.fees` and `skip.tracer` — exist only on the

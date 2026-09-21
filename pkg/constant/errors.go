@@ -230,6 +230,9 @@ var (
 	// instead skipped (a SKIPPED audit is recorded) and the transaction
 	// proceeds, so this error is the fail-closed path only.
 	ErrTransactionReservationUnavailable = errors.New("0178")
+	// ErrCrossLedgerNotEnabled is returned when a cross-ledger transaction
+	// references a ledger that has not opted in through crossLedger.enabled.
+	ErrCrossLedgerNotEnabled = errors.New("0249")
 	// ErrOverdraftRouteNotConfigured is returned when route validation is
 	// enabled but the accounting route applied to an overdraft companion
 	// operation does not define an overdraft entry carrying the rubric for

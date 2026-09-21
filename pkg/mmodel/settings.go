@@ -34,6 +34,9 @@ import (
 //	    "allowFeeSkip": false,
 //	    "allowTracerSkip": false,
 //	    "allowHolderSkip": false
+//	  },
+//	  "crossLedger": {
+//	    "enabled": false
 //	  }
 //	}
 type LedgerSettings struct {
@@ -46,6 +49,9 @@ type LedgerSettings struct {
 	// Overrides contains the per-ledger opt-ins that permit callers to skip
 	// individual controls (fees, tracer, holder) on a per-request basis.
 	Overrides OverridePolicy `json:"overrides"`
+
+	// CrossLedger contains the per-ledger opt-in for cross-ledger transactions.
+	CrossLedger CrossLedgerSettings `json:"crossLedger"`
 }
 
 // AccountingValidation represents the accounting-related validation settings.
@@ -99,6 +105,21 @@ var defaultOverridePolicy = OverridePolicy{
 	AllowFeeSkip:    false,
 	AllowTracerSkip: false,
 	AllowHolderSkip: false,
+}
+
+// CrossLedgerSettings controls whether a ledger may participate in a cross-ledger transaction.
+// The struct holds only comparable scalar fields so LedgerSettings stays
+// ==-comparable (relied on by LedgerSettingsIsDefault).
+type CrossLedgerSettings struct {
+	// Enabled permits this ledger to participate in cross-ledger transactions.
+	// Default: false.
+	Enabled bool `json:"enabled" example:"false"`
+}
+
+// defaultCrossLedgerSettings is the canonical source of the cross-ledger defaults.
+// Cross-ledger transactions require an explicit per-ledger operator opt-in.
+var defaultCrossLedgerSettings = CrossLedgerSettings{
+	Enabled: false,
 }
 
 // TracerSettings represents the per-ledger tracer-integration settings.
@@ -175,9 +196,10 @@ var allowedTracerFailPostures = map[string]struct{}{
 // All validation flags are false by default for backwards compatibility.
 func DefaultLedgerSettings() LedgerSettings {
 	return LedgerSettings{
-		Accounting: defaultAccountingValidation,
-		Tracer:     defaultTracerSettings,
-		Overrides:  defaultOverridePolicy,
+		Accounting:  defaultAccountingValidation,
+		Tracer:      defaultTracerSettings,
+		Overrides:   defaultOverridePolicy,
+		CrossLedger: defaultCrossLedgerSettings,
 	}
 }
 
@@ -199,6 +221,9 @@ func LedgerSettingsToMap(s LedgerSettings) map[string]any {
 			"allowFeeSkip":    s.Overrides.AllowFeeSkip,
 			"allowTracerSkip": s.Overrides.AllowTracerSkip,
 			"allowHolderSkip": s.Overrides.AllowHolderSkip,
+		},
+		"crossLedger": map[string]any{
+			"enabled": s.CrossLedger.Enabled,
 		},
 	}
 }
@@ -266,6 +291,12 @@ func ParseLedgerSettings(settings map[string]any) LedgerSettings {
 		}
 	}
 
+	if crossLedgerMap, ok := settings["crossLedger"].(map[string]any); ok {
+		if enabled, ok := crossLedgerMap["enabled"].(bool); ok {
+			result.CrossLedger.Enabled = enabled
+		}
+	}
+
 	return result
 }
 
@@ -330,6 +361,9 @@ var settingsSchema = map[string]map[string]string{
 		"allowFeeSkip":    "bool",
 		"allowTracerSkip": "bool",
 		"allowHolderSkip": "bool",
+	},
+	"crossLedger": {
+		"enabled": "bool",
 	},
 }
 
