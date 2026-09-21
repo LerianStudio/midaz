@@ -186,7 +186,10 @@ func (uc *UseCase) preparePendingEngineTransition(ctx context.Context, run *pend
 		parentID: prepared.stableContext.parentID,
 		guard:    ExecutionGuard{TransactionID: transactionID, ExpectedToken: constant.PENDING, NextToken: run.status},
 	}
-	if resolution.Pending && resolution.ExecutionID != uuid.Nil {
+	// Indexed evidence is a predecessor whether or not it is already durable:
+	// the engine refuses a second execution over an existing index that names
+	// no predecessor, and its reference checks accept both durability states.
+	if resolution.ExecutionID != uuid.Nil {
 		prepared.dependencies = []TransactionEvidenceReference{{
 			Kind: TransactionDependencyPredecessor, TenantID: prepared.stableContext.tenantID,
 			OrganizationID: run.organizationID, LedgerID: run.ledgerID,

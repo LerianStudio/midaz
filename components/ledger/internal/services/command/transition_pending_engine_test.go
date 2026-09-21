@@ -46,6 +46,7 @@ type transitionEngineReader struct {
 type pendingProjectionReader struct {
 	*transitionEngineReader
 	executionID uuid.UUID
+	durable     bool
 }
 
 func (reader *pendingProjectionReader) ResolveTransactionProjection(
@@ -54,7 +55,7 @@ func (reader *pendingProjectionReader) ResolveTransactionProjection(
 	uuid.UUID,
 	uuid.UUID,
 ) (*transaction.Transaction, uuid.UUID, bool, error) {
-	return reader.persisted, reader.executionID, true, nil
+	return reader.persisted, reader.executionID, !reader.durable, nil
 }
 
 func (reader *transitionEngineReader) GetWriteBehindTransaction(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
@@ -116,6 +117,31 @@ func TestEngineWriteBehindPendingTransitionUsesUnprojectedPredecessorEvidence(t 
 	require.Zero(t, finalizer.envelopes)
 	require.Equal(t, 1, dispatcher.calls)
 	require.Equal(t, executor.requests[0].CompletionPlans[0].Dependencies, dispatcher.envelope.Dependencies)
+}
+
+// TestEngineWriteBehindPendingTransitionUsesDurablePredecessorEvidence covers the
+// window between a durable write and the retention sweep that reaps its index: the
+// engine still refuses a second execution that names no predecessor, so evidence
+// already flushed to SQL must be bound exactly like unprojected evidence.
+func TestEngineWriteBehindPendingTransitionUsesDurablePredecessorEvidence(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
+	predecessorExecutionID := uuid.New()
+	uc.TransactionReader = &pendingProjectionReader{
+		transitionEngineReader: reader, executionID: predecessorExecutionID, durable: true,
+	}
+
+	tran, err := uc.CommitTransactionV1(tmcore.ContextWithTenantID(t.Context(), "tenant-pending-durable"), in)
+
+	require.NoError(t, err)
+	require.NotNil(t, tran)
+	require.Len(t, executor.requests, 1)
+	require.Len(t, executor.requests[0].CompletionPlans, 1)
+	require.Len(t, executor.requests[0].CompletionPlans[0].Dependencies, 1)
+	dependency := executor.requests[0].CompletionPlans[0].Dependencies[0]
+	require.Equal(t, TransactionDependencyPredecessor, dependency.Kind)
+	require.Equal(t, in.TransactionID, dependency.TransactionID)
+	require.Equal(t, predecessorExecutionID, dependency.ExecutionID)
 }
 
 type transitionEngineExecutor struct {
