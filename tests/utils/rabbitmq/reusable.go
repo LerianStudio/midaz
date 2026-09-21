@@ -66,16 +66,17 @@ func CleanupReusableContainers() error {
 // allocates a virtual host owned exclusively by the calling test.
 // SetupContainer remains the exclusive-process contract for lifecycle, fixed
 // port, network, and chaos tests.
-func SetupReusableContainer(t *testing.T) *ContainerResult {
-	t.Helper()
+func SetupReusableContainer(tb testing.TB) *ContainerResult {
+	tb.Helper()
 
-	return SetupReusableContainerWithConfig(t, DefaultContainerConfig())
+	return SetupReusableContainerWithConfig(tb, DefaultContainerConfig())
 }
 
 // SetupReusableContainerWithConfig is SetupReusableContainer with explicit
 // server configuration. Identical configurations share the same process.
-func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *ContainerResult {
-	t.Helper()
+func SetupReusableContainerWithConfig(tb testing.TB, cfg ContainerConfig) *ContainerResult {
+	tb.Helper()
+	t := tb
 
 	server := getReusableRabbitMQServer(t, cfg)
 	sequence := server.sequence.Add(1)
@@ -175,8 +176,9 @@ func SetupReusableContainerWithConfig(t *testing.T, cfg ContainerConfig) *Contai
 	}
 }
 
-func getReusableRabbitMQServer(t *testing.T, cfg ContainerConfig) *reusableRabbitMQServer {
-	t.Helper()
+func getReusableRabbitMQServer(tb testing.TB, cfg ContainerConfig) *reusableRabbitMQServer {
+	tb.Helper()
+	t := tb
 
 	key := fmt.Sprintf("%s|%s|%s|%d|%g", cfg.Image, cfg.User, cfg.Password, cfg.MemoryMB, cfg.CPULimit)
 

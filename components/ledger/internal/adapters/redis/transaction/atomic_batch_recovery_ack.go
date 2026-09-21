@@ -103,6 +103,11 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 		return 0, err
 	}
 
+	attemptsKey, err := recoveryAttemptsQueueKey(source)
+	if err != nil {
+		return 0, err
+	}
+
 	indexKey, err := tenantKeyFromContextOrError(
 		ctx,
 		utils.AtomicTransactionBatchExecutionIndexInternalKey(organizationID, ledgerID, executionID),
@@ -113,11 +118,13 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 
 	keys, err := tenantKeysFromContext(ctx, []string{
 		queueKey,
-		queueKey,
+		attemptsKey,
 		"engine:" + cachepolicy.HashTag + ":receipts:" + scope,
 		"engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		"engine:" + cachepolicy.HashTag + ":protection:" + scope,
 		EngineRecoveryCleanupSchedule,
+		"engine:" + cachepolicy.HashTag + ":evidence:" + scope,
+		"engine:" + cachepolicy.HashTag + ":transaction-index:" + scope,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("resolve atomic batch recovery acknowledgment keys: %w", err)

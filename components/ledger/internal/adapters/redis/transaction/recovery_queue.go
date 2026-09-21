@@ -18,6 +18,8 @@ type RecoveryQueueSource string
 const (
 	RecoveryQueueSourceLegacyBackup  RecoveryQueueSource = "legacy_backup"
 	RecoveryQueueSourceEngineRecover RecoveryQueueSource = "engine_recover"
+
+	EngineRecoveryAttemptsQueue = cachepolicy.EngineRecoverQueue + ":attempts"
 )
 
 func recoveryQueueKey(source RecoveryQueueSource) (string, error) {
@@ -33,4 +35,15 @@ func recoveryQueueKey(source RecoveryQueueSource) (string, error) {
 
 func (source RecoveryQueueSource) clearsLegacyAttempts() bool {
 	return source == RecoveryQueueSourceLegacyBackup
+}
+
+func recoveryAttemptsQueueKey(source RecoveryQueueSource) (string, error) {
+	switch source {
+	case RecoveryQueueSourceLegacyBackup:
+		return TransactionBackupAttemptsQueue, nil
+	case RecoveryQueueSourceEngineRecover:
+		return EngineRecoveryAttemptsQueue, nil
+	default:
+		return "", fmt.Errorf("invalid recovery queue source %q", source)
+	}
 }

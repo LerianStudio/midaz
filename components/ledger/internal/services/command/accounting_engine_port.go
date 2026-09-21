@@ -17,6 +17,10 @@ import (
 type CompletionPlanRecord struct {
 	TransactionID uuid.UUID
 	Payload       json.RawMessage
+	// Dependencies bind lifecycle and revert projections to immutable engine
+	// evidence. The Redis engine validates and publishes these references in the
+	// same atomic command as the accounting result.
+	Dependencies []TransactionEvidenceReference
 }
 
 // ExecutionGuard fences competing state transitions of the same transaction.

@@ -100,6 +100,30 @@ func (completer *tenantAppliedTransactionCompleter) Complete(ctx context.Context
 	return result, nil
 }
 
+func (completer *tenantAppliedTransactionCompleter) CompleteBulk(ctx context.Context, records []*command.TransactionCompletionRecord) ([]command.TransactionCompletionResult, error) {
+	if len(records) == 0 {
+		return []command.TransactionCompletionResult{}, nil
+	}
+
+	ctx, err := completer.resolveContext(ctx, records[0])
+	if err != nil {
+		return nil, err
+	}
+
+	for _, record := range records[1:] {
+		if record == nil || record.TenantID != records[0].TenantID {
+			return nil, fmt.Errorf("bulk transaction completion spans tenant scope")
+		}
+	}
+
+	bulk, ok := completer.delegate.(command.AppliedTransactionBulkCompleter)
+	if !ok {
+		return nil, fmt.Errorf("applied transaction bulk completer is not configured")
+	}
+
+	return bulk.CompleteBulk(ctx, records)
+}
+
 func (completer *tenantAppliedTransactionCompleter) resolveContext(ctx context.Context, record *command.TransactionCompletionRecord) (context.Context, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

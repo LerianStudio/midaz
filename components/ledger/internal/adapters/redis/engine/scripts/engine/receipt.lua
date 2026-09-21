@@ -106,19 +106,27 @@ local function decodeStoredReceipt(raw, request)
     if receipt.protection ~= nil then
         local protection = receipt.protection
         requireObject(protection)
-        if smallInteger(protection.formatVersion, 1) ~= 1 or smallInteger(protection.retentionSeconds, 604800) < 1 then
+        local protectionVersion = smallInteger(protection.formatVersion, 2)
+        if (protectionVersion ~= 1 and protectionVersion ~= 2) or smallInteger(protection.retentionSeconds, 604800) < 1 then
             technical("invalid_receipt", "invalid saved receipt protection")
         end
         requireArray(protection.transactions)
         requireArray(protection.recoveryFields)
         requireObject(protection.acknowledged)
         requireObject(protection.terminalCompletedAtMs)
+        if protectionVersion == 2 then requireArray(protection.indexFields) end
         if #protection.transactions ~= #request.transactions or #protection.recoveryFields ~= #request.transactions then
             technical("invalid_receipt", "saved receipt protection cardinality differs")
+        end
+        if protectionVersion == 2 and #protection.indexFields ~= #request.transactions then
+            technical("invalid_receipt", "saved receipt index cardinality differs")
         end
         for index, transaction in ipairs(request.transactions) do
             if protection.transactions[index] ~= transaction.id or protection.recoveryFields[index] ~= transaction.recoveryField then
                 technical("invalid_receipt", "saved receipt protection identity differs")
+            end
+            if protectionVersion == 2 and protection.indexFields[index] ~= transaction.id then
+                technical("invalid_receipt", "saved receipt index identity differs")
             end
         end
     end

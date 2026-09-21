@@ -14,13 +14,13 @@ import (
 // configureAppliedTransactionCompletion shares completion of already-applied
 // transactions and its tenant resolution between normal writes and recovery.
 // It does not enable the engine.
-func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase *command.UseCase, multiTenantEnabled bool, mongoResolver recoveryMongoResolver) error {
+func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase *command.UseCase, multiTenantEnabled bool, mongoResolver recoveryMongoResolver, maxRowsPerInsert ...int) error {
 	if consumer == nil || useCase == nil {
 		return errors.New("applied transaction completion requires command and recovery owners")
 	}
 
 	delegate, err := command.NewTransactionCompletionServiceWithEvents(
-		postgresCompletion.NewStore(useCase.TransactionRepo, useCase.OperationRepo),
+		postgresCompletion.NewStore(useCase.TransactionRepo, useCase.OperationRepo, maxRowsPerInsert...),
 		useCase.TransactionMetadataRepo,
 		useCase,
 	)

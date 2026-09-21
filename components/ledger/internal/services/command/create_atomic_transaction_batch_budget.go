@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -272,18 +273,32 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 	plans := make([]TransactionCompletionPlan, 0, len(run.items))
 	publicTransactions := make([]*transaction.Transaction, 0, len(run.items))
 	recoveryBytes := 0
+	preparedWriteBehindBytes := 0
 	completionPlanBytes := 0
 	expandedPostings := 0
+	protectedTransactions := make([]uuid.UUID, 0, len(run.items))
+	protectedRecoveryFields := make([]string, 0, len(run.items))
+	protectedIndexFields := make([]uuid.UUID, 0, len(run.items))
+	capturedResponses := make(map[string]string, len(run.items))
+	publicResponsePayloads := make([]json.RawMessage, 0, len(run.items))
 
 	for index := range run.items {
 		item := &run.items[index]
 		expandedPostings += len(item.prepared.transaction.Postings)
-		completionPlanBytes += len(item.completionPlanPayload)
+		dependencies := []TransactionEvidenceReference{}
+
+		dependencyPayload, err := json.Marshal(dependencies)
+		if err != nil {
+			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch dependencies: %w", err)
+		}
+
+		completionPlanBytes += len(item.completionPlanPayload) + len(dependencyPayload)
 		transactions = append(transactions, item.prepared.transaction)
 		guards = append(guards, item.guard)
 		records = append(records, CompletionPlanRecord{
 			TransactionID: item.transactionID,
 			Payload:       append(json.RawMessage(nil), item.completionPlanPayload...),
+			Dependencies:  dependencies,
 		})
 		plans = append(plans, item.completionPlan)
 		publicTransactions = append(publicTransactions, atomicTransactionBatchFoundationResult(run, item))
@@ -330,22 +345,92 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 			Result:            result,
 		}
 
-		recoveryPayload, err := json.Marshal(recovery)
+		recoveryPayload, err := json.Marshal(TransactionWriteBehindEnvelope{
+			FormatVersion: TransactionWriteBehindFormatVersion, ApplicationState: TransactionApplicationConfirmed,
+			ReplayState: TransactionReplayReconstructible, DurabilityState: TransactionDurabilityPending,
+			Record: recovery, Dependencies: dependencies,
+		})
 		if err != nil {
 			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch recovery: %w", err)
+		}
+
+		recoveryField := item.transactionID.String() + ":" + run.executionID.String()
+
+		indexPayload, err := EncodeTransactionEvidenceIndex(TransactionEvidenceIndex{
+			FormatVersion: TransactionEvidenceIndexFormatVersion, TenantID: item.completionPlan.TenantID,
+			OrganizationID: run.organizationID, LedgerID: run.ledgerID, TransactionID: item.transactionID,
+			ExecutionID: run.executionID, Action: item.action, ApplicationState: TransactionApplicationConfirmed,
+			ReplayState: TransactionReplayReconstructible, DurabilityState: TransactionDurabilityPending,
+			RecoveryField: recoveryField, ReceiptField: run.executionID.String(), Dependencies: dependencies,
+		})
+		if err != nil {
+			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch index: %w", err)
 		}
 
 		recoveryBytes += len(recoveryPayload) +
 			len(result.Movements)*atomicTransactionBatchMovementSafetyBytes +
 			len(result.Final)*atomicTransactionBatchSnapshotSafetyBytes
+		preparedWriteBehindBytes += len(recoveryPayload) + len(indexPayload) + len(recoveryField) + len(item.transactionID.String())
+		protectedTransactions = append(protectedTransactions, item.transactionID)
+		protectedRecoveryFields = append(protectedRecoveryFields, recoveryField)
+		protectedIndexFields = append(protectedIndexFields, item.transactionID)
 
-		cachedPayload, err := json.Marshal(struct {
-			Transactions []*transaction.Transaction  `json:"transactions"`
-			Plans        []TransactionCompletionPlan `json:"plans"`
+		responsePayload, err := json.Marshal(publicTransactions[len(publicTransactions)-1])
+		if err != nil {
+			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch immutable response: %w", err)
+		}
+
+		capturedResponses[item.transactionID.String()] = base64.StdEncoding.EncodeToString(responsePayload)
+		publicResponsePayloads = append(publicResponsePayloads, responsePayload)
+
+		batchResponsePayload, err := json.Marshal(struct {
+			Transactions []json.RawMessage `json:"transactions"`
+		}{Transactions: publicResponsePayloads})
+		if err != nil {
+			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch replay response: %w", err)
+		}
+
+		receiptPayload, err := json.Marshal(struct {
+			FormatVersion     int       `json:"formatVersion"`
+			TenantID          string    `json:"tenantId"`
+			OrganizationID    uuid.UUID `json:"organizationId"`
+			LedgerID          uuid.UUID `json:"ledgerId"`
+			ExecutionID       uuid.UUID `json:"executionId"`
+			IntentFingerprint string    `json:"intentFingerprint"`
+			Response          string    `json:"response"`
+			Protection        struct {
+				FormatVersion         int              `json:"formatVersion"`
+				RetentionSeconds      int64            `json:"retentionSeconds"`
+				Transactions          []uuid.UUID      `json:"transactions"`
+				RecoveryFields        []string         `json:"recoveryFields"`
+				IndexFields           []uuid.UUID      `json:"indexFields"`
+				Acknowledged          map[string]bool  `json:"acknowledged"`
+				TerminalCompletedAtMS map[string]int64 `json:"terminalCompletedAtMs"`
+			} `json:"protection"`
 		}{
-			Transactions: publicTransactions,
-			Plans:        plans,
+			FormatVersion: 1, TenantID: item.completionPlan.TenantID, OrganizationID: run.organizationID,
+			LedgerID: run.ledgerID, ExecutionID: run.executionID, IntentFingerprint: run.engineIntentFingerprint,
+			Response: string(batchResponsePayload), Protection: struct {
+				FormatVersion         int              `json:"formatVersion"`
+				RetentionSeconds      int64            `json:"retentionSeconds"`
+				Transactions          []uuid.UUID      `json:"transactions"`
+				RecoveryFields        []string         `json:"recoveryFields"`
+				IndexFields           []uuid.UUID      `json:"indexFields"`
+				Acknowledged          map[string]bool  `json:"acknowledged"`
+				TerminalCompletedAtMS map[string]int64 `json:"terminalCompletedAtMs"`
+			}{
+				FormatVersion: 2, RetentionSeconds: atomicTransactionBatchRetentionSeconds(run.idempotencyTTL),
+				Transactions: protectedTransactions, RecoveryFields: protectedRecoveryFields, IndexFields: protectedIndexFields,
+				Acknowledged: map[string]bool{}, TerminalCompletedAtMS: map[string]int64{},
+			},
 		})
+		if err != nil {
+			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch receipt: %w", err)
+		}
+
+		cachedPayload, err := encodeAtomicTransactionBatchCachedBudget(
+			publicTransactions, plans, capturedResponses, batchResponsePayload,
+		)
 		if err != nil {
 			return atomicTransactionBatchBudgetMeasurements{}, fmt.Errorf("measure atomic transaction batch cached response: %w", err)
 		}
@@ -354,12 +439,31 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 		measurements.executionBalances[index] = len(balancePrefixes[index])
 		measurements.completionPlanBytes[index] = completionPlanBytes
 		measurements.accountingRequestBytes[index] = len(accountingBytes)
-		measurements.preparedResponseBytes[index] = len(preparedBytes)
+		measurements.preparedResponseBytes[index] = len(preparedBytes) + preparedWriteBehindBytes + len(receiptPayload)
 		measurements.recoveryBytes[index] = recoveryBytes
 		measurements.cachedResponseBytes[index] = len(cachedPayload)
 	}
 
 	return measurements, nil
+}
+
+func encodeAtomicTransactionBatchCachedBudget(
+	transactions []*transaction.Transaction,
+	plans []TransactionCompletionPlan,
+	captures map[string]string,
+	response json.RawMessage,
+) ([]byte, error) {
+	return json.Marshal(struct {
+		Transactions []*transaction.Transaction  `json:"transactions"`
+		Plans        []TransactionCompletionPlan `json:"plans"`
+		Captures     map[string]string           `json:"initialResponses"`
+		Response     json.RawMessage             `json:"response"`
+	}{
+		Transactions: transactions,
+		Plans:        plans,
+		Captures:     captures,
+		Response:     response,
+	})
 }
 
 func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]accounting.BalanceSnapshot, error) {

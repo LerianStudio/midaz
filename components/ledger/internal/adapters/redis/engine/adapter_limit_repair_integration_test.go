@@ -326,7 +326,7 @@ func TestIntegration_AdapterExecute_RepairThenRefusalPreservesHotBalance(t *test
 			}
 			extraFields := 0
 			if tt.format == balancecache.FormatNewOnly {
-				extraFields = 17
+				extraFields = 18
 			}
 			require.Len(t, repairedFields, len(expectedFields)+extraFields, "repair adds only missing dual fields")
 			after := captureAdapterState(t, inspector, keys)

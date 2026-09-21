@@ -46,8 +46,8 @@ type LegacyBackupConsumer struct {
 	completion *recoveryRecordCompleter
 }
 
-// EngineRecoveryConsumer owns only version-two completion records written by
-// the accounting engine. Its dependency surface intentionally has no engine
+// EngineRecoveryConsumer owns version-two completion records and their
+// version-one write-behind wrapper written by the accounting engine. Its dependency surface intentionally has no engine
 // execution capability: recovery may finish durable projections and ACK the
 // record, but it must never apply balances again.
 type EngineRecoveryConsumer struct {
@@ -122,6 +122,9 @@ LegacyRecords:
 				c.logger.Log(ctx, libLog.LevelWarn, "Invalid version-two record retained in legacy backup queue", libLog.String("redis_key", field), libLog.Err(err))
 				continue
 			}
+		} else if version == transactionWriteBehindRecoveryVersion {
+			c.logger.Log(ctx, libLog.LevelWarn, "Write-behind envelope retained in legacy backup queue", libLog.String("redis_key", field))
+			continue
 		} else if err = json.Unmarshal([]byte(raw), &legacyRecord); err != nil {
 			c.handleMalformedLegacyRecord(ctx, span, field, raw, err)
 			continue
@@ -213,12 +216,12 @@ EngineRecords:
 			continue
 		}
 
-		if version != command.TransactionCompletionFormatVersion {
+		if version != command.TransactionCompletionFormatVersion && version != transactionWriteBehindRecoveryVersion {
 			c.logger.Log(ctx, libLog.LevelWarn, "Unversioned engine recovery record retained", libLog.String("redis_key", field))
 			continue
 		}
 
-		recovery, ttl, decodeErr := decodeRecoveryRecord(ctx, field, raw)
+		recovery, ttl, decodeErr := decodeRecoveryEnvelope(ctx, field, raw)
 		if decodeErr != nil {
 			c.logger.Log(ctx, libLog.LevelWarn, "Invalid engine recovery envelope retained", libLog.String("redis_key", field), libLog.Err(decodeErr))
 			continue
@@ -243,7 +246,7 @@ EngineRecords:
 					wg.Done()
 				}()
 
-				c.completion.process(ctx, txRedis.RecoveryQueueSourceEngineRecover, field, raw, recovery)
+				c.completion.processEngine(ctx, field, raw, recovery)
 			})
 	}
 

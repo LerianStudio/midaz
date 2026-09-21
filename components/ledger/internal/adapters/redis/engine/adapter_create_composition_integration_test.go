@@ -177,8 +177,7 @@ func TestIntegration_CreateTransactionV1_ComposesRealAdapterRecoveryAndFinalizat
 
 	recoveryRaw, err := client.HGet(ctx, keys.Recovery, got.ID+":"+execution.Execution.ExecutionID.String()).Bytes()
 	require.NoError(t, err)
-	recovery, err := command.DecodeTransactionCompletionRecord(recoveryRaw)
-	require.NoError(t, err)
+	recovery := decodeEngineWriteBehindRecord(t, recoveryRaw)
 	require.Equal(t, command.TransactionCompletionFormatVersion, recovery.FormatVersion)
 	require.Equal(t, execution.Execution.ExecutionID, recovery.ExecutionID)
 	require.Equal(t, execution.IntentFingerprint, recovery.IntentFingerprint)

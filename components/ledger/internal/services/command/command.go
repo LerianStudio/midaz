@@ -165,6 +165,13 @@ type UseCase struct {
 	// applied engine result. It is required when Engine is set.
 	AppliedTransactionCompleter AppliedTransactionCompleter
 
+	// TransactionWriteBehindDispatcher is enabled only for the configured async
+	// create mode. Confirmed publish returns the immutable response immediately;
+	// failed or uncertain publish falls back to AppliedTransactionCompleter.
+	TransactionWriteBehindDispatcher TransactionWriteBehindDispatcher
+	TransactionWriteBehindAsync      bool
+	TransactionEvidenceResolver      TransactionEvidenceResolver
+
 	// EngineRecoveryAcknowledger removes the exact recovery record after
 	// AppliedTransactionCompleter confirms durable SQL and MongoDB projections.
 	// Failures are non-fatal because the asynchronous recovery consumer owns the

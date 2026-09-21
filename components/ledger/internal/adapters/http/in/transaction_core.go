@@ -47,6 +47,19 @@ func (handler *TransactionHandler) getTransaction(ctx context.Context, organizat
 	ctx, span := tracer.Start(ctx, "handler.get_transaction.core")
 	defer span.End()
 
+	if handler.Query.CanResolveEngineWriteBehind() {
+		resolved, err := handler.Query.ResolveEngineWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
+		if err != nil {
+			handleSpanByErrorClass(span, "Failed to resolve engine transaction evidence", err)
+			return nil, false, err
+		}
+
+		if resolved != nil && resolved.Transaction != nil {
+			cacheHit := resolved.Source != query.EngineTransactionResolutionPrimary
+			return resolved.Transaction, cacheHit, nil
+		}
+	}
+
 	if wbTran, wbErr := handler.Query.GetWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID); wbErr == nil {
 		return wbTran, true, nil
 	} else {

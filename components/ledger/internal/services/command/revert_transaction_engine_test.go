@@ -34,6 +34,68 @@ type revertEngineReader struct {
 	reads    int
 }
 
+type revertProjectionReader struct {
+	TransactionReader
+	executionID uuid.UUID
+	pending     bool
+}
+
+func (reader *revertProjectionReader) ResolveTransactionProjection(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+	uuid.UUID,
+) (*transaction.Transaction, uuid.UUID, bool, error) {
+	return &transaction.Transaction{}, reader.executionID, reader.pending, nil
+}
+
+func TestEngineWriteBehindRevertBindsUnprojectedOriginEvidence(t *testing.T) {
+	organizationID, ledgerID, originID := uuid.New(), uuid.New(), uuid.New()
+	executionID := uuid.New()
+	uc := &UseCase{
+		TransactionReader:           &revertProjectionReader{executionID: executionID, pending: true},
+		TransactionEvidenceResolver: &transactionEvidenceResolverStub{},
+	}
+	run := &createTransactionRun{organizationID: organizationID, ledgerID: ledgerID}
+	ctx := tmcore.ContextWithTenantID(t.Context(), "tenant-revert-evidence")
+
+	require.NoError(t, uc.attachRevertOriginDependency(ctx, run, originID))
+	require.Equal(t, []TransactionEvidenceReference{{
+		Kind: TransactionDependencyOrigin, TenantID: "tenant-revert-evidence",
+		OrganizationID: organizationID, LedgerID: ledgerID,
+		TransactionID: originID, ExecutionID: executionID,
+	}}, run.dependencies)
+}
+
+func TestEngineWriteBehindRevertBindsCompletedOriginEvidence(t *testing.T) {
+	organizationID, ledgerID, originID := uuid.New(), uuid.New(), uuid.New()
+	executionID := uuid.New()
+	uc := &UseCase{
+		TransactionReader:           &revertProjectionReader{executionID: executionID},
+		TransactionEvidenceResolver: &transactionEvidenceResolverStub{},
+	}
+	run := &createTransactionRun{organizationID: organizationID, ledgerID: ledgerID}
+	ctx := tmcore.ContextWithTenantID(t.Context(), "tenant-revert-evidence")
+
+	require.NoError(t, uc.attachRevertOriginDependency(ctx, run, originID))
+	require.Equal(t, []TransactionEvidenceReference{{
+		Kind: TransactionDependencyOrigin, TenantID: "tenant-revert-evidence",
+		OrganizationID: organizationID, LedgerID: ledgerID,
+		TransactionID: originID, ExecutionID: executionID,
+	}}, run.dependencies)
+}
+
+func TestEngineWriteBehindRevertSkipsOriginWithoutExecutionEvidence(t *testing.T) {
+	uc := &UseCase{
+		TransactionReader:           &revertProjectionReader{},
+		TransactionEvidenceResolver: &transactionEvidenceResolverStub{},
+	}
+	run := &createTransactionRun{organizationID: uuid.New(), ledgerID: uuid.New()}
+
+	require.NoError(t, uc.attachRevertOriginDependency(t.Context(), run, uuid.New()))
+	require.Empty(t, run.dependencies)
+}
+
 func (reader *revertEngineReader) GetBalances(_ context.Context, _, _ uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
 	reader.reads++
 	balances := make([]*mmodel.Balance, 0, len(aliases))

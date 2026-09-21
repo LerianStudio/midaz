@@ -31,13 +31,13 @@ import (
 // needs when both schemas must coexist in one Postgres for a full
 // fee-resolution path (the fee engine reads accounts/segments via the ledger
 // query layer).
-func ApplyOnboardingSchema(t *testing.T, db *sql.DB) {
-	t.Helper()
+func ApplyOnboardingSchema(tb testing.TB, db *sql.DB) {
+	tb.Helper()
 
-	dir := FindMigrationsPath(t, "onboarding")
+	dir := FindMigrationsPath(tb, "onboarding")
 
 	entries, err := os.ReadDir(dir)
-	require.NoError(t, err, "failed to read onboarding migrations directory")
+	require.NoError(tb, err, "failed to read onboarding migrations directory")
 
 	var upFiles []string
 
@@ -55,9 +55,9 @@ func ApplyOnboardingSchema(t *testing.T, db *sql.DB) {
 
 	for _, name := range upFiles {
 		content, readErr := os.ReadFile(filepath.Join(dir, name))
-		require.NoErrorf(t, readErr, "failed to read onboarding migration %s", name)
+		require.NoErrorf(tb, readErr, "failed to read onboarding migration %s", name)
 
 		_, execErr := db.Exec(string(content))
-		require.NoErrorf(t, execErr, "failed to apply onboarding migration %s", name)
+		require.NoErrorf(tb, execErr, "failed to apply onboarding migration %s", name)
 	}
 }
