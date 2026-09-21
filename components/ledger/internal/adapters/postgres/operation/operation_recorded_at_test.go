@@ -31,6 +31,14 @@ func TestOperationRecordedAtMapping(t *testing.T) {
 	require.Nil(t, model.ToEntity().RecordedAt)
 }
 
+func TestOperationPointInTimeRecordedAtMapping(t *testing.T) {
+	recordedAt := time.Date(2026, time.September, 21, 15, 0, 0, 123456000, time.UTC)
+
+	entity := (&OperationPointInTimeModel{RecordedAt: recordedAt}).ToEntity()
+	require.NotNil(t, entity.RecordedAt)
+	require.Equal(t, recordedAt, *entity.RecordedAt)
+}
+
 func TestOperationRepositoryRecordedAtFallbackAndPrecedence(t *testing.T) {
 	fixed := time.Date(2026, time.September, 21, 13, 0, 0, 654321000, time.UTC)
 	provided := fixed.Add(-time.Hour)

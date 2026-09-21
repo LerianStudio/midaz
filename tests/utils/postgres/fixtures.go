@@ -418,6 +418,8 @@ type OperationParams struct {
 	Route                 *string
 	BalanceAffected       bool
 	DeletedAt             *time.Time
+	CreatedAt             time.Time
+	RecordedAt            *time.Time
 }
 
 // CreateTestOperation inserts an operation directly into DB for test setup.
@@ -426,6 +428,10 @@ func CreateTestOperation(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, pa
 
 	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
+	createdAt := params.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = now
+	}
 
 	// Set defaults for optional fields
 	status := params.Status
@@ -454,14 +460,14 @@ func CreateTestOperation(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, pa
 			id, transaction_id, description, type, account_id, account_alias, balance_id, balance_key,
 			asset_code, chart_of_accounts, amount, available_balance, on_hold_balance,
 			available_balance_after, on_hold_balance_after, balance_version_before, balance_version_after,
-			status, route, balance_affected, organization_id, ledger_id, created_at, updated_at, deleted_at
+			status, route, balance_affected, organization_id, ledger_id, created_at, updated_at, deleted_at, recorded_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
 	`, id, params.TransactionID, params.Description, params.Type, params.AccountID, params.AccountAlias,
 		params.BalanceID, balanceKey, params.AssetCode, chartOfAccounts, params.Amount,
 		params.AvailableBalance, params.OnHoldBalance, params.AvailableBalanceAfter, params.OnHoldBalanceAfter,
 		params.BalanceVersionBefore, params.BalanceVersionAfter, status, params.Route, balanceAffected,
-		orgID, ledgerID, now, now, params.DeletedAt)
+		orgID, ledgerID, createdAt, createdAt, params.DeletedAt, params.RecordedAt)
 	require.NoError(t, err, "failed to create test operation")
 
 	return id

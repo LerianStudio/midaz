@@ -1233,6 +1233,66 @@ func TestIntegration_OperationRepository_NewColumnMigration_BackwardsCompatible(
 	assert.Empty(t, op.Route, "route should be empty")
 }
 
+func TestIntegration_OperationRepository_PointInTimeUsesRecordedAt(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	base := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
+	amount := decimal.NewFromInt(10)
+	zero := decimal.Zero
+	versionBeforeA, versionAfterA := int64(0), int64(1)
+	versionBeforeB, versionAfterB := int64(1), int64(2)
+	availableA, availableB := decimal.NewFromInt(100), decimal.NewFromInt(150)
+
+	create := func(id string, createdAt, recordedAt time.Time, before, after *decimal.Decimal, versionBefore, versionAfter *int64) {
+		t.Helper()
+		_, err := repo.Create(context.Background(), &Operation{
+			ID: id, TransactionID: ids.TransactionID.String(), Description: id,
+			Type: "CREDIT", AssetCode: "USD", Amount: Amount{Value: &amount},
+			Balance:      Balance{Available: before, OnHold: &zero, Version: versionBefore},
+			BalanceAfter: Balance{Available: after, OnHold: &zero, Version: versionAfter},
+			Status:       Status{Code: "APPROVED"}, AccountID: ids.AccountID.String(), AccountAlias: "@pit",
+			BalanceID: ids.BalanceID.String(), BalanceKey: "default", OrganizationID: ids.OrgID.String(), LedgerID: ids.LedgerID.String(),
+			BalanceAffected: true, CreatedAt: createdAt, UpdatedAt: createdAt, RecordedAt: &recordedAt,
+		})
+		require.NoError(t, err)
+	}
+
+	operationA := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	operationB := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	create(operationA, base, base, &zero, &availableA, &versionBeforeA, &versionAfterA)
+	create(operationB, base.Add(-24*time.Hour), base.Add(2*time.Hour), &availableA, &availableB, &versionBeforeB, &versionAfterB)
+
+	beforeRetroactiveRegistration, err := repo.FindLastOperationBeforeTimestamp(
+		context.Background(), ids.OrgID, ids.LedgerID, ids.AccountID, ids.BalanceID, base.Add(time.Hour),
+	)
+	require.NoError(t, err)
+	require.Equal(t, operationA, beforeRetroactiveRegistration.ID)
+
+	afterRetroactiveRegistration, err := repo.FindLastOperationBeforeTimestamp(
+		context.Background(), ids.OrgID, ids.LedgerID, ids.AccountID, ids.BalanceID, base.Add(3*time.Hour),
+	)
+	require.NoError(t, err)
+	require.Equal(t, operationB, afterRetroactiveRegistration.ID)
+
+	accountOperations, _, err := repo.FindLastOperationsForAccountBeforeTimestamp(
+		context.Background(), ids.OrgID, ids.LedgerID, ids.AccountID, base.Add(3*time.Hour),
+		http.Pagination{Limit: 10, SortOrder: "DESC"},
+	)
+	require.NoError(t, err)
+	require.Len(t, accountOperations, 1)
+	require.Equal(t, operationB, accountOperations[0].ID)
+
+	_, err = container.DB.Exec("UPDATE operation SET recorded_at = NULL WHERE id = $1", operationA)
+	require.NoError(t, err)
+	legacy, err := repo.FindLastOperationBeforeTimestamp(
+		context.Background(), ids.OrgID, ids.LedgerID, ids.AccountID, ids.BalanceID, base.Add(time.Hour),
+	)
+	require.NoError(t, err)
+	require.Equal(t, operationA, legacy.ID, "legacy rows must participate through created_at")
+}
+
 // TestIntegration_OperationRepository_DecimalPrecision_Preserved tests that
 // large decimal values are preserved through the repository layer.
 func TestIntegration_OperationRepository_DecimalPrecision_Preserved(t *testing.T) {
