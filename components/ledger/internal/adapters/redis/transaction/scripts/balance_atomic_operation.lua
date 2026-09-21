@@ -255,6 +255,12 @@ local function cloneBalance(tbl)
     return copy
 end
 
+local function cloneBalanceForEntry(tbl, entryAlias)
+    local copy = cloneBalance(tbl)
+    copy.Alias = entryAlias
+    return copy
+end
+
 -- min_decimal returns the smaller of two decimal strings, comparing
 -- directly via cmp_decimal — no subtraction step — so precision matches
 -- add_decimal/sub_decimal for values that overflow Lua's double
@@ -1292,6 +1298,7 @@ local function main()
 
         balance.Alias = alias
         project_dual_fields(balance, alias)
+        balance.Alias = balance.alias
         local redisBalance = encode_balance(balance)
         if not redisBalance then
             return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
@@ -1602,14 +1609,14 @@ local function main()
             or (newOverdraftUsed ~= originalOverdraftUsed)
 
         if hasChange then
-            balance.Alias = alias
             if not project_dual_fields(balance, alias) then
                 rollback(rollbackBalances, ttl)
                 return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
             end
+            balance.Alias = balance.alias
             -- Snapshot the pre-mutation state first so the "before" payload
             -- reflects what the caller read (especially OverdraftUsed).
-            table.insert(returnBalances, cloneBalance(balance))
+            table.insert(returnBalances, cloneBalanceForEntry(balance, alias))
 
             balance.Available = result
             balance.OnHold = resultOnHold
@@ -1625,8 +1632,9 @@ local function main()
                 rollback(rollbackBalances, ttl)
                 return redis.error_reply("BALANCE_DUAL_PROJECTION_INVALID")
             end
+            balance.Alias = balance.alias
 
-            table.insert(returnBalancesAfter, cloneBalance(balance))
+            table.insert(returnBalancesAfter, cloneBalanceForEntry(balance, alias))
 
             redisBalance = encode_balance(balance)
             if not redisBalance then
