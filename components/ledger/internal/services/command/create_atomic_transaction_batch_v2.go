@@ -88,6 +88,11 @@ type atomicTransactionBatchRun struct {
 	items                   []atomicTransactionBatchItemRun
 }
 
+type atomicTransactionBatchLedgerRef struct {
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
+}
+
 // atomicTransactionBatchItemRun owns the stable per-item identity and temporal
 // context that all subsequent preparation, engine, completion, and response
 // phases must consume at this same slice index.
@@ -96,6 +101,9 @@ type atomicTransactionBatchItemRun struct {
 	order                   int
 	originalIndex           int
 	revised                 bool
+	organizationID          uuid.UUID
+	ledgerID                uuid.UUID
+	ledgerSettings          mmodel.LedgerSettings
 	transactionID           uuid.UUID
 	transactionDate         time.Time
 	transactionCreatedAt    time.Time
@@ -302,11 +310,22 @@ func (uc *UseCase) initializeAtomicTransactionBatchItemsAndSettings(
 		run.items[index] = item
 	}
 
-	var err error
-
-	run.ledgerSettings, err = uc.TransactionReader.GetParsedLedgerSettings(ctx, run.organizationID, run.ledgerID)
-	if err != nil {
-		return fmt.Errorf("get atomic transaction batch ledger settings: %w", err)
+	refs := atomicTransactionBatchLedgerRefs(in.Transactions)
+	settingsByRef := make(map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings, len(refs))
+	for _, ref := range refs {
+		settings, err := uc.TransactionReader.GetParsedLedgerSettings(ctx, ref.organizationID, ref.ledgerID)
+		if err != nil {
+			return fmt.Errorf("get atomic transaction batch ledger settings: %w", err)
+		}
+		if len(refs) > 1 && !settings.CrossLedger.Enabled {
+			return pkg.ValidateBusinessError(constant.ErrCrossLedgerNotEnabled, constant.EntityLedger, ref.ledgerID.String())
+		}
+		settingsByRef[ref] = settings
+	}
+	run.ledgerSettings = settingsByRef[refs[0]]
+	for index := range run.items {
+		item := &run.items[index]
+		item.ledgerSettings = settingsByRef[atomicTransactionBatchLedgerRef{organizationID: item.organizationID, ledgerID: item.ledgerID}]
 	}
 
 	// State-dependent validation starts only after the complete ordered run is
@@ -315,6 +334,7 @@ func (uc *UseCase) initializeAtomicTransactionBatchItemsAndSettings(
 	for index := range run.items {
 		item := &run.items[index]
 
+		var err error
 		item.transactionDate, err = resolveTransactionDateAt(item.input, item.status, item.transactionCreatedAt)
 		if err != nil {
 			return withAtomicTransactionBatchRunItemError(err, item, "transaction date validation failed")
@@ -369,7 +389,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 		return pkg.HandleKnownBusinessValidationErrors(err)
 	}
 
-	feeSkip, tracerSkip, _, err := resolveTransactionSkips(item.input, run.ledgerSettings)
+	feeSkip, tracerSkip, _, err := resolveTransactionSkips(item.input, item.ledgerSettings)
 	if err != nil {
 		return err
 	}
@@ -380,8 +400,8 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 	if err := uc.applyFees(
 		ctx,
 		&item.input,
-		run.organizationID,
-		run.ledgerID,
+		item.organizationID,
+		item.ledgerID,
 		item.input.Pending,
 		item.honoredFeeSkip,
 	); err != nil {
@@ -398,7 +418,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 	item.fromTo = append(item.fromTo, mtransaction.MutateConcatAliases(item.input.Send.Source.From)...)
 
 	item.fromTo = append(item.fromTo, mtransaction.MutateConcatAliases(item.input.Send.Distribute.To)...)
-	if run.ledgerSettings.Accounting.ValidateRoutes {
+	if item.ledgerSettings.Accounting.ValidateRoutes {
 		mtransaction.PropagateRouteValidation(ctx, item.validate, item.status)
 	}
 
@@ -408,8 +428,8 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 		ctx,
 		span,
 		logger,
-		run.organizationID,
-		run.ledgerID,
+		item.organizationID,
+		item.ledgerID,
 		item.accountBlockExceptionID,
 	)
 	if err != nil {
@@ -423,25 +443,23 @@ func (uc *UseCase) prepareAtomicTransactionBatchEngineItems(
 	ctx context.Context,
 	run *atomicTransactionBatchRun,
 ) error {
-	aliases := firstSeenAtomicTransactionBatchAliases(run)
 	readCtx := readrouting.WithPrimaryRead(ctx)
-
-	sharedPool, err := loadPreparedEngineSnapshots(
-		readCtx,
-		uc.TransactionReader,
-		run.organizationID,
-		run.ledgerID,
-		aliases,
-	)
-	if err != nil {
-		return err
+	refs, aliasesByRef := firstSeenAtomicTransactionBatchAliasesByLedger(run)
+	pools := make(map[atomicTransactionBatchLedgerRef]EngineSnapshotPool, len(refs))
+	for _, ref := range refs {
+		pool, err := loadPreparedEngineSnapshots(readCtx, uc.TransactionReader, ref.organizationID, ref.ledgerID, aliasesByRef[ref])
+		if err != nil {
+			return err
+		}
+		pools[ref] = pool
 	}
 
 	for index := range run.items {
 		item := &run.items[index]
 		preparation := createEnginePreparationInput(run.createTransactionRun(item))
-
-		item.prepared, err = uc.prepareEngineTransactionWithPool(readCtx, preparation, sharedPool)
+		ref := atomicTransactionBatchLedgerRef{organizationID: item.organizationID, ledgerID: item.ledgerID}
+		var err error
+		item.prepared, err = uc.prepareEngineTransactionWithPool(readCtx, preparation, pools[ref])
 		if err != nil {
 			return withAtomicTransactionBatchRunItemError(err, item, "transaction preparation failed")
 		}
@@ -450,29 +468,39 @@ func (uc *UseCase) prepareAtomicTransactionBatchEngineItems(
 	return nil
 }
 
-func firstSeenAtomicTransactionBatchAliases(run *atomicTransactionBatchRun) []string {
-	seen := make(map[string]struct{})
-	aliases := make([]string, 0)
+func firstSeenAtomicTransactionBatchAliasesByLedger(run *atomicTransactionBatchRun) ([]atomicTransactionBatchLedgerRef, map[atomicTransactionBatchLedgerRef][]string) {
+	seenRefs := make(map[atomicTransactionBatchLedgerRef]struct{})
+	seenAliases := make(map[atomicTransactionBatchLedgerRef]map[string]struct{})
+	refs := make([]atomicTransactionBatchLedgerRef, 0)
+	aliasesByRef := make(map[atomicTransactionBatchLedgerRef][]string)
 
 	for index := range run.items {
-		preparation := createEnginePreparationInput(run.createTransactionRun(&run.items[index]))
+		item := &run.items[index]
+		ref := atomicTransactionBatchLedgerRef{organizationID: item.organizationID, ledgerID: item.ledgerID}
+		if _, exists := seenRefs[ref]; !exists {
+			seenRefs[ref] = struct{}{}
+			seenAliases[ref] = make(map[string]struct{})
+			refs = append(refs, ref)
+		}
+		preparation := createEnginePreparationInput(run.createTransactionRun(item))
 		for _, alias := range enginePreparationAliases(preparation) {
-			if _, exists := seen[alias]; exists {
+			if _, exists := seenAliases[ref][alias]; exists {
 				continue
 			}
 
-			seen[alias] = struct{}{}
-			aliases = append(aliases, alias)
+			seenAliases[ref][alias] = struct{}{}
+			aliasesByRef[ref] = append(aliasesByRef[ref], alias)
 		}
 	}
 
-	return aliases
+	return refs, aliasesByRef
 }
 
 func (run *atomicTransactionBatchRun) createTransactionRun(item *atomicTransactionBatchItemRun) *createTransactionRun {
+	organizationID, ledgerID := run.itemScope(item)
 	return &createTransactionRun{
-		organizationID:             run.organizationID,
-		ledgerID:                   run.ledgerID,
+		organizationID:             organizationID,
+		ledgerID:                   ledgerID,
 		transactionID:              item.transactionID,
 		transactionDate:            item.transactionDate,
 		input:                      item.input,
@@ -480,13 +508,29 @@ func (run *atomicTransactionBatchRun) createTransactionRun(item *atomicTransacti
 		action:                     item.action,
 		validate:                   item.validate,
 		fromTo:                     item.fromTo,
-		ledgerSettings:             run.ledgerSettings,
+		ledgerSettings:             run.itemLedgerSettings(item),
 		idempotencyTTL:             run.idempotencyTTL,
 		honoredFeeSkip:             item.honoredFeeSkip,
 		honoredTracerSkip:          item.honoredTracerSkip,
 		accountBlockExceptionID:    item.accountBlockExceptionID,
 		accountBlockExceptionGrant: item.accountBlockGrant,
 	}
+}
+
+func (run *atomicTransactionBatchRun) itemScope(item *atomicTransactionBatchItemRun) (uuid.UUID, uuid.UUID) {
+	if item.organizationID == uuid.Nil && item.ledgerID == uuid.Nil {
+		return run.organizationID, run.ledgerID
+	}
+
+	return item.organizationID, item.ledgerID
+}
+
+func (run *atomicTransactionBatchRun) itemLedgerSettings(item *atomicTransactionBatchItemRun) mmodel.LedgerSettings {
+	if item.organizationID == uuid.Nil && item.ledgerID == uuid.Nil {
+		return run.ledgerSettings
+	}
+
+	return item.ledgerSettings
 }
 
 func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2ItemInput) (uuid.UUID, uuid.UUID, error) {
@@ -500,22 +544,47 @@ func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2I
 	}
 
 	organizationID := items[0].OrganizationID
-
 	ledgerID := items[0].LedgerID
+	refs := atomicTransactionBatchLedgerRefs(items)
 	for index := range items {
-		if items[index].OrganizationID == uuid.Nil || items[index].LedgerID == uuid.Nil ||
-			items[index].OrganizationID != organizationID || items[index].LedgerID != ledgerID {
+		if items[index].OrganizationID == uuid.Nil || items[index].LedgerID == uuid.Nil {
 			err := pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
 
 			return uuid.Nil, uuid.Nil, withAtomicTransactionBatchItemError(
 				err,
 				index,
-				"transaction scope must match the first batch item",
+				"transaction scope must be complete",
 			)
+		}
+	}
+	if len(refs) > 1 {
+		for index, item := range items {
+			action := item.Action
+			if action == "" {
+				action = constant.ActionDirect
+			}
+			if action != constant.ActionDirect {
+				err := pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
+				return uuid.Nil, uuid.Nil, withAtomicTransactionBatchItemError(err, index, "cross-ledger hold is not supported")
+			}
 		}
 	}
 
 	return organizationID, ledgerID, nil
+}
+
+func atomicTransactionBatchLedgerRefs(items []CreateAtomicTransactionBatchV2ItemInput) []atomicTransactionBatchLedgerRef {
+	seen := make(map[atomicTransactionBatchLedgerRef]struct{}, len(items))
+	refs := make([]atomicTransactionBatchLedgerRef, 0, len(items))
+	for _, item := range items {
+		ref := atomicTransactionBatchLedgerRef{organizationID: item.OrganizationID, ledgerID: item.LedgerID}
+		if _, exists := seen[ref]; exists {
+			continue
+		}
+		seen[ref] = struct{}{}
+		refs = append(refs, ref)
+	}
+	return refs
 }
 
 func validateAtomicTransactionBatchItemCorrelation(items []CreateAtomicTransactionBatchV2ItemInput) error {
@@ -596,6 +665,8 @@ func initializeAtomicTransactionBatchItem(
 		order:                   atomicTransactionBatchItemOrder(in, index),
 		originalIndex:           atomicTransactionBatchItemOriginalIndex(in, index),
 		revised:                 atomicTransactionBatchItemIsRevised(in),
+		organizationID:          in.OrganizationID,
+		ledgerID:                in.LedgerID,
 		transactionID:           transactionID,
 		transactionCreatedAt:    createdAt,
 		transactionUpdatedAt:    updatedAt,
@@ -654,7 +725,7 @@ func (cursor *atomicTransactionBatchTimestampCursor) next() (time.Time, error) {
 	return next, nil
 }
 
-func atomicTransactionBatchFoundationResult(run *atomicTransactionBatchRun, item *atomicTransactionBatchItemRun) *transaction.Transaction {
+func atomicTransactionBatchFoundationResult(item *atomicTransactionBatchItemRun) *transaction.Transaction {
 	amount := item.input.Send.Value
 	status := item.status
 
@@ -667,8 +738,8 @@ func atomicTransactionBatchFoundationResult(run *atomicTransactionBatchRun, item
 		ChartOfAccountsGroupName: item.input.ChartOfAccountsGroupName,
 		Source:                   atomicTransactionBatchAliases(item.input.Send.Source.From),
 		Destination:              atomicTransactionBatchAliases(item.input.Send.Distribute.To),
-		LedgerID:                 run.ledgerID.String(),
-		OrganizationID:           run.organizationID.String(),
+		LedgerID:                 item.ledgerID.String(),
+		OrganizationID:           item.organizationID.String(),
 		Body:                     item.input,
 		Route:                    item.input.Route, //nolint:staticcheck // compatibility field mirrors singular transaction output
 		RouteID:                  item.input.RouteID,

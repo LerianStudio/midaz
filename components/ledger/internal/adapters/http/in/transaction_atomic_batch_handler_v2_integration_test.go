@@ -29,6 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
@@ -98,6 +99,23 @@ func (fixture *atomicBatchHTTPIntegrationFixture) newLedger(t *testing.T) uuid.U
 	seedLedgerSettings(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerID)
 
 	return ledgerID
+}
+
+func (fixture *atomicBatchHTTPIntegrationFixture) setCrossLedgerEnabled(t *testing.T, ledgerID uuid.UUID, enabled bool) {
+	t.Helper()
+
+	settings := fmt.Sprintf(`{"crossLedger":{"enabled":%t}}`, enabled)
+	_, err := fixture.infra.pgContainer.DB.Exec(
+		`UPDATE ledger SET settings = $1::jsonb WHERE organization_id = $2 AND id = $3`,
+		settings,
+		fixture.infra.orgID,
+		ledgerID,
+	)
+	require.NoError(t, err)
+	require.NoError(t, fixture.infra.redisRepo.Del(
+		context.Background(),
+		utils.LedgerSettingsInternalKey(fixture.infra.orgID, ledgerID),
+	))
 }
 
 func atomicBatchTransfer(
@@ -449,20 +467,36 @@ func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 		require.Nil(t, getBalanceFromRedis(t, context.Background(), fixture.infra.redisRepo, fixture.infra.orgID, ledgerID, "@reversed-c", "default"))
 	})
 
-	t.Run("shared scope and request limits fail before execution", func(t *testing.T) {
+	t.Run("cross-ledger direct batch and request limits", func(t *testing.T) {
 		ledgerID := fixture.newLedger(t)
 		otherLedgerID := fixture.newLedger(t)
-		scopeMismatch := []CreateTransactionV2Request{
+		fixture.setCrossLedgerEnabled(t, ledgerID, true)
+		fixture.setCrossLedgerEnabled(t, otherLedgerID, true)
+		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerID, "@scope-a", "@scope-b", 1)
+		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, otherLedgerID, "@scope-c", "@scope-d", 1)
+		crossLedger := []CreateTransactionV2Request{
 			atomicBatchTransfer(fixture.infra.orgID, ledgerID, "first scope", "@scope-a", "@scope-b", 1),
 			atomicBatchTransfer(fixture.infra.orgID, otherLedgerID, "second scope", "@scope-c", "@scope-d", 1),
 		}
-		response := postAtomicBatch(t, fixture.app, scopeMismatch, "scope-mismatch")
+		result := decodeAtomicBatchResponse(t, postAtomicBatch(t, fixture.app, crossLedger, "cross-ledger-batch"), http.StatusCreated)
+		require.Len(t, result.Transactions, 2)
+		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerID))
+		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, otherLedgerID))
+		requireCachedAvailable(t, fixture, ledgerID, "@scope-b", 1)
+		requireCachedAvailable(t, fixture, otherLedgerID, "@scope-d", 1)
+
+		disabledLedgerID := fixture.newLedger(t)
+		disabled := []CreateTransactionV2Request{
+			atomicBatchTransfer(fixture.infra.orgID, ledgerID, "enabled scope", "@scope-a", "@scope-b", 1),
+			atomicBatchTransfer(fixture.infra.orgID, disabledLedgerID, "disabled scope", "@disabled-a", "@disabled-b", 1),
+		}
+		response := postAtomicBatch(t, fixture.app, disabled, "cross-ledger-disabled")
 		body := drainBody(t, response)
-		require.Equal(t, http.StatusBadRequest, response.StatusCode, "body: %s", string(body))
-		requireProblemCode(t, body, constant.ErrTransactionBatchStructuralValidation.Error())
+		require.Equal(t, http.StatusUnprocessableEntity, response.StatusCode, "body: %s", string(body))
+		requireProblemCode(t, body, constant.ErrCrossLedgerNotEnabled.Error())
 
 		fixture.infra.handler.TransactionBatchMaxSize = 1
-		response = postAtomicBatch(t, fixture.app, scopeMismatch, "configured-cardinality")
+		response = postAtomicBatch(t, fixture.app, crossLedger, "configured-cardinality")
 		body = drainBody(t, response)
 		require.Equal(t, http.StatusBadRequest, response.StatusCode, "body: %s", string(body))
 		requireProblemCode(t, body, constant.ErrTransactionBatchCardinality.Error())
@@ -495,7 +529,7 @@ func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 		body = drainBody(t, response)
 		require.Equal(t, http.StatusBadRequest, response.StatusCode, "body: %s", string(body))
 		requireProblemCode(t, body, constant.ErrTransactionBatchInputLegsLimitExceeded.Error())
-		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerID))
+		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerID))
 	})
 
 	t.Run("middle item refusal rolls back the whole batch", func(t *testing.T) {

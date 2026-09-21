@@ -213,8 +213,8 @@ func (uc *UseCase) prepareAtomicTransactionBatchCompletionPlans(
 			TransactionID:        item.transactionID,
 			FeesSkipped:          item.honoredFeeSkip,
 			TracerSkipped:        item.honoredTracerSkip,
-			OrganizationID:       run.organizationID,
-			LedgerID:             run.ledgerID,
+			OrganizationID:       item.organizationID,
+			LedgerID:             item.ledgerID,
 			ExecutionID:          run.executionID,
 			TransactionInput:     item.input,
 			TTL:                  item.operationUpdatedAt,
@@ -301,7 +301,7 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 			Dependencies:  dependencies,
 		})
 		plans = append(plans, item.completionPlan)
-		publicTransactions = append(publicTransactions, atomicTransactionBatchFoundationResult(run, item))
+		publicTransactions = append(publicTransactions, atomicTransactionBatchFoundationResult(item))
 
 		request := accounting.Execution{
 			OrganizationID: run.organizationID,
@@ -336,8 +336,8 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 		recovery := TransactionCompletionRecord{
 			FormatVersion:     TransactionCompletionFormatVersion,
 			TenantID:          item.completionPlan.TenantID,
-			OrganizationID:    run.organizationID,
-			LedgerID:          run.ledgerID,
+			OrganizationID:    item.organizationID,
+			LedgerID:          item.ledgerID,
 			ExecutionID:       run.executionID,
 			IntentFingerprint: run.engineIntentFingerprint,
 			TransactionID:     item.transactionID,
@@ -358,7 +358,7 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 
 		indexPayload, err := EncodeTransactionEvidenceIndex(TransactionEvidenceIndex{
 			FormatVersion: TransactionEvidenceIndexFormatVersion, TenantID: item.completionPlan.TenantID,
-			OrganizationID: run.organizationID, LedgerID: run.ledgerID, TransactionID: item.transactionID,
+			OrganizationID: item.organizationID, LedgerID: item.ledgerID, TransactionID: item.transactionID,
 			ExecutionID: run.executionID, Action: item.action, ApplicationState: TransactionApplicationConfirmed,
 			ReplayState: TransactionReplayReconstructible, DurabilityState: TransactionDurabilityPending,
 			RecoveryField: recoveryField, ReceiptField: run.executionID.String(), Dependencies: dependencies,
@@ -471,23 +471,25 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 		return nil, errors.New("atomic transaction batch has no prepared items")
 	}
 
-	shared := run.items[0].prepared.pool.Snapshots
-
-	byRef := make(map[string]accounting.BalanceSnapshot, len(shared))
-	for _, snapshot := range shared {
-		byRef[snapshot.BalanceRef] = snapshot
+	byRef := make(map[string]accounting.BalanceSnapshot)
+	for index := range run.items {
+		for _, snapshot := range run.items[index].prepared.pool.Snapshots {
+			byRef[atomicTransactionBatchScopedSnapshotRef(snapshot)] = snapshot
+		}
 	}
 
-	seen := make(map[string]struct{}, len(shared))
-	ordered := make([]accounting.BalanceSnapshot, 0, len(shared))
+	seen := make(map[string]struct{}, len(byRef))
+	ordered := make([]accounting.BalanceSnapshot, 0, len(byRef))
 
 	prefixes := make([][]accounting.BalanceSnapshot, len(run.items))
 	for index := range run.items {
+		item := &run.items[index]
 		for _, balance := range run.items[index].prepared.pool.ExplicitBalances {
 			ref := atomicTransactionBatchPreparedBalanceRef(balance)
-			if snapshot, ok := byRef[ref]; ok {
-				if _, exists := seen[ref]; !exists {
-					seen[ref] = struct{}{}
+			scopedRef := atomicTransactionBatchScopedRef(item.organizationID, item.ledgerID, ref)
+			if snapshot, ok := byRef[scopedRef]; ok {
+				if _, exists := seen[scopedRef]; !exists {
+					seen[scopedRef] = struct{}{}
 
 					ordered = append(ordered, snapshot)
 				}
@@ -498,9 +500,10 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 			}
 
 			companionRef := mtransaction.AliasKey(mtransaction.SplitAlias(balance.Alias), constant.OverdraftBalanceKey)
-			if snapshot, ok := byRef[companionRef]; ok {
-				if _, exists := seen[companionRef]; !exists {
-					seen[companionRef] = struct{}{}
+			companionScopedRef := atomicTransactionBatchScopedRef(item.organizationID, item.ledgerID, companionRef)
+			if snapshot, ok := byRef[companionScopedRef]; ok {
+				if _, exists := seen[companionScopedRef]; !exists {
+					seen[companionScopedRef] = struct{}{}
 
 					ordered = append(ordered, snapshot)
 				}
@@ -510,11 +513,19 @@ func atomicTransactionBatchBalancePrefixes(run *atomicTransactionBatchRun) ([][]
 		prefixes[index] = append([]accounting.BalanceSnapshot(nil), ordered...)
 	}
 
-	if len(seen) != len(shared) {
+	if len(seen) != len(byRef) {
 		return nil, errors.New("atomic transaction batch shared pool contains an unowned execution balance")
 	}
 
 	return prefixes, nil
+}
+
+func atomicTransactionBatchScopedSnapshotRef(snapshot accounting.BalanceSnapshot) string {
+	return atomicTransactionBatchScopedRef(snapshot.OrganizationID, snapshot.LedgerID, snapshot.BalanceRef)
+}
+
+func atomicTransactionBatchScopedRef(organizationID, ledgerID uuid.UUID, ref string) string {
+	return organizationID.String() + ":" + ledgerID.String() + ":" + ref
 }
 
 func atomicTransactionBatchPreparedBalanceRef(balance *mmodel.Balance) string {

@@ -465,8 +465,8 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
         end
         for _, snapshot in ipairs(txResult.final) do recoveryFinal[#recoveryFinal + 1] = snapshotCopy(snapshot, true) end
         local record = {
-            formatVersion = 2, tenantId = request.tenantId, organizationId = request.organizationId,
-            ledgerId = request.ledgerId, executionId = request.executionId,
+            formatVersion = 2, tenantId = request.tenantId, organizationId = transaction.organizationId,
+            ledgerId = transaction.ledgerId, executionId = request.executionId,
             intentFingerprint = request.intentFingerprint, transactionId = transaction.id,
             payload = transaction.completionPlan,
             result = { movements = recoveryMovements, final = recoveryFinal, appliedAtUnixMicro = numberToken(appliedAtUnixMicro) }
@@ -481,8 +481,8 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
         preparedIndexes[#preparedIndexes + 1] = {
             field = transaction.id,
             value = charge(encodeJSON({
-                formatVersion = 1, tenantId = request.tenantId, organizationId = request.organizationId,
-                ledgerId = request.ledgerId, transactionId = transaction.id, executionId = request.executionId,
+                formatVersion = 1, tenantId = request.tenantId, organizationId = transaction.organizationId,
+                ledgerId = transaction.ledgerId, transactionId = transaction.id, executionId = request.executionId,
                 action = transaction.action, applicationState = "confirmed",
                 replayState = "reconstructible", durabilityState = "pending",
                 recoveryField = transaction.recoveryField, receiptField = request.receiptField,

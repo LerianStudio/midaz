@@ -30,7 +30,6 @@ const (
 // execution order, but originalIndex always refers to the received JSON array.
 type revisedDecodedAtomicTransactionBatchV2 struct {
 	items              []revisedDecodedAtomicTransactionBatchV2Item
-	scope              TransactionV2Scope
 	inputLegCount      int
 	canonicalRequest   []byte
 	requestFingerprint string
@@ -86,7 +85,6 @@ func decodeAndValidateRevisedAtomicTransactionBatchV2(
 		})
 	}
 
-	collectRevisedAtomicTransactionBatchV2ScopeDiagnostics(states)
 	collectRevisedAtomicTransactionBatchV2RepeatedExceptionDiagnostics(states)
 
 	details := revisedAtomicTransactionBatchV2Details(states, sequenceValid)
@@ -104,12 +102,6 @@ func decodeAndValidateRevisedAtomicTransactionBatchV2(
 	for index, state := range states {
 		result.items[index] = state.item
 	}
-	if len(result.items) > 0 {
-		if scope, scopeErr := resolveTransactionV2Scope(result.items[0].request.Debits, result.items[0].request.Credits); scopeErr == nil {
-			result.scope = scope
-		}
-	}
-
 	canonicalRequest, err := canonicalizeRevisedAtomicTransactionBatchV2Request(rawBody, result.items)
 	if err != nil {
 		return revisedDecodedAtomicTransactionBatchV2{}, fmt.Errorf("canonicalize revised atomic transaction batch request: %w", err)
@@ -264,30 +256,6 @@ func validateRevisedAtomicTransactionBatchV2Orders(states []revisedAtomicTransac
 	}
 
 	return valid
-}
-
-func collectRevisedAtomicTransactionBatchV2ScopeDiagnostics(states []revisedAtomicTransactionBatchV2ItemState) {
-	var commonScope *TransactionV2Scope
-	for index := range states {
-		itemScope, err := resolveTransactionV2Scope(states[index].item.request.Debits, states[index].item.request.Credits)
-		if err != nil {
-			continue
-		}
-
-		if commonScope == nil {
-			commonScope = &itemScope
-			continue
-		}
-
-		if commonScope.namesSameAs(itemScope) {
-			continue
-		}
-
-		states[index].details = append(states[index].details, pkg.FieldError{
-			Location: firstTransactionV2ScopeDifference(states[index].item.request, *commonScope),
-			Message:  "transaction scope must match every item in the batch",
-		})
-	}
 }
 
 func collectRevisedAtomicTransactionBatchV2RepeatedExceptionDiagnostics(states []revisedAtomicTransactionBatchV2ItemState) {
