@@ -20,6 +20,7 @@ import (
 	"github.com/bxcodec/dbresolver/v2"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -1028,6 +1029,68 @@ func TestIntegration_Transaction_FindByParentID(t *testing.T) {
 	})
 
 	t.Log("Integration test passed: FindByParentID verified")
+}
+
+func TestIntegration_Transaction_FindByGroupIDAcrossScopes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupIntegrationInfra(t)
+	ctx := context.Background()
+	groupID := uuid.MustParse("0199514d-5344-7000-8000-000000000001")
+	groupIDText := groupID.String()
+	createdAt := time.Date(2026, time.September, 21, 15, 0, 0, 0, time.UTC)
+
+	first := &Transaction{
+		ID:             "0199514d-5344-7000-8000-000000000002",
+		GroupID:        &groupIDText,
+		Description:    "first group member",
+		Status:         Status{Code: constant.APPROVED},
+		Amount:         decimalPtr(100),
+		AssetCode:      "BRL",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+		CreatedAt:      createdAt,
+		UpdatedAt:      createdAt,
+	}
+	second := &Transaction{
+		ID:             "0199514d-5344-7000-8000-000000000003",
+		GroupID:        &groupIDText,
+		Description:    "second group member",
+		Status:         Status{Code: constant.APPROVED},
+		Amount:         decimalPtr(100),
+		AssetCode:      "BRL",
+		LedgerID:       uuid.MustParse("0199514d-5344-7000-8000-000000000004").String(),
+		OrganizationID: uuid.MustParse("0199514d-5344-7000-8000-000000000005").String(),
+		CreatedAt:      createdAt,
+		UpdatedAt:      createdAt,
+	}
+	unrelatedGroupID := uuid.MustParse("0199514d-5344-7000-8000-000000000006").String()
+	unrelated := &Transaction{
+		ID:             "0199514d-5344-7000-8000-000000000007",
+		GroupID:        &unrelatedGroupID,
+		Description:    "unrelated group member",
+		Status:         Status{Code: constant.APPROVED},
+		Amount:         decimalPtr(100),
+		AssetCode:      "BRL",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+		CreatedAt:      createdAt,
+		UpdatedAt:      createdAt,
+	}
+
+	_, err := infra.repo.CreateBulk(ctx, []*Transaction{second, unrelated, first})
+	require.NoError(t, err)
+
+	got, err := infra.repo.FindByGroupID(ctx, groupID)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, first.ID, got[0].ID)
+	assert.Equal(t, second.ID, got[1].ID)
+	assert.Equal(t, first.LedgerID, got[0].LedgerID)
+	assert.Equal(t, second.LedgerID, got[1].LedgerID)
 }
 
 // TestIntegration_Transaction_Find_NotFound tests the Find method with non-existent ID.
