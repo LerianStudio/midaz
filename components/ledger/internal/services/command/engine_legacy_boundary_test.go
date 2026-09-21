@@ -52,33 +52,20 @@ func TestEnginePathDoesNotCallLegacyLiveBalanceMutationOrProjectionHelpers(t *te
 	}
 }
 
-func TestLegacyLiveBalanceMutationAndProjectionHelpersRemainUsedByFallback(t *testing.T) {
-	calls := make(map[string]struct{})
+func TestExecutableMonetaryCommandsDoNotCallLegacyBalanceMutation(t *testing.T) {
 	for _, name := range []string{
-		"build_transaction_operations.go",
 		"create_transaction_v1.go",
 		"create_transaction_v2.go",
 		"revert_transaction.go",
-		"transition_pending_steps.go",
-		"transaction_overdraft_enrichment.go",
-		"update_balance.go",
+		"commit_transaction.go",
 	} {
-		for call := range sourceCalls(t, name) {
-			calls[call] = struct{}{}
-		}
-	}
-
-	for _, call := range []string{
-		"OperateBalances",
-		"ValidateFromToOperation",
-		"DetectOverdraftSplit",
-		"enrichOverdraftOperations",
-		"resolveRouteCodesFromCache",
-		"effectiveOperationAmount",
-		"BuildOperations",
-		"ProcessBalanceOperations",
-	} {
-		assert.Contains(t, calls, call, "fallback must retain its %s helper reference", call)
+		calls := sourceCalls(t, name)
+		assert.NotContains(t, calls, "ProcessBalanceOperations",
+			"%s must require the accounting engine instead of the legacy Lua writer", name)
+		assert.NotContains(t, calls, "ProcessBalanceAtomicOperation",
+			"%s must not call the legacy Redis atomic writer directly", name)
+		assert.NotContains(t, calls, "commitPendingBalances",
+			"%s must require the accounting engine instead of the legacy pending writer", name)
 	}
 }
 

@@ -27,7 +27,7 @@ import (
 type reservationOutcomeKind int
 
 const (
-	// reservationProceed: the create path continues to ProcessBalanceOperations.
+	// reservationProceed: the create path continues to accounting-engine execution.
 	// Handle holds the reservation ids to confirm/release post-commit (it is
 	// empty when the tracer was skipped — off/advisory/nil/fail-open).
 	reservationProceed reservationOutcomeKind = iota
@@ -98,7 +98,7 @@ const (
 )
 
 // reserveTransaction is the reserve anchor (F3-T13). It is called immediately
-// before ProcessBalanceOperations on FEE-INCLUSIVE amounts and gates execution on
+// before accounting-engine execution on FEE-INCLUSIVE amounts and gates execution on
 // the per-ledger tracer settings. Only the /v2 pipelines call it: the /v1 contract
 // shipped before the tracer existed, so a /v1 create is never gated by a
 // reservation, builds no request and dials nothing.

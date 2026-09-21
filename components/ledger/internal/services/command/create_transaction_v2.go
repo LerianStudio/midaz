@@ -56,8 +56,6 @@ type CreateTransactionV2Input struct {
 //
 // It returns the created transaction and whether the idempotency slot answered with
 // a replay, so the transport sets X-Idempotency-Replayed itself.
-//
-//nolint:gocyclo // Keeping compensation beside each ordered v2 seam makes the orchestration contract explicit.
 func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransactionV2Input) (*transaction.Transaction, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -246,74 +244,14 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 		return nil, false, err
 	}
 
-	// NOTED remains on the non-monetary compatibility path. Every executable v2
-	// create uses the engine, including a request that presents a grant.
-	if uc.Engine != nil && run.status != constant.NOTED {
-		tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, true)
+	// NOTED remains on its non-monetary path. Every executable v2 create uses
+	// the accounting engine, including a request that presents a grant.
+	if run.status == constant.NOTED {
+		tran, err := uc.createNotedTransaction(ctx, span, logger, run)
 		return tran, false, err
 	}
 
-	ctx, err = uc.stageBalances(ctx, span, logger, run)
-	if err != nil {
-		return nil, false, err
-	}
+	tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, true)
 
-	// Reserve anchor (F3-T13): hold usage-limit capacity against the FEE-INCLUSIVE
-	// transaction immediately before the balance commit. This observes the validated
-	// fee-inclusive send amount; it never mutates Send.Value or balance state. A
-	// DENIED decision (enforce) or a fail-closed unavailable tracer rejects here,
-	// before ProcessBalanceOperations moves any balance, releasing the idempotency key
-	// and the Redis-queue seed exactly as the ProcessBalanceOperations failure path
-	// does below. The returned handle is confirmed on success / released on abort.
-	reservation := uc.reserveTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.transactionID,
-		run.input.Send.Value, run.input.Send.Asset, firstSourceAccountID(run.validate.Sources, run.balances),
-		run.transactionDate, reservationTTLForStatus(run.status), run.honoredTracerSkip)
-	if reservation.Kind == reservationReject {
-		uc.rollbackCreateSeed(ctx, logger, run)
-
-		return nil, false, reservation.Err
-	}
-
-	run.result, err = uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
-		OrganizationID:    run.organizationID,
-		LedgerID:          run.ledgerID,
-		TransactionID:     run.transactionID,
-		TransactionInput:  &run.input,
-		Validate:          run.validate,
-		BalanceOperations: run.balanceOps,
-		TransactionStatus: run.status,
-
-		AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
-	})
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to process balance operations", libLog.Err(err))
-
-		uc.rollbackCreateSeed(ctx, logger, run)
-
-		// The balance commit failed (no funds moved), so return the held
-		// reservation capacity. Non-blocking: a transport failure here is
-		// retried off the request path, and the hold's expiry sweep returns
-		// the capacity anyway if every attempt fails.
-		uc.releaseReservations(ctx, span, logger, reservation.Handle)
-
-		return nil, false, err
-	}
-
-	// Confirm anchor (F3-T14, success phase): the balance commit succeeded, so
-	// the held capacity is consumed. PENDING transactions defer the confirm to
-	// /commit (and release to /cancel) — see F3-T15 — so the reservation stays
-	// open here for them. Downstream BuildOperations/WriteTransaction failures
-	// do NOT release: the balance has already moved and the backup queue
-	// reconstructs the transaction, so the consumed capacity stands.
-	if run.status != constant.PENDING {
-		uc.confirmReservations(ctx, span, logger, reservation.Handle)
-	}
-
-	tran, err := uc.finalizeCreatedTransaction(ctx, span, logger, run)
-	if err != nil {
-		return nil, false, err
-	}
-
-	return tran, false, nil
+	return tran, false, err
 }

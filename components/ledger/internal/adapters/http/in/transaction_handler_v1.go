@@ -24,8 +24,8 @@ import (
 // decodes/validates the request and delegates to the use case
 // (command.CreateTransactionV1 / command.CommitTransactionV1 / UpdateTransaction command +
 // query), then projects the result onto a typed Huma Out. The create orchestration
-// (validate -> fee -> reserve -> ProcessBalanceOperations -> BuildOperations ->
-// WriteTransaction, with its 9 cleanup points) lives in the command package; this file
+// (validate -> prepare immutable intent -> execute the accounting engine -> complete
+// durable projections) lives in the command package; this file
 // only reads path params + idempotency headers and writes the response — the same split
 // account/holder/instrument use. Conventions (see asset_handler.go's header for the full
 // rationale):

@@ -6,42 +6,18 @@ package command
 
 import (
 	"context"
-	"errors"
-	"os"
-	"strings"
 	"time"
 
-	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
-	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
-	"github.com/LerianStudio/midaz/v4/pkg/skip"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
-
-// settledTransactionOf copies the transition's transaction with an empty body,
-// which is the shape a terminal status is persisted in: a settled transaction
-// replays nothing, so the repository drops the body column with the status.
-//
-// It copies instead of clearing in place because the caller keeps using the
-// loaded transaction afterwards — it travels into the transaction write and the
-// write-behind refresh — and neither may lose the body as a side effect of how
-// the status row is written.
-func settledTransactionOf(tran *transaction.Transaction) *transaction.Transaction {
-	settled := *tran
-	settled.Body = mtransaction.Transaction{}
-
-	return &settled
-}
 
 // loadPendingTransaction resolves the transaction the transition acts on, reading
 // the write-behind cache first and falling back to the database.
@@ -50,11 +26,7 @@ func (uc *UseCase) loadPendingTransaction(ctx context.Context, span trace.Span, 
 	if err != nil {
 		// Load the operations with the transaction: cancel needs them to unwind an
 		// overdraft hold. The write-behind cache is cleared once the create persists,
-		// so this fallback carries the transaction into the transition and its
-		// annotateCanceledOverdraftAmounts step, which reads tran.Operations to
-		// size the overdraft deficit. A row-only read leaves Operations empty and the
-		// cancel restores the full hold to available instead of only the non-overdraft
-		// portion.
+		// so this fallback carries the transaction into the engine transition.
 		tran, err = uc.TransactionReader.GetTransactionWithOperationsByID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
 		if err != nil {
 			spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
@@ -63,10 +35,7 @@ func (uc *UseCase) loadPendingTransaction(ctx context.Context, span trace.Span, 
 		}
 
 		// FindWithOperations joins on operations, so a transaction with no rows comes
-		// back as an empty value with no error. Fall back to the row-only read, which
-		// reports not-found for a missing transaction and returns the real row for an
-		// operation-less one — either way the transition never parses an empty
-		// organization id.
+		// back as an empty value with no error. Fall back to the row-only read.
 		if tran == nil || tran.ID == "" {
 			tran, err = uc.TransactionReader.GetTransactionByID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
 			if err != nil {
@@ -81,8 +50,8 @@ func (uc *UseCase) loadPendingTransaction(ctx context.Context, span trace.Span, 
 }
 
 // lockPendingTransaction claims the per-transaction Redis lock that serialises
-// concurrent commit/cancel attempts. It returns the unlock closure the later steps
-// call on their error branches; a lock already held is a 422.
+// concurrent commit/cancel attempts. It returns the unlock closure used by engine
+// preparation and confirmed pre-commit failures; a lock already held is a 422.
 func (uc *UseCase) lockPendingTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, run *pendingTransitionRun) (func(), error) {
 	lockPendingTransactionKey := utils.PendingTransactionLockKey(run.organizationID, run.ledgerID, run.tran.ID)
 
@@ -91,7 +60,6 @@ func (uc *UseCase) lockPendingTransaction(ctx context.Context, span trace.Span, 
 	success, err := uc.TransactionRedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to set on redis", err)
-
 		logger.Log(ctx, libLog.LevelError, "Failed to set pending transaction lock on redis", libLog.Err(err))
 
 		return nil, err
@@ -99,9 +67,7 @@ func (uc *UseCase) lockPendingTransaction(ctx context.Context, span trace.Span, 
 
 	if !success {
 		err := pkg.ValidateBusinessError(constant.ErrPendingTransactionLocked, "ValidateTransactionNotPending")
-
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is locked", err)
-
 		logger.Log(ctx, libLog.LevelWarn, "Transaction is locked", libLog.String("transaction_id", run.tran.ID), libLog.Err(err))
 
 		return nil, err
@@ -110,420 +76,9 @@ func (uc *UseCase) lockPendingTransaction(ctx context.Context, span trace.Span, 
 	deleteLockOnError := func() {
 		if delErr := uc.TransactionRedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete pending transaction lock", delErr)
-
 			logger.Log(ctx, libLog.LevelError, "Failed to delete pending transaction lock key", libLog.Err(delErr))
 		}
 	}
 
 	return deleteLockOnError, nil
-}
-
-// preparePendingTransition validates the persisted body, resolves the ledger
-// settings and the honored per-call tracer skip, loads the balances behind the
-// validated aliases, builds and enriches the balance operations and enforces the
-// ledger's accounting routes. Every failure releases the lock.
-func (uc *UseCase) preparePendingTransition(ctx context.Context, span trace.Span, logger libLog.Logger, run *pendingTransitionRun, unlock func()) error {
-	transactionInput := run.tran.Body
-
-	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Source.From)
-	mtransaction.ApplyDefaultBalanceKeys(transactionInput.Send.Distribute.To)
-
-	var fromTo []mtransaction.FromTo
-
-	fromTo = append(fromTo, mtransaction.MutateConcatAliases(transactionInput.Send.Source.From)...)
-	to := mtransaction.MutateConcatAliases(transactionInput.Send.Distribute.To)
-
-	if run.status != constant.CANCELED {
-		fromTo = append(fromTo, to...)
-	}
-
-	if run.tran.Status.Code != constant.PENDING {
-		err := pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is not pending", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Transaction is not pending", libLog.String("transaction_id", run.tran.ID), libLog.Err(err))
-
-		unlock()
-
-		return err
-	}
-
-	// A PENDING row with no body cannot be replayed: the body is nulled only by a
-	// terminal transition, so the row is a transition that already landed and left
-	// the status behind. Refuse it here, before anything is read or evaluated —
-	// without this the EVAL runs an empty plan and the status flips a second time
-	// on a transition that moved nothing.
-	//
-	// It follows the status guard on purpose: a direct (non-pending) transaction
-	// also carries no body, and a commit or cancel of one is the caller reading
-	// the status wrong, which is what 0099 reports.
-	//
-	// The lock is released: nothing moved, so a retry is free to run.
-	if transactionInput.IsEmpty() {
-		err := pkg.ValidateBusinessError(constant.ErrTransactionAlreadyTransitioned, constant.EntityTransaction)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction body is empty", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Transaction body is empty", libLog.String("transaction_id", run.tran.ID), libLog.Err(err))
-
-		unlock()
-
-		return err
-	}
-
-	// No fee seam here (P4-T13). tran.Body was persisted by the create path, which
-	// already applied fees and persisted the fee legs as real operations. So
-	// transactionInput == tran.Body is already fee-inclusive, and this validate runs
-	// over the fee-inclusive shape. Calling applyFees on commit/cancel would charge
-	// the fee a second time (double-charge). Cancel routes the held legs — including
-	// fees — back via the cancel/refund path (P4-T14), not a re-charge. Do NOT call
-	// applyFees.
-	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, transactionInput, run.status)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
-
-		err = pkg.HandleKnownBusinessValidationErrors(err)
-
-		unlock()
-
-		return err
-	}
-
-	ledgerSettings, err := uc.TransactionReader.GetParsedLedgerSettings(ctx, run.organizationID, run.ledgerID)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
-
-		unlock()
-
-		return err
-	}
-
-	if ledgerSettings.Accounting.ValidateRoutes {
-		mtransaction.PropagateRouteValidation(ctx, validate, run.status)
-	}
-
-	// Re-resolve the per-call tracer skip from the persisted body so an honored
-	// create-time skip also short-circuits the by-transaction confirm/release
-	// below, instead of relocating the gRPC cost from create to this transition.
-	// Authorization was already enforced at create, so a no-longer-permitted skip
-	// (the opt-in was revoked between create and commit) is treated as
-	// not-honored here — the error is intentionally discarded, never a 422.
-	honoredTracerSkip, _ := skip.ResolveSkipFor("tracer", run.tran.Body.Skip != nil && run.tran.Body.Skip.Tracer, ledgerSettings.Overrides.AllowTracerSkip)
-
-	action := constant.ActionCommit
-	if run.status == constant.CANCELED {
-		action = constant.ActionCancel
-	}
-
-	// Route ONLY the pre-write balance reads to the primary via a dedicated ctx:
-	// their result seeds the authoritative balance via the NX-seed, so a stale
-	// replica read here corrupts money. The mark lives on readCtx, scoped to the
-	// direct balance read and the overdraft-enrichment read; the unmarked
-	// ctx flows to everything else (validation, Redis seed, balance processing,
-	// write) so those keep their default routing. The flag governs the effect; the
-	// mark is unconditional.
-	readCtx := readrouting.WithPrimaryRead(ctx)
-
-	balances, err := uc.TransactionReader.GetBalances(readCtx, run.organizationID, run.ledgerID, validate.Aliases)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get balances", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get balances", libLog.Err(err))
-
-		unlock()
-
-		return err
-	}
-
-	balanceOps := buildBalanceOperations(ctx, run.organizationID, run.ledgerID, validate, balances)
-	balanceOps = annotateCanceledOverdraftAmounts(balanceOps, run.tran)
-
-	// Both transitions move funds on the overdrafted balance, so both need the
-	// companion mirrored: a cancel restores the held capacity, and a commit posts
-	// the destination credit that repays outstanding overdraft. Enriching here is
-	// what puts the companion leg in front of ValidateAccountingRules (so the
-	// route's overdraft rubric is enforced), into the atomic batch (so the
-	// companion balance moves in lock-step with the primary's repayment) and into
-	// BuildOperations (so the overdraft leg is persisted).
-	var companionFromTos []mtransaction.FromTo
-
-	if run.status == constant.APPROVED || run.status == constant.CANCELED {
-		balanceOps, companionFromTos, err = enrichOverdraftOperations(readCtx, run.organizationID, run.ledgerID, balanceOps,
-			validate, uc.TransactionReader.GetBalances)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to enrich overdraft operations", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to enrich overdraft operations", libLog.Err(err))
-
-			unlock()
-
-			return err
-		}
-	}
-
-	routeCache, err := uc.TransactionReader.ValidateAccountingRules(ctx, run.organizationID, run.ledgerID, balanceOps, validate, action)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate accounting rules", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to validate accounting rules", libLog.Err(err))
-
-		unlock()
-
-		return err
-	}
-
-	run.input = transactionInput
-	run.fromTo = fromTo
-	run.validate = validate
-	run.ledgerSettings = ledgerSettings
-	run.honoredTracerSkip = honoredTracerSkip
-	run.action = action
-	run.balanceOps = balanceOps
-	run.companionFromTos = companionFromTos
-	run.routeCache = routeCache
-
-	return nil
-}
-
-// commitPendingBalances pre-seeds the backup queue and runs the atomic balance
-// mutation. A Lua failure removes the seed and releases the lock.
-func (uc *UseCase) commitPendingBalances(ctx context.Context, span trace.Span, logger libLog.Logger, run *pendingTransitionRun, unlock func()) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctxBackupSeed, spanBackupSeed := tracer.Start(ctx, "command.transition_pending_transaction.pre_seed_backup")
-
-	if backupErr := uc.SendTransactionToRedisQueue(ctxBackupSeed, run.organizationID, run.ledgerID, run.tran.IDtoUUID(), run.input, run.validate, run.status, run.action, time.Now(), nil); backupErr != nil {
-		libOpentelemetry.HandleSpanError(spanBackupSeed, "Failed to pre-seed transaction backup cache", backupErr)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to pre-seed commit/cancel transaction backup cache", libLog.Err(backupErr))
-
-		spanBackupSeed.End()
-
-		unlock()
-
-		return pkg.ValidateBusinessError(backupErr, constant.EntityTransaction)
-	}
-
-	spanBackupSeed.End()
-
-	result, err := uc.ProcessBalanceOperations(ctx, ProcessBalanceOperationsInput{
-		OrganizationID:    run.organizationID,
-		LedgerID:          run.ledgerID,
-		TransactionID:     run.tran.IDtoUUID(),
-		TransactionInput:  nil, // State transitions skip balance-rule re-validation
-		Validate:          run.validate,
-		BalanceOperations: run.balanceOps,
-		TransactionStatus: run.status,
-
-		// Nil unless the /v2 commit presented one. A state transition skips the Go
-		// balance-rule validation entirely, so a grant on this path is purely the
-		// script's business: it releases the account-block guard for the debited
-		// balance and is consumed in the same atomic step.
-		AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
-	})
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to process balance operations", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to process balance operations", libLog.Err(err))
-
-		uc.RemoveTransactionFromRedisQueue(ctx, logger, run.organizationID, run.ledgerID, run.tran.IDtoUUID().String())
-
-		unlock()
-
-		return err
-	}
-
-	run.result = result
-
-	return nil
-}
-
-// finalizePendingTransition turns the committed balance result into the updated
-// transaction row: it splices the split-alias legs and the overdraft companions
-// into fromTo, builds the operation records, refreshes the backup entry and writes
-// the transaction.
-//
-// It takes no unlock closure: every branch here runs after the balances moved,
-// and none of them releases the lock.
-func (uc *UseCase) finalizePendingTransition(ctx context.Context, span trace.Span, logger libLog.Logger, run *pendingTransitionRun) (*transaction.Transaction, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	balancesBefore, balancesAfter := run.result.Before, run.result.After
-	priorOperations := run.tran.Operations
-
-	run.fromTo = append(run.fromTo, mtransaction.MutateSplitAliases(run.input.Send.Source.From)...)
-	to := mtransaction.MutateSplitAliases(run.input.Send.Distribute.To)
-
-	if run.status != constant.CANCELED {
-		run.fromTo = append(run.fromTo, to...)
-	}
-
-	run.fromTo = append(run.fromTo, run.companionFromTos...)
-
-	run.tran.UpdatedAt = time.Now()
-	run.tran.Status = transaction.Status{
-		Code:        run.status,
-		Description: &run.status,
-	}
-
-	// From here on the lock is NOT released: commitPendingBalances has returned,
-	// so the balance has already moved and a failure below is reconciled by the
-	// backup queue, not by retrying the transition. Releasing it would let a
-	// retry re-enter a transaction whose money already moved and apply it twice;
-	// holding it lets the 300s TTL act as the cooldown instead.
-	operations, preBalances, err := uc.BuildOperations(ctx, balancesBefore, balancesAfter, run.fromTo, run.input, *run.tran, run.validate, time.Now(), false, run.ledgerSettings.Accounting.ValidateRoutes, run.routeCache, run.action)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build operations", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to build operations", libLog.Err(err))
-
-		return nil, err
-	}
-
-	run.tran.Source = getAliasWithoutKey(filterCompanionAliases(run.validate.Sources))
-	run.tran.Destination = getAliasWithoutKey(filterCompanionAliases(run.validate.Destinations))
-	run.tran.Operations = operations
-
-	ctxBackup, spanBackup := tracer.Start(ctx, "command.transition_pending_transaction.send_to_redis_queue")
-
-	if backupErr := uc.SendTransactionToRedisQueue(ctxBackup, run.organizationID, run.ledgerID, run.tran.IDtoUUID(), run.input, run.validate, run.status, run.action, time.Now(), preBalances); backupErr != nil {
-		libOpentelemetry.HandleSpanError(spanBackup, "Failed to send transaction to backup cache", backupErr)
-
-		logger.Log(ctx, libLog.LevelWarn, "Failed to send commit/cancel transaction to backup cache", libLog.Err(backupErr))
-	}
-
-	spanBackup.End()
-
-	// Materialize operation IDs in the backup entry to prevent duplicate
-	// operations if the Redis backup consumer replays this transaction.
-	// Without this, BuildOperations() generates new UUIDs on replay.
-	uc.UpdateTransactionBackupOperations(ctx, run.organizationID, run.ledgerID, run.tran.IDtoUUID().String(), operations, run.action)
-
-	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
-		_, transitioned, statusErr := uc.UpdateTransactionStatusFromPending(ctx, settledTransactionOf(run.tran))
-
-		switch {
-		case statusErr != nil:
-			// Technical failure of the write itself. The status is unknown, not
-			// known-lost, so the request carries on to the transaction write and
-			// the backup queue reconciles — answering a conflict here would
-			// report a settled transition that may not have happened.
-			libOpentelemetry.HandleSpanError(span, "Failed to update transaction status synchronously", statusErr)
-
-			logger.Log(ctx, libLog.LevelError, "Failed to update transaction status synchronously", libLog.String("transaction_id", run.tran.ID), libLog.Err(statusErr))
-		case !transitioned:
-			// The compare-and-set matched no PENDING row, which carries two
-			// opposite meanings: another transition already settled the row, or
-			// the async create has not inserted it yet. Only the first is a
-			// conflict, so the triage reads the row before answering.
-			if triageErr := uc.triageLostStatusTransition(ctx, span, logger, run); triageErr != nil {
-				return nil, triageErr
-			}
-		default:
-			// This call won the transition, so it owns the lifecycle event. The
-			// backup consumer that receives the write below finds the row already
-			// settled, reports a no-op and emits nothing, which is what keeps the
-			// fact on the wire exactly once across both write modes.
-			uc.SendTransactionEvents(ctx, run.tran, TransactionLifecyclePhaseUpdated)
-		}
-	}
-
-	err = uc.WriteTransaction(ctx, run.organizationID, run.ledgerID, &run.input, run.validate, preBalances, balancesAfter, run.tran)
-	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, "failed to update BTO")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "failed to update BTO", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to update BTO", libLog.String("transaction_id", run.tran.ID), libLog.Err(err))
-
-		return nil, err
-	}
-
-	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
-
-	uc.sendLogTransactionAuditQueueAsync(tenantCtx, operations, run.organizationID, run.ledgerID, run.tran.IDtoUUID())
-
-	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
-		cached := *run.tran
-		cached.Operations = mergeTransactionOperations(priorOperations, operations)
-
-		go uc.UpdateWriteBehindTransaction(tenantCtx, run.organizationID, run.ledgerID, &cached)
-	}
-
-	return run.tran, nil
-}
-
-// triageLostStatusTransition resolves what a status compare-and-set that matched
-// no PENDING row means for this transition, reading the row from the primary.
-//
-// A conflict error is returned only when the row exists and is no longer
-// PENDING: that is the transition another writer already settled. Every other
-// outcome carries the run on to the transaction write, where the queued message
-// lets the async pipeline settle the status and own the lifecycle event. The
-// lifecycle event is emitted here only when a retried compare-and-set wins,
-// which keeps the fact on the wire exactly once.
-func (uc *UseCase) triageLostStatusTransition(ctx context.Context, span trace.Span, logger libLog.Logger, run *pendingTransitionRun) error {
-	readCtx := readrouting.WithPrimaryRead(ctx)
-
-	persisted, findErr := uc.TransactionRepo.Find(readCtx, run.organizationID, run.ledgerID, run.tran.IDtoUUID())
-	if findErr != nil {
-		var notFound pkg.EntityNotFoundError
-
-		if errors.As(findErr, &notFound) {
-			// The transition was served from the write-behind cache and the create
-			// has not inserted the row yet, so there is no row to compare against.
-			// The transition message queues behind the create one and the consumer
-			// settles the status.
-			span.SetAttributes(attribute.Bool("app.transaction.status_settle_deferred", true))
-
-			logger.Log(ctx, libLog.LevelWarn, "Transaction row not yet persisted; status settle deferred to async pipeline",
-				libLog.String("transaction_id", run.tran.ID))
-
-			return nil
-		}
-
-		// The read failed, so the row's status is unknown rather than known-settled.
-		// Answering a conflict would report a transition that may not have happened.
-		libOpentelemetry.HandleSpanError(span, "Failed to read transaction status after lost status update", findErr)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to read transaction status after lost status update",
-			libLog.String("transaction_id", run.tran.ID), libLog.Err(findErr))
-
-		return nil
-	}
-
-	if persisted.Status.Code != constant.PENDING {
-		// The balances of this transition moved against a transaction another one
-		// already settled, so the failure is loud: the backup queue and
-		// reconciliation own the repair, and answering success would hide a double
-		// transition.
-		err := pkg.ValidateBusinessError(constant.ErrTransactionAlreadyTransitioned, constant.EntityTransaction)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction is no longer pending on status update", err)
-
-		logger.Log(ctx, libLog.LevelError, "Transaction is no longer pending on status update",
-			libLog.String("transaction_id", run.tran.ID), libLog.Err(err))
-
-		return err
-	}
-
-	// The row landed between the compare-and-set and this read, so the set is
-	// retried once against the row that now exists.
-	_, transitioned, statusErr := uc.UpdateTransactionStatusFromPending(ctx, settledTransactionOf(run.tran))
-
-	switch {
-	case statusErr != nil:
-		libOpentelemetry.HandleSpanError(span, "Failed to retry transaction status update", statusErr)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to retry transaction status update",
-			libLog.String("transaction_id", run.tran.ID), libLog.Err(statusErr))
-	case !transitioned:
-		// No rival can settle the row while this transition holds the lock, so the
-		// status is unknown rather than known-lost and the backup queue reconciles.
-		logger.Log(ctx, libLog.LevelError, "Transaction status update matched no pending row after retry",
-			libLog.String("transaction_id", run.tran.ID))
-	default:
-		uc.SendTransactionEvents(ctx, run.tran, TransactionLifecyclePhaseUpdated)
-	}
-
-	return nil
 }

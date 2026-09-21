@@ -60,10 +60,10 @@ type createSkipSeamMetrics struct {
 // resolution facts. The skip is resolved through the resolveTransactionSkips helper
 // (which calls skip.ResolveSkipFor for both controls); the 422 guard is the
 // `if err != nil` that immediately follows that resolution call.
-func analyzeCreateSkipSeam(t *testing.T, src string) createSkipSeamMetrics {
+func analyzeCreateSkipSeam(t *testing.T, src, engineSrc string) createSkipSeamMetrics {
 	t.Helper()
 
-	fn := findFuncDecl(t, src, createSeamFuncName)
+	fn := findFuncDecl(t, src, seamFuncName)
 
 	m := createSkipSeamMetrics{settingsPos: -1, resolveSkipPos: -1, reservePos: -1}
 
@@ -76,14 +76,6 @@ func analyzeCreateSkipSeam(t *testing.T, src string) createSkipSeamMetrics {
 			m.resolveSkipPos = i
 		}
 
-		if m.reservePos == -1 && stmtCallsMethod(stmt, "reserveTransaction") {
-			m.reservePos = i
-
-			if call := findCallToMethod(stmt, "reserveTransaction"); call != nil {
-				m.reserveCarriesFlag = callHasArgIdent(call, "honoredTracerSkip")
-			}
-		}
-
 		// The 422 guard sits right after the resolve assignment. Identify it as the
 		// first `if err != nil` whose block releases the idempotency key, appearing
 		// after the resolve statement but before the reserve.
@@ -91,6 +83,16 @@ func analyzeCreateSkipSeam(t *testing.T, src string) createSkipSeamMetrics {
 			if ifStmt, ok := stmt.(*ast.IfStmt); ok {
 				m.rejectDeleteIdemp = blockCallsMethod(ifStmt.Body, "rollbackCreateClaim")
 				m.rejectReturns = blockEndsInReturn(ifStmt.Body)
+			}
+		}
+	}
+
+	engine := findFuncDecl(t, engineSrc, "executeCreateEngine")
+	for i, stmt := range engine.Body.List {
+		if m.reservePos == -1 && stmtCallsMethod(stmt, "reserveTransaction") {
+			m.reservePos = i
+			if call := findCallToMethod(stmt, "reserveTransaction"); call != nil {
+				m.reserveCarriesFlag = callHasArgIdent(call, "honoredTracerSkip")
 			}
 		}
 	}
@@ -144,8 +146,9 @@ func callHasArgIdent(call *ast.CallExpr, name string) bool {
 // honoredTracerSkip boolean is threaded into reserveTransaction.
 func TestCreateTransactionV2_TracerSkip(t *testing.T) {
 	src := readSeamSource(t) // create_transaction_v2.go
+	engineSrc := readTransportSource(t, "create_transaction_engine.go", "func (uc *UseCase) executeCreateEngine")
 
-	m := analyzeCreateSkipSeam(t, src)
+	m := analyzeCreateSkipSeam(t, src, engineSrc)
 
 	require.NotEqual(t, -1, m.settingsPos, "GetParsedLedgerSettings call not found")
 	require.NotEqual(t, -1, m.resolveSkipPos, "resolveTransactionSkips call not found")
@@ -153,9 +156,6 @@ func TestCreateTransactionV2_TracerSkip(t *testing.T) {
 
 	assert.Greater(t, m.resolveSkipPos, m.settingsPos,
 		"the tracer skip must be resolved AFTER the settings read (it reads ledgerSettings.Overrides)")
-	assert.Less(t, m.resolveSkipPos, m.reservePos,
-		"the tracer skip must be resolved BEFORE the reserve anchor it gates")
-
 	assert.True(t, m.rejectDeleteIdemp,
 		"an unauthorized skip (422) must release the idempotency claim — mirror the fee error path")
 	assert.True(t, m.rejectReturns,
@@ -193,14 +193,17 @@ func (uc *UseCase) CreateTransactionV2() error {
 		// BUG: neither rolls back the claim nor returns
 		_ = err
 	}
-	reservation := uc.reserveTransaction() // BUG: flag not threaded
-	_ = reservation
 	_ = ledgerSettings
 	_ = honoredTracerSkip
 	return nil
+}
+func (uc *UseCase) executeCreateEngine() error {
+	reservation := uc.reserveTransaction() // BUG: flag not threaded
+	_ = reservation
+	return nil
 }`
 
-	m := analyzeCreateSkipSeam(t, leaky)
+	m := analyzeCreateSkipSeam(t, leaky, leaky)
 
 	require.NotEqual(t, -1, m.resolveSkipPos, "fixture sanity: resolveTransactionSkips must be present")
 	require.NotEqual(t, -1, m.reservePos, "fixture sanity: reserveTransaction must be present")
@@ -217,15 +220,18 @@ func (uc *UseCase) CreateTransactionV2() error {
 		uc.rollbackCreateClaim()
 		return err
 	}
-	reservation := uc.reserveTransaction(honoredTracerSkip)
-	_ = reservation
 	_ = ledgerSettings
+	return nil
+}
+func (uc *UseCase) executeCreateEngine() error {
+	reservation := uc.reserveTransaction(run.honoredTracerSkip)
+	_ = reservation
 	return nil
 }`
 
-	mc := analyzeCreateSkipSeam(t, correct)
+	mc := analyzeCreateSkipSeam(t, correct, correct)
 	assert.True(t, mc.rejectDeleteIdemp && mc.rejectReturns && mc.reserveCarriesFlag,
 		"fixture sanity: the correct shape must satisfy every fact")
-	assert.True(t, mc.settingsPos < mc.resolveSkipPos && mc.resolveSkipPos < mc.reservePos,
-		"fixture sanity: settings -> resolve -> reserve ordering")
+	assert.True(t, mc.settingsPos < mc.resolveSkipPos,
+		"fixture sanity: settings must precede skip resolution")
 }
