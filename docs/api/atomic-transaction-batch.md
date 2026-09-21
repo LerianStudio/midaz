@@ -40,6 +40,13 @@ account-block-exception rules. `action` is either `direct` or `hold`; a hold is
 returned initially as `PENDING` and is later committed or cancelled through the
 existing individual transaction routes.
 
+Grouped cross-ledger revert reuses this coordinator internally with `revert`
+items, one parent and optional origin-evidence dependency per part. That action
+is not accepted by the public batch endpoint: callers continue to request a
+revert through the existing transaction-specific v2 route. Internal revert
+items skip fee calculation, reserve Tracer capacity per ledger, and emit the
+normal `transaction.reverted` lifecycle event for each resulting transaction.
+
 Success is HTTP 201 with a wrapper containing the created `TransactionV2` objects
 plus their non-persisted `order`. The response `transactions` array is in
 increasing logical order, rather than physical request array order. For this

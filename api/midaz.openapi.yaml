@@ -12475,7 +12475,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionV2'
+                oneOf:
+                  - $ref: '#/components/schemas/TransactionV2'
+                  - $ref: '#/components/schemas/CrossLedgerTransactionGroupV2'
           description: Created
           headers:
             X-Idempotency-Replayed:
@@ -17013,6 +17015,12 @@ components:
       additionalProperties: false
       properties:
         groupId:
+          format: uuid
+          type: string
+        revertedGroupId:
+          description: >-
+            Original group reversed by this group. Present only on grouped
+            revert responses.
           format: uuid
           type: string
         transactions:

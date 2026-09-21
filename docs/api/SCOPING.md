@@ -184,9 +184,13 @@ ledgers that explicitly enable it and returns `0249` (HTTP 422) when one is disa
 setting does not retroactively change `/v1`: only `/v2/transactions/direct` consumes the
 policy when debit and credit legs name multiple ledgers. It decomposes the request into one
 balanced transaction per ledger and executes all parts atomically under a shared `groupId`.
-Cross-ledger hold, block, unblock, lifecycle operations, and `/v1` remain unsupported, so a
-`/v1` transaction cannot acquire this new rejection class merely because its ledger setting
-changed. See [Cross-ledger transactions](cross-ledger-transactions.md).
+Cross-ledger hold, block, unblock, commit, and cancel remain unsupported. The existing v2
+revert route is the lifecycle exception: selecting any group member reverses every member in
+one atomic execution and returns a new group plus `revertedGroupId`. Authorization is checked
+against the organization and ledger in the route path; the other group members may belong to
+other enabled ledgers or organizations in the same authenticated tenant, matching the create
+contract. `/v1` cannot express the grouped response and rejects a group member with `0252`
+(HTTP 422). See [Cross-ledger transactions](cross-ledger-transactions.md).
 
 ### Transaction skips are a `/v2` body field
 
