@@ -2713,12 +2713,12 @@
             }
           },
           {
-            "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+            "description": "Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)",
             "explode": false,
             "in": "query",
             "name": "date",
             "schema": {
-              "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+              "description": "Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)",
               "type": "string"
             }
           }
@@ -4673,12 +4673,12 @@
             }
           },
           {
-            "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+            "description": "Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)",
             "explode": false,
             "in": "query",
             "name": "date",
             "schema": {
-              "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+              "description": "Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)",
               "type": "string"
             }
           }
@@ -13048,12 +13048,12 @@
             }
           },
           {
-            "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+            "description": "Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)",
             "explode": false,
             "in": "query",
             "name": "date",
             "schema": {
-              "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+              "description": "Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)",
               "type": "string"
             }
           }
@@ -14659,12 +14659,12 @@
             }
           },
           {
-            "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+            "description": "Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)",
             "explode": false,
             "in": "query",
             "name": "date",
             "schema": {
-              "description": "Point in time (format: yyyy-mm-dd hh:mm:ss)",
+              "description": "Ledger-recorded state at this point in time (format: yyyy-mm-dd hh:mm:ss)",
               "type": "string"
             }
           }
