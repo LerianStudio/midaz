@@ -487,6 +487,11 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 
 				media, ok := resp.Content["application/json"]
 				require.Truef(t, ok, "%s %s should answer application/json", rt.action, status)
+				if rt.operationID == "createTransactionDirectV2" {
+					assert.Empty(t, media.Schema.Ref, "direct documents a oneOf response rather than one component ref")
+
+					continue
+				}
 				assert.Equalf(t, "#/components/schemas/"+wantResponseSchema, media.Schema.Ref,
 					"%s should answer with the v2 response component", rt.action)
 			}

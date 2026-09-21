@@ -132,6 +132,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	attachTypedRequestBody[CreateAtomicTransactionBatchV2Request](api, v2AtomicTransactionBatchOperationID)
 	publishV2LifecycleBodySchema(api)
 	publishV2SingularTransactionResponseSchemas(api)
+	publishV2DirectTransactionResponseSchema(api)
 }
 
 func publishV2SingularTransactionResponseSchemas(api huma.API) {
@@ -147,6 +148,36 @@ func publishV2SingularTransactionResponseSchemas(api huma.API) {
 	for _, item := range api.OpenAPI().Paths {
 		for _, op := range operationsOf(item) {
 			if _, ok := singular[op.OperationID]; !ok {
+				continue
+			}
+			for status, response := range op.Responses {
+				if status == "" || status[0] != '2' || response == nil {
+					continue
+				}
+				if media, ok := response.Content["application/json"]; ok && media != nil {
+					media.Schema = schema
+				}
+			}
+		}
+	}
+}
+
+func publishV2DirectTransactionResponseSchema(api huma.API) {
+	if api == nil || api.OpenAPI() == nil || api.OpenAPI().Components == nil || api.OpenAPI().Components.Schemas == nil {
+		return
+	}
+
+	registry := api.OpenAPI().Components.Schemas
+	transactionType := reflect.TypeFor[TransactionV2]()
+	groupType := reflect.TypeFor[CrossLedgerTransactionGroupV2]()
+	schema := &huma.Schema{OneOf: []*huma.Schema{
+		registry.Schema(transactionType, true, transactionType.Name()),
+		registry.Schema(groupType, true, groupType.Name()),
+	}}
+
+	for _, item := range api.OpenAPI().Paths {
+		for _, op := range operationsOf(item) {
+			if op.OperationID != "createTransactionDirectV2" {
 				continue
 			}
 			for status, response := range op.Responses {
@@ -267,9 +298,9 @@ const v2CreateMaxBodyBytes int64 = 1 << 20
 const v2CreateBodyDescription = "Transaction request body. `debits` and `credits` are the two " +
 	"required, non-empty leg arrays of the transaction; one debit paired with many credits, or " +
 	"the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its " +
-	"account belongs to; all of them must name the SAME pair, and that pair is the organization " +
-	"and ledger the transaction is created in. A request whose accounts name different pairs is " +
-	"rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and " +
+	"account belongs to. The direct action accepts multiple enabled ledgers and returns an atomic " +
+	"group; hold, block and unblock still require every leg to name the same pair. `asset`, " +
+	"`amount`, `description`, `code`, `routeId`, `operationRouteId` and " +
 	"`metadata` sit alongside the two leg arrays, and `amount` is the transaction total that " +
 	"the legs' `share` expressions divide. Each leg array holds at most 500 legs."
 

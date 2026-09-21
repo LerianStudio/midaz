@@ -363,6 +363,15 @@ type CreateTransactionV2Response struct {
 	Transactions []*AtomicTransactionBatchV2Transaction `json:"transactions,omitempty"`
 }
 
+// CrossLedgerTransactionGroupV2 is the documented cross-ledger branch of the
+// direct-create response. The runtime response above keeps its optional fields
+// flattened so the historical singular JSON remains byte-compatible; this type
+// gives OpenAPI a strict group envelope whose two fields are both required.
+type CrossLedgerTransactionGroupV2 struct {
+	GroupID      string                                 `json:"groupId" format:"uuid"`
+	Transactions []*AtomicTransactionBatchV2Transaction `json:"transactions" nullable:"false" doc:"Created per-ledger transactions in deterministic decomposition order."`
+}
+
 // StateTransactionOutputV2 pins 201 (matching http.Created) and carries the resulting
 // transaction in the /v2 wire shape, mirroring StateTransactionResponse for the v2
 // commit/cancel ops.
