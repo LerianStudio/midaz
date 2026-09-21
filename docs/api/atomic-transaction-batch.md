@@ -26,23 +26,28 @@ v2 request model together with the action and explicit logical order:
 }
 ```
 
-Every item must resolve to the same organization and ledger. The endpoint has no
-path or query parameters; scope is taken from the validated transaction legs. It
-accepts an optional `balanceKey` on every debit or credit leg; an omitted key uses
-the account's `default` balance. A supplied key selects that named balance and is
+Every item must resolve internally to one organization and ledger, but distinct
+`direct` items may name distinct ledgers when each participant enables
+`settings.crossLedger.enabled`. A batch containing `hold` items remains
+single-ledger; mixed scopes return `0499`. The endpoint has no path or query
+parameters; scope is taken from the validated transaction legs. It accepts an
+optional `balanceKey` on every debit or credit leg; an omitted key uses the
+account's `default` balance. A supplied key selects that named balance and is
 returned in the resulting operation. The key cannot contain whitespace and is
-limited to 100 characters. The endpoint
-uses the same `midaz/transactions/post` authorization chain and per-item v2 fee,
-Tracer, route, overdraft, skip, and account-block-exception rules. `action` is
-either `direct` or `hold`; a hold is returned initially as `PENDING` and is later
-committed or cancelled through the existing individual transaction routes.
+limited to 100 characters. The endpoint uses the same `midaz/transactions/post`
+authorization chain and per-item v2 fee, Tracer, route, overdraft, skip, and
+account-block-exception rules. `action` is either `direct` or `hold`; a hold is
+returned initially as `PENDING` and is later committed or cancelled through the
+existing individual transaction routes.
 
 Success is HTTP 201 with a wrapper containing the created `TransactionV2` objects
 plus their non-persisted `order`. The response `transactions` array is in
-increasing logical order, rather than physical request array order. The internal
-idempotency and recovery batch identifier is not exposed in the response, is not
-stored on transaction rows or events, and has no batch resource or query endpoint;
-query created transactions through their individual transaction IDs.
+increasing logical order, rather than physical request array order. For this
+endpoint, the internal idempotency and recovery batch identifier is not exposed,
+is not stored as `group_id` on transaction rows or events, and has no batch
+resource or query endpoint; query created transactions through their individual
+transaction IDs. That differs from a decomposed cross-ledger direct request,
+whose public `groupId` is deliberately persisted and returned.
 
 ## Ordering and atomicity
 

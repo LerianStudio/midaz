@@ -203,9 +203,15 @@ transaction surface (for example `POST /v2/transactions/direct`) is exposed unde
 
 `POST /v2/transactions/batch` accepts an ordered wrapper of direct and hold
 transactions and applies all monetary effects in one all-or-none accounting execution.
-It has no path or query parameters; every item must name the same organization and ledger
-through its legs. The success wrapper contains only transactions in the exact input order.
+It has no path or query parameters; each item must name one organization and ledger through
+its legs, while distinct direct items may use different enabled ledgers. A batch containing
+hold items remains single-ledger. The success wrapper contains transactions in logical order.
 See [the atomic batch contract](docs/api/atomic-transaction-batch.md).
+
+`POST /v2/transactions/direct` also accepts mixed-ledger legs when every participant enables
+`settings.crossLedger.enabled`. It decomposes the request into one balanced transaction per
+ledger, executes all parts atomically, and returns their shared persisted `groupId` with an
+ordered `transactions` array. See [the cross-ledger contract](docs/api/cross-ledger-transactions.md).
 
 #### Onboarding Resources
 
@@ -528,11 +534,13 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0175` ErrUpdateOfInternalBalance — PATCH targets internal-scope balance
 - `0492` ErrOverdraftRouteNotConfigured — overdraft leg's route lacks a direction-specific overdraft accounting entry (route validation enabled)
 
-#### Settings / Reservation Error Codes (0176–0178, 0249)
+#### Settings / Reservation Error Codes (0176–0178, 0249–0251)
 - `0176` ErrInvalidSettingsFieldValue — settings field value fails validation: `tracer.mode` outside `off|advisory|enforce`, `tracer.failPosture` outside `open|closed`, or `tracer.timeoutMs` outside the closed range `1..30000` ms. Raised at the shared write-time validation, so `POST .../ledgers` and `PATCH .../ledgers/{id}/settings` reject identically
 - `0177` ErrTransactionReservationDenied — tracer reservation denied (limit/rule)
 - `0178` ErrTransactionReservationUnavailable — tracer reservation service unavailable
 - `0249` ErrCrossLedgerNotEnabled — at least one ledger did not opt in through `crossLedger.enabled`; the policy resolver returns HTTP 422 and identifies the disabled ledger
+- `0250` ErrCrossLedgerAssetMismatch — a direct cross-ledger request contains incompatible assets (HTTP 422)
+- `0251` ErrCrossLedgerRouteValidationUnsupported — at least one participant requires route validation, which synthetic bridge legs cannot satisfy (HTTP 422)
 
 #### CRM Error Codes (all 29)
 - `CRM-0006` ErrHolderNotFound — holder not found

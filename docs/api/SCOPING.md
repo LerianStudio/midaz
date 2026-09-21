@@ -181,9 +181,12 @@ version).
 
 `crossLedger.enabled` is an operator's per-ledger opt-in. The policy resolver accepts only
 ledgers that explicitly enable it and returns `0249` (HTTP 422) when one is disabled. This
-setting does not retroactively change `/v1`: the existing `/v2` scope gate remains in force
-until the cross-ledger execution flow consumes this policy. A `/v1` transaction therefore
-cannot acquire this new rejection class merely because its ledger setting changed.
+setting does not retroactively change `/v1`: only `/v2/transactions/direct` consumes the
+policy when debit and credit legs name multiple ledgers. It decomposes the request into one
+balanced transaction per ledger and executes all parts atomically under a shared `groupId`.
+Cross-ledger hold, block, unblock, lifecycle operations, and `/v1` remain unsupported, so a
+`/v1` transaction cannot acquire this new rejection class merely because its ledger setting
+changed. See [Cross-ledger transactions](cross-ledger-transactions.md).
 
 ### Transaction skips are a `/v2` body field
 

@@ -7404,6 +7404,16 @@
               "description": "Pagination cursor",
               "type": "string"
             }
+          },
+          {
+            "description": "Filter transactions by atomic cross-ledger group UUID",
+            "explode": false,
+            "in": "query",
+            "name": "groupId",
+            "schema": {
+              "description": "Filter transactions by atomic cross-ledger group UUID",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -18664,6 +18674,16 @@
               "description": "Pagination cursor",
               "type": "string"
             }
+          },
+          {
+            "description": "Filter transactions by atomic cross-ledger group UUID",
+            "explode": false,
+            "in": "query",
+            "name": "groupId",
+            "schema": {
+              "description": "Filter transactions by atomic cross-ledger group UUID",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -20014,7 +20034,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TransactionV2"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/TransactionV2"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CrossLedgerTransactionGroupV2"
+                    }
+                  ]
                 }
               }
             },
@@ -24183,6 +24210,13 @@
             ],
             "type": "boolean"
           },
+          "groupId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
           "id": {
             "examples": [
               "00000000-0000-0000-0000-000000000000"
@@ -25903,7 +25937,7 @@
       },
       "CreateTransactionV2Input": {
         "additionalProperties": false,
-        "description": "Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to; all of them must name the SAME pair, and that pair is the organization and ledger the transaction is created in. A request whose accounts name different pairs is rejected. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.",
+        "description": "Transaction request body. `debits` and `credits` are the two required, non-empty leg arrays of the transaction; one debit paired with many credits, or the reverse, is a valid request. Every leg names the `organizationId` and `ledgerId` its account belongs to. The direct action accepts multiple enabled ledgers and returns an atomic group; hold, block and unblock still require every leg to name the same pair. `asset`, `amount`, `description`, `code`, `routeId`, `operationRouteId` and `metadata` sit alongside the two leg arrays, and `amount` is the transaction total that the legs' `share` expressions divide. Each leg array holds at most 500 legs.",
         "properties": {
           "accountBlockExceptionId": {
             "description": "Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action.",
@@ -25996,6 +26030,27 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "CrossLedgerTransactionGroupV2": {
+        "additionalProperties": false,
+        "properties": {
+          "groupId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "transactions": {
+            "description": "Created per-ledger transactions in deterministic decomposition order.",
+            "items": {
+              "$ref": "#/components/schemas/AtomicTransactionBatchV2Transaction"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "groupId",
+          "transactions"
+        ],
         "type": "object"
       },
       "Distribute": {
@@ -29418,6 +29473,13 @@
               "null"
             ]
           },
+          "groupId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
+          },
           "id": {
             "examples": [
               "00000000-0000-0000-0000-000000000000"
@@ -29799,6 +29861,13 @@
               false
             ],
             "type": "boolean"
+          },
+          "groupId": {
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ],
+            "format": "uuid",
+            "type": "string"
           },
           "id": {
             "examples": [

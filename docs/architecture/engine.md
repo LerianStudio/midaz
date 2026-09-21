@@ -112,8 +112,12 @@ revert, commit, or cancel that reaches the engine:
    not implement stale-balance or conflict retry.
 6. `redis/engine.Adapter.Execute` resolves tenant-scoped physical keys, including
    an ordered tail key for every presented account-block exception, builds the
-   bounded wire request, obtains a supported standalone/Sentinel client, and sends
-   the assembled Lua script with Redis client retries disabled.
+   bounded protocol-v3 wire request, obtains a supported standalone/Sentinel
+   client, and sends the assembled Lua script with Redis client retries disabled.
+   The execution-level organization and ledger remain the primary scope for
+   compatibility, while each balance and transaction carries its effective scope.
+   Keys and references include that scope, so equal raw balance UUIDs in different
+   ledgers cannot collide.
 7. Lua `main` decodes the protocol and calls `execute`, which checks for a valid
    receipt replay and validates guards/key types. Immediately after the replay
    short-circuit, it reads Redis `TIME` once; it then loads authoritative live
@@ -130,7 +134,10 @@ revert, commit, or cancel that reaches the engine:
 9. SQL/MongoDB failure after accounting is confirmed is deferred to recovery and
    does not turn the already-applied financial operation into an HTTP failure.
    The recovery record was written atomically with accounting. Events are emitted
-   only after SQL and frozen metadata are confirmed.
+   only after SQL and frozen metadata are confirmed. Multi-scope completion groups
+   projections by each transaction's organization and ledger; recovery preserves
+   those frozen per-transaction scopes and never re-derives them from the primary
+   execution scope.
 10. After validating a durable outcome, the completion path asks
    `EngineRecoveryAcknowledger` to read the exact raw version-2 record, validate
    that it represents the completed execution, and run the protected
