@@ -42,7 +42,9 @@ func BuildOperationRecordsFromMovements(payload TransactionCompletionPlan, resul
 
 	lifecycles := operationLifecycles(payload, result.Movements)
 	rows := make([]*operation.Operation, 0, len(result.Movements))
+
 	var recordedAt *time.Time
+
 	if result.AppliedAtUnixMicro > 0 {
 		value := time.UnixMicro(result.AppliedAtUnixMicro).UTC()
 		recordedAt = &value

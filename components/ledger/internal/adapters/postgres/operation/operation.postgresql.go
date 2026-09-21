@@ -227,6 +227,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 
 	record := &OperationPostgreSQLModel{}
 	record.FromEntity(operation)
+
 	if !record.RecordedAt.Valid {
 		record.RecordedAt = sql.NullTime{Time: r.now(), Valid: true}
 	}
@@ -461,6 +462,7 @@ func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context
 	for _, op := range operations {
 		record := &OperationPostgreSQLModel{}
 		record.FromEntity(op)
+
 		if !record.RecordedAt.Valid {
 			record.RecordedAt = sql.NullTime{Time: recordedAt, Valid: true}
 		}

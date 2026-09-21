@@ -428,6 +428,7 @@ func CreateTestOperation(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, pa
 
 	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
+
 	createdAt := params.CreatedAt
 	if createdAt.IsZero() {
 		createdAt = now

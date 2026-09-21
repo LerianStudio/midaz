@@ -930,11 +930,13 @@ func requireResponseFields(fields map[string]json.RawMessage, target reflect.Typ
 
 		parts := strings.Split(field.Tag.Get("json"), ",")
 		name := parts[0]
+
 		// Optional fields are reserved for rolling compatibility with receipts
 		// produced by an older engine script during the retention window.
 		if slices.Contains(parts[1:], "omitempty") {
 			continue
 		}
+
 		if name != "" && name != "-" {
 			if _, exists := fields[name]; !exists {
 				return errors.New("missing accounting response field")
