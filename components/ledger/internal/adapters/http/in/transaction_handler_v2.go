@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -98,10 +99,54 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	transactionInput, scope, exceptionID, err := decodeAndBuildV2Transaction(rawBody, pending, operationTypeOverride)
+	payload, err := decodeCreateTransactionV2Body(rawBody)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
+	normalized, err := normalizeCreateCrossLedgerTransactionV2Body(payload, pending)
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+	transactionInput := normalized.transaction
+	if operationTypeOverride != "" {
+		transactionInput.OperationTypeOverride = operationTypeOverride
+	}
+	exceptionID, err := payload.AccountBlockException()
+	if err != nil {
+		return nil, pkgHTTP.HumaProblem(err)
+	}
+
+	if len(normalized.scopes) > 1 {
+		if pending || operationTypeOverride != "" {
+			return nil, pkgHTTP.HumaProblem(pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction))
+		}
+
+		scopes, err := parseCrossLedgerTransactionScopes(normalized)
+		if err != nil {
+			return nil, pkgHTTP.HumaProblem(err)
+		}
+		result, err := handler.Command.CreateCrossLedgerTransactionV2(ctx, command.CreateCrossLedgerTransactionV2Input{
+			Transaction: transactionInput, Scopes: scopes, AccountBlockExceptionID: exceptionID,
+			CanonicalRequest: rawBody, IdempotencyKey: idempotencyKey,
+			IdempotencyTTL: pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
+		})
+		if err != nil {
+			return nil, pkgHTTP.HumaProblem(err)
+		}
+
+		groupID := result.BatchID.String()
+		transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Transactions))
+		for index := range result.Transactions {
+			transactions[index] = &AtomicTransactionBatchV2Transaction{TransactionV2: newTransactionV2(result.Transactions[index]), Order: index + 1}
+		}
+
+		return &CreateTransactionOutputV2{
+			Status: http.StatusCreated, IdempotencyReplayed: replayedHeader(result.Replayed),
+			Body: &CreateTransactionV2Response{GroupID: &groupID, Transactions: transactions},
+		}, nil
+	}
+
+	scope := normalized.scopes[0]
 
 	orgID, ledgerID, err := parseOrgLedger(scope.OrganizationID, scope.LedgerID)
 	if err != nil {
@@ -126,8 +171,39 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 	return &CreateTransactionOutputV2{
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(replayed),
-		Body:                newTransactionV2(tran),
+		Body:                &CreateTransactionV2Response{TransactionV2: newTransactionV2(tran)},
 	}, nil
+}
+
+func parseCrossLedgerTransactionScopes(normalized normalizedCrossLedgerTransactionV2Body) (command.CrossLedgerTransactionScopes, error) {
+	result := command.CrossLedgerTransactionScopes{
+		Debits:  make([]command.CrossLedgerLegScope, len(normalized.debitScopes)),
+		Credits: make([]command.CrossLedgerLegScope, len(normalized.creditScopes)),
+	}
+	parse := func(scope TransactionV2Scope) (command.CrossLedgerLegScope, error) {
+		organizationID, ledgerID, err := parseOrgLedger(scope.OrganizationID, scope.LedgerID)
+		if err != nil {
+			return command.CrossLedgerLegScope{}, err
+		}
+		return command.CrossLedgerLegScope{OrganizationID: organizationID, LedgerID: ledgerID}, nil
+	}
+
+	for index, scope := range normalized.debitScopes {
+		parsed, err := parse(scope)
+		if err != nil {
+			return command.CrossLedgerTransactionScopes{}, err
+		}
+		result.Debits[index] = parsed
+	}
+	for index, scope := range normalized.creditScopes {
+		parsed, err := parse(scope)
+		if err != nil {
+			return command.CrossLedgerTransactionScopes{}, err
+		}
+		result.Credits[index] = parsed
+	}
+
+	return result, nil
 }
 
 // decodeAndBuildV2Transaction decodes+validates the flat v2 body imperatively (the SAME
@@ -326,6 +402,6 @@ func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *
 	return &CreateTransactionOutputV2{
 		Status:              http.StatusCreated,
 		IdempotencyReplayed: replayedHeader(replayed),
-		Body:                newTransactionV2(tran),
+		Body:                &CreateTransactionV2Response{TransactionV2: newTransactionV2(tran)},
 	}, nil
 }

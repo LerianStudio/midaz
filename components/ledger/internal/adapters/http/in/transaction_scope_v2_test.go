@@ -195,19 +195,17 @@ func TestCreateTransactionV2_RetryReplaysTheStoredTransaction(t *testing.T) {
 		"the replayed slot must be the one scoped by the body")
 }
 
-// TestCreateTransactionV2_ScopeMismatchInBodyIsRejected proves a body whose legs name two different
-// pairs is still refused with the canonical scope-mismatch code. With the scope now deciding where
-// the transaction posts, this rejection is what keeps a single request from being split across two
-// ledgers.
+// TestCreateTransactionHoldV2_ScopeMismatchInBodyIsRejected proves mixed scope
+// remains outside the hold lifecycle milestone.
 func TestCreateTransactionV2_ScopeMismatchInBodyIsRejected(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "direct", (&TransactionHandler{}).CreateTransactionDirectV2)
+	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{}).CreateTransactionHoldV2)
 
 	mismatched := `{"asset":"BRL","amount":"100",` +
 		`"debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],` +
 		`"credits":[{"alias":"@dst",` + v2ForeignScopeJSON + `,"amount":"100"}]}`
 
-	resp := postActionV2(t, app, "direct", mismatched)
+	resp := postActionV2(t, app, "hold", mismatched)
 	defer func() { _ = resp.Body.Close() }()
 
 	body := readAllForTest(t, resp)

@@ -118,6 +118,23 @@ func (fixture *atomicBatchHTTPIntegrationFixture) setCrossLedgerEnabled(t *testi
 	))
 }
 
+func (fixture *atomicBatchHTTPIntegrationFixture) setCrossLedgerRoutePolicy(t *testing.T, ledgerID uuid.UUID, enabled, validateRoutes bool) {
+	t.Helper()
+
+	settings := fmt.Sprintf(`{"crossLedger":{"enabled":%t},"accounting":{"validateRoutes":%t}}`, enabled, validateRoutes)
+	_, err := fixture.infra.pgContainer.DB.Exec(
+		`UPDATE ledger SET settings = $1::jsonb WHERE organization_id = $2 AND id = $3`,
+		settings,
+		fixture.infra.orgID,
+		ledgerID,
+	)
+	require.NoError(t, err)
+	require.NoError(t, fixture.infra.redisRepo.Del(
+		context.Background(),
+		utils.LedgerSettingsInternalKey(fixture.infra.orgID, ledgerID),
+	))
+}
+
 func atomicBatchTransfer(
 	organizationID, ledgerID uuid.UUID,
 	description, debitAlias, creditAlias string,
@@ -637,6 +654,86 @@ func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 		response = postTransaction(t, v1App, v1JSONURL(fixture.infra.orgID, ledgerV1), equivalentV1Body, "unchanged-v1")
 		_ = decodeTxResponse(t, response, http.StatusCreated)
 		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerV1))
+	})
+}
+
+func TestIntegration_DirectV2CrossLedger_OneAtomicGroup(t *testing.T) {
+	fixture := setupAtomicBatchHTTPIntegrationFixture(t)
+	ledgerA := fixture.newLedger(t)
+	ledgerB := fixture.newLedger(t)
+	fixture.setCrossLedgerEnabled(t, ledgerA, true)
+	fixture.setCrossLedgerEnabled(t, ledgerB, true)
+
+	seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerA, "@cross-source", "@external/USD", 100)
+	seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerB, "@external/USD", "@cross-destination", 100)
+
+	request := atomicBatchTransfer(fixture.infra.orgID, ledgerA, "cross-ledger direct", "@cross-source", "@cross-destination", 100)
+	request.Credits[0].LedgerID = ledgerB.String()
+	raw, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	response := postTransaction(t, fixture.app, v2CreateURL("direct"), string(raw), "cross-ledger-direct")
+	body := drainBody(t, response)
+	require.Equal(t, http.StatusCreated, response.StatusCode, "body: %s", string(body))
+
+	var result CreateTransactionV2Response
+	require.NoError(t, json.Unmarshal(body, &result))
+	require.NotNil(t, result.GroupID)
+	require.Len(t, result.Transactions, 2)
+	require.Equal(t, *result.GroupID, *result.Transactions[0].GroupID)
+	require.Equal(t, *result.GroupID, *result.Transactions[1].GroupID)
+	require.Equal(t, ledgerA.String(), result.Transactions[0].LedgerID)
+	require.Equal(t, ledgerB.String(), result.Transactions[1].LedgerID)
+	require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerA))
+	require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerB))
+	requireCachedAvailable(t, fixture, ledgerA, "@cross-source", 0)
+	requireCachedAvailable(t, fixture, ledgerB, "@cross-destination", 100)
+
+	replay := postTransaction(t, fixture.app, v2CreateURL("direct"), string(raw), "cross-ledger-direct")
+	replayBody := drainBody(t, replay)
+	require.Equal(t, http.StatusCreated, replay.StatusCode, "body: %s", string(replayBody))
+	require.Equal(t, "true", replay.Header.Get("X-Idempotency-Replayed"))
+	require.JSONEq(t, string(body), string(replayBody))
+	require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerA))
+	require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerB))
+
+	t.Run("disabled participant is rejected", func(t *testing.T) {
+		enabledLedger := fixture.newLedger(t)
+		disabledLedger := fixture.newLedger(t)
+		fixture.setCrossLedgerEnabled(t, enabledLedger, true)
+		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, enabledLedger, "@disabled-source", "@external/USD", 10)
+		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, disabledLedger, "@external/USD", "@disabled-destination", 10)
+		request := atomicBatchTransfer(fixture.infra.orgID, enabledLedger, "disabled participant", "@disabled-source", "@disabled-destination", 10)
+		request.Credits[0].LedgerID = disabledLedger.String()
+		raw, err := json.Marshal(request)
+		require.NoError(t, err)
+
+		response := postTransaction(t, fixture.app, v2CreateURL("direct"), string(raw), "cross-ledger-disabled-direct")
+		body := drainBody(t, response)
+		require.Equal(t, http.StatusUnprocessableEntity, response.StatusCode, "body: %s", string(body))
+		requireProblemCode(t, body, constant.ErrCrossLedgerNotEnabled.Error())
+		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, enabledLedger))
+		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, disabledLedger))
+	})
+
+	t.Run("route-validating participant is rejected", func(t *testing.T) {
+		sourceLedger := fixture.newLedger(t)
+		destinationLedger := fixture.newLedger(t)
+		fixture.setCrossLedgerRoutePolicy(t, sourceLedger, true, false)
+		fixture.setCrossLedgerRoutePolicy(t, destinationLedger, true, true)
+		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, sourceLedger, "@route-source", "@external/USD", 10)
+		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, destinationLedger, "@external/USD", "@route-destination", 10)
+		request := atomicBatchTransfer(fixture.infra.orgID, sourceLedger, "route gate", "@route-source", "@route-destination", 10)
+		request.Credits[0].LedgerID = destinationLedger.String()
+		raw, err := json.Marshal(request)
+		require.NoError(t, err)
+
+		response := postTransaction(t, fixture.app, v2CreateURL("direct"), string(raw), "cross-ledger-route-direct")
+		body := drainBody(t, response)
+		require.Equal(t, http.StatusUnprocessableEntity, response.StatusCode, "body: %s", string(body))
+		requireProblemCode(t, body, constant.ErrCrossLedgerRouteValidationUnsupported.Error())
+		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, sourceLedger))
+		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, destinationLedger))
 	})
 }
 

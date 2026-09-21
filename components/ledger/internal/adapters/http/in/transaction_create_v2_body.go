@@ -37,6 +37,90 @@ type normalizedTransactionV2Body struct {
 	scope       TransactionV2Scope
 }
 
+type normalizedCrossLedgerTransactionV2Body struct {
+	transaction  mtransaction.Transaction
+	scopes       []TransactionV2Scope
+	debitScopes  []TransactionV2Scope
+	creditScopes []TransactionV2Scope
+}
+
+// normalizeCreateCrossLedgerTransactionV2Body applies the same body-only rules
+// as the singular translator but preserves the scope of every leg instead of
+// requiring one common ledger.
+func normalizeCreateCrossLedgerTransactionV2Body(in CreateTransactionV2Request, pending bool) (normalizedCrossLedgerTransactionV2Body, error) {
+	if err := validateTransactionV2SidesPresent(in.Debits, in.Credits); err != nil {
+		return normalizedCrossLedgerTransactionV2Body{}, err
+	}
+	if err := validateTransactionV2AccountBlockExceptionSurface(pending, in.AccountBlockExceptionID); err != nil {
+		return normalizedCrossLedgerTransactionV2Body{}, err
+	}
+
+	value, err := normalizeTransactionV2Amount(in.Amount)
+	if err != nil {
+		return normalizedCrossLedgerTransactionV2Body{}, err
+	}
+	from, err := normalizeTransactionV2Legs(in.Asset, in.OperationRouteID, in.Debits, true, "debits")
+	if err != nil {
+		return normalizedCrossLedgerTransactionV2Body{}, err
+	}
+	to, err := normalizeTransactionV2Legs(in.Asset, in.OperationRouteID, in.Credits, false, "credits")
+	if err != nil {
+		return normalizedCrossLedgerTransactionV2Body{}, err
+	}
+
+	debitScopes, creditScopes, scopes, err := resolveTransactionV2LegScopes(in.Debits, in.Credits)
+	if err != nil {
+		return normalizedCrossLedgerTransactionV2Body{}, err
+	}
+
+	return normalizedCrossLedgerTransactionV2Body{
+		transaction: mtransaction.Transaction{
+			Description: in.Description, Code: in.Code, Pending: pending, Metadata: in.Metadata,
+			RouteID: cloneStringPtr(in.RouteID), Skip: cloneTransactionSkip(in.Skip),
+			Send: mtransaction.Send{
+				Asset: in.Asset, Value: value, Source: mtransaction.Source{From: from}, Distribute: mtransaction.Distribute{To: to},
+			},
+		},
+		scopes: scopes, debitScopes: debitScopes, creditScopes: creditScopes,
+	}, nil
+}
+
+func resolveTransactionV2LegScopes(
+	debits, credits []TransactionV2LegRequest,
+) ([]TransactionV2Scope, []TransactionV2Scope, []TransactionV2Scope, error) {
+	debitScopes := make([]TransactionV2Scope, len(debits))
+	creditScopes := make([]TransactionV2Scope, len(credits))
+	unique := make([]TransactionV2Scope, 0, len(debits)+len(credits))
+
+	appendScope := func(scope TransactionV2Scope, ref string) error {
+		if err := (v2ScopeRef{scope: scope, ref: ref}).requireComplete(); err != nil {
+			return err
+		}
+		for _, existing := range unique {
+			if existing.namesSameAs(scope) {
+				return nil
+			}
+		}
+		unique = append(unique, scope)
+		return nil
+	}
+
+	for index, leg := range debits {
+		debitScopes[index] = TransactionV2Scope{OrganizationID: leg.OrganizationID, LedgerID: leg.LedgerID}
+		if err := appendScope(debitScopes[index], legReference("debits", index)); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	for index, leg := range credits {
+		creditScopes[index] = TransactionV2Scope{OrganizationID: leg.OrganizationID, LedgerID: leg.LedgerID}
+		if err := appendScope(creditScopes[index], legReference("credits", index)); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	return debitScopes, creditScopes, unique, nil
+}
+
 // normalizeCreateTransactionV2Body applies the pure direct-v2 translation rules
 // in their released singular precedence:
 //

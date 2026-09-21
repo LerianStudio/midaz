@@ -69,12 +69,13 @@ var v2Routes = []struct {
 	responseSchema string
 }{
 	{
-		action:      "direct",
-		fiberPath:   directV2RoutePath,
-		opPath:      "/transactions/direct",
-		operationID: "createTransactionDirectV2",
-		hasBody:     true,
-		bodySchema:  v2CreateBodySchemaName,
+		action:         "direct",
+		fiberPath:      directV2RoutePath,
+		opPath:         "/transactions/direct",
+		operationID:    "createTransactionDirectV2",
+		hasBody:        true,
+		bodySchema:     v2CreateBodySchemaName,
+		responseSchema: "CreateTransactionV2Response",
 	},
 	{
 		action:      "hold",

@@ -54,6 +54,7 @@ type CreateAtomicTransactionBatchV2ItemInput struct {
 type CreateAtomicTransactionBatchV2Input struct {
 	Transactions       []CreateAtomicTransactionBatchV2ItemInput
 	GroupID            *uuid.UUID
+	CrossLedgerGroup   bool
 	CanonicalRequest   []byte
 	RequestFingerprint string
 	IdempotencyKey     string
@@ -327,6 +328,9 @@ func (uc *UseCase) initializeAtomicTransactionBatchItemsAndSettings(
 		}
 		if len(refs) > 1 && !settings.CrossLedger.Enabled {
 			return pkg.ValidateBusinessError(constant.ErrCrossLedgerNotEnabled, constant.EntityLedger, ref.ledgerID.String())
+		}
+		if in.CrossLedgerGroup && settings.Accounting.ValidateRoutes {
+			return pkg.ValidateBusinessError(constant.ErrCrossLedgerRouteValidationUnsupported, constant.EntityLedger)
 		}
 		settingsByRef[ref] = settings
 	}

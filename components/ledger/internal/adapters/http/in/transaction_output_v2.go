@@ -351,7 +351,16 @@ func newOperationV2(op *operation.Operation) *OperationV2 {
 type CreateTransactionOutputV2 struct {
 	Status              int
 	IdempotencyReplayed string `header:"X-Idempotency-Replayed"`
-	Body                *TransactionV2
+	Body                *CreateTransactionV2Response
+}
+
+// CreateTransactionV2Response preserves the historical singular wire shape by
+// anonymously embedding TransactionV2. Cross-ledger direct creation instead
+// leaves that embedding nil and returns the atomic group envelope fields.
+type CreateTransactionV2Response struct {
+	*TransactionV2
+	GroupID      *string                                `json:"groupId,omitempty" format:"uuid"`
+	Transactions []*AtomicTransactionBatchV2Transaction `json:"transactions,omitempty"`
 }
 
 // StateTransactionOutputV2 pins 201 (matching http.Created) and carries the resulting

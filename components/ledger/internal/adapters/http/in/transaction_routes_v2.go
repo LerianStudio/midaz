@@ -131,6 +131,34 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	publishV2CreateBodySchema(api)
 	attachTypedRequestBody[CreateAtomicTransactionBatchV2Request](api, v2AtomicTransactionBatchOperationID)
 	publishV2LifecycleBodySchema(api)
+	publishV2SingularTransactionResponseSchemas(api)
+}
+
+func publishV2SingularTransactionResponseSchemas(api huma.API) {
+	if api == nil || api.OpenAPI() == nil || api.OpenAPI().Components == nil || api.OpenAPI().Components.Schemas == nil {
+		return
+	}
+
+	singular := map[string]struct{}{
+		"createTransactionHoldV2": {}, "createTransactionBlockV2": {}, "createTransactionUnblockV2": {}, "revertTransactionV2": {},
+	}
+	t := reflect.TypeFor[TransactionV2]()
+	schema := api.OpenAPI().Components.Schemas.Schema(t, true, t.Name())
+	for _, item := range api.OpenAPI().Paths {
+		for _, op := range operationsOf(item) {
+			if _, ok := singular[op.OperationID]; !ok {
+				continue
+			}
+			for status, response := range op.Responses {
+				if status == "" || status[0] != '2' || response == nil {
+					continue
+				}
+				if media, ok := response.Content["application/json"]; ok && media != nil {
+					media.Schema = schema
+				}
+			}
+		}
+	}
 }
 
 // v2LifecycleBodyOperationIDs are the /v2 lifecycle ops that accept the optional
