@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,6 +103,36 @@ func TestCloseAccount_ReleasesTheProtectionWhenTheServerRefusedTheWrite(t *testi
 
 	require.ErrorIs(t, err, refused)
 	assert.True(t, closedAt.IsZero())
+}
+
+// TestCloseAccount_FinishesFinalizationAfterCallerCancels covers Fix B: the
+// PostgreSQL close write is authoritative once it lands, so a caller that gives
+// up right after must not stop eviction and the closed marker from completing.
+func TestCloseAccount_FinishesFinalizationAfterCallerCancels(t *testing.T) {
+	m := newCloseAccountMocks(t)
+	m.expectClosingVerified()
+	m.expectWriteIntentRecorded()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	m.account.EXPECT().CloseAccount(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID).
+		DoAndReturn(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (time.Time, error) {
+			cancel()
+			return closeInstant, nil
+		})
+
+	evict := m.redis.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil)
+	closed := m.redis.EXPECT().SetAccountClosedMarker(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, closeInstant).
+		Return(nil).After(evict)
+	marker := m.redis.EXPECT().ReleaseAccountClosingAttempt(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+		Return(true, nil).After(closed)
+	m.redis.EXPECT().ReleaseAccountAdminOwnership(gomock.Any(), closeOrgID, closeLedgerID, closeAccountID, gomock.Any()).
+		Return(true, nil).After(marker)
+
+	closedAt, err := m.uc.CloseAccount(ctx, closeOrgID, closeLedgerID, closeAccountID)
+
+	require.NoError(t, err)
+	assert.Equal(t, closeInstant, closedAt)
 }
 
 // TestCloseAccount_KeepsTheProtectionWhenAnEvictionFails covers AS-13: the account

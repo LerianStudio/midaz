@@ -35,6 +35,10 @@ const accountClosingEvictionBatch = 50
 // process ever reaches the column. Nothing here writes a transaction, an operation
 // or a balance row — the closing is a state of the account, not a movement, and
 // the balances it leaves behind stay readable exactly as they were.
+//
+// The PostgreSQL write above is authoritative once it succeeds, so the completion
+// that follows runs on a bounded context detached from the caller's cancellation:
+// a caller that gives up must not leave eviction and the closed marker undone.
 func (uc *UseCase) finalizeAccountClosing(
 	ctx context.Context,
 	span trace.Span,
@@ -51,7 +55,10 @@ func (uc *UseCase) finalizeAccountClosing(
 		return time.Time{}, uc.resolveFailedAccountClosingWrite(ctx, span, logger, attempt, err)
 	}
 
-	if err := uc.completeAccountClosing(ctx, span, logger, attempt, states, closedAt); err != nil {
+	completionCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), accountClosingCleanupTimeout)
+	defer cancel()
+
+	if err := uc.completeAccountClosing(completionCtx, span, logger, attempt, states, closedAt); err != nil {
 		return time.Time{}, err
 	}
 
