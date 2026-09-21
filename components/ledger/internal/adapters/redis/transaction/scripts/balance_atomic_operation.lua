@@ -412,13 +412,24 @@ local function legacy_flag(value)
     return nil
 end
 
--- normalize_modern_identity keeps the uppercase Alias/Key pair untouched for
--- legacy response correlation while making the lower-camel identity suitable
--- for strict new-schema readers.
+-- strip_entry_index removes the "index#" prefix that Go prepends to each
+-- transaction entry ("0#@alias#key"). Account aliases start with "@", so the
+-- numeric prefix identifies the entry rather than the balance.
+local function strip_entry_index(alias)
+    local rest = alias:match("^%d+#(.+)$")
+    return rest or alias
+end
+
+-- normalize_modern_identity accepts @alias, @alias#key, and
+-- index#@alias#key. It keeps the uppercase Alias/Key pair untouched for legacy
+-- response correlation while making the lower-camel identity suitable for
+-- strict new-schema readers.
 local function normalize_modern_identity(alias, key)
     if type(alias) ~= "string" or type(key) ~= "string" then
         return nil, nil
     end
+
+    alias = strip_entry_index(alias)
 
     if key == "" then
         key = "default"
