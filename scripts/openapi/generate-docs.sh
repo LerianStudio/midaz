@@ -23,6 +23,13 @@ COMPONENTS=("ledger" "tracer")
 LOG_DIR="${ROOT_DIR}/tmp"
 mkdir -p "${LOG_DIR}"
 
+# Convert YAML to JSON with the repository's Go YAML dependency. Keeping this
+# conversion in Go avoids carrying a second YAML parser in the Node toolchain;
+# Node remains scoped to the Redocly join/lint CLI.
+yaml_to_json() {
+    go -C "${ROOT_DIR}" run ./scripts/openapi/cmd/yamljson "$@"
+}
+
 # Colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -135,7 +142,7 @@ consolidate_openapi() {
     #     "/v1" vs "/"), redocly compensates by stamping a servers array onto EVERY
     #     path item of EVERY input. This transform makes the tracer input SYMMETRIC to
     #     the ledger dump so no such override is emitted, WITHOUT mutating the committed
-    #     tracer dump (js-yaml parses a fresh copy; the source file is never written):
+    #     tracer dump (yamljson parses a fresh copy; the source file is never written):
     #       - prefix "/v1" onto every path key so each key is self-describing and
     #         globally unique against the ledger keys;
     #       - declare top-level servers "/" so it matches the ledger dump's servers.
@@ -144,7 +151,7 @@ consolidate_openapi() {
     #     override. No per-path-item servers are written here — that asymmetry is
     #     exactly what produced the overrides.
     local tracer_dump="${ROOT_DIR}/components/tracer/api/openapi.huma.yaml"
-    local tracer_join_input="${LOG_DIR}/tracer_join_input.yaml"
+    local tracer_join_input="${LOG_DIR}/tracer_join_input.json"
 
     # LOG_DIR survives between runs, so discard whatever an earlier run left here.
     # Joining below keys off THIS run having derived the input, never off the file
@@ -161,18 +168,9 @@ consolidate_openapi() {
         return 1
     fi
 
-    if ! (cd "${ROOT_DIR}" && NODE_PATH="${OPENAPI_DIR}/node_modules" node -e '
-        const yaml = require("js-yaml");
-        const fs = require("fs");
-        const doc = yaml.load(fs.readFileSync(process.argv[1], "utf8"));
-        const prefixed = {};
-        for (const key of Object.keys(doc.paths || {})) {
-            prefixed["/v1" + key] = doc.paths[key];
-        }
-        doc.paths = prefixed;
-        doc.servers = [{ url: "/" }];
-        fs.writeFileSync(process.argv[2], yaml.dump(doc));
-    ' "${tracer_dump}" "${tracer_join_input}" >> "${out_log}" 2>> "${err_log}"); then
+    if ! yaml_to_json "${tracer_dump}" \
+            | jq '.paths |= with_entries(.key = ("/v1" + .key)) | .servers = [{"url":"/"}]' \
+                > "${tracer_join_input}" 2>> "${err_log}"; then
         print_step "Consolidate OpenAPI specs" "FAILED"
         echo -e "      ${RED}Error details:${NC}"
         head -5 "${err_log}" | sed 's/^/        /'
@@ -195,13 +193,9 @@ consolidate_openapi() {
         return 1
     fi
 
-    # 3. Produce a deterministic JSON twin from the YAML via the bundled js-yaml.
-    if ! (cd "${ROOT_DIR}" && NODE_PATH="${OPENAPI_DIR}/node_modules" node -e '
-        const yaml = require("js-yaml");
-        const fs = require("fs");
-        const doc = yaml.load(fs.readFileSync("api/midaz.openapi.yaml", "utf8"));
-        fs.writeFileSync("api/midaz.openapi.json", JSON.stringify(doc, null, 2) + "\n");
-    ' >> "${out_log}" 2>> "${err_log}"); then
+    # 3. Produce a deterministic JSON twin from the YAML.
+    if ! yaml_to_json "${consolidated_yaml}" "${consolidated_json}" \
+            >> "${out_log}" 2>> "${err_log}"; then
         print_step "Consolidate OpenAPI specs" "FAILED"
         echo -e "      ${RED}Error details:${NC}"
         head -5 "${err_log}" | sed 's/^/        /'
@@ -246,40 +240,23 @@ consolidate_openapi() {
     #         ledger's contribution and everything else is the tracer input's.
     #     A dropped or partially-lost member then fails the per-member "contributed X of
     #     Y" check, while a normal route addition simply moves the derived totals.
-    if ! (cd "${ROOT_DIR}" && NODE_PATH="${OPENAPI_DIR}/node_modules" node -e '
-        const yaml = require("js-yaml");
-        const fs = require("fs");
-        const pathKeys = f => Object.keys((yaml.load(fs.readFileSync(f, "utf8")) || {}).paths || {});
-        const hub = JSON.parse(fs.readFileSync("api/midaz.openapi.json", "utf8"));
-        const hubKeys = Object.keys(hub.paths || {});
-
-        const ledgerKeys = new Set(pathKeys(process.argv[1]));
-        const expectedLedger = ledgerKeys.size;
-        const expectedTracer = pathKeys(process.argv[2]).length;
-
-        const ledgerActual = hubKeys.filter(k => ledgerKeys.has(k)).length;
-        const tracerActual = hubKeys.length - ledgerActual;
-
-        const problems = [];
-        if (ledgerActual !== expectedLedger) {
-            problems.push("ledger contributed " + ledgerActual + " of " + expectedLedger + " path keys");
-        }
-        if (tracerActual !== expectedTracer) {
-            problems.push("tracer contributed " + tracerActual + " of " + expectedTracer + " path keys");
-        }
-        if (problems.length > 0) {
-            console.error("Consolidated hub is missing a join input contribution: " + problems.join("; ") + ". A join input was likely dropped or partially lost.");
-            process.exit(1);
-        }
-
-        const expectedTotal = expectedLedger + expectedTracer;
-        if (hubKeys.length !== expectedTotal) {
-            console.error("Consolidated path-key count mismatch: hub has " + hubKeys.length + ", join inputs sum to " + expectedTotal + ".");
-            process.exit(1);
-        }
-    ' components/ledger/api/openapi.huma.yaml "${tracer_dump}" 2>"${err_log}"); then
+    local ledger_keys_file="${LOG_DIR}/ledger_path_keys.json"
+    local tracer_keys_file="${LOG_DIR}/tracer_path_keys.json"
+    if ! yaml_to_json "${ROOT_DIR}/components/ledger/api/openapi.huma.yaml" \
+            | jq -c '.paths | keys' > "${ledger_keys_file}" \
+        || ! yaml_to_json "${tracer_dump}" \
+            | jq -c '[.paths | keys[] | "/v1" + .]' > "${tracer_keys_file}" \
+        || ! jq -e --slurpfile ledger "${ledger_keys_file}" \
+            --slurpfile tracer "${tracer_keys_file}" '
+                (.paths | keys) as $hub
+                | ($ledger[0]) as $ledger_keys
+                | ($tracer[0]) as $tracer_keys
+                | ($ledger_keys + $tracer_keys | unique) as $expected
+                | ($hub == $expected)
+            ' "${consolidated_json}" > /dev/null 2>> "${err_log}"; then
         print_step "Consolidate OpenAPI specs" "FAILED"
         echo -e "      ${RED}Error details:${NC}"
+        echo "        Consolidated hub is missing or adding path keys relative to its required inputs."
         head -5 "${err_log}" | sed 's/^/        /'
         return 1
     fi
@@ -325,7 +302,7 @@ consolidate_openapi() {
     return 0
 }
 
-# Install Node.js dependencies for OpenAPI consolidation tooling (redocly + js-yaml)
+# Install the Node.js dependency for OpenAPI consolidation tooling (Redocly).
 install_npm_dependencies() {
     print_step "Installing Node.js dependencies" "PROCESSING"
 
