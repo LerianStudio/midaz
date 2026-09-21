@@ -85,6 +85,7 @@ func (uc *UseCase) RevertTransactionV1(ctx context.Context, in RevertTransaction
 
 		return nil, false, err
 	}
+
 	if err != nil {
 		return nil, false, err
 	}
@@ -131,6 +132,7 @@ func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransaction
 
 		return nil, false, err
 	}
+
 	if target != nil && target.GroupID != nil {
 		revertedGroupID, parseErr := uuid.Parse(*target.GroupID)
 		if parseErr != nil {
@@ -184,17 +186,7 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 	}
 
 	if parent != nil {
-		err = pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
-		if parent.GroupID != nil {
-			tran, lookupErr := uc.TransactionReader.GetTransactionByID(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
-			if lookupErr == nil {
-				return mtransaction.Transaction{}, tran, err
-			}
-		}
-
-		return mtransaction.Transaction{}, nil, err
+		return uc.rejectAlreadyRevertedTransaction(readCtx, span, in, parent)
 	}
 
 	resolution, err := resolveTransactionProjection(readCtx, uc.TransactionReader, in.OrganizationID, in.LedgerID, in.TransactionID)
@@ -277,6 +269,26 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 	}
 
 	return transactionReverted, tran, nil
+}
+
+func (uc *UseCase) rejectAlreadyRevertedTransaction(
+	ctx context.Context,
+	span trace.Span,
+	in RevertTransactionInput,
+	parent *transaction.Transaction,
+) (mtransaction.Transaction, *transaction.Transaction, error) {
+	err := pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
+
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction Has Already Parent Transaction", err)
+
+	if parent.GroupID != nil {
+		tran, lookupErr := uc.TransactionReader.GetTransactionByID(ctx, in.OrganizationID, in.LedgerID, in.TransactionID)
+		if lookupErr == nil {
+			return mtransaction.Transaction{}, tran, err
+		}
+	}
+
+	return mtransaction.Transaction{}, nil, err
 }
 
 func (uc *UseCase) attachRevertOriginDependency(ctx context.Context, run *createTransactionRun, originID uuid.UUID) error {

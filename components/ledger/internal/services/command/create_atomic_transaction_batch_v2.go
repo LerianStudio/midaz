@@ -584,7 +584,7 @@ func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2I
 			if action == "" {
 				action = constant.ActionDirect
 			}
-			if action != constant.ActionDirect && !(crossLedgerGroup && action == constant.ActionRevert) {
+			if action != constant.ActionDirect && (!crossLedgerGroup || action != constant.ActionRevert) {
 				err := pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
 				message := "cross-ledger action is not supported"
 				if action == constant.ActionHold {
@@ -613,10 +613,6 @@ func atomicTransactionBatchLedgerRefs(items []CreateAtomicTransactionBatchV2Item
 	return refs
 }
 
-func validateAtomicTransactionBatchItemCorrelation(items []CreateAtomicTransactionBatchV2ItemInput) error {
-	return validateAtomicTransactionBatchItemCorrelationForGroup(items, false)
-}
-
 func validateAtomicTransactionBatchItemCorrelationForGroup(items []CreateAtomicTransactionBatchV2ItemInput, crossLedgerGroup bool) error {
 	revised := false
 	for _, item := range items {
@@ -641,7 +637,7 @@ func validateAtomicTransactionBatchItemCorrelationForGroup(items []CreateAtomicT
 			return fmt.Errorf("atomic transaction batch item %d repeats original index %d", index, item.OriginalIndex)
 		}
 		seenOriginalIndexes[item.OriginalIndex] = struct{}{}
-		if item.Action != constant.ActionDirect && item.Action != constant.ActionHold && !(crossLedgerGroup && item.Action == constant.ActionRevert) {
+		if item.Action != constant.ActionDirect && item.Action != constant.ActionHold && (!crossLedgerGroup || item.Action != constant.ActionRevert) {
 			return fmt.Errorf("atomic transaction batch item %d has unsupported action %q", index, item.Action)
 		}
 	}

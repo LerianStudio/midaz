@@ -50,7 +50,7 @@ func TestAtomicTransactionBatchRevert_IsPrivateToCrossLedgerGroups(t *testing.T)
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), constant.ErrTransactionScopeMismatch.Error())
-	require.Error(t, validateAtomicTransactionBatchItemCorrelation(transactions))
+	require.Error(t, validateAtomicTransactionBatchItemCorrelationForGroup(transactions, false))
 }
 
 func TestCreateAtomicTransactionBatchV2_RevertCarriesParentAndOriginEvidenceWithoutFees(t *testing.T) {

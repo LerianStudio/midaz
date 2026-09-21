@@ -402,13 +402,16 @@ func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
+
 	if result == nil {
 		return nil, pkgHTTP.HumaProblem(errors.New("revert transaction command returned no result"))
 	}
 
 	if result.Group != nil {
 		groupID := result.Group.BatchID.String()
+
 		var revertedGroupID *string
+
 		if result.RevertedGroupID != nil {
 			value := result.RevertedGroupID.String()
 			revertedGroupID = &value
@@ -432,6 +435,7 @@ func (handler *TransactionHandler) RevertTransactionV2(ctx context.Context, in *
 			},
 		}, nil
 	}
+
 	if result.Transaction == nil {
 		return nil, pkgHTTP.HumaProblem(errors.New("revert transaction command returned an empty singular result"))
 	}

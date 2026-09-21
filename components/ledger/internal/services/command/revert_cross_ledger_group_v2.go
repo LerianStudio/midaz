@@ -56,6 +56,7 @@ func (uc *UseCase) RevertCrossLedgerGroupV2(
 
 		return nil, uuid.Nil, err
 	}
+
 	if target == nil || target.GroupID == nil {
 		return nil, uuid.Nil, pkg.ValidateBusinessError(
 			constant.ErrCrossLedgerGroupIncomplete,
@@ -92,6 +93,7 @@ func (uc *UseCase) revertCrossLedgerGroupV2(
 	if err != nil {
 		return nil, err
 	}
+
 	if err := validateCrossLedgerRevertMembers(in.TransactionID, revertedGroupID, members); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cross-ledger transaction group is incomplete", err)
 
@@ -123,6 +125,7 @@ func (uc *UseCase) revertCrossLedgerGroupV2(
 	if err != nil {
 		return nil, fmt.Errorf("generate cross-ledger revert group id: %w", err)
 	}
+
 	if newGroupID == uuid.Nil {
 		return nil, errors.New("cross-ledger revert UUIDv7 generator returned a nil group id")
 	}
@@ -158,10 +161,12 @@ func (uc *UseCase) prepareCrossLedgerRevertPart(
 	if err != nil {
 		return preparedCrossLedgerRevertPart{}, fmt.Errorf("parse cross-ledger member organization id: %w", err)
 	}
+
 	ledgerID, err := uuid.Parse(member.LedgerID)
 	if err != nil {
 		return preparedCrossLedgerRevertPart{}, fmt.Errorf("parse cross-ledger member ledger id: %w", err)
 	}
+
 	transactionID, err := uuid.Parse(member.ID)
 	if err != nil {
 		return preparedCrossLedgerRevertPart{}, fmt.Errorf("parse cross-ledger member transaction id: %w", err)
@@ -177,6 +182,7 @@ func (uc *UseCase) prepareCrossLedgerRevertPart(
 	}
 
 	part := preparedCrossLedgerRevertPart{origin: member, reversal: reversal}
+
 	resolution, err := resolveTransactionProjection(
 		readrouting.WithPrimaryRead(ctx),
 		uc.TransactionReader,
@@ -213,6 +219,7 @@ func buildCrossLedgerRevertBatchInput(
 	items := make([]CreateAtomicTransactionBatchV2ItemInput, len(parts))
 	for outputIndex := range parts {
 		partIndex := len(parts) - 1 - outputIndex
+
 		part := parts[partIndex]
 		if part.origin == nil {
 			return CreateAtomicTransactionBatchV2Input{}, errors.New("cross-ledger revert part has no origin")
@@ -222,10 +229,12 @@ func buildCrossLedgerRevertBatchInput(
 		if err != nil {
 			return CreateAtomicTransactionBatchV2Input{}, fmt.Errorf("parse cross-ledger member organization id: %w", err)
 		}
+
 		ledgerID, err := uuid.Parse(part.origin.LedgerID)
 		if err != nil {
 			return CreateAtomicTransactionBatchV2Input{}, fmt.Errorf("parse cross-ledger member ledger id: %w", err)
 		}
+
 		originID, err := uuid.Parse(part.origin.ID)
 		if err != nil {
 			return CreateAtomicTransactionBatchV2Input{}, fmt.Errorf("parse cross-ledger member transaction id: %w", err)
@@ -243,6 +252,7 @@ func buildCrossLedgerRevertBatchInput(
 		if part.dependency.ExecutionID != uuid.Nil {
 			item.Dependencies = []TransactionEvidenceReference{part.dependency}
 		}
+
 		if originID == in.TransactionID {
 			item.AccountBlockExceptionID = cloneUUIDPointer(in.AccountBlockExceptionID)
 		}
@@ -273,14 +283,17 @@ func validateCrossLedgerRevertMembers(
 	}
 
 	foundRequested := false
+
 	for _, member := range members {
 		if member == nil || member.GroupID == nil || *member.GroupID != groupID.String() {
 			return pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
 		}
+
 		if member.ID == requestedID.String() {
 			foundRequested = true
 		}
 	}
+
 	if !foundRequested {
 		return pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
 	}
@@ -302,10 +315,12 @@ func (uc *UseCase) withCrossLedgerRevertMemberError(
 	if err != nil {
 		return primary
 	}
+
 	reader, ok := uc.TransactionReader.(TransactionGroupReader)
 	if !ok {
 		return primary
 	}
+
 	members, err := reader.FindTransactionsByGroupID(readrouting.WithPrimaryRead(ctx), groupID)
 	if err != nil {
 		return primary

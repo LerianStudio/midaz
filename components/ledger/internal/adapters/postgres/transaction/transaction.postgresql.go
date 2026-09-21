@@ -999,8 +999,10 @@ func (r *TransactionPostgreSQLRepository) FindByGroupID(ctx context.Context, gro
 	defer rows.Close()
 
 	transactions := make([]*Transaction, 0)
+
 	for rows.Next() {
 		var record TransactionPostgreSQLModel
+
 		var body *string
 
 		if err := rows.Scan(
