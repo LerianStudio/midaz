@@ -71,9 +71,14 @@ func TestIntegration_ProcessBalanceAtomicOperation_ConcatAliasProjectsNonDefault
 	require.Equal(t, op.Alias, result.After[0].Alias)
 
 	cached := readConcatAliasCache(t, infra, op.InternalKey)
-	require.Equal(t, op.Alias, decodeSettingsUpdateField[string](t, cached, "Alias"))
+	require.Equal(t, "@concat-non-default", decodeSettingsUpdateField[string](t, cached, "Alias"))
 	require.Equal(t, "@concat-non-default", decodeSettingsUpdateField[string](t, cached, "alias"))
 	require.Equal(t, "food", decodeSettingsUpdateField[string](t, cached, "key"))
+
+	balances, err := infra.repo.GetBalancesByKeys(t.Context(), []string{op.InternalKey})
+	require.NoError(t, err)
+	require.Equal(t, "@concat-non-default", balances[op.InternalKey].Alias)
+	require.Equal(t, "food", balances[op.InternalKey].Key)
 }
 
 func TestIntegration_ProcessBalanceAtomicOperation_ConcatAliasKeepsDuplicateLegsDistinct(t *testing.T) {

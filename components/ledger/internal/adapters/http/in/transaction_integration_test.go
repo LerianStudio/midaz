@@ -166,8 +166,8 @@ func setupTestInfra(t *testing.T) *testInfra {
 // newAbsentAccountRepo satisfies the balance read path's account lookup, which
 // this harness otherwise leaves unwired.
 //
-// Every cache-miss balance read hydrates the owning account's blocked flag
-// through AccountRepo.ListAccountsByIDs, so an unwired repository is a nil
+// Every cache-miss balance read hydrates the owning account's blocked and
+// closing state through AccountRepo, so an unwired repository is a nil
 // interface the read dereferences. The `accounts` table belongs to the
 // onboarding migration set, which this transaction-only container does not
 // load, so a real repository would fail on a missing relation instead — hence a
@@ -185,6 +185,10 @@ func newAbsentAccountRepo(t *testing.T) *account.MockRepository {
 	mockAccountRepo.EXPECT().
 		ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return([]*mmodel.Account{}, nil).
+		AnyTimes()
+	mockAccountRepo.EXPECT().
+		ListClosedAtByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID]*time.Time{}, nil).
 		AnyTimes()
 
 	return mockAccountRepo
