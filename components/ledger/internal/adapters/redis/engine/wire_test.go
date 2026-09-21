@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -94,6 +95,47 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	input.CompletionPlans[0].Payload[0] = '['
 	input.Execution.Transactions[0].Postings[0].Ref = "changed"
 	require.Equal(t, first.Payload, second.Payload, "prepared bytes must not alias input storage")
+}
+
+func TestPrepareExecutionCarriesPerItemScopeInProtocolV3(t *testing.T) {
+	t.Parallel()
+
+	input, limits, resolved := validWireExecution()
+	organizationID := uuid.MustParse("a998807f-5e85-4469-8c9d-e40880113bb0")
+	ledgerID := uuid.MustParse("f334b1ce-f18f-4163-b326-713cf7011fe2")
+	input.Execution.Balances[0].OrganizationID = organizationID
+	input.Execution.Balances[0].LedgerID = ledgerID
+	input.Execution.Transactions[0].OrganizationID = organizationID
+	input.Execution.Transactions[0].LedgerID = ledgerID
+
+	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+
+	var wire wireRequest
+	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
+	require.Equal(t, 3, wire.ProtocolVersion)
+	require.Equal(t, organizationID.String(), wire.Balances[0].OrganizationID)
+	require.Equal(t, ledgerID.String(), wire.Balances[0].LedgerID)
+	require.Equal(t, organizationID.String(), wire.Transactions[0].OrganizationID)
+	require.Equal(t, ledgerID.String(), wire.Transactions[0].LedgerID)
+}
+
+func TestResolveAdapterKeysUsesBalanceAndTransactionScope(t *testing.T) {
+	t.Parallel()
+
+	input, _, _ := validWireExecutionWithGrant()
+	organizationID := uuid.MustParse("a998807f-5e85-4469-8c9d-e40880113bb0")
+	ledgerID := uuid.MustParse("f334b1ce-f18f-4163-b326-713cf7011fe2")
+	input.Execution.Balances[0].OrganizationID = organizationID
+	input.Execution.Balances[0].LedgerID = ledgerID
+	input.Execution.Transactions[0].OrganizationID = organizationID
+	input.Execution.Transactions[0].LedgerID = ledgerID
+
+	ctx := core.ContextWithTenantID(context.Background(), "fixture")
+	resolved, err := resolveAdapterKeys(ctx, input.Execution)
+	require.NoError(t, err)
+	require.Contains(t, resolved.Balances["@source#default"].Balance, organizationID.String()+":"+ledgerID.String())
+	require.Contains(t, resolved.AccountBlockExceptions[input.Execution.Transactions[0].AccountBlockException.ExceptionID], organizationID.String()+":"+ledgerID.String())
 }
 
 func TestEngineWriteBehindAtomicTransactionBatchBudgetCountsDependenciesAndIndexWire(t *testing.T) {
