@@ -7,6 +7,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -141,6 +142,22 @@ func TestResolveEngineWriteBehindTransactionFallsBackToPrimaryWithoutIndex(t *te
 	require.Equal(t, EngineTransactionResolutionPrimary, resolved.Source)
 	require.False(t, resolved.Pending)
 	require.Equal(t, map[string]any{"durable": true}, resolved.Transaction.Metadata)
+}
+
+func TestResolveEngineWriteBehindTransactionFailsClosedOnIndexTransportError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	transactionRepo := postgres.NewMockRepository(ctrl)
+	transportErr := errors.New("valkey unavailable")
+	fake := &engineWriteBehindRepositoryFake{indexErr: transportErr}
+	uc := &UseCase{
+		EngineWriteBehindRepo:  fake,
+		EngineWriteBehindCodec: command.EngineWriteBehindEvidenceCodec{},
+		TransactionRepo:        transactionRepo,
+	}
+
+	resolved, err := uc.ResolveEngineWriteBehindTransaction(context.Background(), uuid.New(), uuid.New(), uuid.New())
+	require.Nil(t, resolved)
+	require.ErrorIs(t, err, transportErr)
 }
 
 func queryEngineWriteBehindFixture(t testing.TB) ([]byte, []byte, []byte, *postgres.Transaction) {

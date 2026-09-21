@@ -10,7 +10,8 @@ local function validateIndexedDependency(request, dependency)
         technical("dependency_evidence_conflict", "transaction dependency index has changed")
     end
 
-    local rawEvidence = redis.call("HGET", KEYS[2], index.recoveryField)
+    local rawEvidence = redis.call("HGET", KEYS[request.evidenceKeyIndex], index.recoveryField)
+    if not rawEvidence then rawEvidence = redis.call("HGET", KEYS[2], index.recoveryField) end
     if not rawEvidence then technical("dependency_evidence_missing", "transaction dependency evidence is absent") end
     local evidence = decodeJSON(rawEvidence)
     requireObject(evidence)
@@ -99,7 +100,7 @@ local function loadBalancePool(request)
     local pool, companions = {}, {}
     local normalization = array()
     for i, balance in ipairs(request.balances) do
-        local keyIndex, markerIndex, legacyMarkerIndex = 4 + 3 * i, 5 + 3 * i, 6 + 3 * i
+        local keyIndex, markerIndex, legacyMarkerIndex = 5 + 3 * i, 6 + 3 * i, 7 + 3 * i
         expectRedisType(KEYS[keyIndex], "string")
         expectRedisType(KEYS[markerIndex], "string")
         expectRedisType(KEYS[legacyMarkerIndex], "string")
@@ -381,7 +382,7 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
             value = charge(encodeJSON({
                 formatVersion = 1, tenantId = request.tenantId, organizationId = request.organizationId,
                 ledgerId = request.ledgerId, transactionId = transaction.id, executionId = request.executionId,
-                action = transaction.completion.action or "", applicationState = "confirmed",
+                action = transaction.action, applicationState = "confirmed",
                 replayState = "reconstructible", durabilityState = "pending",
                 recoveryField = transaction.recoveryField, receiptField = request.receiptField,
                 dependencies = transaction.dependencies

@@ -300,10 +300,11 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		Guards:                 "engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		Protection:             "engine:" + cachepolicy.HashTag + ":protection:" + scope,
 		TransactionIndex:       "engine:" + cachepolicy.HashTag + ":transaction-index:" + scope,
+		Evidence:               "engine:" + cachepolicy.HashTag + ":evidence:" + scope,
 		Balances:               make(map[string]resolvedBalanceKeys, len(request.Balances)),
 		AccountBlockExceptions: make(map[uuid.UUID]string, len(request.Transactions)),
 	}
-	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection, &resolved.TransactionIndex} {
+	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection, &resolved.TransactionIndex, &resolved.Evidence} {
 		prefixed, err := tmvalkey.GetKeyContext(ctx, *key)
 		if err != nil {
 			return resolvedExecutionKeys{}, err
@@ -391,8 +392,10 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 
 		allowed := make(map[string]bool, len(request.Balances))
 
-		balanceKeyEnd := 6 + 3*len(request.Balances)
-		for i := 6; i < balanceKeyEnd; i += 3 {
+		balanceKeyStart := 7
+
+		balanceKeyEnd := balanceKeyStart + 3*len(request.Balances)
+		for i := balanceKeyStart; i < balanceKeyEnd; i += 3 {
 			allowed[keys[i]] = true
 		}
 

@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -179,8 +178,8 @@ func initMultiTenantRabbitMQ(
 	if cfg.RabbitMQTransactionAsync {
 		engineProducer, err := rabbitmq.NewMultiTenantEngineWriteBehindProducerFromManager(
 			tenantRabbitMQ,
-			os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
-			os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
+			cfg.RabbitMQTransactionBalanceOperationExchange,
+			cfg.RabbitMQTransactionBalanceOperationKey,
 			defaultEngineWriteBehindPublishTimeout(cfg),
 		)
 		if err != nil {
@@ -433,8 +432,8 @@ func initSingleTenantRabbitMQ(
 
 		engineProducer, engineErr := rabbitmq.NewSingleTenantEngineWriteBehindProducer(
 			engineConnection,
-			os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
-			os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
+			cfg.RabbitMQTransactionBalanceOperationExchange,
+			cfg.RabbitMQTransactionBalanceOperationKey,
 			defaultEngineWriteBehindPublishTimeout(cfg),
 		)
 		if engineErr != nil {

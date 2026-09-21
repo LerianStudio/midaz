@@ -243,20 +243,22 @@ type Config struct {
 	FeesPrefixedMongoTLSCACert    string `env:"MONGO_FEES_TLS_CA_CERT"`
 
 	// --- RabbitMQ (transaction domain only) ---
-	RabbitURI                                string `env:"RABBITMQ_URI"`
-	RabbitMQHost                             string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost                         string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP                         string `env:"RABBITMQ_PORT_AMQP"`
-	RabbitMQUser                             string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass                             string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQConsumerUser                     string `env:"RABBITMQ_CONSUMER_USER"`
-	RabbitMQConsumerPass                     string `env:"RABBITMQ_CONSUMER_PASS"`
-	RabbitMQVHost                            string `env:"RABBITMQ_VHOST"`
-	RabbitMQNumbersOfWorkers                 int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
-	RabbitMQNumbersOfPrefetch                int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
-	RabbitMQHealthCheckURL                   string `env:"RABBITMQ_HEALTH_CHECK_URL"`
-	RabbitMQTLS                              bool   `env:"RABBITMQ_TLS"`
-	RabbitMQTransactionBalanceOperationQueue string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"`
+	RabbitURI                                   string `env:"RABBITMQ_URI"`
+	RabbitMQHost                                string `env:"RABBITMQ_HOST"`
+	RabbitMQPortHost                            string `env:"RABBITMQ_PORT_HOST"`
+	RabbitMQPortAMQP                            string `env:"RABBITMQ_PORT_AMQP"`
+	RabbitMQUser                                string `env:"RABBITMQ_DEFAULT_USER"`
+	RabbitMQPass                                string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQConsumerUser                        string `env:"RABBITMQ_CONSUMER_USER"`
+	RabbitMQConsumerPass                        string `env:"RABBITMQ_CONSUMER_PASS"`
+	RabbitMQVHost                               string `env:"RABBITMQ_VHOST"`
+	RabbitMQNumbersOfWorkers                    int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
+	RabbitMQNumbersOfPrefetch                   int    `env:"RABBITMQ_NUMBERS_OF_PREFETCH"`
+	RabbitMQHealthCheckURL                      string `env:"RABBITMQ_HEALTH_CHECK_URL"`
+	RabbitMQTLS                                 bool   `env:"RABBITMQ_TLS"`
+	RabbitMQTransactionBalanceOperationExchange string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"`
+	RabbitMQTransactionBalanceOperationKey      string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"`
+	RabbitMQTransactionBalanceOperationQueue    string `env:"RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"`
 
 	// Circuit Breaker configuration for RabbitMQ
 	RabbitMQCircuitBreakerConsecutiveFailures int    `env:"RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES"`

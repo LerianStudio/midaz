@@ -313,7 +313,7 @@ func TestAccountingError_OutcomeCertaintyAndNormalizationScope(t *testing.T) {
 		assertAdapterTechnical(t, err, code, test.uncertain)
 		require.ErrorIs(t, err, cause)
 	}
-	keys := []string{"schedule", "recovery", "receipt", "guard", "protection", "transaction-index", "balance", "balance:deleted"}
+	keys := []string{"schedule", "recovery", "receipt", "guard", "protection", "transaction-index", "evidence", "balance", "balance:deleted"}
 	for _, test := range []struct {
 		raw, code string
 		uncertain bool
@@ -336,7 +336,7 @@ func TestAccountingError_NormalizationIgnoresAccountBlockExceptionKey(t *testing
 	t.Parallel()
 
 	request, _ := adapterResultFixture(t)
-	keys := []string{"schedule", "recovery", "receipt", "guard", "protection", "transaction-index", "balance", "deleted", "legacy-deleted", "grant"}
+	keys := []string{"schedule", "recovery", "receipt", "guard", "protection", "transaction-index", "evidence", "balance", "deleted", "legacy-deleted", "grant"}
 
 	err := classifyAccountingError(accountingReply(`BALANCE_LIMIT_NORMALIZATION_REQUIRED:["balance"]`), request, keys)
 	assertAdapterTechnical(t, err, "normalization_required", false)

@@ -52,7 +52,7 @@ type TransactionReader interface {
 
 // TransactionProjectionResolution describes the freshest transaction view
 // available to lifecycle writes. ExecutionID is present when the view came
-// from pending engine evidence and must be retained as a causal dependency.
+// from authenticated engine evidence and must be retained as a causal dependency.
 type TransactionProjectionResolution struct {
 	Transaction *transaction.Transaction
 	ExecutionID uuid.UUID

@@ -85,6 +85,9 @@ if replayTTL == 0 then
        receipt.protection.retentionSeconds < 1 or receipt.protection.retentionSeconds > 604800 or
        receipt.protection.retentionSeconds % 1 ~= 0 or
        type(receipt.protection.transactions) ~= "table" or
+       (receipt.protection.formatVersion == 2 and
+        (type(receipt.protection.indexFields) ~= "table" or
+         #receipt.protection.indexFields ~= #receipt.protection.transactions)) or
        cjson.encode(receipt.protection.transactions) ~= cjson.encode(currentRecord.transactionIds) then
         return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_RECEIPT_INVALID")
     end

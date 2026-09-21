@@ -73,6 +73,48 @@ func TestIntegrationAtomicTransactionBatchFinalizationUsesReceiptRetention(t *te
 	assert.LessOrEqual(t, indexTTL, 37*time.Second)
 }
 
+func TestIntegrationAtomicTransactionBatchFinalizationRejectsInvalidFormatTwoIndexFields(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	for _, testCase := range []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{name: "missing", mutate: func(protection map[string]any) { delete(protection, "indexFields") }},
+		{name: "wrong type", mutate: func(protection map[string]any) { protection["indexFields"] = "invalid" }},
+		{name: "wrong cardinality", mutate: func(protection map[string]any) { protection["indexFields"] = []string{"only-one"} }},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			fixture := newAtomicBatchRecoveryAckFixture(t, container.Client)
+			var receipt map[string]any
+			require.NoError(t, json.Unmarshal([]byte(container.Client.HGet(fixture.ctx, fixture.receiptKey, fixture.executionID.String()).Val()), &receipt))
+			protection, ok := receipt["protection"].(map[string]any)
+			require.True(t, ok)
+			protection["formatVersion"] = 2
+			testCase.mutate(protection)
+			payload, err := json.Marshal(receipt)
+			require.NoError(t, err)
+			require.NoError(t, container.Client.HSet(fixture.ctx, fixture.receiptKey, fixture.executionID.String(), payload).Err())
+
+			result, err := fixture.repository.FinalizeAtomicTransactionBatch(
+				fixture.ctx, fixture.organizationID, fixture.ledgerID, fixture.executionID, fixture.record.OwnerToken,
+				map[uuid.UUID]json.RawMessage{
+					fixture.record.TransactionIDs[0]: json.RawMessage(`{"id":"first"}`),
+					fixture.record.TransactionIDs[1]: json.RawMessage(`{"id":"second"}`),
+				},
+				0,
+			)
+			require.Nil(t, result)
+			require.ErrorContains(t, err, "ATOMIC_BATCH_IDEMPOTENCY_RECEIPT_INVALID")
+			require.Equal(t, time.Duration(-1), container.Client.TTL(fixture.ctx, fixture.recordKey).Val())
+			require.Equal(t, time.Duration(-1), container.Client.TTL(fixture.ctx, fixture.indexKey).Val())
+		})
+	}
+}
+
 func TestIntegrationAtomicTransactionBatchRecoveryAckFinalizesBeforeLastDelete(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")

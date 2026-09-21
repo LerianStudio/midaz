@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
@@ -274,7 +275,9 @@ func TestCreateTransactionV1UsesOptInEngineWithoutLegacyMutationPorts(t *testing
 }
 
 func TestEngineWriteBehindCreateDispatchAndFallbackMatrix(t *testing.T) {
-	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	t.Setenv("AUDIT_LOG_ENABLED", "true")
+	t.Setenv("RABBITMQ_AUDIT_EXCHANGE", "audit-exchange")
+	t.Setenv("RABBITMQ_AUDIT_KEY", "audit-key")
 
 	for _, test := range []struct {
 		name             string
@@ -282,15 +285,18 @@ func TestEngineWriteBehindCreateDispatchAndFallbackMatrix(t *testing.T) {
 		completionErr    error
 		wantCompletions  int
 		wantAcknowledged int
+		wantAudit        bool
 	}{
-		{name: "confirmed publish returns before projection"},
-		{name: "publish failure uses shared synchronous fallback", dispatchErr: errors.New("rabbit unavailable"), wantCompletions: 1, wantAcknowledged: 1},
+		{name: "confirmed publish returns before projection", wantAudit: true},
+		{name: "publish failure uses shared synchronous fallback", dispatchErr: errors.New("rabbit unavailable"), wantCompletions: 1, wantAcknowledged: 1, wantAudit: true},
 		{name: "double transport projection failure still returns confirmed accounting", dispatchErr: errors.New("confirm lost"), completionErr: errors.New("mongo unavailable"), wantCompletions: 1},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			redisRepo := txRedis.NewMockRedisRepository(ctrl)
+			auditProducer := rabbitmq.NewMockProducerRepository(ctrl)
 			idempotencySet := make(chan struct{})
+			auditPublished := make(chan struct{})
 			redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil)
 			redisRepo.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
 				func(context.Context, string, string, time.Duration) error {
@@ -298,6 +304,15 @@ func TestEngineWriteBehindCreateDispatchAndFallbackMatrix(t *testing.T) {
 					return nil
 				},
 			)
+			if test.wantAudit {
+				auditProducer.EXPECT().
+					ProducerDefault(gomock.Any(), "audit-exchange", "audit-key", gomock.Any()).
+					DoAndReturn(func(context.Context, string, string, []byte) (*string, error) {
+						close(auditPublished)
+						return nil, nil
+					}).
+					Times(1)
+			}
 
 			organizationID := uuid.New()
 			ledgerID := uuid.New()
@@ -316,6 +331,7 @@ func TestEngineWriteBehindCreateDispatchAndFallbackMatrix(t *testing.T) {
 				TransactionRedisRepo: redisRepo, TransactionReader: reader, Engine: executor,
 				AppliedTransactionCompleter: completer, EngineRecoveryAcknowledger: acknowledger,
 				TransactionWriteBehindAsync: true, TransactionWriteBehindDispatcher: dispatcher,
+				RabbitMQRepo: auditProducer,
 			}
 
 			got, replayed, err := uc.CreateTransactionV1(
@@ -337,6 +353,13 @@ func TestEngineWriteBehindCreateDispatchAndFallbackMatrix(t *testing.T) {
 			require.Len(t, completer.envelopes, test.wantCompletions)
 			require.Len(t, acknowledger.records, test.wantAcknowledged)
 			<-idempotencySet
+			if test.wantAudit {
+				select {
+				case <-auditPublished:
+				case <-time.After(time.Second):
+					t.Fatal("audit event was not published")
+				}
+			}
 		})
 	}
 }

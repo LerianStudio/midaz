@@ -71,7 +71,7 @@ acknowledge that evidence; it must never call this script to reapply accounting.
 
 ## Declared key layout
 
-`KEYS[1..6]` are the schedule, recovery, receipt, guard, protection, and
+`KEYS[1..7]` are the schedule, recovery, receipt, guard, protection, transaction-index, and evidence
 transaction-state index keys. The state index is scoped by tenant,
 organization, and ledger; its transaction field points to the current
 execution's receipt and immutable recovery evidence. A dependency is accepted

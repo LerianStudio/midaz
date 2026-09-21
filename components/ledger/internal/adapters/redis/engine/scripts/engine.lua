@@ -2,7 +2,7 @@
 -- decoded request to the engine orchestration. Business decisions remain inside
 -- execute, where live state and writes share the same atomic Redis invocation.
 local function main()
-    if #ARGV ~= 6 or #KEYS < 6 then technical("invalid_protocol", "invalid script argument count") end
+    if #ARGV ~= 6 or #KEYS < 7 then technical("invalid_protocol", "invalid script argument count") end
     local maximumRequest, maximumPrepared = positiveBudget(ARGV[2]), positiveBudget(ARGV[3])
     local maximumTransactions = positiveLimit(ARGV[4], "transaction limit")
     local maximumPostings = positiveLimit(ARGV[5], "posting limit")

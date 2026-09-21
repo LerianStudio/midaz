@@ -460,7 +460,7 @@ func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, logger libLo
 	}
 
 	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
-	if projected {
+	if shouldEmitEngineWriteBehindAudit(dispatched, projected) {
 		uc.sendLogTransactionAuditQueueAsync(tenantCtx, tran.Operations, record.OrganizationID, record.LedgerID, record.TransactionID)
 	}
 

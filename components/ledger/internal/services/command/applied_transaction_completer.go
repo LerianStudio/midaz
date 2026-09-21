@@ -36,6 +36,13 @@ type TransactionWriteBehindDispatcher interface {
 	DispatchTransactionWriteBehind(context.Context, *TransactionWriteBehindEnvelope) error
 }
 
+// shouldEmitEngineWriteBehindAudit emits audit data only after a confirmed
+// publish or a completed synchronous fallback. A deferred projection has
+// neither guarantee and is left to recovery.
+func shouldEmitEngineWriteBehindAudit(dispatched, projected bool) bool {
+	return dispatched || projected
+}
+
 // EngineRecoveryAcknowledger removes the exact engine recovery record only
 // after the corresponding transaction and metadata projections are durable.
 // Acknowledgment never applies balances or completes persistence.

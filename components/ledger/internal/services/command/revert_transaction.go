@@ -251,12 +251,12 @@ func (uc *UseCase) attachRevertOriginDependency(ctx context.Context, run *create
 		return nil
 	}
 
-	_, executionID, pending, err := resolver.ResolveTransactionProjection(ctx, run.organizationID, run.ledgerID, originID)
+	_, executionID, _, err := resolver.ResolveTransactionProjection(ctx, run.organizationID, run.ledgerID, originID)
 	if err != nil {
 		return err
 	}
 
-	if !pending || executionID == uuid.Nil {
+	if executionID == uuid.Nil {
 		return nil
 	}
 
