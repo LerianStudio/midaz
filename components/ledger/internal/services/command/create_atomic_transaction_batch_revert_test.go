@@ -36,7 +36,7 @@ func TestAtomicTransactionBatchRevert_IsPrivateToCrossLedgerGroups(t *testing.T)
 	second.Action, second.Order, second.OriginalIndex = constant.ActionRevert, 2, 0
 	transactions := []CreateAtomicTransactionBatchV2ItemInput{first, second}
 
-	uc := &UseCase{}
+	uc := &UseCase{UUIDv7Generator: func() (uuid.UUID, error) { return uuid.New(), nil }}
 	_, err := uc.initializeAtomicTransactionBatchIdentity(context.Background(), CreateAtomicTransactionBatchV2Input{
 		Transactions:     transactions,
 		GroupID:          &groupID,
@@ -49,7 +49,8 @@ func TestAtomicTransactionBatchRevert_IsPrivateToCrossLedgerGroups(t *testing.T)
 		GroupID:      &groupID,
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported action")
+	assert.Contains(t, err.Error(), constant.ErrTransactionScopeMismatch.Error())
+	require.Error(t, validateAtomicTransactionBatchItemCorrelation(transactions))
 }
 
 func TestCreateAtomicTransactionBatchV2_RevertCarriesParentAndOriginEvidenceWithoutFees(t *testing.T) {

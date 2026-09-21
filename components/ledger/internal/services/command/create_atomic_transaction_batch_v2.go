@@ -42,6 +42,8 @@ type CreateAtomicTransactionBatchV2ItemInput struct {
 	OrganizationID          uuid.UUID
 	LedgerID                uuid.UUID
 	Transaction             mtransaction.Transaction
+	ParentTransactionID     *uuid.UUID
+	Dependencies            []TransactionEvidenceReference
 	AccountBlockExceptionID *uuid.UUID
 	Action                  string
 	Order                   int
@@ -114,6 +116,8 @@ type atomicTransactionBatchItemRun struct {
 	operationUpdatedAt      time.Time
 	input                   mtransaction.Transaction
 	status                  string
+	parentTransactionID     *uuid.UUID
+	dependencies            []TransactionEvidenceReference
 	accountBlockExceptionID *uuid.UUID
 	validate                *mtransaction.Responses
 	fromTo                  []mtransaction.FromTo
@@ -259,11 +263,11 @@ func (uc *UseCase) initializeAtomicTransactionBatchIdentity(
 		return nil, err
 	}
 
-	organizationID, ledgerID, err := validateAtomicTransactionBatchScope(in.Transactions)
+	organizationID, ledgerID, err := validateAtomicTransactionBatchScope(in.Transactions, in.CrossLedgerGroup)
 	if err != nil {
 		return nil, err
 	}
-	if err := validateAtomicTransactionBatchItemCorrelation(in.Transactions); err != nil {
+	if err := validateAtomicTransactionBatchItemCorrelationForGroup(in.Transactions, in.CrossLedgerGroup); err != nil {
 		return nil, err
 	}
 
@@ -408,15 +412,17 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 	item.honoredFeeSkip = feeSkip
 	item.honoredTracerSkip = tracerSkip
 
-	if err := uc.applyFees(
-		ctx,
-		&item.input,
-		item.organizationID,
-		item.ledgerID,
-		item.input.Pending,
-		item.honoredFeeSkip,
-	); err != nil {
-		return err
+	if item.action != constant.ActionRevert {
+		if err := uc.applyFees(
+			ctx,
+			&item.input,
+			item.organizationID,
+			item.ledgerID,
+			item.input.Pending,
+			item.honoredFeeSkip,
+		); err != nil {
+			return err
+		}
 	}
 
 	normalizeTransactionSendLegs(&item.input)
@@ -433,7 +439,9 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 		mtransaction.PropagateRouteValidation(ctx, item.validate, item.status)
 	}
 
-	item.action = mtransaction.StatusToAction(item.status)
+	if item.action == "" {
+		item.action = mtransaction.StatusToAction(item.status)
+	}
 
 	item.accountBlockGrant, err = uc.resolveAccountBlockExceptionGrant(
 		ctx,
@@ -517,6 +525,8 @@ func (run *atomicTransactionBatchRun) createTransactionRun(item *atomicTransacti
 		input:                      item.input,
 		status:                     item.status,
 		action:                     item.action,
+		parentTransactionID:        uuidPointerValue(item.parentTransactionID),
+		dependencies:               append([]TransactionEvidenceReference(nil), item.dependencies...),
 		validate:                   item.validate,
 		fromTo:                     item.fromTo,
 		ledgerSettings:             run.itemLedgerSettings(item),
@@ -544,7 +554,7 @@ func (run *atomicTransactionBatchRun) itemLedgerSettings(item *atomicTransaction
 	return item.ledgerSettings
 }
 
-func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2ItemInput) (uuid.UUID, uuid.UUID, error) {
+func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2ItemInput, crossLedgerGroup bool) (uuid.UUID, uuid.UUID, error) {
 	if len(items) == 0 || len(items) > atomicTransactionBatchAbsoluteMaxSize {
 		return uuid.Nil, uuid.Nil, pkg.ValidateBusinessError(
 			constant.ErrTransactionBatchCardinality,
@@ -574,9 +584,14 @@ func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2I
 			if action == "" {
 				action = constant.ActionDirect
 			}
-			if action != constant.ActionDirect {
+			if action != constant.ActionDirect && !(crossLedgerGroup && action == constant.ActionRevert) {
 				err := pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
-				return uuid.Nil, uuid.Nil, withAtomicTransactionBatchItemError(err, index, "cross-ledger hold is not supported")
+				message := "cross-ledger action is not supported"
+				if action == constant.ActionHold {
+					message = "cross-ledger hold is not supported"
+				}
+
+				return uuid.Nil, uuid.Nil, withAtomicTransactionBatchItemError(err, index, message)
 			}
 		}
 	}
@@ -599,6 +614,10 @@ func atomicTransactionBatchLedgerRefs(items []CreateAtomicTransactionBatchV2Item
 }
 
 func validateAtomicTransactionBatchItemCorrelation(items []CreateAtomicTransactionBatchV2ItemInput) error {
+	return validateAtomicTransactionBatchItemCorrelationForGroup(items, false)
+}
+
+func validateAtomicTransactionBatchItemCorrelationForGroup(items []CreateAtomicTransactionBatchV2ItemInput, crossLedgerGroup bool) error {
 	revised := false
 	for _, item := range items {
 		if item.Action != "" || item.Order != 0 || item.OriginalIndex != 0 {
@@ -622,7 +641,7 @@ func validateAtomicTransactionBatchItemCorrelation(items []CreateAtomicTransacti
 			return fmt.Errorf("atomic transaction batch item %d repeats original index %d", index, item.OriginalIndex)
 		}
 		seenOriginalIndexes[item.OriginalIndex] = struct{}{}
-		if item.Action != constant.ActionDirect && item.Action != constant.ActionHold {
+		if item.Action != constant.ActionDirect && item.Action != constant.ActionHold && !(crossLedgerGroup && item.Action == constant.ActionRevert) {
 			return fmt.Errorf("atomic transaction batch item %d has unsupported action %q", index, item.Action)
 		}
 	}
@@ -684,6 +703,9 @@ func initializeAtomicTransactionBatchItem(
 		operationUpdatedAt:      operationUpdatedAt,
 		input:                   input,
 		status:                  atomicTransactionBatchActionInitialStatus(action),
+		action:                  action,
+		parentTransactionID:     cloneUUIDPointer(in.ParentTransactionID),
+		dependencies:            append([]TransactionEvidenceReference(nil), in.Dependencies...),
 		accountBlockExceptionID: cloneUUIDPointer(in.AccountBlockExceptionID),
 	}, nil
 }
@@ -747,6 +769,7 @@ func atomicTransactionBatchFoundationResult(item *atomicTransactionBatchItemRun)
 
 	return &transaction.Transaction{
 		ID:                       item.transactionID.String(),
+		ParentTransactionID:      uuidStringPointer(item.completionPlan.ParentTransactionID),
 		GroupID:                  groupID,
 		Description:              item.input.Description,
 		Status:                   transaction.Status{Code: status, Description: &status},
@@ -807,4 +830,22 @@ func cloneUUIDPointer(value *uuid.UUID) *uuid.UUID {
 	cloned := *value
 
 	return &cloned
+}
+
+func uuidPointerValue(value *uuid.UUID) uuid.UUID {
+	if value == nil {
+		return uuid.Nil
+	}
+
+	return *value
+}
+
+func uuidStringPointer(value *uuid.UUID) *string {
+	if value == nil {
+		return nil
+	}
+
+	text := value.String()
+
+	return &text
 }

@@ -211,6 +211,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchCompletionPlans(
 			TenantID:             intent.TenantID,
 			HeaderID:             headerID,
 			TransactionID:        item.transactionID,
+			ParentTransactionID:  cloneUUIDPointer(item.parentTransactionID),
 			GroupID:              run.groupID,
 			FeesSkipped:          item.honoredFeeSkip,
 			TracerSkipped:        item.honoredTracerSkip,
@@ -286,7 +287,7 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 	for index := range run.items {
 		item := &run.items[index]
 		expandedPostings += len(item.prepared.transaction.Postings)
-		dependencies := []TransactionEvidenceReference{}
+		dependencies := append([]TransactionEvidenceReference(nil), item.dependencies...)
 
 		dependencyPayload, err := json.Marshal(dependencies)
 		if err != nil {
