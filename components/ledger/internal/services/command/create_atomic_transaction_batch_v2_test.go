@@ -165,6 +165,8 @@ type atomicTransactionBatchSettingsReader struct {
 	organizationID  uuid.UUID
 	ledgerID        uuid.UUID
 	protectionStore *accountClosingMarkerStore
+	settingsByRef   map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings
+	callsByRef      map[atomicTransactionBatchLedgerRef]int
 }
 
 func (reader *atomicTransactionBatchSettingsReader) GetParsedLedgerSettings(
@@ -174,6 +176,14 @@ func (reader *atomicTransactionBatchSettingsReader) GetParsedLedgerSettings(
 	reader.calls++
 	reader.organizationID = organizationID
 	reader.ledgerID = ledgerID
+	ref := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: ledgerID}
+	if reader.callsByRef == nil {
+		reader.callsByRef = make(map[atomicTransactionBatchLedgerRef]int)
+	}
+	reader.callsByRef[ref]++
+	if settings, ok := reader.settingsByRef[ref]; ok {
+		return settings, reader.err
+	}
 
 	return reader.settings, reader.err
 }
@@ -624,18 +634,56 @@ func TestPrepareAtomicTransactionBatchItems_PreparesMixedDirectAndHoldActions(t 
 	assert.Equal(t, 1, reader.engineReads)
 }
 
-func TestCreateAtomicTransactionBatchV2_RejectsFirstCommonScopeMismatchBeforeExternalWork(t *testing.T) {
+func TestInitializeAtomicTransactionBatchV2_FreezesPerItemScopeAndSettings(t *testing.T) {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000011")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000012")
+	otherLedgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000013")
+	primaryRef := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: ledgerID}
+	foreignRef := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: otherLedgerID}
+	reader := &atomicTransactionBatchSettingsReader{settingsByRef: map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings{
+		primaryRef: {CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}},
+		foreignRef: {CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}},
+	}}
+	uc := &UseCase{
+		TransactionReader: reader,
+		UUIDv7Generator: orderedAtomicTransactionBatchUUIDs(
+			t,
+			uuid.MustParse("01994f13-29b7-7000-8000-000000000014"),
+			uuid.MustParse("01994f13-29b7-7000-8000-000000000015"),
+			uuid.MustParse("01994f13-29b7-7000-8000-000000000016"),
+		),
+		Clock: func() time.Time { return time.Date(2026, time.September, 21, 12, 0, 0, 0, time.UTC) },
+	}
+
+	run, err := uc.initializeAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
+		Transactions: []CreateAtomicTransactionBatchV2ItemInput{
+			atomicTransactionBatchItemInput(organizationID, ledgerID, "@source-0", "@destination-0"),
+			atomicTransactionBatchItemInput(organizationID, otherLedgerID, "@source-1", "@destination-1"),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, run.items, 2)
+	assert.Equal(t, organizationID, run.organizationID)
+	assert.Equal(t, ledgerID, run.ledgerID)
+	assert.Equal(t, []uuid.UUID{ledgerID, otherLedgerID}, []uuid.UUID{run.items[0].ledgerID, run.items[1].ledgerID})
+	assert.True(t, run.items[0].ledgerSettings.CrossLedger.Enabled)
+	assert.True(t, run.items[1].ledgerSettings.CrossLedger.Enabled)
+	assert.Equal(t, map[atomicTransactionBatchLedgerRef]int{primaryRef: 1, foreignRef: 1}, reader.callsByRef)
+}
+
+func TestCreateAtomicTransactionBatchV2_RejectsMixedScopeHoldBeforeExternalWork(t *testing.T) {
 	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-000000000011")
 	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000012")
 	otherLedgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000013")
 	reader := &atomicTransactionBatchSettingsReader{}
 	uc := &UseCase{TransactionReader: reader}
+	hold := atomicTransactionBatchItemInput(organizationID, otherLedgerID, "@source-1", "@destination-1")
+	hold.Action = constant.ActionHold
 
 	result, err := uc.CreateAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
 		Transactions: []CreateAtomicTransactionBatchV2ItemInput{
 			atomicTransactionBatchItemInput(organizationID, ledgerID, "@source-0", "@destination-0"),
-			atomicTransactionBatchItemInput(organizationID, otherLedgerID, "@source-1", "@destination-1"),
-			atomicTransactionBatchItemInput(uuid.New(), ledgerID, "@source-2", "@destination-2"),
+			hold,
 		},
 	})
 	require.Error(t, err)
@@ -649,7 +697,7 @@ func TestCreateAtomicTransactionBatchV2_RejectsFirstCommonScopeMismatchBeforeExt
 	require.True(t, errors.As(err, &carrier))
 	assert.Equal(t, []pkg.FieldError{{
 		Location: "body.transactions[1]",
-		Message:  "transaction scope must match the first batch item",
+		Message:  "cross-ledger hold is not supported",
 	}}, carrier.FieldErrors())
 }
 
