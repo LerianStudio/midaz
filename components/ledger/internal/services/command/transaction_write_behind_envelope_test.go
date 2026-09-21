@@ -88,14 +88,21 @@ func TestTransactionWriteBehindEnvelopeRequiresCorrelatedOrigin(t *testing.T) {
 	require.NoError(t, err)
 	envelope.Record = recoveryContractEnvelope(t, *payload, envelope.Record.Result)
 
+	// A reaped origin execution leaves nothing to reference, so a parented
+	// record without an origin dependency remains valid evidence.
 	_, err = EncodeTransactionWriteBehindEnvelope(envelope)
-	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
+	require.NoError(t, err)
 
 	envelope.Dependencies = []TransactionEvidenceReference{{
 		Kind: TransactionDependencyOrigin, TenantID: envelope.Record.TenantID,
 		OrganizationID: envelope.Record.OrganizationID, LedgerID: envelope.Record.LedgerID,
-		TransactionID: originID, ExecutionID: uuid.MustParse("33333333-3333-4333-8333-333333333333"),
+		TransactionID: uuid.MustParse("44444444-4444-4444-8444-444444444444"),
+		ExecutionID:   uuid.MustParse("33333333-3333-4333-8333-333333333333"),
 	}}
+	_, err = EncodeTransactionWriteBehindEnvelope(envelope)
+	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
+
+	envelope.Dependencies[0].TransactionID = originID
 	_, err = EncodeTransactionWriteBehindEnvelope(envelope)
 	require.NoError(t, err)
 }

@@ -150,7 +150,9 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         local parentTransactionID = transaction.parentTransactionId
         local hasParent = parentTransactionID ~= nil and parentTransactionID ~= nullValue
         if hasParent then uuid(parentTransactionID) end
-        local originMatched = not hasParent
+        -- A parent may travel without an origin reference: once the parent
+        -- execution is durable its evidence is reaped, leaving nothing to
+        -- reference. A reference that is present must still name the parent.
         for _, dependency in ipairs(transaction.dependencies) do
             requireObject(dependency)
             if dependency.kind ~= "predecessor" and dependency.kind ~= "origin" then
@@ -176,10 +178,8 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
                 if not hasParent or dependency.transactionId ~= parentTransactionID or dependency.transactionId == transaction.id then
                     technical("invalid_protocol", "invalid origin transaction")
                 end
-                originMatched = true
             end
         end
-        if not originMatched then technical("invalid_protocol", "missing origin transaction dependency") end
         requireArray(transaction.balanceRequirements)
         requireArray(transaction.postings)
         if #transaction.postings == 0 then technical("invalid_protocol", "empty transaction postings") end

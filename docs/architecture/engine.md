@@ -397,7 +397,10 @@ Each action captures its own stable execution identity and timestamps before exe
 
 Revert creates a new child transaction with the original transaction as its
 parent. It may resolve an unprojected origin from indexed evidence and records
-that execution as an origin dependency. Its v2 path performs a new tracer
+that execution as an origin dependency. The dependency is optional: an origin
+whose execution is already durable has had its evidence reaped, so a parented
+record carrying no origin reference is valid, while a reference that is present
+must name the parent. Its v2 path performs a new tracer
 reservation and does not inherit the original transaction's tracer skip. Neither
 revert nor pending transitions rewrite the engine recover record through the
 legacy write-behind path.

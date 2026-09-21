@@ -245,6 +245,11 @@ func validateTransactionWriteBehindEnvelope(envelope TransactionWriteBehindEnvel
 	return validateTransactionEvidenceReferences(envelope.Record, envelope.Dependencies)
 }
 
+// validateTransactionEvidenceReferences correlates every declared causal
+// reference with the record it travels on. An origin reference is optional: a
+// parent transaction whose evidence was already reaped after a durable write
+// has no execution left to reference, and a reversal of it must still post.
+//
 //nolint:gocyclo // dependency validation keeps every cross-scope, self-reference, and causal rule explicit
 func validateTransactionEvidenceReferences(record TransactionCompletionRecord, dependencies []TransactionEvidenceReference) error {
 	payload, err := DecodeTransactionCompletionPlan([]byte(record.Payload))
@@ -254,7 +259,6 @@ func validateTransactionEvidenceReferences(record TransactionCompletionRecord, d
 
 	seen := make(map[string]struct{}, len(dependencies))
 	kinds := make(map[string]struct{}, len(dependencies))
-	originMatched := payload.ParentTransactionID == nil
 
 	for _, dependency := range dependencies {
 		if dependency.Kind != TransactionDependencyPredecessor && dependency.Kind != TransactionDependencyOrigin {
@@ -295,13 +299,7 @@ func validateTransactionEvidenceReferences(record TransactionCompletionRecord, d
 			if payload.ParentTransactionID == nil || dependency.TransactionID != *payload.ParentTransactionID || dependency.TransactionID == record.TransactionID {
 				return invalidTransactionCompletionRecord("origin transaction correlation mismatch")
 			}
-
-			originMatched = true
 		}
-	}
-
-	if !originMatched {
-		return invalidTransactionCompletionRecord("missing origin transaction dependency")
 	}
 
 	return nil
