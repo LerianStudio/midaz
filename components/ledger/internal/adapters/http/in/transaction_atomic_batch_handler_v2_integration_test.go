@@ -29,7 +29,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
@@ -322,9 +321,9 @@ func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 			fixture.infra.orgID,
 			ledgerID,
 			"@batch-named-source",
-			cn.DefaultBalanceKey,
+			constant.DefaultBalanceKey,
 		), "the untouched default balance must not be materialized in Redis")
-		requireCachedBalanceAvailable(t, context.Background(), fixture.infra, ledgerID, "@batch-named-destination", cn.DefaultBalanceKey, 100)
+		requireCachedBalanceAvailable(t, context.Background(), fixture.infra, ledgerID, "@batch-named-destination", constant.DefaultBalanceKey, 100)
 		requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, defaultID))
 		requireDecimalEqual(t, decimal.NewFromInt(500), postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, foodID))
 		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, destinationID))
