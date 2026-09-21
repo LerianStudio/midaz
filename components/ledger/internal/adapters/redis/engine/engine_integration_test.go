@@ -55,9 +55,10 @@ type integrationFinal struct {
 }
 
 type integrationResult struct {
-	ProtocolVersion int                   `json:"protocolVersion"`
-	Movements       []integrationMovement `json:"movements"`
-	Final           []integrationFinal    `json:"final"`
+	ProtocolVersion    int                   `json:"protocolVersion"`
+	Movements          []integrationMovement `json:"movements"`
+	Final              []integrationFinal    `json:"final"`
+	AppliedAtUnixMicro int64                 `json:"appliedAtUnixMicro"`
 }
 
 type integrationFixture struct {
@@ -206,6 +207,7 @@ func decodeIntegrationResult(t *testing.T, raw string) integrationResult {
 	require.Equal(t, 1, result.ProtocolVersion)
 	require.NotNil(t, result.Movements)
 	require.NotNil(t, result.Final)
+	require.Positive(t, result.AppliedAtUnixMicro)
 	return result
 }
 
@@ -919,6 +921,7 @@ func TestIntegrationEngineReplayAndInt64(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(recoverRecord), &saved))
 	require.Equal(t, int64(9007199254740994), saved.Result.Final[0].Version)
+	require.Equal(t, result.AppliedAtUnixMicro, saved.Result.AppliedAtUnixMicro)
 	require.Equal(t, string(f.input.CompletionPlans[0].Payload), saved.Payload)
 	before := f.capture(t)
 	replay, err := f.run(t)

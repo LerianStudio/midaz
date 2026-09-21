@@ -87,7 +87,11 @@ func adapterResultFixture(t *testing.T) (core.Execution, resultEnvelope) {
 	final.Available, final.Version = decimal.NewFromInt(70), 8
 	snapshot, err := prepareSnapshot(final, 1<<20)
 	require.NoError(t, err)
-	return request, resultEnvelope{1, []json.RawMessage{adapterJSON(t, movement)}, []json.RawMessage{adapterJSON(t, resultBalance{final.BalanceRef, snapshot})}}
+	return request, resultEnvelope{
+		ProtocolVersion: 1,
+		Movements:       []json.RawMessage{adapterJSON(t, movement)},
+		Final:           []json.RawMessage{adapterJSON(t, resultBalance{final.BalanceRef, snapshot})},
+	}
 }
 
 func adapterJSON(t *testing.T, value any) json.RawMessage {
@@ -178,6 +182,26 @@ func TestDecodeResult_StrictEnvelopeAndIdentity(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+func TestDecodeResult_AppliedAtUnixMicroCompatibility(t *testing.T) {
+	t.Run("present", func(t *testing.T) {
+		request, response := adapterResultFixture(t)
+		response.AppliedAtUnixMicro = 1_789_999_999_123_456
+
+		result, err := DecodeResult(adapterJSON(t, response), request)
+		require.NoError(t, err)
+		require.Equal(t, response.AppliedAtUnixMicro, result.AppliedAtUnixMicro)
+	})
+
+	t.Run("absent legacy receipt", func(t *testing.T) {
+		request, response := adapterResultFixture(t)
+		raw := mutateAdapterObject(t, adapterJSON(t, response), "appliedAtUnixMicro", nil)
+
+		result, err := DecodeResult(raw, request)
+		require.NoError(t, err)
+		require.Zero(t, result.AppliedAtUnixMicro)
+	})
 }
 
 func TestDecodeResult_DuplicateKeysOrderAndExactPrecision(t *testing.T) {

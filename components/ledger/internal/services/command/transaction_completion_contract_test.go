@@ -140,6 +140,7 @@ func recoveryContractAddRepaymentCompanion(payload *TransactionCompletionPlan, r
 
 func TestTransactionCompletionRoundTripAndProjection(t *testing.T) {
 	payload, result := recoveryContractFixture(t)
+	result.AppliedAtUnixMicro = 1_789_999_999_123_456
 	envelope := recoveryContractEnvelope(t, payload, result)
 	encoded, err := EncodeTransactionCompletionRecord(envelope)
 	require.NoError(t, err)
@@ -160,6 +161,11 @@ func TestTransactionCompletionRoundTripAndProjection(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, string(normalJSON), string(replayJSON))
 	require.Len(t, normal, 1)
+	expectedRecordedAt := time.UnixMicro(result.AppliedAtUnixMicro).UTC()
+	require.NotNil(t, normal[0].RecordedAt)
+	assert.Equal(t, expectedRecordedAt, *normal[0].RecordedAt)
+	require.NotNil(t, replay[0].RecordedAt)
+	assert.Equal(t, expectedRecordedAt, *replay[0].RecordedAt)
 	assert.Equal(t, "DEBIT-USD", *normal[0].RouteCode)
 	assert.Equal(t, payload.OperationUpdatedAt, normal[0].UpdatedAt)
 	assert.Equal(t, rowContractGolden{
@@ -175,6 +181,15 @@ func TestTransactionCompletionRoundTripAndProjection(t *testing.T) {
 	*normal[0].RouteID = "changed"
 	assert.Equal(t, "transfer", payload.OperationSpecs[0].Metadata["purpose"])
 	assert.NotEqual(t, "changed", *payload.OperationSpecs[0].RouteID)
+}
+
+func TestTransactionCompletionLegacyResultLeavesRecordedAtForRepositoryFallback(t *testing.T) {
+	payload, result := recoveryContractFixture(t)
+
+	records, err := BuildOperationRecordsFromMovements(payload, result)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	assert.Nil(t, records[0].RecordedAt)
 }
 
 func TestTransactionCompletionFrozenLifecycleTimestamps(t *testing.T) {
