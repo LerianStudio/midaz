@@ -187,5 +187,6 @@ func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransaction
 	}
 
 	tran, err := uc.createTransactionWithEngine(ctx, span, logger, run, false)
+
 	return tran, false, err
 }

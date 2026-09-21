@@ -16,7 +16,6 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -873,45 +872,4 @@ func pendingOverdraftUsageByAlias(ops []*operation.Operation) map[string]decimal
 	}
 
 	return usage
-}
-
-func annotateCanceledOverdraftAmounts(balanceOps []mmodel.BalanceOperation, tran *transaction.Transaction) []mmodel.BalanceOperation {
-	if tran == nil || len(tran.Operations) == 0 {
-		return balanceOps
-	}
-
-	usageByAlias := pendingOverdraftUsageByAlias(tran.Operations)
-	if len(usageByAlias) == 0 {
-		return balanceOps
-	}
-
-	for i := range balanceOps {
-		amount := balanceOps[i].Amount
-		if amount.TransactionType != constant.CANCELED {
-			continue
-		}
-
-		if amount.Operation != constant.RELEASE && amount.Operation != libConstants.CREDIT {
-			continue
-		}
-
-		if amount.RouteValidationEnabled && amount.Operation != libConstants.CREDIT {
-			continue
-		}
-
-		if !amount.RouteValidationEnabled && amount.Operation != constant.RELEASE {
-			continue
-		}
-
-		alias := accountAliasFromOperationAlias(balanceOps[i].Alias)
-
-		usage, ok := usageByAlias[alias]
-		if !ok || !usage.GreaterThan(decimal.Zero) {
-			continue
-		}
-
-		balanceOps[i].Amount.OverdraftAmount = usage
-	}
-
-	return balanceOps
 }
