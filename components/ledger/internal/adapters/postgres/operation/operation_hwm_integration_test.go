@@ -262,7 +262,7 @@ func TestIntegration_ListLatestByBalances_ScopeIsolation(t *testing.T) {
 }
 
 // TestIntegration_ListLatestByBalances_UsesPointInTimeIndex proves the query shape can
-// be served by idx_operation_account_balance_pit rather than scanning the table.
+// be served by idx_operation_account_balance_pit_recorded rather than scanning the table.
 func TestIntegration_ListLatestByBalances_UsesPointInTimeIndex(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
@@ -319,7 +319,7 @@ func TestIntegration_ListLatestByBalances_UsesPointInTimeIndex(t *testing.T) {
 
 	require.NoError(t, planRows.Err())
 
-	assert.Contains(t, plan.String(), "idx_operation_account_balance_pit",
+	assert.Contains(t, plan.String(), "idx_operation_account_balance_pit_recorded",
 		"the lookup must ride the point-in-time index:\n%s", plan.String())
 	assert.NotContains(t, plan.String(), "Seq Scan",
 		"an indexed lookup must not scan the operation table:\n%s", plan.String())

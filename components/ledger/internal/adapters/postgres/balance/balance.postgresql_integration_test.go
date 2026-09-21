@@ -1427,6 +1427,51 @@ func createLargePrecisionBalance(t *testing.T, container *pgtestutil.ContainerRe
 	}
 }
 
+func TestIntegration_BalanceRepository_PointInTimeUsesRecordedAt(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := createTestAccountID()
+	base := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
+
+	balanceID := pgtestutil.CreateTestBalance(t, container.DB, orgID, ledgerID, accountID, pgtestutil.BalanceParams{
+		Alias: "@pit", Key: "default", AssetCode: "USD", AccountType: "deposit", AllowSending: true, AllowReceiving: true,
+	})
+	_, err := container.DB.Exec("UPDATE balance SET created_at = $1, updated_at = $1 WHERE id = $2", base.Add(-48*time.Hour), balanceID)
+	require.NoError(t, err)
+
+	transactionID := pgtestutil.CreateTestTransactionWithStatus(t, container.DB, orgID, ledgerID, "APPROVED", decimal.NewFromInt(150), "USD")
+	createOperation := func(createdAt, recordedAt time.Time, before, after int64, versionBefore, versionAfter int64) {
+		t.Helper()
+		pgtestutil.CreateTestOperation(t, container.DB, orgID, ledgerID, pgtestutil.OperationParams{
+			TransactionID: transactionID, Description: "pit", Type: "CREDIT", AccountID: accountID, AccountAlias: "@pit",
+			BalanceID: balanceID, BalanceKey: "default", AssetCode: "USD", Amount: decimal.NewFromInt(after - before),
+			AvailableBalance: decimal.NewFromInt(before), OnHoldBalance: decimal.Zero,
+			AvailableBalanceAfter: decimal.NewFromInt(after), OnHoldBalanceAfter: decimal.Zero,
+			BalanceVersionBefore: versionBefore, BalanceVersionAfter: versionAfter,
+			Status: "APPROVED", BalanceAffected: true, CreatedAt: createdAt, RecordedAt: &recordedAt,
+		})
+	}
+	createOperation(base, base, 0, 100, 0, 1)
+	createOperation(base.Add(-24*time.Hour), base.Add(2*time.Hour), 100, 150, 1, 2)
+
+	before, err := repo.ListByAccountIDAtTimestamp(context.Background(), orgID, ledgerID, accountID, base.Add(time.Hour))
+	require.NoError(t, err)
+	require.Len(t, before, 1)
+	require.True(t, before[0].Available.Equal(decimal.NewFromInt(100)))
+	require.Equal(t, int64(1), before[0].Version)
+	require.True(t, before[0].UpdatedAt.Equal(base))
+
+	after, err := repo.ListByAccountIDAtTimestamp(context.Background(), orgID, ledgerID, accountID, base.Add(3*time.Hour))
+	require.NoError(t, err)
+	require.Len(t, after, 1)
+	require.True(t, after[0].Available.Equal(decimal.NewFromInt(150)))
+	require.Equal(t, int64(2), after[0].Version)
+	require.True(t, after[0].UpdatedAt.Equal(base.Add(2*time.Hour)))
+}
+
 // ============================================================================
 // Optimistic Locking Tests - Core Concurrency Mechanism
 // ============================================================================

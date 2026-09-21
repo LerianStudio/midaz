@@ -281,11 +281,11 @@ See [the atomic batch contract](docs/api/atomic-transaction-batch.md).
 | GET | .../asset-rates/from/:asset_code | List asset rates by code |
 | GET | .../balances | List balances |
 | GET | .../balances/:bid | Get balance |
-| GET | .../balances/:bid/history | Get balance at timestamp |
+| GET | .../balances/:bid/history | Get balance as recorded by the ledger at timestamp |
 | PATCH | .../balances/:bid | Update balance |
 | DELETE | .../balances/:bid | Delete balance |
 | GET | .../accounts/:aid/balances | List balances by account |
-| GET | .../accounts/:aid/balances/history | Account balances at timestamp |
+| GET | .../accounts/:aid/balances/history | Account balances as recorded by the ledger at timestamp |
 | GET | .../accounts/alias/:alias/balances | Balances by alias |
 | GET | .../accounts/external/:code/balances | Balances by external code |
 | POST | .../accounts/:aid/balances | Create additional balance |

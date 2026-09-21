@@ -237,6 +237,7 @@ Binding standard: `docs/standards/error-handling.md` (E1–E14). One error platf
 - Pending transactions can be committed/cancelled; revert creates a reverse transaction.
 - Async transaction processing is controlled by `RABBITMQ_TRANSACTION_ASYNC`.
 - Balance fields: `Available`, `OnHold`, `Scale`, `Version`.
+- Point-in-time balance reads use the server recording axis `COALESCE(operation.recorded_at, operation.created_at)`; `transactionDate` remains the effective transaction date.
 
 ## Streaming (lib-streaming events)
 

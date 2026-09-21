@@ -63,11 +63,13 @@ The entrypoint tells one ordered story:
 7. `applyTransactionsInMemory` validates live asset/permission requirements,
    runs the closed `postingAlgebra`, resolves real overdraft draws or repayments,
    and builds truthful movements and version chains without writing Redis.
-8. `prepareExecutionWrites` serializes the response, changed balance blobs,
+8. `prepareExecutionWrites` serializes the response, including the execution's
+   single `appliedAtUnixMicro` value, changed balance blobs,
    versioned write-behind evidence, transaction-state index entries, recovery
    records, receipt, guards, and protection data while enforcing the total
    prepared-byte ceiling.
-9. `commitPreparedExecution` is the only publication phase. It writes changed
+9. `commitPreparedExecution` is the only publication phase. It receives the
+   score derived from the same Redis `TIME` read and writes changed
    balances, synchronization schedule members, recovery records, guards,
    protection coordinators, and index entries, deletes consumed grant keys, and
    finally writes the receipt.
@@ -77,6 +79,11 @@ prepared command sequence returned through the final write. Recovery records are
 written before it so a failure after a monetary write retains as much completion
 evidence as possible. A recovery consumer may complete SQL/MongoDB projection and
 acknowledge that evidence; it must never call this script to reapply accounting.
+
+`execute` reads Redis `TIME` once after the replay short-circuit. The decimal
+microsecond timestamp is assembled as a string before `numberToken` emits it,
+avoiding floating-point precision loss; only the scheduling score uses numeric
+seconds plus fractional microseconds.
 
 ## Declared key layout
 

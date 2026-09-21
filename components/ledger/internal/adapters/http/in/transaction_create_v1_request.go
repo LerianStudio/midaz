@@ -47,7 +47,7 @@ type CreateTransactionRequest struct {
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// TransactionDate Period from transaction creation date until now
+	// TransactionDate is the effective transaction date. It does not change point-in-time balance reconstruction, which uses ledger recording time.
 	// Example "2021-01-01T00:00:00Z"
 	// format: date-time
 	TransactionDate *mtransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
@@ -123,7 +123,7 @@ type CreateTransactionInflowRequestBody struct {
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// TransactionDate Period from transaction creation date until now
+	// TransactionDate is the effective transaction date. It does not change point-in-time balance reconstruction, which uses ledger recording time.
 	// Example "2021-01-01T00:00:00Z"
 	// format: date-time
 	TransactionDate *mtransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
@@ -208,7 +208,7 @@ type CreateTransactionOutflowRequestBody struct {
 	// format: uuid
 	RouteID *string `json:"routeId,omitempty" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
-	// TransactionDate Period from transaction creation date until now
+	// TransactionDate is the effective transaction date. It does not change point-in-time balance reconstruction, which uses ledger recording time.
 	// Example "2021-01-01T00:00:00Z"
 	// format: date-time
 	TransactionDate *mtransaction.TransactionDate `json:"transactionDate,omitempty" example:"2021-01-01T00:00:00Z" format:"date-time"`
