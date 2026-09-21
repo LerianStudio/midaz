@@ -49,14 +49,14 @@ func TestAccountClosingWireDeclaresOneProtectionTripletPerAccount(t *testing.T) 
 
 	accounts := protectedAccounts(input.Execution)
 	require.Len(t, accounts, 2, "three balances of two accounts declare two accounts")
-	require.Len(t, prepared.Keys, 5+3*len(input.Execution.Balances)+3*len(accounts))
+	require.Len(t, prepared.Keys, 7+3*len(input.Execution.Balances)+3*len(accounts))
 
 	var wire wireRequest
 	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
 	require.Len(t, wire.Accounts, 2)
 
 	for i, account := range wire.Accounts {
-		base := 5 + 3*len(input.Execution.Balances) + 3*i
+		base := 7 + 3*len(input.Execution.Balances) + 3*i
 		require.Equal(t, accounts[i].String(), account.AccountID)
 		require.Equal(t, base+1, account.ClosingKeyIndex)
 		require.Equal(t, base+2, account.ClosedKeyIndex)

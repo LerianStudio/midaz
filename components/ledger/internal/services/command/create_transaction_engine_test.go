@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
@@ -70,6 +71,18 @@ type recordingEngineRecoveryAcknowledger struct {
 	records     []*TransactionCompletionRecord
 	completions []TransactionCompletionResult
 	err         error
+}
+
+type createWriteBehindDispatcherStub struct {
+	err      error
+	calls    int
+	envelope *TransactionWriteBehindEnvelope
+}
+
+func (stub *createWriteBehindDispatcherStub) DispatchTransactionWriteBehind(_ context.Context, envelope *TransactionWriteBehindEnvelope) error {
+	stub.calls++
+	stub.envelope = envelope
+	return stub.err
 }
 
 func (acknowledger *recordingEngineRecoveryAcknowledger) AcknowledgeEngineRecovery(
@@ -261,6 +274,96 @@ func TestCreateTransactionV1UsesOptInEngineWithoutLegacyMutationPorts(t *testing
 	}
 }
 
+func TestEngineWriteBehindCreateDispatchAndFallbackMatrix(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "true")
+	t.Setenv("RABBITMQ_AUDIT_EXCHANGE", "audit-exchange")
+	t.Setenv("RABBITMQ_AUDIT_KEY", "audit-key")
+
+	for _, test := range []struct {
+		name             string
+		dispatchErr      error
+		completionErr    error
+		wantCompletions  int
+		wantAcknowledged int
+		wantAudit        bool
+	}{
+		{name: "confirmed publish returns before projection", wantAudit: true},
+		{name: "publish failure uses shared synchronous fallback", dispatchErr: errors.New("rabbit unavailable"), wantCompletions: 1, wantAcknowledged: 1, wantAudit: true},
+		{name: "double transport projection failure still returns confirmed accounting", dispatchErr: errors.New("confirm lost"), completionErr: errors.New("mongo unavailable"), wantCompletions: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			redisRepo := txRedis.NewMockRedisRepository(ctrl)
+			auditProducer := rabbitmq.NewMockProducerRepository(ctrl)
+			idempotencySet := make(chan struct{})
+			auditPublished := make(chan struct{})
+			redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil)
+			redisRepo.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
+				func(context.Context, string, string, time.Duration) error {
+					close(idempotencySet)
+					return nil
+				},
+			)
+			if test.wantAudit {
+				auditProducer.EXPECT().
+					ProducerDefault(gomock.Any(), "audit-exchange", "audit-key", gomock.Any()).
+					DoAndReturn(func(context.Context, string, string, []byte) (*string, error) {
+						close(auditPublished)
+						return nil, nil
+					}).
+					Times(1)
+			}
+
+			organizationID := uuid.New()
+			ledgerID := uuid.New()
+			reader := &createEngineReader{balances: []*mmodel.Balance{
+				translationBalance(organizationID, ledgerID, uuid.NewString(), "@source", constant.DefaultBalanceKey),
+				translationBalance(organizationID, ledgerID, uuid.NewString(), "@target", constant.DefaultBalanceKey),
+			}}
+			executor := &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}}
+			completer := &createAppliedTransactionCompleter{
+				outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
+				err:     test.completionErr,
+			}
+			dispatcher := &createWriteBehindDispatcherStub{err: test.dispatchErr}
+			acknowledger := &recordingEngineRecoveryAcknowledger{}
+			uc := &UseCase{
+				TransactionRedisRepo: redisRepo, TransactionReader: reader, Engine: executor,
+				AppliedTransactionCompleter: completer, EngineRecoveryAcknowledger: acknowledger,
+				TransactionWriteBehindAsync: true, TransactionWriteBehindDispatcher: dispatcher,
+				RabbitMQRepo: auditProducer,
+			}
+
+			got, replayed, err := uc.CreateTransactionV1(
+				tmcore.ContextWithTenantID(t.Context(), "tenant-async"),
+				CreateTransactionV1Input{
+					OrganizationID: organizationID, LedgerID: ledgerID,
+					Transaction:       createEngineTransaction(time.Date(2026, 9, 17, 12, 0, 0, 0, time.UTC)),
+					TransactionStatus: constant.CREATED, IdempotencyTTL: time.Minute,
+				},
+			)
+
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			require.False(t, replayed)
+			require.Equal(t, constant.CREATED, got.Status.Code)
+			require.Equal(t, 1, dispatcher.calls)
+			require.NotNil(t, dispatcher.envelope)
+			require.Equal(t, TransactionDurabilityPending, dispatcher.envelope.DurabilityState)
+			require.Len(t, completer.envelopes, test.wantCompletions)
+			require.Len(t, acknowledger.records, test.wantAcknowledged)
+			<-idempotencySet
+			if test.wantAudit {
+				select {
+				case <-auditPublished:
+				case <-time.After(time.Second):
+					t.Fatal("audit event was not published")
+				}
+			}
+		})
+	}
+}
+
 func TestCreateTransactionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
 	ctrl := gomock.NewController(t)
@@ -426,9 +529,19 @@ func TestCreateTransactionEngineFailureCleanupBoundary(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			redisRepo := txRedis.NewMockRedisRepository(ctrl)
+			var idempotencySet chan struct{}
 			redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil).Times(1)
 			if test.wantDelete {
 				redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			}
+			if test.finalizeErr != nil {
+				idempotencySet = make(chan struct{})
+				redisRepo.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
+					func(context.Context, string, string, time.Duration) error {
+						close(idempotencySet)
+						return nil
+					},
+				).Times(1)
 			}
 
 			organizationID := uuid.MustParse("11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
@@ -448,7 +561,7 @@ func TestCreateTransactionEngineFailureCleanupBoundary(t *testing.T) {
 			}
 			transactionDate := time.Date(2026, time.September, 8, 14, 15, 0, 0, time.UTC)
 
-			_, replayed, err := uc.CreateTransactionV1(
+			created, replayed, err := uc.CreateTransactionV1(
 				tmcore.ContextWithTenantID(context.Background(), "tenant-failure"),
 				CreateTransactionV1Input{
 					OrganizationID: organizationID, LedgerID: ledgerID,
@@ -456,12 +569,14 @@ func TestCreateTransactionEngineFailureCleanupBoundary(t *testing.T) {
 					IdempotencyTTL: time.Minute,
 				},
 			)
-			require.Error(t, err)
 			assert.False(t, replayed)
 			if test.finalizeErr != nil {
-				assert.ErrorIs(t, err, test.finalizeErr)
+				require.NoError(t, err)
+				require.NotNil(t, created)
 				assert.Len(t, finalizer.envelopes, 1)
+				<-idempotencySet
 			} else {
+				require.Error(t, err)
 				assert.Empty(t, finalizer.envelopes)
 			}
 			assert.Empty(t, acknowledger.records)

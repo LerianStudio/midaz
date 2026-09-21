@@ -160,8 +160,7 @@ func realPersistenceRecoveryEnvelope(t *testing.T, ctx context.Context, client *
 	field := execution.Execution.Transactions[0].ID.String() + ":" + execution.Execution.ExecutionID.String()
 	raw, err := client.HGet(ctx, keys.Recovery, field).Bytes()
 	require.NoError(t, err)
-	envelope, err := command.DecodeTransactionCompletionRecord(raw)
-	require.NoError(t, err)
+	envelope := decodeEngineWriteBehindRecord(t, raw)
 
 	return raw, envelope
 }

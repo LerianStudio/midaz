@@ -7,14 +7,16 @@ rewrite, replay, migrate, or activate anything.
 Engine recovery means completing SQL/MongoDB projection for movements already
 applied by the accounting engine. It never recalculates, reapplies, or reverses
 balances. A recovery record is safe to retry only through the
-`AppliedTransactionCompleter`; it is not input to `Engine.Execute`.
+shared dependency-aware applied-transaction completer; it is not input to
+`Engine.Execute`.
 
 ## Record families
 
 | Family | Storage contract | Persisted format |
 | --- | --- | --- |
 | Legacy pending and backup records | tenant-scoped `backup_queue:{transactions}` hash | unversioned `TransactionRedisQueue`; historical version-2 engine envelopes remain readable |
-| Engine recovery records | tenant-scoped `engine:{transactions}:recover` hash | envelope and nested payload `formatVersion=2` only |
+| Engine recovery records | tenant-scoped `engine:{transactions}:recover` hash | write-behind envelope `formatVersion=1` containing immutable completion record/payload `formatVersion=2`; legacy bare completion v2 remains readable |
+| Engine recovery attempts | tenant-scoped `engine:{transactions}:recover:attempts` hash | integer counter keyed by tenant-scoped transaction/execution field |
 | Execution receipts | `engine:{transactions}:receipts:{organization}:{ledger}` hash | receipt v1, classified separately with or without protection v1 |
 | Transaction guards | `engine:{transactions}:guards:{organization}:{ledger}` hash | opaque lifecycle token |
 | Protection coordinators | `engine:{transactions}:protection:{organization}:{ledger}` hash | coordinator v1 |
@@ -42,6 +44,8 @@ report page.
 - Retain independent cursors for `backup_queue:{transactions}` and
   `engine:{transactions}:recover`. Do not merge records by field: the same
   `transactionUUID:executionUUID` field can exist independently in both hashes.
+- Inventory `engine:{transactions}:recover:attempts` separately. A counter is
+  not recovery evidence and must never be copied into the recover hash.
 - Read the exact tenant cleanup sorted-set key with `ZSCAN` under the same bound.
 - Enumerate receipt, guard, and protection hashes only from a bounded,
   authoritative organization/ledger scope list. Use their exact scoped keys;
@@ -72,3 +76,19 @@ incomplete-scan absence to declare these families drained.
 During rollback, an older binary cannot see `engine:{transactions}:recover`.
 Keep a compatible recovery consumer running until that hash is drained, or roll
 forward to a compatible version. Do not copy records into the legacy hash.
+
+## Quarantine and reprocessing
+
+Engine recovery performs three bounded projection attempts with short,
+context-aware backoff in one consumer cycle. An exhausted cycle increments the
+engine-specific attempt hash once. On the third failed cycle, the consumer writes
+the exact raw payload to `transaction_backup_quarantine` under an evidence digest,
+then compare-and-deletes only the unchanged Redis record. Quarantine insertion is
+idempotent. A failed insert, unavailable repository, failed delete, or concurrent
+replacement always leaves Redis evidence in place.
+
+Reprocessing must feed the stored envelope back through the versioned dispatcher
+or recovery completer. Never call the accounting engine: balances and receipts
+already prove that execution was applied. Verify tenant, organization, ledger,
+transaction, execution, and payload digest before replay, and keep the quarantine
+row as audit evidence until the durable projection and protected ACK are confirmed.

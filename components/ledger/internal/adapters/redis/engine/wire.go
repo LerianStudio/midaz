@@ -61,6 +61,8 @@ type resolvedExecutionKeys struct {
 	Receipts               string
 	Guards                 string
 	Protection             string
+	TransactionIndex       string
+	Evidence               string
 	Balances               map[string]resolvedBalanceKeys
 	AccountBlockExceptions map[uuid.UUID]string
 	Accounts               map[uuid.UUID]resolvedAccountKeys
@@ -91,22 +93,24 @@ type preparedExecution struct {
 }
 
 type wireRequest struct {
-	ProtocolVersion    int               `json:"protocolVersion"`
-	TenantID           string            `json:"tenantId"`
-	OrganizationID     string            `json:"organizationId"`
-	LedgerID           string            `json:"ledgerId"`
-	ExecutionID        string            `json:"executionId"`
-	IntentFingerprint  string            `json:"intentFingerprint"`
-	ScheduleKeyIndex   int               `json:"scheduleKeyIndex"`
-	RecoveryKeyIndex   int               `json:"recoveryKeyIndex"`
-	ReceiptKeyIndex    int               `json:"receiptKeyIndex"`
-	GuardKeyIndex      int               `json:"guardKeyIndex"`
-	ProtectionKeyIndex int               `json:"protectionKeyIndex"`
-	ReceiptField       string            `json:"receiptField"`
-	RetentionSeconds   int64             `json:"retentionSeconds"`
-	Transactions       []wireTransaction `json:"transactions"`
-	Balances           []wireBalance     `json:"balances"`
-	Accounts           []wireAccount     `json:"accounts"`
+	ProtocolVersion          int               `json:"protocolVersion"`
+	TenantID                 string            `json:"tenantId"`
+	OrganizationID           string            `json:"organizationId"`
+	LedgerID                 string            `json:"ledgerId"`
+	ExecutionID              string            `json:"executionId"`
+	IntentFingerprint        string            `json:"intentFingerprint"`
+	ScheduleKeyIndex         int               `json:"scheduleKeyIndex"`
+	RecoveryKeyIndex         int               `json:"recoveryKeyIndex"`
+	ReceiptKeyIndex          int               `json:"receiptKeyIndex"`
+	GuardKeyIndex            int               `json:"guardKeyIndex"`
+	ProtectionKeyIndex       int               `json:"protectionKeyIndex"`
+	TransactionIndexKeyIndex int               `json:"transactionIndexKeyIndex"`
+	EvidenceKeyIndex         int               `json:"evidenceKeyIndex"`
+	ReceiptField             string            `json:"receiptField"`
+	RetentionSeconds         int64             `json:"retentionSeconds"`
+	Transactions             []wireTransaction `json:"transactions"`
+	Balances                 []wireBalance     `json:"balances"`
+	Accounts                 []wireAccount     `json:"accounts"`
 }
 
 // wireAccount declares the account-scoped closing controls of one account of the
@@ -120,16 +124,19 @@ type wireAccount struct {
 }
 
 type wireTransaction struct {
-	ID                    string                     `json:"id"`
-	RejectBlockedBalances bool                       `json:"rejectBlockedBalances"`
-	AccountBlockException *wireAccountBlockException `json:"accountBlockException,omitempty"`
-	GuardField            string                     `json:"guardField"`
-	ExpectedGuard         string                     `json:"expectedGuard"`
-	NextGuard             string                     `json:"nextGuard"`
-	RecoveryField         string                     `json:"recoveryField"`
-	CompletionPlan        string                     `json:"completionPlan"`
-	BalanceRequirements   []wireBalanceRequirement   `json:"balanceRequirements"`
-	Postings              []wirePosting              `json:"postings"`
+	ID                    string                                 `json:"id"`
+	RejectBlockedBalances bool                                   `json:"rejectBlockedBalances"`
+	AccountBlockException *wireAccountBlockException             `json:"accountBlockException,omitempty"`
+	GuardField            string                                 `json:"guardField"`
+	ExpectedGuard         string                                 `json:"expectedGuard"`
+	NextGuard             string                                 `json:"nextGuard"`
+	RecoveryField         string                                 `json:"recoveryField"`
+	CompletionPlan        string                                 `json:"completionPlan"`
+	ParentTransactionID   *string                                `json:"parentTransactionId,omitempty"`
+	Action                string                                 `json:"action"`
+	Dependencies          []command.TransactionEvidenceReference `json:"dependencies"`
+	BalanceRequirements   []wireBalanceRequirement               `json:"balanceRequirements"`
+	Postings              []wirePosting                          `json:"postings"`
 }
 
 type wireAccountBlockException struct {
@@ -226,9 +233,9 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 	}
 
 	wire := wireRequest{
-		ProtocolVersion: 1, TenantID: resolved.TenantID,
+		ProtocolVersion: 2, TenantID: resolved.TenantID,
 		OrganizationID: request.OrganizationID.String(), LedgerID: request.LedgerID.String(), ExecutionID: request.ExecutionID.String(),
-		IntentFingerprint: input.IntentFingerprint, ScheduleKeyIndex: 1, RecoveryKeyIndex: 2, ReceiptKeyIndex: 3, GuardKeyIndex: 4, ProtectionKeyIndex: 5,
+		IntentFingerprint: input.IntentFingerprint, ScheduleKeyIndex: 1, RecoveryKeyIndex: 2, ReceiptKeyIndex: 3, GuardKeyIndex: 4, ProtectionKeyIndex: 5, TransactionIndexKeyIndex: 6, EvidenceKeyIndex: 7,
 		ReceiptField: request.ExecutionID.String(), RetentionSeconds: retentionSeconds, Transactions: transactions, Balances: wireBalances,
 		Accounts: wireAccounts,
 	}
@@ -291,7 +298,14 @@ func validateExecutionEnvelope(input command.EngineExecution, limits Limits) err
 	return nil
 }
 
-func prepareSidecars(input command.EngineExecution, limits Limits) (map[uuid.UUID]command.ExecutionGuard, map[uuid.UUID]json.RawMessage, error) {
+type preparedCompletionPlan struct {
+	Payload             json.RawMessage
+	ParentTransactionID *uuid.UUID
+	Action              string
+	Dependencies        []command.TransactionEvidenceReference
+}
+
+func prepareSidecars(input command.EngineExecution, limits Limits) (map[uuid.UUID]command.ExecutionGuard, map[uuid.UUID]preparedCompletionPlan, error) {
 	guards := make(map[uuid.UUID]command.ExecutionGuard, len(input.Guards))
 	for _, guard := range input.Guards {
 		if guard.TransactionID == uuid.Nil || guard.NextToken == "" || guard.NextToken == guard.ExpectedToken {
@@ -305,28 +319,59 @@ func prepareSidecars(input command.EngineExecution, limits Limits) (map[uuid.UUI
 		guards[guard.TransactionID] = guard
 	}
 
-	completionPlans := make(map[uuid.UUID]json.RawMessage, len(input.CompletionPlans))
+	completionPlans, err := prepareCompletionPlans(input.CompletionPlans, limits.MaxCompletionPlanBytes)
+	if err != nil {
+		return nil, nil, err
+	}
 
+	return guards, completionPlans, nil
+}
+
+func prepareCompletionPlans(intents []command.CompletionPlanRecord, maxBytes int) (map[uuid.UUID]preparedCompletionPlan, error) {
+	completionPlans := make(map[uuid.UUID]preparedCompletionPlan, len(intents))
 	completionPlanBytes := 0
-	for _, intent := range input.CompletionPlans {
-		if len(intent.Payload) > limits.MaxCompletionPlanBytes-completionPlanBytes {
-			return nil, nil, fmt.Errorf("accounting completion plan exceeds byte limit")
+
+	for _, intent := range intents {
+		dependencies := intent.Dependencies
+		if dependencies == nil {
+			dependencies = []command.TransactionEvidenceReference{}
+		}
+
+		dependencyBytes, err := json.Marshal(dependencies)
+		if err != nil {
+			return nil, fmt.Errorf("encode accounting completion dependencies: %w", err)
+		}
+
+		if len(intent.Payload) > maxBytes-completionPlanBytes || len(dependencyBytes) > maxBytes-completionPlanBytes-len(intent.Payload) {
+			return nil, fmt.Errorf("accounting completion plan exceeds byte limit")
 		}
 
 		payload := strings.TrimSpace(string(intent.Payload))
 		if intent.TransactionID == uuid.Nil || len(payload) == 0 || payload[0] != '{' || !json.Valid(intent.Payload) {
-			return nil, nil, fmt.Errorf("invalid accounting completion plan")
+			return nil, fmt.Errorf("invalid accounting completion plan")
+		}
+
+		var fields struct {
+			ParentTransactionID *uuid.UUID `json:"parentTransactionId"`
+			Action              string     `json:"action"`
+		}
+		if err := json.Unmarshal(intent.Payload, &fields); err != nil || fields.Action == "" ||
+			(fields.ParentTransactionID != nil && (*fields.ParentTransactionID == uuid.Nil || *fields.ParentTransactionID == intent.TransactionID)) {
+			return nil, fmt.Errorf("invalid accounting completion plan wire fields")
 		}
 
 		if _, duplicate := completionPlans[intent.TransactionID]; duplicate {
-			return nil, nil, fmt.Errorf("duplicate accounting completion plan")
+			return nil, fmt.Errorf("duplicate accounting completion plan")
 		}
 
-		completionPlanBytes += len(intent.Payload)
-		completionPlans[intent.TransactionID] = intent.Payload
+		completionPlanBytes += len(intent.Payload) + len(dependencyBytes)
+		completionPlans[intent.TransactionID] = preparedCompletionPlan{
+			Payload: intent.Payload, ParentTransactionID: fields.ParentTransactionID,
+			Action: fields.Action, Dependencies: dependencies,
+		}
 	}
 
-	return guards, completionPlans, nil
+	return completionPlans, nil
 }
 
 func prepareBalances(ctx context.Context, request accounting.Execution, limits Limits) ([]wireBalance, map[string]accounting.BalanceSnapshot, error) {
@@ -364,8 +409,8 @@ func prepareBalances(ctx context.Context, request accounting.Execution, limits L
 
 		balances[balance.BalanceRef], identities[balance.ID], accounts[balance.AccountID], aliases[balance.Alias] = balance, true, balance, balance.AccountID
 		prepared = append(prepared, wireBalance{
-			BalanceRef: balance.BalanceRef, KeyIndex: 6 + 3*i,
-			DeleteKeyIndex: 7 + 3*i, LegacyDeleteKeyIndex: 8 + 3*i, Snapshot: snapshot,
+			BalanceRef: balance.BalanceRef, KeyIndex: 8 + 3*i,
+			DeleteKeyIndex: 9 + 3*i, LegacyDeleteKeyIndex: 10 + 3*i, Snapshot: snapshot,
 		})
 	}
 
@@ -376,7 +421,7 @@ func validSnapshotIdentity(balance accounting.BalanceSnapshot) bool {
 	return balance.ID != uuid.Nil && balance.AccountID != uuid.Nil && balance.Alias != "" && balance.Key != "" && balance.AssetCode != "" && balance.AccountType != "" && balance.BalanceRef == balance.Alias+"#"+balance.Key && validLogicalReference(balance.BalanceRef)
 }
 
-func prepareTransactions(ctx context.Context, request accounting.Execution, limits Limits, guards map[uuid.UUID]command.ExecutionGuard, completionPlans map[uuid.UUID]json.RawMessage, balances map[string]accounting.BalanceSnapshot) ([]wireTransaction, error) {
+func prepareTransactions(ctx context.Context, request accounting.Execution, limits Limits, guards map[uuid.UUID]command.ExecutionGuard, completionPlans map[uuid.UUID]preparedCompletionPlan, balances map[string]accounting.BalanceSnapshot) ([]wireTransaction, error) {
 	preparedTransactions := make([]wireTransaction, 0, len(request.Transactions))
 	transactionIDs := make(map[uuid.UUID]bool, len(request.Transactions))
 	postingCount := 0
@@ -400,12 +445,18 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 		}
 
 		postingCount += len(transaction.Postings)
+
 		prepared := wireTransaction{
 			ID: transaction.ID.String(), GuardField: transaction.ID.String(), ExpectedGuard: guard.ExpectedToken, NextGuard: guard.NextToken,
 			RejectBlockedBalances: transaction.RejectBlockedBalances,
-			RecoveryField:         transaction.ID.String() + ":" + request.ExecutionID.String(), CompletionPlan: string(completionPlan),
+			RecoveryField:         transaction.ID.String() + ":" + request.ExecutionID.String(), CompletionPlan: string(completionPlan.Payload), Action: completionPlan.Action,
+			Dependencies:        completionPlan.Dependencies,
 			BalanceRequirements: make([]wireBalanceRequirement, 0, len(transaction.BalanceRequirements)),
 			Postings:            make([]wirePosting, 0, len(transaction.Postings)),
+		}
+		if completionPlan.ParentTransactionID != nil {
+			parentTransactionID := completionPlan.ParentTransactionID.String()
+			prepared.ParentTransactionID = &parentTransactionID
 		}
 
 		for _, requirement := range transaction.BalanceRequirements {
@@ -428,7 +479,7 @@ func prepareTransactions(ctx context.Context, request accounting.Execution, limi
 				transaction.AccountBlockException,
 				transaction.Postings,
 				balances,
-				6+3*len(request.Balances)+grantOrdinal,
+				8+3*len(request.Balances)+grantOrdinal,
 				limits.MaxRequestBytes,
 			)
 			if err != nil {
@@ -541,10 +592,10 @@ func protectedAccounts(request accounting.Execution) []uuid.UUID {
 }
 
 // accountProtectionKeyBase is the number of keys that precede the account
-// protection block: the five shared keys, one triplet per balance and one grant
+// protection block: the seven shared keys, one triplet per balance and one grant
 // key per transaction that presents an account-block exception.
 func accountProtectionKeyBase(request accounting.Execution) int {
-	base := 5 + 3*len(request.Balances)
+	base := 7 + 3*len(request.Balances)
 
 	for _, transaction := range request.Transactions {
 		if transaction.AccountBlockException != nil {
@@ -579,11 +630,11 @@ func prepareKeys(request accounting.Execution, resolved resolvedExecutionKeys, m
 		return nil, fmt.Errorf("resolved accounting key inventory does not match snapshots")
 	}
 
-	if resolved.Protection == "" {
-		return nil, fmt.Errorf("missing resolved accounting protection key")
+	if resolved.Protection == "" || resolved.TransactionIndex == "" || resolved.Evidence == "" {
+		return nil, fmt.Errorf("missing resolved accounting protection, transaction index, or evidence key")
 	}
 
-	keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection}
+	keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection, resolved.TransactionIndex, resolved.Evidence}
 	for _, balance := range request.Balances {
 		pair, exists := resolved.Balances[balance.BalanceRef]
 

@@ -141,6 +141,14 @@ func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload
 	return encoded
 }
 
+func decodeEngineWriteBehindRecord(t testing.TB, raw []byte) *command.TransactionCompletionRecord {
+	t.Helper()
+	envelope, err := command.DecodeTransactionWriteBehindEnvelope(raw)
+	require.NoError(t, err)
+
+	return &envelope.Record
+}
+
 func newAdapterValkey(t testing.TB) (*redis.Client, string, string) {
 	t.Helper()
 	ctx := context.Background()
@@ -329,7 +337,7 @@ func assertAdapterDualBalanceCache(t *testing.T, raw []byte, balance core.Balanc
 
 	var fields map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(raw, &fields))
-	wantFieldCount := 35
+	wantFieldCount := 37
 	if hasExtension {
 		wantFieldCount++
 	}
@@ -448,7 +456,7 @@ func TestIntegration_AdapterExecute_CorruptReceiptIsIndeterminate(t *testing.T) 
 func captureAdapterState(t *testing.T, client *redis.Client, keys resolvedExecutionKeys) map[string]any {
 	t.Helper()
 	state := make(map[string]any)
-	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards, keys.Protection}
+	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards, keys.Protection, keys.TransactionIndex}
 	for _, balance := range keys.Balances {
 		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
 	}

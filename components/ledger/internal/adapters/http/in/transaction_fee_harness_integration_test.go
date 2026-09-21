@@ -390,6 +390,7 @@ func (h *feeHarness) newV2App() *fiber.App {
 	http.InstallLedgerSchemaNamer(hAPI)
 
 	RegisterTransactionV2RoutesToApp(apiV2, hAPI, &authMiddleware.AuthClient{Enabled: false}, h.handler, nil)
+	RegisterTransactionMirrorV2Routes(hAPI, h.handler)
 
 	return app
 }

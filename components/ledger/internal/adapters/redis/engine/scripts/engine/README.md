@@ -35,8 +35,9 @@ The entrypoint tells one ordered story:
    `execute`.
 2. `prepareExecutionProtection` calls `storedReceipt` first. A valid receipt
    returns the exact prior response without loading balances. A new execution
-   validates shared key types, lifecycle guards, and recovery conflicts, then
-   prepares protection coordinators in memory.
+   validates shared key types, lifecycle guards, recovery conflicts, and bounded
+   causal references against the current transaction-state index, then prepares
+   protection coordinators in memory.
 3. `loadBalancePool` reads live cache values. A valid Redis value is
    authoritative; a request snapshot is only an in-memory seed for a cache miss.
    Noncanonical legacy limits request a separate precommit repair.
@@ -63,12 +64,13 @@ The entrypoint tells one ordered story:
    runs the closed `postingAlgebra`, resolves real overdraft draws or repayments,
    and builds truthful movements and version chains without writing Redis.
 8. `prepareExecutionWrites` serializes the response, changed balance blobs,
-   recovery records, receipt, guards, and protection data while enforcing the
-   total prepared-byte ceiling.
+   versioned write-behind evidence, transaction-state index entries, recovery
+   records, receipt, guards, and protection data while enforcing the total
+   prepared-byte ceiling.
 9. `commitPreparedExecution` is the only publication phase. It writes changed
    balances, synchronization schedule members, recovery records, guards,
-   protection coordinators, deletes consumed grant keys, and finally writes the
-   receipt.
+   protection coordinators, and index entries, deletes consumed grant keys, and
+   finally writes the receipt.
 
 The receipt is written last deliberately: its presence means the complete
 prepared command sequence returned through the final write. Recovery records are
@@ -78,7 +80,12 @@ acknowledge that evidence; it must never call this script to reapply accounting.
 
 ## Declared key layout
 
-`KEYS[1..5]` are the schedule, recovery, receipt, guard, and protection keys.
+`KEYS[1..7]` are the schedule, recovery, receipt, guard, protection, transaction-index, and evidence
+transaction-state index keys. The state index is scoped by tenant,
+organization, and ledger; its transaction field points to the current
+execution's receipt and immutable recovery evidence. A dependency is accepted
+only while that index still names the referenced execution and both evidence
+records remain present.
 Each balance then contributes one ordered triplet: live balance, dedicated
 deletion marker, and compatibility deletion marker. After all balance triplets,
 each transaction that presents an account-block exception contributes exactly

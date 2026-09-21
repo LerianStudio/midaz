@@ -300,11 +300,13 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		Receipts:               "engine:" + cachepolicy.HashTag + ":receipts:" + scope,
 		Guards:                 "engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		Protection:             "engine:" + cachepolicy.HashTag + ":protection:" + scope,
+		TransactionIndex:       "engine:" + cachepolicy.HashTag + ":transaction-index:" + scope,
+		Evidence:               "engine:" + cachepolicy.HashTag + ":evidence:" + scope,
 		Balances:               make(map[string]resolvedBalanceKeys, len(request.Balances)),
 		AccountBlockExceptions: make(map[uuid.UUID]string, len(request.Transactions)),
 		Accounts:               make(map[uuid.UUID]resolvedAccountKeys, len(request.Balances)),
 	}
-	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection} {
+	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection, &resolved.TransactionIndex, &resolved.Evidence} {
 		prefixed, err := tmvalkey.GetKeyContext(ctx, *key)
 		if err != nil {
 			return resolvedExecutionKeys{}, err
@@ -415,7 +417,8 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 		// The account protection codes are decided in the preflight, before any
 		// write, so a movement they refuse is certain not to have been applied.
 		case "invalid_json", "invalid_protocol", "invalid_balance", "balance_identity_mismatch", "wrong_key_type", "execution_fingerprint_conflict", "execution_guard_conflict", "version_overflow", "invalid_companion", "prepared_bytes_exceeded", "request_bytes_exceeded", "serialization_failed", "script_runtime_failed",
-			"account_closed", "account_closing_in_progress", "admission_not_confirmed", "account_protection_unreadable":
+			"account_closed", "account_closing_in_progress", "admission_not_confirmed", "account_protection_unreadable",
+			"dependency_evidence_missing", "dependency_evidence_conflict", "dependency_evidence_invalid", "transaction_state_conflict":
 			return technical(failure.Code, false, err)
 		case "indeterminate", "execution_outcome_unknown", "invalid_receipt":
 			return technical(failure.Code, true, err)
@@ -432,8 +435,10 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 
 		allowed := make(map[string]bool, len(request.Balances))
 
-		balanceKeyEnd := 5 + 3*len(request.Balances)
-		for i := 5; i < balanceKeyEnd; i += 3 {
+		balanceKeyStart := 7
+
+		balanceKeyEnd := balanceKeyStart + 3*len(request.Balances)
+		for i := balanceKeyStart; i < balanceKeyEnd; i += 3 {
 			allowed[keys[i]] = true
 		}
 

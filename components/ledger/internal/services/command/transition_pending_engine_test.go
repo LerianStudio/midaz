@@ -43,6 +43,21 @@ type transitionEngineReader struct {
 	balanceAliases     [][]string
 }
 
+type pendingProjectionReader struct {
+	*transitionEngineReader
+	executionID uuid.UUID
+	durable     bool
+}
+
+func (reader *pendingProjectionReader) ResolveTransactionProjection(
+	context.Context,
+	uuid.UUID,
+	uuid.UUID,
+	uuid.UUID,
+) (*transaction.Transaction, uuid.UUID, bool, error) {
+	return reader.persisted, reader.executionID, !reader.durable, nil
+}
+
 func (reader *transitionEngineReader) GetWriteBehindTransaction(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error) {
 	return reader.writeBehind, nil
 }
@@ -77,6 +92,56 @@ func (reader *transitionEngineReader) GetEngineBalances(ctx context.Context, org
 
 func (reader *transitionEngineReader) ValidateAccountingRules(context.Context, uuid.UUID, uuid.UUID, []mmodel.BalanceOperation, *mtransaction.Responses, string) (*mmodel.TransactionRouteCache, error) {
 	return nil, nil
+}
+
+func TestEngineWriteBehindPendingTransitionUsesUnprojectedPredecessorEvidence(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, constant.APPROVED)
+	predecessorExecutionID := uuid.New()
+	uc.TransactionReader = &pendingProjectionReader{transitionEngineReader: reader, executionID: predecessorExecutionID}
+	dispatcher := &createWriteBehindDispatcherStub{}
+	uc.TransactionWriteBehindAsync = true
+	uc.TransactionWriteBehindDispatcher = dispatcher
+
+	tran, err := uc.CommitTransactionV1(tmcore.ContextWithTenantID(t.Context(), "tenant-pending-evidence"), in)
+
+	require.NoError(t, err)
+	require.NotNil(t, tran)
+	require.Len(t, executor.requests, 1)
+	require.Len(t, executor.requests[0].CompletionPlans, 1)
+	require.Len(t, executor.requests[0].CompletionPlans[0].Dependencies, 1)
+	dependency := executor.requests[0].CompletionPlans[0].Dependencies[0]
+	require.Equal(t, TransactionDependencyPredecessor, dependency.Kind)
+	require.Equal(t, in.TransactionID, dependency.TransactionID)
+	require.Equal(t, predecessorExecutionID, dependency.ExecutionID)
+	require.Zero(t, finalizer.envelopes)
+	require.Equal(t, 1, dispatcher.calls)
+	require.Equal(t, executor.requests[0].CompletionPlans[0].Dependencies, dispatcher.envelope.Dependencies)
+}
+
+// TestEngineWriteBehindPendingTransitionUsesDurablePredecessorEvidence covers the
+// window between a durable write and the retention sweep that reaps its index: the
+// engine still refuses a second execution that names no predecessor, so evidence
+// already flushed to SQL must be bound exactly like unprojected evidence.
+func TestEngineWriteBehindPendingTransitionUsesDurablePredecessorEvidence(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
+	predecessorExecutionID := uuid.New()
+	uc.TransactionReader = &pendingProjectionReader{
+		transitionEngineReader: reader, executionID: predecessorExecutionID, durable: true,
+	}
+
+	tran, err := uc.CommitTransactionV1(tmcore.ContextWithTenantID(t.Context(), "tenant-pending-durable"), in)
+
+	require.NoError(t, err)
+	require.NotNil(t, tran)
+	require.Len(t, executor.requests, 1)
+	require.Len(t, executor.requests[0].CompletionPlans, 1)
+	require.Len(t, executor.requests[0].CompletionPlans[0].Dependencies, 1)
+	dependency := executor.requests[0].CompletionPlans[0].Dependencies[0]
+	require.Equal(t, TransactionDependencyPredecessor, dependency.Kind)
+	require.Equal(t, in.TransactionID, dependency.TransactionID)
+	require.Equal(t, predecessorExecutionID, dependency.ExecutionID)
 }
 
 type transitionEngineExecutor struct {
@@ -364,15 +429,16 @@ func TestPendingTransitionEngineFailureBoundaries(t *testing.T) {
 				uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			}
 
-			_, err := uc.CommitTransactionV2(tmcore.ContextWithTenantID(context.Background(), "tenant-failure"), in)
-			require.Error(t, err)
+			tran, err := uc.CommitTransactionV2(tmcore.ContextWithTenantID(context.Background(), "tenant-failure"), in)
 			require.Len(t, executor.requests, 1)
 			require.NotNil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
 			if test.finalizeErr != nil {
-				assert.ErrorIs(t, err, finalizationErr)
+				require.NoError(t, err)
+				require.NotNil(t, tran)
 				assert.Len(t, finalizer.envelopes, 1)
 				assert.Equal(t, []uuid.UUID{in.TransactionID}, reserver.confirmedTxns)
 			} else {
+				require.Error(t, err)
 				assert.Empty(t, finalizer.envelopes)
 				assert.Empty(t, reserver.confirmedTxns)
 			}

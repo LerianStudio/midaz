@@ -16,8 +16,9 @@ import (
 
 // CreatePostgresClient creates and connects a lib-commons v4 postgres client,
 // then applies migrations for the target component path.
-func CreatePostgresClient(t *testing.T, primaryDSN, replicaDSN, dbName, migrationsPath string) *libPostgres.Client {
-	t.Helper()
+func CreatePostgresClient(tb testing.TB, primaryDSN, replicaDSN, dbName, migrationsPath string) *libPostgres.Client {
+	tb.Helper()
+	t := tb
 
 	conn, err := libPostgres.New(libPostgres.Config{
 		PrimaryDSN: primaryDSN,

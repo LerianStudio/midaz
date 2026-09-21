@@ -3,10 +3,11 @@
 -- that can be found in the LICENSE file.
 
 -- KEYS: due schedule, legacy backup hash, engine recover hash, receipt hash,
---       guard hash, protection hash.
+--       guard hash, protection hash, protected evidence hash, transaction
+--       index hash, followed by one materialized transaction key per member.
 -- ARGV: schedule member, exact score, current unix millis, tenant ID,
 --       organization UUID, ledger UUID, execution UUID.
-if #KEYS ~= 6 or #ARGV ~= 7 then
+if #KEYS < 8 or #ARGV ~= 7 then
     return redis.error_reply("ERR invalid engine recovery cleanup arguments")
 end
 
@@ -20,10 +21,16 @@ local scheduleKind = redisType(KEYS[1])
 if scheduleKind ~= "none" and scheduleKind ~= "zset" then
     return redis.error_reply("WRONGTYPE engine recovery cleanup schedule must be a sorted set")
 end
-for index = 2, #KEYS do
+for index = 2, 8 do
     local kind = redisType(KEYS[index])
     if kind ~= "none" and kind ~= "hash" then
         return redis.error_reply("WRONGTYPE engine recovery cleanup artifacts must be hashes")
+    end
+end
+for index = 9, #KEYS do
+    local kind = redisType(KEYS[index])
+    if kind ~= "none" and kind ~= "string" then
+        return redis.error_reply("WRONGTYPE materialized transaction artifact must be a string")
     end
 end
 
@@ -59,18 +66,21 @@ if protection == nil then
     redis.call("ZREM", KEYS[1], member)
     return 2
 end
-if type(protection) ~= "table" or protection.formatVersion ~= 1 or
+if type(protection) ~= "table" or (protection.formatVersion ~= 1 and protection.formatVersion ~= 2) or
     type(protection.retentionSeconds) ~= "number" or protection.retentionSeconds < 1 or
     protection.retentionSeconds > 604800 or protection.retentionSeconds % 1 ~= 0 or
     type(protection.transactions) ~= "table" or type(protection.recoveryFields) ~= "table" or
     type(protection.acknowledged) ~= "table" or type(protection.terminalCompletedAtMs) ~= "table" or
     type(protection.cleanupAfterMs) ~= "number" or protection.cleanupAfterMs < 1 or
     protection.cleanupAfterMs % 1 ~= 0 or #protection.transactions == 0 or
-    #protection.transactions ~= #protection.recoveryFields then
+    #protection.transactions ~= #protection.recoveryFields or
+    (protection.formatVersion == 2 and (type(protection.indexFields) ~= "table" or
+     #protection.indexFields ~= #protection.transactions or #KEYS ~= 8 + #protection.transactions)) then
     return redis.error_reply("ERR invalid cleanup receipt protection")
 end
 
 local seen, coordinators, latestTerminalAt = {}, {}, 0
+local indexDeletes, dependencyBlocked = {}, false
 for index, transactionID in ipairs(protection.transactions) do
     local recoveryField = protection.recoveryFields[index]
     local terminalAt = protection.terminalCompletedAtMs[transactionID]
@@ -86,6 +96,48 @@ for index, transactionID in ipairs(protection.transactions) do
     end
     if terminalAt > latestTerminalAt then latestTerminalAt = terminalAt end
     seen[transactionID] = true
+
+    if protection.formatVersion == 2 then
+        if protection.indexFields[index] ~= transactionID then
+            return redis.error_reply("ERR cleanup index protection differs")
+        end
+        local rawEvidence = redis.call("HGET", KEYS[7], recoveryField)
+        if not rawEvidence then return redis.error_reply("ERR cleanup evidence is missing") end
+        local evidenceDecoded, evidence = pcall(cjson.decode, rawEvidence)
+        if not evidenceDecoded or type(evidence) ~= "table" or evidence.formatVersion ~= 1 or
+            evidence.applicationState ~= "confirmed" or evidence.durabilityState ~= "complete" or
+            type(evidence.record) ~= "table" or evidence.record.formatVersion ~= 2 or
+            evidence.record.tenantId ~= tenantID or evidence.record.organizationId ~= organizationID or
+            evidence.record.ledgerId ~= ledgerID or evidence.record.transactionId ~= transactionID or
+            evidence.record.executionId ~= executionID then
+            return redis.error_reply("ERR cleanup evidence differs")
+        end
+
+        local rawIndex = redis.call("HGET", KEYS[8], transactionID)
+        if not rawIndex then return redis.error_reply("ERR cleanup transaction index is missing") end
+        local indexDecoded, currentIndex = pcall(cjson.decode, rawIndex)
+        if not indexDecoded or type(currentIndex) ~= "table" or currentIndex.formatVersion ~= 1 or
+            currentIndex.tenantId ~= tenantID or currentIndex.organizationId ~= organizationID or
+            currentIndex.ledgerId ~= ledgerID or currentIndex.transactionId ~= transactionID or
+            type(currentIndex.executionId) ~= "string" or type(currentIndex.dependencies) ~= "table" then
+            return redis.error_reply("ERR cleanup transaction index differs")
+        end
+        if currentIndex.executionId == executionID then
+            if currentIndex.durabilityState ~= "complete" or currentIndex.recoveryField ~= recoveryField or
+                currentIndex.receiptField ~= executionID then
+                return redis.error_reply("ERR cleanup current transaction index is not durable")
+            end
+            indexDeletes[#indexDeletes + 1] = transactionID
+        else
+            for _, dependency in ipairs(currentIndex.dependencies) do
+                if type(dependency) == "table" and dependency.executionId == executionID and
+                    dependency.transactionId == transactionID and dependency.kind == "predecessor" and
+                    currentIndex.durabilityState == "pending" then
+                    dependencyBlocked = true
+                end
+            end
+        end
+    end
 
     local rawCoordinator = redis.call("HGET", KEYS[6], transactionID)
     if not rawCoordinator then return redis.error_reply("ERR cleanup coordinator missing") end
@@ -127,7 +179,12 @@ if protection.cleanupAfterMs ~= recomputedDeadline then
     return redis.error_reply("ERR cleanup receipt deadline differs from terminal proof")
 end
 
-if protection.cleanupAfterMs ~= expectedScore then
+if dependencyBlocked then
+    redis.call("ZADD", KEYS[1], nowMS + 60000, member)
+    return 3
+end
+
+if protection.cleanupAfterMs > nowMS then
     redis.call("ZADD", KEYS[1], protection.cleanupAfterMs, member)
     return 3
 end
@@ -135,6 +192,20 @@ end
 -- Every receipt, recovery, and coordinator check plus every replacement JSON
 -- encoding succeeded before the first artifact mutation.
 redis.call("HDEL", KEYS[4], executionID)
+if protection.formatVersion == 2 then
+    for index, recoveryField in ipairs(protection.recoveryFields) do
+        redis.call("HDEL", KEYS[7], recoveryField)
+        local materializedRaw = redis.call("GET", KEYS[8 + index])
+        if materializedRaw then
+            local decoded, materialized = pcall(cjson.decode, materializedRaw)
+            if decoded and type(materialized) == "table" and materialized.formatVersion == 1 and
+                materialized.executionId == executionID then
+                redis.call("DEL", KEYS[8 + index])
+            end
+        end
+    end
+    for _, transactionID in ipairs(indexDeletes) do redis.call("HDEL", KEYS[8], transactionID) end
+end
 for _, coordinator in ipairs(coordinators) do
     if coordinator.value then
         redis.call("HSET", KEYS[6], coordinator.field, coordinator.value)

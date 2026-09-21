@@ -21,11 +21,11 @@ import (
 //
 //	path := FindMigrationsPath(t, "onboarding")  // finds components/ledger/migrations/onboarding
 //	path := FindMigrationsPath(t, "transaction") // finds components/ledger/migrations/transaction
-func FindMigrationsPath(t *testing.T, component string) string {
-	t.Helper()
+func FindMigrationsPath(tb testing.TB, component string) string {
+	tb.Helper()
 
 	dir, err := os.Getwd()
-	require.NoError(t, err, "failed to get current working directory")
+	require.NoError(tb, err, "failed to get current working directory")
 
 	for {
 		candidate := filepath.Join(dir, "components", "ledger", "migrations", component)
@@ -35,7 +35,7 @@ func FindMigrationsPath(t *testing.T, component string) string {
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			t.Fatalf("could not find migrations directory for component %q", component)
+			tb.Fatalf("could not find migrations directory for component %q", component)
 		}
 
 		dir = parent

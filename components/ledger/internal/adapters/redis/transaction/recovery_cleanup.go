@@ -7,6 +7,8 @@ package redis
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -135,9 +137,39 @@ func (rr *RedisConsumerRepository) cleanupEngineRecoveryEntry(
 		"engine:" + cachepolicy.HashTag + ":receipts:" + scope,
 		"engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		"engine:" + cachepolicy.HashTag + ":protection:" + scope,
+		"engine:" + cachepolicy.HashTag + ":evidence:" + scope,
+		"engine:" + cachepolicy.HashTag + ":transaction-index:" + scope,
 	})
 	if err != nil {
 		return recoveryCleanupNoop, fmt.Errorf("resolve engine recovery cleanup keys: %w", err)
+	}
+
+	rawReceipt, readErr := client.HGet(ctx, keys[3], executionID.String()).Bytes()
+	if readErr != nil && !errors.Is(readErr, redis.Nil) {
+		return recoveryCleanupNoop, fmt.Errorf("read engine recovery cleanup receipt: %w", readErr)
+	}
+
+	if readErr == nil {
+		var receipt struct {
+			Protection struct {
+				Transactions []uuid.UUID `json:"transactions"`
+			} `json:"protection"`
+		}
+		if json.Unmarshal(rawReceipt, &receipt) == nil {
+			for _, transactionID := range receipt.Protection.Transactions {
+				if transactionID == uuid.Nil {
+					break
+				}
+
+				materialized, keyErr := tenantKeyFromContextOrError(ctx,
+					"engine:"+cachepolicy.HashTag+":materialized:"+scope+":"+transactionID.String())
+				if keyErr != nil {
+					return recoveryCleanupNoop, fmt.Errorf("resolve materialized transaction cleanup key: %w", keyErr)
+				}
+
+				keys = append(keys, materialized)
+			}
+		}
 	}
 
 	status, err := cleanupEngineRecoveryScript.Run(

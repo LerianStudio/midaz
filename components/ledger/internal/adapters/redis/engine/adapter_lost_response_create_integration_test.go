@@ -135,8 +135,7 @@ func TestIntegration_CreateTransactionV2LostResponseRetainsRecoverableExecution(
 
 	recoveryRaw, err := inspector.HGet(ctx, keys.Recovery, execution.Execution.Transactions[0].ID.String()+":"+execution.Execution.ExecutionID.String()).Bytes()
 	require.NoError(t, err)
-	recovery, err := command.DecodeTransactionCompletionRecord(recoveryRaw)
-	require.NoError(t, err)
+	recovery := decodeEngineWriteBehindRecord(t, recoveryRaw)
 	require.Equal(t, execution.Execution.ExecutionID, recovery.ExecutionID)
 	require.Equal(t, execution.IntentFingerprint, recovery.IntentFingerprint)
 	payload, err := command.DecodeTransactionCompletionPlan([]byte(recovery.Payload))

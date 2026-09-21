@@ -37,32 +37,32 @@ func DefaultOrganizationParams() OrganizationParams {
 }
 
 // CreateTestOrganization inserts a test organization and returns its ID.
-func CreateTestOrganization(t *testing.T, db *sql.DB) uuid.UUID {
-	t.Helper()
-	return CreateTestOrganizationWithParams(t, db, DefaultOrganizationParams())
+func CreateTestOrganization(tb testing.TB, db *sql.DB) uuid.UUID {
+	tb.Helper()
+	return CreateTestOrganizationWithParams(tb, db, DefaultOrganizationParams())
 }
 
 // CreateTestOrganizationWithParams inserts a test organization with custom params.
-func CreateTestOrganizationWithParams(t *testing.T, db *sql.DB, params OrganizationParams) uuid.UUID {
-	t.Helper()
+func CreateTestOrganizationWithParams(tb testing.TB, db *sql.DB, params OrganizationParams) uuid.UUID {
+	tb.Helper()
 
 	id := uuid.Must(libCommons.GenerateUUIDv7())
 
-	return createTestOrganizationRow(t, db, id, params)
+	return createTestOrganizationRow(tb, db, id, params)
 }
 
 // CreateTestOrganizationWithID inserts a test organization using a caller-supplied
 // ID (with default params), returning that same ID. Use it when two databases must
 // share the same pre-chosen organization identifier.
-func CreateTestOrganizationWithID(t *testing.T, db *sql.DB, id uuid.UUID) uuid.UUID {
-	t.Helper()
+func CreateTestOrganizationWithID(tb testing.TB, db *sql.DB, id uuid.UUID) uuid.UUID {
+	tb.Helper()
 
-	return createTestOrganizationRow(t, db, id, DefaultOrganizationParams())
+	return createTestOrganizationRow(tb, db, id, DefaultOrganizationParams())
 }
 
 // createTestOrganizationRow performs the organization INSERT for a fixed ID and params.
-func createTestOrganizationRow(t *testing.T, db *sql.DB, id uuid.UUID, params OrganizationParams) uuid.UUID {
-	t.Helper()
+func createTestOrganizationRow(tb testing.TB, db *sql.DB, id uuid.UUID, params OrganizationParams) uuid.UUID {
+	tb.Helper()
 
 	now := time.Now().Truncate(time.Microsecond)
 
@@ -70,7 +70,7 @@ func createTestOrganizationRow(t *testing.T, db *sql.DB, id uuid.UUID, params Or
 		INSERT INTO organization (id, legal_name, legal_document, doing_business_as, address, status, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, id, params.LegalName, params.LegalDocument, params.DoingBusinessAs, `{"city":"Test"}`, params.Status, now, now, params.DeletedAt)
-	require.NoError(t, err, "failed to create test organization")
+	require.NoError(tb, err, "failed to create test organization")
 
 	return id
 }
@@ -91,32 +91,32 @@ func DefaultLedgerParams() LedgerParams {
 }
 
 // CreateTestLedger inserts a test ledger and returns its ID.
-func CreateTestLedger(t *testing.T, db *sql.DB, orgID uuid.UUID) uuid.UUID {
-	t.Helper()
-	return CreateTestLedgerWithParams(t, db, orgID, DefaultLedgerParams())
+func CreateTestLedger(tb testing.TB, db *sql.DB, orgID uuid.UUID) uuid.UUID {
+	tb.Helper()
+	return CreateTestLedgerWithParams(tb, db, orgID, DefaultLedgerParams())
 }
 
 // CreateTestLedgerWithParams inserts a test ledger with custom params.
-func CreateTestLedgerWithParams(t *testing.T, db *sql.DB, orgID uuid.UUID, params LedgerParams) uuid.UUID {
-	t.Helper()
+func CreateTestLedgerWithParams(tb testing.TB, db *sql.DB, orgID uuid.UUID, params LedgerParams) uuid.UUID {
+	tb.Helper()
 
 	id := uuid.Must(libCommons.GenerateUUIDv7())
 
-	return createTestLedgerRow(t, db, id, orgID, params)
+	return createTestLedgerRow(tb, db, id, orgID, params)
 }
 
 // CreateTestLedgerWithID inserts a test ledger using a caller-supplied ID (with
 // default params) under the given organization, returning that same ID. Use it when
 // two databases must share the same pre-chosen ledger identifier.
-func CreateTestLedgerWithID(t *testing.T, db *sql.DB, id, orgID uuid.UUID) uuid.UUID {
-	t.Helper()
+func CreateTestLedgerWithID(tb testing.TB, db *sql.DB, id, orgID uuid.UUID) uuid.UUID {
+	tb.Helper()
 
-	return createTestLedgerRow(t, db, id, orgID, DefaultLedgerParams())
+	return createTestLedgerRow(tb, db, id, orgID, DefaultLedgerParams())
 }
 
 // createTestLedgerRow performs the ledger INSERT for a fixed ID and params.
-func createTestLedgerRow(t *testing.T, db *sql.DB, id, orgID uuid.UUID, params LedgerParams) uuid.UUID {
-	t.Helper()
+func createTestLedgerRow(tb testing.TB, db *sql.DB, id, orgID uuid.UUID, params LedgerParams) uuid.UUID {
+	tb.Helper()
 
 	now := time.Now().Truncate(time.Microsecond)
 
@@ -124,7 +124,7 @@ func createTestLedgerRow(t *testing.T, db *sql.DB, id, orgID uuid.UUID, params L
 		INSERT INTO ledger (id, name, organization_id, status, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, id, params.Name, orgID, params.Status, now, now, params.DeletedAt)
-	require.NoError(t, err, "failed to create test ledger")
+	require.NoError(tb, err, "failed to create test ledger")
 
 	return id
 }
@@ -256,8 +256,8 @@ func CreateTestAssetWithParams(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UU
 
 // CreateTestAccount inserts an account directly into DB for test setup.
 // Parameters: db, orgID, ledgerID, portfolioID (nil for none), name, alias, assetCode, deletedAt (nil for active)
-func CreateTestAccount(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, portfolioID *uuid.UUID, name, alias, assetCode string, deletedAt *time.Time) uuid.UUID {
-	t.Helper()
+func CreateTestAccount(tb testing.TB, db *sql.DB, orgID, ledgerID uuid.UUID, portfolioID *uuid.UUID, name, alias, assetCode string, deletedAt *time.Time) uuid.UUID {
+	tb.Helper()
 
 	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
@@ -271,7 +271,7 @@ func CreateTestAccount(t *testing.T, db *sql.DB, orgID, ledgerID uuid.UUID, port
 		INSERT INTO account (id, name, asset_code, organization_id, ledger_id, portfolio_id, status, alias, type, blocked, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`, id, name, assetCode, orgID, ledgerID, portfolioIDVal, "ACTIVE", alias, "deposit", false, now, now, deletedAt)
-	require.NoError(t, err, "failed to insert test account")
+	require.NoError(tb, err, "failed to insert test account")
 
 	return id
 }
@@ -305,8 +305,8 @@ func DefaultBalanceParams() BalanceParams {
 
 // CreateTestBalance inserts a balance directly into DB for test setup.
 // Uses transaction component's balance table schema.
-func CreateTestBalance(t *testing.T, db *sql.DB, orgID, ledgerID, accountID uuid.UUID, params BalanceParams) uuid.UUID {
-	t.Helper()
+func CreateTestBalance(tb testing.TB, db *sql.DB, orgID, ledgerID, accountID uuid.UUID, params BalanceParams) uuid.UUID {
+	tb.Helper()
 
 	id := uuid.Must(libCommons.GenerateUUIDv7())
 	now := time.Now().Truncate(time.Microsecond)
@@ -317,7 +317,7 @@ func CreateTestBalance(t *testing.T, db *sql.DB, orgID, ledgerID, accountID uuid
 	`, id, orgID, ledgerID, accountID, params.Alias, params.Key, params.AssetCode,
 		params.Available, params.OnHold, 0, params.AccountType, // version=0 matches schema default
 		params.AllowSending, params.AllowReceiving, now, now, params.DeletedAt)
-	require.NoError(t, err, "failed to insert test balance")
+	require.NoError(tb, err, "failed to insert test balance")
 
 	return id
 }

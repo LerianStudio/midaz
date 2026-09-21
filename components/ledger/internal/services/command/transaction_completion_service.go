@@ -45,6 +45,23 @@ type TransactionCompletionService struct {
 	publisher AppliedTransactionEventPublisher
 }
 
+// TransactionEvidenceViews are the three caller-owned representations derived
+// from immutable engine evidence. InitialResponse preserves the create route's
+// public status, Lookup reflects the current confirmed accounting state, and
+// Projection is the deterministic durable write set. None requires SQL or
+// MongoDB reads.
+type TransactionEvidenceViews struct {
+	InitialResponse *transaction.Transaction
+	Lookup          *transaction.Transaction
+	Projection      TransactionWriteSet
+}
+
+type preparedTransactionCompletion struct {
+	writeSet       TransactionWriteSet
+	callerWriteSet TransactionWriteSet
+	metadata       []*mongodb.Metadata
+}
+
 // NewTransactionCompletionService uses the existing metadata repository with the
 // authenticated Mongo context supplied by its caller.
 func NewTransactionCompletionService(store TransactionWriteStore, metadata engineMetadataRepository) *TransactionCompletionService {
@@ -84,51 +101,18 @@ func (service *TransactionCompletionService) complete(ctx context.Context, recor
 		return TransactionCompletionResult{}, invalidTransactionCompletionRecord("transaction completion dependencies are not configured")
 	}
 
-	if record == nil {
-		return TransactionCompletionResult{}, invalidTransactionCompletionRecord("transaction completion record is missing")
-	}
-
-	if record.TenantID != tmcore.GetTenantIDContext(ctx) {
-		return TransactionCompletionResult{}, invalidTransactionCompletionRecord("completion tenant does not match authenticated context")
-	}
-
-	if err := validateTransactionCompletionRecord(*record); err != nil {
-		return TransactionCompletionResult{}, err
-	}
-
-	plan, err := DecodeTransactionCompletionPlan([]byte(record.Payload))
+	prepared, err := prepareTransactionCompletion(ctx, record)
 	if err != nil {
 		return TransactionCompletionResult{}, err
 	}
 
-	writeSet, err := BuildTransactionWriteSet(*plan, record.Result)
+	outcome, err := service.persist(ctx, prepared.writeSet)
 	if err != nil {
 		return TransactionCompletionResult{}, err
 	}
 
-	metadata, err := frozenMetadataRecords(writeSet.Transaction, plan.TransactionDate)
-	if err != nil {
+	if err := service.persistPreparedMetadata(ctx, []preparedTransactionCompletion{prepared}); err != nil {
 		return TransactionCompletionResult{}, err
-	}
-
-	callerWriteSet, err := cloneTransactionWriteSet(writeSet)
-	if err != nil {
-		return TransactionCompletionResult{}, err
-	}
-
-	outcome, err := service.persist(ctx, writeSet)
-	if err != nil {
-		return TransactionCompletionResult{}, err
-	}
-
-	for _, entry := range metadata {
-		if err := ctx.Err(); err != nil {
-			return TransactionCompletionResult{}, err
-		}
-
-		if err := service.persistMetadata(ctx, entry); err != nil {
-			return TransactionCompletionResult{}, err
-		}
 	}
 
 	if service.publisher != nil {
@@ -136,10 +120,133 @@ func (service *TransactionCompletionService) complete(ctx context.Context, recor
 			return TransactionCompletionResult{}, fmt.Errorf("%w: transaction write store reported unknown lifecycle phase", ErrTransactionCompletionConflict)
 		}
 
-		service.publisher.PublishAppliedTransactionEvents(ctx, writeSet.Transaction, outcome.LifecyclePhase)
+		service.publisher.PublishAppliedTransactionEvents(ctx, prepared.writeSet.Transaction, outcome.LifecyclePhase)
 	}
 
-	return TransactionCompletionResult{Record: callerWriteSet, Outcome: outcome}, nil
+	return TransactionCompletionResult{Record: prepared.callerWriteSet, Outcome: outcome}, nil
+}
+
+// CompleteBulk projects one same-scope group through the bulk SQL capability,
+// then verifies all frozen metadata before publishing any lifecycle event.
+// Results preserve input order even when the store reorders causal writes.
+func (service *TransactionCompletionService) CompleteBulk(ctx context.Context, records []*TransactionCompletionRecord) ([]TransactionCompletionResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if service == nil || service.store == nil || service.metadata == nil {
+		return nil, invalidTransactionCompletionRecord("transaction completion dependencies are not configured")
+	}
+
+	if len(records) == 0 {
+		return []TransactionCompletionResult{}, nil
+	}
+
+	bulkStore, ok := service.store.(TransactionBulkWriteStoreWithOutcome)
+	if !ok {
+		return nil, invalidTransactionCompletionRecord("transaction write store does not support bulk outcomes")
+	}
+
+	prepared := make([]preparedTransactionCompletion, len(records))
+
+	writeSets := make([]TransactionWriteSet, len(records))
+	for index, record := range records {
+		unit, err := prepareTransactionCompletion(ctx, record)
+		if err != nil {
+			return nil, fmt.Errorf("prepare bulk transaction at index %d: %w", index, err)
+		}
+
+		prepared[index] = unit
+		writeSets[index] = unit.writeSet
+	}
+
+	outcomes, err := bulkStore.PersistBulkWithOutcome(ctx, writeSets)
+	if err != nil {
+		return nil, fmt.Errorf("persist bulk transaction write sets: %w", err)
+	}
+
+	if len(outcomes) != len(prepared) {
+		return nil, fmt.Errorf("%w: bulk transaction write store returned an uncorrelated result", ErrTransactionCompletionConflict)
+	}
+
+	for _, outcome := range outcomes {
+		if !validTransactionPersistenceOutcome(outcome) || !validTransactionLifecyclePhase(outcome.LifecyclePhase) {
+			return nil, fmt.Errorf("%w: bulk transaction write store reported an invalid outcome", ErrTransactionCompletionConflict)
+		}
+	}
+
+	if err := service.persistPreparedMetadata(ctx, prepared); err != nil {
+		return nil, err
+	}
+
+	results := make([]TransactionCompletionResult, len(prepared))
+	for index := range prepared {
+		results[index] = TransactionCompletionResult{Record: prepared[index].callerWriteSet, Outcome: outcomes[index]}
+	}
+
+	if service.publisher != nil {
+		for index := range prepared {
+			service.publisher.PublishAppliedTransactionEvents(ctx, prepared[index].writeSet.Transaction, outcomes[index].LifecyclePhase)
+		}
+	}
+
+	return results, nil
+}
+
+func prepareTransactionCompletion(ctx context.Context, record *TransactionCompletionRecord) (preparedTransactionCompletion, error) {
+	if err := ctx.Err(); err != nil {
+		return preparedTransactionCompletion{}, err
+	}
+
+	if record == nil {
+		return preparedTransactionCompletion{}, invalidTransactionCompletionRecord("transaction completion record is missing")
+	}
+
+	if record.TenantID != tmcore.GetTenantIDContext(ctx) {
+		return preparedTransactionCompletion{}, invalidTransactionCompletionRecord("completion tenant does not match authenticated context")
+	}
+
+	if err := validateTransactionCompletionRecord(*record); err != nil {
+		return preparedTransactionCompletion{}, err
+	}
+
+	plan, err := DecodeTransactionCompletionPlan([]byte(record.Payload))
+	if err != nil {
+		return preparedTransactionCompletion{}, err
+	}
+
+	writeSet, err := BuildTransactionWriteSet(*plan, record.Result)
+	if err != nil {
+		return preparedTransactionCompletion{}, err
+	}
+
+	metadata, err := frozenMetadataRecords(writeSet.Transaction, plan.TransactionDate)
+	if err != nil {
+		return preparedTransactionCompletion{}, err
+	}
+
+	callerWriteSet, err := cloneTransactionWriteSet(writeSet)
+	if err != nil {
+		return preparedTransactionCompletion{}, err
+	}
+
+	return preparedTransactionCompletion{writeSet: writeSet, callerWriteSet: callerWriteSet, metadata: metadata}, nil
+}
+
+func (service *TransactionCompletionService) persistPreparedMetadata(ctx context.Context, prepared []preparedTransactionCompletion) error {
+	for _, unit := range prepared {
+		for _, entry := range unit.metadata {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			if err := service.persistMetadata(ctx, entry); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func validTransactionLifecyclePhase(phase string) bool {
@@ -228,6 +335,49 @@ func BuildTransactionWriteSet(payload TransactionCompletionPlan, result accounti
 	}
 
 	return TransactionWriteSet{Transaction: tran, Action: payload.Action, ExpectedStatus: expectedStatus}, nil
+}
+
+// BuildTransactionEvidenceViews composes response, immediate lookup, and
+// durable projection from the same frozen plan and authoritative movements.
+// It is pure: callers receive independent copies and no repository is read or
+// mutated. A direct create is CREATED only in InitialResponse; lookup and SQL
+// projection retain the engine-confirmed APPROVED status. PENDING remains
+// non-terminal in every view.
+func BuildTransactionEvidenceViews(record TransactionCompletionRecord) (TransactionEvidenceViews, error) {
+	if err := validateTransactionCompletionRecord(record); err != nil {
+		return TransactionEvidenceViews{}, err
+	}
+
+	plan, err := DecodeTransactionCompletionPlan([]byte(record.Payload))
+	if err != nil {
+		return TransactionEvidenceViews{}, err
+	}
+
+	projection, err := BuildTransactionWriteSet(*plan, record.Result)
+	if err != nil {
+		return TransactionEvidenceViews{}, err
+	}
+
+	lookup, err := cloneTransactionWriteSet(projection)
+	if err != nil {
+		return TransactionEvidenceViews{}, err
+	}
+
+	initial, err := cloneTransactionWriteSet(projection)
+	if err != nil {
+		return TransactionEvidenceViews{}, err
+	}
+
+	if plan.TransactionStatus == constant.CREATED {
+		created := constant.CREATED
+		initial.Transaction.Status = transaction.Status{Code: created, Description: &created}
+	}
+
+	return TransactionEvidenceViews{
+		InitialResponse: initial.Transaction,
+		Lookup:          lookup.Transaction,
+		Projection:      projection,
+	}, nil
 }
 
 func cloneTransactionWriteSet(record TransactionWriteSet) (TransactionWriteSet, error) {
