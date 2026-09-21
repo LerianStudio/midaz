@@ -115,11 +115,12 @@ revert, commit, or cancel that reaches the engine:
    bounded wire request, obtains a supported standalone/Sentinel client, and sends
    the assembled Lua script with Redis client retries disabled.
 7. Lua `main` decodes the protocol and calls `execute`, which checks for a valid
-   receipt replay, validates guards/key types, loads authoritative live balances,
-   validates live grants, evaluates ordered postings in memory, reads Redis
-   `TIME` once, serializes every output with the resulting `appliedAtUnixMicro`,
-   and finally calls `commitPreparedExecution` to publish balances plus
-   recovery evidence and delete consumed grants before writing the receipt.
+   receipt replay and validates guards/key types. Immediately after the replay
+   short-circuit, it reads Redis `TIME` once; it then loads authoritative live
+   balances, validates live grants, evaluates ordered postings in memory,
+   serializes every output with the resulting `appliedAtUnixMicro`, and finally
+   calls `commitPreparedExecution` to publish balances plus recovery evidence
+   and delete consumed grants before writing the receipt.
 8. On a confirmed result, the command composes the public response and lookup
    from immutable evidence. With `RABBITMQ_TRANSACTION_ASYNC=true`, it publishes
    the versioned write-behind envelope with mandatory routing and publisher

@@ -643,7 +643,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.ChartOfAccounts,
 			&operation.OrganizationID,
 			&operation.LedgerID,
-			&operation.RecordedAt,
+			&operation.CreatedAt,
 			&operation.UpdatedAt,
 			&operation.DeletedAt,
 			&operation.Route,

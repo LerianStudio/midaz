@@ -252,7 +252,8 @@ consolidate_openapi() {
                 | ($ledger[0]) as $ledger_keys
                 | ($tracer[0]) as $tracer_keys
                 | ($ledger_keys + $tracer_keys | unique) as $expected
-                | ($hub == $expected)
+                | ((($ledger_keys | length) + ($tracer_keys | length)) == ($expected | length))
+                  and ($hub == $expected)
             ' "${consolidated_json}" > /dev/null 2>> "${err_log}"; then
         print_step "Consolidate OpenAPI specs" "FAILED"
         echo -e "      ${RED}Error details:${NC}"

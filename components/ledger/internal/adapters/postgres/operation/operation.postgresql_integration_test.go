@@ -402,6 +402,8 @@ func TestIntegration_OperationRepository_FindAll_ReturnsOperations(t *testing.T)
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
+	createdAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
+	recordedAt := createdAt.Add(24 * time.Hour)
 
 	// Create multiple operations for the same transaction
 	for i := 0; i < 3; i++ {
@@ -416,19 +418,32 @@ func TestIntegration_OperationRepository_FindAll_ReturnsOperations(t *testing.T)
 			Amount:          decimal.NewFromInt(int64(100 + i*10)),
 			Status:          "APPROVED",
 			BalanceAffected: true,
+			CreatedAt:       createdAt,
+			RecordedAt:      &recordedAt,
 		}
 		pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 	}
 
 	ctx := context.Background()
+	filter := http.Pagination{
+		Limit:     10,
+		SortOrder: "DESC",
+		StartDate: createdAt.Add(-time.Hour),
+		EndDate:   createdAt.Add(time.Hour),
+	}
 
 	// Act
-	operations, cur, err := repo.FindAll(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, defaultPagination())
+	operations, cur, err := repo.FindAll(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, filter)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
 	assert.Len(t, operations, 3, "should return 3 operations")
 	assert.Empty(t, cur.Next, "should not have next cursor with only 3 items")
+	for _, operation := range operations {
+		assert.True(t, createdAt.Equal(operation.CreatedAt))
+		require.NotNil(t, operation.RecordedAt)
+		assert.True(t, recordedAt.Equal(*operation.RecordedAt))
+	}
 }
 
 func TestIntegration_OperationRepository_FindAll_EmptyForNonExistentTransaction(t *testing.T) {

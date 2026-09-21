@@ -81,6 +81,8 @@ func writeJSON(output *bytes.Buffer, node *yaml.Node, depth int) error {
 	switch node.Kind {
 	case yaml.MappingNode:
 		output.WriteByte('{')
+		emittedKeys := make(map[string]struct{}, len(node.Content)/2)
+
 		for i := 0; i < len(node.Content); i += 2 {
 			if i > 0 {
 				output.WriteByte(',')
@@ -91,6 +93,11 @@ func writeJSON(output *bytes.Buffer, node *yaml.Node, depth int) error {
 			if key.Kind != yaml.ScalarNode {
 				return errors.New("mapping key is not a scalar")
 			}
+			if _, exists := emittedKeys[key.Value]; exists {
+				return fmt.Errorf("duplicate mapping key %q", key.Value)
+			}
+			emittedKeys[key.Value] = struct{}{}
+
 			encodedKey, err := marshalJSON(key.Value)
 			if err != nil {
 				return err

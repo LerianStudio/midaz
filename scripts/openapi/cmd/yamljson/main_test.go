@@ -49,3 +49,12 @@ func TestConvertRejectsMultipleDocuments(t *testing.T) {
 
 	require.ErrorContains(t, err, "expected exactly one YAML document")
 }
+
+func TestConvertRejectsDuplicateMappingKeys(t *testing.T) {
+	t.Parallel()
+
+	var output bytes.Buffer
+	err := convert(bytes.NewBufferString("paths:\n  /v1/assets: first\n  /v1/assets: second\n"), &output)
+
+	require.ErrorContains(t, err, `duplicate mapping key "/v1/assets"`)
+}
