@@ -26,6 +26,7 @@ import (
 
 	postgrescompletion "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
 	redisengine "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/engine"
+	redistransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -68,6 +69,13 @@ func setupAtomicBatchHTTPIntegrationFixture(t *testing.T) *atomicBatchHTTPIntegr
 
 	infra.handler.Command.AtomicTransactionBatchIdempotencyRepo = batchRepository
 	infra.handler.Command.AtomicTransactionBatchProjectionReader = infra.handler.Query
+	infra.handler.Query.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
+	redisRepository, ok := infra.redisRepo.(*redistransaction.RedisConsumerRepository)
+	require.True(t, ok, "Redis repository must support protected engine recovery acknowledgment")
+	infra.handler.Command.EngineRecoveryAcknowledger = &atomicBatchHTTPRecoveryAcknowledger{
+		repository:  redisRepository,
+		completedAt: fixedClock,
+	}
 	infra.handler.Command.UUIDv7Generator = func() (uuid.UUID, error) {
 		sequence := atomic.AddUint64(&uuidSequence, 1)
 
@@ -735,6 +743,163 @@ func TestIntegration_DirectV2CrossLedger_OneAtomicGroup(t *testing.T) {
 		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, sourceLedger))
 		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, destinationLedger))
 	})
+}
+
+func TestIntegration_RevertV2CrossLedger_RevertsTheWholeGroupAtomically(t *testing.T) {
+	fixture := setupAtomicBatchHTTPIntegrationFixture(t)
+	ledgerA := fixture.newLedger(t)
+	ledgerB := fixture.newLedger(t)
+	fixture.setCrossLedgerEnabled(t, ledgerA, true)
+	fixture.setCrossLedgerEnabled(t, ledgerB, true)
+
+	sourceBalanceID, _ := seedTransfer(
+		t,
+		fixture.infra.pgContainer.DB,
+		fixture.infra.orgID,
+		ledgerA,
+		"@group-revert-source",
+		"@external/USD",
+		100,
+	)
+	_, destinationBalanceID := seedTransfer(
+		t,
+		fixture.infra.pgContainer.DB,
+		fixture.infra.orgID,
+		ledgerB,
+		"@external/USD",
+		"@group-revert-destination",
+		100,
+	)
+
+	request := atomicBatchTransfer(
+		fixture.infra.orgID,
+		ledgerA,
+		"cross-ledger group revert origin",
+		"@group-revert-source",
+		"@group-revert-destination",
+		100,
+	)
+	request.Credits[0].LedgerID = ledgerB.String()
+	raw, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	originResponse := postTransaction(t, fixture.app, v2CreateURL("direct"), string(raw), "cross-ledger-group-revert-origin")
+	originBody := drainBody(t, originResponse)
+	require.Equal(t, http.StatusCreated, originResponse.StatusCode, "body: %s", string(originBody))
+
+	var origin CreateTransactionV2Response
+	require.NoError(t, json.Unmarshal(originBody, &origin))
+	require.NotNil(t, origin.GroupID)
+	require.Len(t, origin.Transactions, 2)
+	requireCachedAvailable(t, fixture, ledgerA, "@group-revert-source", 0)
+	requireCachedAvailable(t, fixture, ledgerB, "@group-revert-destination", 100)
+
+	countedEngine := &countingAtomicBatchEngine{delegate: fixture.engine}
+	fixture.infra.handler.Command.Engine = countedEngine
+
+	selectedOrigin := origin.Transactions[1]
+	selectedOriginID := uuid.MustParse(selectedOrigin.ID)
+	revertURL := v2RevertURL(fixture.infra.orgID, uuid.MustParse(selectedOrigin.LedgerID), selectedOriginID)
+	revertResponse := postTransaction(t, fixture.app, revertURL, "", "cross-ledger-group-revert")
+	revertBody := drainBody(t, revertResponse)
+	require.Equal(t, http.StatusCreated, revertResponse.StatusCode, "body: %s", string(revertBody))
+	require.Equal(t, "false", revertResponse.Header.Get("X-Idempotency-Replayed"))
+
+	var reverted CreateTransactionV2Response
+	require.NoError(t, json.Unmarshal(revertBody, &reverted))
+	require.NotNil(t, reverted.GroupID)
+	require.NotNil(t, reverted.RevertedGroupID)
+	require.Equal(t, *origin.GroupID, *reverted.RevertedGroupID)
+	require.NotEqual(t, *origin.GroupID, *reverted.GroupID)
+	require.Len(t, reverted.Transactions, 2)
+	require.Equal(t, int64(1), countedEngine.calls.Load(), "the whole group must use one atomic engine execution")
+
+	for index, reversal := range reverted.Transactions {
+		originIndex := len(origin.Transactions) - 1 - index
+		require.Equal(t, index+1, reversal.Order)
+		require.NotNil(t, reversal.GroupID)
+		require.Equal(t, *reverted.GroupID, *reversal.GroupID)
+		require.NotNil(t, reversal.ParentTransactionID)
+		require.Equal(t, origin.Transactions[originIndex].ID, *reversal.ParentTransactionID)
+		require.Equal(t, origin.Transactions[originIndex].LedgerID, reversal.LedgerID)
+
+		persistedParent := postgrestestutil.GetTransactionParentID(
+			t,
+			fixture.infra.pgContainer.DB,
+			uuid.MustParse(reversal.ID),
+		)
+		require.NotNil(t, persistedParent)
+		require.Equal(t, uuid.MustParse(origin.Transactions[originIndex].ID), *persistedParent)
+	}
+
+	requireCachedAvailable(t, fixture, ledgerA, "@group-revert-source", 100)
+	requireCachedAvailable(t, fixture, ledgerB, "@group-revert-destination", 0)
+	requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, sourceBalanceID))
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, destinationBalanceID))
+	require.Equal(t, 2, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerA))
+	require.Equal(t, 2, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerB))
+
+	secondResponse := postTransaction(t, fixture.app, revertURL, "", "cross-ledger-group-revert")
+	secondBody := drainBody(t, secondResponse)
+	require.Equal(t, http.StatusConflict, secondResponse.StatusCode, "body: %s", string(secondBody))
+	requireProblemCode(t, secondBody, constant.ErrTransactionIDHasAlreadyParentTransaction.Error())
+	require.Equal(t, int64(1), countedEngine.calls.Load(), "a second revert must fail before accounting")
+}
+
+type countingAtomicBatchEngine struct {
+	delegate command.Engine
+	calls    atomic.Int64
+}
+
+type atomicBatchHTTPRecoveryAcknowledger struct {
+	repository  *redistransaction.RedisConsumerRepository
+	completedAt time.Time
+}
+
+func (acknowledger *atomicBatchHTTPRecoveryAcknowledger) AcknowledgeEngineRecovery(
+	ctx context.Context,
+	record *command.TransactionCompletionRecord,
+	completion command.TransactionCompletionResult,
+) error {
+	field := record.TransactionID.String() + ":" + record.ExecutionID.String()
+	raw, err := acknowledger.repository.ReadRecoveryMessage(
+		ctx,
+		redistransaction.RecoveryQueueSourceEngineRecover,
+		field,
+	)
+	if err != nil || raw == "" {
+		return err
+	}
+
+	terminal := completion.Outcome.TransactionStatus == constant.APPROVED ||
+		completion.Outcome.TransactionStatus == constant.CANCELED
+	status, err := acknowledger.repository.CompareAndDeleteRecoveryWithProtectionFrom(
+		ctx,
+		redistransaction.RecoveryQueueSourceEngineRecover,
+		record.OrganizationID,
+		record.LedgerID,
+		field,
+		raw,
+		terminal,
+		acknowledger.completedAt,
+	)
+	if err != nil {
+		return err
+	}
+	if status == redistransaction.RecoveryAckReplaced {
+		return fmt.Errorf("engine recovery record changed before acknowledgment")
+	}
+
+	return nil
+}
+
+func (engine *countingAtomicBatchEngine) Execute(
+	ctx context.Context,
+	input command.EngineExecution,
+) (*accounting.ExecutionResult, error) {
+	engine.calls.Add(1)
+
+	return engine.delegate.Execute(ctx, input)
 }
 
 // postExecutionBlockingEngine exposes the instant immediately after the real
