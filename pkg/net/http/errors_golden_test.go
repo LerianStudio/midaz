@@ -358,6 +358,8 @@ func allSentinels() map[string]error {
 		"ErrCrossLedgerNotEnabled":                    constant.ErrCrossLedgerNotEnabled,
 		"ErrCrossLedgerAssetMismatch":                 constant.ErrCrossLedgerAssetMismatch,
 		"ErrCrossLedgerRouteValidationUnsupported":    constant.ErrCrossLedgerRouteValidationUnsupported,
+		"ErrCrossLedgerRevertRequiresV2":              constant.ErrCrossLedgerRevertRequiresV2,
+		"ErrCrossLedgerGroupIncomplete":               constant.ErrCrossLedgerGroupIncomplete,
 		"ErrFeeCalculationFieldType":                  constant.ErrFeeCalculationFieldType,
 		"ErrPriorityInvalid":                          constant.ErrPriorityInvalid,
 		"ErrFindAccountOnMidaz":                       constant.ErrFindAccountOnMidaz,

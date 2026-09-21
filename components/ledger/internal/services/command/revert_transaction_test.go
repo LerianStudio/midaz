@@ -38,6 +38,8 @@ type revertReader struct {
 	byIDErr       error
 	operationRout *mmodel.OperationRoute
 	routeErr      error
+	groupMembers  []*transaction.Transaction
+	groupErr      error
 }
 
 func (r *revertReader) GetEngineBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
@@ -59,6 +61,10 @@ func (r *revertReader) GetTransactionByID(context.Context, uuid.UUID, uuid.UUID,
 
 func (r *revertReader) GetOperationRouteByID(context.Context, uuid.UUID, uuid.UUID, *uuid.UUID, uuid.UUID) (*mmodel.OperationRoute, error) {
 	return r.operationRout, r.routeErr
+}
+
+func (r *revertReader) FindTransactionsByGroupID(context.Context, uuid.UUID) ([]*transaction.Transaction, error) {
+	return r.groupMembers, r.groupErr
 }
 
 // revertibleOrigin builds an APPROVED transaction with one unrouted operation pair, the

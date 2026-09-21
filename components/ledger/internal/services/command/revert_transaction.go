@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -77,6 +78,17 @@ func (uc *UseCase) RevertTransactionV1(ctx context.Context, in RevertTransaction
 	ctx, span := tracer.Start(ctx, "command.revert_transaction_v1")
 	defer span.End()
 
+	target, err := uc.revertTarget(ctx, in)
+	if err != nil {
+		return nil, false, err
+	}
+	if target != nil && target.GroupID != nil {
+		err := pkg.ValidateBusinessError(constant.ErrCrossLedgerRevertRequiresV2, constant.EntityTransaction)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cross-ledger revert requires v2", err)
+
+		return nil, false, err
+	}
+
 	transactionReverted, err := uc.prepareRevertTransaction(ctx, span, in)
 	if err != nil {
 		return nil, false, err
@@ -97,15 +109,40 @@ func (uc *UseCase) RevertTransactionV1(ctx context.Context, in RevertTransaction
 	return tranReverted, replayed, nil
 }
 
+// RevertTransactionV2Result is singular for ordinary transactions and grouped
+// for cross-ledger origins. The anonymous singular branch preserves field
+// access for internal callers while the HTTP boundary selects the wire shape.
+type RevertTransactionV2Result struct {
+	*transaction.Transaction
+	Group           *CreateAtomicTransactionBatchV2Result
+	RevertedGroupID *uuid.UUID
+}
+
 // RevertTransactionV2 reverses a transaction under the /v2 contract: the same eligibility
 // gate, then the /v2 create pipeline with the revert action — per-call skip controls and
 // the tracer reservation apply, the fee engine does not. The origin-scoping defect
 // documented on RevertTransactionV1 applies here too.
-func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransactionInput) (*transaction.Transaction, bool, error) {
+func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransactionInput) (*RevertTransactionV2Result, bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.revert_transaction_v2")
 	defer span.End()
+
+	target, err := uc.revertTarget(ctx, in)
+	if err != nil {
+		return nil, false, err
+	}
+	if target != nil && target.GroupID != nil {
+		group, revertedGroupID, err := uc.RevertCrossLedgerGroupV2(ctx, in)
+		if err != nil {
+			return nil, false, err
+		}
+
+		return &RevertTransactionV2Result{
+			Group:           group,
+			RevertedGroupID: &revertedGroupID,
+		}, group.Replayed, nil
+	}
 
 	transactionReverted, err := uc.prepareRevertTransaction(ctx, span, in)
 	if err != nil {
@@ -124,7 +161,20 @@ func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransaction
 
 	recordRevertReplay(ctx, span, logger, in.TransactionID, replayed)
 
-	return tranReverted, replayed, nil
+	return &RevertTransactionV2Result{Transaction: tranReverted}, replayed, nil
+}
+
+func (uc *UseCase) revertTarget(ctx context.Context, in RevertTransactionInput) (*transaction.Transaction, error) {
+	if uc.TransactionReader == nil {
+		return nil, errors.New("transaction reader is not configured")
+	}
+
+	return uc.TransactionReader.GetTransactionByID(
+		readrouting.WithPrimaryRead(ctx),
+		in.OrganizationID,
+		in.LedgerID,
+		in.TransactionID,
+	)
 }
 
 // prepareRevertTransaction runs the revert eligibility gate — no parent, not already a

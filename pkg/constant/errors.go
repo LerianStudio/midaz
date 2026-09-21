@@ -240,6 +240,12 @@ var (
 	// route validation is enabled on a participating ledger. The synthetic
 	// external bridge legs do not have an accounting route in this milestone.
 	ErrCrossLedgerRouteValidationUnsupported = errors.New("0251")
+	// ErrCrossLedgerRevertRequiresV2 prevents the legacy contract from
+	// reverting only one member of an atomic cross-ledger group.
+	ErrCrossLedgerRevertRequiresV2 = errors.New("0252")
+	// ErrCrossLedgerGroupIncomplete prevents a partial group lookup from
+	// producing a reversal that would leave the original movement unbalanced.
+	ErrCrossLedgerGroupIncomplete = errors.New("0253")
 	// ErrOverdraftRouteNotConfigured is returned when route validation is
 	// enabled but the accounting route applied to an overdraft companion
 	// operation does not define an overdraft entry carrying the rubric for

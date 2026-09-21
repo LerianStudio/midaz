@@ -629,6 +629,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Cross-Ledger Route Validation Unsupported Error",
 			Message:    "Cross-ledger transactions are not supported when accounting route validation is enabled on a participating ledger.",
 		},
+		constant.ErrCrossLedgerRevertRequiresV2: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerRevertRequiresV2.Error(),
+			Title:      "Cross-Ledger Revert Requires V2 Error",
+			Message:    "A transaction that belongs to a cross-ledger group must be reverted through the v2 API so the complete group is reversed atomically.",
+		},
+		constant.ErrCrossLedgerGroupIncomplete: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrCrossLedgerGroupIncomplete.Error(),
+			Title:      "Cross-Ledger Group Incomplete Error",
+			Message:    "The cross-ledger transaction group is incomplete and cannot be reverted safely.",
+		},
 		constant.ErrBalanceSeedRebuildInconsistent: ServiceUnavailableError{
 			EntityType: entityType,
 			Code:       constant.ErrBalanceSeedRebuildInconsistent.Error(),

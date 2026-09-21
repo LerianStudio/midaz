@@ -1,0 +1,291 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+)
+
+type preparedCrossLedgerRevertPart struct {
+	origin     *transaction.Transaction
+	reversal   mtransaction.Transaction
+	dependency TransactionEvidenceReference
+}
+
+// RevertCrossLedgerGroupV2 validates every member before delegating all
+// reversals to one multi-scope atomic batch execution.
+func (uc *UseCase) RevertCrossLedgerGroupV2(
+	ctx context.Context,
+	in RevertTransactionInput,
+) (*CreateAtomicTransactionBatchV2Result, uuid.UUID, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.revert_cross_ledger_group_v2")
+	defer span.End()
+
+	if err := ctx.Err(); err != nil {
+		return nil, uuid.Nil, err
+	}
+
+	target, err := uc.TransactionReader.GetTransactionByID(
+		readrouting.WithPrimaryRead(ctx),
+		in.OrganizationID,
+		in.LedgerID,
+		in.TransactionID,
+	)
+	if err != nil {
+		return nil, uuid.Nil, err
+	}
+	if target == nil || target.GroupID == nil {
+		return nil, uuid.Nil, pkg.ValidateBusinessError(
+			constant.ErrCrossLedgerGroupIncomplete,
+			constant.EntityTransaction,
+		)
+	}
+
+	revertedGroupID, err := uuid.Parse(*target.GroupID)
+	if err != nil {
+		return nil, uuid.Nil, fmt.Errorf("parse cross-ledger transaction group id: %w", err)
+	}
+
+	reader, ok := uc.TransactionReader.(TransactionGroupReader)
+	if !ok {
+		return nil, uuid.Nil, errors.New("cross-ledger transaction group reader is not configured")
+	}
+
+	members, err := reader.FindTransactionsByGroupID(readrouting.WithPrimaryRead(ctx), revertedGroupID)
+	if err != nil {
+		return nil, uuid.Nil, err
+	}
+	if err := validateCrossLedgerRevertMembers(in.TransactionID, revertedGroupID, members); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cross-ledger transaction group is incomplete", err)
+
+		return nil, uuid.Nil, err
+	}
+
+	span.SetAttributes(
+		attribute.String("app.request.group_id", revertedGroupID.String()),
+		attribute.Int("app.request.part_count", len(members)),
+	)
+
+	parts := make([]preparedCrossLedgerRevertPart, len(members))
+	for index, member := range members {
+		part, partErr := uc.prepareCrossLedgerRevertPart(ctx, span, member)
+		if partErr != nil {
+			message := fmt.Sprintf("transaction %s in ledger %s is not revertible", member.ID, member.LedgerID)
+
+			return nil, uuid.Nil, withAtomicTransactionBatchItemError(partErr, index, message)
+		}
+
+		parts[index] = part
+	}
+
+	if uc.UUIDv7Generator == nil {
+		return nil, uuid.Nil, errors.New("cross-ledger revert UUIDv7 generator is not configured")
+	}
+
+	newGroupID, err := uc.UUIDv7Generator()
+	if err != nil {
+		return nil, uuid.Nil, fmt.Errorf("generate cross-ledger revert group id: %w", err)
+	}
+	if newGroupID == uuid.Nil {
+		return nil, uuid.Nil, errors.New("cross-ledger revert UUIDv7 generator returned a nil group id")
+	}
+
+	batch, err := buildCrossLedgerRevertBatchInput(in, revertedGroupID, newGroupID, parts)
+	if err != nil {
+		return nil, uuid.Nil, err
+	}
+
+	result, err := uc.CreateAtomicTransactionBatchV2(ctx, batch)
+	if err != nil {
+		return nil, uuid.Nil, err
+	}
+
+	recordRevertReplay(ctx, span, logger, in.TransactionID, result.Replayed)
+
+	return result, revertedGroupID, nil
+}
+
+func (uc *UseCase) prepareCrossLedgerRevertPart(
+	ctx context.Context,
+	span trace.Span,
+	member *transaction.Transaction,
+) (preparedCrossLedgerRevertPart, error) {
+	if member == nil {
+		return preparedCrossLedgerRevertPart{}, pkg.ValidateBusinessError(
+			constant.ErrCrossLedgerGroupIncomplete,
+			constant.EntityTransaction,
+		)
+	}
+
+	organizationID, err := uuid.Parse(member.OrganizationID)
+	if err != nil {
+		return preparedCrossLedgerRevertPart{}, fmt.Errorf("parse cross-ledger member organization id: %w", err)
+	}
+	ledgerID, err := uuid.Parse(member.LedgerID)
+	if err != nil {
+		return preparedCrossLedgerRevertPart{}, fmt.Errorf("parse cross-ledger member ledger id: %w", err)
+	}
+	transactionID, err := uuid.Parse(member.ID)
+	if err != nil {
+		return preparedCrossLedgerRevertPart{}, fmt.Errorf("parse cross-ledger member transaction id: %w", err)
+	}
+
+	reversal, err := uc.prepareRevertTransaction(ctx, span, RevertTransactionInput{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		TransactionID:  transactionID,
+	})
+	if err != nil {
+		return preparedCrossLedgerRevertPart{}, err
+	}
+
+	part := preparedCrossLedgerRevertPart{origin: member, reversal: reversal}
+	resolution, err := resolveTransactionProjection(
+		readrouting.WithPrimaryRead(ctx),
+		uc.TransactionReader,
+		organizationID,
+		ledgerID,
+		transactionID,
+	)
+	if err != nil {
+		return preparedCrossLedgerRevertPart{}, err
+	}
+	if resolution.ExecutionID != uuid.Nil {
+		part.dependency = originDependencyReference(
+			tmcore.GetTenantIDContext(ctx),
+			organizationID,
+			ledgerID,
+			transactionID,
+			resolution.ExecutionID,
+		)
+	}
+
+	return part, nil
+}
+
+func buildCrossLedgerRevertBatchInput(
+	in RevertTransactionInput,
+	revertedGroupID, newGroupID uuid.UUID,
+	parts []preparedCrossLedgerRevertPart,
+) (CreateAtomicTransactionBatchV2Input, error) {
+	items := make([]CreateAtomicTransactionBatchV2ItemInput, len(parts))
+	for outputIndex := range parts {
+		partIndex := len(parts) - 1 - outputIndex
+		part := parts[partIndex]
+		if part.origin == nil {
+			return CreateAtomicTransactionBatchV2Input{}, errors.New("cross-ledger revert part has no origin")
+		}
+
+		organizationID, err := uuid.Parse(part.origin.OrganizationID)
+		if err != nil {
+			return CreateAtomicTransactionBatchV2Input{}, fmt.Errorf("parse cross-ledger member organization id: %w", err)
+		}
+		ledgerID, err := uuid.Parse(part.origin.LedgerID)
+		if err != nil {
+			return CreateAtomicTransactionBatchV2Input{}, fmt.Errorf("parse cross-ledger member ledger id: %w", err)
+		}
+		originID, err := uuid.Parse(part.origin.ID)
+		if err != nil {
+			return CreateAtomicTransactionBatchV2Input{}, fmt.Errorf("parse cross-ledger member transaction id: %w", err)
+		}
+
+		item := CreateAtomicTransactionBatchV2ItemInput{
+			OrganizationID:      organizationID,
+			LedgerID:            ledgerID,
+			Transaction:         part.reversal,
+			ParentTransactionID: &originID,
+			Action:              constant.ActionRevert,
+			Order:               outputIndex + 1,
+			OriginalIndex:       partIndex,
+		}
+		if part.dependency.ExecutionID != uuid.Nil {
+			item.Dependencies = []TransactionEvidenceReference{part.dependency}
+		}
+		if originID == in.TransactionID {
+			item.AccountBlockExceptionID = cloneUUIDPointer(in.AccountBlockExceptionID)
+		}
+
+		items[outputIndex] = item
+	}
+
+	canonical := []byte("revert-group:" + revertedGroupID.String())
+	fingerprintDigest := sha256.Sum256(canonical)
+
+	return CreateAtomicTransactionBatchV2Input{
+		Transactions:       items,
+		GroupID:            &newGroupID,
+		CrossLedgerGroup:   true,
+		CanonicalRequest:   canonical,
+		RequestFingerprint: hex.EncodeToString(fingerprintDigest[:]),
+		IdempotencyKey:     crossLedgerRevertIdempotencyKey(in.OrganizationID, in.LedgerID, revertedGroupID),
+		IdempotencyTTL:     pkgHTTP.ParseIdempotencyTTL(""),
+	}, nil
+}
+
+func validateCrossLedgerRevertMembers(
+	requestedID, groupID uuid.UUID,
+	members []*transaction.Transaction,
+) error {
+	if len(members) < 2 {
+		return pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+	}
+
+	foundRequested := false
+	for _, member := range members {
+		if member == nil || member.GroupID == nil || *member.GroupID != groupID.String() {
+			return pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+		}
+		if member.ID == requestedID.String() {
+			foundRequested = true
+		}
+	}
+	if !foundRequested {
+		return pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+	}
+
+	return nil
+}
+
+func originDependencyReference(
+	tenantID string,
+	organizationID, ledgerID, transactionID, executionID uuid.UUID,
+) TransactionEvidenceReference {
+	return TransactionEvidenceReference{
+		Kind:           TransactionDependencyOrigin,
+		TenantID:       tenantID,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		TransactionID:  transactionID,
+		ExecutionID:    executionID,
+	}
+}
+
+func crossLedgerRevertIdempotencyKey(
+	organizationID, ledgerID, revertedGroupID uuid.UUID,
+) string {
+	digest := sha256.Sum256([]byte("revert-group:" + revertedGroupID.String()))
+
+	return organizationID.String() + ":" + ledgerID.String() + ":" + hex.EncodeToString(digest[:])
+}

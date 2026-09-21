@@ -5,6 +5,7 @@
 package command
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -73,6 +74,62 @@ func TestBuildCrossLedgerRevertBatchInput_ReversesOrderAndLinksEveryOrigin(t *te
 	assert.Nil(t, got.Transactions[0].AccountBlockExceptionID)
 	require.NotNil(t, got.Transactions[1].AccountBlockExceptionID)
 	assert.Equal(t, exceptionID, *got.Transactions[1].AccountBlockExceptionID)
+}
+
+func TestRevertCrossLedgerGroupV2_RejectsIncompleteGroupBeforeBatchWork(t *testing.T) {
+	groupID := uuid.NewString()
+	origin := revertibleOrigin()
+	origin.GroupID = &groupID
+	reader := &revertReader{
+		byID:         origin,
+		groupMembers: []*transaction.Transaction{origin},
+	}
+	uc := newRevertUseCase(t, reader)
+
+	result, revertedGroupID, err := uc.RevertCrossLedgerGroupV2(context.Background(), RevertTransactionInput{
+		OrganizationID: uuid.MustParse(origin.OrganizationID),
+		LedgerID:       uuid.MustParse(origin.LedgerID),
+		TransactionID:  uuid.MustParse(origin.ID),
+	})
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, uuid.Nil, revertedGroupID)
+	assert.Contains(t, err.Error(), constant.ErrCrossLedgerGroupIncomplete.Error())
+	assert.Zero(t, reader.getBalancesCalls)
+}
+
+func TestRevertCrossLedgerGroupV2_LocatesIneligibleMember(t *testing.T) {
+	groupID := uuid.NewString()
+	first := revertibleOrigin()
+	first.GroupID = &groupID
+	second := revertibleOrigin()
+	second.GroupID = &groupID
+	reader := &revertReader{
+		byID:         first,
+		groupMembers: []*transaction.Transaction{first, second},
+		parent:       &transaction.Transaction{ID: uuid.NewString()},
+	}
+	uc := newRevertUseCase(t, reader)
+
+	result, revertedGroupID, err := uc.RevertCrossLedgerGroupV2(context.Background(), RevertTransactionInput{
+		OrganizationID: uuid.MustParse(first.OrganizationID),
+		LedgerID:       uuid.MustParse(first.LedgerID),
+		TransactionID:  uuid.MustParse(first.ID),
+	})
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, uuid.Nil, revertedGroupID)
+	var conflict pkg.EntityConflictError
+	require.True(t, errors.As(err, &conflict))
+	assert.Equal(t, constant.ErrTransactionIDHasAlreadyParentTransaction.Error(), conflict.Code)
+
+	var carrier *pkg.FieldErrorCarrier
+	require.True(t, errors.As(err, &carrier))
+	assert.Equal(t, []pkg.FieldError{{
+		Location: "body.transactions[0]",
+		Message:  "transaction " + first.ID + " in ledger " + first.LedgerID + " is not revertible",
+	}}, carrier.FieldErrors())
+	assert.Zero(t, reader.getBalancesCalls)
 }
 
 func TestValidateCrossLedgerRevertMembers_RejectsIncompleteOrUnrelatedSets(t *testing.T) {
