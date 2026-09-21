@@ -312,6 +312,10 @@ func BuildTransactionWriteSet(payload TransactionCompletionPlan, result accounti
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped,
 		Metadata: payload.TransactionInput.Metadata, Operations: rows,
 	}
+	if payload.GroupID != nil {
+		groupID := payload.GroupID.String()
+		tran.GroupID = &groupID
+	}
 	if payload.ParentTransactionID != nil {
 		parentID := payload.ParentTransactionID.String()
 		tran.ParentTransactionID = &parentID

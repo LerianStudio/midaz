@@ -274,6 +274,7 @@ func buildTransactionEventSource(tran *transaction.Transaction) (events.Transact
 	return events.TransactionSource{
 		ID:                       tran.ID,
 		ParentTransactionID:      tran.ParentTransactionID,
+		GroupID:                  tran.GroupID,
 		OrganizationID:           tran.OrganizationID,
 		LedgerID:                 tran.LedgerID,
 		Status:                   status,

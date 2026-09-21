@@ -41,7 +41,7 @@ import (
 
 // createBulkChunkSize and updateBulkChunkSize bound how many rows one bulk statement
 // carries, so the parameter count stays under PostgreSQL's 65,535 ceiling. CreateBulk
-// writes every column in transactionColumnList (18 of them, so 18,000 parameters per
+// writes every column in transactionColumnList (19 of them, so 19,000 parameters per
 // chunk); UpdateBulk writes six (id, organization_id, ledger_id, status,
 // status_description, updated_at), so its larger headroom is spent on shorter
 // row-locking windows instead. Declared here rather than inside the two methods so the
@@ -54,6 +54,7 @@ const (
 var transactionColumnList = []string{
 	"id",
 	"parent_transaction_id",
+	"group_id",
 	"description",
 	"status",
 	"status_description",
@@ -75,6 +76,7 @@ var transactionColumnList = []string{
 var transactionColumnListPrefixed = []string{
 	"t.id",
 	"t.parent_transaction_id",
+	"t.group_id",
 	"t.description",
 	"t.status",
 	"t.status_description",
@@ -268,7 +270,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
 	// migrations add columns to transaction. Do not collapse this to table-wide VALUES.
 	insertQuery := fmt.Sprintf(
-		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING %s`,
+		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING %s`,
 		transactionColumns, transactionColumns,
 	)
 
@@ -276,6 +278,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		ctx, insertQuery,
 		record.ID,
 		record.ParentTransactionID,
+		record.GroupID,
 		record.Description,
 		record.Status,
 		record.StatusDescription,
@@ -476,6 +479,7 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 		builder = builder.Values(
 			record.ID,
 			record.ParentTransactionID,
+			record.GroupID,
 			record.Description,
 			record.Status,
 			record.StatusDescription,
@@ -771,6 +775,9 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		PlaceholderFormat(squirrel.Dollar)
 
 	findAll = applyCreatedAtRange(findAll, filter)
+	if filter.GroupID != nil {
+		findAll = findAll.Where(squirrel.Expr("group_id = ?", *filter.GroupID))
+	}
 
 	findAll, err = applyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 	if err != nil {
@@ -802,6 +809,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		if err := rows.Scan(
 			&transaction.ID,
 			&transaction.ParentTransactionID,
+			&transaction.GroupID,
 			&transaction.Description,
 			&transaction.Status,
 			&transaction.StatusDescription,
@@ -908,6 +916,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 		if err := rows.Scan(
 			&transaction.ID,
 			&transaction.ParentTransactionID,
+			&transaction.GroupID,
 			&transaction.Description,
 			&transaction.Status,
 			&transaction.StatusDescription,
@@ -990,6 +999,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	if err := row.Scan(
 		&transaction.ID,
 		&transaction.ParentTransactionID,
+		&transaction.GroupID,
 		&transaction.Description,
 		&transaction.Status,
 		&transaction.StatusDescription,
@@ -1071,6 +1081,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	if err := row.Scan(
 		&transaction.ID,
 		&transaction.ParentTransactionID,
+		&transaction.GroupID,
 		&transaction.Description,
 		&transaction.Status,
 		&transaction.StatusDescription,
@@ -1290,6 +1301,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 		if err := rows.Scan(
 			&tran.ID,
 			&tran.ParentTransactionID,
+			&tran.GroupID,
 			&tran.Description,
 			&tran.Status,
 			&tran.StatusDescription,
@@ -1407,6 +1419,9 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		PlaceholderFormat(squirrel.Dollar)
 
 	subQuery = applyCreatedAtRange(subQuery, filter)
+	if filter.GroupID != nil {
+		subQuery = subQuery.Where(squirrel.Expr("group_id = ?", *filter.GroupID))
+	}
 
 	if len(ids) > 0 {
 		subQuery = subQuery.Where(squirrel.Expr("id = ANY(?)", pq.Array(ids)))
@@ -1474,6 +1489,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 		if err := rows.Scan(
 			&tran.ID,
 			&tran.ParentTransactionID,
+			&tran.GroupID,
 			&tran.Description,
 			&tran.Status,
 			&tran.StatusDescription,

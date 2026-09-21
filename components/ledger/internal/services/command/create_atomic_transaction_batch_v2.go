@@ -53,6 +53,7 @@ type CreateAtomicTransactionBatchV2ItemInput struct {
 // claim introduced by the later pre-publication phase.
 type CreateAtomicTransactionBatchV2Input struct {
 	Transactions       []CreateAtomicTransactionBatchV2ItemInput
+	GroupID            *uuid.UUID
 	CanonicalRequest   []byte
 	RequestFingerprint string
 	IdempotencyKey     string
@@ -72,6 +73,7 @@ type CreateAtomicTransactionBatchV2Result struct {
 // to rebuild this slice or determine execution order.
 type atomicTransactionBatchRun struct {
 	batchID                 uuid.UUID
+	groupID                 *uuid.UUID
 	executionID             uuid.UUID
 	organizationID          uuid.UUID
 	ledgerID                uuid.UUID
@@ -268,9 +270,14 @@ func (uc *UseCase) initializeAtomicTransactionBatchIdentity(
 		return nil, errors.New("atomic transaction batch UUIDv7 generator is not configured")
 	}
 
-	batchID, err := uc.UUIDv7Generator()
-	if err != nil {
-		return nil, fmt.Errorf("generate atomic transaction batch id: %w", err)
+	var batchID uuid.UUID
+	if in.GroupID != nil {
+		batchID = *in.GroupID
+	} else {
+		batchID, err = uc.UUIDv7Generator()
+		if err != nil {
+			return nil, fmt.Errorf("generate atomic transaction batch id: %w", err)
+		}
 	}
 
 	if batchID == uuid.Nil {
@@ -279,6 +286,7 @@ func (uc *UseCase) initializeAtomicTransactionBatchIdentity(
 
 	return &atomicTransactionBatchRun{
 		batchID:        batchID,
+		groupID:        in.GroupID,
 		organizationID: organizationID,
 		ledgerID:       ledgerID,
 		idempotencyTTL: in.IdempotencyTTL,
@@ -728,9 +736,15 @@ func (cursor *atomicTransactionBatchTimestampCursor) next() (time.Time, error) {
 func atomicTransactionBatchFoundationResult(item *atomicTransactionBatchItemRun) *transaction.Transaction {
 	amount := item.input.Send.Value
 	status := item.status
+	var groupID *string
+	if item.completionPlan.GroupID != nil {
+		value := item.completionPlan.GroupID.String()
+		groupID = &value
+	}
 
 	return &transaction.Transaction{
 		ID:                       item.transactionID.String(),
+		GroupID:                  groupID,
 		Description:              item.input.Description,
 		Status:                   transaction.Status{Code: status, Description: &status},
 		Amount:                   &amount,

@@ -69,7 +69,8 @@ func recoveryContractIntent(payload TransactionCompletionPlan) EngineIntent {
 		TenantID: payload.TenantID, OrganizationID: payload.OrganizationID, LedgerID: payload.LedgerID, ExecutionID: payload.ExecutionID,
 		Transactions: []EngineTransactionIntent{{
 			TransactionID: payload.TransactionID, Action: payload.Action, TransactionStatus: payload.TransactionStatus,
-			ParentTransactionID: payload.ParentTransactionID, FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped,
+			ParentTransactionID: payload.ParentTransactionID, GroupID: payload.GroupID,
+			FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped,
 			TransactionDate: payload.TransactionDate, Input: payload.TransactionInput, PostingRefs: refs, OperationSpecs: projection,
 			TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
 		}},

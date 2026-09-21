@@ -211,6 +211,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchCompletionPlans(
 			TenantID:             intent.TenantID,
 			HeaderID:             headerID,
 			TransactionID:        item.transactionID,
+			GroupID:              run.groupID,
 			FeesSkipped:          item.honoredFeeSkip,
 			TracerSkipped:        item.honoredTracerSkip,
 			OrganizationID:       item.organizationID,

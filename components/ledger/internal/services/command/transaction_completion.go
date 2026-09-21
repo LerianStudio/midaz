@@ -84,6 +84,7 @@ type TransactionCompletionPlan struct {
 	HeaderID             string                   `json:"header_id"`
 	TransactionID        uuid.UUID                `json:"transaction_id"`
 	ParentTransactionID  *uuid.UUID               `json:"parentTransactionId"`
+	GroupID              *uuid.UUID               `json:"groupId,omitempty"`
 	FeesSkipped          bool                     `json:"feesSkipped"`
 	TracerSkipped        bool                     `json:"tracerSkipped"`
 	OrganizationID       uuid.UUID                `json:"organization_id"`
@@ -123,6 +124,7 @@ type EngineTransactionIntent struct {
 	LedgerID                string                          `json:"ledgerId,omitempty"`
 	TransactionID           uuid.UUID                       `json:"transactionId"`
 	ParentTransactionID     *uuid.UUID                      `json:"parentTransactionId"`
+	GroupID                 *uuid.UUID                      `json:"groupId,omitempty"`
 	FeesSkipped             bool                            `json:"feesSkipped"`
 	TracerSkipped           bool                            `json:"tracerSkipped"`
 	AccountBlockExceptionID *uuid.UUID                      `json:"accountBlockExceptionId,omitempty"`
@@ -488,7 +490,7 @@ func validateCompletionSnapshotIdentities(request accounting.Execution, organiza
 
 func transactionCompletionIntent(transaction accounting.Transaction, payload TransactionCompletionPlan) EngineTransactionIntent {
 	intent := EngineTransactionIntent{
-		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID,
+		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID, GroupID: payload.GroupID,
 		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
 		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
 		TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,

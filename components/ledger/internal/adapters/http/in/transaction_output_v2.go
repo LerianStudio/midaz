@@ -39,6 +39,11 @@ type TransactionV2 struct {
 	// format: uuid
 	ParentTransactionID *string `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
 
+	// Atomic cross-ledger group identifier
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	GroupID *string `json:"groupId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
 	// Human-readable description of the transaction
 	// example: Transaction description
 	// maxLength: 256
@@ -269,6 +274,7 @@ func newTransactionV2(t *transaction.Transaction) *TransactionV2 {
 	return &TransactionV2{
 		ID:                  t.ID,
 		ParentTransactionID: t.ParentTransactionID,
+		GroupID:             t.GroupID,
 		Description:         t.Description,
 		Status:              t.Status,
 		Amount:              t.Amount,
