@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -163,38 +164,52 @@ func TestTransactionV2LegRequest_BalanceKeyValidation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		balanceKey  string
-		wantErr     bool
-		wantMessage string
+		name         string
+		balanceKey   string
+		credit       bool
+		wantErr      bool
+		wantLocation string
 	}{
 		{name: "named balance", balanceKey: "food"},
 		{name: "at the length cap", balanceKey: strings.Repeat("k", 100)},
-		{name: "leading whitespace", balanceKey: " food", wantErr: true, wantMessage: "debits[0].balanceKey"},
-		{name: "one past the length cap", balanceKey: strings.Repeat("k", 101), wantErr: true, wantMessage: "debits[0].balanceKey"},
+		{name: "debit leading whitespace", balanceKey: " food", wantErr: true, wantLocation: "debits[0].balanceKey"},
+		{name: "credit one past the length cap", balanceKey: strings.Repeat("k", 101), credit: true, wantErr: true, wantLocation: "credits[0].balanceKey"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			body := `{"asset":"BRL","amount":"100",` +
-				`"debits":[{"alias":"@srcA",` + scopeJSON + `,"amount":"100","balanceKey":"` + tt.balanceKey + `"}],` +
-				`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"}]}`
+			debitBalanceKey := `,"balanceKey":"` + tt.balanceKey + `"`
+			creditBalanceKey := ""
+			if tt.credit {
+				debitBalanceKey, creditBalanceKey = "", debitBalanceKey
+			}
 
-			var input CreateTransactionV2Request
-			_, err := nethttp.DecodeAndValidate([]byte(body), &input)
+			body := `{"asset":"BRL","amount":"100",` +
+				`"debits":[{"alias":"@srcA",` + scopeJSON + `,"amount":"100"` + debitBalanceKey + `}],` +
+				`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"` + creditBalanceKey + `}]}`
+
+			input, err := decodeCreateTransactionV2Body([]byte(body))
 			if !tt.wantErr {
 				require.NoError(t, err)
-				require.Len(t, input.Debits, 1)
-				assert.Equal(t, tt.balanceKey, input.Debits[0].BalanceKey)
+				if tt.credit {
+					require.Len(t, input.Credits, 1)
+					assert.Equal(t, tt.balanceKey, input.Credits[0].BalanceKey)
+				} else {
+					require.Len(t, input.Debits, 1)
+					assert.Equal(t, tt.balanceKey, input.Debits[0].BalanceKey)
+				}
 
 				return
 			}
 
 			require.Error(t, err)
-			fields := requireKnownFieldsError(t, err, constant.ErrBadRequest)
-			assert.Contains(t, fields["balanceKey"], tt.wantMessage,
+			problem, ok := nethttp.HumaProblem(err).(*nethttp.Detail)
+			require.True(t, ok)
+			require.Equal(t, http.StatusBadRequest, problem.Status)
+			require.NotEmpty(t, problem.Errors)
+			assert.Equal(t, tt.wantLocation, problem.Errors[0].Location,
 				"the 400 response must identify the indexed leg field")
 		})
 	}

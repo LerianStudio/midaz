@@ -315,7 +315,15 @@ func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 		}
 
 		requireCachedBalanceAvailable(t, context.Background(), fixture.infra, ledgerID, "@batch-named-source", "food", 400)
-		requireCachedBalanceAvailable(t, context.Background(), fixture.infra, ledgerID, "@batch-named-source", cn.DefaultBalanceKey, 1000)
+		require.Nil(t, getBalanceFromRedis(
+			t,
+			context.Background(),
+			fixture.infra.redisRepo,
+			fixture.infra.orgID,
+			ledgerID,
+			"@batch-named-source",
+			cn.DefaultBalanceKey,
+		), "the untouched default balance must not be materialized in Redis")
 		requireCachedBalanceAvailable(t, context.Background(), fixture.infra, ledgerID, "@batch-named-destination", cn.DefaultBalanceKey, 100)
 		requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, defaultID))
 		requireDecimalEqual(t, decimal.NewFromInt(500), postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, foodID))

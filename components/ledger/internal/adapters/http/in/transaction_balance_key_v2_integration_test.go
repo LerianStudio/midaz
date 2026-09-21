@@ -32,10 +32,10 @@ func seedAdditionalBalanceForV2(
 
 	var accountID uuid.UUID
 	err := db.QueryRow(`
-		SELECT id
-		FROM account
-		WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3 AND deleted_at IS NULL
-	`, orgID, ledgerID, alias).Scan(&accountID)
+		SELECT account_id
+		FROM balance
+		WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3 AND key = $4 AND deleted_at IS NULL
+	`, orgID, ledgerID, alias, cn.DefaultBalanceKey).Scan(&accountID)
 	require.NoError(t, err, "find account for additional balance")
 
 	params := postgrestestutil.DefaultBalanceParams()
@@ -114,7 +114,6 @@ func TestIntegration_TransactionV2BalanceKey(t *testing.T) {
 		sourceFoodID := seedAdditionalBalanceForV2(
 			t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@named-source", "food", 500,
 		)
-
 		created := decodeTxResponse(t, postV2Create(
 			t, app, "direct", infra.orgID, infra.ledgerID,
 			v2BalanceKeyBody("named direct", "@named-source", "food", "@named-destination", ""), "",
@@ -192,8 +191,8 @@ func TestIntegration_TransactionV2BalanceKey(t *testing.T) {
 		requireResponseBalanceKey(t, response, "@wallet", cn.CREDIT, cn.DefaultBalanceKey)
 		drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
 
-		requireDecimalEqual(t, decimal.NewFromInt(450), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, walletFoodID))
-		requireDecimalEqual(t, decimal.NewFromInt(1050), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, walletDefaultID))
+		requireDecimalEqual(t, decimal.NewFromInt(400), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, walletFoodID))
+		requireDecimalEqual(t, decimal.NewFromInt(1100), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, walletDefaultID))
 	})
 
 	t.Run("caller cannot target the internal overdraft balance", func(t *testing.T) {
@@ -220,7 +219,7 @@ func TestIntegration_TransactionV2BalanceKey(t *testing.T) {
 			v2BalanceKeyBody("missing balance", "@missing-source", "missing", "@missing-destination", ""), "",
 		)
 		body := drainBody(t, response)
-		require.Equal(t, nethttp.StatusInternalServerError, response.StatusCode, "body: %s", string(body))
-		requireProblemCode(t, body, cn.ErrTransactionBackupCacheRetrievalFailed.Error())
+		require.Equal(t, nethttp.StatusUnprocessableEntity, response.StatusCode, "body: %s", string(body))
+		requireProblemCode(t, body, cn.ErrAccountIneligibility.Error())
 	})
 }
