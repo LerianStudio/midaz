@@ -155,18 +155,14 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return mtransaction.Transaction{}, err
 	}
 
-	var tran *transaction.Transaction
-	if resolver, ok := uc.TransactionReader.(TransactionProjectionResolver); ok {
-		tran, _, _, err = resolver.ResolveTransactionProjection(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
-	} else {
-		tran, err = uc.TransactionReader.GetTransactionWithOperationsByID(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
-	}
-
+	resolution, err := resolveTransactionProjection(readCtx, uc.TransactionReader, in.OrganizationID, in.LedgerID, in.TransactionID)
 	if err != nil {
 		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
 		return mtransaction.Transaction{}, err
 	}
+
+	tran := resolution.Transaction
 
 	// FindWithOperations joins on operations, so a transaction with no rows comes back
 	// as an empty value with no error. Fall back to the row-only read, which reports
@@ -246,24 +242,19 @@ func (uc *UseCase) attachRevertOriginDependency(ctx context.Context, run *create
 		return nil
 	}
 
-	resolver, ok := uc.TransactionReader.(TransactionProjectionResolver)
-	if !ok {
-		return nil
-	}
-
-	_, executionID, _, err := resolver.ResolveTransactionProjection(ctx, run.organizationID, run.ledgerID, originID)
+	resolution, err := resolveTransactionProjection(ctx, uc.TransactionReader, run.organizationID, run.ledgerID, originID)
 	if err != nil {
 		return err
 	}
 
-	if executionID == uuid.Nil {
+	if resolution.ExecutionID == uuid.Nil {
 		return nil
 	}
 
 	run.dependencies = []TransactionEvidenceReference{{
 		Kind: TransactionDependencyOrigin, TenantID: tmcore.GetTenantIDContext(ctx),
 		OrganizationID: run.organizationID, LedgerID: run.ledgerID,
-		TransactionID: originID, ExecutionID: executionID,
+		TransactionID: originID, ExecutionID: resolution.ExecutionID,
 	}}
 
 	return nil
