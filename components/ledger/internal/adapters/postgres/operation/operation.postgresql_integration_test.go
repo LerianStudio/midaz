@@ -1232,6 +1232,34 @@ func TestIntegration_OperationRepository_NewColumnMigration_BackwardsCompatible(
 	// Verify nullable/optional fields have safe defaults
 	assert.Nil(t, op.Status.Description, "status_description should be nil")
 	assert.Empty(t, op.Route, "route should be empty")
+
+	// A pod from immediately before migration 000036 selects an explicit 31-column
+	// projection. Keep that frozen projection executable after recorded_at is added;
+	// the extra table column must not change its row shape or scan cardinality.
+	legacyColumns := []string{
+		"id", "transaction_id", "description", "type", "asset_code", "amount",
+		"available_balance", "on_hold_balance", "available_balance_after", "on_hold_balance_after",
+		"status", "status_description", "account_id", "account_alias", "balance_id",
+		"chart_of_accounts", "organization_id", "ledger_id", "created_at", "updated_at",
+		"deleted_at", "route", "balance_affected", "balance_key", "balance_version_before",
+		"balance_version_after", "direction", "route_id", "route_code", "route_description", "snapshot",
+	}
+	legacyValues := make([]any, len(legacyColumns))
+	legacyDestinations := make([]any, len(legacyValues))
+	for i := range legacyValues {
+		legacyDestinations[i] = &legacyValues[i]
+	}
+
+	legacyRow := container.DB.QueryRow(
+		"SELECT "+strings.Join(legacyColumns, ", ")+" FROM operation WHERE id = $1",
+		opID,
+	)
+	require.NoError(t, legacyRow.Scan(legacyDestinations...), "pre-000036 pod projection must remain readable")
+	assert.Equal(t, opID.String(), fmt.Sprint(legacyValues[0]))
+
+	var recordedAt any
+	require.NoError(t, container.DB.QueryRow("SELECT recorded_at FROM operation WHERE id = $1", opID).Scan(&recordedAt))
+	assert.Nil(t, recordedAt, "rows written by old pods must be accepted with recorded_at NULL")
 }
 
 func TestIntegration_OperationRepository_PointInTimeUsesRecordedAt(t *testing.T) {

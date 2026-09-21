@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,16 @@ func readTransactionMigrationFile(t *testing.T, fileName string) string {
 	require.NoError(t, err)
 
 	return string(contents)
+}
+
+func TestRecordedAtMigration_IsRollingUpdateSafe(t *testing.T) {
+	t.Parallel()
+
+	recordedAtUp := strings.ToUpper(readTransactionMigrationFile(t, "000036_add_recorded_at_to_operation.up.sql"))
+
+	assert.Contains(t, recordedAtUp, "ADD COLUMN IF NOT EXISTS RECORDED_AT TIMESTAMP WITH TIME ZONE")
+	assert.NotContains(t, recordedAtUp, "NOT NULL", "old pods must be able to omit recorded_at")
+	assert.NotContains(t, recordedAtUp, "DEFAULT", "the additive migration must not rewrite existing rows")
 }
 
 func TestOperationPointInTimeMigration_SemanticShape(t *testing.T) {
