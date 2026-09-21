@@ -22,6 +22,27 @@ type AppliedTransactionCompleter interface {
 	Complete(context.Context, *TransactionCompletionRecord) (TransactionCompletionResult, error)
 }
 
+// AppliedTransactionBulkCompleter projects a same-scope set in one durable SQL
+// group while preserving result correlation with the supplied records.
+type AppliedTransactionBulkCompleter interface {
+	CompleteBulk(context.Context, []*TransactionCompletionRecord) ([]TransactionCompletionResult, error)
+}
+
+// TransactionWriteBehindDispatcher publishes immutable applied evidence to an
+// asynchronous projection transport. A dispatch error is never proof that the
+// message was not delivered, so callers fall back to the same idempotent
+// completer and leave engine recovery evidence intact.
+type TransactionWriteBehindDispatcher interface {
+	DispatchTransactionWriteBehind(context.Context, *TransactionWriteBehindEnvelope) error
+}
+
+// shouldEmitEngineWriteBehindAudit emits audit data only after a confirmed
+// publish or a completed synchronous fallback. A deferred projection has
+// neither guarantee and is left to recovery.
+func shouldEmitEngineWriteBehindAudit(dispatched, projected bool) bool {
+	return dispatched || projected
+}
+
 // EngineRecoveryAcknowledger removes the exact engine recovery record only
 // after the corresponding transaction and metadata projections are durable.
 // Acknowledgment never applies balances or completes persistence.

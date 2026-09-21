@@ -7,7 +7,12 @@
 package in
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -16,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
@@ -24,6 +30,66 @@ type directRouteFixture struct {
 	transaction  uuid.UUID
 	sources      []uuid.UUID
 	destinations []uuid.UUID
+}
+
+type feeWriteBehindDispatcher struct {
+	envelopes []*command.TransactionWriteBehindEnvelope
+}
+
+func (dispatcher *feeWriteBehindDispatcher) DispatchTransactionWriteBehind(_ context.Context, envelope *command.TransactionWriteBehindEnvelope) error {
+	copy := *envelope
+	dispatcher.envelopes = append(dispatcher.envelopes, &copy)
+	return nil
+}
+
+func TestEngineWriteBehindFeeAccountingRoutes(t *testing.T) {
+	h := setupFeeHarness(t)
+	h.enableAccountingEngine(t)
+	h.queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
+	dispatcher := &feeWriteBehindDispatcher{}
+	h.commandUC.TransactionWriteBehindAsync = true
+	h.commandUC.TransactionWriteBehindDispatcher = dispatcher
+	routes := h.seedDirectRoutes(t, 2, 2)
+	app := h.newV2App()
+
+	h.seedBalance(t, "@wb-payer", "BRL", decimal.NewFromInt(1000), "deposit")
+	h.seedBalance(t, "@wb-receiver", "BRL", decimal.Zero, "deposit")
+	h.seedBalance(t, "@wb-fee", "BRL", decimal.Zero, "deposit")
+	fee := flatFee("write_behind_route_fee", "@wb-fee", "5", false)
+	fee.routeFrom = routeString(routes.sources[1])
+	fee.routeTo = routeString(routes.destinations[1])
+	h.seedPackage(t, packageSpec{label: "write_behind_routes", fees: []feeSpec{fee}})
+
+	body := h.v2RoutedBody("write behind fee routes", "BRL", "100", routes.transaction,
+		[]string{h.v2RoutedLeg("@wb-payer", "100", routes.sources[0])},
+		[]string{h.v2RoutedLeg("@wb-receiver", "100", routes.destinations[0])})
+	created := h.createV2Direct(t, app, body, nil)
+	require.Equalf(t, http.StatusCreated, created.status, "async create must succeed: %s", string(created.rawBody))
+	txID := mustTxID(t, created)
+	require.Len(t, dispatcher.envelopes, 1)
+	require.Empty(t, loadLegs(t, h.db, txID), "SQL projection must remain pending after confirmed publish")
+
+	path := "/v2/organizations/" + h.orgID.String() + "/ledgers/" + h.ledgerID.String() + "/transactions/" + txID.String()
+	response, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.Equal(t, "true", response.Header.Get("X-Cache-Hit"))
+	responseBody, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	var lookup map[string]any
+	require.NoError(t, json.Unmarshal(responseBody, &lookup))
+	require.Equal(t, "APPROVED", lookup["status"].(map[string]any)["code"])
+	require.Len(t, lookup["operations"], 4)
+
+	completion, err := h.commandUC.AppliedTransactionCompleter.Complete(h.ctx(), &dispatcher.envelopes[0].Record)
+	require.NoError(t, err)
+	require.Equal(t, txID.String(), completion.Record.Transaction.ID)
+	legs := loadLegs(t, h.db, txID)
+	require.Len(t, legs, 4)
+	requireLeg(t, legs, "@wb-payer", "DEBIT", "100", routes.sources[0], "default")
+	requireLeg(t, legs, "@wb-payer", "DEBIT", "5", routes.sources[1], "default")
+	requireLeg(t, legs, "@wb-receiver", "CREDIT", "100", routes.destinations[0], "default")
+	requireLeg(t, legs, "@wb-fee", "CREDIT", "5", routes.destinations[1], "default")
 }
 
 // TestDirectV2FeeAccountingRoutes exercises the production HTTP v2 translator,

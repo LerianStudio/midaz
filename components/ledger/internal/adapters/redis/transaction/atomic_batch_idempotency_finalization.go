@@ -53,6 +53,7 @@ type AtomicTransactionBatchFinalizationCandidateResult struct {
 
 type atomicTransactionBatchReceipt struct {
 	FormatVersion     int                                     `json:"formatVersion"`
+	TenantID          string                                  `json:"tenantId"`
 	OrganizationID    uuid.UUID                               `json:"organizationId"`
 	LedgerID          uuid.UUID                               `json:"ledgerId"`
 	ExecutionID       uuid.UUID                               `json:"executionId"`
@@ -65,6 +66,7 @@ type atomicTransactionBatchReceiptProtection struct {
 	RetentionSeconds      int64            `json:"retentionSeconds"`
 	Transactions          []uuid.UUID      `json:"transactions"`
 	RecoveryFields        []string         `json:"recoveryFields"`
+	IndexFields           []uuid.UUID      `json:"indexFields"`
 	Acknowledged          map[string]bool  `json:"acknowledged"`
 	TerminalCompletedAtMS map[string]int64 `json:"terminalCompletedAtMs"`
 }
@@ -262,10 +264,11 @@ func validateAtomicTransactionBatchReceipt(
 	if receipt.FormatVersion != 1 || receipt.OrganizationID != organizationID ||
 		receipt.LedgerID != ledgerID || receipt.ExecutionID != executionID ||
 		receipt.IntentFingerprint == "" ||
-		protection.FormatVersion != 1 || protection.RetentionSeconds < 1 ||
+		(protection.FormatVersion != 1 && protection.FormatVersion != 2) || protection.RetentionSeconds < 1 ||
 		protection.RetentionSeconds > 604800 || len(protection.Transactions) == 0 ||
 		len(protection.Transactions) != len(record.TransactionIDs) ||
 		len(protection.RecoveryFields) != len(record.TransactionIDs) ||
+		(protection.FormatVersion == 2 && (receipt.TenantID == "" || len(protection.IndexFields) != len(record.TransactionIDs))) ||
 		protection.Acknowledged == nil || protection.TerminalCompletedAtMS == nil {
 		return errors.New("atomic transaction batch execution receipt is invalid")
 	}
@@ -276,6 +279,10 @@ func validateAtomicTransactionBatchReceipt(
 		if protection.Transactions[index] != memberID ||
 			protection.RecoveryFields[index] != memberID.String()+":"+executionID.String() {
 			return errors.New("atomic transaction batch execution receipt membership differs")
+		}
+
+		if protection.FormatVersion == 2 && protection.IndexFields[index] != memberID {
+			return errors.New("atomic transaction batch execution receipt index differs")
 		}
 
 		if memberID == transactionID {

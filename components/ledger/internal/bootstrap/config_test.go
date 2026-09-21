@@ -210,6 +210,19 @@ func TestConfig_MultiTenantEnabled_FromEnv(t *testing.T) {
 	}
 }
 
+func TestConfig_EngineWriteBehindRouting_FromEnv(t *testing.T) {
+	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", "write-behind.exchange")
+	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "write-behind.key")
+	t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE", "write-behind.queue")
+
+	cfg := &Config{}
+	require.NoError(t, libCommons.SetConfigFromEnvVars(cfg))
+
+	assert.Equal(t, "write-behind.exchange", cfg.RabbitMQTransactionBalanceOperationExchange)
+	assert.Equal(t, "write-behind.key", cfg.RabbitMQTransactionBalanceOperationKey)
+	assert.Equal(t, "write-behind.queue", cfg.RabbitMQTransactionBalanceOperationQueue)
+}
+
 // TestInitServersWithOptions_MultiTenantValidation verifies that InitServersWithOptions
 // enforces the multi-tenant validation contract at the function level, not just at config
 // struct level. This test exercises the actual error return path inside the function.

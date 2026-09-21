@@ -1845,9 +1845,9 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryFrom(ctx context.Cont
 		return 0, err
 	}
 
-	attemptsKey := TransactionBackupAttemptsQueue
-	if !source.clearsLegacyAttempts() {
-		attemptsKey = queueKey
+	attemptsKey, err := recoveryAttemptsQueueKey(source)
+	if err != nil {
+		return 0, err
 	}
 
 	keys, err := tenantKeysFromContext(ctx, []string{queueKey, attemptsKey})
@@ -1865,12 +1865,7 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryFrom(ctx context.Cont
 		return 0, fmt.Errorf("get recovery acknowledgement client: %w", err)
 	}
 
-	clearAttempts := "0"
-	if source.clearsLegacyAttempts() {
-		clearAttempts = "1"
-	}
-
-	result, err := compareDeleteRecoveryScript.Run(ctx, client, keys, field, expectedPayload, counterField, clearAttempts).Int64()
+	result, err := compareDeleteRecoveryScript.Run(ctx, client, keys, field, expectedPayload, counterField, "1").Int64()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to acknowledge recovery", err)
 		return 0, fmt.Errorf("compare and delete recovery: %w", err)
@@ -1948,9 +1943,9 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtectionFrom(
 		return 0, err
 	}
 
-	attemptsKey := TransactionBackupAttemptsQueue
-	if !source.clearsLegacyAttempts() {
-		attemptsKey = queueKey
+	attemptsKey, err := recoveryAttemptsQueueKey(source)
+	if err != nil {
+		return 0, err
 	}
 
 	keys, err := tenantKeysFromContext(ctx, []string{
@@ -1960,6 +1955,8 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtectionFrom(
 		"engine:" + cachepolicy.HashTag + ":guards:" + scope,
 		"engine:" + cachepolicy.HashTag + ":protection:" + scope,
 		EngineRecoveryCleanupSchedule,
+		"engine:" + cachepolicy.HashTag + ":evidence:" + scope,
+		"engine:" + cachepolicy.HashTag + ":transaction-index:" + scope,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("resolve protected recovery acknowledgement keys: %w", err)
@@ -1980,13 +1977,13 @@ func (rr *RedisConsumerRepository) CompareAndDeleteRecoveryWithProtectionFrom(
 		terminalFlag = "1"
 	}
 
-	clearAttempts := "0"
+	legacySource := "0"
 	if source.clearsLegacyAttempts() {
-		clearAttempts = "1"
+		legacySource = "1"
 	}
 
 	result, err := acknowledgeEngineRecoveryScript.Run(ctx, client, keys,
-		field, expectedPayload, counterField, transactionRaw, executionRaw, terminalFlag, completedAt.UnixMilli(), clearAttempts).Int64()
+		field, expectedPayload, counterField, transactionRaw, executionRaw, terminalFlag, completedAt.UnixMilli(), legacySource).Int64()
 	if err != nil {
 		return 0, fmt.Errorf("acknowledge protected recovery: %w", err)
 	}
@@ -2104,6 +2101,42 @@ func (rr *RedisConsumerRepository) ClearBackupAttempt(ctx context.Context, key s
 	logger.Log(ctx, libLog.LevelDebug, "Backup attempt counter cleared", libLog.String("key", key))
 
 	return nil
+}
+
+// IncrementRecoveryAttempt increments the failure counter owned by one recovery
+// origin. Engine recovery deliberately uses a separate hash from both the
+// immutable evidence hash and the legacy backup attempts hash.
+func (rr *RedisConsumerRepository) IncrementRecoveryAttempt(ctx context.Context, source RecoveryQueueSource, field string) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	attemptsKey, err := recoveryAttemptsQueueKey(source)
+	if err != nil {
+		return 0, err
+	}
+
+	prefixedAttempts, err := tenantKeyFromContextOrError(ctx, attemptsKey)
+	if err != nil {
+		return 0, fmt.Errorf("namespace recovery attempts queue: %w", err)
+	}
+
+	counterField, err := tenantKeyFromContextOrError(ctx, field)
+	if err != nil {
+		return 0, fmt.Errorf("namespace recovery attempt field: %w", err)
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get recovery attempts client: %w", err)
+	}
+
+	count, err := client.HIncrBy(ctx, prefixedAttempts, counterField, 1).Result()
+	if err != nil {
+		return 0, fmt.Errorf("increment recovery attempt: %w", err)
+	}
+
+	return count, nil
 }
 
 // GetBalanceSyncKeys returns due scheduled balance keys limited by 'limit'.

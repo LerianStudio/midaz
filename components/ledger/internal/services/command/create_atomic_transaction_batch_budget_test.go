@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	postgresTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -229,6 +231,61 @@ func TestAtomicTransactionBatchDefaultBudgetLimits_ReleaseGate(t *testing.T) {
 		recoveryBytes:          512 * 1024,
 		cachedResponseBytes:    1024 * 1024,
 	}, defaultAtomicTransactionBatchBudgetLimits)
+}
+
+func TestAtomicTransactionBatchWriteBehindBudgetIncludesIndexesDependenciesCapturesAndFeeAttributes(t *testing.T) {
+	envelope := writeBehindEnvelopeFixture(t)
+	predecessor := TransactionEvidenceReference{
+		Kind: TransactionDependencyPredecessor, TenantID: envelope.Record.TenantID,
+		OrganizationID: envelope.Record.OrganizationID, LedgerID: envelope.Record.LedgerID,
+		TransactionID: envelope.Record.TransactionID, ExecutionID: uuid.New(),
+	}
+	envelope.Dependencies = []TransactionEvidenceReference{predecessor}
+	encodedEnvelope, err := EncodeTransactionWriteBehindEnvelope(envelope)
+	require.NoError(t, err)
+	legacyRecord, err := json.Marshal(envelope.Record)
+	require.NoError(t, err)
+	require.Greater(t, len(encodedEnvelope), len(legacyRecord), "recovery budget must include the versioned wrapper and dependency")
+
+	plan, err := DecodeTransactionCompletionPlan([]byte(envelope.Record.Payload))
+	require.NoError(t, err)
+	field := envelope.Record.TransactionID.String() + ":" + envelope.Record.ExecutionID.String()
+	encodedIndex, err := EncodeTransactionEvidenceIndex(TransactionEvidenceIndex{
+		FormatVersion: TransactionEvidenceIndexFormatVersion, TenantID: envelope.Record.TenantID,
+		OrganizationID: envelope.Record.OrganizationID, LedgerID: envelope.Record.LedgerID,
+		TransactionID: envelope.Record.TransactionID, ExecutionID: envelope.Record.ExecutionID,
+		Action: plan.Action, ApplicationState: TransactionApplicationConfirmed,
+		ReplayState: TransactionReplayReconstructible, DurabilityState: TransactionDurabilityPending,
+		RecoveryField: field, ReceiptField: envelope.Record.ExecutionID.String(),
+		Dependencies: []TransactionEvidenceReference{predecessor},
+	})
+	require.NoError(t, err)
+	require.Contains(t, string(encodedIndex), `"dependencies":[{`)
+
+	routeID := uuid.NewString()
+	rich := &postgresTransaction.Transaction{
+		ID: envelope.Record.TransactionID.String(), Description: `fee \"quoted\" \\ route`, RouteID: &routeID,
+		Metadata: map[string]any{"midaz:fee": "materialized", "escaped": `a\"b\\c`},
+	}
+	rawCapture, err := json.Marshal(rich)
+	require.NoError(t, err)
+	capture := base64.StdEncoding.EncodeToString(rawCapture)
+	response, err := json.Marshal(struct {
+		Transactions []json.RawMessage `json:"transactions"`
+	}{Transactions: []json.RawMessage{rawCapture}})
+	require.NoError(t, err)
+	richCached, err := encodeAtomicTransactionBatchCachedBudget(
+		[]*postgresTransaction.Transaction{rich}, []TransactionCompletionPlan{*plan},
+		map[string]string{rich.ID: capture}, response,
+	)
+	require.NoError(t, err)
+	plainCached, err := encodeAtomicTransactionBatchCachedBudget(
+		[]*postgresTransaction.Transaction{{ID: rich.ID}}, nil, nil,
+		json.RawMessage(`{"transactions":[]}`),
+	)
+	require.NoError(t, err)
+	require.Greater(t, len(richCached), len(plainCached))
+	require.Contains(t, string(richCached), capture, "cached budget must charge the exact base64 immutable capture")
 }
 
 func TestCreateAtomicTransactionBatchV2_BudgetFailureDeletesClaimBeforeBalanceRead(t *testing.T) {

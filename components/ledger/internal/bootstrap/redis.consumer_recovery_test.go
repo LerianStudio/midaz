@@ -26,7 +26,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-func consumerRecoveryFixture(t *testing.T) (string, string, *command.TransactionCompletionRecord) {
+func consumerRecoveryFixture(t testing.TB) (string, string, *command.TransactionCompletionRecord) {
 	t.Helper()
 	organization := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledger := uuid.MustParse("22222222-2222-4222-8222-222222222222")
@@ -110,6 +110,27 @@ func TestDecodeRecoveryRecord_ExactScopeAndFrozenEnvelope(t *testing.T) {
 		_, _, err = decodeRecoveryRecord(context.Background(), field, string(corrupted))
 		require.Error(t, err)
 	}
+}
+
+func TestDecodeRecoveryRecord_WriteBehindEnvelope(t *testing.T) {
+	field, _, record := consumerRecoveryFixture(t)
+	raw, err := command.EncodeTransactionWriteBehindEnvelope(command.TransactionWriteBehindEnvelope{
+		FormatVersion: command.TransactionWriteBehindFormatVersion, ApplicationState: command.TransactionApplicationConfirmed,
+		ReplayState: command.TransactionReplayReconstructible, DurabilityState: command.TransactionDurabilityPending,
+		Record: *record, Dependencies: []command.TransactionEvidenceReference{},
+	})
+	require.NoError(t, err)
+	version, err := recoveryRecordVersion(string(raw))
+	require.NoError(t, err)
+	require.Equal(t, transactionWriteBehindRecoveryVersion, version)
+	decoded, _, err := decodeRecoveryRecord(context.Background(), field, string(raw))
+	require.NoError(t, err)
+	require.Equal(t, record.TransactionID, decoded.TransactionID)
+	require.Equal(t, record.ExecutionID, decoded.ExecutionID)
+	require.Equal(t, record.IntentFingerprint, decoded.IntentFingerprint)
+	require.JSONEq(t, record.Payload, decoded.Payload)
+	require.Len(t, decoded.Result.Movements, len(record.Result.Movements))
+	require.Len(t, decoded.Result.Final, len(record.Result.Final))
 }
 
 func TestRecoveryRecordEligible_FixedBoundary(t *testing.T) {
@@ -202,6 +223,142 @@ type recoveryCompleterStub struct {
 	order *[]string
 }
 
+type engineRecoveryCompleterStub struct {
+	err   error
+	calls int
+}
+
+func (stub *engineRecoveryCompleterStub) Complete(context.Context, *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
+	stub.calls++
+	return command.TransactionCompletionResult{
+		Outcome: command.TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED},
+	}, stub.err
+}
+
+type engineRecoveryQueueStub struct {
+	txRedis.RedisRepository
+	status       int64
+	ackCalls     int
+	attempts     int64
+	attemptCalls int
+}
+
+func (stub *engineRecoveryQueueStub) CompareAndDeleteRecoveryFrom(
+	context.Context,
+	txRedis.RecoveryQueueSource,
+	string,
+	string,
+) (int64, error) {
+	stub.ackCalls++
+	return stub.status, nil
+}
+
+func (stub *engineRecoveryQueueStub) IncrementRecoveryAttempt(
+	context.Context,
+	txRedis.RecoveryQueueSource,
+	string,
+) (int64, error) {
+	stub.attemptCalls++
+	stub.attempts++
+	return stub.attempts, nil
+}
+
+type engineRecoveryQuarantineStub struct {
+	records []*transactionquarantine.QuarantineRecord
+	err     error
+}
+
+func (stub *engineRecoveryQuarantineStub) Insert(_ context.Context, record *transactionquarantine.QuarantineRecord) error {
+	if stub.err != nil {
+		return stub.err
+	}
+	stub.records = append(stub.records, record)
+	return nil
+}
+
+func engineRecoveryEnvelopeFixture(t testing.TB) (string, string, *command.TransactionWriteBehindEnvelope) {
+	t.Helper()
+	field, _, record := consumerRecoveryFixture(t)
+	envelope := &command.TransactionWriteBehindEnvelope{
+		FormatVersion:    command.TransactionWriteBehindFormatVersion,
+		ApplicationState: command.TransactionApplicationConfirmed,
+		ReplayState:      command.TransactionReplayReconstructible,
+		DurabilityState:  command.TransactionDurabilityPending,
+		Record:           *record,
+		Dependencies:     []command.TransactionEvidenceReference{},
+	}
+	raw, err := command.EncodeTransactionWriteBehindEnvelope(*envelope)
+	require.NoError(t, err)
+	return field, string(raw), envelope
+}
+
+func TestEngineRecoveryCrashBeforeRabbitCompletesWithoutAccounting(t *testing.T) {
+	field, raw, envelope := engineRecoveryEnvelopeFixture(t)
+	queue := &engineRecoveryQueueStub{status: txRedis.RecoveryAckDeleted}
+	completer := &engineRecoveryCompleterStub{}
+	coordinator := &recoveryRecordCompleter{
+		logger: recoveryQuietLogger{}, queue: queue, completer: completer,
+		clock: func() time.Time { return time.Date(2026, 9, 17, 12, 0, 0, 0, time.UTC) },
+	}
+
+	coordinator.processEngine(t.Context(), field, raw, envelope)
+
+	require.Equal(t, 1, completer.calls)
+	require.Equal(t, 1, queue.ackCalls)
+	require.Zero(t, queue.attemptCalls)
+}
+
+func TestEngineRecoveryPermanentFailureUsesBoundedRetryAndDurableQuarantine(t *testing.T) {
+	field, raw, envelope := engineRecoveryEnvelopeFixture(t)
+	queue := &engineRecoveryQueueStub{status: txRedis.RecoveryAckDeleted}
+	completer := &engineRecoveryCompleterStub{err: errors.New("permanent projection failure")}
+	quarantine := &engineRecoveryQuarantineStub{}
+	coordinator := &recoveryRecordCompleter{
+		logger: recoveryQuietLogger{}, queue: queue, completer: completer,
+		quarantineRepo: quarantine,
+	}
+
+	for range QuarantineThreshold {
+		coordinator.processEngine(t.Context(), field, raw, envelope)
+	}
+
+	require.Equal(t, engineRecoveryAttemptLimit*QuarantineThreshold, completer.calls)
+	require.Equal(t, QuarantineThreshold, queue.attemptCalls)
+	require.Len(t, quarantine.records, 1)
+	require.Equal(t, []byte(raw), quarantine.records[0].Payload)
+	require.Equal(t, 1, queue.ackCalls, "exact removal happens only after quarantine persistence")
+}
+
+func TestEngineRecoveryQuarantineUnavailableRetainsEvidence(t *testing.T) {
+	field, raw, envelope := engineRecoveryEnvelopeFixture(t)
+	queue := &engineRecoveryQueueStub{status: txRedis.RecoveryAckDeleted, attempts: QuarantineThreshold - 1}
+	coordinator := &recoveryRecordCompleter{
+		logger: recoveryQuietLogger{}, queue: queue,
+		completer: &engineRecoveryCompleterStub{err: errors.New("permanent projection failure")},
+	}
+
+	coordinator.processEngine(t.Context(), field, raw, envelope)
+
+	require.Equal(t, 1, queue.attemptCalls)
+	require.Zero(t, queue.ackCalls, "evidence cannot be removed without durable quarantine")
+}
+
+func TestEngineRecoveryConcurrentReplacementIsRetainedWithoutRetry(t *testing.T) {
+	field, raw, envelope := engineRecoveryEnvelopeFixture(t)
+	queue := &engineRecoveryQueueStub{status: txRedis.RecoveryAckReplaced}
+	completer := &engineRecoveryCompleterStub{}
+	coordinator := &recoveryRecordCompleter{
+		logger: recoveryQuietLogger{}, queue: queue, completer: completer,
+		clock: func() time.Time { return time.Date(2026, 9, 17, 12, 0, 0, 0, time.UTC) },
+	}
+
+	coordinator.processEngine(t.Context(), field, raw, envelope)
+
+	require.Equal(t, 1, completer.calls)
+	require.Equal(t, 1, queue.ackCalls)
+	require.Zero(t, queue.attemptCalls)
+}
+
 func (f *recoveryCompleterStub) Complete(context.Context, *command.TransactionCompletionRecord) (command.TransactionCompletionResult, error) {
 	f.calls++
 	*f.order = append(*f.order, "durable-finalization")
@@ -263,7 +420,14 @@ func (q *synchronousRecoveryQueueStub) CompareAndDeleteRecoveryWithProtectionFro
 }
 
 func TestAcknowledgeEngineRecoveryUsesExactProtectedRecord(t *testing.T) {
-	field, raw, envelope := consumerRecoveryFixture(t)
+	field, _, envelope := consumerRecoveryFixture(t)
+	encoded, err := command.EncodeTransactionWriteBehindEnvelope(command.TransactionWriteBehindEnvelope{
+		FormatVersion: command.TransactionWriteBehindFormatVersion, ApplicationState: command.TransactionApplicationConfirmed,
+		ReplayState: command.TransactionReplayReconstructible, DurabilityState: command.TransactionDurabilityPending,
+		Record: *envelope, Dependencies: []command.TransactionEvidenceReference{},
+	})
+	require.NoError(t, err)
+	raw := string(encoded)
 	completedAt := time.Date(2026, time.September, 11, 15, 30, 0, 0, time.UTC)
 
 	for _, test := range []struct {
@@ -449,7 +613,14 @@ func TestLegacyBackupConsumerReadsOnlyLegacyOrigin(t *testing.T) {
 }
 
 func TestEngineRecoveryConsumerReadsOnlyEngineOrigin(t *testing.T) {
-	field, raw, _ := consumerRecoveryFixture(t)
+	field, _, record := consumerRecoveryFixture(t)
+	encoded, err := command.EncodeTransactionWriteBehindEnvelope(command.TransactionWriteBehindEnvelope{
+		FormatVersion: command.TransactionWriteBehindFormatVersion, ApplicationState: command.TransactionApplicationConfirmed,
+		ReplayState: command.TransactionReplayReconstructible, DurabilityState: command.TransactionDurabilityPending,
+		Record: *record, Dependencies: []command.TransactionEvidenceReference{},
+	})
+	require.NoError(t, err)
+	raw := string(encoded)
 	order := []string{}
 	queue := &originRecoveryQueueStub{
 		recoveryQueueStub: recoveryQueueStub{status: txRedis.RecoveryAckDeleted, order: &order},

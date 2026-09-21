@@ -8,6 +8,7 @@ import (
 	"context"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -82,6 +83,9 @@ func (uc *UseCase) RevertTransactionV1(ctx context.Context, in RevertTransaction
 	}
 
 	run := uc.newRevertRun(in, transactionReverted)
+	if err := uc.attachRevertOriginDependency(ctx, run, in.TransactionID); err != nil {
+		return nil, false, err
+	}
 
 	tranReverted, replayed, err := uc.createRevertV1(ctx, span, logger, run)
 	if err != nil {
@@ -109,6 +113,9 @@ func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransaction
 	}
 
 	run := uc.newRevertRun(in, transactionReverted)
+	if err := uc.attachRevertOriginDependency(ctx, run, in.TransactionID); err != nil {
+		return nil, false, err
+	}
 
 	tranReverted, replayed, err := uc.createRevertV2(ctx, span, logger, run)
 	if err != nil {
@@ -148,12 +155,14 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 		return mtransaction.Transaction{}, err
 	}
 
-	tran, err := uc.TransactionReader.GetTransactionWithOperationsByID(readCtx, in.OrganizationID, in.LedgerID, in.TransactionID)
+	resolution, err := resolveTransactionProjection(readCtx, uc.TransactionReader, in.OrganizationID, in.LedgerID, in.TransactionID)
 	if err != nil {
 		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve transaction on query", err)
 
 		return mtransaction.Transaction{}, err
 	}
+
+	tran := resolution.Transaction
 
 	// FindWithOperations joins on operations, so a transaction with no rows comes back
 	// as an empty value with no error. Fall back to the row-only read, which reports
@@ -226,6 +235,29 @@ func (uc *UseCase) prepareRevertTransaction(ctx context.Context, span trace.Span
 	}
 
 	return transactionReverted, nil
+}
+
+func (uc *UseCase) attachRevertOriginDependency(ctx context.Context, run *createTransactionRun, originID uuid.UUID) error {
+	if uc.TransactionEvidenceResolver == nil {
+		return nil
+	}
+
+	resolution, err := resolveTransactionProjection(ctx, uc.TransactionReader, run.organizationID, run.ledgerID, originID)
+	if err != nil {
+		return err
+	}
+
+	if resolution.ExecutionID == uuid.Nil {
+		return nil
+	}
+
+	run.dependencies = []TransactionEvidenceReference{{
+		Kind: TransactionDependencyOrigin, TenantID: tmcore.GetTenantIDContext(ctx),
+		OrganizationID: run.organizationID, LedgerID: run.ledgerID,
+		TransactionID: originID, ExecutionID: resolution.ExecutionID,
+	}}
+
+	return nil
 }
 
 // newRevertRun builds the run state a reversal posts under: the action is forced to

@@ -36,7 +36,7 @@ func TestRevert_PrimaryReadWrapPlacement(t *testing.T) {
 		takesCtx bool
 	}{
 		{"GetParentByTransactionID", positions.getParent, positions.getParentTakesReadCtx},
-		{"GetTransactionWithOperationsByID", positions.getWithOperations, positions.getWithOperationsTakesReadCtx},
+		{"resolveTransactionProjection", positions.getWithOperations, positions.getWithOperationsTakesReadCtx},
 		{"GetTransactionByID", positions.getTransaction, positions.getTransactionTakesReadCtx},
 	}
 
@@ -56,6 +56,35 @@ func TestRevert_PrimaryReadWrapPlacement(t *testing.T) {
 
 	if positions.getOperationRouteTakesReadCtx {
 		t.Error("GetOperationRouteByID must NOT receive the dedicated readCtx: a route is not a read of the create being reverted and deliberately keeps the unmarked ctx")
+	}
+}
+
+// TestRevert_ProjectionHelperForwardsContext closes the indirection the placement guard
+// above now depends on: prepareRevertTransaction hands readCtx to
+// resolveTransactionProjection, so the marker only reaches the database if the helper
+// forwards its own ctx to both reads instead of substituting a fresh one.
+func TestRevert_ProjectionHelperForwardsContext(t *testing.T) {
+	src := readTransportSource(t, "transaction_reader.go", "func resolveTransactionProjection")
+
+	fn := findFuncDecl(t, src, "resolveTransactionProjection")
+
+	if fn.Body == nil {
+		t.Fatal("resolveTransactionProjection has no body")
+	}
+
+	forwardsResolver, forwardsFallback := false, false
+
+	for _, stmt := range fn.Body.List {
+		forwardsResolver = forwardsResolver || callFirstArgIsIdent(stmt, "ResolveTransactionProjection", "ctx")
+		forwardsFallback = forwardsFallback || callFirstArgIsIdent(stmt, "GetTransactionWithOperationsByID", "ctx")
+	}
+
+	if !forwardsResolver {
+		t.Error("resolveTransactionProjection must pass its own ctx to ResolveTransactionProjection; a substituted context drops the caller's primary-read marker")
+	}
+
+	if !forwardsFallback {
+		t.Error("resolveTransactionProjection must pass its own ctx to GetTransactionWithOperationsByID; a substituted context drops the caller's primary-read marker")
 	}
 }
 
@@ -99,7 +128,7 @@ func analyzeRevertWrap(t *testing.T, src, funcName string) revertWrapPositions {
 			positions.getParent = i
 		}
 
-		if positions.getWithOperations == -1 && stmtCallsMethod(stmt, "GetTransactionWithOperationsByID") {
+		if positions.getWithOperations == -1 && stmtCallsFunc(stmt, "resolveTransactionProjection") {
 			positions.getWithOperations = i
 		}
 
@@ -111,7 +140,7 @@ func analyzeRevertWrap(t *testing.T, src, funcName string) revertWrapPositions {
 			callFirstArgIsIdent(stmt, "GetParentByTransactionID", "readCtx")
 
 		positions.getWithOperationsTakesReadCtx = positions.getWithOperationsTakesReadCtx ||
-			callFirstArgIsIdent(stmt, "GetTransactionWithOperationsByID", "readCtx")
+			callFirstArgIsIdent(stmt, "resolveTransactionProjection", "readCtx")
 
 		positions.getTransactionTakesReadCtx = positions.getTransactionTakesReadCtx ||
 			callFirstArgIsIdent(stmt, "GetTransactionByID", "readCtx")
@@ -130,7 +159,7 @@ func TestAnalyzeRevertWrap_DetectsUnmarkedReads(t *testing.T) {
 	src := "package p\n\nfunc unmarkedGate() {\n" +
 		"\treadCtx := readrouting.WithPrimaryRead(ctx)\n" +
 		"\tuc.TransactionReader.GetParentByTransactionID(ctx)\n" +
-		"\tuc.TransactionReader.GetTransactionWithOperationsByID(ctx)\n" +
+		"\tresolveTransactionProjection(ctx, uc.TransactionReader)\n" +
 		"\tuc.TransactionReader.GetTransactionByID(ctx)\n" +
 		"\t_ = readCtx\n}\n"
 

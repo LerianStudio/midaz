@@ -429,8 +429,7 @@ func assertMultiTransactionAcceptanceState(
 		field := transaction.ID.String() + ":" + input.Execution.ExecutionID.String()
 		raw, getErr := inspector.HGet(ctx, keys.Recovery, field).Bytes()
 		require.NoError(t, getErr)
-		envelope, decodeErr := command.DecodeTransactionCompletionRecord(raw)
-		require.NoError(t, decodeErr)
+		envelope := decodeEngineWriteBehindRecord(t, raw)
 		require.Equal(t, input.Execution.ExecutionID, envelope.ExecutionID)
 		require.Equal(t, transaction.ID, envelope.TransactionID)
 		require.Equal(t, input.IntentFingerprint, envelope.IntentFingerprint)
@@ -467,7 +466,7 @@ func assertMultiTransactionAcceptanceState(
 	replayed, err := DecodeResult([]byte(saved.Response), input.Execution)
 	require.NoError(t, err)
 	requireJSONEqual(t, expected, replayed)
-	require.Equal(t, 1, saved.Protection.FormatVersion)
+	require.Equal(t, 2, saved.Protection.FormatVersion)
 	require.Empty(t, saved.Protection.Acknowledged)
 	require.Empty(t, saved.Protection.TerminalCompletedAt)
 
@@ -540,7 +539,7 @@ func requireJSONEqual(t *testing.T, expected, actual any) {
 
 func deleteMultiTransactionAcceptanceState(t *testing.T, inspector *redis.Client, keys resolvedExecutionKeys) {
 	t.Helper()
-	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards, keys.Protection}
+	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards, keys.Protection, keys.TransactionIndex}
 	for _, balance := range keys.Balances {
 		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
 	}

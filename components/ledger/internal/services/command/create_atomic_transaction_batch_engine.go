@@ -62,6 +62,7 @@ func buildAtomicTransactionBatchPreparedExecution(
 			CompletionPlanRecord{
 				TransactionID: item.transactionID,
 				Payload:       append(json.RawMessage(nil), item.completionPlanPayload...),
+				Dependencies:  []TransactionEvidenceReference{},
 			},
 		)
 		prepared.CompletionPlans = append(prepared.CompletionPlans, item.completionPlan)

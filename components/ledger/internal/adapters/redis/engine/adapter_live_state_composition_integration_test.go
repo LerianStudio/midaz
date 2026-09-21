@@ -397,8 +397,7 @@ func assertLiveStateCompositionStoredOutcome(
 
 	raw, err := client.HGet(ctx, keys.Recovery, transactionID.String()+":"+executionID.String()).Bytes()
 	require.NoError(t, err)
-	envelope, err := command.DecodeTransactionCompletionRecord(raw)
-	require.NoError(t, err)
+	envelope := decodeEngineWriteBehindRecord(t, raw)
 	require.Equal(t, executionID, envelope.ExecutionID)
 	require.Equal(t, transactionID, envelope.TransactionID)
 	require.Equal(t, got.Prepared.Execution.IntentFingerprint, envelope.IntentFingerprint)
