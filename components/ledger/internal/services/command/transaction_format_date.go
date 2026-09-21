@@ -27,27 +27,39 @@ import (
 //     because pending transactions are committed later with their own timestamp.
 func formatTransactionDate(ctx context.Context, span trace.Span, transactionInput mtransaction.Transaction, transactionStatus string) (time.Time, error) {
 	now := time.Now()
+	logger := libObservability.NewLoggerFromContext(ctx)
 
+	transactionDate, err := resolveTransactionDateAt(transactionInput, transactionStatus, now)
+	if err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
+
+		message := "Pending transaction cannot have a custom transaction date"
+		if transactionInput.TransactionDate != nil && transactionInput.TransactionDate.After(now) {
+			message = "Transaction date cannot be a future date"
+		}
+
+		logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
+
+		return time.Time{}, err
+	}
+
+	return transactionDate, nil
+}
+
+// resolveTransactionDateAt applies the transaction-date rules against a caller-
+// supplied instant. The singular command supplies time.Now; the atomic batch
+// supplies its injected clock so every replay-sensitive timestamp is testable.
+func resolveTransactionDateAt(transactionInput mtransaction.Transaction, transactionStatus string, now time.Time) (time.Time, error) {
 	if transactionInput.TransactionDate == nil || transactionInput.TransactionDate.IsZero() {
 		return now, nil
 	}
 
-	logger := libObservability.NewLoggerFromContext(ctx)
-
 	if transactionInput.TransactionDate.After(now) {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, constant.EntityTransaction)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
-		logger.Log(ctx, libLog.LevelWarn, "Transaction date cannot be a future date", libLog.Err(err))
-
-		return time.Time{}, err
+		return time.Time{}, pkg.ValidateBusinessError(constant.ErrInvalidFutureTransactionDate, constant.EntityTransaction)
 	}
 
 	if transactionStatus == constant.PENDING {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, constant.EntityTransaction)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction date validation failed", err)
-		logger.Log(ctx, libLog.LevelWarn, "Pending transaction cannot have a custom transaction date", libLog.Err(err))
-
-		return time.Time{}, err
+		return time.Time{}, pkg.ValidateBusinessError(constant.ErrInvalidPendingFutureTransactionDate, constant.EntityTransaction)
 	}
 
 	return transactionInput.TransactionDate.Time(), nil

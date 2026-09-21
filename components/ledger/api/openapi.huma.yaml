@@ -678,6 +678,128 @@ components:
         - updatedAt
         - metadata
       type: object
+    AtomicTransactionBatchV2Transaction:
+      additionalProperties: false
+      properties:
+        amount:
+          examples:
+            - "1500"
+          minimum: 0
+          type:
+            - string
+            - "null"
+        assetCode:
+          examples:
+            - BRL
+          maxLength: 10
+          minLength: 2
+          type: string
+        createdAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+        credit:
+          examples:
+            - - "@person2"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        debit:
+          examples:
+            - - "@person1"
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        deletedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type:
+            - string
+            - "null"
+        description:
+          examples:
+            - Transaction description
+          maxLength: 256
+          type: string
+        feesSkipped:
+          examples:
+            - false
+          type: boolean
+        id:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        ledgerId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        metadata:
+          additionalProperties: {}
+          description: "Additional custom attributes. The ledger writes three fee keys on this field itself and reserves all three: feeApplied is the string true when the fee engine actually charged this transaction; packageAppliedID is the identifier of the fee package the engine applied, written when that package charged a fee or recorded an exemption, and absent when a package matched but priced nothing, for instance because the amount fell outside its bounds; feeExemption is an object carrying exempt, reason and message, present when every account on one side of the transaction is exempt from fees, which is how a caller tells an exemption apart from no package having matched. A request body carrying feeApplied, packageAppliedID or feeExemption is refused with 400 naming the offending key, on every body that carries transaction metadata: a create, a metadata update and a fee estimate. So a value present here is always the ledger's own word about the charge and never one a caller supplied. feeLeg, on operation metadata, is reserved the same way. Transaction-level metadata is additive, so caller-supplied keys on this field are preserved alongside the ledger keys."
+          type: object
+        operations:
+          items:
+            $ref: "#/components/schemas/OperationV2"
+          type:
+            - array
+            - "null"
+        order:
+          description: Logical order used to execute this transaction.
+          format: int64
+          minimum: 1
+          type: integer
+        organizationId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        parentTransactionId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        status:
+          $ref: "#/components/schemas/TransactionStatus"
+        tracerSkipped:
+          examples:
+            - false
+          type: boolean
+        updatedAt:
+          examples:
+            - "2021-01-01T00:00:00Z"
+          format: date-time
+          type: string
+      required:
+        - order
+        - id
+        - description
+        - status
+        - amount
+        - assetCode
+        - debit
+        - credit
+        - ledgerId
+        - organizationId
+        - feesSkipped
+        - tracerSkipped
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - operations
+      type: object
     AuditEventResponse:
       additionalProperties: false
       properties:
@@ -1286,6 +1408,93 @@ components:
         - rate
         - metadata
       type: object
+    CreateAtomicTransactionBatchV2ItemRequest:
+      additionalProperties: false
+      properties:
+        accountBlockExceptionId:
+          description: Single-use account-block exception identifier. Authorizes one debit of an exact amount out of a blocked source account, and is consumed on use. Rejected on the hold action.
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        action:
+          description: Transaction action.
+          enum:
+            - direct
+            - hold
+          type: string
+        amount:
+          type: string
+        asset:
+          type: string
+        code:
+          type: string
+        credits:
+          items:
+            $ref: "#/components/schemas/V2LegInput"
+          maxItems: 500
+          minItems: 1
+          type: array
+        debits:
+          items:
+            $ref: "#/components/schemas/V2LegInput"
+          maxItems: 500
+          minItems: 1
+          type: array
+        description:
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRouteId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        order:
+          description: One-based logical execution order.
+          format: int64
+          minimum: 1
+          type: integer
+        routeId:
+          examples:
+            - 00000000-0000-0000-0000-000000000000
+          format: uuid
+          type: string
+        skip:
+          $ref: "#/components/schemas/TransactionSkip"
+      required:
+        - action
+        - order
+        - asset
+        - amount
+        - debits
+        - credits
+      type: object
+    CreateAtomicTransactionBatchV2Request:
+      additionalProperties: false
+      properties:
+        transactions:
+          description: Direct or hold transactions with unique consecutive order. All items succeed atomically or none is applied.
+          items:
+            $ref: "#/components/schemas/CreateAtomicTransactionBatchV2ItemRequest"
+          maxItems: 50
+          minItems: 1
+          type: array
+      required:
+        - transactions
+      type: object
+    CreateAtomicTransactionBatchV2Response:
+      additionalProperties: false
+      properties:
+        transactions:
+          description: Created transactions in increasing logical order.
+          items:
+            $ref: "#/components/schemas/AtomicTransactionBatchV2Transaction"
+          type: array
+      required:
+        - transactions
+      type: object
     CreateHolderAccountInput:
       additionalProperties: false
       properties:
@@ -1827,8 +2036,6 @@ components:
       properties:
         code:
           description: "Stable, machine-readable domain error code scoped to the emitting service (format: <SERVICE>-NNNN)."
-          examples:
-            - ERR-0001
           type: string
         detail:
           description: A human-readable explanation specific to this occurrence of the problem.
@@ -2865,6 +3072,160 @@ components:
         - createdAt
         - updatedAt
         - deletedAt
+      type: object
+    LedgerDashboardAssetPosition:
+      additionalProperties: false
+      properties:
+        accounts:
+          examples:
+            - 42
+          format: int64
+          type: integer
+        asset:
+          examples:
+            - BRL
+          type: string
+        available:
+          examples:
+            - "128400.55"
+          type: string
+        onHold:
+          examples:
+            - "1200.00"
+          type: string
+      required:
+        - asset
+        - accounts
+        - available
+        - onHold
+      type: object
+    LedgerDashboardAssetVolume:
+      additionalProperties: false
+      properties:
+        amount:
+          examples:
+            - "41000.00"
+          type: string
+        asset:
+          examples:
+            - BRL
+          type: string
+        transactions:
+          examples:
+            - 128
+          format: int64
+          type: integer
+      required:
+        - asset
+        - amount
+        - transactions
+      type: object
+    LedgerDashboardAssets:
+      additionalProperties: false
+      properties:
+        assets:
+          items:
+            $ref: "#/components/schemas/LedgerDashboardAssetPosition"
+          type:
+            - array
+            - "null"
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+        - assets
+        - updatedAt
+      type: object
+    LedgerDashboardMetrics:
+      additionalProperties: false
+      properties:
+        byStatus:
+          additionalProperties:
+            format: int64
+            type: integer
+          type: object
+        reversalsByAsset:
+          description: "The part of the gross volume made of reversal legs: settled transactions inside the window whose parent_transaction_id is set, per asset. A true net is not derivable from volume and reversals alone, because it depends on whether each reversed original also falls inside the window."
+          items:
+            $ref: "#/components/schemas/LedgerDashboardAssetVolume"
+          type:
+            - array
+            - "null"
+        total:
+          examples:
+            - 1420
+          format: int64
+          type: integer
+        updatedAt:
+          format: date-time
+          type: string
+        volumeByAsset:
+          items:
+            $ref: "#/components/schemas/LedgerDashboardAssetVolume"
+          type:
+            - array
+            - "null"
+        windowEnd:
+          format: date-time
+          type: string
+        windowStart:
+          format: date-time
+          type: string
+      required:
+        - total
+        - byStatus
+        - volumeByAsset
+        - reversalsByAsset
+        - windowStart
+        - windowEnd
+        - updatedAt
+      type: object
+    LedgerDashboardVolume:
+      additionalProperties: false
+      properties:
+        points:
+          items:
+            $ref: "#/components/schemas/LedgerDashboardVolumePoint"
+          type:
+            - array
+            - "null"
+        updatedAt:
+          format: date-time
+          type: string
+        windowEnd:
+          format: date-time
+          type: string
+        windowStart:
+          format: date-time
+          type: string
+      required:
+        - points
+        - windowStart
+        - windowEnd
+        - updatedAt
+      type: object
+    LedgerDashboardVolumePoint:
+      additionalProperties: false
+      properties:
+        byAsset:
+          items:
+            $ref: "#/components/schemas/LedgerDashboardAssetVolume"
+          type:
+            - array
+            - "null"
+        date:
+          examples:
+            - "2026-09-19"
+          type: string
+        transactions:
+          examples:
+            - 212
+          format: int64
+          type: integer
+      required:
+        - date
+        - transactions
+        - byAsset
       type: object
     LedgerSettings:
       additionalProperties: false
@@ -7695,6 +8056,210 @@ paths:
       summary: Get Balance history at date
       tags:
         - Balances (v1)
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/assets:
+    get:
+      deprecated: true
+      description: "Returns the ledger's CURRENT position in each asset — how many distinct accounts hold it, and the summed available and on-hold figures — read from the balance table. It takes NO window and ignores any window parameter a caller sends: a balance is a running total, not an aggregate over history. Amounts are exact decimal strings, per asset, never summed across assets."
+      operationId: getLedgerDashboardAssets
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerDashboardAssets"
+          description: OK
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get ledger current position per asset
+      tags:
+        - Dashboard (v1)
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/metrics:
+    get:
+      deprecated: true
+      description: "Returns, for the window, the total number of transactions, the count of each status the ledger knows, and the settled volume per asset. Volume sums transaction.amount over SETTLED transactions only — status APPROVED, the only status whose transactions moved money — and is reported PER ASSET with no cross-asset total, because adding two assets together does not produce money. Amounts are exact decimal strings whose scale is not normative; format them with the asset's own exponent and never parse them as a binary float. volumeByAsset is the GROSS settled amount: every settled leg inside the window, reversal legs included. reversalsByAsset is the part of it made of reversal legs, same window and same settled filter. A true net is NOT derivable from the two alone, because it depends on whether each reversed original also falls inside the window; a consumer that needs net reads the transactions."
+      operationId: getLedgerDashboardMetrics
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
+          explode: false
+          in: query
+          name: period
+          schema:
+            description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
+            type: string
+        - description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+            type: string
+        - description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerDashboardMetrics"
+          description: OK
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get ledger dashboard metrics
+      tags:
+        - Dashboard (v1)
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/volume:
+    get:
+      deprecated: true
+      description: Returns one point per UTC calendar day the window TOUCHES, including days with no transactions, which are present with transactions 0 and an empty byAsset. A window is half-open and snaps to the minute rather than to midnight, so a 7d window opened mid-afternoon returns EIGHT points. Each point's transactions counts every status; its byAsset applies the same settled rule as /metrics. Summing the points reproduces /metrics exactly, and is likewise GROSS of reversals.
+      operationId: getLedgerDashboardVolume
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
+          explode: false
+          in: query
+          name: period
+          schema:
+            description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
+            type: string
+        - description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+            type: string
+        - description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerDashboardVolume"
+          description: OK
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Internal Server Error
+        default:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyError"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get ledger dashboard volume series
+      tags:
+        - Dashboard (v1)
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/operation-routes:
     get:
       deprecated: true
@@ -14207,6 +14772,207 @@ paths:
       summary: Calculate billing
       tags:
         - Billing Calculate (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/assets:
+    get:
+      description: "Returns the ledger's CURRENT position in each asset — how many distinct accounts hold it, and the summed available and on-hold figures — read from the balance table. It takes NO window and ignores any window parameter a caller sends: a balance is a running total, not an aggregate over history. Amounts are exact decimal strings, per asset, never summed across assets."
+      operationId: getLedgerDashboardAssetsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerDashboardAssets"
+          description: OK
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get ledger current position per asset
+      tags:
+        - Dashboard (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/metrics:
+    get:
+      description: "Returns, for the window, the total number of transactions, the count of each status the ledger knows, and the settled volume per asset. Volume sums transaction.amount over SETTLED transactions only — status APPROVED, the only status whose transactions moved money — and is reported PER ASSET with no cross-asset total, because adding two assets together does not produce money. Amounts are exact decimal strings whose scale is not normative; format them with the asset's own exponent and never parse them as a binary float. volumeByAsset is the GROSS settled amount: every settled leg inside the window, reversal legs included. reversalsByAsset is the part of it made of reversal legs, same window and same settled filter. A true net is NOT derivable from the two alone, because it depends on whether each reversed original also falls inside the window; a consumer that needs net reads the transactions."
+      operationId: getLedgerDashboardMetricsV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
+          explode: false
+          in: query
+          name: period
+          schema:
+            description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
+            type: string
+        - description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+            type: string
+        - description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerDashboardMetrics"
+          description: OK
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get ledger dashboard metrics
+      tags:
+        - Dashboard (v2)
+  /v2/organizations/{organization_id}/ledgers/{ledger_id}/dashboard/volume:
+    get:
+      description: Returns one point per UTC calendar day the window TOUCHES, including days with no transactions, which are present with transactions 0 and an empty byAsset. A window is half-open and snaps to the minute rather than to midnight, so a 7d window opened mid-afternoon returns EIGHT points. Each point's transactions counts every status; its byAsset applies the same settled rule as /metrics. Summing the points reproduces /metrics exactly, and is likewise GROSS of reversals.
+      operationId: getLedgerDashboardVolumeV2
+      parameters:
+        - description: Organization ID (UUID)
+          in: path
+          name: organization_id
+          required: true
+          schema:
+            description: Organization ID (UUID)
+            type: string
+        - description: Ledger ID (UUID)
+          in: path
+          name: ledger_id
+          required: true
+          schema:
+            description: Ledger ID (UUID)
+            type: string
+        - description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
+          explode: false
+          in: query
+          name: period
+          schema:
+            description: "Relative window: 7d, 30d or 90d (default: 30d). Mutually exclusive with start_date/end_date."
+            type: string
+        - description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+          explode: false
+          in: query
+          name: start_date
+          schema:
+            description: Window start (RFC3339, inclusive). Requires end_date. Mutually exclusive with period.
+            type: string
+        - description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+          explode: false
+          in: query
+          name: end_date
+          schema:
+            description: Window end (RFC3339, exclusive). Requires start_date. The window may not exceed 90 days.
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerDashboardVolume"
+          description: OK
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Get ledger dashboard volume series
+      tags:
+        - Dashboard (v2)
   /v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates:
     post:
       operationId: estimateFeeCalculationV2
@@ -16804,6 +17570,63 @@ paths:
       summary: Delete Metadata Index
       tags:
         - Metadata Indexes (v2)
+  /v2/transactions/batch:
+    post:
+      description: Executes direct and hold transactions once, in explicit increasing order, as one all-or-none accounting decision. The response preserves that order. The decoded body must be smaller than 1 MiB; the configured cardinality is 1-50, aggregate input legs are limited to 1,000, and post-fee work is limited to 100 postings and 150 balance snapshots. The internal idempotency/recovery batch identifier is not exposed; there is no batch query endpoint.
+      operationId: createAtomicTransactionBatchV2
+      parameters:
+        - description: Idempotency key to safely retry the atomic batch; an identical retry returns the original ordered response
+          in: header
+          name: X-Idempotency
+          schema:
+            description: Idempotency key to safely retry the atomic batch; an identical retry returns the original ordered response
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAtomicTransactionBatchV2Request"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateAtomicTransactionBatchV2Response"
+          description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
+        "422":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Unprocessable Entity
+        "500":
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Internal Server Error
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Error"
+          description: Error
+      security:
+        - BearerAuth: []
+      summary: Create an atomic batch of Transactions (v2)
+      tags:
+        - Transactions (v2)
   /v2/transactions/block:
     post:
       operationId: createTransactionBlockV2
@@ -17044,6 +17867,8 @@ tags:
   - name: Billing Calculate (v2)
   - name: Billing Packages (v2)
   - name: Composition (v2)
+  - name: Dashboard (v1)
+  - name: Dashboard (v2)
   - name: Encryption (v2)
   - name: Fees (v2)
   - name: Holders (v2)
@@ -17076,6 +17901,7 @@ x-tagGroups:
       - Asset Rates (v1)
       - Assets (v1)
       - Balances (v1)
+      - Dashboard (v1)
       - Ledgers (v1)
       - Metadata Indexes (v1)
       - Operation Routes (v1)
@@ -17095,6 +17921,7 @@ x-tagGroups:
       - Billing Calculate (v2)
       - Billing Packages (v2)
       - Composition (v2)
+      - Dashboard (v2)
       - Encryption (v2)
       - Fees (v2)
       - Holders (v2)

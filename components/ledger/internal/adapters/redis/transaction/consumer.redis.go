@@ -107,9 +107,11 @@ const TransactionBackupQueue = "backup_queue:" + cachepolicy.HashTag
 const TransactionBackupAttemptsQueue = TransactionBackupQueue + ":attempts"
 
 const (
-	RecoveryAckMissing  int64 = 0
-	RecoveryAckDeleted  int64 = 1
-	RecoveryAckReplaced int64 = 2
+	RecoveryAckMissing              int64 = 0
+	RecoveryAckDeleted              int64 = 1
+	RecoveryAckReplaced             int64 = 2
+	RecoveryAckFinalizationRequired int64 = 3
+	RecoveryAckReceiptChanged       int64 = 4
 )
 
 // maxRedisBatchSize limits the number of items sent in a single Redis operation
@@ -1476,7 +1478,8 @@ func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Con
 	oppositeApplyMarkerKey := ""
 
 	if rawOppositeKey := utils.TransactionApplyMarkerOppositeKey(
-		organizationID, ledgerID, transactionID.String(), transactionStatus); rawOppositeKey != "" {
+		organizationID, ledgerID, transactionID.String(), transactionStatus,
+	); rawOppositeKey != "" {
 		oppositeApplyMarkerKey, err = tenantKeyFromContextOrError(ctx, rawOppositeKey)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to namespace opposite transaction apply marker key", err)

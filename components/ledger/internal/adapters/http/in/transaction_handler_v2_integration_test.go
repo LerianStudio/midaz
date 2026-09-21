@@ -613,7 +613,7 @@ func TestIntegration_TransactionV2Direct_ValidationBeforeLedgerEffect(t *testing
 			// validator-error translator routes a `min`-tag failure to the generic
 			// ErrBadRequest (0047) bucket, distinct from the `required`-tag bucket
 			// (ErrMissingFieldsInRequest / 0009) the next row pins. Translate's own
-			// presence check (validateSidesPresent, ALSO 0009) never runs here — it exists
+			// presence check (validateTransactionV2SidesPresent, ALSO 0009) never runs here — it exists
 			// for a caller that builds the input in Go and skips the decoder entirely, which
 			// an HTTP request never does.
 			name:             "missing debits field",

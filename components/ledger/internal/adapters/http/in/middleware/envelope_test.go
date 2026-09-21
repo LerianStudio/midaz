@@ -115,8 +115,8 @@ func driveEnvelope(t *testing.T, path string, status int, contentType, body stri
 // version, but the code and the status are not: a client reading either body
 // learns the same thing about the account.
 func TestErrorEnvelope_AccountClosingCodesCrossVersions(t *testing.T) {
-	problem := `{"type":"https://errors.lerian.studio/v1/0514","title":"Account Already Closed Error",` +
-		`"status":409,"detail":"The account is already closed.","code":"0514","entityType":"Account"}`
+	problem := `{"type":"https://errors.lerian.studio/v1/0521","title":"Account Already Closed Error",` +
+		`"status":409,"detail":"The account is already closed.","code":"0521","entityType":"Account"}`
 
 	t.Run("v2 keeps the problem document", func(t *testing.T) {
 		body, contentType := driveEnvelope(t, "/v2/organizations/x", fiber.StatusConflict, "application/problem+json", problem)
@@ -129,7 +129,7 @@ func TestErrorEnvelope_AccountClosingCodesCrossVersions(t *testing.T) {
 		body, contentType := driveEnvelope(t, "/v1/organizations/x", fiber.StatusConflict, "application/problem+json", problem)
 
 		assert.JSONEq(t,
-			`{"title":"Account Already Closed Error","message":"The account is already closed.","code":"0514"}`,
+			`{"title":"Account Already Closed Error","message":"The account is already closed.","code":"0521"}`,
 			body)
 		assert.Contains(t, contentType, fiber.MIMEApplicationJSON)
 	})

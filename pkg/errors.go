@@ -266,6 +266,89 @@ func (r ValidationUnknownFieldsError) Error() string {
 // UnknownFields is a map of unknown fields and their error messages.
 type UnknownFields map[string]any
 
+const (
+	// MaxFieldErrors is the largest ordered field-detail list exposed by the
+	// error platform. A list that crosses this boundary keeps its first 99 real
+	// entries and uses the final slot to say that more diagnostics were omitted.
+	MaxFieldErrors = 100
+
+	// FieldErrorTruncationLocation is the stable location of the explicit
+	// field-detail truncation marker.
+	FieldErrorTruncationLocation = "body.transactions"
+
+	// FieldErrorTruncationMessage is the stable message of the explicit
+	// field-detail truncation marker.
+	FieldErrorTruncationMessage = "additional validation errors omitted"
+)
+
+// FieldError is a platform-neutral, ordered field diagnostic. HTTP adapters
+// project it to their wire-specific error-detail type without changing order.
+type FieldError struct {
+	Location string
+	Message  string
+}
+
+// FieldErrorCarrier decorates one canonical primary error with ordered field
+// diagnostics. The primary error remains available through errors.Is/errors.As
+// so its business classification continues to select the top-level response.
+//
+// Use WithFieldErrors to construct this type. Its fields are deliberately
+// private so callers cannot mutate the ordered, bounded detail snapshot.
+type FieldErrorCarrier struct {
+	err    error
+	fields []FieldError
+}
+
+// WithFieldErrors decorates primary with an immutable snapshot of ordered field
+// diagnostics. It preserves the caller's order and caps the snapshot at
+// MaxFieldErrors. More than MaxFieldErrors diagnostics become the first 99 real
+// entries followed by the explicit truncation marker.
+func WithFieldErrors(primary error, fields []FieldError) error {
+	if primary == nil || len(fields) == 0 {
+		return primary
+	}
+
+	bounded := make([]FieldError, 0, min(len(fields), MaxFieldErrors))
+	if len(fields) <= MaxFieldErrors {
+		bounded = append(bounded, fields...)
+	} else {
+		bounded = append(bounded, fields[:MaxFieldErrors-1]...)
+		bounded = append(bounded, FieldError{
+			Location: FieldErrorTruncationLocation,
+			Message:  FieldErrorTruncationMessage,
+		})
+	}
+
+	return &FieldErrorCarrier{err: primary, fields: bounded}
+}
+
+// Error preserves the primary error's text.
+func (e *FieldErrorCarrier) Error() string {
+	if e == nil || e.err == nil {
+		return ""
+	}
+
+	return e.err.Error()
+}
+
+// Unwrap exposes the primary error for errors.Is/errors.As classification.
+func (e *FieldErrorCarrier) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+
+	return e.err
+}
+
+// FieldErrors returns a copy of the ordered, bounded detail snapshot.
+func (e *FieldErrorCarrier) FieldErrors() []FieldError {
+	if e == nil {
+		return nil
+	}
+
+	return append([]FieldError(nil), e.fields...)
+}
+
 // IsBusinessError reports whether err is a business/domain error (validation, not-found,
 // conflict, auth) as opposed to a technical/infrastructure error. Business errors should
 // use HandleSpanBusinessErrorEvent so they don't pollute error-rate metrics with expected
@@ -947,6 +1030,30 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrReservedMetadataKey.Error(),
 			Title:      "Reserved Metadata Key",
 			Message:    fmt.Sprintf("The metadata key %v is reserved by the ledger, which writes it itself. Please remove it from your request and try again.", args...),
+		},
+		constant.ErrTransactionBatchCardinality: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchCardinality.Error(),
+			Title:      "Invalid Transaction Batch Cardinality",
+			Message:    fmt.Sprintf("The transaction batch contains %v items, but it must contain between 1 and %v items. Please adjust the 'transactions' array and try again.", args...),
+		},
+		constant.ErrTransactionBatchInputLegsLimitExceeded: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchInputLegsLimitExceeded.Error(),
+			Title:      "Transaction Batch Input Leg Limit Exceeded",
+			Message:    fmt.Sprintf("The transaction batch contains %v input debit and credit legs, exceeding the maximum of %v. Please reduce the number of legs and try again.", args...),
+		},
+		constant.ErrTransactionBatchBudgetExceeded: UnprocessableOperationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchBudgetExceeded.Error(),
+			Title:      "Transaction Batch Budget Exceeded",
+			Message:    fmt.Sprintf("The transaction batch exceeds the %v budget at transaction index %v: observed %v, maximum %v. Please reduce the batch work and try again.", args...),
+		},
+		constant.ErrTransactionBatchStructuralValidation: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionBatchStructuralValidation.Error(),
+			Title:      "Invalid Transaction Batch",
+			Message:    "One or more transactions in the batch failed structural validation. Check errors for details.",
 		},
 		constant.ErrOperationIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -2657,6 +2764,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrInvalidTransactionValidationFilters.Error(),
 			Title:      "Invalid Transaction Validation Filters",
 			Message:    "Invalid transaction validation filter parameters.",
+		},
+		constant.ErrInvalidDashboardWindow: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidDashboardWindow.Error(),
+			Title:      "Invalid Dashboard Window",
+			Message:    "Invalid dashboard window: use period (7d, 30d, 90d) or start_date/end_date (RFC3339, at most 90 days apart), never both.",
 		},
 		constant.ErrTransactionValidationNotFound: EntityNotFoundError{
 			EntityType: entityType,

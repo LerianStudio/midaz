@@ -17,6 +17,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
@@ -35,6 +36,14 @@ var cacheNotFoundSentinel = []byte("NOT_FOUND")
 // NOTE: SetBytes multiplies this value by time.Second internally, so 60 means 60 seconds.
 const sentinelTTL = time.Duration(60)
 
+// errTransactionRouteNotFound is the 404 identity (code 0105) both not-found arms hand back.
+// It is built once because pkg.ValidateBusinessError rebuilds the whole business-error catalogue
+// on every call, and the sentinel arm below is the deliberately I/O-free shortcut: its rate is
+// bounded only by the caller. Sharing one instance is safe — pkg.EntityNotFoundError is an
+// immutable value struct that errors.As copies into the caller's variable — and it makes the two
+// arms return the identical value rather than two equal ones.
+var errTransactionRouteNotFound = pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
+
 func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organizationID, ledgerID, transactionRouteID uuid.UUID) (mmodel.TransactionRouteCache, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -50,9 +59,9 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 	if err == nil && len(cachedValue) > 0 {
 		if bytes.Equal(cachedValue, cacheNotFoundSentinel) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found (sentinel cache hit)", services.ErrDatabaseItemNotFound)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found (sentinel cache hit)", errTransactionRouteNotFound)
 
-			return mmodel.TransactionRouteCache{}, services.ErrDatabaseItemNotFound
+			return mmodel.TransactionRouteCache{}, errTransactionRouteNotFound
 		}
 
 		var cacheData mmodel.TransactionRouteCache
@@ -77,13 +86,15 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, msg, err)
 
-			logger.Log(ctx, libLog.LevelWarn, msg)
+			logger.Log(ctx, libLog.LevelWarn, msg,
+				libLog.String("transaction_route_id", transactionRouteID.String()),
+				libLog.String("ledger_id", ledgerID.String()))
 
 			if setErr := uc.TransactionRedisRepo.SetBytes(ctx, internalKey, cacheNotFoundSentinel, sentinelTTL); setErr != nil {
 				logger.Log(ctx, libLog.LevelWarn, "Failed to store not-found sentinel in cache", libLog.Err(setErr))
 			}
 
-			return mmodel.TransactionRouteCache{}, services.ErrDatabaseItemNotFound
+			return mmodel.TransactionRouteCache{}, errTransactionRouteNotFound
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to fetch transaction route from database", err)

@@ -9,6 +9,7 @@ package query
 import (
 	"bytes"
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"testing/quick"
@@ -21,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
@@ -74,11 +76,11 @@ func TestProperty_SentinelDetection_OnlyExactMatch(t *testing.T) {
 			_, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 			// Must NOT be treated as sentinel — DB was called, so this is the DB not-found path
-			return err == services.ErrDatabaseItemNotFound
+			return isTransactionRouteNotFound(err)
 		}
 
 		if isSentinel {
-			// Exact sentinel: must return ErrDatabaseItemNotFound with NO DB call.
+			// Exact sentinel: must return the route-not-found business error (0105) with NO DB call.
 			// No TransactionRouteRepo mock expectations — gomock will fail if DB is called.
 			uc.TransactionRouteRepo = nil
 
@@ -89,7 +91,7 @@ func TestProperty_SentinelDetection_OnlyExactMatch(t *testing.T) {
 
 			result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
-			return err == services.ErrDatabaseItemNotFound &&
+			return isTransactionRouteNotFound(err) &&
 				reflect.DeepEqual(result, mmodel.TransactionRouteCache{})
 		}
 
@@ -116,11 +118,11 @@ func TestProperty_SentinelDetection_OnlyExactMatch(t *testing.T) {
 		_, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 		// The key invariant: non-sentinel bytes must NEVER produce a sentinel-path response.
-		// If we get ErrDatabaseItemNotFound, it must be from the DB fallback (which we set up),
+		// If we get the route-not-found business error (0105), it must be from the DB fallback (which we set up),
 		// not from sentinel detection. We verify this by confirming the function did attempt DB access.
 		// Since we're here (non-sentinel), the function either:
 		//   a) Successfully deserialized msgpack -> returns (data, nil)
-		//   b) Failed msgpack -> called DB -> got our mock ErrDatabaseItemNotFound
+		//   b) Failed msgpack -> called DB -> our mock returned ErrDatabaseItemNotFound -> mapped to 0105
 		// Both are correct non-sentinel behavior. The property holds as long as we reach here
 		// without panic and without gomock failures (which would mean unexpected calls).
 		_ = err
@@ -232,10 +234,18 @@ func TestProperty_SentinelPath_NeverCallsDB(t *testing.T) {
 		result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 		// Must return sentinel error with zero-value result and NO DB call
-		return err == services.ErrDatabaseItemNotFound &&
+		return isTransactionRouteNotFound(err) &&
 			reflect.DeepEqual(result, mmodel.TransactionRouteCache{})
 	}
 
 	err := quick.Check(property, cfg)
 	require.NoError(t, err)
+}
+
+// isTransactionRouteNotFound reports whether err carries the 404 identity of a missing transaction
+// route: the typed pkg.EntityNotFoundError with code 0105.
+func isTransactionRouteNotFound(err error) bool {
+	var entityNotFound pkg.EntityNotFoundError
+
+	return errors.As(err, &entityNotFound) && entityNotFound.Code == "0105"
 }

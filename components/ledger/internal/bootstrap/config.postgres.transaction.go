@@ -15,6 +15,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/dashboard"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -34,6 +35,7 @@ type transactionPostgresComponents struct {
 	operationRouteRepo   *operationroute.OperationRoutePostgreSQLRepository
 	transactionRouteRepo *transactionroute.TransactionRoutePostgreSQLRepository
 	quarantineRepo       *transactionquarantine.QuarantinePostgreSQLRepository
+	dashboardRepo        *dashboard.DashboardPostgreSQLRepository
 }
 
 // initTransactionPostgres initializes PostgreSQL components for the transaction domain.
@@ -92,6 +94,7 @@ func initTransactionMultiTenantPostgres(opts *Options, cfg *Config, logger libLo
 		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn, true),
 		transactionRouteRepo: transactionroute.NewTransactionRoutePostgreSQLRepository(conn, true),
 		quarantineRepo:       transactionquarantine.NewQuarantinePostgreSQLRepository(conn, true),
+		dashboardRepo:        dashboard.NewDashboardPostgreSQLRepository(conn, true),
 	}, nil
 }
 
@@ -111,6 +114,7 @@ func initTransactionSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*tr
 		operationRouteRepo:   operationroute.NewOperationRoutePostgreSQLRepository(conn),
 		transactionRouteRepo: transactionroute.NewTransactionRoutePostgreSQLRepository(conn),
 		quarantineRepo:       transactionquarantine.NewQuarantinePostgreSQLRepository(conn),
+		dashboardRepo:        dashboard.NewDashboardPostgreSQLRepository(conn),
 	}, nil
 }
 

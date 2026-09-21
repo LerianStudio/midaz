@@ -63,12 +63,31 @@ permissions:
   # streaming-manifest — event catalog (streaming_manifest_route.go:48)
   - { resource: streaming-manifest, action: get, effect: allow, roles: [editor, viewer] }
 
+  # dashboard — read-only aggregates over the validation trail (routes.go, the
+  # /v1/dashboard group). The figures are derived from the SAME rows the
+  # validations resource already exposes row by row, so the grant follows the
+  # validations/get tiers exactly: a role that may read a validation may read a
+  # count of validations, and a role that may not, may not. audit-viewer is
+  # included because it already reads the audit trail of those same decisions.
+  - { resource: dashboard, action: get, effect: allow, roles: [editor, validator, viewer, audit-viewer] }
+
 roles:
   # Group bindings are CONFIRMED against the central Access Manager seed
   # (caradhras, deploy/pam-seed/init_data.json): the real groups are
-  # tracer-{editor,contributor,viewer,validator,audit-viewer}-group. The manifest
-  # only REFERENCES pre-existing groups, it never creates them — a name absent
-  # from the seed reconciles into a role with zero members.
+  # tracer-{editor,contributor,viewer,validator,audit-viewer}-group, plus the
+  # platform-owned admin-group that editor, validator and audit-viewer are also
+  # granted to. The manifest only REFERENCES pre-existing groups, it never creates
+  # them — a name absent from the seed reconciles into a role with zero members.
+  #
+  # admin-group is the PLATFORM admin group (lerian/admin-group, seeded, holds the
+  # console admin in every tier), written BARE like every other group name here —
+  # the reconciler composes the "lerian/" owner. The seed already binds
+  # tracer-{editor,validator,audit-viewer}-role to it, so naming it here MIRRORS
+  # the seed rather than widening anything, and it is what lets those per-product
+  # admin rows retire without locking the platform admin out of the Tracer screens
+  # (decision of 2026-09-18, the br-sisbajud pattern). contributor and viewer are
+  # NOT granted to it, matching the seed: the three tiers above already cover
+  # everything they reach.
   #
   # All FIVE seeded tiers are declared, because once the tenant-manager's
   # template-origin prune runs, whatever this manifest does not declare stops
@@ -84,15 +103,21 @@ roles:
   - name: editor
     granted_to:
       - group: tracer-editor-group
+      # seed: tracer-editor-role -> lerian/admin-group (see the admin-group note above)
+      - group: admin-group
   - name: contributor
     granted_to:
       - group: tracer-contributor-group
   - name: validator
     granted_to:
       - group: tracer-validator-group
+      # seed: tracer-validator-role -> lerian/admin-group (see the admin-group note above)
+      - group: admin-group
   - name: audit-viewer
     granted_to:
       - group: tracer-audit-viewer-group
+      # seed: tracer-audit-viewer-role -> lerian/admin-group (see the admin-group note above)
+      - group: admin-group
   - name: viewer
     granted_to:
       - group: tracer-viewer-group

@@ -1642,52 +1642,6 @@ func TestTrimFeeSuffix(t *testing.T) {
 	}
 }
 
-// TestProcessAccount tests account processing
-func TestProcessAccount(t *testing.T) {
-	tests := []struct {
-		name            string
-		account         string
-		expectedAccount string
-		expectedSource  string
-		hasMetadata     bool
-	}{
-		{
-			name:            "Processa conta com fee_source",
-			account:         "@credit->fee_source1->@source->route",
-			expectedAccount: "@credit",
-			expectedSource:  "@source",
-			hasMetadata:     true,
-		},
-		{
-			name:            "Conta sem fee_source retorna original",
-			account:         "@account->route",
-			expectedAccount: "@account->route",
-			expectedSource:  "",
-			hasMetadata:     false,
-		},
-		{
-			name:            "Conta simples",
-			account:         "@account",
-			expectedAccount: "@account",
-			expectedSource:  "",
-			hasMetadata:     false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			account, metadata := processAccount(tt.account)
-			assert.Equal(t, tt.expectedAccount, account)
-			if tt.hasMetadata {
-				assert.NotNil(t, metadata["source"])
-				assert.Equal(t, tt.expectedSource, metadata["source"])
-			} else {
-				assert.Empty(t, metadata)
-			}
-		})
-	}
-}
-
 // TestUpdatedAmountsFromFee tests fee values update
 func TestUpdatedAmountsFromFee(t *testing.T) {
 	tests := []struct {
@@ -1726,7 +1680,7 @@ func TestUpdatedAmountsFromFee(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := updatedAmountsFromFee(tt.amounts)
+			result := updatedAmountsFromFee(tt.amounts, nil)
 			assert.Len(t, result, tt.expected)
 
 			if tt.expected > 0 {
@@ -2638,7 +2592,7 @@ func TestUpdatedAmountsFromFee_FeeLegMark(t *testing.T) {
 		"31":   {alias: "@collector", feeLeg: true, source: "@payer"}, // its collector mirror
 	}
 
-	result := updatedAmountsFromFee(amounts)
+	result := updatedAmountsFromFee(amounts, nil)
 	assert.Len(t, result, len(expected))
 
 	// Which expectations were consumed, so a result that returns one movement twice and drops
@@ -2679,6 +2633,104 @@ func TestUpdatedAmountsFromFee_FeeLegMark(t *testing.T) {
 	for value := range expected {
 		assert.Equal(t, 1, seen[value], "the movement of %s must appear exactly once", value)
 	}
+}
+
+func TestUpdatedAmountsFromFee_PreservesOriginalIdentityAndRoutesFeeLegs(t *testing.T) {
+	t.Parallel()
+
+	sourceRoute := uuid.NewString()
+	secondRoute := uuid.NewString()
+	feeRouteTo := uuid.NewString()
+	explicitFeeRouteFrom := uuid.NewString()
+	metadata := map[string]any{"reference": "customer-authored"}
+
+	originals := []transaction.FromTo{
+		{
+			AccountAlias:    "@payer",
+			BalanceKey:      "available",
+			Share:           &transaction.Share{Percentage: 60},
+			Description:     "primary payer",
+			ChartOfAccounts: "1000",
+			Metadata:        metadata,
+			IsFrom:          true,
+			RouteID:         &sourceRoute,
+		},
+		{
+			AccountAlias: "@payer",
+			BalanceKey:   "reserved",
+			Remaining:    "remaining",
+			Description:  "secondary payer",
+			IsFrom:       true,
+			RouteID:      &secondRoute,
+		},
+	}
+
+	amounts := map[string]transaction.Amount{
+		"0#@payer#available":                                         {Asset: "BRL", Value: decimal.NewFromInt(60)},
+		"1#@payer#reserved":                                          {Asset: "BRL", Value: decimal.NewFromInt(40)},
+		"0#@payer#available->fee0->":                                 {Asset: "BRL", Value: decimal.NewFromInt(3), FeeLeg: true},
+		"1#@payer#reserved->fee0->" + explicitFeeRouteFrom:           {Asset: "BRL", Value: decimal.NewFromInt(2), FeeLeg: true},
+		"@collector->fee_source0->0#@payer#available->" + feeRouteTo: {Asset: "BRL", Value: decimal.NewFromInt(5), FeeLeg: true},
+	}
+
+	result := updatedAmountsFromFee(amounts, originals)
+	require.Len(t, result, 5)
+
+	assert.Equal(t, "@payer", result[0].AccountAlias)
+	assert.Equal(t, "available", result[0].BalanceKey)
+	assert.Equal(t, "primary payer", result[0].Description)
+	assert.Equal(t, "1000", result[0].ChartOfAccounts)
+	assert.Equal(t, sourceRoute, *result[0].RouteID)
+	assert.Nil(t, result[0].Share)
+	assert.Empty(t, result[0].Remaining)
+	assert.Equal(t, "60", result[0].Amount.Value.String())
+	assert.Equal(t, "customer-authored", result[0].Metadata["reference"])
+
+	result[0].Metadata["reference"] = "changed"
+	assert.Equal(t, "customer-authored", metadata["reference"], "materialization must not mutate request metadata")
+
+	assert.Equal(t, "@payer", result[1].AccountAlias)
+	assert.Equal(t, "reserved", result[1].BalanceKey)
+	assert.Equal(t, secondRoute, *result[1].RouteID)
+	assert.Empty(t, result[1].Remaining)
+	assert.Equal(t, "40", result[1].Amount.Value.String())
+
+	byValue := make(map[string]transaction.FromTo, 3)
+	for _, leg := range result[2:] {
+		byValue[leg.Amount.Value.String()] = leg
+	}
+
+	inheritedDebit := byValue["3"]
+	assert.Equal(t, "@payer", inheritedDebit.AccountAlias)
+	assert.Equal(t, "available", inheritedDebit.BalanceKey)
+	require.NotNil(t, inheritedDebit.RouteID)
+	assert.Equal(t, sourceRoute, *inheritedDebit.RouteID)
+
+	explicitDebit := byValue["2"]
+	assert.Equal(t, "reserved", explicitDebit.BalanceKey)
+	require.NotNil(t, explicitDebit.RouteID)
+	assert.Equal(t, explicitFeeRouteFrom, *explicitDebit.RouteID, "explicit routeFrom must win over payer inheritance")
+
+	credit := byValue["5"]
+	assert.Equal(t, "@collector", credit.AccountAlias)
+	require.NotNil(t, credit.RouteID)
+	assert.Equal(t, feeRouteTo, *credit.RouteID)
+	assert.Equal(t, "@payer", credit.Metadata["source"])
+
+	for _, leg := range result[2:] {
+		assert.Equal(t, constant.MetadataValueFeeLeg, leg.Metadata[constant.MetadataKeyFeeLeg])
+	}
+}
+
+func TestUpdatedAmountsFromFee_DoesNotInventMissingFeeRoute(t *testing.T) {
+	t.Parallel()
+
+	result := updatedAmountsFromFee(map[string]transaction.Amount{
+		"@payer->fee0->": {Asset: "BRL", Value: decimal.NewFromInt(1), FeeLeg: true},
+	}, []transaction.FromTo{{AccountAlias: "@payer", IsFrom: true}})
+
+	require.Len(t, result, 1)
+	assert.Nil(t, result[0].RouteID)
 }
 
 // markFee builds one flat fee for the mark scenarios below. No route is configured on either

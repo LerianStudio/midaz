@@ -113,6 +113,10 @@ func (completer *tenantAppliedTransactionCompleter) resolveContext(ctx context.C
 		return ctx, nil
 	}
 
+	if tmcore.GetMBContext(ctx) != nil && tmcore.GetMBContext(ctx, constant.ModuleTransaction) != nil {
+		return ctx, nil
+	}
+
 	tenantID := tmcore.GetTenantIDContext(ctx)
 	if tenantID == "" || record == nil || record.TenantID != tenantID {
 		return nil, fmt.Errorf("balance recovery requires matching authenticated tenant context")

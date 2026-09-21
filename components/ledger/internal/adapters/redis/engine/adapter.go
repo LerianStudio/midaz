@@ -160,7 +160,14 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (r
 }
 
 func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, request accounting.Execution, keys []string, payload any) (*accounting.ExecutionResult, error) {
-	args := []any{payload, a.limits.MaxRequestBytes, a.limits.MaxPreparedBytes}
+	args := []any{
+		payload,
+		a.limits.MaxRequestBytes,
+		a.limits.MaxPreparedBytes,
+		a.limits.MaxTransactions,
+		a.limits.MaxPostings,
+		a.limits.MaxBalances,
+	}
 
 	for attempt := 0; attempt < 3; attempt++ {
 		if err := ctx.Err(); err != nil {
@@ -209,6 +216,12 @@ func executeAccounting(ctx context.Context, client *redis.Client, keys []string,
 	}
 
 	logger, _, _, factory := libObservability.NewTrackingFromContext(ctx)
+
+	startedAt := time.Now()
+	defer func() {
+		recordAccountingDuration(ctx, factory, logger, time.Since(startedAt))
+	}()
+
 	if factory != nil {
 		emitCounter(ctx, factory, logger, "engine_cas_attempts_total", "Accounting script attempts, including receipt replay and post-normalization execution but excluding NOSCRIPT fallback.", nil, 1)
 	}

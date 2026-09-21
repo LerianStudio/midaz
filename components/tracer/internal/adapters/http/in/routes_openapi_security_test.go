@@ -141,7 +141,7 @@ func TestSpecLock_PerOpSecurity(t *testing.T) {
 	}
 }
 
-// TestSpecLock_AllOpsSecurity asserts EVERY one of the 28 Huma operations
+// TestSpecLock_AllOpsSecurity asserts EVERY one of the 32 Huma operations
 // advertises its expected per-op Security requirement in the served spec. This
 // is the CI backstop the tracer lacks otherwise: the docs security-coverage gate
 // is ledger-only, so it never inspects the tracer spec. Without this table, a future edit could
@@ -191,9 +191,14 @@ func TestSpecLock_AllOpsSecurity(t *testing.T) {
 		{"/audit-events", http.MethodGet, bearerOrAPIKey},
 		{"/audit-events/{id}", http.MethodGet, bearerOrAPIKey},
 		{"/audit-events/{id}/verify", http.MethodGet, bearerOrAPIKey},
+		// dashboard (4)
+		{"/dashboard/metrics", http.MethodGet, bearerOrAPIKey},
+		{"/dashboard/volume", http.MethodGet, bearerOrAPIKey},
+		{"/dashboard/fraud-types", http.MethodGet, bearerOrAPIKey},
+		{"/dashboard/top-rules", http.MethodGet, bearerOrAPIKey},
 	}
 
-	require.Lenf(t, cases, 28, "the tracer has 28 protected Huma ops; keep this table complete")
+	require.Lenf(t, cases, 32, "the tracer has 32 protected Huma ops; keep this table complete")
 
 	for _, tc := range cases {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {

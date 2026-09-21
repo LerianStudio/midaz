@@ -21,12 +21,13 @@
 # the other direction: every seeded grant appears here, and every route-backed pair
 # appears here.
 #
-# ONE route-backed pair is NOT yet in the seed: (account-block-exceptions, post).
-# The resource is new here, so until the central seed (caradhras
-# deploy/pam-seed/init_data.json) grants it to the editor tier, the declaration is a
-# SUPERSET of the seed on that one pair rather than a mirror. The route enforces it
-# either way — an environment whose policy store has not learned the resource simply
-# answers 403, which is the fail-closed direction for a block bypass.
+# TWO route-backed pairs are NOT yet in the seed: (account-block-exceptions, post)
+# and (dashboard, get). Both resources are new here, so until the central seed
+# (caradhras deploy/pam-seed/init_data.json) grants them, the declaration is a
+# SUPERSET of the seed on those pairs rather than a mirror. The routes enforce
+# them either way — an environment whose policy store has not learned a resource
+# simply answers 403, which is the fail-closed direction for a block bypass and
+# for an aggregate money view alike.
 #
 # `resource` is written BARE — the central reconciler composes the "midaz/"
 # prefix. The `action` is the HTTP verb the guard authorizes under
@@ -105,6 +106,22 @@ permissions:
   - { resource: billing-packages, action: get,    effect: allow, roles: [editor, viewer] }
   - { resource: billing-packages, action: patch,  effect: allow, roles: [editor] }
   - { resource: billing-packages, action: delete, effect: allow, roles: [editor] }
+
+  # dashboard (dashboard_routes.go registerDashboardRoutesToApp; /v1 and /v2)
+  #
+  # A DEDICATED resource rather than a borrowed transactions/balances grant. The
+  # three reads publish AGGREGATE money figures over both tables, so folding them
+  # into either grant would silently widen what that grant means — a
+  # transactions:get would start disclosing balance positions. Read-only, so
+  # `get` is the only verb and all three tiers hold it.
+  #
+  # Like (account-block-exceptions, post) above, this pair is NOT yet in the
+  # central seed (caradhras deploy/pam-seed/init_data.json), so the declaration is
+  # a SUPERSET of the seed on it until that lands. A policy-enforcing environment
+  # whose store has not learned the resource answers 403, which is the
+  # fail-closed direction; components/ledger/docs/dashboard.md states the
+  # dependency for operators.
+  - { resource: dashboard, action: get, effect: allow, roles: [editor, contributor, viewer] }
 
   # encryption (encryption_routes.go registerEncryptionRoutesToApp)
   - { resource: encryption, action: post, effect: allow, roles: [editor, contributor] }
@@ -241,9 +258,19 @@ permissions:
 roles:
   # Group bindings are CONFIRMED against the central Access Manager seed
   # (caradhras, deploy/pam-seed/init_data.json): the real groups are
-  # midaz-{editor,contributor,viewer}-group. The manifest only REFERENCES
+  # midaz-{editor,contributor,viewer}-group, plus the platform-owned admin-group
+  # that the editor role is also granted to. The manifest only REFERENCES
   # pre-existing groups, it never creates them — a name absent from the seed
   # reconciles into a role with zero members.
+  #
+  # admin-group is the PLATFORM admin group (lerian/admin-group, seeded, holds the
+  # console admin in every tier), written BARE like every other group name here —
+  # the reconciler composes the "lerian/" owner. The seed already binds
+  # midaz-editor-role to it, so naming it here MIRRORS the seed rather than
+  # widening anything, and it is what lets those per-product admin rows retire
+  # without locking the platform admin out of the ledger screens (decision of
+  # 2026-09-18, the br-sisbajud pattern). contributor and viewer are NOT granted to
+  # it, matching the seed: the editor tier already covers everything they reach.
   #
   # All THREE seeded tiers are declared. `contributor` is not decorative: the
   # seed's midaz-contributor-role grants the full resource set at get/post/patch
@@ -254,6 +281,8 @@ roles:
   - name: editor
     granted_to:
       - group: midaz-editor-group
+      # seed: midaz-editor-role -> lerian/admin-group (see the admin-group note above)
+      - group: admin-group
   - name: contributor
     granted_to:
       - group: midaz-contributor-group

@@ -474,6 +474,12 @@ var (
 	ErrReadyzRedisPingFailed                  = errors.New("0494")
 	ErrReadyzTenantManagerUnavailable         = errors.New("0495")
 	ErrReadyzStreamingUnhealthy               = errors.New("0496")
+	// ErrInvalidDashboardWindow is returned when a dashboard read names an
+	// unsupported period, supplies period together with startDate/endDate, or
+	// asks for a range longer than 90 days. The window is what bounds every
+	// dashboard aggregation, so a window the service cannot honor is rejected
+	// rather than widened.
+	ErrInvalidDashboardWindow = errors.New("0498")
 	// 0499 is intentionally skipped: it is the last slot of the reserved Tracer platform block (0328-0499); 0500 starts fresh beyond all documented blocks.
 	ErrInvalidAccountTypeDirection = errors.New("0500")
 	// ErrSchemaMigrationPending is returned when a statement names a column the
@@ -556,29 +562,45 @@ var (
 	// snapshot is not a decimal. The request is refused rather than served, because
 	// feeding the engine the stale row is how a balance silently forks.
 	ErrBalanceSeedRebuildInconsistent = errors.New("0513")
+	// ErrTransactionBatchCardinality is returned when the atomic direct-v2 batch
+	// has no transactions or exceeds the configured maximum. Args: observed
+	// transaction count, then the effective maximum (1..50).
+	ErrTransactionBatchCardinality = errors.New("0514")
+	// ErrTransactionBatchInputLegsLimitExceeded is returned when the aggregate
+	// input debit and credit leg count exceeds the request-wide limit. Args:
+	// observed input leg count, then the effective maximum.
+	ErrTransactionBatchInputLegsLimitExceeded = errors.New("0515")
+	// ErrTransactionBatchBudgetExceeded is returned when derived preparation work
+	// first crosses a post-expansion budget. Args: budget dimension, zero-based
+	// transaction index, observed value, then the effective maximum.
+	ErrTransactionBatchBudgetExceeded = errors.New("0516")
+	// ErrTransactionBatchStructuralValidation is the batch-only primary error
+	// for aggregated item structural diagnostics. The individual diagnostics
+	// remain field details; this sentinel is never used by singular routes.
+	ErrTransactionBatchStructuralValidation = errors.New("0517")
 	// ErrAccountAlreadyClosed is returned when a close is requested for an account
 	// that already carries a closing instant. Closing is single-shot: the repeat is
 	// refused rather than treated as a no-op success, so a caller cannot read
 	// "closed just now" out of a response that describes a closing someone else
 	// performed. The recorded instant is preserved.
-	ErrAccountAlreadyClosed = errors.New("0514")
+	ErrAccountAlreadyClosed = errors.New("0521")
 	// ErrAccountClosingInProgress is returned when another administrative attempt
 	// already holds the account: a closing is being decided or finalized. Distinct
-	// from ErrAccountAlreadyClosed (0514), which reports a transition that already
+	// from ErrAccountAlreadyClosed (0521), which reports a transition that already
 	// landed; this one reports a decision still in flight, so the account may end
 	// up either open or closed.
-	ErrAccountClosingInProgress = errors.New("0515")
+	ErrAccountClosingInProgress = errors.New("0522")
 	// ErrAccountBalanceNotZero is returned when a close finds any balance of the
 	// account whose Available, OnHold or OverdraftUsed is not exactly zero. The
 	// three are checked individually and per balance: components are never
 	// compensated against each other, residuals are never rounded away, and an
 	// unused overdraft limit is not a debt.
-	ErrAccountBalanceNotZero = errors.New("0516")
+	ErrAccountBalanceNotZero = errors.New("0523")
 	// ErrAccountHasPendingTransactions is returned when a close finds a pending
 	// transaction still encumbering the account as source. Distinct from
-	// ErrAccountBalanceNotZero (0516): the monetary components can all read zero
+	// ErrAccountBalanceNotZero (0523): the monetary components can all read zero
 	// while a two-phase transaction is still able to move them.
-	ErrAccountHasPendingTransactions = errors.New("0517")
+	ErrAccountHasPendingTransactions = errors.New("0524")
 	// ErrAccountClosingPersistencePending is returned when a close cannot prove
 	// that earlier work finished: an execution is still in completion, or the
 	// persisted balances have not caught up with the live ones. The refusal is

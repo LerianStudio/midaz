@@ -33,7 +33,7 @@ type Limits struct {
 }
 
 const (
-	maxTransactionsPerExecution = 1
+	maxTransactionsPerExecution = 50
 	maxPostingsPerExecution     = 10_000
 	maxBalancesPerExecution     = 20_000
 	maxCompletionPlanBytes      = 32 * 1024 * 1024

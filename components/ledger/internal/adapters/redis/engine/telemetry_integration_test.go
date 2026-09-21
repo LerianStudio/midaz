@@ -68,6 +68,11 @@ func TestIntegration_AdapterExecute_IndeterminateMetrics(t *testing.T) {
 		}
 	}
 	require.Empty(t, wanted, "all outcome metrics must be emitted even after a lost response")
+	accounting, ok := findEngineHistogram(collected, accountingDuration.Name)
+	require.True(t, ok)
+	require.Len(t, accounting.DataPoints, 1)
+	require.Equal(t, uint64(1), accounting.DataPoints[0].Count)
+	require.Zero(t, accounting.DataPoints[0].Attributes.Len())
 }
 
 func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
@@ -149,7 +154,30 @@ func TestIntegration_AdapterExecute_PreparedMetricsAndReplay(t *testing.T) {
 		require.Equal(t, 2*want, histogram.DataPoints[0].Sum)
 		require.Zero(t, histogram.DataPoints[0].Attributes.Len())
 	}
+	require.Contains(t, observed, accountingDuration.Name)
+	accounting, ok := observed[accountingDuration.Name].Data.(metricdata.Histogram[int64])
+	require.True(t, ok)
+	require.Len(t, accounting.DataPoints, 1)
+	require.Equal(t, uint64(2), accounting.DataPoints[0].Count)
+	require.Zero(t, accounting.DataPoints[0].Attributes.Len())
 
 	require.NotContains(t, observed, "engine_failures_total")
 	require.NotContains(t, observed, "engine_indeterminate_total")
+}
+
+func findEngineHistogram(
+	data metricdata.ResourceMetrics,
+	name string,
+) (metricdata.Histogram[int64], bool) {
+	for _, scope := range data.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			if metric.Name == name {
+				value, ok := metric.Data.(metricdata.Histogram[int64])
+
+				return value, ok
+			}
+		}
+	}
+
+	return metricdata.Histogram[int64]{}, false
 }

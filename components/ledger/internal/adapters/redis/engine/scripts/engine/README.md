@@ -30,7 +30,8 @@ commands are not rolled back.
 
 The entrypoint tells one ordered story:
 
-1. `main` validates the three ARGV values, decodes the request, and calls
+1. `main` validates the six ARGV values (payload, byte budgets, and trusted
+   transaction/posting/balance limits), decodes the request, and calls
    `execute`.
 2. `prepareExecutionProtection` calls `storedReceipt` first. A valid receipt
    returns the exact prior response without loading balances. A new execution

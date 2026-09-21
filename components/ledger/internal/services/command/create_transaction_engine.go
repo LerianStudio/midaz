@@ -188,7 +188,11 @@ func (uc *UseCase) finalizeCreateEngineResult(ctx context.Context, logger libLog
 }
 
 func (uc *UseCase) prepareCreateEngineExecution(ctx context.Context, run *createTransactionRun) (enginePreparedTransaction, error) {
-	return uc.prepareEngineTransaction(ctx, enginePreparationInput{
+	return uc.prepareEngineTransaction(ctx, createEnginePreparationInput(run))
+}
+
+func createEnginePreparationInput(run *createTransactionRun) enginePreparationInput {
+	return enginePreparationInput{
 		organizationID: run.organizationID,
 		ledgerID:       run.ledgerID,
 		translation: EngineTranslationInput{
@@ -197,7 +201,7 @@ func (uc *UseCase) prepareCreateEngineExecution(ctx context.Context, run *create
 			TransactionInput:       run.input, Validate: run.validate,
 			AccountBlockExceptionGrant: run.accountBlockExceptionGrant,
 		},
-	})
+	}
 }
 
 func (uc *UseCase) buildCreateEngineExecution(run *createTransactionRun, frozen createBalanceExecutionContext, prepared enginePreparedTransaction) (PreparedEngineExecution, error) {
@@ -242,7 +246,7 @@ func (uc *UseCase) buildCreateEngineExecution(run *createTransactionRun, frozen 
 		CompletionPlans:   []CompletionPlanRecord{{TransactionID: run.transactionID, Payload: raw}},
 	}
 
-	return PreparedEngineExecution{Execution: execution, CompletionPlan: payload}, nil
+	return PreparedEngineExecution{Execution: execution, CompletionPlans: []TransactionCompletionPlan{payload}}, nil
 }
 
 // idempotencyRetentionSeconds accepts the repository's historical seconds-count
@@ -256,11 +260,11 @@ func idempotencyRetentionSeconds(ttl time.Duration) int64 {
 }
 
 func createEngineEnvelope(outcome EngineExecutionOutcome) (*TransactionCompletionRecord, error) {
-	if outcome.Result == nil || len(outcome.Prepared.Execution.CompletionPlans) != 1 {
+	if outcome.Result == nil || len(outcome.Prepared.Execution.CompletionPlans) != 1 || len(outcome.Prepared.CompletionPlans) != 1 {
 		return nil, invalidEngineResult(errors.New("successful create has no correlated recovery result"))
 	}
 
-	payload := outcome.Prepared.CompletionPlan
+	payload := outcome.Prepared.CompletionPlans[0]
 
 	return &TransactionCompletionRecord{
 		FormatVersion: TransactionCompletionFormatVersion,

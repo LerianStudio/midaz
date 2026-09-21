@@ -39,6 +39,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	dashboardCache "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/dashboard"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
@@ -51,6 +52,12 @@ import (
 )
 
 const ApplicationName = "ledger"
+
+const (
+	defaultTransactionBatchMaxSize = 10
+	minTransactionBatchMaxSize     = 1
+	maxTransactionBatchMaxSize     = 50
+)
 
 // Config is the unified configuration struct for the ledger component.
 // It merges all fields previously spread across onboarding, transaction, and ledger configs.
@@ -164,6 +171,10 @@ type Config struct {
 	TxnPrefixedMaxIdleConnections int `env:"DB_TRANSACTION_MAX_IDLE_CONNS"`
 
 	RouteTransactionalReadsToPrimary bool `env:"DB_TRANSACTION_ROUTE_TX_READS_TO_PRIMARY"`
+
+	// Atomic transaction batch admission. Operators may lower the effective
+	// cardinality but cannot raise it above the public contract ceiling.
+	TransactionBatchMaxSize int `env:"TRANSACTION_BATCH_MAX_SIZE"`
 
 	// --- Onboarding MongoDB fields (MONGO_ONBOARDING_* env tags) ---
 	OnbPrefixedMongoURI          string `env:"MONGO_ONBOARDING_URI"`
@@ -386,6 +397,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	applyConfigDefaults(cfg)
+
+	if err := validateTransactionBatchConfig(cfg); err != nil {
+		return nil, err
+	}
 
 	if err := validateBootAuthGates(cfg); err != nil {
 		return nil, err
@@ -860,15 +875,18 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		OnboardingMetadataRepo: onbMgo.metadataRepo,
 		OnboardingRedisRepo:    onbRedisRepo,
 		// Transaction domain
-		TransactionRepo:         txnPG.transactionRepo,
-		OperationRepo:           txnPG.operationRepo,
-		AssetRateRepo:           txnPG.assetRateRepo,
-		BalanceRepo:             txnPG.balanceRepo,
-		OperationRouteRepo:      txnPG.operationRouteRepo,
-		TransactionRouteRepo:    txnPG.transactionRouteRepo,
-		TransactionMetadataRepo: txnMgo.metadataRepo,
-		RabbitMQRepo:            rmq.producerRepo,
-		TransactionRedisRepo:    txnRedisRepo,
+		TransactionRepo:                       txnPG.transactionRepo,
+		OperationRepo:                         txnPG.operationRepo,
+		AssetRateRepo:                         txnPG.assetRateRepo,
+		BalanceRepo:                           txnPG.balanceRepo,
+		OperationRouteRepo:                    txnPG.operationRouteRepo,
+		TransactionRouteRepo:                  txnPG.transactionRouteRepo,
+		TransactionMetadataRepo:               txnMgo.metadataRepo,
+		RabbitMQRepo:                          rmq.producerRepo,
+		TransactionRedisRepo:                  txnRedisRepo,
+		AtomicTransactionBatchIdempotencyRepo: txnRedisRepo,
+		UUIDv7Generator:                       libCommons.GenerateUUIDv7,
+		Clock:                                 time.Now,
 		// Streaming
 		Streaming: streamingEmitter,
 		// Observability (D6)
@@ -896,6 +914,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		TransactionMetadataRepo: txnMgo.metadataRepo,
 		RabbitMQRepo:            rmq.producerRepo,
 		TransactionRedisRepo:    txnRedisRepo,
+		// Dashboard: the postgres repository behind its Valkey read-through
+		// cache. The decorator implements the same port, so nothing downstream
+		// learns whether an answer was computed or served; with no Valkey it
+		// passes straight through and the dashboard is slower, never wrong.
+		DashboardRepo: dashboardCache.NewDashboardCache(txnPG.dashboardRepo, redisConnection, 0, logger),
 		// Observability (D6)
 		MetricsFactory: metricsFactory,
 	}
@@ -913,6 +936,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// through the narrow TransactionReader port, satisfied directly by the query
 	// UseCase (signatures match), so command never imports the query package.
 	commandUseCase.TransactionReader = queryUseCase
+	commandUseCase.AtomicTransactionBatchProjectionReader = queryUseCase
 
 	// === CRM domain metrics (D6) ===
 	// The holder and instrument handlers share the SAME CRM use-case instance,
@@ -1012,10 +1036,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
 
 	// Transaction handlers
-	transactionHandler := &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase}
+	transactionHandler := &httpin.TransactionHandler{
+		Command:                 commandUseCase,
+		Query:                   queryUseCase,
+		TransactionBatchMaxSize: cfg.TransactionBatchMaxSize,
+	}
 	operationHandler := &httpin.OperationHandler{Command: commandUseCase, Query: queryUseCase}
 	assetRateHandler := &httpin.AssetRateHandler{Command: commandUseCase, Query: queryUseCase}
 	balanceHandler := &httpin.BalanceHandler{Command: commandUseCase, Query: queryUseCase}
+	dashboardHandler := &httpin.DashboardHandler{Query: queryUseCase}
 	operationRouteHandler := &httpin.OperationRouteHandler{Command: commandUseCase, Query: queryUseCase}
 	transactionRouteHandler := &httpin.TransactionRouteHandler{Command: commandUseCase, Query: queryUseCase}
 
@@ -1101,6 +1130,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		organizationHandler, ledgerHandler, portfolioHandler, segmentHandler, accountHandler, accountTypeHandler, accountBlockExceptionHandler, metadataIndexHandler, assetHandler, assetRateHandler,
 		balanceHandler, operationHandler, operationRouteHandler, transactionRouteHandler,
 		transactionHandler,
+		dashboardHandler,
 		crmMgo.holderHandler, crmMgo.instrumentHandler, holderAccountsHandler, crmMgo.encryptionHandler, crmMgo.auditHandler,
 		feePackageHandler, feeHandler, billingPackageHandler, billingCalculateHandler,
 		compositionHandler,
@@ -1790,6 +1820,7 @@ func buildHumaMountDeps(
 	operationRouteHandler *httpin.OperationRouteHandler,
 	transactionRouteHandler *httpin.TransactionRouteHandler,
 	transactionHandler *httpin.TransactionHandler,
+	dashboardHandler *httpin.DashboardHandler,
 	holderHandler *httpin.HolderHandler,
 	instrumentHandler *httpin.InstrumentHandler,
 	holderAccountsHandler *httpin.HolderAccountsHandler,
@@ -1824,6 +1855,8 @@ func buildHumaMountDeps(
 		TransactionRoute: transactionRouteHandler,
 
 		Transaction: transactionHandler,
+
+		Dashboard: dashboardHandler,
 
 		Holder:         holderHandler,
 		Instrument:     instrumentHandler,
@@ -1921,6 +1954,13 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.RedisMinRetryBackoff, 8)
 	intDefault(&cfg.RedisMaxRetryBackoff, 1)
 
+	// TransactionBatchMaxSize defaults to the operational limit when the
+	// environment variable is absent or blank. An explicit zero must survive to
+	// startup validation and fail closed instead of silently becoming 10.
+	if strings.TrimSpace(os.Getenv("TRANSACTION_BATCH_MAX_SIZE")) == "" {
+		cfg.TransactionBatchMaxSize = defaultTransactionBatchMaxSize
+	}
+
 	// Bulk Recorder defaults
 	// BulkRecorderEnabled defaults to true when the env var is not set or empty.
 	// This treats both unset and empty string as "use default" for safer behavior.
@@ -1965,6 +2005,20 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
 	intDefault(&cfg.BalanceSyncTTLKeepaliveIntervalMs, defaultKeepaliveIntervalMs)
+}
+
+func validateTransactionBatchConfig(cfg *Config) error {
+	if cfg.TransactionBatchMaxSize < minTransactionBatchMaxSize ||
+		cfg.TransactionBatchMaxSize > maxTransactionBatchMaxSize {
+		return fmt.Errorf(
+			"TRANSACTION_BATCH_MAX_SIZE must be between %d and %d, got %d",
+			minTransactionBatchMaxSize,
+			maxTransactionBatchMaxSize,
+			cfg.TransactionBatchMaxSize,
+		)
+	}
+
+	return nil
 }
 
 // buildTracerReserver constructs the tracer reservation HTTP client when the

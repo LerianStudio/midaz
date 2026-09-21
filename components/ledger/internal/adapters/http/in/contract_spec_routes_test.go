@@ -52,6 +52,8 @@ func unifiedHumaMountDeps(auth *middleware.AuthClient) HumaMountDeps {
 
 		Transaction: &TransactionHandler{},
 
+		Dashboard: &DashboardHandler{},
+
 		Holder:         &HolderHandler{},
 		Instrument:     &InstrumentHandler{},
 		HolderAccounts: &HolderAccountsHandler{},
@@ -288,10 +290,13 @@ func TestContractSpecMatchesRoutes(t *testing.T) {
 // TestUnifiedHumaContractIsSingleDocument locks the shape this harness must mirror
 // from the unified server (unified-server.go mountHumaContracts): ONE Huma document,
 // advertised at the root, whose operation paths carry the version segment. v1 and v2
-// share one component registry, so the union is a single spec — 124 path keys (55
-// under /v1, 69 under /v2), 199 operations — served on the single root server "/".
+// share one component registry, so the union is a single spec — 131 path keys (58
+// under /v1, 73 under /v2), 206 operations — served on the single root server "/".
 // CRM, fees/billing, composition and account-block-exceptions are /v2-only, so their keys
-// and operations count toward /v2 alone.
+// and operations count toward /v2 alone. The dashboard is the opposite case: three keys
+// and three operations on EACH version, because a new surface published on /v1 alone
+// would be born deprecated (MarkV1OperationsDeprecated) while /v1 is what the console
+// binds to.
 func TestUnifiedHumaContractIsSingleDocument(t *testing.T) {
 	t.Parallel()
 
@@ -315,10 +320,10 @@ func TestUnifiedHumaContractIsSingleDocument(t *testing.T) {
 		}
 	}
 
-	require.Len(t, doc.Paths, 124, "single document must enumerate every versioned path key")
-	require.Equal(t, 55, v1, "path keys under /v1")
-	require.Equal(t, 69, v2, "path keys under /v2")
-	require.Equal(t, 199, ops, "operations across both versions")
+	require.Len(t, doc.Paths, 131, "single document must enumerate every versioned path key")
+	require.Equal(t, 58, v1, "path keys under /v1")
+	require.Equal(t, 73, v2, "path keys under /v2")
+	require.Equal(t, 206, ops, "operations across both versions")
 
 	require.Len(t, doc.Servers, 1, "single document advertises exactly one server")
 	require.Equal(t, "/", doc.Servers[0].URL, "the version rides the operation path, so the server is the root")

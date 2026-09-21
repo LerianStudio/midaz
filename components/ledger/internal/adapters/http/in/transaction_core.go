@@ -20,8 +20,9 @@ import (
 )
 
 type TransactionHandler struct {
-	Command *command.UseCase
-	Query   *query.UseCase
+	Command                 *command.UseCase
+	Query                   *query.UseCase
+	TransactionBatchMaxSize int
 }
 
 // buildOverriddenTransaction builds the transaction from the input, forces

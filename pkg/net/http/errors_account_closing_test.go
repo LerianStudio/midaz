@@ -28,10 +28,10 @@ var accountClosingTuples = []struct {
 	code     string
 	status   int
 }{
-	{name: "already closed", sentinel: constant.ErrAccountAlreadyClosed, code: "0514", status: fiber.StatusConflict},
-	{name: "closing in progress", sentinel: constant.ErrAccountClosingInProgress, code: "0515", status: fiber.StatusConflict},
-	{name: "balance not zero", sentinel: constant.ErrAccountBalanceNotZero, code: "0516", status: fiber.StatusUnprocessableEntity},
-	{name: "pending transactions", sentinel: constant.ErrAccountHasPendingTransactions, code: "0517", status: fiber.StatusUnprocessableEntity},
+	{name: "already closed", sentinel: constant.ErrAccountAlreadyClosed, code: "0521", status: fiber.StatusConflict},
+	{name: "closing in progress", sentinel: constant.ErrAccountClosingInProgress, code: "0522", status: fiber.StatusConflict},
+	{name: "balance not zero", sentinel: constant.ErrAccountBalanceNotZero, code: "0523", status: fiber.StatusUnprocessableEntity},
+	{name: "pending transactions", sentinel: constant.ErrAccountHasPendingTransactions, code: "0524", status: fiber.StatusUnprocessableEntity},
 	{name: "persistence pending", sentinel: constant.ErrAccountClosingPersistencePending, code: "0518", status: fiber.StatusConflict},
 	{name: "movement on a closed account", sentinel: constant.ErrAccountClosed, code: "0519", status: fiber.StatusUnprocessableEntity},
 	{name: "protection indeterminate", sentinel: constant.ErrAccountClosingProtectionIndeterminate, code: "0520", status: fiber.StatusServiceUnavailable},

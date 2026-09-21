@@ -448,7 +448,7 @@ func TestIntegration_AdapterExecute_CorruptReceiptIsIndeterminate(t *testing.T) 
 func captureAdapterState(t *testing.T, client *redis.Client, keys resolvedExecutionKeys) map[string]any {
 	t.Helper()
 	state := make(map[string]any)
-	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards}
+	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards, keys.Protection}
 	for _, balance := range keys.Balances {
 		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
 	}

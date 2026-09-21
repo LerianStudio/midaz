@@ -20,6 +20,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	pkg "github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
@@ -278,7 +280,54 @@ func TestGetOrCreateTransactionRouteCache_TransactionRouteNotFound(t *testing.T)
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err, "should return error when route not found in DB")
-	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "error should be ErrDatabaseItemNotFound")
+	requireTransactionRouteNotFound(t, err, "error should carry the 404 identity of a missing transaction route")
+	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value cache struct")
+}
+
+// TestGetOrCreateTransactionRouteCache_DBNotFound_ReturnsTypedNotFound pins the HTTP identity of the
+// database not-found arm. The repository returns the typed business error (production shape) when a
+// transaction names a route owned by another ledger; the use case must hand that same typed error
+// back so the HTTP layer answers 404, not 500.
+func TestGetOrCreateTransactionRouteCache_DBNotFound_ReturnsTypedNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRedisRepo: mockRedisRepo,
+		TransactionRouteRepo: mockTransactionRouteRepo,
+	}
+
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), expectedKey).
+		Return(nil, goredis.Nil).
+		Times(1)
+
+	// Production shape: the PostgreSQL repository returns the typed business error.
+	mockTransactionRouteRepo.EXPECT().
+		FindByID(gomock.Any(), organizationID, ledgerID, transactionRouteID).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)).
+		Times(1)
+
+	mockRedisRepo.EXPECT().
+		SetBytes(gomock.Any(), expectedKey, []byte("NOT_FOUND"), sentinelTTL).
+		Return(nil).
+		Times(1)
+
+	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
+
+	var entityNotFound pkg.EntityNotFoundError
+
+	require.True(t, errors.As(err, &entityNotFound), "error must be a pkg.EntityNotFoundError so the HTTP layer answers 404")
+	assert.Equal(t, "0105", entityNotFound.Code, "error code must stay 0105 (transaction route not found)")
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value cache struct")
 }
 
@@ -374,7 +423,8 @@ func TestGetOrCreateTransactionRouteCache_CacheCreationFails(t *testing.T) {
 }
 
 // TestGetOrCreateTransactionRouteCache_CacheHit_NotFoundSentinel tests that when Redis returns the NOT_FOUND
-// sentinel value, the function returns ErrDatabaseItemNotFound immediately without making a DB call.
+// sentinel value, the function returns the transaction-route-not-found business error (0105)
+// immediately without making a DB call.
 func TestGetOrCreateTransactionRouteCache_CacheHit_NotFoundSentinel(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -401,7 +451,41 @@ func TestGetOrCreateTransactionRouteCache_CacheHit_NotFoundSentinel(t *testing.T
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err, "should return error when sentinel found in cache")
-	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "error should be ErrDatabaseItemNotFound from sentinel")
+	requireTransactionRouteNotFound(t, err, "sentinel hit should carry the 404 identity of a missing transaction route")
+	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value cache struct")
+}
+
+// TestGetOrCreateTransactionRouteCache_CacheHit_NotFoundSentinel_ReturnsTypedNotFound pins the HTTP
+// identity of the sentinel arm. A retry inside the sentinel TTL must answer 404 exactly like the first
+// attempt: this is the arm whose 500s opened client circuit breakers.
+func TestGetOrCreateTransactionRouteCache_CacheHit_NotFoundSentinel_ReturnsTypedNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	// No TransactionRouteRepo set — any DB touch fails the test.
+	uc := &UseCase{
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), expectedKey).
+		Return([]byte("NOT_FOUND"), nil).
+		Times(1)
+
+	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
+
+	var entityNotFound pkg.EntityNotFoundError
+
+	require.True(t, errors.As(err, &entityNotFound), "sentinel hit must be a pkg.EntityNotFoundError so the retry also answers 404")
+	assert.Equal(t, "0105", entityNotFound.Code, "error code must stay 0105 (transaction route not found)")
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value cache struct")
 }
 
@@ -446,7 +530,7 @@ func TestGetOrCreateTransactionRouteCache_CacheMiss_NotFound_StoresSentinel(t *t
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err, "should return error when route not found")
-	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "error should be ErrDatabaseItemNotFound")
+	requireTransactionRouteNotFound(t, err, "error should carry the 404 identity of a missing transaction route")
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value cache struct")
 }
 
@@ -561,7 +645,7 @@ func TestGetOrCreateTransactionRouteCache_SentinelSetBytesFails(t *testing.T) {
 	result, err := uc.GetOrCreateTransactionRouteCache(context.Background(), organizationID, ledgerID, transactionRouteID)
 
 	assert.Error(t, err, "should still return error when sentinel storage fails")
-	assert.Equal(t, services.ErrDatabaseItemNotFound, err, "error should be ErrDatabaseItemNotFound regardless of sentinel write failure")
+	requireTransactionRouteNotFound(t, err, "error should carry the 404 identity regardless of sentinel write failure")
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result, "result should be zero-value cache struct")
 }
 
@@ -617,4 +701,62 @@ func TestGetOrCreateTransactionRouteCache_ToCacheDataError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, mmodel.TransactionRouteCache{}, result)
+}
+
+// requireTransactionRouteNotFound asserts that err carries the 404 identity of a missing transaction
+// route: the typed pkg.EntityNotFoundError with code 0105. The type alone is not enough — the code is
+// what the HTTP layer maps to 404.
+func requireTransactionRouteNotFound(t *testing.T, err error, msgAndArgs ...any) {
+	t.Helper()
+
+	var entityNotFound pkg.EntityNotFoundError
+
+	require.True(t, errors.As(err, &entityNotFound), msgAndArgs...)
+	require.Equal(t, "0105", entityNotFound.Code, msgAndArgs...)
+}
+
+// TestGetOrCreateTransactionRouteCache_SentinelArmStaysCheap pins the one property that makes
+// negative caching worth having: a retry inside the sentinel TTL must cost almost nothing. The
+// arm touches no Postgres and no Redis write, so its rate is bounded only by the caller — which
+// is exactly the midaz#2506 shape, a plugin pointed at the wrong ledger retrying in a loop.
+//
+// pkg.ValidateBusinessError rebuilds midaz's entire 426-entry business-error catalogue, with all
+// of its fmt.Sprintf calls, on every invocation (~500 allocations, ~63 KB) before doing a single
+// map lookup. Calling it inside this arm would make the I/O-free shortcut the most expensive
+// branch in the function, so the error is built once at package level instead.
+func TestGetOrCreateTransactionRouteCache_SentinelArmStaysCheap(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	transactionRouteID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	// No TransactionRouteRepo set — any DB touch fails the test.
+	uc := &UseCase{
+		TransactionRedisRepo: mockRedisRepo,
+	}
+
+	expectedKey := utils.AccountingRoutesInternalKey(organizationID, ledgerID, transactionRouteID)
+
+	mockRedisRepo.EXPECT().
+		GetBytes(gomock.Any(), expectedKey).
+		Return([]byte("NOT_FOUND"), nil).
+		AnyTimes()
+
+	ctx := context.Background()
+
+	var lastErr error
+
+	allocs := testing.AllocsPerRun(20, func() {
+		_, lastErr = uc.GetOrCreateTransactionRouteCache(ctx, organizationID, ledgerID, transactionRouteID)
+	})
+
+	requireTransactionRouteNotFound(t, lastErr, "the cheap arm must still answer with the 404 identity")
+
+	// The ceiling is the error catalogue, not a micro-benchmark: rebuilding it costs ~500
+	// allocations, while the arm itself plus the gomock stub costs well under 100.
+	assert.Lessf(t, allocs, 100.0, "the sentinel arm allocated %.0f objects per call; it must not rebuild the business-error catalogue", allocs)
 }
