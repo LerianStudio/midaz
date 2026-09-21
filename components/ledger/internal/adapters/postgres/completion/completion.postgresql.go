@@ -638,6 +638,8 @@ func verifyTransaction(ctx context.Context, querier repository.DBQuerier, record
 }
 
 func verifyOperation(ctx context.Context, querier repository.DBQuerier, row *operation.Operation) error {
+	// recorded_at is intentionally excluded: rolling-upgrade records and legacy
+	// projections may be stamped by the repository fallback at different times.
 	columns := []string{"transaction_id", "description", "type", "asset_code", "amount", "available_balance", "on_hold_balance", "available_balance_after", "on_hold_balance_after", "status", "status_description", "account_id", "account_alias", "balance_id", "chart_of_accounts", "organization_id", "ledger_id", "created_at", "updated_at", "deleted_at", "route", "balance_affected", "balance_key", "balance_version_before", "balance_version_after", "direction", "route_id", "route_code", "route_description"}
 
 	balanceKey := row.BalanceKey
