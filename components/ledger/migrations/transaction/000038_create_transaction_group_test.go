@@ -21,7 +21,7 @@ func TestMigration000038_CreatesTransactionGroupLifecycleStore(t *testing.T) {
 	up, err := os.ReadFile(filepath.Join(dir, "000038_create_transaction_group.up.sql"))
 	require.NoError(t, err)
 
-	sql := strings.ToLower(string(up))
+	sql := strings.Join(strings.Fields(strings.ToLower(string(up))), " ")
 	for _, fragment := range []string{
 		"create table if not exists transaction_group",
 		"id uuid primary key",

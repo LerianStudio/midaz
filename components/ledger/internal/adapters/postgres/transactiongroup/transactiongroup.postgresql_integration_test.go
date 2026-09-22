@@ -8,6 +8,7 @@ package transactiongroup
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -50,14 +51,14 @@ func TestIntegration_TransactionGroup_LifecycleAndScope(t *testing.T) {
 
 	scoped, err := repo.Find(ctx, group.OrganizationID, group.LedgerID, group.ID)
 	require.NoError(t, err)
-	assert.Equal(t, group, scoped)
+	assertTransactionGroupEqual(t, group, scoped)
 
 	_, err = repo.Find(ctx, uuid.New(), group.LedgerID, group.ID)
 	require.Error(t, err)
 
 	unscoped, err := repo.FindByID(ctx, group.ID)
 	require.NoError(t, err)
-	assert.Equal(t, group, unscoped)
+	assertTransactionGroupEqual(t, group, unscoped)
 
 	updated, err := repo.UpdateStatus(ctx, group.ID, "PENDING", "APPROVED")
 	require.NoError(t, err)
@@ -70,4 +71,20 @@ func TestIntegration_TransactionGroup_LifecycleAndScope(t *testing.T) {
 	require.NoError(t, repo.Delete(ctx, group.ID))
 	_, err = repo.FindByID(ctx, group.ID)
 	require.Error(t, err)
+}
+
+func assertTransactionGroupEqual(t *testing.T, want, got *TransactionGroup) {
+	t.Helper()
+	require.NotNil(t, got)
+	assert.Equal(t, want.ID, got.ID)
+	assert.Equal(t, want.OrganizationID, got.OrganizationID)
+	assert.Equal(t, want.LedgerID, got.LedgerID)
+	assert.Equal(t, want.Status, got.Status)
+	assert.Equal(t, want.AssetCode, got.AssetCode)
+	assert.JSONEq(t, string(want.Intent), string(got.Intent))
+	assert.True(t, want.CreatedAt.Equal(got.CreatedAt))
+	assert.True(t, want.UpdatedAt.Equal(got.UpdatedAt))
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(got.Intent, &decoded))
 }

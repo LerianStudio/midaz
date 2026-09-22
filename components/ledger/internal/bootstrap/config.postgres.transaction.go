@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -29,6 +30,7 @@ type transactionPostgresComponents struct {
 	connection           *libPostgres.Client
 	pgManager            *tmpostgres.Manager // nil in single-tenant mode; used by TenantMiddleware
 	transactionRepo      *transaction.TransactionPostgreSQLRepository
+	transactionGroupRepo *transactiongroup.TransactionGroupPostgreSQLRepository
 	operationRepo        *operation.OperationPostgreSQLRepository
 	assetRateRepo        *assetrate.AssetRatePostgreSQLRepository
 	balanceRepo          *balance.BalancePostgreSQLRepository
@@ -88,6 +90,7 @@ func initTransactionMultiTenantPostgres(opts *Options, cfg *Config, logger libLo
 		connection:           conn,
 		pgManager:            pgMgr,
 		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary, true),
+		transactionGroupRepo: transactiongroup.NewTransactionGroupPostgreSQLRepository(conn, true),
 		operationRepo:        operation.NewOperationPostgreSQLRepository(conn, true),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn, true),
 		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary, true),
@@ -108,6 +111,7 @@ func initTransactionSingleTenantPostgres(cfg *Config, logger libLog.Logger) (*tr
 	return &transactionPostgresComponents{
 		connection:           conn,
 		transactionRepo:      transaction.NewTransactionPostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary),
+		transactionGroupRepo: transactiongroup.NewTransactionGroupPostgreSQLRepository(conn),
 		operationRepo:        operation.NewOperationPostgreSQLRepository(conn),
 		assetRateRepo:        assetrate.NewAssetRatePostgreSQLRepository(conn),
 		balanceRepo:          balance.NewBalancePostgreSQLRepository(conn, cfg.RouteTransactionalReadsToPrimary),

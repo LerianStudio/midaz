@@ -27,6 +27,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
@@ -64,6 +65,10 @@ type UseCase struct {
 
 	// TransactionRepo provides an abstraction on top of the transaction data source.
 	TransactionRepo transaction.Repository
+
+	// TransactionGroupRepo persists normalized cross-ledger hold intent and its
+	// PENDING-to-terminal lifecycle state.
+	TransactionGroupRepo transactiongroup.Repository
 
 	// OperationRepo provides an abstraction on top of the operation data source.
 	OperationRepo operation.Repository
