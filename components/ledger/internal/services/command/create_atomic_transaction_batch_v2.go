@@ -18,6 +18,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -158,6 +159,11 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 		return replay, nil
 	}
 
+	// Cache-miss seeds are admitted inside the engine, so keep every account
+	// ownership taken by the batch loads until the single execution answers.
+	ctx, admissions := accountprotection.ContextWithSink(ctx)
+	defer admissions.Release(ctx)
+
 	phaseStartedAt = time.Now()
 	if err := uc.initializeAtomicTransactionBatchItemsAndSettings(ctx, in, run); err != nil {
 		uc.recordAtomicTransactionBatchPhaseDuration(ctx, "preparation", time.Since(phaseStartedAt))
@@ -210,7 +216,7 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 	}
 
 	phaseStartedAt = time.Now()
-	outcome, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, prepared)
+	outcome, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, prepared, admissions)
 	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "accounting", time.Since(phaseStartedAt))
 
 	if err != nil {

@@ -21,8 +21,8 @@ import (
 // singular precedence of malformed JSON, unknown fields, and struct tags.
 func decodeCreateTransactionV2Body(rawBody []byte) (CreateTransactionV2Request, error) {
 	var input CreateTransactionV2Request
-	if _, err := pkgHTTP.DecodeAndValidate(rawBody, &input); err != nil {
-		return CreateTransactionV2Request{}, err
+	if _, details, err := pkgHTTP.DecodeAndValidateWithDetails(rawBody, &input); err != nil {
+		return CreateTransactionV2Request{}, pkg.WithFieldErrors(err, details)
 	}
 
 	return input, nil
@@ -169,6 +169,7 @@ func normalizeTransactionV2Leg(asset string, defaultOperationRouteID *string, le
 
 	built := mtransaction.FromTo{
 		AccountAlias: leg.Alias,
+		BalanceKey:   leg.BalanceKey,
 		Description:  leg.Description,
 		RouteID:      cloneStringPtr(route),
 		IsFrom:       isFrom,

@@ -105,8 +105,8 @@ type CreateTransactionV2Request struct {
 }
 
 // TransactionV2LegRequest is one leg of a transaction side. Exactly ONE value expression per leg:
-// an explicit Amount or a Share of the transaction total. The leg exposes no
-// balance key, chart of accounts or metadata.
+// an explicit Amount or a Share of the transaction total. The leg exposes an
+// optional balance key, but no chart of accounts or metadata.
 // It is published as V2LegInput to preserve the existing OpenAPI contract.
 type TransactionV2LegRequest struct {
 	// Alias is the leg's account alias. The obligation is enforced BOTH by this tag and by
@@ -117,6 +117,11 @@ type TransactionV2LegRequest struct {
 	// know. The doc tag publishes the rule so a client reads it instead of discovering it by
 	// rejection.
 	Alias string `json:"alias" validate:"required" example:"@person1" doc:"The leg's account alias. Accepts letters, digits and the characters @ : _ and -, or an external account alias spelled @external/ followed by the uppercase asset code. Any other spelling is refused with 400 before the transaction is calculated."`
+
+	// BalanceKey selects one balance of the account. An omitted key stays empty at
+	// the transport boundary and is resolved to `default` by ApplyDefaultBalanceKeys,
+	// keeping one downstream source of truth for the defaulting rule.
+	BalanceKey string `json:"balanceKey,omitempty" validate:"omitempty,nowhitespaces,max=100" maxLength:"100" example:"food" doc:"Optional balance key for this leg. When omitted, the transaction uses the account's default balance."`
 
 	// Description is the leg's own operation description, persisted on the operation this leg
 	// produces. A leg that omits it produces an operation carrying the TRANSACTION-level

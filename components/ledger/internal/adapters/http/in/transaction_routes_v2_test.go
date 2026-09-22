@@ -1019,6 +1019,23 @@ func TestRegisterTransactionV2Routes_LegComponentDescribesValueExpressions(t *te
 		"%s must not publish a remaining expression: a remaining leg commits an unbalanced transaction", v2LegSchemaName)
 }
 
+func TestRegisterTransactionV2Routes_LegComponentPublishesBalanceKey(t *testing.T) {
+	t.Parallel()
+
+	schema, ok := registerIsolatedV2TransactionContractForTest().Components.Schemas.Map()[v2LegSchemaName]
+	require.Truef(t, ok, "v2 contract should publish the leg component %s", v2LegSchemaName)
+	require.NotNilf(t, schema, "published %s component should not be nil", v2LegSchemaName)
+
+	property, ok := schema.Properties["balanceKey"]
+	require.True(t, ok, "V2LegInput must publish the optional balanceKey")
+	require.NotNil(t, property)
+	require.NotNil(t, property.MaxLength, "balanceKey must publish its validation ceiling")
+	assert.EqualValues(t, 100, *property.MaxLength)
+	assert.NotContains(t, schema.Required, "balanceKey", "balanceKey is optional")
+	assert.Contains(t, schema.Description, "default",
+		"the leg prose must explain the omitted balanceKey behavior")
+}
+
 // TestRegisterTransactionV2Routes_ComponentRequiredFields locks the `required` list of every
 // published v2 request component.
 func TestRegisterTransactionV2Routes_ComponentRequiredFields(t *testing.T) {

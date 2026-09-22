@@ -250,7 +250,8 @@ const v2CreateBodyDescription = "Transaction request body. `debits` and `credits
 // structural expression in the schema and has to be stated here.
 const v2LegDescription = "One leg of a transaction side. Fill EXACTLY ONE value expression " +
 	"per leg: `amount` for an explicit value, or `share` for a percentage of the transaction " +
-	"total. A leg carrying both, or neither, is rejected."
+	"total. A leg carrying both, or neither, is rejected. `balanceKey` optionally selects one " +
+	"of the account's balances; when omitted, the `default` balance is used."
 
 // publishV2CreateBodySchema replaces the opaque request-body schema of the v2 create ops
 // with a $ref to the typed v2 input component, so the contract documents the accepted

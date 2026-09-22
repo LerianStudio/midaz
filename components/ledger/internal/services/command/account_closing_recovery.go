@@ -191,16 +191,18 @@ func recoveryRecordTouchesAccount(raw []byte, allowLegacy bool, organizationID, 
 }
 
 func engineRecoveryRecordTouchesAccount(raw []byte, organizationID, ledgerID, accountID uuid.UUID) (bool, error) {
-	envelope, err := DecodeTransactionCompletionRecord(raw)
+	writeBehind, err := DecodeTransactionWriteBehindEnvelope(raw)
 	if err != nil {
 		return false, fmt.Errorf("decode engine recovery record: %w", err)
 	}
 
-	if envelope.OrganizationID != organizationID || envelope.LedgerID != ledgerID {
+	record := writeBehind.Record
+
+	if record.OrganizationID != organizationID || record.LedgerID != ledgerID {
 		return false, nil
 	}
 
-	plan, err := DecodeTransactionCompletionPlan([]byte(envelope.Payload))
+	plan, err := DecodeTransactionCompletionPlan([]byte(record.Payload))
 	if err != nil {
 		return false, fmt.Errorf("decode engine recovery plan: %w", err)
 	}

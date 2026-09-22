@@ -5090,7 +5090,7 @@ components:
       type: object
     V2LegInput:
       additionalProperties: false
-      description: "One leg of a transaction side. Fill EXACTLY ONE value expression per leg: `amount` for an explicit value, or `share` for a percentage of the transaction total. A leg carrying both, or neither, is rejected."
+      description: "One leg of a transaction side. Fill EXACTLY ONE value expression per leg: `amount` for an explicit value, or `share` for a percentage of the transaction total. A leg carrying both, or neither, is rejected. `balanceKey` optionally selects one of the account's balances; when omitted, the `default` balance is used."
       properties:
         alias:
           description: "The leg's account alias. Accepts letters, digits and the characters @ : _ and -, or an external account alias spelled @external/ followed by the uppercase asset code. Any other spelling is refused with 400 before the transaction is calculated."
@@ -5098,6 +5098,12 @@ components:
             - "@person1"
           type: string
         amount:
+          type: string
+        balanceKey:
+          description: Optional balance key for this leg. When omitted, the transaction uses the account's default balance.
+          examples:
+            - food
+          maxLength: 100
           type: string
         description:
           maxLength: 256

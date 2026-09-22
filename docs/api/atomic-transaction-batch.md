@@ -19,7 +19,7 @@ v2 request model together with the action and explicit logical order:
       "description": "credit first",
       "asset": "BRL",
       "amount": "10",
-      "debits": [{"alias": "@cash", "organizationId": "00000000-0000-0000-0000-000000000001", "ledgerId": "00000000-0000-0000-0000-000000000002", "amount": "10"}],
+      "debits": [{"alias": "@cash", "organizationId": "00000000-0000-0000-0000-000000000001", "ledgerId": "00000000-0000-0000-0000-000000000002", "balanceKey": "available", "amount": "10"}],
       "credits": [{"alias": "@customer", "organizationId": "00000000-0000-0000-0000-000000000001", "ledgerId": "00000000-0000-0000-0000-000000000002", "amount": "10"}]
     }
   ]
@@ -28,6 +28,10 @@ v2 request model together with the action and explicit logical order:
 
 Every item must resolve to the same organization and ledger. The endpoint has no
 path or query parameters; scope is taken from the validated transaction legs. It
+accepts an optional `balanceKey` on every debit or credit leg; an omitted key uses
+the account's `default` balance. A supplied key selects that named balance and is
+returned in the resulting operation. The key cannot contain whitespace and is
+limited to 100 characters. The endpoint
 uses the same `midaz/transactions/post` authorization chain and per-item v2 fee,
 Tracer, route, overdraft, skip, and account-block-exception rules. `action` is
 either `direct` or `hold`; a hold is returned initially as `PENDING` and is later
@@ -103,6 +107,11 @@ zero-based transaction index and then field location, each naming its logical or
 when that order is valid; they are capped at 100 entries with an explicit truncation
 marker. State-dependent preparation and accounting stop at the first failing item in
 logical order.
+
+Account-closing protection applies to the batch as one execution. If any item
+touches a closed account, the whole batch is refused with `0519` / HTTP 422; an
+account whose closing is in progress refuses the whole batch with `0522` / HTTP
+409. Neither refusal applies any item or exposes a committed prefix.
 
 | Boundary | Effective limit | Failure |
 | --- | ---: | --- |

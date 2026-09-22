@@ -6,6 +6,7 @@ package in
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -155,6 +156,61 @@ func TestTransactionV2LegRequest_DescriptionLengthBound(t *testing.T) {
 			}
 
 			require.NoError(t, err, "a %d-character leg description must be accepted", tt.length)
+		})
+	}
+}
+
+func TestTransactionV2LegRequest_BalanceKeyValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		balanceKey   string
+		credit       bool
+		wantErr      bool
+		wantLocation string
+	}{
+		{name: "named balance", balanceKey: "food"},
+		{name: "at the length cap", balanceKey: strings.Repeat("k", 100)},
+		{name: "debit leading whitespace", balanceKey: " food", wantErr: true, wantLocation: "debits[0].balanceKey"},
+		{name: "credit one past the length cap", balanceKey: strings.Repeat("k", 101), credit: true, wantErr: true, wantLocation: "credits[0].balanceKey"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			debitBalanceKey := `,"balanceKey":"` + tt.balanceKey + `"`
+			creditBalanceKey := ""
+			if tt.credit {
+				debitBalanceKey, creditBalanceKey = "", debitBalanceKey
+			}
+
+			body := `{"asset":"BRL","amount":"100",` +
+				`"debits":[{"alias":"@srcA",` + scopeJSON + `,"amount":"100"` + debitBalanceKey + `}],` +
+				`"credits":[{"alias":"@dstA",` + scopeJSON + `,"amount":"100"` + creditBalanceKey + `}]}`
+
+			input, err := decodeCreateTransactionV2Body([]byte(body))
+			if !tt.wantErr {
+				require.NoError(t, err)
+				if tt.credit {
+					require.Len(t, input.Credits, 1)
+					assert.Equal(t, tt.balanceKey, input.Credits[0].BalanceKey)
+				} else {
+					require.Len(t, input.Debits, 1)
+					assert.Equal(t, tt.balanceKey, input.Debits[0].BalanceKey)
+				}
+
+				return
+			}
+
+			require.Error(t, err)
+			problem, ok := nethttp.HumaProblem(err).(*nethttp.Detail)
+			require.True(t, ok)
+			require.Equal(t, http.StatusBadRequest, problem.Status)
+			require.NotEmpty(t, problem.Errors)
+			assert.Equal(t, tt.wantLocation, problem.Errors[0].Location,
+				"the 400 response must identify the indexed leg field")
 		})
 	}
 }
