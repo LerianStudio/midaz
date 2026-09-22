@@ -583,3 +583,38 @@ func transitionBalance(organizationID, ledgerID uuid.UUID, id, alias string, ava
 }
 
 var _ EngineGuardBootstrapper = (*transitionEngineExecutor)(nil)
+
+func TestPendingTransitionV1_CrossLedgerGroupRequiresV2BeforeLock(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		invoke func(*UseCase, context.Context, PendingTransitionInput) (*transaction.Transaction, error)
+	}{
+		{name: "commit", invoke: (*UseCase).CommitTransactionV1},
+		{name: "cancel", invoke: (*UseCase).CancelTransactionV1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+			groupID := uuid.New().String()
+			pending := &transaction.Transaction{
+				ID: in.TransactionID.String(), OrganizationID: in.OrganizationID.String(), LedgerID: in.LedgerID.String(),
+				Status: transaction.Status{Code: constant.PENDING}, GroupID: &groupID,
+			}
+			reader := &transitionEngineReader{writeBehind: pending, persisted: pending}
+			executor := &transitionEngineExecutor{t: t}
+
+			ctrl := gomock.NewController(t)
+			redisRepo := txRedis.NewMockRedisRepository(ctrl)
+			redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			uc := &UseCase{TransactionReader: reader, TransactionRedisRepo: redisRepo, Engine: executor}
+
+			_, err := tc.invoke(uc, t.Context(), in)
+			require.Error(t, err)
+
+			var business pkg.UnprocessableOperationError
+			require.ErrorAs(t, err, &business, "expected HTTP 422 business error, got %T", err)
+			assert.Equal(t, constant.ErrCrossLedgerLifecycleRequiresV2.Error(), business.Code)
+			assert.Empty(t, executor.requests)
+			assert.Empty(t, executor.guardCalls)
+		})
+	}
+}
