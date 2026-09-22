@@ -484,6 +484,19 @@ func TestPendingTransitionRejectsTerminalSQLAndResolvesGuardConflict(t *testing.
 		assert.Len(t, executor.requests, 1)
 	})
 
+	t.Run("transaction state conflict with pending SQL is locked", func(t *testing.T) {
+		uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
+		executor.before = func(EngineExecution) error {
+			return testEngineTechnicalError{code: "transaction_state_conflict", cause: errors.New("transaction state changed")}
+		}
+		uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+		_, err := uc.CommitTransactionV1(context.Background(), in)
+		assertBusinessCode(t, err, constant.ErrPendingTransactionLocked.Error())
+		assert.Equal(t, 2, reader.persistedReads)
+		assert.Len(t, executor.requests, 1)
+	})
+
 	t.Run("guard conflict with terminal SQL is not pending", func(t *testing.T) {
 		uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.APPROVED)
 		executor.before = func(EngineExecution) error {
