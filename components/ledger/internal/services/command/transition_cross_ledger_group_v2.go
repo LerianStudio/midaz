@@ -8,13 +8,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
+
+type crossLedgerPendingGroupPart struct {
+	intent     CrossLedgerGroupIntentPart
+	member     *transaction.Transaction
+	run        *pendingTransitionRun
+	transition pendingEngineTransition
+	prepared   PreparedEngineExecution
+}
 
 func (uc *UseCase) transitionCrossLedgerGroupV2(
 	ctx context.Context,
@@ -22,6 +35,10 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	target *transaction.Transaction,
 	status string,
 ) (*CreateAtomicTransactionBatchV2Result, error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	ctx, span := tracer.Start(ctx, "command.transition_cross_ledger_group_v2")
+	defer span.End()
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -51,6 +68,420 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 			group.Status,
 		)
 	}
+	if status != constant.APPROVED && status != constant.CANCELED {
+		return nil, fmt.Errorf("unsupported cross-ledger group transition status %q", status)
+	}
+	if uc.Engine == nil {
+		return nil, errors.New("cross-ledger group lifecycle engine is not configured")
+	}
+	if isNilAppliedTransactionCompleter(uc.AppliedTransactionCompleter) {
+		return nil, errors.New("cross-ledger group lifecycle completer is not configured")
+	}
 
-	return nil, errors.New("cross-ledger group lifecycle execution is not configured")
+	intent, err := decodeCrossLedgerGroupIntent(group.Intent)
+	if err != nil {
+		return nil, fmt.Errorf("decode cross-ledger transaction group %s: %w", groupID, err)
+	}
+	if group.AssetCode != intent.Asset || group.OrganizationID == uuid.Nil || group.LedgerID == uuid.Nil {
+		return nil, pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+	}
+
+	reader, ok := uc.TransactionReader.(TransactionGroupReader)
+	if !ok {
+		return nil, errors.New("cross-ledger transaction group reader is not configured")
+	}
+	members, err := reader.FindTransactionsByGroupID(readrouting.WithPrimaryRead(ctx), groupID)
+	if err != nil {
+		return nil, err
+	}
+	origins, err := orderCrossLedgerPendingGroupParts(*intent, groupID, in.TransactionID, members)
+	if err != nil {
+		return nil, err
+	}
+
+	releaseLocks, err := uc.lockCrossLedgerPendingGroup(ctx, span, logger, origins, status)
+	if err != nil {
+		return nil, err
+	}
+	releaseOnPreparationError := true
+	defer func() {
+		if releaseOnPreparationError {
+			releaseLocks()
+		}
+	}()
+
+	for index := range origins {
+		part := &origins[index]
+		if status == constant.APPROVED && part.member.ID == in.TransactionID.String() {
+			part.run.accountBlockExceptionID = cloneUUIDPointer(in.AccountBlockExceptionID)
+		}
+		part.run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(
+			ctx,
+			span,
+			logger,
+			part.run.organizationID,
+			part.run.ledgerID,
+			part.run.accountBlockExceptionID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		part.transition, err = uc.preparePendingEngineTransition(ctx, part.run)
+		if err != nil {
+			return nil, err
+		}
+		engineState, prepareErr := uc.prepareEngineTransaction(ctx, enginePreparationInput{
+			organizationID: part.run.organizationID,
+			ledgerID:       part.run.ledgerID,
+			translation: EngineTranslationInput{
+				TransactionID:              part.transition.transactionID,
+				Action:                     part.transition.action,
+				TransactionStatus:          status,
+				RouteValidationEnabled:     part.transition.ledgerSettings.Accounting.ValidateRoutes,
+				TransactionInput:           part.transition.input,
+				Validate:                   part.transition.validate,
+				AccountBlockExceptionGrant: part.run.accountBlockExceptionGrant,
+			},
+		})
+		if prepareErr != nil {
+			return nil, prepareErr
+		}
+		part.prepared, err = buildPendingEngineExecution(
+			part.transition.persisted,
+			part.transition.input,
+			part.transition.validate,
+			engineState,
+			part.transition.stableContext,
+			part.transition.action,
+			part.transition.dependencies,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var destinationRun *atomicTransactionBatchRun
+	var destinationPrepared PreparedEngineExecution
+	if status == constant.APPROVED {
+		destinationRun, destinationPrepared, err = uc.prepareCrossLedgerGroupDestinations(ctx, span, logger, groupID, *intent)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	executionID, err := crossLedgerGroupExecutionID(uc, destinationRun)
+	if err != nil {
+		return nil, err
+	}
+	fragments := make([]PreparedEngineExecution, 0, len(origins)+1)
+	for index := range origins {
+		fragments = append(fragments, origins[index].prepared)
+	}
+	if destinationRun != nil {
+		fragments = append(fragments, destinationPrepared)
+	}
+	prepared, err := buildCrossLedgerGroupExecution(
+		group.OrganizationID,
+		group.LedgerID,
+		groupID,
+		executionID,
+		fragments,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if destinationRun != nil {
+		if err := uc.reserveAtomicTransactionBatch(ctx, span, logger, destinationRun); err != nil {
+			return nil, err
+		}
+	}
+
+	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)
+	if executeErr != nil {
+		confirmedAbort := !outcome.Executed || confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr)
+		if confirmedAbort {
+			if destinationRun != nil {
+				uc.settleAtomicTransactionBatchReservations(
+					ctx, span, logger, destinationRun, atomicTransactionBatchReservationConfirmedAbort,
+				)
+			}
+			return nil, MapEngineError(prepared.Execution.Execution, executeErr)
+		}
+
+		releaseOnPreparationError = false
+		return nil, MapEngineError(prepared.Execution.Execution, executeErr)
+	}
+	releaseOnPreparationError = false
+
+	transactions, err := uc.completeCrossLedgerGroupTransition(ctx, logger, outcome)
+	if err != nil {
+		return nil, err
+	}
+	if destinationRun != nil {
+		uc.settleAtomicTransactionBatchReservations(
+			ctx, span, logger, destinationRun, atomicTransactionBatchReservationKnownSuccess,
+		)
+	}
+	uc.settleCrossLedgerOriginReservations(ctx, span, logger, status, origins)
+
+	updated, err := uc.TransactionGroupRepo.UpdateStatus(ctx, groupID, constant.PENDING, status)
+	if err != nil {
+		return nil, err
+	}
+	if !updated {
+		return nil, errors.New("cross-ledger transaction group status compare-and-swap did not update")
+	}
+
+	return &CreateAtomicTransactionBatchV2Result{
+		BatchID:      groupID,
+		Transactions: transactions,
+	}, nil
+}
+
+func orderCrossLedgerPendingGroupParts(
+	intent CrossLedgerGroupIntent,
+	groupID, requestedID uuid.UUID,
+	members []*transaction.Transaction,
+) ([]crossLedgerPendingGroupPart, error) {
+	originParts := make([]CrossLedgerGroupIntentPart, 0)
+	for _, part := range intent.Parts {
+		if part.Role == CrossLedgerGroupRoleOrigin {
+			originParts = append(originParts, part)
+		}
+	}
+	if len(originParts) == 0 || len(originParts) != len(members) {
+		return nil, pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+	}
+
+	byScope := make(map[atomicTransactionBatchLedgerRef]*transaction.Transaction, len(members))
+	requestedFound := false
+	for _, member := range members {
+		if member == nil || member.GroupID == nil || *member.GroupID != groupID.String() {
+			return nil, pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+		}
+		organizationID, organizationErr := uuid.Parse(member.OrganizationID)
+		ledgerID, ledgerErr := uuid.Parse(member.LedgerID)
+		transactionID, transactionErr := uuid.Parse(member.ID)
+		if organizationErr != nil || ledgerErr != nil || transactionErr != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+		}
+		ref := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: ledgerID}
+		if _, duplicate := byScope[ref]; duplicate {
+			return nil, pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+		}
+		byScope[ref] = member
+		requestedFound = requestedFound || transactionID == requestedID
+	}
+	if !requestedFound {
+		return nil, pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+	}
+
+	ordered := make([]crossLedgerPendingGroupPart, len(originParts))
+	for index, part := range originParts {
+		ref := atomicTransactionBatchLedgerRef{organizationID: part.OrganizationID, ledgerID: part.LedgerID}
+		member := byScope[ref]
+		if member == nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+		}
+		ordered[index] = crossLedgerPendingGroupPart{intent: part, member: member}
+	}
+
+	return ordered, nil
+}
+
+func (uc *UseCase) lockCrossLedgerPendingGroup(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	parts []crossLedgerPendingGroupPart,
+	status string,
+) (func(), error) {
+	lockOrder := make([]int, len(parts))
+	for index := range parts {
+		lockOrder[index] = index
+	}
+	sort.Slice(lockOrder, func(left, right int) bool {
+		leftPart, rightPart := parts[lockOrder[left]], parts[lockOrder[right]]
+		leftScope := leftPart.member.OrganizationID + ":" + leftPart.member.LedgerID + ":" + leftPart.member.ID
+		rightScope := rightPart.member.OrganizationID + ":" + rightPart.member.LedgerID + ":" + rightPart.member.ID
+		return leftScope < rightScope
+	})
+
+	unlocks := make([]func(), 0, len(parts))
+	release := func() {
+		for index := len(unlocks) - 1; index >= 0; index-- {
+			unlocks[index]()
+		}
+	}
+	for _, partIndex := range lockOrder {
+		part := &parts[partIndex]
+		part.run = &pendingTransitionRun{
+			organizationID: part.intent.OrganizationID,
+			ledgerID:       part.intent.LedgerID,
+			tran:           part.member,
+			status:         status,
+		}
+		unlock, err := uc.lockPendingTransaction(ctx, span, logger, part.run)
+		if err != nil {
+			release()
+			return nil, err
+		}
+		unlocks = append(unlocks, unlock)
+	}
+
+	return release, nil
+}
+
+func (uc *UseCase) prepareCrossLedgerGroupDestinations(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	groupID uuid.UUID,
+	intent CrossLedgerGroupIntent,
+) (*atomicTransactionBatchRun, PreparedEngineExecution, error) {
+	items := make([]CreateAtomicTransactionBatchV2ItemInput, 0)
+	for _, part := range intent.Parts {
+		if part.Role != CrossLedgerGroupRoleDestination {
+			continue
+		}
+		index := len(items)
+		items = append(items, CreateAtomicTransactionBatchV2ItemInput{
+			OrganizationID: part.OrganizationID,
+			LedgerID:       part.LedgerID,
+			Transaction:    part.Transaction,
+			Action:         constant.ActionDirect,
+			Order:          index + 1,
+			OriginalIndex:  index,
+		})
+	}
+	if len(items) == 0 {
+		return nil, PreparedEngineExecution{}, pkg.ValidateBusinessError(
+			constant.ErrCrossLedgerGroupIncomplete,
+			constant.EntityTransaction,
+		)
+	}
+
+	input := CreateAtomicTransactionBatchV2Input{
+		Transactions:     items,
+		GroupID:          &groupID,
+		CrossLedgerGroup: true,
+	}
+	run, err := uc.initializeAtomicTransactionBatchIdentity(ctx, input)
+	if err != nil {
+		return nil, PreparedEngineExecution{}, err
+	}
+	if err := uc.initializeAtomicTransactionBatchItemsAndSettings(ctx, input, run); err != nil {
+		return nil, PreparedEngineExecution{}, err
+	}
+	if err := uc.prepareAtomicTransactionBatchItems(ctx, span, logger, run); err != nil {
+		return nil, PreparedEngineExecution{}, err
+	}
+	prepared, err := buildAtomicTransactionBatchPreparedExecution(run)
+	if err != nil {
+		return nil, PreparedEngineExecution{}, err
+	}
+
+	return run, prepared, nil
+}
+
+func crossLedgerGroupExecutionID(uc *UseCase, destinations *atomicTransactionBatchRun) (uuid.UUID, error) {
+	if destinations != nil {
+		return destinations.executionID, nil
+	}
+	if uc.UUIDv7Generator == nil {
+		return uuid.Nil, errors.New("cross-ledger group lifecycle UUIDv7 generator is not configured")
+	}
+	executionID, err := uc.UUIDv7Generator()
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("generate cross-ledger group execution id: %w", err)
+	}
+	if executionID == uuid.Nil {
+		return uuid.Nil, errors.New("cross-ledger group lifecycle UUIDv7 generator returned a nil id")
+	}
+
+	return executionID, nil
+}
+
+func (uc *UseCase) completeCrossLedgerGroupTransition(
+	ctx context.Context,
+	logger libLog.Logger,
+	outcome EngineExecutionOutcome,
+) ([]*transaction.Transaction, error) {
+	envelopes, err := atomicTransactionBatchWriteBehindEnvelopes(outcome)
+	if err != nil {
+		return nil, err
+	}
+
+	transactions := make([]*transaction.Transaction, len(envelopes))
+	for index, envelope := range envelopes {
+		views, err := BuildTransactionEvidenceViews(envelope.Record)
+		if err != nil {
+			return nil, fmt.Errorf("compose cross-ledger group item %d: %w", index, err)
+		}
+		if views.Lookup == nil {
+			return nil, invalidTransactionCompletionRecord("cross-ledger group evidence returned no lookup transaction")
+		}
+		transactions[index] = views.Lookup
+	}
+
+	dispatched := uc.TransactionWriteBehindAsync && uc.TransactionWriteBehindDispatcher != nil
+	if dispatched {
+		for _, envelope := range envelopes {
+			if err := uc.TransactionWriteBehindDispatcher.DispatchTransactionWriteBehind(ctx, envelope); err != nil {
+				dispatched = false
+				break
+			}
+		}
+	}
+	if dispatched {
+		return transactions, nil
+	}
+
+	completions, err := uc.completeAtomicTransactionBatchFallback(ctx, envelopes)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Cross-ledger group projection deferred to recovery", libLog.Err(err))
+		return transactions, nil
+	}
+	for index, completion := range completions {
+		expected := outcome.Prepared.CompletionPlans[index].TransactionStatus
+		if expected == constant.CREATED {
+			expected = constant.APPROVED
+		}
+		if completion.Outcome.TransactionStatus != expected {
+			return nil, fmt.Errorf(
+				"%w: cross-ledger group completer confirmed %q for item %d, expected %q",
+				ErrTransactionCompletionConflict,
+				completion.Outcome.TransactionStatus,
+				index,
+				expected,
+			)
+		}
+		uc.acknowledgeEngineRecovery(ctx, logger, &envelopes[index].Record, completion)
+	}
+
+	return transactions, nil
+}
+
+func (uc *UseCase) settleCrossLedgerOriginReservations(
+	ctx context.Context,
+	span trace.Span,
+	logger libLog.Logger,
+	status string,
+	parts []crossLedgerPendingGroupPart,
+) {
+	for index := range parts {
+		part := &parts[index]
+		identity := part.run.reservationIdentity()
+		if status == constant.APPROVED {
+			uc.confirmReservationsByTransaction(
+				ctx, span, logger, part.transition.ledgerSettings.Tracer, identity, part.transition.honoredTracerSkip,
+			)
+		} else {
+			uc.releaseReservationsByTransaction(
+				ctx, span, logger, part.transition.ledgerSettings.Tracer, identity, part.transition.honoredTracerSkip,
+			)
+		}
+	}
 }
