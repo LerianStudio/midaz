@@ -114,7 +114,7 @@ func (uc *UseCase) transitionPendingWithEngine(
 			return nil, executeErr
 		}
 
-		if isConfirmedEngineGuardConflict(executeErr) {
+		if isConfirmedEngineTransitionConflict(executeErr) {
 			unlock()
 			return nil, uc.resolvePendingGuardConflict(ctx, run.organizationID, run.ledgerID, transition.transactionID)
 		}
@@ -486,9 +486,18 @@ func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, logger libLo
 	return tran, nil
 }
 
-func isConfirmedEngineGuardConflict(err error) bool {
+func isConfirmedEngineTransitionConflict(err error) bool {
 	var technical engineTechnicalError
-	return errors.As(err, &technical) && technical.EngineFailureCode() == "execution_guard_conflict" && !technical.OutcomeIndeterminate()
+	if !errors.As(err, &technical) || technical.OutcomeIndeterminate() {
+		return false
+	}
+
+	switch technical.EngineFailureCode() {
+	case "dependency_evidence_conflict", "execution_guard_conflict", "transaction_state_conflict":
+		return true
+	default:
+		return false
+	}
 }
 
 func (uc *UseCase) resolvePendingGuardConflict(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) error {
