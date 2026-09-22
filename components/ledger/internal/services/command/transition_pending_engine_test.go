@@ -618,3 +618,48 @@ func TestPendingTransitionV1_CrossLedgerGroupRequiresV2BeforeLock(t *testing.T) 
 		})
 	}
 }
+
+func TestPendingTransitionV2_GroupedMemberDispatchesWholeGroupBeforeLock(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		wantStatus string
+		invoke     func(*UseCase, PendingTransitionInput) (*PendingTransitionV2Result, error)
+	}{
+		{name: "commit", wantStatus: constant.APPROVED, invoke: func(uc *UseCase, in PendingTransitionInput) (*PendingTransitionV2Result, error) {
+			return uc.CommitTransactionV2(context.Background(), in)
+		}},
+		{name: "cancel", wantStatus: constant.CANCELED, invoke: func(uc *UseCase, in PendingTransitionInput) (*PendingTransitionV2Result, error) {
+			return uc.CancelTransactionV2(context.Background(), in)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := PendingTransitionInput{OrganizationID: uuid.New(), LedgerID: uuid.New(), TransactionID: uuid.New()}
+			groupID := uuid.New()
+			groupText := groupID.String()
+			pending := &transaction.Transaction{
+				ID: in.TransactionID.String(), OrganizationID: in.OrganizationID.String(), LedgerID: in.LedgerID.String(),
+				Status: transaction.Status{Code: constant.PENDING}, GroupID: &groupText,
+			}
+			want := &CreateAtomicTransactionBatchV2Result{BatchID: groupID, Transactions: []*transaction.Transaction{pending}}
+			calls := 0
+
+			uc := &UseCase{
+				TransactionReader: &transitionEngineReader{writeBehind: pending, persisted: pending},
+				transitionCrossLedgerGroupV2Fn: func(_ context.Context, got PendingTransitionInput, target *transaction.Transaction, status string) (*CreateAtomicTransactionBatchV2Result, error) {
+					calls++
+					assert.Equal(t, in, got)
+					assert.Same(t, pending, target)
+					assert.Equal(t, tc.wantStatus, status)
+					return want, nil
+				},
+			}
+
+			got, err := tc.invoke(uc, in)
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Nil(t, got.Transaction)
+			assert.Same(t, want, got.Group)
+			assert.Equal(t, 1, calls)
+		})
+	}
+}
