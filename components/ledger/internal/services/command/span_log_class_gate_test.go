@@ -27,19 +27,7 @@ import (
 // Entries are pinned to develop@42c7b6968 (see the card-4413 plan, §2 and appendix). Do not add
 // an entry here to silence a NEW violation: only pre-existing sites from the original 92-site
 // inventory belong in this list.
-var spanLogClassGateBaseline = []string{
-	"create_balance_transaction_operations_async.go:89",
-	"create_balance_transaction_operations_async.go:101",
-	"create_balance_transaction_operations_async.go:128",
-	"create_balance_transaction_operations_async.go:138",
-	"create_balance_transaction_operations_async.go:249",
-	"transition_pending_steps.go:78",
-	"update_operation.go:56",
-	"update_transaction.go:56",
-	"update_transaction.go:171",
-	"write_transaction.go:106",
-	"write_transaction.go:160",
-}
+var spanLogClassGateBaseline = []string{}
 
 // TestSpanLogClassGate enforces T5/T7 by construction: no non-test file in this package may
 // pair HandleSpanBusinessErrorEvent with a LevelError log call in the same BlockStmt, except

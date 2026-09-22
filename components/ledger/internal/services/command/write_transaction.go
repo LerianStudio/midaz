@@ -103,9 +103,7 @@ func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, le
 		// Use original context for fallback - it still has remaining HTTP timeout
 		err = uc.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to send message directly to database", err)
-
-			logger.Log(ctx, libLog.LevelError, "Failed to send message directly to database", libLog.Err(err))
+			recordCommandError(ctx, span, logger, "Failed to send message directly to database", err)
 
 			return err
 		}
@@ -157,9 +155,7 @@ func (uc *UseCase) WriteTransactionSync(ctx context.Context, organizationID, led
 
 	err = uc.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to send message directly to database", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to send message directly to database", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to send message directly to database", err)
 
 		return err
 	}
