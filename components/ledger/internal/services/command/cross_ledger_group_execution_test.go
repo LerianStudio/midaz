@@ -40,7 +40,7 @@ func TestBuildCrossLedgerGroupExecution_MergesTransitionAndCreateUnderOneIdentit
 			executionID:        uuid.New(),
 			organizationID:     originItem.organizationID,
 			ledgerID:           originItem.ledgerID,
-			tenantID:           "tenant-a",
+			tenantID:           "",
 			headerID:           "header-a",
 			enqueuedAt:         originItem.operationUpdatedAt,
 			actionDate:         originItem.transactionDate,
@@ -95,9 +95,12 @@ func TestBuildCrossLedgerGroupExecution_MergesTransitionAndCreateUnderOneIdentit
 }
 
 func preparedEngineExecutionItem(prepared PreparedEngineExecution, index int) PreparedEngineExecution {
+	execution := prepared.Execution.Execution
+	execution.Transactions = execution.Transactions[index : index+1]
+
 	return PreparedEngineExecution{
 		Execution: EngineExecution{
-			Execution: prepared.Execution.Execution,
+			Execution: execution,
 			Guards: []ExecutionGuard{
 				prepared.Execution.Guards[index],
 			},
