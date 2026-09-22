@@ -132,7 +132,7 @@ func RegisterTransactionV2Routes(api huma.API, h *TransactionHandler) {
 	attachTypedRequestBody[CreateAtomicTransactionBatchV2Request](api, v2AtomicTransactionBatchOperationID)
 	publishV2LifecycleBodySchema(api)
 	publishV2SingularTransactionResponseSchemas(api)
-	publishV2DirectTransactionResponseSchema(api)
+	publishV2TransactionOrGroupResponseSchemas(api)
 }
 
 func publishV2SingularTransactionResponseSchemas(api huma.API) {
@@ -165,7 +165,7 @@ func publishV2SingularTransactionResponseSchemas(api huma.API) {
 	}
 }
 
-func publishV2DirectTransactionResponseSchema(api huma.API) {
+func publishV2TransactionOrGroupResponseSchemas(api huma.API) {
 	if api == nil || api.OpenAPI() == nil || api.OpenAPI().Components == nil || api.OpenAPI().Components.Schemas == nil {
 		return
 	}
@@ -180,7 +180,9 @@ func publishV2DirectTransactionResponseSchema(api huma.API) {
 
 	for _, item := range api.OpenAPI().Paths {
 		for _, op := range operationsOf(item) {
-			if op.OperationID != "createTransactionDirectV2" && op.OperationID != "revertTransactionV2" {
+			switch op.OperationID {
+			case "createTransactionDirectV2", "commitTransactionV2", "cancelTransactionV2", "revertTransactionV2":
+			default:
 				continue
 			}
 
