@@ -50,6 +50,7 @@ administrative ownership over the account first:
 | --- | --- | --- |
 | Cache-miss load and seed admission | `services/query/get_balances.go` | takes the ownership, reads `closed_at` from the PRIMARY, rebuilds the seed and only then releases; a closed account refuses with `0519` and recomposes the negative cache |
 | Seed admission inside the execution | `adapters/redis/engine/scripts/engine/execution.lua` | re-reads the controls and the ownership token inside the atomic execution; an unconfirmed admission refuses with `admission_not_confirmed` before any write |
+| Atomic batch v2 | `services/command/create_atomic_transaction_batch_v2.go` | installs one admission sink around every item load and the single engine execution; each account is owned once for the whole batch, including prepared idempotency, Tracer reservation and execution handoff |
 | Additional balance creation | `services/command/create_balance_additional.go` | ownership before the account is inspected; the overdraft companion is the same account and takes no ownership of its own |
 | Default balance creation | `services/command/create_balance.go` | same ownership and the same `closed_at` check; the external account of an asset is exempt by type, since `0074` makes it ineligible for closing |
 | Balance deletion | `services/command/delete_all_balances_by_account_id.go` | same ownership per account, serializing deletion against a closing; the delete markers keep their own keys and semantics |

@@ -108,6 +108,11 @@ when that order is valid; they are capped at 100 entries with an explicit trunca
 marker. State-dependent preparation and accounting stop at the first failing item in
 logical order.
 
+Account-closing protection applies to the batch as one execution. If any item
+touches a closed account, the whole batch is refused with `0519` / HTTP 422; an
+account whose closing is in progress refuses the whole batch with `0522` / HTTP
+409. Neither refusal applies any item or exposes a committed prefix.
+
 | Boundary | Effective limit | Failure |
 | --- | ---: | --- |
 | Decoded request body | smaller than 1 MiB | `0143`, HTTP 413 |

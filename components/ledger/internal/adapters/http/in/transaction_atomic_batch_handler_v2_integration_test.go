@@ -199,6 +199,22 @@ func requireCachedAvailable(
 		"balance %s: expected %d available, got %s", alias, want, balance.Available.String())
 }
 
+func atomicBatchAccountIDForBalance(
+	t *testing.T,
+	fixture *atomicBatchHTTPIntegrationFixture,
+	balanceID uuid.UUID,
+) uuid.UUID {
+	t.Helper()
+
+	var accountID uuid.UUID
+	require.NoError(t, fixture.infra.pgContainer.DB.QueryRow(
+		`SELECT account_id FROM balance WHERE id = $1`,
+		balanceID,
+	).Scan(&accountID))
+
+	return accountID
+}
+
 func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 	fixture := setupAtomicBatchHTTPIntegrationFixture(t)
 
@@ -329,6 +345,86 @@ func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, destinationID))
 	})
 
+	t.Run("closed and closing accounts refuse the whole batch", func(t *testing.T) {
+		tests := []struct {
+			name       string
+			wantCode   string
+			wantStatus int
+			protect    func(*testing.T, uuid.UUID, uuid.UUID)
+		}{
+			{
+				name:       "closed account",
+				wantCode:   constant.ErrAccountClosed.Error(),
+				wantStatus: http.StatusUnprocessableEntity,
+				protect: func(t *testing.T, ledgerID, accountID uuid.UUID) {
+					closedAt := time.Date(2026, time.September, 21, 12, 0, 0, 0, time.UTC)
+					require.NoError(t, fixture.infra.redisRepo.SetAccountClosedMarker(
+						context.Background(), fixture.infra.orgID, ledgerID, accountID, closedAt,
+					))
+				},
+			},
+			{
+				name:       "closing account",
+				wantCode:   constant.ErrAccountClosingInProgress.Error(),
+				wantStatus: http.StatusConflict,
+				protect: func(t *testing.T, ledgerID, accountID uuid.UUID) {
+					token := uuid.NewString()
+					acquired, err := fixture.infra.redisRepo.AcquireAccountClosingMarker(
+						context.Background(), fixture.infra.orgID, ledgerID, accountID, token,
+					)
+					require.NoError(t, err)
+					require.True(t, acquired)
+					t.Cleanup(func() {
+						released, releaseErr := fixture.infra.redisRepo.ReleaseAccountClosingMarker(
+							context.Background(), fixture.infra.orgID, ledgerID, accountID, token,
+						)
+						require.NoError(t, releaseErr)
+						require.True(t, released)
+					})
+				},
+			},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				ledgerID := fixture.newLedger(t)
+				sourceID, destinationID := seedTransfer(
+					t,
+					fixture.infra.pgContainer.DB,
+					fixture.infra.orgID,
+					ledgerID,
+					"@protected-source-"+strings.ReplaceAll(test.name, " ", "-"),
+					"@protected-destination-"+strings.ReplaceAll(test.name, " ", "-"),
+					100,
+				)
+				destinationAccountID := atomicBatchAccountIDForBalance(t, fixture, destinationID)
+				test.protect(t, ledgerID, destinationAccountID)
+
+				transaction := atomicBatchTransfer(
+					fixture.infra.orgID,
+					ledgerID,
+					"protected account refusal",
+					"@protected-source-"+strings.ReplaceAll(test.name, " ", "-"),
+					"@protected-destination-"+strings.ReplaceAll(test.name, " ", "-"),
+					100,
+				)
+				response := postAtomicBatch(
+					t,
+					fixture.app,
+					[]CreateTransactionV2Request{transaction},
+					"protected-"+strings.ReplaceAll(test.name, " ", "-"),
+				)
+				body := drainBody(t, response)
+
+				require.Equal(t, test.wantStatus, response.StatusCode, "body: %s", string(body))
+				requireProblemCode(t, body, test.wantCode)
+				require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerID))
+				requireDecimalEqual(t, decimal.NewFromInt(100), postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, sourceID))
+				requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, destinationID))
+			})
+		}
+	})
+
 	t.Run("reversed order refuses without mutation", func(t *testing.T) {
 		ledgerID := fixture.newLedger(t)
 		sourceID, middleID := seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerID, "@reversed-a", "@reversed-b", 100)
@@ -362,8 +458,8 @@ func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 		}
 		response := postAtomicBatch(t, fixture.app, scopeMismatch, "scope-mismatch")
 		body := drainBody(t, response)
-		require.Equal(t, http.StatusUnprocessableEntity, response.StatusCode, "body: %s", string(body))
-		requireProblemCode(t, body, constant.ErrTransactionScopeMismatch.Error())
+		require.Equal(t, http.StatusBadRequest, response.StatusCode, "body: %s", string(body))
+		requireProblemCode(t, body, constant.ErrTransactionBatchStructuralValidation.Error())
 
 		fixture.infra.handler.TransactionBatchMaxSize = 1
 		response = postAtomicBatch(t, fixture.app, scopeMismatch, "configured-cardinality")
