@@ -258,6 +258,29 @@ func atomicBatchAccountIDForBalance(
 	return accountID
 }
 
+func requireCachedOnHold(
+	t *testing.T,
+	fixture *atomicBatchHTTPIntegrationFixture,
+	ledgerID uuid.UUID,
+	alias string,
+	want int64,
+) {
+	t.Helper()
+
+	balance := getBalanceFromRedis(
+		t,
+		context.Background(),
+		fixture.infra.redisRepo,
+		fixture.infra.orgID,
+		ledgerID,
+		alias,
+		"default",
+	)
+	require.NotNil(t, balance, "balance %s must be materialized in the live cache", alias)
+	require.True(t, decimal.NewFromInt(want).Equal(balance.OnHold),
+		"balance %s: expected %d on hold, got %s", alias, want, balance.OnHold.String())
+}
+
 func TestIntegration_AtomicTransactionBatchV2_EndToEndContract(t *testing.T) {
 	fixture := setupAtomicBatchHTTPIntegrationFixture(t)
 
@@ -844,6 +867,134 @@ func TestIntegration_RevertV2CrossLedger_RevertsTheWholeGroupAtomically(t *testi
 	require.Equal(t, http.StatusConflict, secondResponse.StatusCode, "body: %s", string(secondBody))
 	requireProblemCode(t, secondBody, constant.ErrTransactionIDHasAlreadyParentTransaction.Error())
 	require.Equal(t, int64(1), countedEngine.calls.Load(), "a second revert must fail before accounting")
+}
+
+func TestIntegration_HoldCommitCancelV2CrossLedger_GroupLifecycle(t *testing.T) {
+	fixture := setupAtomicBatchHTTPIntegrationFixture(t)
+
+	t.Run("hold then commit creates destinations and remains revertible", func(t *testing.T) {
+		ledgerA := fixture.newLedger(t)
+		ledgerB := fixture.newLedger(t)
+		fixture.setCrossLedgerEnabled(t, ledgerA, true)
+		fixture.setCrossLedgerEnabled(t, ledgerB, true)
+		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerA, "@held-source", "@external/USD", 100)
+		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerB, "@external/USD", "@committed-destination", 100)
+
+		request := atomicBatchTransfer(fixture.infra.orgID, ledgerA, "cross-ledger hold commit", "@held-source", "@committed-destination", 100)
+		request.Credits[0].LedgerID = ledgerB.String()
+		raw, err := json.Marshal(request)
+		require.NoError(t, err)
+
+		holdResponse := postTransaction(t, fixture.app, v2CreateURL("hold"), string(raw), "cross-ledger-hold-commit")
+		holdBody := drainBody(t, holdResponse)
+		require.Equal(t, http.StatusCreated, holdResponse.StatusCode, "body: %s", string(holdBody))
+		var held CreateTransactionV2Response
+		require.NoError(t, json.Unmarshal(holdBody, &held))
+		require.NotNil(t, held.GroupID)
+		require.Len(t, held.Transactions, 1)
+		require.Equal(t, constant.PENDING, held.Transactions[0].Status.Code)
+		require.Equal(t, ledgerA.String(), held.Transactions[0].LedgerID)
+		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerA))
+		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerB))
+		requireCachedAvailable(t, fixture, ledgerA, "@held-source", 0)
+		requireCachedOnHold(t, fixture, ledgerA, "@held-source", 100)
+		requireCachedAvailable(t, fixture, ledgerB, "@committed-destination", 0)
+
+		countedEngine := &countingAtomicBatchEngine{delegate: fixture.engine}
+		fixture.infra.handler.Command.Engine = countedEngine
+		originID := uuid.MustParse(held.Transactions[0].ID)
+		commitURL := v2CommitURL(fixture.infra.orgID, ledgerA, originID)
+		commitResponse := postTransaction(t, fixture.app, commitURL, "", "")
+		commitBody := drainBody(t, commitResponse)
+		require.Equal(t, http.StatusCreated, commitResponse.StatusCode, "body: %s", string(commitBody))
+		var committed CreateTransactionV2Response
+		require.NoError(t, json.Unmarshal(commitBody, &committed))
+		require.NotNil(t, committed.GroupID)
+		require.Equal(t, *held.GroupID, *committed.GroupID)
+		require.Len(t, committed.Transactions, 2)
+		for _, tran := range committed.Transactions {
+			require.Equal(t, constant.APPROVED, tran.Status.Code)
+			require.Equal(t, *held.GroupID, *tran.GroupID)
+		}
+		require.Equal(t, int64(1), countedEngine.calls.Load())
+		requireCachedAvailable(t, fixture, ledgerA, "@held-source", 0)
+		requireCachedOnHold(t, fixture, ledgerA, "@held-source", 0)
+		requireCachedAvailable(t, fixture, ledgerB, "@committed-destination", 100)
+		require.Equal(t, constant.APPROVED, crossLedgerGroupStatus(t, fixture, *held.GroupID))
+
+		second := postTransaction(t, fixture.app, commitURL, "", "")
+		secondBody := drainBody(t, second)
+		require.Equal(t, http.StatusUnprocessableEntity, second.StatusCode, "body: %s", string(secondBody))
+		requireProblemCode(t, secondBody, constant.ErrCrossLedgerGroupNotPending.Error())
+		require.Equal(t, int64(1), countedEngine.calls.Load())
+
+		selected := committed.Transactions[1]
+		revert := postTransaction(
+			t,
+			fixture.app,
+			v2RevertURL(fixture.infra.orgID, uuid.MustParse(selected.LedgerID), uuid.MustParse(selected.ID)),
+			"",
+			"cross-ledger-held-group-revert",
+		)
+		revertBody := drainBody(t, revert)
+		require.Equal(t, http.StatusCreated, revert.StatusCode, "body: %s", string(revertBody))
+		requireCachedAvailable(t, fixture, ledgerA, "@held-source", 100)
+		requireCachedAvailable(t, fixture, ledgerB, "@committed-destination", 0)
+	})
+
+	t.Run("hold then cancel releases origins without creating destinations", func(t *testing.T) {
+		ledgerA := fixture.newLedger(t)
+		ledgerB := fixture.newLedger(t)
+		fixture.setCrossLedgerEnabled(t, ledgerA, true)
+		fixture.setCrossLedgerEnabled(t, ledgerB, true)
+		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerA, "@canceled-source", "@external/USD", 100)
+		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerB, "@external/USD", "@untouched-destination", 100)
+
+		request := atomicBatchTransfer(fixture.infra.orgID, ledgerA, "cross-ledger hold cancel", "@canceled-source", "@untouched-destination", 100)
+		request.Credits[0].LedgerID = ledgerB.String()
+		raw, err := json.Marshal(request)
+		require.NoError(t, err)
+
+		holdResponse := postTransaction(t, fixture.app, v2CreateURL("hold"), string(raw), "cross-ledger-hold-cancel")
+		holdBody := drainBody(t, holdResponse)
+		require.Equal(t, http.StatusCreated, holdResponse.StatusCode, "body: %s", string(holdBody))
+		var held CreateTransactionV2Response
+		require.NoError(t, json.Unmarshal(holdBody, &held))
+		require.Len(t, held.Transactions, 1)
+
+		countedEngine := &countingAtomicBatchEngine{delegate: fixture.engine}
+		fixture.infra.handler.Command.Engine = countedEngine
+		originID := uuid.MustParse(held.Transactions[0].ID)
+		cancelURL := v2CancelURL(fixture.infra.orgID, ledgerA, originID)
+		cancelResponse := postTransaction(t, fixture.app, cancelURL, "", "")
+		cancelBody := drainBody(t, cancelResponse)
+		require.Equal(t, http.StatusCreated, cancelResponse.StatusCode, "body: %s", string(cancelBody))
+		var canceled CreateTransactionV2Response
+		require.NoError(t, json.Unmarshal(cancelBody, &canceled))
+		require.Equal(t, *held.GroupID, *canceled.GroupID)
+		require.Len(t, canceled.Transactions, 1)
+		require.Equal(t, constant.CANCELED, canceled.Transactions[0].Status.Code)
+		require.Equal(t, int64(1), countedEngine.calls.Load())
+		requireCachedAvailable(t, fixture, ledgerA, "@canceled-source", 100)
+		requireCachedOnHold(t, fixture, ledgerA, "@canceled-source", 0)
+		requireCachedAvailable(t, fixture, ledgerB, "@untouched-destination", 0)
+		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerA))
+		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerB))
+		require.Equal(t, constant.CANCELED, crossLedgerGroupStatus(t, fixture, *held.GroupID))
+	})
+}
+
+func crossLedgerGroupStatus(t *testing.T, fixture *atomicBatchHTTPIntegrationFixture, groupID string) string {
+	t.Helper()
+
+	var status string
+	err := fixture.infra.pgContainer.DB.QueryRow(
+		`SELECT status FROM transaction_group WHERE id = $1`,
+		groupID,
+	).Scan(&status)
+	require.NoError(t, err)
+
+	return status
 }
 
 type countingAtomicBatchEngine struct {
