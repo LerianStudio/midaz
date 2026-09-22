@@ -53,8 +53,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 
 	balance, err := uc.BalanceRepo.Find(readCtx, organizationID, ledgerID, balanceID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance on repo by id", err)
-		logger.Log(ctx, libLog.LevelError, "Error getting balance", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to get balance on repo by id", err)
 
 		return err
 	}
@@ -155,8 +154,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 
 	err = uc.BalanceRepo.Delete(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balance on repo", err)
-		logger.Log(ctx, libLog.LevelError, "Error delete balance", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to delete balance on repo", err)
 
 		return err
 	}
