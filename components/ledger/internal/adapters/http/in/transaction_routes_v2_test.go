@@ -487,7 +487,8 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 
 				media, ok := resp.Content["application/json"]
 				require.Truef(t, ok, "%s %s should answer application/json", rt.action, status)
-				if rt.operationID == "createTransactionDirectV2" || rt.operationID == "revertTransactionV2" {
+				if rt.operationID == "createTransactionDirectV2" || rt.operationID == "commitTransactionV2" ||
+					rt.operationID == "cancelTransactionV2" || rt.operationID == "revertTransactionV2" {
 					assert.Empty(t, media.Schema.Ref, "%s documents a oneOf response rather than one component ref", rt.action)
 
 					continue
@@ -495,6 +496,33 @@ func TestRegisterTransactionV2Routes_ResponseSchemaDoesNotShadowV1(t *testing.T)
 				assert.Equalf(t, "#/components/schemas/"+wantResponseSchema, media.Schema.Ref,
 					"%s should answer with the v2 response component", rt.action)
 			}
+		})
+	}
+}
+
+func TestRegisterTransactionV2Routes_PendingLifecycleResponsesDocumentSingularOrCrossLedgerGroup(t *testing.T) {
+	t.Parallel()
+
+	oapi := registerIsolatedV2TransactionContractForTest()
+	paths := []string{
+		"/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit",
+		"/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/cancel",
+	}
+
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			response := oapi.Paths[path].Post.Responses["201"]
+			require.NotNil(t, response)
+			media := response.Content["application/json"]
+			require.NotNil(t, media)
+			require.NotNil(t, media.Schema)
+			require.Len(t, media.Schema.OneOf, 2)
+
+			refs := []string{media.Schema.OneOf[0].Ref, media.Schema.OneOf[1].Ref}
+			assert.ElementsMatch(t, []string{
+				"#/components/schemas/TransactionV2",
+				"#/components/schemas/CrossLedgerTransactionGroupV2",
+			}, refs)
 		})
 	}
 }
