@@ -179,7 +179,7 @@ func TestRevertTransactionV1_GroupRequiresV2(t *testing.T) {
 
 	var business pkg.UnprocessableOperationError
 	require.True(t, errors.As(err, &business))
-	assert.Equal(t, constant.ErrCrossLedgerRevertRequiresV2.Error(), business.Code)
+	assert.Equal(t, constant.ErrCrossLedgerLifecycleRequiresV2.Error(), business.Code)
 	assert.Zero(t, reader.getBalancesCalls)
 }
 

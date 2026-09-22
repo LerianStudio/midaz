@@ -80,7 +80,7 @@ func (uc *UseCase) RevertTransactionV1(ctx context.Context, in RevertTransaction
 
 	transactionReverted, target, err := uc.prepareRevertTransaction(ctx, span, in)
 	if target != nil && target.GroupID != nil {
-		err := pkg.ValidateBusinessError(constant.ErrCrossLedgerRevertRequiresV2, constant.EntityTransaction)
+		err := pkg.ValidateBusinessError(constant.ErrCrossLedgerLifecycleRequiresV2, constant.EntityTransaction)
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cross-ledger revert requires v2", err)
 
 		return nil, false, err
