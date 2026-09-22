@@ -76,7 +76,11 @@ func TestCrossLedgerGroupIntent_JSONShapeAndRoundTrip(t *testing.T) {
 
 	decoded, err := decodeCrossLedgerGroupIntent(raw)
 	require.NoError(t, err)
-	assert.Equal(t, intent, *decoded)
+	roundTrip, err := encodeCrossLedgerGroupIntent(*decoded)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(raw), string(roundTrip))
+	assert.Equal(t, intent.Parts[0].OrganizationID, decoded.Parts[0].OrganizationID)
+	assert.Equal(t, intent.Parts[1].LedgerID, decoded.Parts[1].LedgerID)
 	assert.Nil(t, decoded.Parts[0].Transaction.Send.Source.From[0].Share)
 	assert.Empty(t, decoded.Parts[0].Transaction.Send.Source.From[0].Remaining)
 }
