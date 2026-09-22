@@ -213,14 +213,17 @@ type UseCase struct {
 // recordCommandError records err on span and logs it with the helper and level that
 // match its class: business/4xx keeps the span green and logs at Warn (T5, T7); technical/5xx
 // flips the span red and logs at Error so it feeds error-rate SLOs and pages an operator.
-func recordCommandError(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error) {
+// fields are appended to the log call after the mandatory libLog.Err(err).
+func recordCommandError(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error, fields ...libLog.Field) {
+	fields = append(fields, libLog.Err(err))
+
 	if pkg.IsBusinessError(err) {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
-		logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, message, fields)
 
 		return
 	}
 
 	libOpentelemetry.HandleSpanError(span, message, err)
-	logger.Log(ctx, libLog.LevelError, message, libLog.Err(err))
+	logger.Log(ctx, libLog.LevelError, message, fields)
 }
