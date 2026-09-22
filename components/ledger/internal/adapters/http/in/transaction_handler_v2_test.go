@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -237,6 +238,21 @@ func TestCreateTransactionHoldV2_ValidBodyEntersFunnel(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
 		"valid hold body must clear the transport/translate boundary and enter the funnel (unwired repos → recovered 500)")
+}
+
+func TestCreateTransactionHoldV2_CrossLedgerBodyEntersGroupCoordinator(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{Command: &command.UseCase{}}).CreateTransactionHoldV2)
+	foreignLedgerID := "99999999-9999-4999-8999-999999999999"
+	body := `{"description":"cross-ledger hold","asset":"BRL","amount":"100",` +
+		`"debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"credits":[{"alias":"@dst","organizationId":"` + v2ScopeOrgID + `","ledgerId":"` + foreignLedgerID + `","amount":"100"}]}`
+
+	resp := postActionV2(t, app, "hold", body)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode,
+		"a valid mixed-scope hold must enter the cross-ledger coordinator; the bare use case then fails on its unwired dependencies")
 }
 
 // TestHuma_CreateTransactionHoldV2_IdempotencyKeyedByDiscriminatedRawV2Body proves the hold
