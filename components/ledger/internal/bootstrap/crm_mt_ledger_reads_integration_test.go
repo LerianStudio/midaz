@@ -48,14 +48,15 @@ import (
 // TestIntegration_CRMMultiTenantLedgerReads drives the CRM routes whose use cases
 // read LEDGER stores in-process — instrument create (ledger/account reference
 // check) and holder delete (owned-account guard) — through the REAL
-// buildUnifiedRouteSetup and its setup.crmRouteOptions, against two tenants whose
+// buildUnifiedRouteSetup and its two CRM route options, against two tenants whose
 // onboarding PostgreSQL, onboarding Mongo and CRM Mongo are distinct databases.
 //
-// The CRM route middleware must resolve the tenant's onboarding PostgreSQL and
-// onboarding Mongo on their module keys alongside the CRM Mongo on the generic
-// key. Without the onboarding stores every one of these requests fails with a
-// 500 "tenant postgres connection missing from context" instead of reaching the
-// domain rule it exercises.
+// Those two routes must resolve the tenant's onboarding PostgreSQL and onboarding
+// Mongo on their module keys alongside the CRM Mongo on the generic key. Without
+// the onboarding stores every one of these requests fails with a 500 "tenant
+// postgres connection missing from context" instead of reaching the domain rule
+// it exercises. Every other CRM route reads only the CRM Mongo, so a third tenant
+// provisioned with the crm module alone must still create and read holders.
 func TestIntegration_CRMMultiTenantLedgerReads(t *testing.T) {
 	// The lib-commons clients reject plaintext URIs unless ALLOW_INSECURE_TLS=true;
 	// the testcontainers speak plaintext.
@@ -68,9 +69,13 @@ func TestIntegration_CRMMultiTenantLedgerReads(t *testing.T) {
 	tenantA := seedCompositionTenant(t, mongoContainer, "tenanta")
 	tenantB := seedCompositionTenant(t, mongoContainer, "tenantb")
 
+	tenantCRMOnly := seedCompositionTenant(t, mongoContainer, "tenantcrmonly")
+	tenantCRMOnly.crmOnly = true
+
 	tenants := map[string]*compositionTenant{
-		tenantA.tenantID: tenantA,
-		tenantB.tenantID: tenantB,
+		tenantA.tenantID:       tenantA,
+		tenantB.tenantID:       tenantB,
+		tenantCRMOnly.tenantID: tenantCRMOnly,
 	}
 
 	tmServer := newFakeTenantManagerCompositionStores(t, mongoContainer, tenants)
@@ -104,6 +109,7 @@ func TestIntegration_CRMMultiTenantLedgerReads(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, setup.crmRouteOptions, "CRM route options must be built in multi-tenant mode")
+	require.NotNil(t, setup.crmLedgerReadsRouteOptions, "CRM ledger-reads route options must be built in multi-tenant mode")
 
 	// MT-style repositories throughout: nil static connections with requireTenant
 	// set, so every store must come from the request context the middleware fills.
@@ -138,7 +144,16 @@ func TestIntegration_CRMMultiTenantLedgerReads(t *testing.T) {
 	// options carry is what the request actually runs.
 	mountCRMHuma(app, middleware.NewAuthClient("", false, nil),
 		&httpin.HolderHandler{Service: crmUC}, &httpin.InstrumentHandler{Service: crmUC},
-		nil, nil, nil, setup.crmRouteOptions)
+		nil, nil, nil, setup.crmRouteOptions, setup.crmLedgerReadsRouteOptions)
+
+	t.Run("holder_create_and_read_do_not_depend_on_onboarding_provisioning", func(t *testing.T) {
+		orgID := tenantCRMOnly.orgID.String()
+
+		holderID := createHolderHTTP(t, app, tenantCRMOnly.tenantID, orgID, "CRM Only Holder", "33333333333")
+
+		assert.Equal(t, fiber.StatusOK, getHolderStatusHTTP(t, app, tenantCRMOnly.tenantID, orgID, holderID),
+			"a tenant provisioned with the crm module alone must read its holder: the holder routes resolve only the CRM Mongo")
+	})
 
 	t.Run("instrument_create_with_valid_references_is_201_in_the_tenants_own_crm_mongo", func(t *testing.T) {
 		holderID := createHolderHTTP(t, app, tenantA.tenantID, tenantA.orgID.String(), "Tenant A Instrument Holder", "11111111111")

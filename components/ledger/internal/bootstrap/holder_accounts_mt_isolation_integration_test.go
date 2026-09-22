@@ -79,7 +79,9 @@ type holderAccountsTenant struct {
 //
 // It is the end-to-end counterpart of TestHolderAccountsTenantMiddlewareWiring:
 // that test pins which managers the middleware registers, this one proves the
-// resulting request actually resolves both per-tenant stores.
+// resulting request actually resolves both per-tenant stores. The final subtest
+// pins the negative — the same request on the CRM options does NOT succeed —
+// which is the whole reason the holder-accounts role exists.
 func TestIntegration_HolderAccountsConcurrentTenantIsolation(t *testing.T) {
 	// Both the setup connections and the per-tenant connections the managers open
 	// lazily go through the lib-commons clients, which reject plaintext URIs
@@ -121,12 +123,18 @@ func TestIntegration_HolderAccountsConcurrentTenantIsolation(t *testing.T) {
 		tmmongo.WithModule(constant.ModuleOnboarding), tmmongo.WithLogger(logger))
 	t.Cleanup(func() { _ = onboardingMongoManager.Close(context.Background()) })
 
+	// The CRM Mongo manager is built only so the CRM options exist for the
+	// negative subtest below; the holder-accounts path never resolves it.
+	crmMongoManager := tmmongo.NewManager(tenantClient, constant.ModuleCRM,
+		tmmongo.WithModule(constant.ModuleCRM), tmmongo.WithLogger(logger))
+	t.Cleanup(func() { _ = crmMongoManager.Close(context.Background()) })
+
 	// The REAL composition root, not a hand-rolled middleware: this is what makes
 	// the test fail if buildUnifiedRouteSetup stops binding the onboarding stores.
 	setup, err := buildUnifiedRouteSetup(
 		&Config{MultiTenantEnabled: true}, logger,
 		onboardingPGManager, &tmpostgres.Manager{},
-		onboardingMongoManager, &tmmongo.Manager{}, &tmmongo.Manager{}, &tmmongo.Manager{},
+		onboardingMongoManager, &tmmongo.Manager{}, crmMongoManager, &tmmongo.Manager{},
 		nil, nil,
 	)
 	require.NoError(t, err)
@@ -151,7 +159,7 @@ func TestIntegration_HolderAccountsConcurrentTenantIsolation(t *testing.T) {
 
 		// Auth disabled: Authorize is a pass-through, so the post-auth chain the
 		// options carry is what the request actually runs.
-		mountCRMHuma(app, middleware.NewAuthClient("", false, nil), nil, nil, handler, nil, nil, routeOptions)
+		mountCRMHuma(app, middleware.NewAuthClient("", false, nil), nil, nil, handler, nil, nil, routeOptions, routeOptions)
 
 		return app
 	}
@@ -258,6 +266,23 @@ func TestIntegration_HolderAccountsConcurrentTenantIsolation(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(body), &problem), "body: %s", body)
 		assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), problem["code"],
 			"malformed ledger_id must carry the invalid-query-parameter code")
+	})
+
+	// The regression pin: this route used to run on crmRouteOptions, whose
+	// middleware binds no onboarding PostgreSQL at all, so the account read failed
+	// with "tenant postgres connection missing from context". Serving 200 here
+	// would mean the holder-accounts role has stopped being load-bearing.
+	t.Run("same_request_on_crm_options_does_not_succeed", func(t *testing.T) {
+		require.NotNil(t, setup.crmRouteOptions)
+
+		crmApp := newApp(setup.crmRouteOptions)
+
+		body, status, err := getHolderAccounts(crmApp, tenantA, "")
+		require.NoError(t, err)
+
+		assert.Equalf(t, stdhttp.StatusInternalServerError, status,
+			"the CRM options carry no onboarding PostgreSQL, so the account read fails with the "+
+				"\"tenant postgres connection missing from context\" 500 the holder-accounts role exists to prevent; body: %s", body)
 	})
 }
 

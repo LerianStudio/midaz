@@ -142,6 +142,7 @@ func prependAttestationObserver(setup *unifiedRouteSetup, observer fiber.Handler
 	setup.feesRouteOptions = wrap(setup.feesRouteOptions)
 	setup.compositionRouteOptions = wrap(setup.compositionRouteOptions)
 	setup.holderAccountsRouteOptions = wrap(setup.holderAccountsRouteOptions)
+	setup.crmLedgerReadsRouteOptions = wrap(setup.crmLedgerReadsRouteOptions)
 }
 
 // buildTenantAttestationServer mounts the full registered surface with the MULTI-TENANT route

@@ -22,8 +22,9 @@ import (
 // repo looks the module key up first, so binding the onboarding Mongo on the generic key sends
 // the metadata read to whichever store owns that key.
 //
-// A middleware without the onboarding PG fails the account read with "tenant postgres connection
-// missing from context"; the assertions below keep both onboarding stores on this instance.
+// This route previously ran on the CRM options, whose middleware carries no onboarding PG at all;
+// the account read then failed with "tenant postgres connection missing from context". The
+// assertions below are what keeps the route off that instance.
 //
 // The TenantMiddleware fields are unexported in lib-commons v6, so the module maps are read via
 // reflect (see mapKeys in fees_tenant_wiring_test.go).
