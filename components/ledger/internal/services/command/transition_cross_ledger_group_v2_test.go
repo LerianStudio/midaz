@@ -166,6 +166,7 @@ func TestTransitionCrossLedgerGroupV2_CommitAndCancelUseOneAtomicExecution(t *te
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			uc, repo, engine, target, in, group := newCrossLedgerLifecycleFixture(t, test.status)
+			idempotency := uc.AtomicTransactionBatchIdempotencyRepo.(*atomicTransactionBatchClaimRepositoryFake)
 
 			repo.EXPECT().FindByID(gomock.Any(), group.ID).Return(group, nil)
 			repo.EXPECT().UpdateStatus(gomock.Any(), group.ID, constant.PENDING, test.status).Return(true, nil)
@@ -190,6 +191,16 @@ func TestTransitionCrossLedgerGroupV2_CommitAndCancelUseOneAtomicExecution(t *te
 			if test.status == constant.APPROVED {
 				assert.Empty(t, engine.executions[0].Guards[1].ExpectedToken)
 			}
+
+			action := "commit"
+			if test.status == constant.CANCELED {
+				action = "cancel"
+			}
+			assert.Equal(t, "group-"+action+":"+group.ID.String(), idempotency.effectiveKey)
+			assert.Equal(t, 1, idempotency.claims)
+			assert.Equal(t, 1, idempotency.transitions)
+			assert.Equal(t, 1, idempotency.handoffs)
+			assert.Equal(t, 1, idempotency.finalizations)
 		})
 	}
 }
@@ -268,10 +279,11 @@ func newCrossLedgerLifecycleFixture(
 		ids = []uuid.UUID{destinationID, executionID}
 	}
 	uc := &UseCase{
-		TransactionGroupRepo: repo,
-		TransactionReader:    reader,
-		TransactionRedisRepo: redisRepo,
-		Engine:               engine,
+		TransactionGroupRepo:                  repo,
+		TransactionReader:                     reader,
+		TransactionRedisRepo:                  redisRepo,
+		AtomicTransactionBatchIdempotencyRepo: &atomicTransactionBatchClaimRepositoryFake{},
+		Engine:                                engine,
 		AppliedTransactionCompleter: &createAppliedTransactionCompleter{
 			outcome: TransactionPersistenceOutcome{TransactionStatus: status},
 		},
