@@ -48,9 +48,7 @@ func (uc *UseCase) DeleteSegmentByID(ctx context.Context, organizationID, ledger
 			return err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete segment on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to delete segment", libLog.Err(err), libLog.String("segment_id", id.String()))
+		recordCommandError(ctx, span, logger, "Failed to delete segment on repo by id", err, libLog.String("segment_id", id.String()))
 
 		return err
 	}

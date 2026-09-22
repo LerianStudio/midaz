@@ -50,27 +50,21 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 			return err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get asset on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting asset")
+		recordCommandError(ctx, span, logger, "Failed to get asset on repo by id", err)
 
 		return err
 	}
 
 	externalAccounts, err := uc.AccountRepo.ListExternalAccountsByAssetCode(ctx, organizationID, ledgerID, asset.Code)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve asset external accounts", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error retrieving asset external accounts")
+		recordCommandError(ctx, span, logger, "Failed to retrieve asset external accounts", err)
 
 		return err
 	}
 
 	for _, extAccount := range externalAccounts {
 		if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, nil, uuid.MustParse(extAccount.ID)); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete asset external account", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error deleting asset external account")
+			recordCommandError(ctx, span, logger, "Failed to delete asset external account", err)
 
 			return err
 		}
@@ -87,9 +81,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 			return err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete asset on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error deleting asset")
+		recordCommandError(ctx, span, logger, "Failed to delete asset on repo by id", err)
 
 		return err
 	}

@@ -83,8 +83,7 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 			return nil, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, "Failed to update segment", libLog.Err(err), libLog.String("segment_id", id.String()))
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update segment on repo by id", err)
+		recordCommandError(ctx, span, logger, "Failed to update segment on repo by id", err, libLog.String("segment_id", id.String()))
 
 		return nil, err
 	}
@@ -93,8 +92,7 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntitySegment, id.String(), upi.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to update segment metadata", libLog.Err(err), libLog.String("segment_id", id.String()))
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
+		recordCommandError(ctx, span, logger, "Failed to update metadata on repo by id", err, libLog.String("segment_id", id.String()))
 
 		return nil, err
 	}

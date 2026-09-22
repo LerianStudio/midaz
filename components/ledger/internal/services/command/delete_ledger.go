@@ -47,8 +47,7 @@ func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id uuid
 			return err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete ledger on repo by id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to delete ledger", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to delete ledger on repo by id", err)
 
 		return err
 	}
