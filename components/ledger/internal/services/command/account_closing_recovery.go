@@ -195,6 +195,7 @@ func engineRecoveryRecordTouchesAccount(raw []byte, organizationID, ledgerID, ac
 	if err != nil {
 		return false, fmt.Errorf("decode engine recovery record: %w", err)
 	}
+
 	record := writeBehind.Record
 
 	if record.OrganizationID != organizationID || record.LedgerID != ledgerID {
