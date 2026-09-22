@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -191,11 +193,39 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	if err != nil {
 		return nil, err
 	}
+	idempotencyRun, replay, err := uc.claimCrossLedgerGroupTransition(
+		ctx,
+		group,
+		status,
+		executionID,
+		prepared.CompletionPlans,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if replay != nil {
+		updated, updateErr := uc.TransactionGroupRepo.UpdateStatus(ctx, groupID, constant.PENDING, status)
+		if updateErr != nil {
+			return nil, updateErr
+		}
+		if !updated {
+			return nil, errors.New("cross-ledger transaction group replay status compare-and-swap did not update")
+		}
+
+		return replay, nil
+	}
+	if err := uc.prepareAtomicTransactionBatchIdempotency(ctx, idempotencyRun); err != nil {
+		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, idempotencyRun, err)
+	}
 
 	if destinationRun != nil {
 		if err := uc.reserveAtomicTransactionBatch(ctx, span, logger, destinationRun); err != nil {
-			return nil, err
+			return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, idempotencyRun, err)
 		}
+	}
+	if err := uc.handoffAtomicTransactionBatchExecution(ctx, idempotencyRun); err != nil {
+		releaseOnPreparationError = false
+		return nil, err
 	}
 
 	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)
@@ -207,6 +237,9 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 					ctx, span, logger, destinationRun, atomicTransactionBatchReservationConfirmedAbort,
 				)
 			}
+			if err := uc.abortAtomicTransactionBatchConfirmedRefusal(ctx, idempotencyRun); err != nil {
+				return nil, err
+			}
 			return nil, MapEngineError(prepared.Execution.Execution, executeErr)
 		}
 
@@ -217,6 +250,9 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 
 	transactions, err := uc.completeCrossLedgerGroupTransition(ctx, logger, outcome)
 	if err != nil {
+		return nil, err
+	}
+	if err := uc.finalizeCrossLedgerGroupTransition(ctx, idempotencyRun, transactions); err != nil {
 		return nil, err
 	}
 	if destinationRun != nil {
@@ -238,6 +274,82 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 		BatchID:      groupID,
 		Transactions: transactions,
 	}, nil
+}
+
+func (uc *UseCase) claimCrossLedgerGroupTransition(
+	ctx context.Context,
+	group *transactiongroup.TransactionGroup,
+	status string,
+	executionID uuid.UUID,
+	plans []TransactionCompletionPlan,
+) (*atomicTransactionBatchRun, *CreateAtomicTransactionBatchV2Result, error) {
+	if uc.AtomicTransactionBatchIdempotencyRepo == nil {
+		return nil, nil, errors.New("cross-ledger group lifecycle idempotency repository is not configured")
+	}
+	if group == nil || group.ID == uuid.Nil || group.OrganizationID == uuid.Nil || group.LedgerID == uuid.Nil || executionID == uuid.Nil {
+		return nil, nil, errors.New("cross-ledger group lifecycle idempotency identity is incomplete")
+	}
+
+	action := ""
+	switch status {
+	case constant.APPROVED:
+		action = "commit"
+	case constant.CANCELED:
+		action = "cancel"
+	default:
+		return nil, nil, fmt.Errorf("unsupported cross-ledger group lifecycle idempotency status %q", status)
+	}
+
+	canonical, err := json.Marshal(struct {
+		GroupID uuid.UUID       `json:"groupId"`
+		Status  string          `json:"status"`
+		Intent  json.RawMessage `json:"intent"`
+	}{GroupID: group.ID, Status: status, Intent: group.Intent})
+	if err != nil {
+		return nil, nil, fmt.Errorf("encode cross-ledger group lifecycle idempotency identity: %w", err)
+	}
+
+	run := &atomicTransactionBatchRun{
+		batchID:        group.ID,
+		groupID:        cloneUUIDPointer(&group.ID),
+		executionID:    executionID,
+		organizationID: group.OrganizationID,
+		ledgerID:       group.LedgerID,
+		items:          make([]atomicTransactionBatchItemRun, len(plans)),
+	}
+	for index := range plans {
+		if plans[index].TransactionID == uuid.Nil {
+			return nil, nil, errors.New("cross-ledger group lifecycle idempotency transaction identity is incomplete")
+		}
+		run.items[index].transactionID = plans[index].TransactionID
+	}
+
+	replay, err := uc.claimAtomicTransactionBatch(ctx, CreateAtomicTransactionBatchV2Input{
+		CanonicalRequest: canonical,
+		IdempotencyKey:   "group-" + action + ":" + group.ID.String(),
+	}, run)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return run, replay, nil
+}
+
+func (uc *UseCase) finalizeCrossLedgerGroupTransition(
+	ctx context.Context,
+	run *atomicTransactionBatchRun,
+	transactions []*transaction.Transaction,
+) error {
+	if run == nil || len(run.items) != len(transactions) {
+		return errors.New("cross-ledger group lifecycle idempotency response cardinality differs")
+	}
+	for index, tran := range transactions {
+		if err := uc.captureAtomicTransactionBatchInitialResponse(ctx, run, run.items[index].transactionID, tran); err != nil {
+			return err
+		}
+	}
+
+	return uc.finalizeAtomicTransactionBatch(ctx, run, transactions)
 }
 
 func orderCrossLedgerPendingGroupParts(
