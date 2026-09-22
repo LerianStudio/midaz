@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -176,6 +178,31 @@ func TestCreateTransactionV2Response_CrossLedgerRevertEnvelope(t *testing.T) {
 	assert.Equal(t, revertedGroupID, body["revertedGroupId"])
 	assert.Len(t, body["transactions"], 1)
 	assert.NotContains(t, body, "id", "a revert group envelope must not masquerade as one transaction")
+}
+
+func TestNewPendingTransitionV2Response_PreservesSingularOrGroupedShape(t *testing.T) {
+	t.Parallel()
+
+	singular := buildCanonicalTransactionFixture()
+	assert.Equal(t, newTransactionV2(singular), newPendingTransitionV2Response(&command.PendingTransitionV2Result{
+		Transaction: singular,
+	}).TransactionV2)
+
+	groupID := uuid.MustParse("88888888-8888-4888-8888-888888888888")
+	second := buildCanonicalTransactionFixture()
+	second.ID = "99999999-9999-4999-8999-999999999999"
+	response := newPendingTransitionV2Response(&command.PendingTransitionV2Result{
+		Group: &command.CreateAtomicTransactionBatchV2Result{
+			BatchID:      groupID,
+			Transactions: []*transaction.Transaction{singular, second},
+		},
+	})
+
+	require.NotNil(t, response.GroupID)
+	assert.Equal(t, groupID.String(), *response.GroupID)
+	require.Len(t, response.Transactions, 2)
+	assert.Equal(t, []int{1, 2}, []int{response.Transactions[0].Order, response.Transactions[1].Order})
+	assert.Nil(t, response.TransactionV2)
 }
 
 // TestRegisterTransactionV2Routes_ResponseSchemaNotNamedTransaction locks the v2 response
