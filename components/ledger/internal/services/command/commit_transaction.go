@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -44,6 +45,9 @@ func (uc *UseCase) CommitTransactionV1(ctx context.Context, in PendingTransition
 	if err != nil {
 		return nil, err
 	}
+	if err := validatePendingTransitionV1Scope(tran); err != nil {
+		return nil, err
+	}
 
 	return uc.transitionPendingV1(ctx, &pendingTransitionRun{
 		organizationID: in.OrganizationID,
@@ -66,6 +70,9 @@ func (uc *UseCase) CancelTransactionV1(ctx context.Context, in PendingTransition
 	if err != nil {
 		return nil, err
 	}
+	if err := validatePendingTransitionV1Scope(tran); err != nil {
+		return nil, err
+	}
 
 	return uc.transitionPendingV1(ctx, &pendingTransitionRun{
 		organizationID: in.OrganizationID,
@@ -73,6 +80,14 @@ func (uc *UseCase) CancelTransactionV1(ctx context.Context, in PendingTransition
 		tran:           tran,
 		status:         constant.CANCELED,
 	})
+}
+
+func validatePendingTransitionV1Scope(tran *transaction.Transaction) error {
+	if tran.GroupID == nil {
+		return nil
+	}
+
+	return pkg.ValidateBusinessError(constant.ErrCrossLedgerLifecycleRequiresV2, constant.EntityTransaction)
 }
 
 // CommitTransactionV2 approves a PENDING transaction under the /v2 contract, which
