@@ -56,6 +56,8 @@ func ValidatePGError(pgErr *pgconn.PgError, entityType string, args ...any) erro
 		return pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, entityType)
 	case "idx_account_type_unique_key_value":
 		return pkg.ValidateBusinessError(constant.ErrDuplicateAccountTypeKeyValue, entityType)
+	case "idx_ledger_org_name_unique":
+		return pkg.ValidateBusinessError(constant.ErrLedgerNameConflict, entityType, args...)
 	}
 
 	// Transaction constraint violations

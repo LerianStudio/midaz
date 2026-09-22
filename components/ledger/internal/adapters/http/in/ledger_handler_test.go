@@ -792,6 +792,10 @@ func TestUpdateLedger_Success(t *testing.T) {
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
+	ledgerRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID).
+		Return(&mmodel.Ledger{ID: ledgerID.String(), OrganizationID: orgID.String(), Name: "Old Ledger Name"}, nil)
+	ledgerRepo.EXPECT().FindByNameExcludingID(gomock.Any(), orgID, "Updated Ledger Name", ledgerID).
+		Return(false, nil)
 	ledgerRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(&mmodel.Ledger{
 			ID:             ledgerID.String(),
@@ -833,6 +837,10 @@ func TestUpdateLedger_NotFound_Canonical404(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	ledgerRepo := ledger.NewMockRepository(ctrl)
+	ledgerRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID).
+		Return(&mmodel.Ledger{ID: ledgerID.String(), OrganizationID: orgID.String(), Name: "Old Ledger Name"}, nil)
+	ledgerRepo.EXPECT().FindByNameExcludingID(gomock.Any(), orgID, "Updated Ledger Name", ledgerID).
+		Return(false, nil)
 	ledgerRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityLedger)).Times(1)
 
