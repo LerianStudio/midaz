@@ -27,9 +27,7 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, entityName string, i
 
 	existingIndexes, err := uc.TransactionMetadataRepo.FindAllIndexes(ctx, entityName)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check existing indexes", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to check existing indexes", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to check existing indexes", err)
 
 		return nil, err
 	}
@@ -47,9 +45,7 @@ func (uc *UseCase) CreateMetadataIndex(ctx context.Context, entityName string, i
 
 	metadataIndex, err := uc.TransactionMetadataRepo.CreateIndex(ctx, entityName, input)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create metadata index", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create metadata index", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create metadata index", err)
 
 		return nil, err
 	}

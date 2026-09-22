@@ -88,8 +88,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 			return nil, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, "Failed to update transaction route on repo by id", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction route on repo by id", err)
+		recordCommandError(ctx, span, logger, "Failed to update transaction route on repo by id", err, libLog.String("transaction_route_id", id.String()))
 
 		return nil, err
 	}
@@ -130,8 +129,7 @@ func (uc *UseCase) UpdateTransactionRoute(ctx context.Context, organizationID, l
 
 	metadataUpdated, err := uc.UpdateTransactionMetadata(ctx, constant.EntityTransactionRoute, id.String(), input.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to update transaction route metadata", libLog.Err(err), libLog.String("transaction_route_id", id.String()))
+		recordCommandError(ctx, span, logger, "Failed to update metadata on repo by id", err, libLog.String("transaction_route_id", id.String()))
 
 		return nil, err
 	}
