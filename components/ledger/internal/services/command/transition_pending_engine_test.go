@@ -249,8 +249,20 @@ func TestPendingTransitionUsesOptInEngineAfterSQLConfirmation(t *testing.T) {
 	}{
 		{"commit v1", constant.APPROVED, false, (*UseCase).CommitTransactionV1},
 		{"cancel v1", constant.CANCELED, false, (*UseCase).CancelTransactionV1},
-		{"commit v2", constant.APPROVED, true, (*UseCase).CommitTransactionV2},
-		{"cancel v2", constant.CANCELED, true, (*UseCase).CancelTransactionV2},
+		{"commit v2", constant.APPROVED, true, func(uc *UseCase, ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
+			result, err := uc.CommitTransactionV2(ctx, in)
+			if result == nil {
+				return nil, err
+			}
+			return result.Transaction, err
+		}},
+		{"cancel v2", constant.CANCELED, true, func(uc *UseCase, ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
+			result, err := uc.CancelTransactionV2(ctx, in)
+			if result == nil {
+				return nil, err
+			}
+			return result.Transaction, err
+		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, test.status)

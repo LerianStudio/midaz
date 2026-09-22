@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
@@ -28,6 +29,14 @@ type PendingTransitionInput struct {
 	// carries a body that can name one; cancel accepts no grant on any contract,
 	// because a cancel is never barred by an account block to begin with.
 	AccountBlockExceptionID *uuid.UUID
+}
+
+// PendingTransitionV2Result is the v2 lifecycle response union. Singular
+// transitions preserve the historical transaction shape; grouped transitions
+// expose every member under one group envelope.
+type PendingTransitionV2Result struct {
+	*transaction.Transaction
+	Group *CreateAtomicTransactionBatchV2Result
 }
 
 // CommitTransactionV1 approves a PENDING transaction under the /v1 contract, frozen
@@ -93,7 +102,7 @@ func validatePendingTransitionV1Scope(tran *transaction.Transaction) error {
 // CommitTransactionV2 approves a PENDING transaction under the /v2 contract, which
 // includes the tracer reservation lifecycle: the create-pending reserve is confirmed
 // by transaction id once the balances have moved.
-func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
+func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransitionInput) (*PendingTransitionV2Result, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.commit_transaction_v2")
@@ -103,8 +112,16 @@ func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransition
 	if err != nil {
 		return nil, err
 	}
+	if tran.GroupID != nil {
+		group, err := uc.dispatchCrossLedgerGroupTransitionV2(ctx, in, tran, constant.APPROVED)
+		if err != nil {
+			return nil, err
+		}
 
-	return uc.transitionPendingV2(ctx, &pendingTransitionRun{
+		return &PendingTransitionV2Result{Group: group}, nil
+	}
+
+	result, err := uc.transitionPendingV2(ctx, &pendingTransitionRun{
 		organizationID: in.OrganizationID,
 		ledgerID:       in.LedgerID,
 		tran:           tran,
@@ -112,11 +129,16 @@ func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransition
 
 		accountBlockExceptionID: in.AccountBlockExceptionID,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &PendingTransitionV2Result{Transaction: result}, nil
 }
 
 // CancelTransactionV2 cancels a PENDING transaction under the /v2 contract, releasing
 // the reservations the create-pending held.
-func (uc *UseCase) CancelTransactionV2(ctx context.Context, in PendingTransitionInput) (*transaction.Transaction, error) {
+func (uc *UseCase) CancelTransactionV2(ctx context.Context, in PendingTransitionInput) (*PendingTransitionV2Result, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.cancel_transaction_v2")
@@ -126,13 +148,39 @@ func (uc *UseCase) CancelTransactionV2(ctx context.Context, in PendingTransition
 	if err != nil {
 		return nil, err
 	}
+	if tran.GroupID != nil {
+		group, err := uc.dispatchCrossLedgerGroupTransitionV2(ctx, in, tran, constant.CANCELED)
+		if err != nil {
+			return nil, err
+		}
 
-	return uc.transitionPendingV2(ctx, &pendingTransitionRun{
+		return &PendingTransitionV2Result{Group: group}, nil
+	}
+
+	result, err := uc.transitionPendingV2(ctx, &pendingTransitionRun{
 		organizationID: in.OrganizationID,
 		ledgerID:       in.LedgerID,
 		tran:           tran,
 		status:         constant.CANCELED,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &PendingTransitionV2Result{Transaction: result}, nil
+}
+
+func (uc *UseCase) dispatchCrossLedgerGroupTransitionV2(
+	ctx context.Context,
+	in PendingTransitionInput,
+	target *transaction.Transaction,
+	status string,
+) (*CreateAtomicTransactionBatchV2Result, error) {
+	if uc.transitionCrossLedgerGroupV2Fn == nil {
+		return nil, errors.New("cross-ledger group lifecycle coordinator is not configured")
+	}
+
+	return uc.transitionCrossLedgerGroupV2Fn(ctx, in, target, status)
 }
 
 // transitionPendingV1 is the /v1 state-transition pipeline: lock, prepare, commit the

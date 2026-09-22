@@ -150,6 +150,10 @@ type UseCase struct {
 	// Production leaves it nil and calls CreateAtomicTransactionBatchV2.
 	createAtomicTransactionBatchV2 func(context.Context, CreateAtomicTransactionBatchV2Input) (*CreateAtomicTransactionBatchV2Result, error)
 
+	// transitionCrossLedgerGroupV2Fn isolates grouped lifecycle dispatch in
+	// focused unit tests. Production leaves it nil and uses the coordinator.
+	transitionCrossLedgerGroupV2Fn func(context.Context, PendingTransitionInput, *transaction.Transaction, string) (*CreateAtomicTransactionBatchV2Result, error)
+
 	// AtomicTransactionBatchIdempotencyRepo owns the batch-only claim,
 	// execution handoff, refusal cleanup, and terminal state machine. It is
 	// separate from the singular transaction cache contract so neither
