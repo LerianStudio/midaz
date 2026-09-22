@@ -12287,7 +12287,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionV2'
+                oneOf:
+                  - $ref: '#/components/schemas/TransactionV2'
+                  - $ref: '#/components/schemas/CrossLedgerTransactionGroupV2'
           description: Created
         '422':
           content:
@@ -12347,7 +12349,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionV2'
+                oneOf:
+                  - $ref: '#/components/schemas/TransactionV2'
+                  - $ref: '#/components/schemas/CrossLedgerTransactionGroupV2'
           description: Created
         '422':
           content:

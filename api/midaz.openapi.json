@@ -19072,7 +19072,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TransactionV2"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/TransactionV2"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CrossLedgerTransactionGroupV2"
+                    }
+                  ]
                 }
               }
             },
@@ -19169,7 +19176,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TransactionV2"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/TransactionV2"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CrossLedgerTransactionGroupV2"
+                    }
+                  ]
                 }
               }
             },

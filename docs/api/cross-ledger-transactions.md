@@ -1,9 +1,9 @@
 # Cross-ledger transactions
 
-`POST /v2/transactions/direct` accepts debit and credit legs from different
-ledgers when every participating ledger has `settings.crossLedger.enabled=true`.
-The request uses the existing v2 leg-level `organizationId` and `ledgerId`
-fields; there is no separate endpoint.
+`POST /v2/transactions/direct` and `POST /v2/transactions/hold` accept debit
+and credit legs from different ledgers when every participating ledger has
+`settings.crossLedger.enabled=true`. The request uses the existing v2 leg-level
+`organizationId` and `ledgerId` fields; there is no separate endpoint.
 
 `POST /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert`
 also understands these groups. When the selected transaction has a `groupId`,
@@ -16,10 +16,12 @@ the net amount crossing its boundary. If a ledger appears on both sides, its
 original internal legs remain together and only their difference reaches the
 bridge.
 
-All parts execute in one accounting-engine invocation and therefore succeed or
-fail together. The successful HTTP 201 response contains `groupId` and an
-ordered `transactions[]` array. The same `groupId` is persisted on every part
-and included in transaction lifecycle events.
+Direct parts execute in one accounting-engine invocation and therefore succeed
+or fail together. A cross-ledger hold initially executes only the origin parts;
+its later commit executes all origin transitions and destination creates in one
+invocation. Successful HTTP 201 responses contain `groupId` and an ordered
+`transactions[]` array. The same `groupId` is persisted on every materialized
+part and included in transaction lifecycle events.
 
 List transactions belonging to a group with
 `GET /v2/organizations/{organization_id}/ledgers/{ledger_id}/transactions?groupId={uuid}`.
@@ -28,9 +30,9 @@ are authorized to read.
 
 ## Gates and limits
 
-- Only the v2 `direct` action creates mixed-ledger groups. Cross-ledger `hold`,
-  `block`, `unblock`, commit, and cancel remain unsupported. The existing v2
-  revert route is the sole grouped lifecycle operation.
+- Only the v2 `direct` and `hold` actions create mixed-ledger groups. Cross-ledger
+  `block` and `unblock` remain unsupported, and `POST /v2/transactions/batch`
+  still rejects a batch item whose hold itself spans ledgers.
 - Every part uses the same request asset. Mixed assets return `0250` (HTTP 422).
 - A participating ledger with cross-ledger disabled returns `0249` (HTTP 422).
 - Synthetic bridge legs have no accounting route. If any participant enables
@@ -42,6 +44,35 @@ are authorized to read.
   reusing the key conflicts with `0084`.
 - Cross-tenant requests are not possible: tenant scope still comes from the
   authenticated connection.
+
+## Hold, commit, and cancel
+
+A cross-ledger hold persists the normalized group intent, including destination
+parts, before accounting. It creates only origin transactions: each origin
+debits its source into that ledger's `@external/<asset>` bridge and remains
+PENDING. No destination transaction or destination balance change exists until
+commit. The response contains only those PENDING origins.
+
+Commit or cancel may be addressed to any pending origin through the existing v2
+lifecycle routes. Commit changes every origin from PENDING to APPROVED and
+creates every destination as APPROVED in the same accounting-engine invocation.
+Cancel changes every origin to CANCELED and creates no destination. Both return
+the group envelope under the original `groupId`; a singular pending transaction
+retains the historical singular response shape.
+
+The group record is compared from PENDING to the terminal status after member
+completion. Internal keys `group-commit:{groupId}` and
+`group-cancel:{groupId}` fence publication and retain an uncertain result for
+reconciliation; the engine is never retried after an unknown outcome. A second
+terminal action returns `0254` (HTTP 422) and identifies the current group
+status. Missing or inconsistent intent/members return `0253` (HTTP 422).
+
+Origin fees are frozen into the hold. Destination fees are evaluated when the
+commit runs, so a package change between hold and commit can affect destination
+parts. Origin Tracer reservations are confirmed on commit and released on
+cancel; destination reservations are created only for commit. `/v1` commit,
+cancel, or revert cannot return a group and rejects a group member with `0252`
+(HTTP 422).
 
 ## Revert
 
@@ -68,5 +99,4 @@ Authorization is evaluated by the existing route against the organization and
 ledger in the path. As with cross-ledger create, the resulting atomic operation
 may include other enabled ledgers or organizations in the same tenant.
 
-This milestone does not provide exchange rates, cross-ledger hold/commit/cancel,
-or an aggregate group endpoint.
+This contract does not provide exchange rates or an aggregate group endpoint.

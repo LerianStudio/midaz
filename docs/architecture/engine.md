@@ -268,6 +268,14 @@ Execution identity is distinct from transaction identity: pending creation,
 commitment, and cancellation share a transaction ID but require different
 execution IDs. Retries of one logical action preserve its execution ID.
 
+A cross-ledger group commit is a mixed execution: existing origin transaction
+IDs carry `PENDING -> APPROVED` guards and `unreserve` postings, while new
+destination transaction IDs carry empty guards and direct bridge-credit
+postings. One ordered snapshot pool, fingerprint, receipt, and Lua invocation
+cover both kinds. Group cancel contains only guarded origin transitions. The
+command persists the normalized destination intent at hold time, but prepares
+destination fees and live balance decisions only at commit time.
+
 ## Posting arithmetic
 
 Let `A` denote Available, `H` OnHold, `U` OverdraftUsed, and `x` the positive
@@ -763,6 +771,7 @@ different failure window:
 | Mechanism | Checked/created | Protects against | Does not prove |
 | --- | --- | --- | --- |
 | HTTP transaction idempotency claim | Command layer before preparation | A client resubmitting the same API operation and expecting its first outcome | That an attempted engine call did or did not mutate balances |
+| Cross-ledger lifecycle claim | Command layer under `group-commit:{groupId}` or `group-cancel:{groupId}` | Concurrent or repeated publication of a grouped commit/cancel that has no caller key | Durable projection of every member or the terminal group status label |
 | Engine receipt | Read first and written last by the accounting Lua execution | Re-executing the same execution ID after a lost response; replay returns the exact recorded result | SQL/MongoDB projection or event delivery |
 | Execution guard | Compared and advanced by Lua with the mutation | Competing lifecycle actions, especially commit versus cancel | Durable completion of the winning action |
 | Recovery record | Written by Lua with balance changes, then exact-ACKed by recovery | Losing the information needed to complete an already-applied result | Permission to invoke the engine again |
