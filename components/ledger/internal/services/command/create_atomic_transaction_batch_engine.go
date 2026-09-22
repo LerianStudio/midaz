@@ -16,6 +16,7 @@ import (
 
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 )
 
 func buildAtomicTransactionBatchPreparedExecution(
@@ -148,8 +149,11 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 	logger libLog.Logger,
 	run *atomicTransactionBatchRun,
 	prepared PreparedEngineExecution,
+	admissions *accountprotection.Sink,
 ) (EngineExecutionOutcome, error) {
 	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)
+	resolveEngineAdmissions(admissions, prepared.Execution.Execution, outcome, executeErr)
+
 	if executeErr == nil {
 		uc.settleAtomicTransactionBatchReservations(
 			ctx,

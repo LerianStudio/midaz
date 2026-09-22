@@ -98,6 +98,12 @@ func TestCreateAtomicTransactionBatchV2_ExecutesOneOrderedEngineRequest(t *testi
 	assert.Equal(t, transactionIDs, atomicTransactionBatchTracerRequestIDs(requests))
 	assert.Equal(t, atomicTransactionBatchExecutionReservationIDs(), confirmed)
 	assert.Empty(t, released)
+	assert.True(t, engine.sawAdmissionSink)
+	require.NotEmpty(t, engine.admissionTokens)
+	for _, token := range engine.admissionTokens {
+		assert.NotEmpty(t, token)
+	}
+	assert.Zero(t, atomicTransactionBatchProtectionStore(t, uc).ownedAccounts())
 }
 
 func TestAtomicTransactionBatchRetentionSecondsSupportsHeaderAndDurationConventions(t *testing.T) {
@@ -140,6 +146,7 @@ func TestCreateAtomicTransactionBatchV2_ConfirmedRefusalAbortsAndCorrelatesFirst
 	_, confirmed, released := reserver.snapshot()
 	assert.Empty(t, confirmed)
 	assert.Equal(t, atomicTransactionBatchExecutionReservationIDs(), released)
+	assert.Zero(t, atomicTransactionBatchProtectionStore(t, uc).ownedAccounts())
 }
 
 func TestCreateAtomicTransactionBatchV2_ProtectedRefusalRetainsIdentityAndReservations(t *testing.T) {
@@ -159,6 +166,7 @@ func TestCreateAtomicTransactionBatchV2_ProtectedRefusalRetainsIdentityAndReserv
 	_, confirmed, released := reserver.snapshot()
 	assert.Empty(t, confirmed)
 	assert.Empty(t, released)
+	assert.Zero(t, atomicTransactionBatchProtectionStore(t, uc).ownedAccounts())
 }
 
 func TestCreateAtomicTransactionBatchV2_TransitionFailureAbortsBeforeTracerAndAccounting(t *testing.T) {
@@ -201,6 +209,7 @@ func TestCreateAtomicTransactionBatchV2_IndeterminateOutcomeRetainsProtectionWit
 	_, confirmed, released := reserver.snapshot()
 	assert.Empty(t, confirmed)
 	assert.Empty(t, released)
+	assert.Equal(t, 4, atomicTransactionBatchProtectionStore(t, uc).ownedAccounts())
 }
 
 func atomicTransactionBatchExecutionFixture(
@@ -225,7 +234,8 @@ func atomicTransactionBatchExecutionFixture(
 		FailPosture: mmodel.TracerFailPostureClosed,
 	}
 	reader := &atomicTransactionBatchSettingsReader{
-		settings: settings,
+		settings:        settings,
+		protectionStore: newAccountClosingMarkerStore(),
 		balances: []*mmodel.Balance{
 			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-0000000000e7", "@source-0", "BRL"),
 			atomicTransactionBatchTestBalance(organizationID, ledgerID, "01994f13-29b7-7000-8000-0000000000e8", "@destination-0", "BRL"),
@@ -264,6 +274,16 @@ func atomicTransactionBatchExecutionFixture(
 	}
 
 	return uc, input, transactionIDs, executionID
+}
+
+func atomicTransactionBatchProtectionStore(t *testing.T, uc *UseCase) *accountClosingMarkerStore {
+	t.Helper()
+
+	reader, ok := uc.TransactionReader.(*atomicTransactionBatchSettingsReader)
+	require.True(t, ok)
+	require.NotNil(t, reader.protectionStore)
+
+	return reader.protectionStore
 }
 
 func atomicTransactionBatchExecutionReserver() *atomicTransactionBatchTracerFake {

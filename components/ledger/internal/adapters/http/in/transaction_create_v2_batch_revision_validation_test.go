@@ -35,6 +35,23 @@ func TestDecodeAndValidateRevisedAtomicTransactionBatchV2_OrdersItemsLogically(t
 	}, []atomicTransactionBatchV2Action{result.items[0].action, result.items[1].action, result.items[2].action})
 }
 
+func TestDecodeAndValidateRevisedAtomicTransactionBatchV2_PreservesBalanceKeyPerLeg(t *testing.T) {
+	t.Parallel()
+
+	request := validAtomicBatchV2Request("@source", "@destination", batchTestLedgerID)
+	request.Debits[0].BalanceKey = "food"
+	request.Credits[0].BalanceKey = "settlement"
+	item := revisedAtomicBatchV2Item(t, request, "direct", 1)
+
+	result, err := decodeAndValidateRevisedAtomicTransactionBatchV2(marshalAtomicBatchV2Wrapper(t, item), 50)
+	require.NoError(t, err)
+	require.Len(t, result.items, 1)
+	require.Len(t, result.items[0].normalized.transaction.Send.Source.From, 1)
+	require.Len(t, result.items[0].normalized.transaction.Send.Distribute.To, 1)
+	assert.Equal(t, "food", result.items[0].normalized.transaction.Send.Source.From[0].BalanceKey)
+	assert.Equal(t, "settlement", result.items[0].normalized.transaction.Send.Distribute.To[0].BalanceKey)
+}
+
 func TestDecodeAndValidateRevisedAtomicTransactionBatchV2_AggregatesStructuralErrors(t *testing.T) {
 	t.Parallel()
 

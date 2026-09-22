@@ -62,6 +62,10 @@ Keep the boundary exact:
   compensate or resubmit automatically. Confirmed NOSCRIPT fallback, receipt
   replay, precommit limit normalization, and completion recovery are distinct and
   do not authorize a second accounting mutation.
+- Every command path that calls `ExecutePreparedEngine` installs an account
+  protection sink before loading balances and calls `resolveEngineAdmissions`
+  immediately after the engine answers. This includes singular creates, pending
+  transitions, and the entire atomic batch v2 load-to-execution window.
 - `TransactionCompletionPlan` captures nonmonetary row attribution, metadata, and
   timestamps before execution. `AppliedTransactionCompleter` persists/verifies
   SQL and MongoDB after the engine; recovery invokes that completer, never the

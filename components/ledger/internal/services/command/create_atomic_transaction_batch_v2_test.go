@@ -22,6 +22,7 @@ import (
 
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -50,16 +51,28 @@ func (engine *capturingAtomicBatchEquivalenceEngine) Execute(
 }
 
 type applyingAtomicTransactionBatchEngine struct {
-	t          *testing.T
-	executions []EngineExecution
+	t                *testing.T
+	executions       []EngineExecution
+	sawAdmissionSink bool
+	admissionTokens  []string
 }
 
 func (engine *applyingAtomicTransactionBatchEngine) Execute(
-	_ context.Context,
+	ctx context.Context,
 	execution EngineExecution,
 ) (*accounting.ExecutionResult, error) {
 	engine.t.Helper()
 	engine.executions = append(engine.executions, execution)
+	sink := accountprotection.SinkFromContext(ctx)
+	engine.sawAdmissionSink = sink != nil
+	if sink != nil {
+		for _, snapshot := range execution.Execution.Balances {
+			engine.admissionTokens = append(
+				engine.admissionTokens,
+				sink.TokenFor(execution.Execution.OrganizationID, execution.Execution.LedgerID, snapshot.AccountID),
+			)
+		}
+	}
 
 	states := make(map[string]accounting.BalanceState, len(execution.Execution.Balances))
 	snapshots := make(map[string]accounting.BalanceSnapshot, len(execution.Execution.Balances))
@@ -140,17 +153,18 @@ type atomicTransactionBatchRouteCall struct {
 
 type atomicTransactionBatchSettingsReader struct {
 	TransactionReader
-	settings       mmodel.LedgerSettings
-	balances       []*mmodel.Balance
-	routeCaches    []*mmodel.TransactionRouteCache
-	engineAliases  [][]string
-	enginePrimary  []bool
-	routeCalls     []atomicTransactionBatchRouteCall
-	err            error
-	calls          int
-	engineReads    int
-	organizationID uuid.UUID
-	ledgerID       uuid.UUID
+	settings        mmodel.LedgerSettings
+	balances        []*mmodel.Balance
+	routeCaches     []*mmodel.TransactionRouteCache
+	engineAliases   [][]string
+	enginePrimary   []bool
+	routeCalls      []atomicTransactionBatchRouteCall
+	err             error
+	calls           int
+	engineReads     int
+	organizationID  uuid.UUID
+	ledgerID        uuid.UUID
+	protectionStore *accountClosingMarkerStore
 }
 
 func (reader *atomicTransactionBatchSettingsReader) GetParsedLedgerSettings(
@@ -187,6 +201,26 @@ func (reader *atomicTransactionBatchSettingsReader) GetEngineBalances(
 		})
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if reader.protectionStore != nil {
+		accountIDs := make([]uuid.UUID, 0, len(pool.Balances))
+		for _, balance := range pool.Balances {
+			accountID, parseErr := uuid.Parse(balance.AccountID)
+			if parseErr != nil {
+				return nil, nil, parseErr
+			}
+			accountIDs = append(accountIDs, accountID)
+		}
+
+		admission, admissionErr := accountprotection.NewGuard(nil, reader.protectionStore).
+			AcquireAdmission(ctx, organizationID, ledgerID, accountIDs)
+		if admissionErr != nil {
+			return nil, nil, admissionErr
+		}
+		if !accountprotection.AdoptAdmission(ctx, admission) {
+			admission.Release(ctx)
+		}
 	}
 
 	return pool.ExplicitBalances, pool.Balances, nil

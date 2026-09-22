@@ -64,6 +64,25 @@ func closingLegacyRecoveryRecord(t *testing.T, accountID uuid.UUID) string {
 	return string(raw)
 }
 
+func closingWriteBehindRecoveryEnvelope(t *testing.T, action string) string {
+	t.Helper()
+
+	record, err := DecodeTransactionCompletionRecord(recoveryInventoryEnvelope(t, action))
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(TransactionWriteBehindEnvelope{
+		FormatVersion:    TransactionWriteBehindFormatVersion,
+		ApplicationState: TransactionApplicationConfirmed,
+		ReplayState:      TransactionReplayReconstructible,
+		DurabilityState:  TransactionDurabilityPending,
+		Record:           *record,
+		Dependencies:     []TransactionEvidenceReference{},
+	})
+	require.NoError(t, err)
+
+	return string(raw)
+}
+
 // closingPage builds one scan page of one origin.
 func closingPage(source txRedis.RecoveryQueueSource, cursor uint64, payloads ...string) txRedis.RecoveryScanPage {
 	page := txRedis.RecoveryScanPage{Source: source, Cursor: cursor}
@@ -87,6 +106,7 @@ func (m *closingRecoveryMocks) expectTerminalScan(source txRedis.RecoveryQueueSo
 // and the legacy backup record — and answers strictly on the full scope.
 func TestAccountClosingRecoveryRecordAttributionReadsBothPersistedFormats(t *testing.T) {
 	engineRecord := string(recoveryInventoryEnvelope(t, constant.ActionDirect))
+	writeBehindRecord := closingWriteBehindRecoveryEnvelope(t, constant.ActionDirect)
 
 	tests := []struct {
 		name        string
@@ -97,9 +117,10 @@ func TestAccountClosingRecoveryRecordAttributionReadsBothPersistedFormats(t *tes
 		touches     bool
 		fails       bool
 	}{
-		{name: "engine envelope naming the account", raw: engineRecord, accountID: recoveryScopeAccountID, ledgerID: recoveryScopeLedgerID, touches: true},
-		{name: "engine envelope naming another account", raw: engineRecord, accountID: recoveryOtherAccountID, ledgerID: recoveryScopeLedgerID},
-		{name: "engine envelope of another ledger", raw: engineRecord, accountID: recoveryScopeAccountID, ledgerID: recoveryOtherAccountID},
+		{name: "write-behind envelope naming the account", raw: writeBehindRecord, accountID: recoveryScopeAccountID, ledgerID: recoveryScopeLedgerID, touches: true},
+		{name: "write-behind envelope naming another account", raw: writeBehindRecord, accountID: recoveryOtherAccountID, ledgerID: recoveryScopeLedgerID},
+		{name: "write-behind envelope of another ledger", raw: writeBehindRecord, accountID: recoveryScopeAccountID, ledgerID: recoveryOtherAccountID},
+		{name: "bare engine record naming the account", raw: engineRecord, accountID: recoveryScopeAccountID, ledgerID: recoveryScopeLedgerID, touches: true},
 		{
 			name: "legacy record naming the account", raw: closingLegacyRecoveryRecord(t, recoveryScopeAccountID),
 			allowLegacy: true, accountID: recoveryScopeAccountID, ledgerID: recoveryScopeLedgerID, touches: true,
