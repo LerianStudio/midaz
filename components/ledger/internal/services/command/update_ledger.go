@@ -38,6 +38,35 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_ledger", start, err)
 	}()
 
+	// Skip the uniqueness round-trip when the request does not rename the ledger
+	// (an empty Name is a no-op for Update).
+	if uli.Name != "" {
+		// Bail out before the extra round-trips when the caller is already gone.
+		if err = ctx.Err(); err != nil {
+			recordCommandError(ctx, span, logger, "Context cancelled before ledger update", err)
+
+			return nil, err
+		}
+
+		// Existence outranks uniqueness: a PATCH on a ledger that is not there is
+		// a 404, and answering 409 instead would tell an unauthorized caller which
+		// names an organization holds.
+		// Dual-class: span helper and log level are picked by error class.
+		if _, err = uc.LedgerRepo.Find(ctx, organizationID, id); err != nil {
+			recordCommandError(ctx, span, logger, "Failed to find ledger by id", err)
+
+			return nil, err
+		}
+
+		// The ledger itself is excluded from the candidate set, keeping a re-sent
+		// name a 200.
+		if _, err = uc.LedgerRepo.FindByNameExcludingID(ctx, organizationID, uli.Name, id); err != nil {
+			recordCommandError(ctx, span, logger, "Failed to find ledger by name", err)
+
+			return nil, err
+		}
+	}
+
 	ledger := &mmodel.Ledger{
 		Name:   uli.Name,
 		Status: uli.Status,
@@ -54,8 +83,9 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 			return nil, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, "Failed to update ledger", libLog.Err(err))
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update ledger on repo by id", err)
+		// A lost rename race surfaces here as the EntityConflictError the unique
+		// index maps to.
+		recordCommandError(ctx, span, logger, "Failed to update ledger on repo by id", err)
 
 		return nil, err
 	}
