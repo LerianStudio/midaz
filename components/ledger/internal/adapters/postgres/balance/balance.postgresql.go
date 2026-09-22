@@ -30,6 +30,7 @@ import (
 	"github.com/shopspring/decimal"
 	"go.opentelemetry.io/otel/trace"
 
+	pgoperation "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -1660,15 +1661,15 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDAtTimestamp(ctx context.Con
 		"available_balance_after",
 		"on_hold_balance_after",
 		"balance_version_after",
-		"created_at as op_created_at",
+		pgoperation.PointInTimeRecordedAtExpression+" as op_recorded_at",
 	).
 		From("operation").
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"account_id": accountID}).
-		Where(squirrel.LtOrEq{"created_at": timestamp}).
+		Where(squirrel.Expr(pgoperation.PointInTimeRecordedAtExpression+" <= ?", timestamp)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("balance_id", "created_at DESC", "balance_version_after DESC", "id DESC")
+		OrderBy("balance_id", pgoperation.PointInTimeRecordedAtExpression+" DESC", "balance_version_after DESC", "id DESC")
 
 	latestOpsSql, latestOpsArgs, err := latestOpsSubquery.ToSql()
 	if err != nil {
@@ -1691,7 +1692,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDAtTimestamp(ctx context.Con
 		"COALESCE(o.available_balance_after, 0) as available",
 		"COALESCE(o.on_hold_balance_after, 0) as on_hold",
 		"COALESCE(o.balance_version_after, 0) as version",
-		"COALESCE(o.op_created_at, b.created_at) as updated_at",
+		"COALESCE(o.op_recorded_at, b.created_at) as updated_at",
 	).
 		Prefix("WITH latest_ops AS ("+latestOpsSql+")", latestOpsArgs...).
 		From("balance b").

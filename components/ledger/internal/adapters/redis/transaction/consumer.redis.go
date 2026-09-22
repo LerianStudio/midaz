@@ -164,7 +164,9 @@ type RedisRepository interface {
 	// Incr atomically increments a key's integer value and returns the new value.
 	// Returns 0 on error (connection failure, namespace failure).
 	Incr(ctx context.Context, key string) int64
-	// ProcessBalanceAtomicOperation executes the Lua balance mutation script.
+	// ProcessBalanceAtomicOperation exposes the pre-engine Lua balance writer for
+	// isolated compatibility and rollback verification. Executable command,
+	// backup-consumer, and engine-recovery flows do not call it.
 	// Atomically updates balances, records backup, and schedules sync in a single round-trip.
 	// Returns before/after balance snapshots for event emission.
 	//
@@ -1406,6 +1408,9 @@ func decodeBalanceAtomicResult(ctx context.Context, result any, mapBalances map[
 	}, atomicResp.Replayed, missingAliases, nil
 }
 
+// ProcessBalanceAtomicOperation runs the isolated pre-engine writer retained for
+// compatibility and rollback verification. Production command and recovery
+// orchestration must use the accounting engine or projection-only consumers.
 func (rr *RedisConsumerRepository) ProcessBalanceAtomicOperation(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, transactionStatus string, pending bool, balancesOperation []mmodel.BalanceOperation, binding *mtransaction.AccountBlockExceptionBinding) (*mmodel.BalanceAtomicResult, error) {
 	logger, tracer, _, metricsFactory := libObservability.NewTrackingFromContext(ctx)
 

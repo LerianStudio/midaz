@@ -131,10 +131,8 @@ func TestAccountBlockExceptionSeam_GrantReachesEachAtomicStepThroughOneSeam(t *t
 	const grantField = "AccountBlockExceptionGrant:"
 
 	populating := map[string]string{
-		"create fallback":             "create_transaction_v2.go",
-		"pending transition fallback": "transition_pending_steps.go",
-		"create engine":               "create_transaction_engine.go",
-		"pending transition engine":   "transition_pending_engine.go",
+		"create engine":             "create_transaction_engine.go",
+		"pending transition engine": "transition_pending_engine.go",
 	}
 
 	for name, path := range populating {
@@ -149,15 +147,6 @@ func TestAccountBlockExceptionSeam_GrantReachesEachAtomicStepThroughOneSeam(t *t
 				"%s must populate the grant exactly once", name)
 		})
 	}
-
-	t.Run("the balance step forwards it to the script", func(t *testing.T) {
-		t.Parallel()
-
-		src := readPipelineSource(t, "process_balance_operations.go")
-
-		assert.Contains(t, src, "input.AccountBlockExceptionGrant",
-			"the balance step must forward the grant to the atomic script")
-	})
 
 	t.Run("the engine translation binds it to one posting", func(t *testing.T) {
 		t.Parallel()

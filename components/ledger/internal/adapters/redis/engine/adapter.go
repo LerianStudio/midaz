@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -535,9 +536,10 @@ func validatePostingFailure(failure accounting.Failure, request accounting.Execu
 }
 
 type resultEnvelope struct {
-	ProtocolVersion int               `json:"protocolVersion"`
-	Movements       []json.RawMessage `json:"movements"`
-	Final           []json.RawMessage `json:"final"`
+	ProtocolVersion    int               `json:"protocolVersion"`
+	Movements          []json.RawMessage `json:"movements"`
+	Final              []json.RawMessage `json:"final"`
+	AppliedAtUnixMicro int64             `json:"appliedAtUnixMicro,omitempty"`
 }
 
 type resultState struct {
@@ -577,7 +579,11 @@ func DecodeResult(raw []byte, request accounting.Execution) (*accounting.Executi
 		return nil, errors.New("invalid accounting result envelope")
 	}
 
-	result := &accounting.ExecutionResult{Movements: make([]accounting.Movement, 0, len(response.Movements)), Final: make([]accounting.BalanceSnapshot, 0, len(response.Final))}
+	result := &accounting.ExecutionResult{
+		Movements:          make([]accounting.Movement, 0, len(response.Movements)),
+		Final:              make([]accounting.BalanceSnapshot, 0, len(response.Final)),
+		AppliedAtUnixMicro: response.AppliedAtUnixMicro,
+	}
 	last := make(map[string]accounting.BalanceState)
 	firstTouch := make([]string, 0, len(response.Final))
 	previousOrdinal := -1
@@ -965,7 +971,15 @@ func requireResponseFields(fields map[string]json.RawMessage, target reflect.Typ
 			continue
 		}
 
-		name := strings.Split(field.Tag.Get("json"), ",")[0]
+		parts := strings.Split(field.Tag.Get("json"), ",")
+		name := parts[0]
+
+		// Optional fields are reserved for rolling compatibility with receipts
+		// produced by an older engine script during the retention window.
+		if slices.Contains(parts[1:], "omitempty") {
+			continue
+		}
+
 		if name != "" && name != "-" {
 			if _, exists := fields[name]; !exists {
 				return errors.New("missing accounting response field")

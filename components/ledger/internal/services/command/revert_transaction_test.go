@@ -93,7 +93,11 @@ func newRevertUseCase(t *testing.T, reader *revertReader) *UseCase {
 	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	redisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
-	return &UseCase{TransactionRedisRepo: redisRepo, TransactionReader: reader}
+	return &UseCase{
+		TransactionRedisRepo:        redisRepo,
+		TransactionReader:           reader,
+		AppliedTransactionCompleter: &createAppliedTransactionCompleter{},
+	}
 }
 
 func revertInput() RevertTransactionInput {

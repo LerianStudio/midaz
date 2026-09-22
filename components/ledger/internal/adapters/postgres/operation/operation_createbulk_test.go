@@ -288,6 +288,8 @@ type mockOperationDB struct {
 	rowsAffected    int64
 	rowsAffectedErr error
 	queryErr        error
+	execArgs        []any
+	queryArgs       []any
 }
 
 func (m *mockOperationDB) Begin() (dbresolver.Tx, error) {
@@ -315,6 +317,7 @@ func (m *mockOperationDB) Exec(query string, args ...any) (sql.Result, error) {
 }
 
 func (m *mockOperationDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	m.execArgs = append([]any(nil), args...)
 	if m.execErr != nil {
 		return nil, m.execErr
 	}
@@ -343,6 +346,7 @@ func (m *mockOperationDB) Query(query string, args ...any) (*sql.Rows, error) {
 }
 
 func (m *mockOperationDB) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	m.queryArgs = append([]any(nil), args...)
 	if m.queryErr != nil {
 		return nil, m.queryErr
 	}
@@ -505,9 +509,8 @@ func TestInsertOperationChunk_ColumnCount(t *testing.T) {
 
 	// Verify that operationColumnList has expected number of columns
 	// This ensures the bulk insert won't have column/value mismatch.
-	// Count was bumped from 30 → 31 when the `snapshot` JSONB column was
-	// appended to the list.
-	expectedColumns := 31 // Based on operationColumnList definition
+	// recorded_at is appended after the snapshot JSONB column.
+	expectedColumns := 32 // Based on operationColumnList definition
 	assert.Equal(t, expectedColumns, len(operationColumnList),
 		"operationColumnList should have %d columns", expectedColumns)
 }
@@ -515,11 +518,9 @@ func TestInsertOperationChunk_ColumnCount(t *testing.T) {
 func TestInsertOperationChunk_ParameterLimitCalculation(t *testing.T) {
 	t.Parallel()
 
-	// Verify that 1000 rows * 31 columns stays under PostgreSQL's 65,535 limit.
-	// Column count was bumped from 30 → 31 when the `snapshot` JSONB column
-	// was appended.
+	// Verify that 1000 rows * 32 columns stays under PostgreSQL's 65,535 limit.
 	const chunkSize = 1000
-	const columnCount = 31 // operationColumnList length
+	const columnCount = 32 // operationColumnList length
 	const postgresLimit = 65535
 
 	parametersPerChunk := chunkSize * columnCount

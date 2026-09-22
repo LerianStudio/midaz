@@ -6,6 +6,7 @@ package command
 
 import (
 	"maps"
+	"time"
 
 	"github.com/shopspring/decimal"
 
@@ -41,6 +42,13 @@ func BuildOperationRecordsFromMovements(payload TransactionCompletionPlan, resul
 
 	lifecycles := operationLifecycles(payload, result.Movements)
 	rows := make([]*operation.Operation, 0, len(result.Movements))
+
+	var recordedAt *time.Time
+
+	if result.AppliedAtUnixMicro > 0 {
+		value := time.UnixMicro(result.AppliedAtUnixMicro).UTC()
+		recordedAt = &value
+	}
 
 	for _, context := range payload.OperationSpecs {
 		key := operationMovementKey{context.PostingRef, context.Role, context.Ordinal}
@@ -84,7 +92,7 @@ func BuildOperationRecordsFromMovements(payload TransactionCompletionPlan, resul
 			AccountAlias: mtransaction.SplitAlias(context.Balance.Alias), AccountType: context.Balance.AccountType, BalanceKey: context.Balance.Key,
 			RouteID: routeID, RouteCode: projectedOptionalText(context.RouteCode), RouteDescription: projectedOptionalText(context.RouteDescription),
 			BalanceAffected: true, Direction: context.Direction,
-			CreatedAt: payload.TransactionDate, UpdatedAt: payload.OperationUpdatedAt,
+			CreatedAt: payload.TransactionDate, UpdatedAt: payload.OperationUpdatedAt, RecordedAt: recordedAt,
 			Snapshot: mmodel.OperationSnapshot{OverdraftUsedBefore: lifecycle.Before.OverdraftUsed.String(), OverdraftUsedAfter: lifecycle.After.OverdraftUsed.String()},
 		})
 	}

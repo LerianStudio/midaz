@@ -23,8 +23,8 @@
 #     api/midaz.openapi.{yaml,json}             (redocly-joined hub spec)
 #   Reusing generate-docs.sh — rather than re-inlining its regen/join steps here —
 #   is deliberate: it makes divergence from the gate impossible by construction.
-#   Toolchain is Go + Node/npm only (generate-docs.sh self-installs its npm deps;
-#   redocly + js-yaml are npm packages) — NO swag, NO Docker.
+#   Toolchain is Go + Node/npm only (generate-docs.sh self-installs Redocly;
+#   YAML conversion uses the repository's Go dependency) — NO swag, NO Docker.
 #   Every artifact above is staged, because the gate diffs every one of them: an
 #   artifact regenerated here but left unstaged would fail the required gate on the
 #   next PR, on a path that PR never touched.
@@ -140,8 +140,8 @@ jobs:
 
       # Regenerate the FULL gate-enforced doc artifact set (both Huma dumps + the
       # redocly-joined api/ hub spec) via the same script the required check-docs
-      # gate runs under CHECK_DOCS_REGEN=1. generate-docs.sh self-installs its npm
-      # deps (redocly, js-yaml) and runs the pure-Go golden dump under the
+      # gate runs under CHECK_DOCS_REGEN=1. generate-docs.sh self-installs its
+      # Redocly dependency and runs the pure-Go golden dump under the
       # MANAGE_TOKEN module auth configured above; no swag, no Docker.
       - name: Regenerate OpenAPI docs
         run: make generate-docs

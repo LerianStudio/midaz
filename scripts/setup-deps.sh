@@ -77,7 +77,7 @@ install_node_dependencies() {
     fi
 
     # Verify critical packages are installed
-    local required_packages=("js-yaml" "@redocly/cli")
+    local required_packages=("@redocly/cli")
     for package in "${required_packages[@]}"; do
         if [ ! -d "node_modules/$package" ]; then
             echo "❌ Required package '$package' not installed"

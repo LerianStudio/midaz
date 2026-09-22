@@ -6,9 +6,6 @@
     "docs:generate": "cd ../.. && make generate-docs",
     "setup": "cd ../.. && bash scripts/setup-deps.sh"
   },
-  "dependencies": {
-    "js-yaml": "^5.2.2"
-  },
   "devDependencies": {
     "@redocly/cli": "^2.40.0"
   },

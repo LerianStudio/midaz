@@ -9,6 +9,7 @@ package operation
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -401,6 +402,8 @@ func TestIntegration_OperationRepository_FindAll_ReturnsOperations(t *testing.T)
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
+	createdAt := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
+	recordedAt := createdAt.Add(24 * time.Hour)
 
 	// Create multiple operations for the same transaction
 	for i := 0; i < 3; i++ {
@@ -415,19 +418,32 @@ func TestIntegration_OperationRepository_FindAll_ReturnsOperations(t *testing.T)
 			Amount:          decimal.NewFromInt(int64(100 + i*10)),
 			Status:          "APPROVED",
 			BalanceAffected: true,
+			CreatedAt:       createdAt,
+			RecordedAt:      &recordedAt,
 		}
 		pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, opParams)
 	}
 
 	ctx := context.Background()
+	filter := http.Pagination{
+		Limit:     10,
+		SortOrder: "DESC",
+		StartDate: createdAt.Add(-time.Hour),
+		EndDate:   createdAt.Add(time.Hour),
+	}
 
 	// Act
-	operations, cur, err := repo.FindAll(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, defaultPagination())
+	operations, cur, err := repo.FindAll(ctx, ids.OrgID, ids.LedgerID, ids.TransactionID, filter)
 
 	// Assert
 	require.NoError(t, err, "FindAll should not return error")
 	assert.Len(t, operations, 3, "should return 3 operations")
 	assert.Empty(t, cur.Next, "should not have next cursor with only 3 items")
+	for _, operation := range operations {
+		assert.True(t, createdAt.Equal(operation.CreatedAt))
+		require.NotNil(t, operation.RecordedAt)
+		assert.True(t, recordedAt.Equal(*operation.RecordedAt))
+	}
 }
 
 func TestIntegration_OperationRepository_FindAll_EmptyForNonExistentTransaction(t *testing.T) {
@@ -1231,6 +1247,156 @@ func TestIntegration_OperationRepository_NewColumnMigration_BackwardsCompatible(
 	// Verify nullable/optional fields have safe defaults
 	assert.Nil(t, op.Status.Description, "status_description should be nil")
 	assert.Empty(t, op.Route, "route should be empty")
+
+	// A pod from immediately before migration 000036 selects an explicit 31-column
+	// projection. Keep that frozen projection executable after recorded_at is added;
+	// the extra table column must not change its row shape or scan cardinality.
+	legacyColumns := []string{
+		"id", "transaction_id", "description", "type", "asset_code", "amount",
+		"available_balance", "on_hold_balance", "available_balance_after", "on_hold_balance_after",
+		"status", "status_description", "account_id", "account_alias", "balance_id",
+		"chart_of_accounts", "organization_id", "ledger_id", "created_at", "updated_at",
+		"deleted_at", "route", "balance_affected", "balance_key", "balance_version_before",
+		"balance_version_after", "direction", "route_id", "route_code", "route_description", "snapshot",
+	}
+	legacyValues := make([]any, len(legacyColumns))
+	legacyDestinations := make([]any, len(legacyValues))
+	for i := range legacyValues {
+		legacyDestinations[i] = &legacyValues[i]
+	}
+
+	legacyRow := container.DB.QueryRow(
+		"SELECT "+strings.Join(legacyColumns, ", ")+" FROM operation WHERE id = $1",
+		opID,
+	)
+	require.NoError(t, legacyRow.Scan(legacyDestinations...), "pre-000036 pod projection must remain readable")
+	assert.Equal(t, opID.String(), fmt.Sprint(legacyValues[0]))
+
+	var recordedAt any
+	require.NoError(t, container.DB.QueryRow("SELECT recorded_at FROM operation WHERE id = $1", opID).Scan(&recordedAt))
+	assert.Nil(t, recordedAt, "rows written by old pods must be accepted with recorded_at NULL")
+}
+
+func TestIntegration_OperationRepository_PointInTimeUsesRecordedAt(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	base := time.Date(2026, time.September, 20, 12, 0, 0, 0, time.UTC)
+	amount := decimal.NewFromInt(10)
+	zero := decimal.Zero
+	versionBeforeA, versionAfterA := int64(0), int64(1)
+	versionBeforeB, versionAfterB := int64(1), int64(2)
+	availableA, availableB := decimal.NewFromInt(100), decimal.NewFromInt(150)
+
+	create := func(id string, createdAt, recordedAt time.Time, before, after *decimal.Decimal, versionBefore, versionAfter *int64) {
+		t.Helper()
+		_, err := repo.Create(context.Background(), &Operation{
+			ID: id, TransactionID: ids.TransactionID.String(), Description: id,
+			Type: "CREDIT", AssetCode: "USD", Amount: Amount{Value: &amount},
+			Balance:      Balance{Available: before, OnHold: &zero, Version: versionBefore},
+			BalanceAfter: Balance{Available: after, OnHold: &zero, Version: versionAfter},
+			Status:       Status{Code: "APPROVED"}, AccountID: ids.AccountID.String(), AccountAlias: "@pit",
+			BalanceID: ids.BalanceID.String(), BalanceKey: "default", OrganizationID: ids.OrgID.String(), LedgerID: ids.LedgerID.String(),
+			BalanceAffected: true, CreatedAt: createdAt, UpdatedAt: createdAt, RecordedAt: &recordedAt,
+		})
+		require.NoError(t, err)
+	}
+
+	operationA := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	operationB := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	create(operationA, base, base, &zero, &availableA, &versionBeforeA, &versionAfterA)
+	create(operationB, base.Add(-24*time.Hour), base.Add(2*time.Hour), &availableA, &availableB, &versionBeforeB, &versionAfterB)
+
+	beforeRetroactiveRegistration, err := repo.FindLastOperationBeforeTimestamp(
+		context.Background(), ids.OrgID, ids.LedgerID, ids.AccountID, ids.BalanceID, base.Add(time.Hour),
+	)
+	require.NoError(t, err)
+	require.Equal(t, operationA, beforeRetroactiveRegistration.ID)
+
+	afterRetroactiveRegistration, err := repo.FindLastOperationBeforeTimestamp(
+		context.Background(), ids.OrgID, ids.LedgerID, ids.AccountID, ids.BalanceID, base.Add(3*time.Hour),
+	)
+	require.NoError(t, err)
+	require.Equal(t, operationB, afterRetroactiveRegistration.ID)
+
+	accountOperations, _, err := repo.FindLastOperationsForAccountBeforeTimestamp(
+		context.Background(), ids.OrgID, ids.LedgerID, ids.AccountID, base.Add(3*time.Hour),
+		http.Pagination{Limit: 10, SortOrder: "DESC"},
+	)
+	require.NoError(t, err)
+	require.Len(t, accountOperations, 1)
+	require.Equal(t, operationB, accountOperations[0].ID)
+
+	_, err = container.DB.Exec("UPDATE operation SET recorded_at = NULL WHERE id = $1", operationA)
+	require.NoError(t, err)
+	legacy, err := repo.FindLastOperationBeforeTimestamp(
+		context.Background(), ids.OrgID, ids.LedgerID, ids.AccountID, ids.BalanceID, base.Add(time.Hour),
+	)
+	require.NoError(t, err)
+	require.Equal(t, operationA, legacy.ID, "legacy rows must participate through created_at")
+}
+
+func TestIntegration_RecordedAtPITQueriesUseExpressionIndex(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	_ = createRepository(t, container)
+	ids := createTestDependencies(t, container)
+	cutoff := time.Date(2026, time.September, 21, 12, 0, 0, 0, time.UTC)
+
+	tx, err := container.DB.Begin()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, tx.Rollback()) }()
+	_, err = tx.Exec("SET LOCAL enable_seqscan = off")
+	require.NoError(t, err)
+
+	queries := map[string]struct {
+		sql  string
+		args []any
+	}{
+		"single balance": {
+			sql: `SELECT id FROM operation
+				WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3 AND balance_id = $4
+				  AND COALESCE(recorded_at, created_at) <= $5 AND deleted_at IS NULL
+				ORDER BY COALESCE(recorded_at, created_at) DESC, balance_version_after DESC, id DESC LIMIT 1`,
+			args: []any{ids.OrgID, ids.LedgerID, ids.AccountID, ids.BalanceID, cutoff},
+		},
+		"account balances": {
+			sql: `SELECT DISTINCT ON (balance_id) balance_id FROM operation
+				WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3
+				  AND COALESCE(recorded_at, created_at) <= $4 AND deleted_at IS NULL
+				ORDER BY balance_id, COALESCE(recorded_at, created_at) DESC, balance_version_after DESC, id DESC`,
+			args: []any{ids.OrgID, ids.LedgerID, ids.AccountID, cutoff},
+		},
+		"balance history CTE": {
+			sql: `WITH latest_ops AS (
+				SELECT DISTINCT ON (balance_id) balance_id, available_balance_after
+				FROM operation
+				WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3
+				  AND COALESCE(recorded_at, created_at) <= $4 AND deleted_at IS NULL
+				ORDER BY balance_id, COALESCE(recorded_at, created_at) DESC, balance_version_after DESC, id DESC
+			) SELECT b.id, COALESCE(o.available_balance_after, 0) FROM balance b LEFT JOIN latest_ops o ON b.id = o.balance_id
+			  WHERE b.organization_id = $1 AND b.ledger_id = $2 AND b.account_id = $3`,
+			args: []any{ids.OrgID, ids.LedgerID, ids.AccountID, cutoff},
+		},
+	}
+
+	for name, query := range queries {
+		t.Run(name, func(t *testing.T) {
+			rows, err := tx.Query("EXPLAIN "+query.sql, query.args...)
+			require.NoError(t, err)
+			defer rows.Close()
+
+			var plan strings.Builder
+			for rows.Next() {
+				var line string
+				require.NoError(t, rows.Scan(&line))
+				plan.WriteString(line)
+				plan.WriteByte('\n')
+			}
+			require.NoError(t, rows.Err())
+			require.Contains(t, plan.String(), "idx_operation_account_balance_pit_recorded", plan.String())
+		})
+	}
 }
 
 // TestIntegration_OperationRepository_DecimalPrecision_Preserved tests that

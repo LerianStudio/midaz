@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
@@ -23,16 +22,6 @@ type pendingTransitionRun struct {
 	// status, timestamps and operations in place before it is written back.
 	tran   *transaction.Transaction
 	status string
-	action string
-
-	// input is the persisted body the transition replays. It is already
-	// fee-inclusive: the create path applied fees and persisted the fee legs.
-	input    mtransaction.Transaction
-	validate *mtransaction.Responses
-	fromTo   []mtransaction.FromTo
-
-	ledgerSettings    mmodel.LedgerSettings
-	honoredTracerSkip bool
 
 	// accountBlockExceptionID is the single-use account-block exception the
 	// commit presented, before it is looked up. Only /v2 commit carries a body
@@ -42,12 +31,6 @@ type pendingTransitionRun struct {
 	// accountBlockExceptionGrant is that exception resolved from the cache. Only
 	// transitionPendingV2 names the resolver, so a /v1 transition leaves it nil.
 	accountBlockExceptionGrant *mtransaction.AccountBlockExceptionGrant
-
-	balanceOps       []mmodel.BalanceOperation
-	companionFromTos []mtransaction.FromTo
-	routeCache       *mmodel.TransactionRouteCache
-
-	result *mmodel.BalanceAtomicResult
 }
 
 // reservationIdentity is the identity the tracer's by-transaction confirm/release

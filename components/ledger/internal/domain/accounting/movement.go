@@ -40,6 +40,7 @@ type Movement struct {
 // final snapshot per touched physical balance in deterministic order, excluding
 // unused seeds.
 type ExecutionResult struct {
-	Movements []Movement        `json:"movements"`
-	Final     []BalanceSnapshot `json:"final"`
+	Movements          []Movement        `json:"movements"`
+	Final              []BalanceSnapshot `json:"final"`
+	AppliedAtUnixMicro int64             `json:"appliedAtUnixMicro,omitempty"`
 }

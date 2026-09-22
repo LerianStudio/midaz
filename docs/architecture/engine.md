@@ -115,10 +115,12 @@ revert, commit, or cancel that reaches the engine:
    bounded wire request, obtains a supported standalone/Sentinel client, and sends
    the assembled Lua script with Redis client retries disabled.
 7. Lua `main` decodes the protocol and calls `execute`, which checks for a valid
-   receipt replay, validates guards/key types, loads authoritative live balances,
-   validates live grants, evaluates ordered postings in memory, serializes every
-   output, and finally calls `commitPreparedExecution` to publish balances plus
-   recovery evidence and delete consumed grants before writing the receipt.
+   receipt replay and validates guards/key types. Immediately after the replay
+   short-circuit, it reads Redis `TIME` once; it then loads authoritative live
+   balances, validates live grants, evaluates ordered postings in memory,
+   serializes every output with the resulting `appliedAtUnixMicro`, and finally
+   calls `commitPreparedExecution` to publish balances plus recovery evidence
+   and delete consumed grants before writing the receipt.
 8. On a confirmed result, the command composes the public response and lookup
    from immutable evidence. With `RABBITMQ_TRANSACTION_ASYNC=true`, it publishes
    the versioned write-behind envelope with mandatory routing and publisher
@@ -806,7 +808,9 @@ even though repeating this conditional seed would be idempotent.
 
 The implemented outer envelope has `formatVersion=2`, tenant/organization/ledger scope,
 ExecutionID, fingerprint, TransactionID, the opaque payload, and the real result
-restricted to that transaction, including its intermediate before/after states.
+restricted to that transaction, including its intermediate before/after states
+and the optional `appliedAtUnixMicro` recording instant. Records produced before
+this field was introduced remain readable and use the repository timestamp fallback.
 Validate one-to-one correlation between request transactions and recovery intents
 before EVAL. Use typed, versioned payloads rather than ad hoc maps.
 
@@ -817,9 +821,12 @@ by stable PostingRef. It also preserves `parentTransactionId`, `feesSkipped`, an
 `tracerSkipped`. Three required timestamps, `transactionCreatedAt`,
 `transactionUpdatedAt`, and `operationUpdatedAt`, preserve the exact row dates and
 participate in the immutable fingerprint. `transaction_date` remains the action
-date and supplies Operation.CreatedAt; it must not replace the transaction's
+date and supplies `Operation.CreatedAt`; it must not replace the transaction's
 original creation date during commitment or cancellation. A backdated action does
-not imply a backdated operation update timestamp.
+not imply a backdated operation update timestamp. The engine recording instant is
+projected separately into `Operation.RecordedAt`: effective date comes from the
+request, while point-in-time reconstruction uses ledger recording time. Historical
+rows without `recorded_at` fall back to `created_at`.
 The payload is an opaque JSON string in the outer envelope;
 strict decoding rejects duplicate keys, unknown fields, and scope drift.
 Capture route decisions and metadata required for replay;
@@ -1019,9 +1026,14 @@ decimal strings are valid monetary representations and are projected exactly,
 without float conversion. Schema-version-2 new-only blobs retain strict
 canonical-string decoding and existing validation rules.
 
-The legacy accounting path remains only where the flow intentionally bypasses
-the engine and for compatibility with work created by older instances. Both paths
-retain dual-compatible cache parsing and repair handling.
+No executable monetary command bypasses the accounting engine. Create v1/v2,
+revert, commit, and cancel prepare immutable intent and execute through the same
+engine boundary; NOTED is the only separate path because it is nonmonetary. The
+pre-engine Redis atomic writer remains isolated in its adapter for compatibility
+and rollback verification, with no command-layer caller. The legacy backup
+consumer may still project work created by older instances, but it only persists
+already-applied snapshots and never calls either accounting writer. Engine recovery
+likewise completes durable projections and acknowledgments without re-execution.
 
 A v2 create, revert, or pending commit that presents an
 `accountBlockExceptionId` remains on the default engine path. Go binds the cached
@@ -1031,8 +1043,8 @@ account plus its overdraft companion from blocked/sending controls, and deletes
 the key in the same commit as the monetary mutation. The exception UUID is part
 of the immutable intent fingerprint. Receipt replay is checked first, so the same
 execution can replay after consumption; a different execution cannot reuse the
-grant. Executable v2 reversals have no nil-engine fallback: tests inject the engine
-dependencies just as production bootstrap does. Requests without a grant still
+grant. Executable monetary commands have no nil-engine fallback: tests inject the
+engine dependencies just as production bootstrap does. Requests without a grant still
 enforce the live account-block flag, deletion markers are never bypassed, and
 cancellation remains exempt without reading a grant. HOLD rejects a presented
 identifier with 0509 at the transport. NOTED remains on its nonmonetary path and
@@ -1041,8 +1053,9 @@ does not consume a grant; rejecting that combination is tracked separately.
 ### Cache writer compatibility
 
 The shared readers accept legacy, dual, and schema-version-2 new-only balance
-blobs. The default engine writer and the legacy atomic Lua writer both emit the
-dual representation. The legacy writer accepts legacy, mixed, and
+blobs. The default engine writer and the isolated legacy atomic Lua writer both
+emit the dual representation. The legacy writer is not reachable from executable
+command or recovery flows; it is retained for rollback verification and accepts legacy, mixed, and
 schema-version-2 new-only blobs; present uppercase values remain authoritative,
 including malformed values that must not fall back to lowerCamel shadows.
 
@@ -1105,8 +1118,8 @@ verified. The format report alone is not rollout evidence.
 
 Once new-only blobs are written, rollback requires a reader that accepts them.
 The dual-compatible reader is the minimum cache rollback target; a precompatible
-binary cannot safely resume against new-only data. Historical fixtures may remain
-after production fallback removal.
+binary cannot safely resume against new-only data. Historical legacy-writer
+fixtures may remain after command fallback removal.
 
 ## Verification and operational limits
 

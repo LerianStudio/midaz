@@ -1708,12 +1708,16 @@ paths:
           schema:
             description: Account ID (UUID)
             type: string
-        - description: 'Point in time (format: yyyy-mm-dd hh:mm:ss)'
+        - description: >-
+            Ledger-recorded state at this point in time (format: yyyy-mm-dd
+            hh:mm:ss)
           explode: false
           in: query
           name: date
           schema:
-            description: 'Point in time (format: yyyy-mm-dd hh:mm:ss)'
+            description: >-
+              Ledger-recorded state at this point in time (format: yyyy-mm-dd
+              hh:mm:ss)
             type: string
       responses:
         '200':
@@ -2972,12 +2976,16 @@ paths:
           schema:
             description: Balance ID (UUID)
             type: string
-        - description: 'Point in time (format: yyyy-mm-dd hh:mm:ss)'
+        - description: >-
+            Ledger-recorded state at this point in time (format: yyyy-mm-dd
+            hh:mm:ss)
           explode: false
           in: query
           name: date
           schema:
-            description: 'Point in time (format: yyyy-mm-dd hh:mm:ss)'
+            description: >-
+              Ledger-recorded state at this point in time (format: yyyy-mm-dd
+              hh:mm:ss)
             type: string
       responses:
         '200':
@@ -8388,12 +8396,16 @@ paths:
           schema:
             description: Account ID (UUID)
             type: string
-        - description: 'Point in time (format: yyyy-mm-dd hh:mm:ss)'
+        - description: >-
+            Ledger-recorded state at this point in time (format: yyyy-mm-dd
+            hh:mm:ss)
           explode: false
           in: query
           name: date
           schema:
-            description: 'Point in time (format: yyyy-mm-dd hh:mm:ss)'
+            description: >-
+              Ledger-recorded state at this point in time (format: yyyy-mm-dd
+              hh:mm:ss)
             type: string
       responses:
         '200':
@@ -9483,12 +9495,16 @@ paths:
           schema:
             description: Balance ID (UUID)
             type: string
-        - description: 'Point in time (format: yyyy-mm-dd hh:mm:ss)'
+        - description: >-
+            Ledger-recorded state at this point in time (format: yyyy-mm-dd
+            hh:mm:ss)
           explode: false
           in: query
           name: date
           schema:
-            description: 'Point in time (format: yyyy-mm-dd hh:mm:ss)'
+            description: >-
+              Ledger-recorded state at this point in time (format: yyyy-mm-dd
+              hh:mm:ss)
             type: string
       responses:
         '200':
@@ -20105,6 +20121,8 @@ components:
         One leg of a transaction side. Fill EXACTLY ONE value expression per
         leg: `amount` for an explicit value, or `share` for a percentage of the
         transaction total. A leg carrying both, or neither, is rejected.
+        `balanceKey` optionally selects one of the account's balances; when
+        omitted, the `default` balance is used.
       properties:
         alias:
           description: >-
@@ -20116,6 +20134,14 @@ components:
             - '@person1'
           type: string
         amount:
+          type: string
+        balanceKey:
+          description: >-
+            Optional balance key for this leg. When omitted, the transaction
+            uses the account's default balance.
+          examples:
+            - food
+          maxLength: 100
           type: string
         description:
           maxLength: 256

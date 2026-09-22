@@ -93,6 +93,47 @@ func TestTranslateEngineTransactionPreservesOrderedLegIdentity(t *testing.T) {
 	assert.Equal(t, map[string]any{"leg": "first"}, projection[0].Metadata)
 }
 
+func TestTranslateEngineTransactionPreservesOperationTypeOverrideInProjection(t *testing.T) {
+	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
+	amount := mtransaction.Amount{
+		Asset: "USD", Value: decimal.NewFromInt(10), TransactionType: constant.CREATED,
+	}
+	input := EngineTranslationInput{
+		TransactionID:     uuid.MustParse("33333333-3333-4333-8333-333333333333"),
+		Action:            constant.ActionDirect,
+		TransactionStatus: constant.CREATED,
+		TransactionInput: mtransaction.Transaction{
+			OperationTypeOverride: constant.BLOCK,
+			Send: mtransaction.Send{
+				Asset:      "USD",
+				Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "0#@source#default", BalanceKey: "default", IsFrom: true}}},
+				Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{AccountAlias: "0#@destination#default", BalanceKey: "default"}}},
+			},
+		},
+		Validate: &mtransaction.Responses{
+			From: map[string]mtransaction.Amount{"0#@source#default": amount},
+			To:   map[string]mtransaction.Amount{"0#@destination#default": amount},
+		},
+		Balances: []*mmodel.Balance{
+			translationBalance(organizationID, ledgerID, "44444444-4444-4444-8444-444444444444", "@source", "default"),
+			translationBalance(organizationID, ledgerID, "55555555-5555-4555-8555-555555555555", "@destination", "default"),
+		},
+	}
+
+	transaction, projection, err := TranslateEngineTransaction(input)
+	require.NoError(t, err)
+	require.Len(t, transaction.Postings, 2)
+	require.Len(t, projection, 2)
+
+	assert.Equal(t, accounting.PostingDebit, transaction.Postings[0].Type)
+	assert.Equal(t, accounting.PostingCredit, transaction.Postings[1].Type)
+	assert.Equal(t, constant.BLOCK, projection[0].RowType)
+	assert.Equal(t, constant.BLOCK, projection[1].RowType)
+	assert.Equal(t, constant.DirectionDebit, projection[0].Direction)
+	assert.Equal(t, constant.DirectionCredit, projection[1].Direction)
+}
+
 func TestTranslateEngineTransactionLifecyclePaths(t *testing.T) {
 	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")

@@ -62,6 +62,10 @@ Keep the boundary exact:
   compensate or resubmit automatically. Confirmed NOSCRIPT fallback, receipt
   replay, precommit limit normalization, and completion recovery are distinct and
   do not authorize a second accounting mutation.
+- Every command path that calls `ExecutePreparedEngine` installs an account
+  protection sink before loading balances and calls `resolveEngineAdmissions`
+  immediately after the engine answers. This includes singular creates, pending
+  transitions, and the entire atomic batch v2 load-to-execution window.
 - `TransactionCompletionPlan` captures nonmonetary row attribution, metadata, and
   timestamps before execution. `AppliedTransactionCompleter` persists/verifies
   SQL and MongoDB after the engine; recovery invokes that completer, never the
@@ -237,6 +241,7 @@ Binding standard: `docs/standards/error-handling.md` (E1–E14). One error platf
 - Pending transactions can be committed/cancelled; revert creates a reverse transaction.
 - Async transaction processing is controlled by `RABBITMQ_TRANSACTION_ASYNC`.
 - Balance fields: `Available`, `OnHold`, `Scale`, `Version`.
+- Point-in-time balance reads use the server recording axis `COALESCE(operation.recorded_at, operation.created_at)`; `transactionDate` remains the effective transaction date.
 
 ## Streaming (lib-streaming events)
 
