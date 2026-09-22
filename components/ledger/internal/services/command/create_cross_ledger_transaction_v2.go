@@ -76,19 +76,7 @@ func buildCrossLedgerAtomicBatchInput(
 	in CreateCrossLedgerTransactionV2Input,
 	groupID uuid.UUID,
 ) (CreateAtomicTransactionBatchV2Input, error) {
-	scopes := crossLedgerTransactionScopes{
-		from: make([]atomicTransactionBatchLedgerRef, len(in.Scopes.Debits)),
-		to:   make([]atomicTransactionBatchLedgerRef, len(in.Scopes.Credits)),
-	}
-	for index, scope := range in.Scopes.Debits {
-		scopes.from[index] = atomicTransactionBatchLedgerRef{organizationID: scope.OrganizationID, ledgerID: scope.LedgerID}
-	}
-
-	for index, scope := range in.Scopes.Credits {
-		scopes.to[index] = atomicTransactionBatchLedgerRef{organizationID: scope.OrganizationID, ledgerID: scope.LedgerID}
-	}
-
-	parts, err := decomposeCrossLedgerTransaction(in.Transaction, scopes)
+	parts, err := decomposeCrossLedgerTransaction(in.Transaction, internalCrossLedgerScopes(in.Scopes))
 	if err != nil {
 		return CreateAtomicTransactionBatchV2Input{}, err
 	}

@@ -584,7 +584,7 @@ func validateAtomicTransactionBatchScope(items []CreateAtomicTransactionBatchV2I
 			if action == "" {
 				action = constant.ActionDirect
 			}
-			if action != constant.ActionDirect && (!crossLedgerGroup || action != constant.ActionRevert) {
+			if action != constant.ActionDirect && (!crossLedgerGroup || (action != constant.ActionRevert && action != constant.ActionHold)) {
 				err := pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction)
 				message := "cross-ledger action is not supported"
 				if action == constant.ActionHold {

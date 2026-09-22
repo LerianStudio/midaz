@@ -146,6 +146,10 @@ type UseCase struct {
 	UUIDv7Generator UUIDv7Generator
 	Clock           Clock
 
+	// createAtomicTransactionBatchV2 is a focused orchestration seam for tests.
+	// Production leaves it nil and calls CreateAtomicTransactionBatchV2.
+	createAtomicTransactionBatchV2 func(context.Context, CreateAtomicTransactionBatchV2Input) (*CreateAtomicTransactionBatchV2Result, error)
+
 	// AtomicTransactionBatchIdempotencyRepo owns the batch-only claim,
 	// execution handoff, refusal cleanup, and terminal state machine. It is
 	// separate from the singular transaction cache contract so neither

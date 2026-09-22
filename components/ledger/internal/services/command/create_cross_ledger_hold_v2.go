@@ -1,0 +1,182 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+)
+
+// CreateCrossLedgerHoldV2 persists the complete normalized intent and reserves
+// only the source-ledger parts. Destination-ledger parts are created on commit.
+func (uc *UseCase) CreateCrossLedgerHoldV2(
+	ctx context.Context,
+	in CreateCrossLedgerTransactionV2Input,
+) (*CreateAtomicTransactionBatchV2Result, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if uc.TransactionGroupRepo == nil || uc.TransactionReader == nil {
+		return nil, errors.New("cross-ledger hold dependencies are not configured")
+	}
+	if uc.UUIDv7Generator == nil || uc.Clock == nil {
+		return nil, errors.New("cross-ledger hold identity dependencies are not configured")
+	}
+
+	groupID, err := uc.UUIDv7Generator()
+	if err != nil {
+		return nil, fmt.Errorf("generate cross-ledger hold group id: %w", err)
+	}
+	if groupID == uuid.Nil {
+		return nil, errors.New("cross-ledger hold UUIDv7 generator returned a nil group id")
+	}
+
+	parts, err := decomposeCrossLedgerTransaction(in.Transaction, internalCrossLedgerScopes(in.Scopes))
+	if err != nil {
+		return nil, err
+	}
+	intent, err := buildCrossLedgerGroupIntent(in.Transaction.Send.Asset, parts)
+	if err != nil {
+		return nil, err
+	}
+	if err := uc.validateCrossLedgerHoldSettings(ctx, intent); err != nil {
+		return nil, err
+	}
+
+	rawIntent, err := encodeCrossLedgerGroupIntent(intent)
+	if err != nil {
+		return nil, err
+	}
+
+	now := uc.Clock()
+	if now.IsZero() {
+		return nil, errors.New("cross-ledger hold clock returned a zero timestamp")
+	}
+	primary := intent.Parts[0]
+	group := &transactiongroup.TransactionGroup{
+		ID: groupID, OrganizationID: primary.OrganizationID, LedgerID: primary.LedgerID,
+		Status: constant.PENDING, AssetCode: intent.Asset, Intent: rawIntent,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := uc.TransactionGroupRepo.Create(ctx, group); err != nil {
+		return nil, fmt.Errorf("persist cross-ledger hold intent: %w", err)
+	}
+
+	batch, err := buildCrossLedgerHoldBatchInput(in, groupID, intent)
+	if err != nil {
+		_ = uc.TransactionGroupRepo.Delete(ctx, groupID)
+		return nil, err
+	}
+
+	result, err := uc.executeAtomicTransactionBatchV2(ctx, batch)
+	if err != nil && isAtomicTransactionBatchPrePublication(err) {
+		_ = uc.TransactionGroupRepo.Delete(ctx, groupID)
+	}
+
+	return result, err
+}
+
+func (uc *UseCase) validateCrossLedgerHoldSettings(ctx context.Context, intent CrossLedgerGroupIntent) error {
+	seen := make(map[atomicTransactionBatchLedgerRef]struct{}, len(intent.Parts))
+	for index := range intent.Parts {
+		part := intent.Parts[index]
+		ref := atomicTransactionBatchLedgerRef{organizationID: part.OrganizationID, ledgerID: part.LedgerID}
+		if _, ok := seen[ref]; ok {
+			continue
+		}
+		seen[ref] = struct{}{}
+
+		settings, err := uc.TransactionReader.GetParsedLedgerSettings(ctx, part.OrganizationID, part.LedgerID)
+		if err != nil {
+			return fmt.Errorf("get cross-ledger hold settings: %w", err)
+		}
+		if !settings.CrossLedger.Enabled {
+			return pkg.ValidateBusinessError(constant.ErrCrossLedgerNotEnabled, constant.EntityLedger, part.LedgerID.String())
+		}
+		if settings.Accounting.ValidateRoutes {
+			return pkg.ValidateBusinessError(constant.ErrCrossLedgerRouteValidationUnsupported, constant.EntityLedger)
+		}
+	}
+
+	return nil
+}
+
+func buildCrossLedgerHoldBatchInput(
+	in CreateCrossLedgerTransactionV2Input,
+	groupID uuid.UUID,
+	intent CrossLedgerGroupIntent,
+) (CreateAtomicTransactionBatchV2Input, error) {
+	items := make([]CreateAtomicTransactionBatchV2ItemInput, 0, len(intent.Parts))
+	for index := range intent.Parts {
+		part := intent.Parts[index]
+		if part.Role != CrossLedgerGroupRoleOrigin {
+			continue
+		}
+
+		transactionInput := part.Transaction
+		transactionInput.Pending = true
+		items = append(items, CreateAtomicTransactionBatchV2ItemInput{
+			OrganizationID: part.OrganizationID,
+			LedgerID:       part.LedgerID,
+			Transaction:    transactionInput,
+			Action:         constant.ActionHold,
+			Order:          len(items) + 1,
+			OriginalIndex:  index,
+		})
+	}
+	if len(items) == 0 {
+		return CreateAtomicTransactionBatchV2Input{}, errors.New("cross-ledger hold has no origin parts")
+	}
+	items[0].AccountBlockExceptionID = cloneUUIDPointer(in.AccountBlockExceptionID)
+
+	return CreateAtomicTransactionBatchV2Input{
+		Transactions:       items,
+		GroupID:            &groupID,
+		CrossLedgerGroup:   true,
+		CanonicalRequest:   append([]byte(nil), in.CanonicalRequest...),
+		RequestFingerprint: in.RequestFingerprint,
+		IdempotencyKey:     in.IdempotencyKey,
+		IdempotencyTTL:     in.IdempotencyTTL,
+	}, nil
+}
+
+func (uc *UseCase) executeAtomicTransactionBatchV2(
+	ctx context.Context,
+	in CreateAtomicTransactionBatchV2Input,
+) (*CreateAtomicTransactionBatchV2Result, error) {
+	if uc.createAtomicTransactionBatchV2 != nil {
+		return uc.createAtomicTransactionBatchV2(ctx, in)
+	}
+
+	return uc.CreateAtomicTransactionBatchV2(ctx, in)
+}
+
+func internalCrossLedgerScopes(scopes CrossLedgerTransactionScopes) crossLedgerTransactionScopes {
+	result := crossLedgerTransactionScopes{
+		from: make([]atomicTransactionBatchLedgerRef, len(scopes.Debits)),
+		to:   make([]atomicTransactionBatchLedgerRef, len(scopes.Credits)),
+	}
+	for index := range scopes.Debits {
+		result.from[index] = atomicTransactionBatchLedgerRef{
+			organizationID: scopes.Debits[index].OrganizationID,
+			ledgerID:       scopes.Debits[index].LedgerID,
+		}
+	}
+	for index := range scopes.Credits {
+		result.to[index] = atomicTransactionBatchLedgerRef{
+			organizationID: scopes.Credits[index].OrganizationID,
+			ledgerID:       scopes.Credits[index].LedgerID,
+		}
+	}
+
+	return result
+}
