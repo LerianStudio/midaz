@@ -27,12 +27,13 @@ func TestValidateBusinessError_CrossLedgerNotEnabled(t *testing.T) {
 	assert.Contains(t, mapped.Message, "ledger-id")
 }
 
-func TestValidateBusinessError_CrossLedgerRevertErrorsAreUnprocessable(t *testing.T) {
+func TestValidateBusinessError_CrossLedgerLifecycleErrorsAreUnprocessable(t *testing.T) {
 	t.Parallel()
 
 	for _, code := range []error{
-		constant.ErrCrossLedgerRevertRequiresV2,
+		constant.ErrCrossLedgerLifecycleRequiresV2,
 		constant.ErrCrossLedgerGroupIncomplete,
+		constant.ErrCrossLedgerGroupNotPending,
 	} {
 		err := pkg.ValidateBusinessError(code, constant.EntityTransaction)
 		require.Error(t, err)
@@ -41,4 +42,16 @@ func TestValidateBusinessError_CrossLedgerRevertErrorsAreUnprocessable(t *testin
 		require.True(t, ok, "%s must be an HTTP 422 error, got %T", code, err)
 		assert.Equal(t, code.Error(), mapped.Code)
 	}
+}
+
+func TestValidateBusinessError_CrossLedgerGroupNotPendingNamesCurrentStatus(t *testing.T) {
+	t.Parallel()
+
+	err := pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupNotPending, constant.EntityTransaction, constant.APPROVED)
+	require.Error(t, err)
+
+	mapped, ok := err.(pkg.UnprocessableOperationError)
+	require.True(t, ok)
+	assert.Equal(t, "0254", mapped.Code)
+	assert.Contains(t, mapped.Message, constant.APPROVED)
 }
