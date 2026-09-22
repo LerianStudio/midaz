@@ -11,6 +11,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 )
 
 // This file is the /v2 transaction RESPONSE contract seam. Every v2 transaction op answers with
@@ -364,6 +365,29 @@ type CreateTransactionV2Response struct {
 	Transactions    []*AtomicTransactionBatchV2Transaction `json:"transactions,omitempty"`
 }
 
+func newPendingTransitionV2Response(result *command.PendingTransitionV2Result) *CreateTransactionV2Response {
+	if result == nil {
+		return nil
+	}
+	if result.Group == nil {
+		return &CreateTransactionV2Response{TransactionV2: newTransactionV2(result.Transaction)}
+	}
+
+	groupID := result.Group.BatchID.String()
+	transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Group.Transactions))
+	for index := range result.Group.Transactions {
+		transactions[index] = &AtomicTransactionBatchV2Transaction{
+			TransactionV2: newTransactionV2(result.Group.Transactions[index]),
+			Order:         index + 1,
+		}
+	}
+
+	return &CreateTransactionV2Response{
+		GroupID:      &groupID,
+		Transactions: transactions,
+	}
+}
+
 // CrossLedgerTransactionGroupV2 is the documented cross-ledger branch of the
 // direct-create response. The runtime response above keeps its optional fields
 // flattened so the historical singular JSON remains byte-compatible; this type
@@ -379,5 +403,5 @@ type CrossLedgerTransactionGroupV2 struct {
 // commit/cancel ops.
 type StateTransactionOutputV2 struct {
 	Status int
-	Body   *TransactionV2
+	Body   *CreateTransactionV2Response
 }

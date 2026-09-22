@@ -340,7 +340,7 @@ func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.Command.CommitTransactionV2(ctx, command.PendingTransitionInput{
+	result, err := handler.Command.CommitTransactionV2(ctx, command.PendingTransitionInput{
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		TransactionID:  txID,
@@ -351,7 +351,7 @@ func (handler *TransactionHandler) CommitTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newTransactionV2(tran)}, nil
+	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newPendingTransitionV2Response(result)}, nil
 }
 
 // CancelTransactionV2 is the /v2 shell over command.CancelTransactionV2, which runs the
@@ -367,7 +367,7 @@ func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	tran, err := handler.Command.CancelTransactionV2(ctx, command.PendingTransitionInput{
+	result, err := handler.Command.CancelTransactionV2(ctx, command.PendingTransitionInput{
 		OrganizationID: orgID,
 		LedgerID:       ledgerID,
 		TransactionID:  txID,
@@ -376,7 +376,7 @@ func (handler *TransactionHandler) CancelTransactionV2(ctx context.Context, in *
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newTransactionV2(tran)}, nil
+	return &StateTransactionOutputV2{Status: http.StatusCreated, Body: newPendingTransitionV2Response(result)}, nil
 }
 
 // RevertTransactionV2 is the /v2 shell over command.RevertTransactionV2 (parent/revert
