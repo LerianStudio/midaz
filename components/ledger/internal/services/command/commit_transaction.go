@@ -6,7 +6,6 @@ package command
 
 import (
 	"context"
-	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
@@ -176,11 +175,11 @@ func (uc *UseCase) dispatchCrossLedgerGroupTransitionV2(
 	target *transaction.Transaction,
 	status string,
 ) (*CreateAtomicTransactionBatchV2Result, error) {
-	if uc.transitionCrossLedgerGroupV2Fn == nil {
-		return nil, errors.New("cross-ledger group lifecycle coordinator is not configured")
+	if uc.transitionCrossLedgerGroupV2Fn != nil {
+		return uc.transitionCrossLedgerGroupV2Fn(ctx, in, target, status)
 	}
 
-	return uc.transitionCrossLedgerGroupV2Fn(ctx, in, target, status)
+	return uc.transitionCrossLedgerGroupV2(ctx, in, target, status)
 }
 
 // transitionPendingV1 is the /v1 state-transition pipeline: lock, prepare, commit the
