@@ -76,9 +76,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	_, err = uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, cii.Name, cii.Code)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find asset by name or code", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error creating asset", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to find asset by name or code", err)
 
 		return nil, err
 	}
@@ -96,9 +94,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	inst, err := uc.AssetRepo.Create(ctx, asset)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error creating asset", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create asset", err)
 
 		return nil, err
 	}
@@ -107,9 +103,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAsset, inst.ID, cii.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset metadata", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error creating asset metadata", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create asset metadata", err)
 
 		return nil, err
 	}
@@ -121,9 +115,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	account, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve asset external account", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error retrieving asset external account", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to retrieve asset external account", err)
 
 		return nil, err
 	}
@@ -131,8 +123,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if len(account) == 0 {
 		externalAccountID, err := libCommons.GenerateUUIDv7()
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate external account ID", err)
-			logger.Log(ctx, libLog.LevelError, "Error generating asset external account ID")
+			libOpentelemetry.HandleSpanError(span, "Failed to generate external account ID", err)
+			logger.Log(ctx, libLog.LevelError, "Failed to generate external account ID")
 
 			return nil, err
 		}
@@ -159,9 +151,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		acc, err := uc.AccountRepo.Create(ctx, eAccount)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create asset external account", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error creating asset external account", libLog.Err(err))
+			recordCommandError(ctx, span, logger, "Failed to create asset external account", err)
 
 			return nil, err
 		}
@@ -181,9 +171,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		_, err = uc.CreateDefaultBalance(ctx, balanceInput)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
-
-			logger.Log(ctx, libLog.LevelError, "Failed to create default balance", libLog.Err(err))
+			recordCommandError(ctx, span, logger, "Failed to create default balance", err)
 
 			var (
 				unauthorized pkg.UnauthorizedError
