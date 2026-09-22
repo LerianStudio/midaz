@@ -121,7 +121,7 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 	}
 
 	if len(normalized.scopes) > 1 {
-		if pending || operationTypeOverride != "" {
+		if operationTypeOverride != "" {
 			return nil, pkgHTTP.HumaProblem(pkg.ValidateBusinessError(constant.ErrTransactionScopeMismatch, constant.EntityTransaction))
 		}
 
@@ -130,11 +130,18 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 			return nil, pkgHTTP.HumaProblem(err)
 		}
 
-		result, err := handler.Command.CreateCrossLedgerTransactionV2(ctx, command.CreateCrossLedgerTransactionV2Input{
+		crossLedgerInput := command.CreateCrossLedgerTransactionV2Input{
 			Transaction: transactionInput, Scopes: scopes, AccountBlockExceptionID: exceptionID,
-			CanonicalRequest: rawBody, IdempotencyKey: idempotencyKey,
+			CanonicalRequest: []byte(v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)), IdempotencyKey: idempotencyKey,
 			IdempotencyTTL: pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
-		})
+		}
+
+		var result *command.CreateAtomicTransactionBatchV2Result
+		if pending {
+			result, err = handler.Command.CreateCrossLedgerHoldV2(ctx, crossLedgerInput)
+		} else {
+			result, err = handler.Command.CreateCrossLedgerTransactionV2(ctx, crossLedgerInput)
+		}
 		if err != nil {
 			return nil, pkgHTTP.HumaProblem(err)
 		}
