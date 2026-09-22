@@ -25,9 +25,11 @@ func (uc *UseCase) CreateCrossLedgerHoldV2(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if uc.TransactionGroupRepo == nil || uc.TransactionReader == nil {
 		return nil, errors.New("cross-ledger hold dependencies are not configured")
 	}
+
 	if uc.UUIDv7Generator == nil || uc.Clock == nil {
 		return nil, errors.New("cross-ledger hold identity dependencies are not configured")
 	}
@@ -36,6 +38,7 @@ func (uc *UseCase) CreateCrossLedgerHoldV2(
 	if err != nil {
 		return nil, fmt.Errorf("generate cross-ledger hold group id: %w", err)
 	}
+
 	if groupID == uuid.Nil {
 		return nil, errors.New("cross-ledger hold UUIDv7 generator returned a nil group id")
 	}
@@ -44,10 +47,12 @@ func (uc *UseCase) CreateCrossLedgerHoldV2(
 	if err != nil {
 		return nil, err
 	}
+
 	intent, err := buildCrossLedgerGroupIntent(in.Transaction.Send.Asset, parts)
 	if err != nil {
 		return nil, err
 	}
+
 	if err := uc.validateCrossLedgerHoldSettings(ctx, intent); err != nil {
 		return nil, err
 	}
@@ -61,7 +66,9 @@ func (uc *UseCase) CreateCrossLedgerHoldV2(
 	if now.IsZero() {
 		return nil, errors.New("cross-ledger hold clock returned a zero timestamp")
 	}
+
 	primary := intent.Parts[0]
+
 	group := &transactiongroup.TransactionGroup{
 		ID: groupID, OrganizationID: primary.OrganizationID, LedgerID: primary.LedgerID,
 		Status: constant.PENDING, AssetCode: intent.Asset, Intent: rawIntent,
@@ -89,19 +96,23 @@ func (uc *UseCase) validateCrossLedgerHoldSettings(ctx context.Context, intent C
 	seen := make(map[atomicTransactionBatchLedgerRef]struct{}, len(intent.Parts))
 	for index := range intent.Parts {
 		part := intent.Parts[index]
+
 		ref := atomicTransactionBatchLedgerRef{organizationID: part.OrganizationID, ledgerID: part.LedgerID}
 		if _, ok := seen[ref]; ok {
 			continue
 		}
+
 		seen[ref] = struct{}{}
 
 		settings, err := uc.TransactionReader.GetParsedLedgerSettings(ctx, part.OrganizationID, part.LedgerID)
 		if err != nil {
 			return fmt.Errorf("get cross-ledger hold settings: %w", err)
 		}
+
 		if !settings.CrossLedger.Enabled {
 			return pkg.ValidateBusinessError(constant.ErrCrossLedgerNotEnabled, constant.EntityLedger, part.LedgerID.String())
 		}
+
 		if settings.Accounting.ValidateRoutes {
 			return pkg.ValidateBusinessError(constant.ErrCrossLedgerRouteValidationUnsupported, constant.EntityLedger)
 		}
@@ -133,9 +144,11 @@ func buildCrossLedgerHoldBatchInput(
 			OriginalIndex:  index,
 		})
 	}
+
 	if len(items) == 0 {
 		return CreateAtomicTransactionBatchV2Input{}, errors.New("cross-ledger hold has no origin parts")
 	}
+
 	items[0].AccountBlockExceptionID = cloneUUIDPointer(in.AccountBlockExceptionID)
 
 	return CreateAtomicTransactionBatchV2Input{
@@ -171,6 +184,7 @@ func internalCrossLedgerScopes(scopes CrossLedgerTransactionScopes) crossLedgerT
 			ledgerID:       scopes.Debits[index].LedgerID,
 		}
 	}
+
 	for index := range scopes.Credits {
 		result.to[index] = atomicTransactionBatchLedgerRef{
 			organizationID: scopes.Credits[index].OrganizationID,

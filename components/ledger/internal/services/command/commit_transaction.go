@@ -53,6 +53,7 @@ func (uc *UseCase) CommitTransactionV1(ctx context.Context, in PendingTransition
 	if err != nil {
 		return nil, err
 	}
+
 	if err := validatePendingTransitionV1Scope(tran); err != nil {
 		return nil, err
 	}
@@ -78,6 +79,7 @@ func (uc *UseCase) CancelTransactionV1(ctx context.Context, in PendingTransition
 	if err != nil {
 		return nil, err
 	}
+
 	if err := validatePendingTransitionV1Scope(tran); err != nil {
 		return nil, err
 	}
@@ -111,6 +113,7 @@ func (uc *UseCase) CommitTransactionV2(ctx context.Context, in PendingTransition
 	if err != nil {
 		return nil, err
 	}
+
 	if tran.GroupID != nil {
 		group, err := uc.dispatchCrossLedgerGroupTransitionV2(ctx, in, tran, constant.APPROVED)
 		if err != nil {
@@ -147,6 +150,7 @@ func (uc *UseCase) CancelTransactionV2(ctx context.Context, in PendingTransition
 	if err != nil {
 		return nil, err
 	}
+
 	if tran.GroupID != nil {
 		group, err := uc.dispatchCrossLedgerGroupTransitionV2(ctx, in, tran, constant.CANCELED)
 		if err != nil {

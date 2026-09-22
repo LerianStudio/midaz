@@ -121,9 +121,11 @@ func decodeCrossLedgerGroupIntent(raw []byte) (*CrossLedgerGroupIntent, error) {
 	if err := decoder.Decode(&intent); err != nil {
 		return nil, fmt.Errorf("decode cross-ledger group intent: %w", err)
 	}
+
 	if decoder.More() {
 		return nil, errors.New("decode cross-ledger group intent: trailing JSON value")
 	}
+
 	if err := validateCrossLedgerGroupIntent(intent); err != nil {
 		return nil, err
 	}
@@ -135,17 +137,20 @@ func validateCrossLedgerGroupIntent(intent CrossLedgerGroupIntent) error {
 	if intent.FormatVersion != CrossLedgerGroupIntentFormatVersion {
 		return fmt.Errorf("unsupported cross-ledger group intent version %d", intent.FormatVersion)
 	}
+
 	if intent.Asset == "" || len(intent.Parts) < 2 {
 		return errors.New("cross-ledger group intent is incomplete")
 	}
 
 	origins := 0
 	destinations := 0
+
 	for index := range intent.Parts {
 		part := intent.Parts[index]
 		if part.OrganizationID == uuid.Nil || part.LedgerID == uuid.Nil || part.Order != index+1 || part.Transaction.IsEmpty() {
 			return fmt.Errorf("cross-ledger group intent part %d is invalid", index)
 		}
+
 		if part.Transaction.Send.Asset != intent.Asset {
 			return fmt.Errorf("cross-ledger group intent part %d has a different asset", index)
 		}

@@ -142,6 +142,7 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 		} else {
 			result, err = handler.Command.CreateCrossLedgerTransactionV2(ctx, crossLedgerInput)
 		}
+
 		if err != nil {
 			return nil, pkgHTTP.HumaProblem(err)
 		}

@@ -44,12 +44,15 @@ func (r *TransactionGroupPostgreSQLRepository) getDB(ctx context.Context) (dbres
 	if db := tmcore.GetPGContext(ctx, constant.ModuleTransaction); db != nil {
 		return db, nil
 	}
+
 	if db := tmcore.GetPGContext(ctx); db != nil {
 		return db, nil
 	}
+
 	if r.requireTenant {
 		return nil, fmt.Errorf("tenant postgres connection missing from context")
 	}
+
 	if r.connection == nil {
 		return nil, fmt.Errorf("postgres connection not available")
 	}
@@ -112,6 +115,7 @@ func (r *TransactionGroupPostgreSQLRepository) find(
 	}
 
 	group := &TransactionGroup{}
+
 	err = db.QueryRowContext(ctx, query, args...).Scan(
 		&group.ID,
 		&group.OrganizationID,

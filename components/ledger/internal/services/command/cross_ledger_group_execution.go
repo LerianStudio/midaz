@@ -16,6 +16,8 @@ import (
 
 // buildCrossLedgerGroupExecution combines independently prepared lifecycle and
 // create fragments under one execution identity and one intent fingerprint.
+//
+//nolint:gocyclo // exhaustive fragment validation protects the single mixed-execution boundary
 func buildCrossLedgerGroupExecution(
 	organizationID, ledgerID, groupID, executionID uuid.UUID,
 	fragments []PreparedEngineExecution,
@@ -23,6 +25,7 @@ func buildCrossLedgerGroupExecution(
 	if organizationID == uuid.Nil || ledgerID == uuid.Nil || groupID == uuid.Nil || executionID == uuid.Nil {
 		return PreparedEngineExecution{}, errors.New("cross-ledger group execution identity is incomplete")
 	}
+
 	if len(fragments) == 0 {
 		return PreparedEngineExecution{}, errors.New("cross-ledger group execution has no fragments")
 	}
@@ -44,8 +47,10 @@ func buildCrossLedgerGroupExecution(
 
 	dependencies := make([][]TransactionEvidenceReference, 0)
 	seenBalances := make(map[string]accounting.BalanceSnapshot)
+
 	for fragmentIndex := range fragments {
 		fragment := fragments[fragmentIndex]
+
 		count := len(fragment.Execution.Execution.Transactions)
 		if count == 0 || len(fragment.Execution.Guards) != count ||
 			len(fragment.Execution.CompletionPlans) != count || len(fragment.CompletionPlans) != count {
@@ -56,6 +61,7 @@ func buildCrossLedgerGroupExecution(
 			prepared.Execution.Execution.Transactions,
 			fragment.Execution.Execution.Transactions...,
 		)
+
 		prepared.Execution.Guards = append(prepared.Execution.Guards, fragment.Execution.Guards...)
 		if fragment.Execution.RetentionSeconds > prepared.Execution.RetentionSeconds {
 			prepared.Execution.RetentionSeconds = fragment.Execution.RetentionSeconds
@@ -79,6 +85,7 @@ func buildCrossLedgerGroupExecution(
 				if !equalEngineSnapshot(existing, snapshot) {
 					return PreparedEngineExecution{}, fmt.Errorf("cross-ledger group balance %q diverges between fragments", key)
 				}
+
 				continue
 			}
 
@@ -103,6 +110,7 @@ func buildCrossLedgerGroupExecution(
 		if plan.TenantID != intent.TenantID {
 			return PreparedEngineExecution{}, errors.New("cross-ledger group execution mixes tenants")
 		}
+
 		intent.Transactions[index] = transactionCompletionIntent(
 			prepared.Execution.Execution.Transactions[index],
 			plan,
@@ -113,14 +121,18 @@ func buildCrossLedgerGroupExecution(
 	if err != nil {
 		return PreparedEngineExecution{}, err
 	}
+
 	prepared.Execution.IntentFingerprint = fingerprint
+
 	prepared.Execution.CompletionPlans = make([]CompletionPlanRecord, len(prepared.CompletionPlans))
 	for index := range prepared.CompletionPlans {
 		prepared.CompletionPlans[index].IntentFingerprint = fingerprint
+
 		payload, err := EncodeTransactionCompletionPlan(prepared.CompletionPlans[index])
 		if err != nil {
 			return PreparedEngineExecution{}, err
 		}
+
 		prepared.Execution.CompletionPlans[index] = CompletionPlanRecord{
 			TransactionID: prepared.CompletionPlans[index].TransactionID,
 			Payload:       append(json.RawMessage(nil), payload...),

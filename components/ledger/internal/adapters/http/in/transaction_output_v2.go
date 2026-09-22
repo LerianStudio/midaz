@@ -369,11 +369,13 @@ func newPendingTransitionV2Response(result *command.PendingTransitionV2Result) *
 	if result == nil {
 		return nil
 	}
+
 	if result.Group == nil {
 		return &CreateTransactionV2Response{TransactionV2: newTransactionV2(result.Transaction)}
 	}
 
 	groupID := result.Group.BatchID.String()
+
 	transactions := make([]*AtomicTransactionBatchV2Transaction, len(result.Group.Transactions))
 	for index := range result.Group.Transactions {
 		transactions[index] = &AtomicTransactionBatchV2Transaction{
