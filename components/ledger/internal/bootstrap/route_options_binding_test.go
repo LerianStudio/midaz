@@ -121,8 +121,8 @@ func TestRouteOptionsBinding(t *testing.T) {
 	assert.Samef(t, mtSetup.compositionRouteOptions, deps.CompositionOptions,
 		"composition option must bind to the composition route setup")
 	assert.Samef(t, mtSetup.holderAccountsRouteOptions, deps.HolderAccountsOptions,
-		"holder-accounts option must bind to the holder-accounts route setup, not the crm one: the crm middleware binds "+
-			"the CRM Mongo on the generic key and no onboarding PG, so this swap fails the listing's account read")
+		"holder-accounts option must bind to the holder-accounts route setup, not the crm one: the crm middleware also "+
+			"resolves the CRM Mongo eagerly, so this swap makes the listing depend on CRM provisioning it does not use")
 }
 
 // buildHumaMountDepsWithNilHandlers exercises the mapper with the setup under test and nil

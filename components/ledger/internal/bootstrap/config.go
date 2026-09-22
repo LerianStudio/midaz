@@ -1492,6 +1492,10 @@ type unifiedRouteSetup struct {
 	// compositionTenantMiddleware is the holder-account composition tenant
 	// middleware instance, exposed on the same terms as feesTenantMiddleware.
 	compositionTenantMiddleware *tmmiddleware.TenantMiddleware
+
+	// crmTenantMiddleware is the CRM-route tenant middleware instance, exposed on
+	// the same terms as feesTenantMiddleware.
+	crmTenantMiddleware *tmmiddleware.TenantMiddleware
 }
 
 func buildUnifiedRouteSetup(
@@ -1546,29 +1550,40 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 
-	// CRM tenant middleware is a SEPARATE instance carrying ONLY the crm-api
-	// Mongo manager. This is the isolation-critical step: the CRM
-	// WithTenantDB MUST be attached only to CRM routes via crmRouteOptions
-	// below. Mounting it on the onboarding/transaction middleware (or globally
-	// via f.Use) would overwrite the tenant Mongo that ledger handlers resolve,
-	// leaking one tenant's CRM DB into a concurrent ledger request.
+	// CRM tenant middleware is a SEPARATE instance attached only to CRM routes
+	// via crmRouteOptions below. Mounting it on the onboarding/transaction
+	// middleware (or globally via f.Use) would overwrite the tenant Mongo that
+	// ledger handlers resolve, leaking one tenant's CRM DB into a concurrent
+	// ledger request.
 	//
-	// WithMB is called WITHOUT a module name (single-manager mode) on purpose:
-	// the CRM holder/alias repos read tmcore.GetMBContext(ctx) on the GENERIC
-	// key (they predate module-keyed resolution). A module-keyed WithMB would
-	// write the crm-api key while the repos read the generic key, so MT CRM
-	// requests would fail DB resolution. Because this middleware instance only
-	// runs on CRM routes, writing the generic key here cannot collide with the
-	// module-keyed onboarding/transaction injection on ledger routes — isolation
-	// is preserved by route scoping. (The manager itself still carries
-	// WithModule(ModuleCRM) for tenant-manager DB resolution; that is a separate
-	// concern from the request-context key.) The same tenantCache/tenantLoader
-	// are reused (no second cache/loader).
+	// The CRM routes reach three stores, and each key below answers one:
+	//
+	//  1. onboarding PG (module-keyed) — instrument create verifies its
+	//     ledgerId/accountId references and holder delete counts the holder's
+	//     accounts, both in-process through the ledger account reader. Those
+	//     repos resolve the onboarding module key with requireTenant set, so a
+	//     missing injection is a hard 500.
+	//  2. onboarding Mongo (module-keyed) — the account reference check reads the
+	//     account metadata. The metadata repo looks the module key up FIRST and
+	//     falls back to the generic key, so omitting it would send the read to
+	//     the CRM Mongo below.
+	//  3. CRM Mongo (generic key) — the holder/instrument repos read
+	//     tmcore.GetMBContext(ctx) on the GENERIC key (they predate module-keyed
+	//     resolution). Route scoping keeps that generic-key write from colliding
+	//     with the module-keyed onboarding/transaction injection on ledger
+	//     routes. The manager itself still carries WithModule(ModuleCRM) for
+	//     tenant-manager DB resolution; that is a separate concern from the
+	//     request-context key.
+	//
+	// The same tenantCache/tenantLoader are reused (no second cache/loader).
 	crmTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
 		tmmiddleware.WithMB(crmMongoManager),
 		tmmiddleware.WithTenantCache(tenantCache),
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
+	setup.crmTenantMiddleware = crmTenantMiddleware
 
 	// Fees tenant middleware is its own SEPARATE instance, attached only to fee
 	// routes via feesRouteOptions below (never global, never on ledger routes),
@@ -1686,7 +1701,7 @@ func buildUnifiedRouteSetup(
 		PostAuthMiddlewares: []fiber.Handler{authAssertion},
 	}
 
-	// CRM routes get the CRM-only tenant middleware instance.
+	// CRM routes get the CRM tenant middleware instance.
 	setup.crmRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmTenantMiddleware.WithTenantDB},
 	}
@@ -1704,8 +1719,8 @@ func buildUnifiedRouteSetup(
 	}
 
 	// The holder-accounts route gets its own onboarding-only tenant middleware
-	// instance rather than the CRM one, which binds the CRM Mongo on the generic
-	// key and no onboarding PG at all.
+	// instance rather than the CRM one, which also resolves the CRM Mongo that
+	// this route never reads.
 	setup.holderAccountsRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, holderAccountsTenantMiddleware.WithTenantDB},
 	}

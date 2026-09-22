@@ -330,10 +330,11 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 		tmmongo.WithModule(constant.ModuleCRM), tmmongo.WithLogger(logger))
 	t.Cleanup(func() { _ = crmMongoManager.Close(context.Background()) })
 
-	// Real CRM tenant middleware, constructed exactly as the ledger composition
-	// root does: a SEPARATE instance carrying ONLY the crm-api manager, with
-	// single-arg WithMB so it writes the generic MB context key the CRM repos
-	// read. Cache + loader mirror production lazy-load behavior.
+	// CRM tenant middleware binding the crm-api manager as the ledger composition
+	// root does: single-arg WithMB so it writes the generic MB context key the
+	// CRM repos read. The onboarding stores production also binds are omitted
+	// because the holder paths exercised here never read them. Cache + loader
+	// mirror production lazy-load behavior.
 	tenantCache := tenantcache.NewTenantCache()
 	tenantLoader := tenantcache.NewTenantLoader(tenantClient, tenantCache, constant.ModuleCRM, time.Minute, logger)
 	crmTenantMiddleware := tmmiddleware.NewTenantMiddleware(
