@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	postgrescompletion "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
 	redisengine "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/engine"
 	redistransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
@@ -43,6 +44,28 @@ type atomicBatchHTTPIntegrationFixture struct {
 	infra  *testInfra
 	app    *fiber.App
 	engine command.Engine
+}
+
+type atomicBatchHTTPEvidenceResolver struct {
+	repository redistransaction.EngineWriteBehindRepository
+}
+
+func (resolver atomicBatchHTTPEvidenceResolver) ResolveTransactionEvidence(
+	ctx context.Context,
+	reference command.TransactionEvidenceReference,
+) (*command.TransactionWriteBehindEnvelope, error) {
+	raw, _, err := resolver.repository.GetEngineTransactionEvidence(
+		ctx,
+		reference.OrganizationID,
+		reference.LedgerID,
+		reference.TransactionID,
+		reference.ExecutionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return command.DecodeTransactionWriteBehindEnvelope(raw)
 }
 
 func setupAtomicBatchHTTPIntegrationFixture(t *testing.T) *atomicBatchHTTPIntegrationFixture {
@@ -68,10 +91,12 @@ func setupAtomicBatchHTTPIntegrationFixture(t *testing.T) *atomicBatchHTTPIntegr
 	fixedClock := time.Date(2026, time.September, 16, 12, 0, 0, 0, time.UTC)
 
 	infra.handler.Command.AtomicTransactionBatchIdempotencyRepo = batchRepository
+	infra.handler.Command.TransactionGroupRepo = transactiongroup.NewTransactionGroupPostgreSQLRepository(infra.pgConn)
 	infra.handler.Command.AtomicTransactionBatchProjectionReader = infra.handler.Query
 	infra.handler.Query.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
 	redisRepository, ok := infra.redisRepo.(*redistransaction.RedisConsumerRepository)
 	require.True(t, ok, "Redis repository must support protected engine recovery acknowledgment")
+	infra.handler.Command.TransactionEvidenceResolver = atomicBatchHTTPEvidenceResolver{repository: redisRepository}
 	infra.handler.Command.EngineRecoveryAcknowledger = &atomicBatchHTTPRecoveryAcknowledger{
 		repository:  redisRepository,
 		completedAt: fixedClock,
@@ -878,7 +903,7 @@ func TestIntegration_HoldCommitCancelV2CrossLedger_GroupLifecycle(t *testing.T) 
 		fixture.setCrossLedgerEnabled(t, ledgerA, true)
 		fixture.setCrossLedgerEnabled(t, ledgerB, true)
 		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerA, "@held-source", "@external/USD", 100)
-		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerB, "@external/USD", "@committed-destination", 100)
+		_, destinationBalanceID := seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerB, "@external/USD", "@committed-destination", 100)
 
 		request := atomicBatchTransfer(fixture.infra.orgID, ledgerA, "cross-ledger hold commit", "@held-source", "@committed-destination", 100)
 		request.Credits[0].LedgerID = ledgerB.String()
@@ -898,7 +923,7 @@ func TestIntegration_HoldCommitCancelV2CrossLedger_GroupLifecycle(t *testing.T) 
 		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerB))
 		requireCachedAvailable(t, fixture, ledgerA, "@held-source", 0)
 		requireCachedOnHold(t, fixture, ledgerA, "@held-source", 100)
-		requireCachedAvailable(t, fixture, ledgerB, "@committed-destination", 0)
+		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, destinationBalanceID))
 
 		countedEngine := &countingAtomicBatchEngine{delegate: fixture.engine}
 		fixture.infra.handler.Command.Engine = countedEngine
@@ -929,6 +954,9 @@ func TestIntegration_HoldCommitCancelV2CrossLedger_GroupLifecycle(t *testing.T) 
 		require.Equal(t, int64(1), countedEngine.calls.Load())
 
 		selected := committed.Transactions[1]
+		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerA))
+		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerB))
+		require.Equal(t, constant.APPROVED, postgrestestutil.GetTransactionStatus(t, fixture.infra.pgContainer.DB, uuid.MustParse(selected.ID)))
 		revert := postTransaction(
 			t,
 			fixture.app,
@@ -948,7 +976,7 @@ func TestIntegration_HoldCommitCancelV2CrossLedger_GroupLifecycle(t *testing.T) 
 		fixture.setCrossLedgerEnabled(t, ledgerA, true)
 		fixture.setCrossLedgerEnabled(t, ledgerB, true)
 		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerA, "@canceled-source", "@external/USD", 100)
-		seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerB, "@external/USD", "@untouched-destination", 100)
+		_, destinationBalanceID := seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerB, "@external/USD", "@untouched-destination", 100)
 
 		request := atomicBatchTransfer(fixture.infra.orgID, ledgerA, "cross-ledger hold cancel", "@canceled-source", "@untouched-destination", 100)
 		request.Credits[0].LedgerID = ledgerB.String()
@@ -977,7 +1005,7 @@ func TestIntegration_HoldCommitCancelV2CrossLedger_GroupLifecycle(t *testing.T) 
 		require.Equal(t, int64(1), countedEngine.calls.Load())
 		requireCachedAvailable(t, fixture, ledgerA, "@canceled-source", 100)
 		requireCachedOnHold(t, fixture, ledgerA, "@canceled-source", 0)
-		requireCachedAvailable(t, fixture, ledgerB, "@untouched-destination", 0)
+		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, fixture.infra.pgContainer.DB, destinationBalanceID))
 		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerA))
 		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerB))
 		require.Equal(t, constant.CANCELED, crossLedgerGroupStatus(t, fixture, *held.GroupID))
@@ -1051,6 +1079,19 @@ func (engine *countingAtomicBatchEngine) Execute(
 	engine.calls.Add(1)
 
 	return engine.delegate.Execute(ctx, input)
+}
+
+func (engine *countingAtomicBatchEngine) EnsureTransactionGuard(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+	token string,
+) error {
+	bootstrapper, ok := engine.delegate.(command.EngineGuardBootstrapper)
+	if !ok {
+		return fmt.Errorf("counted engine delegate does not support transaction guards")
+	}
+
+	return bootstrapper.EnsureTransactionGuard(ctx, organizationID, ledgerID, transactionID, token)
 }
 
 // postExecutionBlockingEngine exposes the instant immediately after the real
