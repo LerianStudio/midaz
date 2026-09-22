@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -122,4 +123,41 @@ func TestCreateCrossLedgerHoldV2_RejectsRouteValidationBeforePersistence(t *test
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), constant.ErrCrossLedgerRouteValidationUnsupported.Error())
+}
+
+func TestCreateCrossLedgerHoldV2_DeletesIntentOnlyForPrePublicationFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := transactiongroup.NewMockRepository(ctrl)
+	organizationID := uuid.New()
+	ledgerA := uuid.New()
+	ledgerB := uuid.New()
+	groupID := uuid.New()
+	settings := mmodel.LedgerSettings{CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}}
+	uc := &UseCase{
+		TransactionGroupRepo: repo,
+		TransactionReader: &atomicTransactionBatchSettingsReader{settingsByRef: map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings{
+			{organizationID: organizationID, ledgerID: ledgerA}: settings,
+			{organizationID: organizationID, ledgerID: ledgerB}: settings,
+		}},
+		UUIDv7Generator: func() (uuid.UUID, error) { return groupID, nil },
+		Clock:           func() time.Time { return time.Date(2026, time.September, 22, 17, 0, 0, 0, time.UTC) },
+		createAtomicTransactionBatchV2: func(context.Context, CreateAtomicTransactionBatchV2Input) (*CreateAtomicTransactionBatchV2Result, error) {
+			return nil, markAtomicTransactionBatchPrePublication(errors.New("preparation failed"))
+		},
+	}
+	repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+	repo.EXPECT().Delete(gomock.Any(), groupID).Return(nil)
+
+	result, err := uc.CreateCrossLedgerHoldV2(context.Background(), CreateCrossLedgerTransactionV2Input{
+		Transaction: crossLedgerTestTransaction("10",
+			[]mtransaction.FromTo{crossLedgerAmountLeg("@debit", "10", true)},
+			[]mtransaction.FromTo{crossLedgerAmountLeg("@credit", "10", false)}),
+		Scopes: CrossLedgerTransactionScopes{
+			Debits:  []CrossLedgerLegScope{{OrganizationID: organizationID, LedgerID: ledgerA}},
+			Credits: []CrossLedgerLegScope{{OrganizationID: organizationID, LedgerID: ledgerB}},
+		},
+	})
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "preparation failed")
 }
