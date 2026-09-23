@@ -28,7 +28,7 @@ complements — does not duplicate — the producer conventions in `CLAUDE.md`
   version carrier on the wire. Consumers subscribe to the application and dispatch
   on the event key. This pair is the binary's ENTIRE write surface — there is no
   destination outside it.
-- **Posture:** all 35 events invoke `pkgStreaming.EmitBrokerBestEffort` at the
+- **Posture:** all 40 events invoke `pkgStreaming.EmitBrokerBestEffort` at the
   post-commit slot. The helper bounds the synchronous `Emitter.Emit` call, records
   build/emit failures on the span, logs a Warn, and **never fails the HTTP request**.
   The library, not the wrapper, resolves the delivery policy and any configured
@@ -86,7 +86,7 @@ which feeds both the Catalog and the manifest:
 
 ## Event summary
 
-All 36 events carry `SchemaVersion = 1.0.0`. The `account_type.*` events are
+All 40 events carry `SchemaVersion = 1.0.0`. The `account_type.*` events are
 intentionally NOT registered — the type label flows through `account.*` events
 as a string field.
 
@@ -128,6 +128,10 @@ as a string field.
 | `transaction.committed` | transaction / committed | `studio.lerian.ledger.transaction.committed` | transaction ID | `SendTransactionEvents` (updated, APPROVED) |
 | `transaction.canceled` | transaction / canceled | `studio.lerian.ledger.transaction.canceled` | transaction ID | `SendTransactionEvents` (updated, CANCELED) |
 | `transaction.reverted` | transaction / reverted | `studio.lerian.ledger.transaction.reverted` | **child** transaction ID | `SendTransactionEvents` (created, APPROVED, parent non-nil) |
+| `transaction_group.posted` | transaction_group / posted | `studio.lerian.ledger.transaction_group.posted` | group ID | `CreateCrossLedgerTransactionV2` (applied, not replayed) |
+| `transaction_group.committed` | transaction_group / committed | `studio.lerian.ledger.transaction_group.committed` | group ID | grouped commit, or the group reconciler — whichever moves the group row to APPROVED |
+| `transaction_group.canceled` | transaction_group / canceled | `studio.lerian.ledger.transaction_group.canceled` | group ID | grouped cancel, or the group reconciler — whichever moves the group row to CANCELED |
+| `transaction_group.reverted` | transaction_group / reverted | `studio.lerian.ledger.transaction_group.reverted` | **new** group ID | grouped revert (applied, not replayed) |
 
 † On `balance.config_changed` the `ce-subject` is the companion overdraft
 balance's ID in the `overdraft_enabled` branch, not the parent's.
@@ -154,6 +158,8 @@ Most events carry their own record ID as `ce-subject`. Five exceptions:
 - **`transaction.reverted`** carries the **child** (reversal) transaction's UUID
   as `ce-subject`; consumers correlate back to the original transaction via the
   `parentTransactionId` body field.
+- **`transaction_group.reverted`** carries the **new** group's UUID; the group it
+  reverses is the `revertedGroupId` body field.
 
 ## Payload contracts
 
@@ -654,6 +660,8 @@ status discriminator selects the Definition:
 |-----|------|-------|
 | `id` | string | Transaction ID. |
 | `parentTransactionId` | string \| null | `omitempty`. Absent on `posted`/`committed`/`canceled`; always present on `reverted` (the child carries the parent's UUID). |
+| `groupId` | string \| null | `omitempty`. Present only on a member of a cross-ledger group; every part of one movement shares it. |
+| `groupRole` | string \| null | `omitempty`. Present only with `groupId`: `origin` (the part sends value out through its ledger's `@external/<asset>` bridge, or nets to zero inside its ledger) or `destination` (the part receives value through its bridge). |
 | `organizationId` | string | |
 | `ledgerId` | string | |
 | `status` | object | `code`, `description` (string\|null, omitted when nil). |
@@ -696,6 +704,39 @@ A consumer classifying accounts should read `accountType` rather than matching
 client-created external account (`type: "external"`, canonicalised in
 `CreateAccount`) has the type and not the prefix, and only the per-asset account
 Midaz creates for itself has both.
+
+### Transaction group
+
+#### `transaction_group.posted` / `transaction_group.committed` / `transaction_group.canceled` / `transaction_group.reverted` — 6 keys (7 with `revertedGroupId`)
+
+Source: `pkg/streaming/events/transaction_group_lifecycle.go`. One fact per
+cross-ledger group operation, published after the grouped accounting execution
+was applied and its completion returned — the point where the movement as a
+whole has closed. The per-part `transaction.*` events still fire, one per ledger
+and carrying `groupId`; this is the event to consume for "the group closed". A
+hold publishes nothing (no balance moved to a destination yet), and a replayed
+request publishes nothing.
+
+`committed` and `canceled` are published by whichever writer moves the durable
+group row out of PENDING: the commit or cancel coordinator, or the recovery-cycle
+group reconciler when the coordinator applied the movement but did not reach the
+status update. The move is a compare-and-swap, so one writer publishes. Delivery
+is best-effort like every other event here.
+
+| Key | Type | Notes |
+|-----|------|-------|
+| `groupId` | string | The group. On `reverted` it is the new group created by the revert. |
+| `revertedGroupId` | string \| null | `omitempty`. Only on `reverted`: the group being reversed. |
+| `status` | string | `APPROVED` on `posted`/`committed`/`reverted`, `CANCELED` on `canceled`. |
+| `assetCode` | string | The single asset of the group. |
+| `ledgerCount` | number | Distinct ledgers among `parts`. |
+| `parts` | array | The transactions the operation materialized, in execution order. A cancel lists only its origins: destinations are never created. |
+| `parts[].transactionId` | string | |
+| `parts[].organizationId` | string | |
+| `parts[].ledgerId` | string | |
+| `parts[].role` | string | `origin` or `destination`, same vocabulary as `groupRole` on the per-part event. On a revert the roles are those of the reversal: the part that debits a former destination is an origin. |
+| `parts[].status` | string | The part's status after the operation. |
+| `occurredAt` | string | RFC3339. |
 
 ## Excluded by design
 

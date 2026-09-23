@@ -100,3 +100,41 @@ ledger in the path. As with cross-ledger create, the resulting atomic operation
 may include other enabled ledgers or organizations in the same tenant.
 
 This contract does not provide exchange rates or an aggregate group endpoint.
+
+## Observability
+
+**Events.** Every part keeps its per-ledger `transaction.*` event, now carrying
+`groupRole` (`origin` or `destination`) beside `groupId`. On top of those, each
+group operation publishes one `transaction_group.*` fact on the ledger stream:
+`posted` for a direct create, `committed` and `canceled` for the lifecycle, and
+`reverted` for a whole-group revert (its `groupId` is the new group and
+`revertedGroupId` the reversed one). A hold and a replayed request publish no
+group fact. The payload lists the materialized parts with ledger, role, and
+status; see `docs/streaming/ledger-events.md`.
+
+**Traces.** The coordinators open `command.create_cross_ledger_transaction_v2`,
+`command.create_cross_ledger_hold_v2`, `command.transition_cross_ledger_group_v2`
+(commit and cancel) and `command.revert_cross_ledger_group`, each carrying
+`app.request.action`, `app.request.part_count`, `app.request.ledger_count`, and
+the group identifiers (`app.request.group_id` for the group acted on,
+`app.response.group_id` for a group the operation creates). A business rejection
+keeps the span green and is logged once, at Warn, by the coordinator.
+
+**Metrics.** `domain_operations_total` / `domain_operation_duration_ms` cover
+`create_cross_ledger_transaction`, `create_cross_ledger_hold`,
+`commit_cross_ledger_group`, `cancel_cross_ledger_group`, and
+`revert_cross_ledger_group`. `atomic_transaction_batches_total` and
+`atomic_transaction_batch_duration_ms` carry `scope=single|cross_ledger`.
+`cross_ledger_group_ledgers` observes distinct ledgers per applied group
+operation, by action. No metric carries a group, ledger, or account identifier.
+
+**Group reconciliation.** The group row only labels its members; the members are
+the truth. Once per recovery cycle, the leader pod reads PENDING groups older than
+five minutes whose members have also been at rest that long. When every part is
+APPROVED, or every origin is CANCELED, it moves the row to that status and
+publishes the group fact the coordinator could not. A group still held is left
+alone. An intent that never produced a member is deleted only after a day, well
+beyond any deferred projection. Members that agree on no single state are logged
+at Error and counted as `inconsistent`, and are never written: reconciliation
+never moves a balance. Results are counted in
+`cross_ledger_group_reconcile_total{result}`.

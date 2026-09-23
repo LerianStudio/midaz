@@ -991,6 +991,23 @@ unknown acknowledgments are never assumed to have deleted it. The consumer later
 reconciles any record that remains. The ACK never deletes receipt, guard, or
 protection data and never assigns a TTL.
 
+After the recovery consumers, the same runner and lock run two
+reconciliations that never execute accounting. The account closing pass resolves
+closing protection. The cross-ledger group pass aligns the `transaction_group`
+status label with its members, which are the truth: a grouped commit or cancel
+applies and projects its movement before it compares the row from PENDING to the
+terminal status, so a crash or projection deferral between the two leaves a
+PENDING label over settled members. For groups whose row and latest member change
+are both at least five minutes old, the pass reads the members from the primary
+and moves the row only when every part is APPROVED or every origin is CANCELED,
+publishing the group fact the coordinator did not. Member roles come from the
+persisted intent, because a row read back from the transaction table carries no
+source or destination legs. A member-less intent is deleted only after a day, so
+a hold whose projection is still waiting in `recover` keeps its intent. Members
+that disagree are logged and counted, never written. The coordinator treats a row
+already moved to its own status as settled, and only the writer whose
+compare-and-swap succeeded publishes.
+
 Immediate acknowledgment reduces the common-case cardinality of
 `recover`; it is not by itself a hard memory bound. Prolonged completion or
 Redis failures can still create a backlog, and receipt/guard/protection removal

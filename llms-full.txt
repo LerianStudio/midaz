@@ -226,6 +226,18 @@ validates every member, executes all reversals atomically in reverse part order,
 the new `groupId`, the original `revertedGroupId`, and one parent-linked transaction per part.
 The equivalent `/v1` request rejects a group member with `0252`.
 
+Each cross-ledger group operation publishes one `transaction_group.{posted,committed,canceled,reverted}`
+event (ce-subject = group ID, payload lists every materialized part with ledger, `role`
+`origin|destination`, and status) on top of the per-part `transaction.*` events, which carry
+`groupId` and `groupRole`. A hold or a replayed request publishes no group event. The
+coordinators emit D6 operations `create_cross_ledger_transaction`, `create_cross_ledger_hold`,
+`commit_cross_ledger_group`, `cancel_cross_ledger_group`, and `revert_cross_ledger_group`;
+`atomic_transaction_batches_total` and `atomic_transaction_batch_duration_ms` carry
+`scope=single|cross_ledger`; `cross_ledger_group_ledgers` observes ledgers per applied group.
+Once per recovery cycle the runner aligns PENDING `transaction_group` rows with their settled
+members (never moving balances), deletes member-less intents older than a day, and reports
+disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"}`.
+
 #### Onboarding Resources
 
 | Method | Path | Description |
