@@ -41,6 +41,7 @@ const (
 
 	// Policy publication creates an immutable revision without activating it.
 	AuditEventPolicyPublished AuditEventType = "POLICY_PUBLISHED"
+	AuditEventPolicyBound     AuditEventType = "POLICY_BOUND"
 
 	// Rule lifecycle events
 	AuditEventRuleCreated     AuditEventType = "RULE_CREATED"
@@ -73,7 +74,7 @@ const (
 // IsValid checks if the AuditEventType is a valid enum value.
 func (t AuditEventType) IsValid() bool {
 	switch t {
-	case AuditEventTransactionValidated, AuditEventPolicyPublished,
+	case AuditEventTransactionValidated, AuditEventPolicyPublished, AuditEventPolicyBound,
 		AuditEventRuleCreated, AuditEventRuleUpdated, AuditEventRuleActivated, AuditEventRuleDeactivated, AuditEventRuleDrafted, AuditEventRuleDeleted,
 		AuditEventLimitCreated, AuditEventLimitUpdated, AuditEventLimitDeleted, AuditEventLimitActivated, AuditEventLimitDeactivated, AuditEventLimitDrafted,
 		AuditEventReservationReserved, AuditEventReservationConfirmed, AuditEventReservationReleased, AuditEventReservationExpired, AuditEventReservationSkipped:

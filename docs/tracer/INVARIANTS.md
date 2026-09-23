@@ -133,10 +133,18 @@ back the policy and newly inserted rules. Duplicate revisions conflict without
 another event. Publication alone never activates a binding, and an unknown commit
 outcome is not retried automatically. Migration `000026` adds the audit enum
 values; its rollback preserves immutable audit history.
+`BindContextPolicyCommand` reloads the immutable target revision from the primary
+and recompiles it before acquiring locks. Creation requires an absent binding;
+replacement requires its current version. The binding row is locked before the
+audit chain, and the prior/next revisions and binding versions are recorded in
+one `POLICY_BOUND` event in the same transaction. A concurrent create or stale
+update conflicts without another event. Failed audit rolls back both creation
+and replacement; unknown commit outcomes are not retried. Migration `000027`
+retains this event type on rollback to preserve the immutable history.
 The transport must still authorize policy administration and bind the verified
-tenant before exposing this command. Principal presence is not authorization.
-Administrative routes, audited binding changes, and extraction of authenticated
-integration identity for evaluation are not connected yet.
+tenant before exposing these commands. Principal presence is not authorization.
+Administrative routes and extraction of authenticated integration identity for
+evaluation are not connected yet.
 This storage records policy configuration, not transaction decisions: durable
 decision replay and reservation coordination still require their own integration.
 

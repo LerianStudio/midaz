@@ -68,22 +68,9 @@ func (r *ContextPolicyRepository) GetActive(ctx context.Context, key model.Polic
 		return nil, err
 	}
 
-	db, err := r.conn.GetDB(ctx)
+	db, err := r.policyDatabase(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("resolve policy database: %w", err)
-	}
-
-	if primary, ok := db.(interface{ ReadWrite() *sql.DB }); ok {
-		primaryDB := primary.ReadWrite()
-		if primaryDB == nil {
-			return nil, pgdb.ErrNilConnection
-		}
-
-		db = primaryDB
-	}
-
-	if db == nil {
-		return nil, pgdb.ErrNilConnection
+		return nil, err
 	}
 
 	maxRules := r.maxRules
@@ -109,18 +96,20 @@ func (r *ContextPolicyRepository) GetActive(ctx context.Context, key model.Polic
 	}
 	defer rows.Close()
 
-	policy, err := scanBoundContextPolicy(rows, maxRules)
+	var bindingVersion int64
+
+	policy, err := scanContextPolicy(rows, maxRules, &bindingVersion)
 	if err != nil {
 		return nil, err
 	}
 
 	logger.With(libLog.Int("rules.count", len(policy.Rules))).Log(ctx, libLog.LevelDebug, "Selected policy revision")
 
-	return policy, nil
+	return &model.BoundContextPolicy{ContextPolicy: *policy, BindingVersion: bindingVersion}, nil
 }
 
-func scanBoundContextPolicy(rows *sql.Rows, maxRules int) (*model.BoundContextPolicy, error) {
-	policy := &model.BoundContextPolicy{ContextPolicy: model.ContextPolicy{Rules: []model.ContextPolicyRule{}}}
+func scanContextPolicy(rows *sql.Rows, maxRules int, bindingVersion *int64) (*model.ContextPolicy, error) {
+	policy := &model.ContextPolicy{Rules: []model.ContextPolicyRule{}}
 	found := false
 
 	var expected int
@@ -131,7 +120,13 @@ func scanBoundContextPolicy(rows *sql.Rows, maxRules int) (*model.BoundContextPo
 			revision           sql.NullInt64
 			expression, action sql.NullString
 		)
-		if err := rows.Scan(&policy.BindingVersion, &policy.ID, &policy.Revision, &policy.DefaultDecision, &expected, &id, &revision, &expression, &action); err != nil {
+
+		columns := []any{&policy.ID, &policy.Revision, &policy.DefaultDecision, &expected, &id, &revision, &expression, &action}
+		if bindingVersion != nil {
+			columns = append([]any{bindingVersion}, columns...)
+		}
+
+		if err := rows.Scan(columns...); err != nil {
 			return nil, fmt.Errorf("decode policy: %w", err)
 		}
 
