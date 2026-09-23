@@ -8,19 +8,10 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 )
-
-// FeesDBResolver resolves a tenant's fee Mongo database. It is the narrow port
-// the transaction create path depends on at the fee seam so the concrete
-// tenant-manager Mongo manager (*tmmongo.Manager) can be injected at bootstrap
-// and faked in tests. The signature mirrors tmmongo.Manager.GetDatabaseForTenant.
-type FeesDBResolver interface {
-	GetDatabaseForTenant(ctx context.Context, tenantID string) (*mongo.Database, error)
-}
 
 // FeeApplier drives the in-process fee engine over a transaction's validated
 // send/distribute structure. It is the narrow port the transaction create path

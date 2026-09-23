@@ -100,22 +100,26 @@ func RegisterInstrumentRoutes(api huma.API, h *InstrumentHandler, opSuffix strin
 // RegisterInstrumentV2RoutesToApp wires the instrument surface onto the /v2 contract,
 // which is the ONLY version group that serves it. See registerInstrumentRoutesToApp for
 // the auth chain and tenant options it attaches.
-func RegisterInstrumentV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *InstrumentHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerInstrumentRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
+func RegisterInstrumentV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *InstrumentHandler, routeOptions, ledgerReadOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerInstrumentRoutesToApp(group, api, auth, h, routeOptions, ledgerReadOptions, v2OpSuffix)
 }
 
 // registerInstrumentRoutesToApp is the single description of the instrument route
 // surface, shared by every versioned contract that serves it, mirroring
 // registerAccountRoutesToApp. For each of the six ops it attaches the Fiber auth chain —
 // auth.Authorize("midaz","instruments",verb) + the CRM-scoped tenant PostAuthMiddlewares
-// (routeOptions) + ParseUUIDPathParameters — as MIDDLEWARE ONLY (no terminal handler, no
-// body binder) on the VERSIONED GROUP with GROUP-RELATIVE paths, then registers the Huma
-// terminals via RegisterInstrumentRoutes on the SAME group's Huma API.
+// + ParseUUIDPathParameters — as MIDDLEWARE ONLY (no terminal handler, no body binder) on
+// the VERSIONED GROUP with GROUP-RELATIVE paths, then registers the Huma terminals via
+// RegisterInstrumentRoutes on the SAME group's Huma API.
+//
+// Create carries ledgerReadOptions because it verifies its ledgerId/accountId references
+// against the ledger's onboarding stores; the other five ops read only the CRM store and
+// carry routeOptions, so they do not depend on onboarding provisioning.
 //
 // The related-party delete carries the "related-parties" ParseUUIDPathParameters label
 // while the rest carry "instruments". The labels are span-attribute names; the middleware
 // validates every UUID path param regardless of label.
-func registerInstrumentRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *InstrumentHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
+func registerInstrumentRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *InstrumentHandler, routeOptions, ledgerReadOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		instrumentsPath   = "/organizations/:organization_id/instruments"
 		holderInstruments = "/organizations/:organization_id/holders/:holder_id/instruments"
@@ -126,7 +130,7 @@ func registerInstrumentRoutesToApp(group fiber.Router, api huma.API, auth *middl
 	instrumentParse := pkgHTTP.ParseUUIDPathParameters("instruments")
 
 	routeGet(group, instrumentsPath, protectedMidaz(auth, "instruments", "get", routeOptions, instrumentParse))
-	routePost(group, holderInstruments, protectedMidaz(auth, "instruments", "post", routeOptions, instrumentParse))
+	routePost(group, holderInstruments, protectedMidaz(auth, "instruments", "post", ledgerReadOptions, instrumentParse))
 	routeGet(group, instrumentIDPath, protectedMidaz(auth, "instruments", "get", routeOptions, instrumentParse))
 	routePatch(group, instrumentIDPath, protectedMidaz(auth, "instruments", "patch", routeOptions, instrumentParse))
 	routeDelete(group, instrumentIDPath, protectedMidaz(auth, "instruments", "delete", routeOptions, instrumentParse))
