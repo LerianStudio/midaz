@@ -34,8 +34,33 @@ type crossLedgerLifecycleReader struct {
 	members []*transaction.Transaction
 }
 
+// FindTransactionsByGroupID answers like the repository: transaction rows only,
+// without their operations.
 func (reader *crossLedgerLifecycleReader) FindTransactionsByGroupID(context.Context, uuid.UUID) ([]*transaction.Transaction, error) {
-	return reader.members, nil
+	rows := make([]*transaction.Transaction, 0, len(reader.members))
+	for _, member := range reader.members {
+		row := *member
+		row.Operations = nil
+		rows = append(rows, &row)
+	}
+
+	return rows, nil
+}
+
+// GetWriteBehindTransaction answers the pending load with the complete member,
+// operations included.
+func (reader *crossLedgerLifecycleReader) GetWriteBehindTransaction(
+	_ context.Context,
+	organizationID, ledgerID, transactionID uuid.UUID,
+) (*transaction.Transaction, error) {
+	for _, member := range reader.members {
+		if member != nil && member.ID == transactionID.String() &&
+			member.OrganizationID == organizationID.String() && member.LedgerID == ledgerID.String() {
+			return member, nil
+		}
+	}
+
+	return nil, errors.New("pending transaction not found")
 }
 
 func (reader *crossLedgerLifecycleReader) ResolveTransactionProjection(
