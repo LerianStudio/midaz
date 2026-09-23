@@ -124,7 +124,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		externalAccountID, err := libCommons.GenerateUUIDv7()
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to generate external account ID", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to generate external account ID")
+			logger.Log(ctx, libLog.LevelError, "Failed to generate external account ID", libLog.Err(err))
 
 			return nil, err
 		}
