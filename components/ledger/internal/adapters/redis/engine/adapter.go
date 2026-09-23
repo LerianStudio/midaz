@@ -372,8 +372,8 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 }
 
 // resolveAccountProtectionKeys resolves the closing controls of every account of
-// the declared pool by the full scope, and attaches the administrative token this
-// request holds over each of them.
+// the declared pool by the full scope of the ledger that owns its balances, and
+// attaches the administrative token this request holds over each of them.
 //
 // The token comes from the admission the balance load took; a request that owns
 // nothing resolves an empty one and may then only use balances the cache already
@@ -381,12 +381,25 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 func resolveAccountProtectionKeys(ctx context.Context, request accounting.Execution, resolved *resolvedExecutionKeys) error {
 	sink := accountprotection.SinkFromContext(ctx)
 
+	type accountScope struct{ organizationID, ledgerID uuid.UUID }
+
+	scopes := make(map[uuid.UUID]accountScope, len(request.Balances))
+	for _, balance := range request.Balances {
+		organizationID, ledgerID, ok := effectiveBalanceScope(request, balance)
+		if !ok {
+			return fmt.Errorf("resolve accounting account scope")
+		}
+
+		scopes[balance.AccountID] = accountScope{organizationID: organizationID, ledgerID: ledgerID}
+	}
+
 	for _, accountID := range protectedAccounts(request) {
+		organizationID, ledgerID := scopes[accountID].organizationID, scopes[accountID].ledgerID
 		protection := resolvedAccountKeys{
-			Closing:        utils.AccountClosingMarkerKey(request.OrganizationID, request.LedgerID, accountID),
-			Closed:         utils.AccountClosedMarkerKey(request.OrganizationID, request.LedgerID, accountID),
-			Ownership:      utils.AccountAdminOwnershipKey(request.OrganizationID, request.LedgerID, accountID),
-			AdmissionToken: sink.TokenFor(request.OrganizationID, request.LedgerID, accountID),
+			Closing:        utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID),
+			Closed:         utils.AccountClosedMarkerKey(organizationID, ledgerID, accountID),
+			Ownership:      utils.AccountAdminOwnershipKey(organizationID, ledgerID, accountID),
+			AdmissionToken: sink.TokenFor(organizationID, ledgerID, accountID),
 		}
 
 		for _, key := range []*string{&protection.Closing, &protection.Closed, &protection.Ownership} {

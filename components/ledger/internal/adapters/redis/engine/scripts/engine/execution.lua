@@ -183,10 +183,16 @@ end
 -- declared account order makes the refusal deterministic.
 local function validateAccountClosingMarkers(request, protection)
     local owners, used = {}, {}
-    for _, balance in ipairs(request.balances) do owners[balance.balanceRef] = balance.snapshot.accountId end
+    for _, balance in ipairs(request.balances) do
+        owners[scopedBalanceRef(balance.organizationId, balance.ledgerId, balance.balanceRef)] = balance.snapshot.accountId
+    end
     for _, transaction in ipairs(request.transactions) do
-        for _, requirement in ipairs(transaction.balanceRequirements) do used[owners[requirement.balanceRef]] = true end
-        for _, posting in ipairs(transaction.postings) do used[owners[posting.balanceRef]] = true end
+        for _, requirement in ipairs(transaction.balanceRequirements) do
+            used[owners[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, requirement.balanceRef)]] = true
+        end
+        for _, posting in ipairs(transaction.postings) do
+            used[owners[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)]] = true
+        end
     end
     for _, account in ipairs(request.accounts) do
         local state = protection[account.accountId]
@@ -222,10 +228,10 @@ end
 local function validateAccountClosingAvailability(request, pool, protection)
     for _, transaction in ipairs(request.transactions) do
         for _, requirement in ipairs(transaction.balanceRequirements) do
-            validateAccountAvailability(protection, pool[requirement.balanceRef])
+            validateAccountAvailability(protection, pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, requirement.balanceRef)])
         end
         for _, posting in ipairs(transaction.postings) do
-            validateAccountAvailability(protection, pool[posting.balanceRef])
+            validateAccountAvailability(protection, pool[scopedBalanceRef(transaction.organizationId, transaction.ledgerId, posting.balanceRef)])
         end
     end
 end
