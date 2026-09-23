@@ -155,7 +155,7 @@ func TestIntegration_AccountHolderCheckMultiTenant(t *testing.T) {
 
 	crmApp := newAccountHolderCheckApp(t, logger)
 	mountCRMHuma(crmApp, auth, &httpin.HolderHandler{Service: crmUC}, &httpin.InstrumentHandler{Service: crmUC},
-		nil, nil, nil, setup.crmRouteOptions, setup.crmLedgerReadsRouteOptions)
+		nil, nil, nil, setup.crmRouteOptions, setup.crmLedgerReadsRouteOptions, setup.crmHolderDeleteRouteOptions)
 
 	accountApp := newAccountHolderCheckApp(t, logger)
 	mountAccountV2Huma(accountApp, auth, &httpin.AccountHandler{Command: commandUC, Query: queryUC}, setup.onboardingRouteOptions)

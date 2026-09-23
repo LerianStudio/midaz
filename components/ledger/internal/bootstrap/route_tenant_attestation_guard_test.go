@@ -112,7 +112,7 @@ func (o *attestationObserver) handler() fiber.Handler {
 	}
 }
 
-// prependAttestationObserver rewrites every one of the seven route-scoped option sets so the
+// prependAttestationObserver rewrites every one of the nine route-scoped option sets so the
 // observer runs ahead of the handlers the production builder put there, keeping those handlers
 // in their production order behind it.
 //
@@ -143,6 +143,7 @@ func prependAttestationObserver(setup *unifiedRouteSetup, observer fiber.Handler
 	setup.compositionRouteOptions = wrap(setup.compositionRouteOptions)
 	setup.holderAccountsRouteOptions = wrap(setup.holderAccountsRouteOptions)
 	setup.crmLedgerReadsRouteOptions = wrap(setup.crmLedgerReadsRouteOptions)
+	setup.crmHolderDeleteRouteOptions = wrap(setup.crmHolderDeleteRouteOptions)
 }
 
 // buildTenantAttestationServer mounts the full registered surface with the MULTI-TENANT route

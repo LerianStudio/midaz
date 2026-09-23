@@ -11,6 +11,7 @@ import (
 
 	libPointers "github.com/LerianStudio/lib-commons/v7/commons/pointers"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmmongo "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/mongo"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -118,10 +119,12 @@ func (r *ctxCapturingHolderReader) GetHolderByID(ctx context.Context, _ string, 
 type fakeCRMTenantDatabase struct {
 	db       *mongo.Database
 	err      error
+	called   bool
 	tenantID string
 }
 
 func (f *fakeCRMTenantDatabase) GetDatabaseForTenant(_ context.Context, tenantID string) (*mongo.Database, error) {
+	f.called = true
 	f.tenantID = tenantID
 
 	return f.db, f.err
@@ -166,13 +169,15 @@ func TestHolderReaderAdapter_ExistsMultiTenant(t *testing.T) {
 			"a generic Mongo bound by another route must not answer the holder read")
 	})
 
-	t.Run("missing tenant id fails without reading", func(t *testing.T) {
+	t.Run("missing tenant id fails without resolving or reading", func(t *testing.T) {
 		reader := &ctxCapturingHolderReader{}
-		adapter := holderReaderAdapter{service: reader, crmTenantDB: &fakeCRMTenantDatabase{db: crmDB}}
+		resolver := &fakeCRMTenantDatabase{db: crmDB}
+		adapter := holderReaderAdapter{service: reader, crmTenantDB: resolver}
 
 		exists, err := adapter.Exists(context.Background(), "org-1", id)
-		require.Error(t, err)
+		require.ErrorIs(t, err, tmcore.ErrTenantNotFound)
 		assert.False(t, exists)
+		assert.False(t, resolver.called, "without a tenant no CRM database may be resolved")
 		assert.False(t, reader.called, "without a tenant the holder read must not fall through to any store")
 	})
 
@@ -191,6 +196,44 @@ func TestHolderReaderAdapter_ExistsMultiTenant(t *testing.T) {
 		require.ErrorAs(t, err, &unavailable)
 		assert.Equal(t, constant.ErrTenantServiceUnavailable.Error(), unavailable.Code)
 	})
+}
+
+// TestNewHolderReaderAdapter pins the CRM resolver wiring the composition root uses. In
+// multi-tenant mode the manager must reach the adapter, or the account-create holder check
+// reads no CRM store and the request fails. In single-tenant mode the nil manager must NOT be
+// stored: a nil *tmmongo.Manager inside the interface is a non-nil interface, which would make
+// the adapter resolve through a nil manager instead of using the static CRM connection.
+func TestNewHolderReaderAdapter(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeHolderByIDReader{}
+
+	tests := []struct {
+		name         string
+		manager      *tmmongo.Manager
+		wantResolver bool
+	}{
+		{name: "single-tenant nil manager leaves no resolver", manager: nil, wantResolver: false},
+		{name: "multi-tenant manager is kept as the resolver", manager: &tmmongo.Manager{}, wantResolver: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			adapter := newHolderReaderAdapter(reader, tt.manager)
+
+			assert.Equal(t, reader, adapter.service)
+
+			if !tt.wantResolver {
+				assert.Nil(t, adapter.crmTenantDB, "a nil manager must leave the resolver interface nil")
+
+				return
+			}
+
+			assert.Same(t, tt.manager, adapter.crmTenantDB, "the multi-tenant manager must be the resolver")
+		})
+	}
 }
 
 func TestHolderAccountsReaderAdapter_ListAccountsByHolder(t *testing.T) {

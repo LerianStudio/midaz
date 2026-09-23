@@ -71,8 +71,9 @@ func mountV1OnlySurface(t *testing.T) *fiber.App {
 		FeesOptions:        routeOptions,
 		CompositionOptions: routeOptions,
 
-		HolderAccountsOptions: routeOptions,
-		CRMLedgerReadOptions:  routeOptions,
+		HolderAccountsOptions:  routeOptions,
+		CRMLedgerReadOptions:   routeOptions,
+		CRMHolderDeleteOptions: routeOptions,
 	}
 
 	api := httpin.AssembleHumaContract(app, app, openapi.Config{

@@ -37,7 +37,7 @@ type TransactionHandler struct {
 	// only sets on FEE routes — never on the transaction route — so the seam
 	// must resolve and inject it onto a derived ctx itself. Nil in single-tenant
 	// mode (and in tests that do not exercise the seam).
-	FeesMongoManager feesDBResolver
+	FeesMongoManager TenantMongoResolver
 	// MultiTenantEnabled gates the fee-seam tenant resolution. When false the
 	// static fee connection is correct and resolveFeesTenantContext is a no-op.
 	MultiTenantEnabled bool

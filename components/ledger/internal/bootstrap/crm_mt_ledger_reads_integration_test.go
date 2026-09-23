@@ -110,6 +110,7 @@ func TestIntegration_CRMMultiTenantLedgerReads(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, setup.crmRouteOptions, "CRM route options must be built in multi-tenant mode")
 	require.NotNil(t, setup.crmLedgerReadsRouteOptions, "CRM ledger-reads route options must be built in multi-tenant mode")
+	require.NotNil(t, setup.crmHolderDeleteRouteOptions, "CRM holder-delete route options must be built in multi-tenant mode")
 
 	// MT-style repositories throughout: nil static connections with requireTenant
 	// set, so every store must come from the request context the middleware fills.
@@ -144,7 +145,7 @@ func TestIntegration_CRMMultiTenantLedgerReads(t *testing.T) {
 	// options carry is what the request actually runs.
 	mountCRMHuma(app, middleware.NewAuthClient("", false, nil),
 		&httpin.HolderHandler{Service: crmUC}, &httpin.InstrumentHandler{Service: crmUC},
-		nil, nil, nil, setup.crmRouteOptions, setup.crmLedgerReadsRouteOptions)
+		nil, nil, nil, setup.crmRouteOptions, setup.crmLedgerReadsRouteOptions, setup.crmHolderDeleteRouteOptions)
 
 	t.Run("holder_create_and_read_do_not_depend_on_onboarding_provisioning", func(t *testing.T) {
 		orgID := tenantCRMOnly.orgID.String()
@@ -206,21 +207,30 @@ func TestIntegration_CRMMultiTenantLedgerReads(t *testing.T) {
 	})
 
 	t.Run("instrument_create_with_another_tenants_ledger_is_not_found_in_this_tenant", func(t *testing.T) {
-		// Tenant A's ledger and account are real rows, but only in tenant A's
-		// onboarding PostgreSQL. Under tenant B's JWT the lookup must reach tenant
-		// B's database and find nothing.
+		// Tenant B addresses tenant A's organization, ledger and account ids, so the
+		// organization filter cannot hide the rows: only the store the middleware
+		// resolved decides the outcome. Tenant A's onboarding PostgreSQL holds them
+		// (a misrouted lookup would answer 201); tenant B's does not.
 		ownerA := createHolderHTTP(t, app, tenantA.tenantID, tenantA.orgID.String(), "Tenant A Ledger Owner", "44444444444")
 		accountA := seedHolderOwnedAccount(t, tenantA, ownerA)
 
-		holderB := createHolderHTTP(t, app, tenantB.tenantID, tenantB.orgID.String(), "Tenant B Holder", "55555555555")
+		tenantBOnOrgA := *tenantB
+		tenantBOnOrgA.orgID = tenantA.orgID
 
-		body, status := postInstrumentHTTP(t, app, tenantB, holderB, tenantA.ledgerID.String(), accountA)
+		holderB := createHolderHTTP(t, app, tenantB.tenantID, tenantA.orgID.String(), "Tenant B Holder", "55555555555")
+
+		body, status := postInstrumentHTTP(t, app, &tenantBOnOrgA, holderB, tenantA.ledgerID.String(), accountA)
 		assertProblem(t, body, status, stdhttp.StatusNotFound, constant.ErrEntityNotFound, constant.EntityLedger)
 
-		instruments, err := tenantB.crmMongo.Collection(strings.ToLower("aliases_"+tenantB.orgID.String())).
-			CountDocuments(context.Background(), bson.M{"account_id": accountA})
+		collection := strings.ToLower("aliases_" + tenantA.orgID.String())
+
+		inB, err := tenantB.crmMongo.Collection(collection).CountDocuments(context.Background(), bson.M{"account_id": accountA})
 		require.NoError(t, err)
-		assert.Zero(t, instruments, "a rejected reference must persist no instrument")
+		assert.Zero(t, inB, "a rejected reference must persist no instrument")
+
+		inA, err := tenantA.crmMongo.Collection(collection).CountDocuments(context.Background(), bson.M{"account_id": accountA})
+		require.NoError(t, err)
+		assert.Zero(t, inA, "tenant B's request must write nothing into tenant A's CRM Mongo")
 	})
 
 	t.Run("instrument_create_with_an_unknown_account_is_a_business_not_found_not_500", func(t *testing.T) {
@@ -242,17 +252,36 @@ func TestIntegration_CRMMultiTenantLedgerReads(t *testing.T) {
 	})
 
 	t.Run("holder_delete_without_accounts_is_204", func(t *testing.T) {
-		holderID := createHolderHTTP(t, app, tenantB.tenantID, tenantB.orgID.String(), "Tenant B Accountless Holder", "88888888888")
+		// Tenant B deletes a holder under tenant A's organization id, and tenant A
+		// owns an account under that same organization and holder id. The
+		// organization filter matches in both stores, so only the resolved store
+		// decides: tenant B's onboarding PostgreSQL has no such account (204), while
+		// a misrouted count would read tenant A's and trip the ownership guard (422).
+		tenantBOnOrgA := *tenantB
+		tenantBOnOrgA.orgID = tenantA.orgID
 
-		// Tenant A owns an account under the SAME holder id: the count must read
-		// tenant B's onboarding PostgreSQL only, so tenant A's row cannot pin it.
+		holderID := createHolderHTTP(t, app, tenantB.tenantID, tenantA.orgID.String(), "Tenant B Accountless Holder", "88888888888")
 		seedHolderOwnedAccount(t, tenantA, holderID)
 
-		body, status := deleteHolderHTTP(t, app, tenantB, holderID)
+		body, status := deleteHolderHTTP(t, app, &tenantBOnOrgA, holderID)
 		require.Equalf(t, stdhttp.StatusNoContent, status, "body: %s", body)
 
-		assert.Equal(t, stdhttp.StatusNotFound, getHolderStatusHTTP(t, app, tenantB.tenantID, tenantB.orgID.String(), holderID),
+		assert.Equal(t, stdhttp.StatusNotFound, getHolderStatusHTTP(t, app, tenantB.tenantID, tenantA.orgID.String(), holderID),
 			"the deleted holder must no longer be readable")
+	})
+
+	t.Run("holder_delete_depends_on_onboarding_provisioning", func(t *testing.T) {
+		// Positive control for the crm-only tenant: its holder routes work, but the
+		// owned-account guard needs the onboarding PostgreSQL the tenant-manager
+		// does not provision for it, so tenant resolution rejects the delete.
+		holderID := createHolderHTTP(t, app, tenantCRMOnly.tenantID, tenantCRMOnly.orgID.String(), "CRM Only Deleted Holder", "99999999999")
+
+		body, status := deleteHolderHTTP(t, app, tenantCRMOnly, holderID)
+		assert.Equalf(t, stdhttp.StatusServiceUnavailable, status,
+			"a tenant without onboarding provisioning must fail tenant resolution on holder delete; body: %s", body)
+
+		assert.Equal(t, fiber.StatusOK, getHolderStatusHTTP(t, app, tenantCRMOnly.tenantID, tenantCRMOnly.orgID.String(), holderID),
+			"the rejected delete must leave the holder in place")
 	})
 }
 

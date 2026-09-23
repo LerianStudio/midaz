@@ -20,7 +20,7 @@ import (
 
 // HumaMountDeps is the single source of truth for the ledger's Huma mount list. It
 // carries, by name, the auth client, every handler the registrars consume, and the
-// seven route-scoped ProtectedRouteOptions the guard chains attach. Production and
+// nine route-scoped ProtectedRouteOptions the guard chains attach. Production and
 // every offline harness build one of these and mount through MountV1/MountV2, so a
 // registrar added to the mount reaches all of them at once instead of drifting
 // across four hand-maintained copies.
@@ -71,7 +71,7 @@ type HumaMountDeps struct {
 	Composition *CompositionHandler
 
 	// Route-scoped protected options, one instance per role. In multi-tenant mode
-	// buildUnifiedRouteSetup builds eight distinct instances drawn from six tenant
+	// buildUnifiedRouteSetup builds nine distinct instances drawn from seven tenant
 	// middlewares; in single-tenant mode every field is nil.
 	OnboardingOptions  *pkgHTTP.ProtectedRouteOptions
 	LedgerOptions      *pkgHTTP.ProtectedRouteOptions
@@ -84,10 +84,13 @@ type HumaMountDeps struct {
 	// onboarding stores rather than the CRM ones CRMOptions binds.
 	HolderAccountsOptions *pkgHTTP.ProtectedRouteOptions
 
-	// CRMLedgerReadOptions scopes the two CRM ops whose use cases also read ledger
-	// stores: instrument create (reference check) and holder delete (owned-account
-	// guard). It binds the onboarding stores alongside the CRM one.
+	// CRMLedgerReadOptions scopes instrument create, whose reference check also
+	// reads the onboarding PostgreSQL and Mongo stores.
 	CRMLedgerReadOptions *pkgHTTP.ProtectedRouteOptions
+
+	// CRMHolderDeleteOptions scopes holder delete, whose owned-account guard also
+	// reads the onboarding PostgreSQL store.
+	CRMHolderDeleteOptions *pkgHTTP.ProtectedRouteOptions
 }
 
 // MountV1 registers the /v1 Huma terminals + Fiber auth/tenant chain on the shared
@@ -189,8 +192,8 @@ func (d HumaMountDeps) registerMoneyReadRoutes(group fiber.Router, api huma.API)
 // (holder-accounts, encryption, audit) leave a route unregistered when its handler is
 // nil. holder-accounts is the exception to CRMOptions: it lists ledger accounts from
 // the onboarding stores, so it carries its own HolderAccountsOptions. Instrument create
-// and holder delete also read ledger stores, so they carry CRMLedgerReadOptions instead of
-// CRMOptions. The fee/billing ops carry FeesOptions and authorize against the "midaz"
+// and holder delete also read ledger stores, so they carry CRMLedgerReadOptions and
+// CRMHolderDeleteOptions instead of CRMOptions. The fee/billing ops carry FeesOptions and authorize against the "midaz"
 // tuples at ledger scope: the path names the ledger, so a package another ledger owns
 // is out of reach. Fees/billing are served ONLY on this /v2 contract. composition
 // carries CompositionOptions and authorizes under the "midaz" appName's "accounts"
@@ -215,7 +218,7 @@ func (d HumaMountDeps) MountV2(group fiber.Router, api huma.API) {
 	RegisterCountTransactionV2RoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 	RegisterBalanceV2RoutesToApp(group, api, d.Auth, d.Balance, d.TransactionOptions)
 	RegisterOperationV2RoutesToApp(group, api, d.Auth, d.Operation, d.TransactionOptions)
-	RegisterHolderV2RoutesToApp(group, api, d.Auth, d.Holder, d.CRMOptions, d.CRMLedgerReadOptions)
+	RegisterHolderV2RoutesToApp(group, api, d.Auth, d.Holder, d.CRMOptions, d.CRMHolderDeleteOptions)
 	RegisterHolderAccountsV2RoutesToApp(group, api, d.Auth, d.HolderAccounts, d.HolderAccountsOptions)
 	RegisterInstrumentV2RoutesToApp(group, api, d.Auth, d.Instrument, d.CRMOptions, d.CRMLedgerReadOptions)
 	RegisterEncryptionV2RoutesToApp(group, api, d.Auth, d.Encryption, d.CRMOptions)

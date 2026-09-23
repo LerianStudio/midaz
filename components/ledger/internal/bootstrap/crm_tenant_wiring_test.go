@@ -24,12 +24,14 @@ import (
 // registered manager eagerly, so it must carry nothing else: an onboarding store here would make
 // every CRM route fail for a tenant whose onboarding provisioning is absent or down.
 //
-// The CRM ledger-reads middleware serves the two CRM routes whose use cases read ledger stores
-// in-process through the ledger account reader:
+// Two CRM routes also read ledger stores in-process through the ledger account reader, and each
+// gets a middleware carrying exactly the ledger stores it reads, beside the CRM Mongo:
 //
-//   - instrument create verifies its ledgerId/accountId references (ledger and account rows in
-//     onboarding PG, account metadata in onboarding MB);
-//   - holder delete counts the holder's accounts (onboarding PG).
+//   - the CRM ledger-reads middleware serves instrument create, which verifies its
+//     ledgerId/accountId references (ledger and account rows in onboarding PG, account metadata
+//     in onboarding MB);
+//   - the CRM holder-delete middleware serves holder delete, which counts the holder's accounts
+//     (onboarding PG only).
 //
 // Without the module-keyed onboarding PG those reads fail requireTenant with "tenant postgres
 // connection missing from context" and the request is a 500. Without the module-keyed
@@ -57,6 +59,8 @@ func TestCRMTenantMiddlewareWiring(t *testing.T) {
 	require.NotNil(t, mtSetup.crmTenantMiddleware, "CRM tenant middleware must be built in multi-tenant mode")
 	require.NotNil(t, mtSetup.crmLedgerReadsTenantMiddleware,
 		"CRM ledger-reads tenant middleware must be built in multi-tenant mode")
+	require.NotNil(t, mtSetup.crmHolderDeleteTenantMiddleware,
+		"CRM holder-delete tenant middleware must be built in multi-tenant mode")
 
 	crm := reflect.ValueOf(mtSetup.crmTenantMiddleware).Elem()
 
@@ -77,6 +81,16 @@ func TestCRMTenantMiddlewareWiring(t *testing.T) {
 			"account reference check reads account metadata on the module key and would otherwise hit the CRM store")
 	assertGenericCRMMongo(t, ledgerReads, "CRM ledger-reads middleware")
 
+	holderDelete := reflect.ValueOf(mtSetup.crmHolderDeleteTenantMiddleware).Elem()
+
+	assert.ElementsMatch(t, []string{constant.ModuleOnboarding}, mapKeys(t, holderDelete, "pgModules"),
+		"CRM holder-delete middleware must carry exactly the module-keyed onboarding PostgreSQL manager: the "+
+			"owned-account guard counts the holder's accounts there with requireTenant set")
+	assert.Empty(t, mapKeys(t, holderDelete, "mongoModules"),
+		"CRM holder-delete middleware must carry no module-keyed Mongo manager: holder delete reads no onboarding "+
+			"Mongo, and eager resolution would make it depend on that provisioning")
+	assertGenericCRMMongo(t, holderDelete, "CRM holder-delete middleware")
+
 	// Single-tenant: buildUnifiedRouteSetup short-circuits to a zero-value setup before it builds
 	// any tenant middleware, so both seams are nil (parallel to the nil route options).
 	stSetup, err := buildUnifiedRouteSetup(&Config{}, logger, nil, nil, nil, nil, nil, nil, nil, nil)
@@ -84,6 +98,7 @@ func TestCRMTenantMiddlewareWiring(t *testing.T) {
 	require.NotNil(t, stSetup, "single-tenant setup is a zero value, not nil")
 	assert.Nil(t, stSetup.crmTenantMiddleware, "single-tenant CRM tenant middleware must be nil")
 	assert.Nil(t, stSetup.crmLedgerReadsTenantMiddleware, "single-tenant CRM ledger-reads tenant middleware must be nil")
+	assert.Nil(t, stSetup.crmHolderDeleteTenantMiddleware, "single-tenant CRM holder-delete tenant middleware must be nil")
 }
 
 // assertGenericCRMMongo asserts the middleware keeps the CRM Mongo registered with a no-module

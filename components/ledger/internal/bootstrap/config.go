@@ -899,12 +899,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// through narrow ports so it never imports the query or CRM packages.
 	// HolderReader adapts the CRM holder service; SettingsReader is satisfied
 	// directly by the query UseCase (signatures match).
-	holderReader := holderReaderAdapter{service: crmMgo.holderHandler.Service}
-	if crmMgo.mongoManager != nil {
-		holderReader.crmTenantDB = crmMgo.mongoManager
-	}
-
-	commandUseCase.HolderReader = holderReader
+	commandUseCase.HolderReader = newHolderReaderAdapter(crmMgo.holderHandler.Service, crmMgo.mongoManager)
 	commandUseCase.SettingsReader = queryUseCase
 
 	// === CRM domain metrics (D6) ===
@@ -1483,8 +1478,9 @@ type unifiedRouteSetup struct {
 	feesRouteOptions        *midazhttp.ProtectedRouteOptions
 	compositionRouteOptions *midazhttp.ProtectedRouteOptions
 
-	holderAccountsRouteOptions *midazhttp.ProtectedRouteOptions
-	crmLedgerReadsRouteOptions *midazhttp.ProtectedRouteOptions
+	holderAccountsRouteOptions  *midazhttp.ProtectedRouteOptions
+	crmLedgerReadsRouteOptions  *midazhttp.ProtectedRouteOptions
+	crmHolderDeleteRouteOptions *midazhttp.ProtectedRouteOptions
 
 	// feesTenantMiddleware is the fee-route tenant middleware instance, exposed so
 	// its configured module managers stay pinnable by a same-package regression
@@ -1507,6 +1503,10 @@ type unifiedRouteSetup struct {
 	// routes that also read ledger stores, exposed on the same terms as
 	// feesTenantMiddleware.
 	crmLedgerReadsTenantMiddleware *tmmiddleware.TenantMiddleware
+
+	// crmHolderDeleteTenantMiddleware is the holder-delete tenant middleware
+	// instance, exposed on the same terms as feesTenantMiddleware.
+	crmHolderDeleteTenantMiddleware *tmmiddleware.TenantMiddleware
 }
 
 func buildUnifiedRouteSetup(
@@ -1591,21 +1591,14 @@ func buildUnifiedRouteSetup(
 	)
 	setup.crmTenantMiddleware = crmTenantMiddleware
 
-	// The CRM ledger-reads middleware serves the two CRM routes whose use cases
-	// also read ledger stores in-process through the ledger account reader, and
-	// is attached to them via crmLedgerReadsRouteOptions below. It reaches three
-	// stores, and each key answers one:
+	// Two CRM routes also read ledger stores in-process, so each gets its own
+	// middleware carrying exactly the ledger stores it reads beside the CRM
+	// Mongo on the generic key. Every registered store is resolved eagerly, so a
+	// store a route does not read would only add a provisioning dependency.
 	//
-	//  1. onboarding PG (module-keyed) — instrument create verifies its
-	//     ledgerId/accountId references and holder delete counts the holder's
-	//     accounts. Those repos resolve the onboarding module key with
-	//     requireTenant set, so a missing injection is a hard 500.
-	//  2. onboarding Mongo (module-keyed) — the account reference check reads the
-	//     account metadata. The metadata repo looks the module key up FIRST and
-	//     falls back to the generic key, so omitting it would send the read to
-	//     the CRM Mongo below.
-	//  3. CRM Mongo (generic key) — the holder/instrument repos, on the same
-	//     terms as the CRM middleware above.
+	// Instrument create verifies its ledgerId/accountId references: ledger and
+	// account rows in onboarding PG, account metadata in onboarding Mongo. The
+	// onboarding Mongo is module-keyed so it never shadows the generic CRM key.
 	crmLedgerReadsTenantMiddleware := tmmiddleware.NewTenantMiddleware(
 		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
 		tmmiddleware.WithMB(onboardingMongoManager, constant.ModuleOnboarding),
@@ -1614,6 +1607,16 @@ func buildUnifiedRouteSetup(
 		tmmiddleware.WithTenantLoader(tenantLoader),
 	)
 	setup.crmLedgerReadsTenantMiddleware = crmLedgerReadsTenantMiddleware
+
+	// Holder delete counts the holder's accounts in onboarding PG and reads no
+	// onboarding Mongo.
+	crmHolderDeleteTenantMiddleware := tmmiddleware.NewTenantMiddleware(
+		tmmiddleware.WithPG(onboardingPGManager, constant.ModuleOnboarding),
+		tmmiddleware.WithMB(crmMongoManager),
+		tmmiddleware.WithTenantCache(tenantCache),
+		tmmiddleware.WithTenantLoader(tenantLoader),
+	)
+	setup.crmHolderDeleteTenantMiddleware = crmHolderDeleteTenantMiddleware
 
 	// Fees tenant middleware is its own SEPARATE instance, attached only to fee
 	// routes via feesRouteOptions below (never global, never on ledger routes),
@@ -1736,11 +1739,14 @@ func buildUnifiedRouteSetup(
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmTenantMiddleware.WithTenantDB},
 	}
 
-	// Instrument create and holder delete get the CRM ledger-reads tenant
-	// middleware instance, which adds the onboarding stores their ledger reads
-	// resolve.
+	// Instrument create gets the CRM ledger-reads tenant middleware instance.
 	setup.crmLedgerReadsRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmLedgerReadsTenantMiddleware.WithTenantDB},
+	}
+
+	// Holder delete gets the CRM holder-delete tenant middleware instance.
+	setup.crmHolderDeleteRouteOptions = &midazhttp.ProtectedRouteOptions{
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmHolderDeleteTenantMiddleware.WithTenantDB},
 	}
 
 	// Fee routes get the fees-only tenant middleware instance.
@@ -1839,8 +1845,9 @@ func buildHumaMountDeps(
 		FeesOptions:        setup.feesRouteOptions,
 		CompositionOptions: setup.compositionRouteOptions,
 
-		HolderAccountsOptions: setup.holderAccountsRouteOptions,
-		CRMLedgerReadOptions:  setup.crmLedgerReadsRouteOptions,
+		HolderAccountsOptions:  setup.holderAccountsRouteOptions,
+		CRMLedgerReadOptions:   setup.crmLedgerReadsRouteOptions,
+		CRMHolderDeleteOptions: setup.crmHolderDeleteRouteOptions,
 	}
 }
 

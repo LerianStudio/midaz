@@ -7,10 +7,9 @@ package bootstrap
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
-	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmmongo "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/mongo"
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
@@ -19,7 +18,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 // holderByIDReader is the narrow seam over the CRM holder service's
@@ -27,12 +25,6 @@ import (
 // not-found discrimination be tested without a Mongo-backed service.
 type holderByIDReader interface {
 	GetHolderByID(ctx context.Context, organizationID string, id uuid.UUID, includeDeleted bool) (*mmodel.Holder, error)
-}
-
-// crmTenantDatabaseResolver is the narrow seam over the CRM Mongo manager's
-// per-tenant database resolution. It is satisfied by *tmmongo.Manager.
-type crmTenantDatabaseResolver interface {
-	GetDatabaseForTenant(ctx context.Context, tenantID string) (*mongo.Database, error)
 }
 
 // holderReaderAdapter satisfies command.HolderReader over the CRM holder
@@ -44,7 +36,20 @@ type holderReaderAdapter struct {
 
 	// crmTenantDB resolves the tenant CRM database in multi-tenant mode. It is nil
 	// in single-tenant mode, where the CRM repos use their static connection.
-	crmTenantDB crmTenantDatabaseResolver
+	crmTenantDB httpin.TenantMongoResolver
+}
+
+// newHolderReaderAdapter builds the holder reader over the CRM holder service.
+// crmManager is the CRM Mongo manager, nil in single-tenant mode; it is stored only
+// when non-nil, because a nil *tmmongo.Manager inside the interface would be a
+// non-nil resolver.
+func newHolderReaderAdapter(service holderByIDReader, crmManager *tmmongo.Manager) holderReaderAdapter {
+	adapter := holderReaderAdapter{service: service}
+	if crmManager != nil {
+		adapter.crmTenantDB = crmManager
+	}
+
+	return adapter
 }
 
 // Exists reports whether a holder with id exists within the organization. A
@@ -68,30 +73,17 @@ func (a holderReaderAdapter) Exists(ctx context.Context, organizationID string, 
 	return true, nil
 }
 
-// crmTenantContext returns a context whose generic Mongo key carries the tenant CRM
-// database. The check runs inside account create, whose route middleware binds only
-// the module-keyed ledger stores, and the CRM holder repo reads the generic key. The
-// database is always resolved rather than reused from ctx, because a generic Mongo
-// bound by another route's middleware belongs to a different store. The derived
-// context is scoped to the holder read and never returned to the caller.
-//
-// In single-tenant mode there is no resolver and ctx is returned unchanged.
+// crmTenantContext returns a context carrying the tenant CRM database on the
+// generic Mongo key the CRM holder repo reads. The account-create route that runs
+// this check binds only the module-keyed ledger stores. The derived context is
+// scoped to the holder read and never returned to the caller. In single-tenant mode
+// there is no resolver and ctx is returned unchanged.
 func (a holderReaderAdapter) crmTenantContext(ctx context.Context) (context.Context, error) {
 	if a.crmTenantDB == nil {
 		return ctx, nil
 	}
 
-	tenantID := tmcore.GetTenantIDContext(ctx)
-	if tenantID == "" {
-		return nil, fmt.Errorf("holder seam: %w", tmcore.ErrTenantNotFound)
-	}
-
-	crmDB, err := a.crmTenantDB.GetDatabaseForTenant(ctx, tenantID)
-	if err != nil {
-		return nil, httpin.MapTenantError(ctx, err, tenantID)
-	}
-
-	return tmcore.ContextWithMB(ctx, crmDB), nil
+	return httpin.ResolveTenantMongoContext(ctx, a.crmTenantDB, "holder seam")
 }
 
 // holderAccountsReaderAdapter satisfies httpin.HolderAccountsReader over the
