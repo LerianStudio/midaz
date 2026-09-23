@@ -5,8 +5,10 @@
 package in
 
 import (
+	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
@@ -15,7 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
@@ -197,15 +202,19 @@ func TestCreateTransactionV2_RetryReplaysTheStoredTransaction(t *testing.T) {
 
 // TestCreateTransactionHoldV2_ScopeMismatchInBodyIsRejected proves mixed scope
 // remains outside the hold lifecycle milestone.
+// v2MixedScopeBody names one scope on the debit and another on the credit.
+const v2MixedScopeBody = `{"asset":"BRL","amount":"100",` +
+	`"debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],` +
+	`"credits":[{"alias":"@dst",` + v2ForeignScopeJSON + `,"amount":"100"}]}`
+
+// TestCreateTransactionV2_ScopeMismatchInBodyIsRejected proves the actions that carry
+// an operation-type override stay single-scope: cross-ledger block is unsupported, so
+// legs naming two scopes are refused at the edge before any command runs.
 func TestCreateTransactionV2_ScopeMismatchInBodyIsRejected(t *testing.T) {
 	// NOT parallel: process-global huma state.
-	app := buildHumaV2ActionApp(t, "hold", (&TransactionHandler{}).CreateTransactionHoldV2)
+	app := buildHumaV2ActionApp(t, "block", (&TransactionHandler{}).CreateTransactionBlockV2)
 
-	mismatched := `{"asset":"BRL","amount":"100",` +
-		`"debits":[{"alias":"@src",` + v2ScopeJSON + `,"amount":"100"}],` +
-		`"credits":[{"alias":"@dst",` + v2ForeignScopeJSON + `,"amount":"100"}]}`
-
-	resp := postActionV2(t, app, "hold", mismatched)
+	resp := postActionV2(t, app, "block", v2MixedScopeBody)
 	defer func() { _ = resp.Body.Close() }()
 
 	body := readAllForTest(t, resp)
@@ -214,6 +223,44 @@ func TestCreateTransactionV2_ScopeMismatchInBodyIsRejected(t *testing.T) {
 		"legs naming two different scopes must be refused; body: %s", body)
 	assert.Contains(t, body, cn.ErrTransactionScopeMismatch.Error(),
 		"the refusal must carry the canonical scope-mismatch code")
+}
+
+// crossLedgerSettingsReader answers the cross-ledger policy read of a command under
+// test with fixed ledger settings.
+type crossLedgerSettingsReader struct {
+	command.TransactionReader
+	settings mmodel.LedgerSettings
+}
+
+func (reader *crossLedgerSettingsReader) GetParsedLedgerSettings(context.Context, uuid.UUID, uuid.UUID) (mmodel.LedgerSettings, error) {
+	return reader.settings, nil
+}
+
+// TestCreateTransactionV2_MixedScopeHoldReachesTheCrossLedgerCommand proves a hold whose
+// legs name two scopes is no longer refused at the edge: it reaches the cross-ledger
+// command, whose policy answers for the ledgers that have not enabled it.
+func TestCreateTransactionV2_MixedScopeHoldReachesTheCrossLedgerCommand(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	handler := &TransactionHandler{Command: &command.UseCase{
+		TransactionReader:    &crossLedgerSettingsReader{},
+		TransactionGroupRepo: transactiongroup.NewMockRepository(ctrl),
+		UUIDv7Generator: func() (uuid.UUID, error) {
+			return uuid.MustParse("01994f13-29b7-7000-8000-000000000700"), nil
+		},
+		Clock: func() time.Time { return time.Date(2026, time.September, 23, 12, 0, 0, 0, time.UTC) },
+	}}
+	app := buildHumaV2ActionApp(t, "hold", handler.CreateTransactionHoldV2)
+
+	resp := postActionV2(t, app, "hold", v2MixedScopeBody)
+	defer func() { _ = resp.Body.Close() }()
+
+	body := readAllForTest(t, resp)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "body: %s", body)
+	assert.Contains(t, body, cn.ErrCrossLedgerNotEnabled.Error(),
+		"the refusal must come from the cross-ledger policy, not from the edge")
+	assert.NotContains(t, body, cn.ErrTransactionScopeMismatch.Error())
 }
 
 // TestCreateTransactionV2_MalformedBodyScopeIsRejected proves the UUID hygiene the URL segments
