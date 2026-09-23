@@ -196,6 +196,11 @@ func TestIntegration_AdapterExecute_MultiScopeAtomicity(t *testing.T) {
 		require.NotNil(t, result)
 		require.Equal(t, int64(1), inspector.HLen(ctx, keys.Receipts).Val())
 		require.Equal(t, int64(len(input.Execution.Transactions)), inspector.HLen(ctx, keys.Recovery).Val())
+		foreignIndexKey := strings.Replace(keys.TransactionIndex, ":"+input.Execution.LedgerID.String(), ":"+foreignLedgerID.String(), 1)
+		foreignTransaction := input.Execution.Transactions[1]
+		require.Equal(t, foreignLedgerID, foreignTransaction.LedgerID)
+		require.True(t, inspector.HExists(ctx, foreignIndexKey, foreignTransaction.ID.String()).Val(),
+			"each transaction index must be stored in its own ledger scope")
 
 		var sawPrimary, sawForeign bool
 		for _, balance := range result.Final {

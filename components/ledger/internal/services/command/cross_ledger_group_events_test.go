@@ -165,8 +165,8 @@ func TestCreateCrossLedgerTransactionV2_PublishesOneGroupPostedEvent(t *testing.
 	emitter := pkgStreaming.NewMockEmitter()
 	reader, factory := newReaderFactory(t)
 	ctx, recorder := recordingContext()
-	origin := crossLedgerGroupEventMember(groupEventLedgerA, groupEventGroupID, constant.APPROVED, []string{"@debit"}, []string{"@external/BRL"})
-	destination := crossLedgerGroupEventMember(groupEventLedgerB, groupEventGroupID, constant.APPROVED, []string{"@external/BRL"}, []string{"@credit"})
+	origin := crossLedgerGroupEventMember(groupEventLedgerA, groupEventGroupID, constant.CREATED, []string{"@debit"}, []string{"@external/BRL"})
+	destination := crossLedgerGroupEventMember(groupEventLedgerB, groupEventGroupID, constant.CREATED, []string{"@external/BRL"}, []string{"@credit"})
 
 	uc := &UseCase{
 		Streaming:       emitter,
