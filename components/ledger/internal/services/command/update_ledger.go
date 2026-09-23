@@ -94,8 +94,7 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityLedger, id.String(), uli.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to update ledger metadata", libLog.Err(err))
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo", err)
+		recordCommandError(ctx, span, logger, "Failed to update metadata on repo", err)
 
 		return nil, err
 	}

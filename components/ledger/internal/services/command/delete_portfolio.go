@@ -48,9 +48,7 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 			return err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete portfolio on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to delete portfolio", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to delete portfolio on repo by id", err)
 
 		return err
 	}

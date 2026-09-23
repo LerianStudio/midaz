@@ -59,18 +59,14 @@ func (uc *UseCase) UpdateAccountType(ctx context.Context, organizationID, ledger
 			return nil, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, "Failed to update account type on repo by id", libLog.Err(err), libLog.String("account_type_id", id.String()))
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account type on repo by id", err)
+		recordCommandError(ctx, span, logger, "Failed to update account type on repo by id", err, libLog.String("account_type_id", id.String()))
 
 		return nil, err
 	}
 
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityAccountType, id.String(), input.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to update account type metadata", libLog.Err(err), libLog.String("account_type_id", id.String()))
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata", err)
+		recordCommandError(ctx, span, logger, "Failed to update metadata", err, libLog.String("account_type_id", id.String()))
 
 		return nil, err
 	}

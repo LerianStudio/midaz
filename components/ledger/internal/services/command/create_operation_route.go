@@ -11,7 +11,6 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -55,8 +54,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 
 	createdOperationRoute, err := uc.OperationRouteRepo.Create(ctx, organizationID, ledgerID, operationRoute)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create operation route", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create operation route", err)
 
 		return nil, err
 	}
@@ -73,8 +71,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID, led
 		}
 
 		if err := uc.TransactionMetadataRepo.Create(ctx, constant.EntityOperationRoute, &meta); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route metadata", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to create operation route metadata", libLog.Err(err))
+			recordCommandError(ctx, span, logger, "Failed to create operation route metadata", err)
 
 			return nil, err
 		}

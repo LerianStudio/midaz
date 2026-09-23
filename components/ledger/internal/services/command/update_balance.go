@@ -114,8 +114,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	}
 
 	if err := uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateBalances, "Failed to update balances on database", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to update balances on database", libLog.Err(err))
+		recordCommandError(ctx, spanUpdateBalances, logger, "Failed to update balances on database", err)
 
 		return err
 	}
@@ -154,8 +153,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	// unconditional Find, a payload without Settings bypasses the guard.
 	current, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to fetch current balance for update", err)
-		logger.Log(ctx, libLog.LevelError, "Error fetching current balance", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to fetch current balance for update", err)
 
 		return nil, err
 	}
@@ -211,8 +209,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 
 	balance, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balance on repo", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to update balance", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to update balance on repo", err)
 
 		return nil, err
 	}

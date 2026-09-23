@@ -75,8 +75,7 @@ func (uc *UseCase) lockPendingTransaction(ctx context.Context, span trace.Span, 
 
 	deleteLockOnError := func() {
 		if delErr := uc.TransactionRedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete pending transaction lock", delErr)
-			logger.Log(ctx, libLog.LevelError, "Failed to delete pending transaction lock key", libLog.Err(delErr))
+			recordCommandError(ctx, span, logger, "Failed to delete pending transaction lock", delErr)
 		}
 	}
 

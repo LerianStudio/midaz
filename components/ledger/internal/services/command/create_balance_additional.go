@@ -124,8 +124,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	if err != nil {
 		var notFound pkg.EntityNotFoundError
 		if !errors.As(err, &notFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check if additional balance already exists", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to check if additional balance already exists", libLog.Err(err))
+			recordCommandError(ctx, span, logger, "Failed to check if additional balance already exists", err)
 
 			return nil, err
 		}
@@ -140,8 +139,7 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	defaultBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.DefaultBalanceKey)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get default balance", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get default balance", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to get default balance", err)
 
 		return nil, err
 	}

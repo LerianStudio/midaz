@@ -165,8 +165,8 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 	if current.AccountID != "" {
 		parsed, perr := uuid.Parse(current.AccountID)
 		if perr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account id on current balance", perr)
-			logger.Log(ctx, libLog.LevelError, "Failed to parse account ID", libLog.String("accountID", current.AccountID), libLog.Err(perr))
+			libOpentelemetry.HandleSpanError(span, "Invalid account id on current balance", perr)
+			logger.Log(ctx, libLog.LevelError, "Invalid account id on current balance", libLog.String("accountID", current.AccountID), libLog.Err(perr))
 
 			return nil, perr
 		}
@@ -184,8 +184,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		// is the expected trigger for the auto-creation path below.
 		var notFound pkg.EntityNotFoundError
 		if !errors.As(ferr, &notFound) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check for existing overdraft balance", ferr)
-			logger.Log(ctx, libLog.LevelError, "Failed to check existing overdraft balance", libLog.Err(ferr))
+			recordCommandError(ctx, span, logger, "Failed to check for existing overdraft balance", ferr)
 
 			return nil, ferr
 		}
@@ -259,8 +258,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 			// did not come from our target tuple.
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to auto-create overdraft balance", cerr)
-		logger.Log(ctx, libLog.LevelError, "Failed to auto-create overdraft balance", libLog.Err(cerr))
+		recordCommandError(ctx, span, logger, "Failed to auto-create overdraft balance", cerr)
 
 		return nil, cerr
 	}

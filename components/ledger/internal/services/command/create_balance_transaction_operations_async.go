@@ -86,9 +86,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	tran, phase, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdateTransaction, "Failed to create or update transaction", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create or update transaction", libLog.Err(err))
+		recordCommandError(ctx, spanUpdateTransaction, logger, "Failed to create or update transaction", err)
 
 		return err
 	}
@@ -98,9 +96,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, tran.Metadata, tran.ID, constant.EntityTransaction)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateMetadata, "Failed to create metadata on transaction", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create metadata on transaction", libLog.Err(err))
+		recordCommandError(ctx, spanCreateMetadata, logger, "Failed to create metadata on transaction", err)
 
 		return err
 	}
@@ -125,9 +121,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 				continue
 			} else {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateOperation, "Failed to create operation", err)
-
-				logger.Log(ctx, libLog.LevelError, "Error creating operation", libLog.Err(err))
+				recordCommandError(ctx, spanCreateOperation, logger, "Failed to create operation", err)
 
 				return err
 			}
@@ -135,9 +129,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, constant.EntityOperation)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateOperation, "Failed to create metadata on operation", err)
-
-			logger.Log(ctx, libLog.LevelError, "Failed to create metadata on operation", libLog.Err(err))
+			recordCommandError(ctx, spanCreateOperation, logger, "Failed to create metadata on operation", err)
 
 			return err
 		}
@@ -246,9 +238,7 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 			return tran, TransactionLifecyclePhaseNoop, nil
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateTransaction, "Failed to create transaction on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create transaction on repo", libLog.Err(err))
+		recordCommandError(ctx, spanCreateTransaction, logger, "Failed to create transaction on repo", err)
 
 		return nil, TransactionLifecyclePhaseNoop, err
 	}

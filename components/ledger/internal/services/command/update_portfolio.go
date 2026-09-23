@@ -56,8 +56,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update portfolio on repo by id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to update portfolio on repo by id", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to update portfolio on repo by id", err)
 
 		return nil, err
 	}
@@ -66,9 +65,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityPortfolio, id.String(), upi.Metadata)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Failed to update portfolio metadata", libLog.Err(err))
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update metadata on repo by id", err)
+		recordCommandError(ctx, span, logger, "Failed to update metadata on repo by id", err)
 
 		return nil, err
 	}

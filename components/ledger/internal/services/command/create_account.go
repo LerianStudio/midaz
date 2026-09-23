@@ -58,8 +58,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	)
 
 	if err := uc.applyAccountingValidations(ctx, organizationID, ledgerID, cai.Type); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting validations failed", err)
-		logger.Log(ctx, libLog.LevelError, "Accounting validations failed", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Accounting validations failed", err)
 
 		return nil, err
 	}
@@ -103,8 +102,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 		portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, portfolioUUID)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find portfolio", err)
-			logger.Log(ctx, libLog.LevelError, "Error finding portfolio to resolve entity ID", libLog.Err(err))
+			recordCommandError(ctx, span, logger, "Failed to find portfolio", err)
 
 			return nil, err
 		}
@@ -144,8 +142,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	accountID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to generate account ID", err)
-		logger.Log(ctx, libLog.LevelError, "Error generating account ID", libLog.Err(err))
+		libOpentelemetry.HandleSpanError(span, "Failed to generate account ID", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to generate account ID", libLog.Err(err))
 
 		return nil, err
 	}
@@ -182,8 +180,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	acc, err := uc.AccountRepo.Create(ctx, account)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account", err)
-		logger.Log(ctx, libLog.LevelError, "Error creating account", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create account", err)
 
 		return nil, err
 	}
@@ -204,8 +201,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	_, err = uc.CreateDefaultBalance(ctx, balanceInput)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create default balance", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create default balance", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create default balance", err)
 
 		delErr := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, &portfolioUUID, accountID)
 		if delErr != nil {
@@ -219,8 +215,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	metadataDoc, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAccount, acc.ID, cai.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create account metadata", err)
-		logger.Log(ctx, libLog.LevelError, "Error creating account metadata", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create account metadata", err)
 
 		return nil, err
 	}

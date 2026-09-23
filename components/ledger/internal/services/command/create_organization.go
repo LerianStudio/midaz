@@ -69,8 +69,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	org, err := uc.OrganizationRepo.Create(ctx, organization)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization on repository", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create organization", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create organization on repository", err)
 
 		return nil, err
 	}
@@ -83,9 +82,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	// either a cross-store transaction or an async metadata creation with retries.
 	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityOrganization, org.ID, coi.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create organization metadata", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create organization metadata, organization persisted without metadata",
-			libLog.Err(err), libLog.String("organizationId", org.ID))
+		recordCommandError(ctx, span, logger, "Failed to create organization metadata", err, libLog.String("organizationId", org.ID))
 
 		return nil, err
 	}
