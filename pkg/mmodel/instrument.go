@@ -17,11 +17,10 @@ type RegulatoryFields struct {
 	// maxLength: 100
 	ParticipantDocument *string `json:"participantDocument,omitempty" example:"12345678912345" maxLength:"100"`
 
-	// Bacen account type classification of the instrument. Each value maps to its Bacen numeric code:
-	// 1 DEPOSIT, 2 SAVINGS, 3 INVESTMENT, 4 OTHER_FINANCIAL_INVESTMENTS, 5 NON_RESIDENT, 6 PAYMENT.
+	// Bacen account type classification of the instrument (DEPOSIT, SAVINGS, INVESTMENT, OTHER_FINANCIAL_INVESTMENTS, NON_RESIDENT, PAYMENT).
 	// example: DEPOSIT
 	// maxLength: 50
-	AccountType *string `json:"accountType,omitempty" example:"DEPOSIT" maxLength:"50" enum:"DEPOSIT,SAVINGS,INVESTMENT,OTHER_FINANCIAL_INVESTMENTS,NON_RESIDENT,PAYMENT"`
+	AccountType *string `json:"accountType,omitempty" example:"DEPOSIT" maxLength:"50" enum:"DEPOSIT,SAVINGS,INVESTMENT,OTHER_FINANCIAL_INVESTMENTS,NON_RESIDENT,PAYMENT" doc:"Bacen account type classification. Codes: 1 DEPOSIT, 2 SAVINGS, 3 INVESTMENT, 4 OTHER_FINANCIAL_INVESTMENTS, 5 NON_RESIDENT, 6 PAYMENT."`
 }
 
 // RelatedParty represents a party related to an instrument.
