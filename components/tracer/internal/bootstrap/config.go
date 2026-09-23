@@ -1287,6 +1287,7 @@ func initHTTPServer(
 		PgManager:                    pgManager,
 		Supervisor:                   workerSupervisor,
 		StreamingManifestHandler:     streamingManifestHandler,
+		ServiceName:                  cfg.OtelServiceName,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create routes: %w", err)

@@ -440,12 +440,15 @@ func TestAuth_6_1_10_PublicEndpointsNoAuthRequired(t *testing.T) {
 			path:           "/version",
 			expectedStatus: http.StatusOK,
 			validateBody: func(t *testing.T, body []byte) {
-				// lib-commons Version() returns {version, requestDate}
+				// buildinfo.Handler returns the identity compiled into the
+				// binary: no requestDate, no dependency manifest.
 				var result map[string]any
 				err := json.Unmarshal(body, &result)
 				require.NoError(t, err)
+				assert.Equal(t, "v1", result["schemaVersion"], "schemaVersion pins the body shape")
 				assert.Contains(t, result, "version", "should have version field")
-				assert.Contains(t, result, "requestDate", "should have requestDate field")
+				assert.Contains(t, result, "revision", "should have revision field")
+				assert.NotContains(t, result, "requestDate", "a clock reading is not build identity")
 			},
 		},
 	}
