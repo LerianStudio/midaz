@@ -102,7 +102,7 @@ midaz/
 │       └── grafana/         # OTEL collector config
 ├── pkg/                     # Shared packages (root)
 │   ├── mmodel/              # Domain models (incl. Holder, Instrument)
-│   ├── constant/            # Error codes (ledger 0001+, gap at 0130; 28 CRM-00xx: CRM-0006..CRM-0041), action/module constants
+│   ├── constant/            # Error codes (ledger 0001+, gap at 0130; 29 CRM-00xx: CRM-0006..CRM-0042), action/module constants
 │   ├── errors.go            # Typed error structs + ValidateBusinessError
 │   ├── net/http/            # Middleware, pagination, protected routes
 │   ├── mtransaction/        # Transaction processing utilities (renamed from the old transaction pkg)
@@ -370,7 +370,7 @@ is the one CRM-path route carrying its own `holder-accounts` route options. The 
 always mounted. Holder ownership is org-scoped (matching Mongo storage), not ledger-scoped.
 
 CRM error responses carry **canonical midaz codes** (e.g. `0009`, `0046`, `0047`, `0094`) — the
-legacy `CRM-00xx` transform shim was removed. The 28 CRM domain sentinels (section 5.1)
+legacy `CRM-00xx` transform shim was removed. The 29 CRM domain sentinels (section 5.1)
 are still emitted on their own paths.
 
 ### 4.3 Fees API (served by the ledger binary on port 3002)
@@ -486,8 +486,8 @@ only when the reservation service is wired (non-nil); they are live in the defau
 
 ### 5.1 Error Codes (pkg/constant/errors.go)
 
-Numeric ledger codes starting at 0001 (non-contiguous; gap at 0130). 28 CRM domain codes prefixed
-with `CRM-` (CRM-0006..CRM-0041, non-contiguous). The registry is numeric-only for the core; the
+Numeric ledger codes starting at 0001 (non-contiguous; gap at 0130). 29 CRM domain codes prefixed
+with `CRM-` (CRM-0006..CRM-0042, non-contiguous). The registry is numeric-only for the core; the
 `FEE-` / `TRC-` / `TPL-` / `REP-` prefixed families are retired (0 survivors). API errors are emitted
 in the envelope the route version serves (§4) — RFC 9457 `application/problem+json` on `>= /v2`, the
 midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on both.
@@ -533,7 +533,7 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0177` ErrTransactionReservationDenied — tracer reservation denied (limit/rule)
 - `0178` ErrTransactionReservationUnavailable — tracer reservation service unavailable
 
-#### CRM Error Codes (all 28)
+#### CRM Error Codes (all 29)
 - `CRM-0006` ErrHolderNotFound — holder not found
 - `CRM-0008` ErrInstrumentNotFound — instrument not found
 - `CRM-0010` ErrDocumentAssociationError — document association error
@@ -551,6 +551,7 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `CRM-0028` ErrRelatedPartyStartDateRequired — start date required
 - `CRM-0029` ErrRelatedPartyEndDateInvalid — end date before start date
 - `CRM-0030` ErrHolderHasAccounts — holder has accounts (cannot delete)
+- `CRM-0042` ErrInvalidInstrumentAccountType — invalid instrument regulatory account type
 
 Field-encryption / KMS family (envelope mode; see §6.2 and `docs/architecture/crm-field-encryption.md`):
 - `CRM-0031` ErrKeysetNotFound — org encryption keyset not found
