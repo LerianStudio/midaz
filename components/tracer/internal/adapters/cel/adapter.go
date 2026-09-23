@@ -17,6 +17,7 @@ import (
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker"
+	"github.com/google/cel-go/interpreter"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
@@ -29,6 +30,10 @@ import (
 // emit errors formatted as "no such key: <key>". The string format is stable
 // across cel-go versions used by this project.
 const missingKeyErrPrefix = "no such key:"
+
+// evaluationInterruptFrequency bounds iterations between context checks without
+// installing a check on every step. It does not replace the runtime cost limit.
+const evaluationInterruptFrequency uint = 100
 
 // IsMissingKeyError reports whether err originated from a cel-go map lookup
 // for a key that is not present in the activation (e.g. metadata["channel"]
@@ -154,6 +159,10 @@ func NewAdapter(cfg AdapterConfig, logger libLog.Logger) (*Adapter, error) {
 // Compile validates and compiles a CEL expression.
 // Uses OpenTelemetry tracing with span name: adapter.cel.compile
 func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProgram, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	start := time.Now()
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -248,8 +257,9 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 		attribute.Bool("app.cost_exceeded", false),
 	)
 
-	// Create program (compile-time cost validation already done above via checker.Cost)
-	program, err := a.env.Program(ast)
+	// Static estimates cannot bound the size of runtime input. Enforce the same
+	// budget on every execution, and make comprehension loops interruptible.
+	program, err := a.env.Program(ast, cel.CostLimit(a.costLimit), cel.InterruptCheckFrequency(evaluationInterruptFrequency))
 	if err != nil {
 		progErr := fmt.Errorf("%w: %w", constant.ErrExpressionProgram, err)
 		libOtel.HandleSpanError(span, "program creation failed", progErr)
@@ -283,11 +293,15 @@ func (a *Adapter) Compile(ctx context.Context, expression string) (*CompiledProg
 // Evaluate runs a compiled program against a ValidationRequest.
 // Uses OpenTelemetry tracing with span name: adapter.cel.evaluate
 func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *model.ValidationRequest) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+
 	start := time.Now()
 
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx) //nolint:dogsled // only tracer is needed from tracking context
 
-	_, span := tracer.Start(ctx, "adapter.cel.evaluate")
+	ctx, span := tracer.Start(ctx, "adapter.cel.evaluate")
 	defer span.End()
 
 	// Validate inputs
@@ -325,10 +339,22 @@ func (a *Adapter) Evaluate(ctx context.Context, program *CompiledProgram, req *m
 	}
 
 	// Evaluate
-	out, _, err := program.Program.Eval(activation)
+	out, _, err := program.Program.ContextEval(ctx, activation)
 	if err != nil {
+		var canceled interpreter.EvalCancelledError
+		if errors.As(err, &canceled) && canceled.Cause == interpreter.CostLimitExceeded {
+			err = fmt.Errorf("%w: %w", constant.ErrExpressionCostExceeded, err)
+		}
+
 		evalErr := fmt.Errorf("%w: %w", constant.ErrExpressionEvaluation, err)
 		libOtel.HandleSpanBusinessErrorEvent(span, "evaluation failed", evalErr)
+
+		return false, evalErr
+	}
+
+	if err := ctx.Err(); err != nil {
+		evalErr := fmt.Errorf("%w: %w", constant.ErrExpressionEvaluation, err)
+		libOtel.HandleSpanBusinessErrorEvent(span, "evaluation canceled", evalErr)
 
 		return false, evalErr
 	}
