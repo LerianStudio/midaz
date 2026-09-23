@@ -33,6 +33,7 @@ func TestMigration000041_CreatesTransactionGroupLifecycleStore(t *testing.T) {
 		"created_at timestamp with time zone not null default now()",
 		"updated_at timestamp with time zone not null default now()",
 		"idx_transaction_group_org_ledger_status",
+		"create index if not exists idx_transaction_group_pending_id on transaction_group (id) where status = 'pending'",
 	} {
 		assert.Contains(t, sql, fragment)
 	}
@@ -46,6 +47,7 @@ func TestMigration000041_DropsTransactionGroupLifecycleStore(t *testing.T) {
 	require.NoError(t, err)
 
 	sql := strings.ToLower(string(down))
+	assert.Contains(t, sql, "drop index if exists idx_transaction_group_pending_id")
 	assert.Contains(t, sql, "drop index if exists idx_transaction_group_org_ledger_status")
 	assert.Contains(t, sql, "drop table if exists transaction_group")
 }

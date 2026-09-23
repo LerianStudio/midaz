@@ -271,10 +271,16 @@ func buildTransactionEventSource(tran *transaction.Transaction) (events.Transact
 		Description: tran.Status.Description,
 	}
 
+	var groupRole *string
+	if role := crossLedgerGroupRole(tran); role != "" {
+		groupRole = &role
+	}
+
 	return events.TransactionSource{
 		ID:                       tran.ID,
 		ParentTransactionID:      tran.ParentTransactionID,
 		GroupID:                  tran.GroupID,
+		GroupRole:                groupRole,
 		OrganizationID:           tran.OrganizationID,
 		LedgerID:                 tran.LedgerID,
 		Status:                   status,

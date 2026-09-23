@@ -13,3 +13,8 @@ CREATE TABLE IF NOT EXISTS transaction_group (
 
 CREATE INDEX IF NOT EXISTS idx_transaction_group_org_ledger_status
   ON transaction_group (organization_id, ledger_id, status);
+
+-- The transaction-group reconciler walks PENDING groups by id. Settled groups
+-- stay out of this index, so its size follows the open holds.
+CREATE INDEX IF NOT EXISTS idx_transaction_group_pending_id
+  ON transaction_group (id) WHERE status = 'PENDING';

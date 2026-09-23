@@ -68,16 +68,19 @@ func reconcileTestGroup(t *testing.T, id uuid.UUID, createdAt time.Time) *transa
 	}
 }
 
+// reconcileOrigin and reconcileDestination build members as the group read
+// returns them: source and destination are not persisted columns, so a row read
+// back from the repository carries neither, and only the intent knows its role.
 func reconcileOrigin(groupID uuid.UUID, status string, updatedAt time.Time) *transaction.Transaction {
-	member := crossLedgerGroupEventMember(groupEventLedgerA, groupID, status, []string{"@debit"}, []string{"@external/BRL"})
-	member.UpdatedAt = updatedAt
+	member := crossLedgerGroupEventMember(groupEventLedgerA, groupID, status, nil, nil)
+	member.CreatedAt, member.UpdatedAt = updatedAt, updatedAt
 
 	return member
 }
 
 func reconcileDestination(groupID uuid.UUID, status string, updatedAt time.Time) *transaction.Transaction {
-	member := crossLedgerGroupEventMember(groupEventLedgerB, groupID, status, []string{"@external/BRL"}, []string{"@credit"})
-	member.UpdatedAt = updatedAt
+	member := crossLedgerGroupEventMember(groupEventLedgerB, groupID, status, nil, nil)
+	member.CreatedAt, member.UpdatedAt = updatedAt, updatedAt
 
 	return member
 }
@@ -208,6 +211,11 @@ func TestReconcileTransactionGroups_AlignsSettledGroupsFromTheirMembers(t *testi
 			assert.Equal(t, test.status, payload.Status)
 			require.Len(t, payload.Parts, len(members))
 			assert.Equal(t, members[0].ID, payload.Parts[0].TransactionID)
+			assert.Equal(t, events.TransactionGroupRoleOrigin, payload.Parts[0].Role, "roles come from the intent, not from legs the row does not carry")
+
+			if len(payload.Parts) == 2 {
+				assert.Equal(t, events.TransactionGroupRoleDestination, payload.Parts[1].Role)
+			}
 		})
 	}
 }

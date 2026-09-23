@@ -139,7 +139,7 @@ func (uc *UseCase) RevertTransactionV2(ctx context.Context, in RevertTransaction
 			return nil, false, fmt.Errorf("parse cross-ledger transaction group id: %w", parseErr)
 		}
 
-		group, err := uc.revertCrossLedgerGroupV2(ctx, span, logger, in, revertedGroupID)
+		group, err := uc.revertCrossLedgerGroupV2(ctx, in, revertedGroupID)
 		if err != nil {
 			return nil, false, err
 		}

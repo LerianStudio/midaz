@@ -10,11 +10,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -25,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 type preparedCrossLedgerRevertPart struct {
@@ -39,7 +39,7 @@ func (uc *UseCase) RevertCrossLedgerGroupV2(
 	ctx context.Context,
 	in RevertTransactionInput,
 ) (*CreateAtomicTransactionBatchV2Result, uuid.UUID, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.revert_cross_ledger_group_v2")
 	defer span.End()
@@ -69,7 +69,7 @@ func (uc *UseCase) RevertCrossLedgerGroupV2(
 		return nil, uuid.Nil, fmt.Errorf("parse cross-ledger transaction group id: %w", err)
 	}
 
-	result, err := uc.revertCrossLedgerGroupV2(ctx, span, logger, in, revertedGroupID)
+	result, err := uc.revertCrossLedgerGroupV2(ctx, in, revertedGroupID)
 	if err != nil {
 		return nil, uuid.Nil, err
 	}
@@ -79,11 +79,26 @@ func (uc *UseCase) RevertCrossLedgerGroupV2(
 
 func (uc *UseCase) revertCrossLedgerGroupV2(
 	ctx context.Context,
-	span trace.Span,
-	logger libLog.Logger,
 	in RevertTransactionInput,
 	revertedGroupID uuid.UUID,
-) (*CreateAtomicTransactionBatchV2Result, error) {
+) (result *CreateAtomicTransactionBatchV2Result, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.revert_cross_ledger_group")
+	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		recordCrossLedgerGroupError(ctx, span, logger, "Failed to revert cross-ledger transaction group", err)
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", crossLedgerOperationRevertGroup, start, err)
+	}()
+
+	span.SetAttributes(
+		attribute.String("app.request.action", constant.ActionRevert),
+		attribute.String("app.request.group_id", revertedGroupID.String()),
+	)
+
 	reader, ok := uc.TransactionReader.(TransactionGroupReader)
 	if !ok {
 		return nil, errors.New("cross-ledger transaction group reader is not configured")
@@ -95,15 +110,10 @@ func (uc *UseCase) revertCrossLedgerGroupV2(
 	}
 
 	if err := validateCrossLedgerRevertMembers(in.TransactionID, revertedGroupID, members); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cross-ledger transaction group is incomplete", err)
-
 		return nil, err
 	}
 
-	span.SetAttributes(
-		attribute.String("app.request.group_id", revertedGroupID.String()),
-		attribute.Int("app.request.part_count", len(members)),
-	)
+	ledgers := setCrossLedgerGroupShape(span, crossLedgerMemberLedgerRefs(members))
 
 	parts := make([]preparedCrossLedgerRevertPart, len(members))
 	for index, member := range members {
@@ -130,17 +140,28 @@ func (uc *UseCase) revertCrossLedgerGroupV2(
 		return nil, errors.New("cross-ledger revert UUIDv7 generator returned a nil group id")
 	}
 
+	span.SetAttributes(attribute.String("app.response.group_id", newGroupID.String()))
+
 	batch, err := buildCrossLedgerRevertBatchInput(in, revertedGroupID, newGroupID, parts)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := uc.CreateAtomicTransactionBatchV2(ctx, batch)
+	result, err = uc.executeAtomicTransactionBatchV2(ctx, batch)
 	if err != nil {
 		return nil, err
 	}
 
+	if result == nil {
+		return nil, errors.New("cross-ledger revert batch returned no result")
+	}
+
 	recordRevertReplay(ctx, span, logger, in.TransactionID, result.Replayed)
+
+	if !result.Replayed {
+		uc.recordCrossLedgerGroupLedgers(ctx, constant.ActionRevert, ledgers)
+		uc.publishTransactionGroupEvent(ctx, transactionGroupEventReverted, newGroupID, &revertedGroupID, result.Transactions, crossLedgerGroupRole)
+	}
 
 	return result, nil
 }

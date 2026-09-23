@@ -93,7 +93,9 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 		return nil, err
 	}
 
-	uc.recordAtomicTransactionBatchRecovering(ctx)
+	uc.recordAtomicTransactionBatchRecovering(ctx, atomicTransactionBatchScope(
+		completion.Record.Transaction != nil && completion.Record.Transaction.GroupID != nil,
+	))
 
 	if err := validateAtomicTransactionBatchRecoveredMember(candidate.Record, record, completion); err != nil {
 		return nil, err

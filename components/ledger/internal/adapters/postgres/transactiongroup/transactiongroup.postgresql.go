@@ -7,6 +7,7 @@ package transactiongroup
 import (
 	"context"
 	"fmt"
+	"time"
 
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -131,6 +132,76 @@ func (r *TransactionGroupPostgreSQLRepository) find(
 	}
 
 	return group, nil
+}
+
+// ListByStatusOlderThan pages groups of one status by id for background
+// reconciliation.
+func (r *TransactionGroupPostgreSQLRepository) ListByStatusOlderThan(
+	ctx context.Context,
+	status string,
+	before time.Time,
+	afterID uuid.UUID,
+	limit int,
+) ([]*TransactionGroup, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("transaction group page limit must be positive, got %d", limit)
+	}
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	where := squirrel.And{
+		squirrel.Eq{"status": status},
+		squirrel.Lt{"created_at": before},
+	}
+	if afterID != uuid.Nil {
+		where = append(where, squirrel.Gt{"id": afterID})
+	}
+
+	query, args, err := squirrel.Select(transactionGroupColumns...).
+		From("transaction_group").
+		Where(where).
+		OrderBy("id ASC").
+		Limit(uint64(limit)).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	groups := make([]*TransactionGroup, 0, limit)
+
+	for rows.Next() {
+		group := &TransactionGroup{}
+		if err := rows.Scan(
+			&group.ID,
+			&group.OrganizationID,
+			&group.LedgerID,
+			&group.Status,
+			&group.AssetCode,
+			&group.Intent,
+			&group.CreatedAt,
+			&group.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		groups = append(groups, group)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return groups, nil
 }
 
 // UpdateStatus applies a compare-and-swap lifecycle transition.

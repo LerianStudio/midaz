@@ -33,5 +33,10 @@ type Repository interface {
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*TransactionGroup, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*TransactionGroup, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, from, to string) (bool, error)
+	// ListByStatusOlderThan returns at most limit groups in status whose
+	// created_at is before the cutoff, ordered by id and strictly after afterID.
+	// uuid.Nil starts from the first group; callers page by passing the last id
+	// they received. It reads the current tenant across ledger scopes.
+	ListByStatusOlderThan(ctx context.Context, status string, before time.Time, afterID uuid.UUID, limit int) ([]*TransactionGroup, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }

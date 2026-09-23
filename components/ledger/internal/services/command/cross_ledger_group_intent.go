@@ -72,15 +72,24 @@ func buildCrossLedgerGroupIntent(
 
 func crossLedgerGroupPartRole(transaction mtransaction.Transaction, asset string) (string, error) {
 	bridgeAlias := "@external/" + asset
-	origin := crossLedgerLegsContainAlias(transaction.Send.Distribute.To, bridgeAlias)
-	destination := crossLedgerLegsContainAlias(transaction.Send.Source.From, bridgeAlias)
 
+	return classifyCrossLedgerGroupRole(
+		crossLedgerLegsContainAlias(transaction.Send.Distribute.To, bridgeAlias),
+		crossLedgerLegsContainAlias(transaction.Send.Source.From, bridgeAlias),
+		len(transaction.Send.Source.From) > 0,
+	)
+}
+
+// classifyCrossLedgerGroupRole is the single role rule for a group part: a part
+// crediting its ledger's bridge sends value out (origin), a part debiting it
+// receives value (destination).
+func classifyCrossLedgerGroupRole(creditsBridge, debitsBridge, hasSources bool) (string, error) {
 	switch {
-	case origin && !destination:
+	case creditsBridge && !debitsBridge:
 		return CrossLedgerGroupRoleOrigin, nil
-	case destination && !origin:
+	case debitsBridge && !creditsBridge:
 		return CrossLedgerGroupRoleDestination, nil
-	case !origin && !destination && len(transaction.Send.Source.From) > 0:
+	case !creditsBridge && !debitsBridge && hasSources:
 		// A net-zero participant has no bridge. It still owns source funds and
 		// therefore belongs to the hold/transition side of the lifecycle.
 		return CrossLedgerGroupRoleOrigin, nil

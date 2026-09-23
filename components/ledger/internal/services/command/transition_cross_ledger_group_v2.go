@@ -10,10 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -22,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 type crossLedgerPendingGroupPart struct {
@@ -38,11 +41,21 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	in PendingTransitionInput,
 	target *transaction.Transaction,
 	status string,
-) (*CreateAtomicTransactionBatchV2Result, error) {
+) (result *CreateAtomicTransactionBatchV2Result, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.transition_cross_ledger_group_v2")
 	defer span.End()
+
+	action, operation := crossLedgerGroupTransitionAction(status)
+	start := time.Now()
+
+	defer func() {
+		recordCrossLedgerGroupError(ctx, span, logger, "Failed to transition cross-ledger transaction group", err)
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", operation, start, err)
+	}()
+
+	span.SetAttributes(attribute.String("app.request.action", action))
 
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -51,6 +64,8 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	if target == nil || target.GroupID == nil {
 		return nil, pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
 	}
+
+	span.SetAttributes(attribute.String("app.request.group_id", *target.GroupID))
 
 	if uc.TransactionGroupRepo == nil {
 		return nil, errors.New("cross-ledger transaction group repository is not configured")
@@ -98,6 +113,8 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	if group.AssetCode != intent.Asset || group.OrganizationID == uuid.Nil || group.LedgerID == uuid.Nil {
 		return nil, pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
 	}
+
+	ledgers := setCrossLedgerGroupShape(span, crossLedgerIntentLedgerRefs(*intent))
 
 	reader, ok := uc.TransactionReader.(TransactionGroupReader)
 	if !ok {
@@ -238,13 +255,13 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	}
 
 	if replay != nil {
-		updated, updateErr := uc.TransactionGroupRepo.UpdateStatus(ctx, groupID, constant.PENDING, status)
-		if updateErr != nil {
-			return nil, updateErr
+		won, settleErr := uc.settleCrossLedgerGroupStatus(ctx, groupID, status)
+		if settleErr != nil {
+			return nil, settleErr
 		}
 
-		if !updated {
-			return nil, errors.New("cross-ledger transaction group replay status compare-and-swap did not update")
+		if won {
+			uc.publishTransactionGroupEvent(ctx, crossLedgerGroupTransitionEvent(status), groupID, nil, replay.Transactions, crossLedgerGroupRole)
 		}
 
 		return replay, nil
@@ -308,19 +325,64 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 
 	uc.settleCrossLedgerOriginReservations(ctx, span, logger, status, origins)
 
-	updated, err := uc.TransactionGroupRepo.UpdateStatus(ctx, groupID, constant.PENDING, status)
+	won, err := uc.settleCrossLedgerGroupStatus(ctx, groupID, status)
 	if err != nil {
 		return nil, err
 	}
 
-	if !updated {
-		return nil, errors.New("cross-ledger transaction group status compare-and-swap did not update")
+	uc.recordCrossLedgerGroupLedgers(ctx, action, ledgers)
+
+	if won {
+		uc.publishTransactionGroupEvent(ctx, crossLedgerGroupTransitionEvent(status), groupID, nil, transactions, crossLedgerGroupRole)
 	}
 
 	return &CreateAtomicTransactionBatchV2Result{
 		BatchID:      groupID,
 		Transactions: transactions,
 	}, nil
+}
+
+// settleCrossLedgerGroupStatus moves the durable group row from PENDING to the
+// terminal status the members already hold. It reports whether this call made
+// the move: the transaction-group reconciler aligns the same row from the same
+// members, so finding the row already at that status is a settled group, not a
+// failure, and the writer that made the move is the one that publishes the fact.
+func (uc *UseCase) settleCrossLedgerGroupStatus(ctx context.Context, groupID uuid.UUID, status string) (bool, error) {
+	updated, err := uc.TransactionGroupRepo.UpdateStatus(ctx, groupID, constant.PENDING, status)
+	if err != nil {
+		return false, err
+	}
+
+	if updated {
+		return true, nil
+	}
+
+	current, err := uc.TransactionGroupRepo.FindByID(ctx, groupID)
+	if err != nil {
+		return false, err
+	}
+
+	if current != nil && current.Status == status {
+		return false, nil
+	}
+
+	return false, errors.New("cross-ledger transaction group status compare-and-swap did not update")
+}
+
+func crossLedgerGroupTransitionAction(status string) (string, string) {
+	if status == constant.CANCELED {
+		return constant.ActionCancel, crossLedgerOperationCancelGroup
+	}
+
+	return constant.ActionCommit, crossLedgerOperationCommitGroup
+}
+
+func crossLedgerGroupTransitionEvent(status string) transactionGroupEventKind {
+	if status == constant.CANCELED {
+		return transactionGroupEventCanceled
+	}
+
+	return transactionGroupEventCommitted
 }
 
 func (uc *UseCase) claimCrossLedgerGroupTransition(

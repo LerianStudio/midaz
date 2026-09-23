@@ -10,10 +10,13 @@ import (
 	"fmt"
 	"time"
 
+	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // CrossLedgerLegScope identifies the ledger that owns one normalized v2 leg.
@@ -46,7 +49,21 @@ type CreateCrossLedgerTransactionV2Input struct {
 func (uc *UseCase) CreateCrossLedgerTransactionV2(
 	ctx context.Context,
 	in CreateCrossLedgerTransactionV2Input,
-) (*CreateAtomicTransactionBatchV2Result, error) {
+) (result *CreateAtomicTransactionBatchV2Result, err error) {
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_cross_ledger_transaction_v2")
+	defer span.End()
+
+	start := time.Now()
+
+	defer func() {
+		recordCrossLedgerGroupError(ctx, span, logger, "Failed to create cross-ledger transaction", err)
+		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", crossLedgerOperationCreateTransaction, start, err)
+	}()
+
+	span.SetAttributes(attribute.String("app.request.action", constant.ActionDirect))
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -64,12 +81,26 @@ func (uc *UseCase) CreateCrossLedgerTransactionV2(
 		return nil, errors.New("cross-ledger transaction UUIDv7 generator returned a nil group id")
 	}
 
+	span.SetAttributes(attribute.String("app.response.group_id", groupID.String()))
+
 	batch, err := buildCrossLedgerAtomicBatchInput(in, groupID)
 	if err != nil {
 		return nil, err
 	}
 
-	return uc.CreateAtomicTransactionBatchV2(ctx, batch)
+	ledgers := setCrossLedgerGroupShape(span, crossLedgerBatchLedgerRefs(batch.Transactions))
+
+	result, err = uc.executeAtomicTransactionBatchV2(ctx, batch)
+	if err != nil {
+		return nil, err
+	}
+
+	if result != nil && !result.Replayed {
+		uc.recordCrossLedgerGroupLedgers(ctx, constant.ActionDirect, ledgers)
+		uc.publishTransactionGroupEvent(ctx, transactionGroupEventPosted, groupID, nil, result.Transactions, crossLedgerGroupRole)
+	}
+
+	return result, nil
 }
 
 func buildCrossLedgerAtomicBatchInput(

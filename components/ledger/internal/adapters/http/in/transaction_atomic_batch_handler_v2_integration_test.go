@@ -1092,6 +1092,84 @@ func TestIntegration_HoldCommitCancelV2CrossLedger_GroupLifecycle(t *testing.T) 
 	})
 }
 
+func TestIntegration_TransactionGroupReconciler_AlignsFromMembersAndDropsOrphans(t *testing.T) {
+	fixture := setupAtomicBatchHTTPIntegrationFixture(t)
+	ledgerA := fixture.newLedger(t)
+	ledgerB := fixture.newLedger(t)
+	fixture.setCrossLedgerEnabled(t, ledgerA, true)
+	fixture.setCrossLedgerEnabled(t, ledgerB, true)
+	seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerA, "@reconciled-source", "@external/USD", 100)
+	seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerB, "@external/USD", "@reconciled-destination", 100)
+
+	request := atomicBatchTransfer(fixture.infra.orgID, ledgerA, "cross-ledger reconciled commit", "@reconciled-source", "@reconciled-destination", 100)
+	request.Credits[0].LedgerID = ledgerB.String()
+	raw, err := json.Marshal(request)
+	require.NoError(t, err)
+
+	holdResponse := postTransaction(t, fixture.app, v2CreateURL("hold"), string(raw), "cross-ledger-reconciled-hold")
+	holdBody := drainBody(t, holdResponse)
+	require.Equal(t, http.StatusCreated, holdResponse.StatusCode, "body: %s", string(holdBody))
+
+	var held CreateTransactionV2Response
+	require.NoError(t, json.Unmarshal(holdBody, &held))
+	require.NotNil(t, held.GroupID)
+
+	commitURL := v2CommitURL(fixture.infra.orgID, ledgerA, uuid.MustParse(held.Transactions[0].ID))
+	commitResponse := postTransaction(t, fixture.app, commitURL, "", "")
+	commitBody := drainBody(t, commitResponse)
+	require.Equal(t, http.StatusCreated, commitResponse.StatusCode, "body: %s", string(commitBody))
+	fixture.requireGroupEvent(t, *held.GroupID, events.TransactionGroupCommittedDefinition.Key())
+
+	// A commit that applied its movement but never reached the status update
+	// leaves the row PENDING while every member is already APPROVED.
+	_, err = fixture.infra.pgContainer.DB.Exec(`UPDATE transaction_group SET status = 'PENDING' WHERE id = $1`, *held.GroupID)
+	require.NoError(t, err)
+
+	orphanCreatedAt := time.Date(2026, time.September, 10, 12, 0, 0, 0, time.UTC)
+	orphan := &transactiongroup.TransactionGroup{
+		ID:             uuid.MustParse("018f0c00-0000-7000-8000-0000000fffff"),
+		OrganizationID: fixture.infra.orgID,
+		LedgerID:       ledgerA,
+		Status:         constant.PENDING,
+		AssetCode:      "USD",
+		Intent:         []byte(`{"formatVersion":1,"asset":"USD","parts":[]}`),
+		CreatedAt:      orphanCreatedAt,
+		UpdatedAt:      orphanCreatedAt,
+	}
+	require.NoError(t, fixture.infra.handler.Command.TransactionGroupRepo.Create(context.Background(), orphan))
+
+	// The status transition stamps updated_at with the database clock rather than
+	// the fixture's frozen one, so the reconciler's "now" is anchored on the data:
+	// an hour past the latest member change is at rest by any minimum age.
+	var latestMemberChange time.Time
+	require.NoError(t, fixture.infra.pgContainer.DB.QueryRow(
+		`SELECT max(updated_at) FROM transaction WHERE group_id = $1`, *held.GroupID,
+	).Scan(&latestMemberChange))
+	reconcileAt := latestMemberChange.Add(time.Hour)
+	fixture.infra.handler.Command.Clock = func() time.Time { return reconcileAt }
+
+	stats := fixture.infra.handler.Command.ReconcileTransactionGroups(context.Background())
+
+	require.Equal(t, command.TransactionGroupReconciliationStats{Scanned: 2, Repaired: 1, Deleted: 1}, stats)
+	require.Equal(t, constant.APPROVED, crossLedgerGroupStatus(t, fixture, *held.GroupID))
+
+	var remaining int
+	require.NoError(t, fixture.infra.pgContainer.DB.QueryRow(
+		`SELECT count(*) FROM transaction_group WHERE id = $1`, orphan.ID,
+	).Scan(&remaining))
+	require.Zero(t, remaining, "a member-less intent older than the orphan age is deleted")
+
+	require.Eventually(t, func() bool { return len(fixture.groupEvents(*held.GroupID)) == 2 }, 5*time.Second, 10*time.Millisecond,
+		"the reconciler that moved the row publishes the fact the coordinator could not")
+	repaired := fixture.groupEvents(*held.GroupID)[1]
+	require.Equal(t, events.TransactionGroupCommittedDefinition.Key(), repaired.key)
+	require.Len(t, repaired.payload.Parts, 2)
+	require.Empty(t, fixture.groupEvents(orphan.ID.String()))
+
+	second := fixture.infra.handler.Command.ReconcileTransactionGroups(context.Background())
+	require.Equal(t, command.TransactionGroupReconciliationStats{}, second, "an aligned tenant has nothing left to read")
+}
+
 func crossLedgerGroupStatus(t *testing.T, fixture *atomicBatchHTTPIntegrationFixture, groupID string) string {
 	t.Helper()
 

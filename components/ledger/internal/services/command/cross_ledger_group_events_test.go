@@ -460,7 +460,7 @@ func TestPublishTransactionGroupEvent_RevertedCarriesBothGroupsAndReversedRoles(
 	originReversal := crossLedgerGroupEventMember(groupEventLedgerA, newGroupID, constant.APPROVED, []string{"@external/BRL"}, []string{"@debit"})
 
 	uc.publishTransactionGroupEvent(context.Background(), transactionGroupEventReverted, newGroupID, &revertedGroupID,
-		[]*transaction.Transaction{destinationReversal, originReversal})
+		[]*transaction.Transaction{destinationReversal, originReversal}, crossLedgerGroupRole)
 
 	payload := requireOneGroupEvent(t, emitter, events.TransactionGroupRevertedDefinition.Key())
 	assert.Equal(t, newGroupID.String(), payload.GroupID)

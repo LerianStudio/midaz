@@ -145,17 +145,18 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 	defer span.End()
 
 	startedAt := time.Now()
+	scope := atomicTransactionBatchScope(in.CrossLedgerGroup)
 
 	uc.recordAtomicTransactionBatchReceived(ctx, in)
 
 	var run *atomicTransactionBatchRun
 	defer func() {
-		uc.recordAtomicTransactionBatchCompleted(ctx, result, run, err, time.Since(startedAt))
+		uc.recordAtomicTransactionBatchCompleted(ctx, scope, result, run, err, time.Since(startedAt))
 	}()
 
 	phaseStartedAt := time.Now()
 	run, err = uc.initializeAtomicTransactionBatchIdentity(ctx, in)
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "identity", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "identity", time.Since(phaseStartedAt))
 
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to initialize atomic transaction batch", err)
@@ -164,7 +165,7 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	phaseStartedAt = time.Now()
 	replay, err := uc.claimAtomicTransactionBatch(ctx, in, run)
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "idempotency", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "idempotency", time.Since(phaseStartedAt))
 
 	if err != nil {
 		return nil, err
@@ -181,18 +182,18 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	phaseStartedAt = time.Now()
 	if err := uc.initializeAtomicTransactionBatchItemsAndSettings(ctx, in, run); err != nil {
-		uc.recordAtomicTransactionBatchPhaseDuration(ctx, "preparation", time.Since(phaseStartedAt))
+		uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "preparation", time.Since(phaseStartedAt))
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
 
 	if err := uc.prepareAtomicTransactionBatchItems(ctx, span, logger, run); err != nil {
-		uc.recordAtomicTransactionBatchPhaseDuration(ctx, "preparation", time.Since(phaseStartedAt))
+		uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "preparation", time.Since(phaseStartedAt))
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
 
 	prepared, err := buildAtomicTransactionBatchPreparedExecution(run)
 
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "preparation", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "preparation", time.Since(phaseStartedAt))
 
 	if err != nil {
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
@@ -220,11 +221,11 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	phaseStartedAt = time.Now()
 	if err := uc.reserveAtomicTransactionBatch(ctx, span, logger, run); err != nil {
-		uc.recordAtomicTransactionBatchPhaseDuration(ctx, "reservation", time.Since(phaseStartedAt))
+		uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "reservation", time.Since(phaseStartedAt))
 		return nil, uc.abortAtomicTransactionBatchPrePublication(ctx, run, err)
 	}
 
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "reservation", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "reservation", time.Since(phaseStartedAt))
 
 	if err := uc.handoffAtomicTransactionBatchExecution(ctx, run); err != nil {
 		return nil, err
@@ -232,7 +233,7 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	phaseStartedAt = time.Now()
 	outcome, err := uc.executeAtomicTransactionBatch(ctx, span, logger, run, prepared, admissions)
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "accounting", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "accounting", time.Since(phaseStartedAt))
 
 	if err != nil {
 		return nil, err
@@ -240,7 +241,7 @@ func (uc *UseCase) CreateAtomicTransactionBatchV2(
 
 	phaseStartedAt = time.Now()
 	transactions, err := uc.completeAtomicTransactionBatch(ctx, logger, run, outcome)
-	uc.recordAtomicTransactionBatchPhaseDuration(ctx, "completion", time.Since(phaseStartedAt))
+	uc.recordAtomicTransactionBatchPhaseDuration(ctx, scope, "completion", time.Since(phaseStartedAt))
 
 	if err != nil {
 		return nil, err

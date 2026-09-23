@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
@@ -69,6 +70,13 @@ type UseCase struct {
 	// TransactionGroupRepo persists normalized cross-ledger hold intent and its
 	// PENDING-to-terminal lifecycle state.
 	TransactionGroupRepo transactiongroup.Repository
+
+	// TransactionGroupReconcileMinAge is how long a PENDING group, and the latest
+	// change to any of its members, must be at rest before the reconciler reads
+	// it. TransactionGroupOrphanMinAge is how old a group with no member at all
+	// must be before its intent is deleted. Zero selects the defaults.
+	TransactionGroupReconcileMinAge time.Duration
+	TransactionGroupOrphanMinAge    time.Duration
 
 	// OperationRepo provides an abstraction on top of the operation data source.
 	OperationRepo operation.Repository
