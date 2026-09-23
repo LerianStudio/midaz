@@ -338,6 +338,16 @@ func DecodeTransactionCompletionPlan(data []byte) (*TransactionCompletionPlan, e
 	return &payload, nil
 }
 
+// BuildTransactionCompletionIntent returns the frozen intent of one transaction
+// exactly as ValidateTransactionCompletion recomputes it. The transaction scope
+// enters the intent only when the engine transaction carries one, so a record
+// frozen before per-item scope stays verifiable. It exists for fixtures and
+// tooling that must hash the same intent as production; command paths freeze
+// intents through their execution builders.
+func BuildTransactionCompletionIntent(transaction accounting.Transaction, payload TransactionCompletionPlan) EngineTransactionIntent {
+	return transactionCompletionIntent(transaction, payload)
+}
+
 // ValidateTransactionCompletion checks request, recovery, and guard correlation.
 // The adapter must separately compare the payload tenant with authenticated context.
 func ValidateTransactionCompletion(input EngineExecution) error {
