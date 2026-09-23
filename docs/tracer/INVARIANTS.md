@@ -126,9 +126,17 @@ previous policy, so stale administrative writes cannot overwrite that change.
 
 Publication requires the caller's transaction. Database constraints reject
 incomplete snapshots; triggers prevent rewriting or deleting published revisions.
-The administration use case must compile first and include authorization and
-audit in publication before exposing these mutations. The repository itself
-does not authenticate integration identity or expose administration routes.
+`PublishContextPolicyCommand` compiles the complete revision before opening a
+transaction and requires a principal supplied by authentication. Publication and
+its mandatory `POLICY_PUBLISHED` audit event commit together; audit failure rolls
+back the policy and newly inserted rules. Duplicate revisions conflict without
+another event. Publication alone never activates a binding, and an unknown commit
+outcome is not retried automatically. Migration `000026` adds the audit enum
+values; its rollback preserves immutable audit history.
+The transport must still authorize policy administration and bind the verified
+tenant before exposing this command. Principal presence is not authorization.
+Administrative routes, audited binding changes, and extraction of authenticated
+integration identity for evaluation are not connected yet.
 This storage records policy configuration, not transaction decisions: durable
 decision replay and reservation coordination still require their own integration.
 
