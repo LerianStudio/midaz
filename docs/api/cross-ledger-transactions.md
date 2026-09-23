@@ -133,8 +133,11 @@ the truth. Once per recovery cycle, the leader pod reads PENDING groups older th
 five minutes whose members have also been at rest that long. When every part is
 APPROVED, or every origin is CANCELED, it moves the row to that status and
 publishes the group fact the coordinator could not. A group still held is left
-alone. An intent that never produced a member is deleted only after a day, well
-beyond any deferred projection. Members that agree on no single state are logged
+alone. Approved origins whose destinations are not projected yet are treated the
+same way until a day has passed, since that is what a commit looks like while
+its destination projection waits in recovery. An intent that never produced a
+member is deleted only after a day, well beyond any deferred projection, and
+only if no member row exists at the moment of the delete. Members that agree on no single state are logged
 at Error and counted as `inconsistent`, and are never written: reconciliation
 never moves a balance. Results are counted in
 `cross_ledger_group_reconcile_total{result}`.

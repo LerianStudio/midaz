@@ -1002,8 +1002,11 @@ are both at least five minutes old, the pass reads the members from the primary
 and moves the row only when every part is APPROVED or every origin is CANCELED,
 publishing the group fact the coordinator did not. Member roles come from the
 persisted intent, because a row read back from the transaction table carries no
-source or destination legs. A member-less intent is deleted only after a day, so
-a hold whose projection is still waiting in `recover` keeps its intent. Members
+source or destination legs. Approved origins with a destination not yet projected
+are left alone for a day for the same reason. A member-less intent is deleted
+only after a day, by a statement that also requires that no transaction row
+references the group, so a hold whose projection is still waiting in `recover`
+keeps its intent. Members
 that disagree are logged and counted, never written. The coordinator treats a row
 already moved to its own status as settled, and only the writer whose
 compare-and-swap succeeded publishes.
