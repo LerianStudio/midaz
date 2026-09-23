@@ -52,15 +52,14 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 
 	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, ledgerID, payload.OperationRouteIDs())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to find operation routes", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to find operation routes", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to find operation routes", err)
 
 		return nil, err
 	}
 
 	if err := validateOperationRouteTypes(operationRouteList); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate operation route types", err)
-		logger.Log(ctx, libLog.LevelError, "Operation route validation failed", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelWarn, "Failed to validate operation route types", libLog.Err(err))
 
 		return nil, err
 	}
@@ -74,8 +73,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 
 	createdTransactionRoute, err := uc.TransactionRouteRepo.Create(ctx, organizationID, ledgerID, transactionRoute)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction route", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create transaction route", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to create transaction route", err)
 
 		return nil, err
 	}
@@ -97,8 +95,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID, l
 		}
 
 		if err := uc.TransactionMetadataRepo.Create(ctx, constant.EntityTransactionRoute, &meta); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create transaction route metadata", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to create transaction route metadata", libLog.Err(err))
+			recordCommandError(ctx, span, logger, "Failed to create transaction route metadata", err)
 
 			return nil, err
 		}

@@ -41,8 +41,6 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 
 	transUpdated, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error updating transaction on repo by id", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, constant.EntityTransaction)
 
@@ -53,7 +51,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update transaction on repo by id", err)
+		recordCommandError(ctx, span, logger, "Failed to update transaction on repo by id", err)
 
 		return nil, err
 	}
@@ -156,8 +154,6 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 
 	updateTran, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, tran)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error updating status transaction on repo by id", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, constant.EntityTransaction)
 
@@ -168,7 +164,7 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, tran *transactio
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update status transaction on repo by id", err)
+		recordCommandError(ctx, span, logger, "Failed to update status transaction on repo by id", err)
 
 		return nil, err
 	}

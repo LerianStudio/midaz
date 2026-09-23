@@ -69,9 +69,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 
 	balances, err := uc.BalanceRepo.ListByAccountID(readCtx, organizationID, ledgerID, accountID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances by account id on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting balances by account id on repo", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to get balances by account id on repo", err)
 
 		return err
 	}
@@ -140,9 +138,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 	writeIssued = true
 
 	if err := uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, accountID, false); err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to toggle balance transfers for account on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error toggling balance transfers for account on repo", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to toggle balance transfers for account on repo", err)
 
 		return err
 	}
@@ -154,9 +150,7 @@ func (uc *UseCase) DeleteAllBalancesByAccountID(ctx context.Context, organizatio
 
 	err = uc.BalanceRepo.DeleteAllByIDs(ctx, organizationID, ledgerID, balanceIDs)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete balance on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error delete balance", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to delete balance on repo", err)
 
 		toggleErr := uc.toggleBalanceTransfers(ctx, organizationID, ledgerID, accountID, true)
 		if toggleErr != nil {
@@ -188,10 +182,7 @@ func (uc *UseCase) toggleBalanceTransfers(ctx context.Context, organizationID, l
 		}
 
 		if rollbackErr := uc.updateBalanceTransferPermissions(ctx, organizationID, ledgerID, accountID, utils.BoolPtr(!allow)); rollbackErr != nil {
-			logger.Log(ctx, libLog.LevelError, "Failed to rollback transfer permissions for account",
-				libLog.String("account_id", accountID.String()), libLog.Err(rollbackErr))
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to rollback balance transfer permission", rollbackErr)
+			recordCommandError(ctx, span, logger, "Failed to rollback balance transfer permission", rollbackErr, libLog.String("account_id", accountID.String()))
 		}
 	}()
 
@@ -213,9 +204,7 @@ func (uc *UseCase) updateBalanceTransferPermissions(ctx context.Context, organiz
 		AllowSending:   allowTransfer,
 	})
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balance transfer permissions for account on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error update balance transfer permissions for account", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to update balance transfer permissions for account on repo", err)
 
 		return err
 	}
