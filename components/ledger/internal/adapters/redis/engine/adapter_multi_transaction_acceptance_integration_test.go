@@ -229,6 +229,48 @@ func TestIntegration_AdapterExecute_MultiScopeAtomicity(t *testing.T) {
 		require.Equal(t, 1, failure.TransactionIndex)
 		require.Equal(t, before, captureAdapterState(t, inspector, keys))
 	})
+
+	t.Run("mixed pending transition and create refusal preserves the pending guard", func(t *testing.T) {
+		input, limits, foreignLedgerID := multiScopeAcceptanceExecution(t)
+		transition := input.Execution.Transactions[0]
+		input.Guards[0] = command.ExecutionGuard{
+			TransactionID: transition.ID,
+			ExpectedToken: "PENDING",
+			NextToken:     "APPROVED",
+		}
+		for index := range input.Execution.Balances {
+			if input.Execution.Balances[index].LedgerID == foreignLedgerID && input.Execution.Balances[index].Key == "default" {
+				input.Execution.Balances[index].Blocked = true
+			}
+		}
+		input.Execution.Transactions[1].RejectBlockedBalances = true
+
+		keys, err := resolveAdapterKeys(ctx, input.Execution)
+		require.NoError(t, err)
+		t.Cleanup(func() { deleteMultiTransactionAcceptanceState(t, inspector, keys) })
+		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
+		require.NoError(t, err)
+		require.NoError(t, adapter.EnsureTransactionGuard(
+			ctx,
+			transition.OrganizationID,
+			transition.LedgerID,
+			transition.ID,
+			"PENDING",
+		))
+		before := captureAdapterState(t, inspector, keys)
+
+		result, err := adapter.Execute(ctx, input)
+		require.Nil(t, result)
+		var failure *core.Failure
+		require.ErrorAs(t, err, &failure)
+		require.Equal(t, core.FailureAccountBlocked, failure.Code)
+		require.Equal(t, 1, failure.TransactionIndex)
+		require.Equal(t, before, captureAdapterState(t, inspector, keys),
+			"a refused create must not publish the earlier transition or its guard")
+		guard, err := inspector.HGet(ctx, keys.Guards, transition.ID.String()).Result()
+		require.NoError(t, err)
+		require.Equal(t, "PENDING", guard)
+	})
 }
 
 func multiTransactionAcceptanceExecution(t *testing.T) (command.EngineExecution, Limits) {
