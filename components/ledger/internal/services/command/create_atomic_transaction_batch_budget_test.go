@@ -26,6 +26,8 @@ import (
 
 type atomicTransactionBatchClaimRepositoryFake struct {
 	claims              int
+	claimOrganizationID uuid.UUID
+	claimLedgerID       uuid.UUID
 	transitions         int
 	handoffs            int
 	finalizations       int
@@ -88,11 +90,13 @@ func (repository *atomicTransactionBatchClaimRepositoryFake) FinalizeAtomicTrans
 
 func (repository *atomicTransactionBatchClaimRepositoryFake) ClaimAtomicTransactionBatch(
 	_ context.Context,
-	_, _ uuid.UUID,
+	organizationID, ledgerID uuid.UUID,
 	effectiveKey string,
 	claim txRedis.AtomicTransactionBatchIdempotencyRecord,
 ) (*txRedis.AtomicTransactionBatchClaimResult, error) {
 	repository.claims++
+	repository.claimOrganizationID = organizationID
+	repository.claimLedgerID = ledgerID
 	repository.effectiveKey = effectiveKey
 	repository.claim = claim
 

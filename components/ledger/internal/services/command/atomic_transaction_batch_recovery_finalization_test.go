@@ -173,6 +173,34 @@ func TestPrepareAtomicTransactionBatchRecoveryFinalization_NonBatchPreservesLega
 	assert.Empty(t, fixture.tracer.confirmed)
 }
 
+func TestPrepareAtomicTransactionBatchRecoveryFinalization_UsesRecordedCoordinationScope(t *testing.T) {
+	fixture := atomicTransactionBatchRecoveryFixture(false)
+	fixture.repository.candidate = nil
+	coordinationLedgerID := uuid.MustParse("01994f13-29b7-7000-8000-000000000100")
+	raw, err := json.Marshal(fixture.record)
+	require.NoError(t, err)
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal(raw, &fields))
+	fields["coordinationOrganizationId"] = fixture.organizationID.String()
+	fields["coordinationLedgerId"] = coordinationLedgerID.String()
+	raw, err = json.Marshal(fields)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(raw, fixture.record))
+
+	prepared, err := fixture.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), fixture.record, fixture.completion)
+	require.NoError(t, err)
+	require.Nil(t, prepared)
+	require.Equal(t, [4]uuid.UUID{fixture.organizationID, coordinationLedgerID, fixture.executionID, fixture.transactionIDs[0]}, fixture.repository.identity)
+
+	// Records written before this fix continue to resolve through their own scope.
+	legacy := atomicTransactionBatchRecoveryFixture(false)
+	legacy.repository.candidate = nil
+	prepared, err = legacy.useCase.PrepareAtomicTransactionBatchRecoveryFinalization(context.Background(), legacy.record, legacy.completion)
+	require.NoError(t, err)
+	require.Nil(t, prepared)
+	require.Equal(t, [4]uuid.UUID{legacy.organizationID, legacy.ledgerID, legacy.executionID, legacy.transactionIDs[0]}, legacy.repository.identity)
+}
+
 func TestPrepareAtomicTransactionBatchRecoveryFinalization_IntermediateMemberAvoidsFullRead(t *testing.T) {
 	fixture := atomicTransactionBatchRecoveryFixture(false)
 	fixture.repository.candidate.Candidate = false
