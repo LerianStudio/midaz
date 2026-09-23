@@ -42,6 +42,13 @@ core differentiator and carries rules that exist nowhere else in the monorepo.
 
 - Type-safe with compile-time validation; expressions compiled at rule create/update.
 - Cost limits (`CEL_COST_LIMIT`, default 10000) prevent DoS via expensive expressions.
+- The adapter checks both estimated compilation cost and actual execution cost.
+  Cached programs receive a fresh runtime budget for each evaluation. Evaluation
+  uses the caller's context, with interruption checks inside comprehensions;
+  canceled evaluations and exhausted budgets return errors, never matches.
+  Runtime cost is not a memory or wall-clock limit and does not preempt a long
+  custom Go function. Input-size bounds and bounded custom operations are still
+  required. The per-expression budget is not a total budget across multiple rules.
 - Compiled programs cached in-memory (L1); cache key is the expression hash; invalidated on
   expression change.
 
