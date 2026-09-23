@@ -39,6 +39,9 @@ const (
 	// Transaction validation events
 	AuditEventTransactionValidated AuditEventType = "TRANSACTION_VALIDATED"
 
+	// Policy publication creates an immutable revision without activating it.
+	AuditEventPolicyPublished AuditEventType = "POLICY_PUBLISHED"
+
 	// Rule lifecycle events
 	AuditEventRuleCreated     AuditEventType = "RULE_CREATED"
 	AuditEventRuleUpdated     AuditEventType = "RULE_UPDATED"
@@ -70,7 +73,7 @@ const (
 // IsValid checks if the AuditEventType is a valid enum value.
 func (t AuditEventType) IsValid() bool {
 	switch t {
-	case AuditEventTransactionValidated,
+	case AuditEventTransactionValidated, AuditEventPolicyPublished,
 		AuditEventRuleCreated, AuditEventRuleUpdated, AuditEventRuleActivated, AuditEventRuleDeactivated, AuditEventRuleDrafted, AuditEventRuleDeleted,
 		AuditEventLimitCreated, AuditEventLimitUpdated, AuditEventLimitDeleted, AuditEventLimitActivated, AuditEventLimitDeactivated, AuditEventLimitDrafted,
 		AuditEventReservationReserved, AuditEventReservationConfirmed, AuditEventReservationReleased, AuditEventReservationExpired, AuditEventReservationSkipped:
@@ -148,12 +151,13 @@ const (
 	ResourceTypeRule        ResourceType = "rule"
 	ResourceTypeLimit       ResourceType = "limit"
 	ResourceTypeReservation ResourceType = "reservation"
+	ResourceTypePolicy      ResourceType = "policy"
 )
 
 // IsValid checks if the ResourceType is a valid enum value.
 func (r ResourceType) IsValid() bool {
 	switch r {
-	case ResourceTypeTransaction, ResourceTypeRule, ResourceTypeLimit, ResourceTypeReservation:
+	case ResourceTypeTransaction, ResourceTypeRule, ResourceTypeLimit, ResourceTypeReservation, ResourceTypePolicy:
 		return true
 	default:
 		return false

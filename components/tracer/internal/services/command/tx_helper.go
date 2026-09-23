@@ -40,6 +40,12 @@ import (
 // via libObservability.NewTrackingFromContext so the helper does not require a
 // logger parameter.
 func executeInTx(ctx context.Context, txBeginner pgdb.TxBeginner, fn func(pgdb.DB) error) (err error) {
+	return executeWithTx(ctx, txBeginner, func(tx pgdb.Tx) error { return fn(tx) })
+}
+
+// executeWithTx preserves the transaction type for ports that must never accept
+// an autocommit connection. Existing DB-shaped consumers use executeInTx above.
+func executeWithTx(ctx context.Context, txBeginner pgdb.TxBeginner, fn func(pgdb.Tx) error) (err error) {
 	// Guard against nil txBeginner before dereferencing. pgdb.NewTxBeginnerAdapter
 	// returns nil when given a nil dbresolver.DB, and tests may omit wiring; a
 	// direct BeginTx call on a nil interface value would panic before any of the
