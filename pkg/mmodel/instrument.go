@@ -215,3 +215,27 @@ type BankingDetails struct {
 	// maxLength: 50
 	BankID *string `json:"bankId,omitempty" example:"12345" maxLength:"50"`
 }
+
+// Allowed values for RegulatoryFields.AccountType, one per Bacen account type code (1..6).
+const (
+	InstrumentAccountTypeDeposit                   = "DEPOSIT"
+	InstrumentAccountTypeSavings                   = "SAVINGS"
+	InstrumentAccountTypeInvestment                = "INVESTMENT"
+	InstrumentAccountTypeOtherFinancialInvestments = "OTHER_FINANCIAL_INVESTMENTS"
+	InstrumentAccountTypeNonResident               = "NON_RESIDENT"
+	InstrumentAccountTypePayment                   = "PAYMENT"
+)
+
+// InstrumentAccountTypes returns the canonical accepted values of RegulatoryFields.AccountType,
+// ordered by Bacen code. The enum tag on RegulatoryFields.AccountType mirrors this list and a
+// unit test fails on drift. Each call returns a fresh slice, so callers cannot mutate the set.
+func InstrumentAccountTypes() []string {
+	return []string{
+		InstrumentAccountTypeDeposit,
+		InstrumentAccountTypeSavings,
+		InstrumentAccountTypeInvestment,
+		InstrumentAccountTypeOtherFinancialInvestments,
+		InstrumentAccountTypeNonResident,
+		InstrumentAccountTypePayment,
+	}
+}
