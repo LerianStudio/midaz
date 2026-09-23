@@ -9,6 +9,7 @@ end
 -- expectRedisType permits an absent key but rejects an existing key whose Redis
 -- data type would make the planned command unsafe or ambiguous.
 local function expectRedisType(key, expected)
+    if key == nil then technical("invalid_protocol", "missing declared Redis key") end
     local actual = redisType(key)
     if actual ~= "none" and actual ~= expected then
         technical("wrong_key_type", "unexpected Redis key type")
@@ -88,7 +89,14 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         requireObject(transaction)
         if transaction.accountBlockException ~= nil then grantCount = grantCount + 1 end
     end
-    if #KEYS ~= 7 + 3 * #request.balances + grantCount + 3 * #request.accounts then technical("invalid_protocol", "invalid execution cardinality") end
+    local declaredScopes = request.scopeKeys
+    local extraScopes = 0
+    if declaredScopes ~= nil then
+        requireArray(declaredScopes)
+        if #declaredScopes < 2 then technical("invalid_protocol", "invalid scope key inventory") end
+        extraScopes = #declaredScopes - 1
+    end
+    if #KEYS ~= 7 + 3 * #request.balances + grantCount + 3 * #request.accounts + 5 * extraScopes then technical("invalid_protocol", "invalid execution cardinality") end
     -- All physical keys must be unique and use the same transaction hash tag so
     -- the complete execution belongs to one Redis Cluster slot.
     local seenKeys = {}
@@ -169,6 +177,47 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         end
     end
     request.accountProtection = protection
+    local primaryScope = request.organizationId .. ":" .. request.ledgerId
+    local scopeKeyMap = {}
+    scopeKeyMap[primaryScope] = { organizationId = request.organizationId, ledgerId = request.ledgerId,
+        receiptKeyIndex = 3, guardKeyIndex = 4, protectionKeyIndex = 5,
+        transactionIndexKeyIndex = 6, evidenceKeyIndex = 7 }
+    if declaredScopes ~= nil then
+        local first = declaredScopes[1]
+        requireObject(first)
+        if first.organizationId ~= request.organizationId or first.ledgerId ~= request.ledgerId or
+            smallInteger(first.receiptKeyIndex, #KEYS) ~= 3 or smallInteger(first.guardKeyIndex, #KEYS) ~= 4 or
+            smallInteger(first.protectionKeyIndex, #KEYS) ~= 5 or smallInteger(first.transactionIndexKeyIndex, #KEYS) ~= 6 or
+            smallInteger(first.evidenceKeyIndex, #KEYS) ~= 7 then
+            technical("invalid_protocol", "invalid primary scope key indices")
+        end
+        local base = protectionBase + 3 * #request.accounts
+        for i = 2, #declaredScopes do
+            local item = declaredScopes[i]
+            requireObject(item)
+            uuid(item.organizationId)
+            uuid(item.ledgerId)
+            local scope = item.organizationId .. ":" .. item.ledgerId
+            if scopeKeyMap[scope] then technical("invalid_protocol", "duplicate scope key inventory") end
+            local index = base + 5 * (i - 2)
+            if smallInteger(item.receiptKeyIndex, #KEYS) ~= index + 1 or
+                smallInteger(item.guardKeyIndex, #KEYS) ~= index + 2 or
+                smallInteger(item.protectionKeyIndex, #KEYS) ~= index + 3 or
+                smallInteger(item.transactionIndexKeyIndex, #KEYS) ~= index + 4 or
+                smallInteger(item.evidenceKeyIndex, #KEYS) ~= index + 5 then
+                technical("invalid_protocol", "invalid scope key indices")
+            end
+            local names = { "receipts", "guards", "protection", "transaction-index", "evidence" }
+            for offset, name in ipairs(names) do
+                local suffix = ":" .. name .. ":" .. scope
+                if KEYS[index + offset]:sub(-#suffix) ~= suffix then technical("invalid_protocol", "invalid scoped coordination key") end
+            end
+            item.receiptKeyIndex, item.guardKeyIndex, item.protectionKeyIndex = index + 1, index + 2, index + 3
+            item.transactionIndexKeyIndex, item.evidenceKeyIndex = index + 4, index + 5
+            scopeKeyMap[scope] = item
+        end
+    end
+    request.scopeKeyMap = scopeKeyMap
     -- Validate transaction correlation, guard advancement, recovery payloads,
     -- and the closed set of balance references used by requirements and postings.
     local transactions, grantOrdinal, postingCount = {}, 0, 0
@@ -177,6 +226,9 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         uuid(transaction.organizationId)
         uuid(transaction.ledgerId)
         uuid(transaction.id)
+        if not scopeKeyMap[transaction.organizationId .. ":" .. transaction.ledgerId] then
+            technical("invalid_protocol", "transaction scope has no coordination keys")
+        end
         if transactions[transaction.id] or transaction.guardField ~= transaction.id or transaction.recoveryField ~= transaction.id .. ":" .. request.executionId then
             technical("invalid_protocol", "invalid transaction correlation")
         end

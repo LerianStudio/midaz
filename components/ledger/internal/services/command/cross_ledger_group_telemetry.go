@@ -8,13 +8,11 @@ import (
 	"context"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v4/pkg"
 )
 
 // Domain operations of the cross-ledger coordinators (D6 catalog, component
@@ -29,21 +27,14 @@ const (
 
 // recordCrossLedgerGroupError records a coordinator failure on its span by error
 // class. The coordinator is where a grouped request is accepted or refused as a
-// whole, so a business rejection is logged once here at Warn; a technical
-// failure only turns the span red, because the layer that failed owns its log.
+// whole, so both business and technical failures are logged once here at the
+// level matching their error class.
 func recordCrossLedgerGroupError(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error) {
 	if err == nil {
 		return
 	}
 
-	if pkg.IsBusinessError(err) {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
-		logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
-
-		return
-	}
-
-	libOpentelemetry.HandleSpanError(span, message, err)
+	recordCommandError(ctx, span, logger, message, err)
 }
 
 // setCrossLedgerGroupShape records the request-derived shape of a group.

@@ -1092,6 +1092,97 @@ func TestIntegration_HoldCommitCancelV2CrossLedger_GroupLifecycle(t *testing.T) 
 	})
 }
 
+func TestIntegration_HoldV2CrossLedger_TwoOriginLedgersTransition(t *testing.T) {
+	for _, action := range []string{"commit", "cancel"} {
+		t.Run(action, func(t *testing.T) {
+			fixture := setupAtomicBatchHTTPIntegrationFixture(t)
+			ledgerA := fixture.newLedger(t)
+			ledgerB := fixture.newLedger(t)
+			ledgerC := fixture.newLedger(t)
+			for _, ledgerID := range []uuid.UUID{ledgerA, ledgerB, ledgerC} {
+				fixture.setCrossLedgerEnabled(t, ledgerID, true)
+			}
+			seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerA, "@multi-origin-a", "@external/USD", 100)
+			seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerC, "@multi-origin-c", "@external/USD", 100)
+			seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerB, "@external/USD", "@multi-origin-destination", 100)
+
+			request := atomicBatchTransfer(fixture.infra.orgID, ledgerA, "two origin ledgers", "@multi-origin-a", "@multi-origin-destination", 100)
+			request.Debits[0].Amount = "50"
+			request.Debits = append(request.Debits, TransactionV2LegRequest{
+				Alias: "@multi-origin-c", OrganizationID: fixture.infra.orgID.String(), LedgerID: ledgerC.String(), Amount: "50",
+			})
+			request.Credits[0].LedgerID = ledgerB.String()
+			raw, err := json.Marshal(request)
+			require.NoError(t, err)
+			hold := postTransaction(t, fixture.app, v2CreateURL("hold"), string(raw), "two-origin-hold-"+action)
+			holdBody := drainBody(t, hold)
+			require.Equal(t, http.StatusCreated, hold.StatusCode, "body: %s", string(holdBody))
+			var held CreateTransactionV2Response
+			require.NoError(t, json.Unmarshal(holdBody, &held))
+			require.Len(t, held.Transactions, 2)
+
+			origin := held.Transactions[1]
+			originID := uuid.MustParse(origin.ID)
+			url := v2CommitURL(fixture.infra.orgID, uuid.MustParse(origin.LedgerID), originID)
+			if action == "cancel" {
+				url = v2CancelURL(fixture.infra.orgID, uuid.MustParse(origin.LedgerID), originID)
+			}
+			transition := postTransaction(t, fixture.app, url, "", "")
+			body := drainBody(t, transition)
+			require.Equal(t, http.StatusCreated, transition.StatusCode, "body: %s", string(body))
+			if action == "commit" {
+				require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerA))
+				require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerB))
+				require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerC))
+			}
+		})
+	}
+}
+
+func TestIntegration_DirectV2CrossLedger_AcknowledgesEveryRecoveryPart(t *testing.T) {
+	fixture := setupAtomicBatchHTTPIntegrationFixture(t)
+	ledgerA := fixture.newLedger(t)
+	ledgerB := fixture.newLedger(t)
+	fixture.setCrossLedgerEnabled(t, ledgerA, true)
+	fixture.setCrossLedgerEnabled(t, ledgerB, true)
+	seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerA, "@ack-source", "@external/USD", 100)
+	seedTransfer(t, fixture.infra.pgContainer.DB, fixture.infra.orgID, ledgerB, "@external/USD", "@ack-destination", 100)
+
+	request := atomicBatchTransfer(fixture.infra.orgID, ledgerA, "cross-ledger recovery acknowledgment", "@ack-source", "@ack-destination", 100)
+	request.Credits[0].LedgerID = ledgerB.String()
+	raw, err := json.Marshal(request)
+	require.NoError(t, err)
+	response := postTransaction(t, fixture.app, v2CreateURL("direct"), string(raw), "cross-ledger-ack")
+	body := drainBody(t, response)
+	require.Equal(t, http.StatusCreated, response.StatusCode, "body: %s", string(body))
+	var created CreateTransactionV2Response
+	require.NoError(t, json.Unmarshal(body, &created))
+	require.Len(t, created.Transactions, 2)
+
+	repository := fixture.infra.redisRepo.(*redistransaction.RedisConsumerRepository)
+	for _, part := range created.Transactions {
+		transactionID := uuid.MustParse(part.ID)
+		ledgerID := uuid.MustParse(part.LedgerID)
+		indexRaw, err := repository.GetEngineTransactionIndex(context.Background(), fixture.infra.orgID, ledgerID, transactionID)
+		require.NoError(t, err)
+		index, err := command.DecodeTransactionEvidenceIndex(indexRaw)
+		require.NoError(t, err)
+		field := transactionID.String() + ":" + index.ExecutionID.String()
+		pending, err := repository.ReadRecoveryMessage(context.Background(), redistransaction.RecoveryQueueSourceEngineRecover, field)
+		require.NoError(t, err)
+		require.True(t, pending == "", "durable cross-ledger part must be acknowledged")
+	}
+	cleanup, err := repository.CleanupEngineRecovery(context.Background(),
+		time.Date(2026, time.September, 23, 12, 0, 0, 0, time.UTC), 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, cleanup.Cleaned, "one complete group receipt is due for cleanup")
+	for _, part := range created.Transactions {
+		_, err := repository.GetEngineTransactionIndex(context.Background(), fixture.infra.orgID,
+			uuid.MustParse(part.LedgerID), uuid.MustParse(part.ID))
+		require.ErrorIs(t, err, redistransaction.ErrEngineWriteBehindNotFound)
+	}
+}
+
 func TestIntegration_TransactionGroupReconciler_AlignsFromMembersAndDropsOrphans(t *testing.T) {
 	fixture := setupAtomicBatchHTTPIntegrationFixture(t)
 	ledgerA := fixture.newLedger(t)
@@ -1206,6 +1297,21 @@ func (acknowledger *atomicBatchHTTPRecoveryAcknowledger) AcknowledgeEngineRecove
 	)
 	if err != nil || raw == "" {
 		return err
+	}
+	stored, err := command.DecodeTransactionWriteBehindEnvelope([]byte(raw))
+	if err != nil {
+		return err
+	}
+	expectedRecord, err := command.EncodeTransactionCompletionRecord(*record)
+	if err != nil {
+		return err
+	}
+	storedRecord, err := command.EncodeTransactionCompletionRecord(stored.Record)
+	if err != nil {
+		return err
+	}
+	if string(expectedRecord) != string(storedRecord) {
+		return fmt.Errorf("completed cross-ledger record differs from engine recovery evidence")
 	}
 
 	terminal := completion.Outcome.TransactionStatus == constant.APPROVED ||

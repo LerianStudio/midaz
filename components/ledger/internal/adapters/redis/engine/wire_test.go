@@ -46,6 +46,7 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	second, err := prepareExecution(context.Background(), input, limits, resolved)
 	require.NoError(t, err)
 	require.Equal(t, first, second)
+	require.NotContains(t, string(first.Payload), `"scopeKeys"`, "single-scope protocol bytes must retain their existing shape")
 	require.Contains(t, string(first.Payload), `"completionPlan":`)
 	require.NotContains(t, string(first.Payload), `"recoveryPayload":`)
 	after, err := json.Marshal(input)
@@ -121,6 +122,12 @@ func TestPrepareExecutionCarriesPerItemScopeInProtocolV3(t *testing.T) {
 	require.Equal(t, ledgerID.String(), wire.Balances[0].LedgerID)
 	require.Equal(t, organizationID.String(), wire.Transactions[0].OrganizationID)
 	require.Equal(t, ledgerID.String(), wire.Transactions[0].LedgerID)
+	require.Len(t, wire.ScopeKeys, 2)
+	foreign := wire.ScopeKeys[1]
+	require.Equal(t, organizationID.String(), foreign.OrganizationID)
+	require.Equal(t, ledgerID.String(), foreign.LedgerID)
+	require.Equal(t, len(prepared.Keys)-4, foreign.ReceiptKeyIndex)
+	require.Contains(t, prepared.Keys[foreign.TransactionIndexKeyIndex-1], ":transaction-index:"+organizationID.String()+":"+ledgerID.String())
 }
 
 func TestResolveAdapterKeysUsesBalanceAndTransactionScope(t *testing.T) {

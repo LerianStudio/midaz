@@ -104,7 +104,12 @@ func validateIndexedEnvelopeAndReceipt(index TransactionEvidenceIndex, envelope 
 		return fmt.Errorf("decode engine transaction receipt: %w", err)
 	}
 
-	if receipt.FormatVersion != 1 || receipt.Protection.FormatVersion != 2 || receipt.TenantID != index.TenantID || receipt.OrganizationID != index.OrganizationID || receipt.LedgerID != index.LedgerID || receipt.ExecutionID != index.ExecutionID || receipt.IntentFingerprint != envelope.Record.IntentFingerprint || receipt.Response == "" {
+	receiptOrganizationID, receiptLedgerID := index.OrganizationID, index.LedgerID
+	if index.ReceiptOrganizationID != nil {
+		receiptOrganizationID, receiptLedgerID = *index.ReceiptOrganizationID, *index.ReceiptLedgerID
+	}
+
+	if receipt.FormatVersion != 1 || receipt.Protection.FormatVersion != 2 || receipt.TenantID != index.TenantID || receipt.OrganizationID != receiptOrganizationID || receipt.LedgerID != receiptLedgerID || receipt.ExecutionID != index.ExecutionID || receipt.IntentFingerprint != envelope.Record.IntentFingerprint || receipt.Response == "" {
 		return fmt.Errorf("engine transaction receipt identity mismatch: %w", ErrInvalidTransactionCompletionRecord)
 	}
 

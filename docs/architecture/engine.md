@@ -116,7 +116,12 @@ revert, commit, or cancel that reaches the engine:
    client, and sends the assembled Lua script with Redis client retries disabled.
    The execution-level organization and ledger remain the primary scope for
    compatibility, while each balance and transaction carries its effective scope.
-   Keys and references include that scope, so equal raw balance UUIDs in different
+   Receipts remain in the primary scope. Each transaction's index, evidence,
+   guard, and protection use that transaction's own scope; the index records
+   the receipt's scope for dependency validation and recovery. Multi-scope
+   requests append the additional scope keys after the account controls.
+   Single-scope requests keep the existing key and wire layout. Keys and
+   references include their scope, so equal raw balance UUIDs in different
    ledgers cannot collide.
 7. Lua `main` decodes the protocol and calls `execute`, which checks for a valid
    receipt replay and validates guards/key types. Immediately after the replay
@@ -675,7 +680,8 @@ path reserves once; v1 does not invoke fees or tracer. NOTED stays on its separa
 legacy path.
 Unknown or indeterminate execution failures, malformed results, and failures
 after confirmed accounting retain the idempotency claim and recovery evidence.
-Only confirmed precommit failures permit compensation. Normal completion uses
+Only confirmed precommit failures permit compensation and release of the batch
+idempotency claim. Normal completion uses
 the stable completion plan and applied transaction completer, without invoking legacy
 queue seeds, recover rewrites, or BTO persistence. The normal response preserves
 CREATED while SQL stores APPROVED. The normal path attempts exact protected

@@ -144,6 +144,11 @@ func (rr *RedisConsumerRepository) CompareAndDeleteAtomicTransactionBatchRecover
 		return 0, fmt.Errorf("get atomic batch recovery acknowledgment client: %w", err)
 	}
 
+	keys, err = appendRecoveryReceiptProtectionKeys(ctx, client, keys, 2, executionRaw)
+	if err != nil {
+		return 0, err
+	}
+
 	terminalFlag := "0"
 	if terminal {
 		terminalFlag = "1"

@@ -2,29 +2,35 @@
 -- still the current indexed state and that both its immutable evidence and the
 -- receipt written last by that execution remain present and correctly scoped.
 local function validateIndexedDependency(request, dependency)
-    local rawIndex = redis.call("HGET", KEYS[6], dependency.transactionId)
+    local dependencyKeys = request.scopeKeyMap[dependency.organizationId .. ":" .. dependency.ledgerId]
+    if not dependencyKeys then technical("invalid_protocol", "dependency scope has no coordination keys") end
+    local rawIndex = redis.call("HGET", KEYS[dependencyKeys.transactionIndexKeyIndex], dependency.transactionId)
     if not rawIndex then technical("dependency_evidence_missing", "transaction dependency index is absent") end
     local index = decodeJSON(rawIndex)
     requireObject(index)
-    if smallInteger(index.formatVersion, 1) ~= 1 or index.tenantId ~= request.tenantId or index.organizationId ~= request.organizationId or index.ledgerId ~= request.ledgerId or index.transactionId ~= dependency.transactionId or index.executionId ~= dependency.executionId or index.receiptField ~= dependency.executionId or index.recoveryField ~= dependency.transactionId .. ":" .. dependency.executionId then
+    if smallInteger(index.formatVersion, 1) ~= 1 or index.tenantId ~= request.tenantId or index.organizationId ~= dependency.organizationId or index.ledgerId ~= dependency.ledgerId or index.transactionId ~= dependency.transactionId or index.executionId ~= dependency.executionId or index.receiptField ~= dependency.executionId or index.recoveryField ~= dependency.transactionId .. ":" .. dependency.executionId then
         technical("dependency_evidence_conflict", "transaction dependency index has changed")
     end
 
-    local rawEvidence = redis.call("HGET", KEYS[request.evidenceKeyIndex], index.recoveryField)
+    local rawEvidence = redis.call("HGET", KEYS[dependencyKeys.evidenceKeyIndex], index.recoveryField)
     if not rawEvidence then rawEvidence = redis.call("HGET", KEYS[2], index.recoveryField) end
     if not rawEvidence then technical("dependency_evidence_missing", "transaction dependency evidence is absent") end
     local evidence = decodeJSON(rawEvidence)
     requireObject(evidence)
     requireObject(evidence.record)
-    if smallInteger(evidence.formatVersion, 1) ~= 1 or evidence.applicationState ~= "confirmed" or (evidence.replayState ~= "reconstructible" and evidence.replayState ~= "materialized") or (evidence.durabilityState ~= "pending" and evidence.durabilityState ~= "complete") or smallInteger(evidence.record.formatVersion, 2) ~= 2 or evidence.record.tenantId ~= request.tenantId or evidence.record.organizationId ~= request.organizationId or evidence.record.ledgerId ~= request.ledgerId or evidence.record.transactionId ~= dependency.transactionId or evidence.record.executionId ~= dependency.executionId then
+    if smallInteger(evidence.formatVersion, 1) ~= 1 or evidence.applicationState ~= "confirmed" or (evidence.replayState ~= "reconstructible" and evidence.replayState ~= "materialized") or (evidence.durabilityState ~= "pending" and evidence.durabilityState ~= "complete") or smallInteger(evidence.record.formatVersion, 2) ~= 2 or evidence.record.tenantId ~= request.tenantId or evidence.record.organizationId ~= dependency.organizationId or evidence.record.ledgerId ~= dependency.ledgerId or evidence.record.transactionId ~= dependency.transactionId or evidence.record.executionId ~= dependency.executionId then
         technical("dependency_evidence_invalid", "transaction dependency evidence is invalid")
     end
 
-    local rawReceipt = redis.call("HGET", KEYS[3], index.receiptField)
+    local receiptOrganizationID = index.receiptOrganizationId or index.organizationId
+    local receiptLedgerID = index.receiptLedgerId or index.ledgerId
+    local receiptKeys = request.scopeKeyMap[receiptOrganizationID .. ":" .. receiptLedgerID]
+    if not receiptKeys then technical("dependency_evidence_missing", "transaction dependency receipt scope is absent") end
+    local rawReceipt = redis.call("HGET", KEYS[receiptKeys.receiptKeyIndex], index.receiptField)
     if not rawReceipt then technical("dependency_evidence_missing", "transaction dependency receipt is absent") end
     local receipt = decodeJSON(rawReceipt)
     requireObject(receipt)
-    if smallInteger(receipt.formatVersion, 1) ~= 1 or receipt.tenantId ~= request.tenantId or receipt.organizationId ~= request.organizationId or receipt.ledgerId ~= request.ledgerId or receipt.executionId ~= dependency.executionId then
+    if smallInteger(receipt.formatVersion, 1) ~= 1 or receipt.tenantId ~= request.tenantId or receipt.organizationId ~= receiptOrganizationID or receipt.ledgerId ~= receiptLedgerID or receipt.executionId ~= dependency.executionId then
         technical("dependency_evidence_invalid", "transaction dependency receipt is invalid")
     end
 end
@@ -41,16 +47,25 @@ local function prepareExecutionProtection(request)
     -- shared key type before it can calculate or publish accounting state.
     expectRedisType(KEYS[1], "zset")
     expectRedisType(KEYS[2], "hash")
-    expectRedisType(KEYS[4], "hash")
-    local protectionKey = KEYS[5]
-    expectRedisType(protectionKey, "hash")
-    expectRedisType(KEYS[6], "hash")
+    for _, scopeKeys in pairs(request.scopeKeyMap) do
+        if not KEYS[scopeKeys.receiptKeyIndex] then technical("invalid_protocol", "scope receipt key missing") end
+        if not KEYS[scopeKeys.guardKeyIndex] then technical("invalid_protocol", "scope guard key missing") end
+        if not KEYS[scopeKeys.protectionKeyIndex] then technical("invalid_protocol", "scope protection key missing") end
+        if not KEYS[scopeKeys.transactionIndexKeyIndex] then technical("invalid_protocol", "scope index key missing") end
+        if not KEYS[scopeKeys.evidenceKeyIndex] then technical("invalid_protocol", "scope evidence key missing") end
+        expectRedisType(KEYS[scopeKeys.receiptKeyIndex], "hash")
+        expectRedisType(KEYS[scopeKeys.guardKeyIndex], "hash")
+        expectRedisType(KEYS[scopeKeys.protectionKeyIndex], "hash")
+        expectRedisType(KEYS[scopeKeys.transactionIndexKeyIndex], "hash")
+        expectRedisType(KEYS[scopeKeys.evidenceKeyIndex], "hash")
+    end
 
     -- Guard comparison prevents competing lifecycle transitions. Existing
     -- recovery without a receipt means a prior outcome cannot be safely replayed.
     local preparedProtection = {}
     for _, transaction in ipairs(request.transactions) do
-        local currentIndex = redis.call("HGET", KEYS[6], transaction.id)
+        local scopeKeys = request.scopeKeyMap[transaction.organizationId .. ":" .. transaction.ledgerId]
+        local currentIndex = redis.call("HGET", KEYS[scopeKeys.transactionIndexKeyIndex], transaction.id)
         local predecessor = nil
         for _, dependency in ipairs(transaction.dependencies) do
             validateIndexedDependency(request, dependency)
@@ -62,7 +77,7 @@ local function prepareExecutionProtection(request)
         if (not currentIndex) and predecessor then
             technical("dependency_evidence_missing", "transaction predecessor index is absent")
         end
-        local current = redis.call("HGET", KEYS[4], transaction.guardField)
+        local current = redis.call("HGET", KEYS[scopeKeys.guardKeyIndex], transaction.guardField)
         if (current or "") ~= transaction.expectedGuard then
             technical("execution_guard_conflict", "transaction execution guard has changed")
         end
@@ -71,7 +86,7 @@ local function prepareExecutionProtection(request)
         end
         -- Extend the transaction coordinator in memory. It is written only after
         -- all request, balance, calculation, and serialization work succeeds.
-        local rawCoordinator = redis.call("HGET", protectionKey, transaction.id)
+        local rawCoordinator = redis.call("HGET", KEYS[scopeKeys.protectionKeyIndex], transaction.id)
         local coordinator
         if rawCoordinator then
             coordinator = decodeJSON(rawCoordinator)
@@ -85,12 +100,13 @@ local function prepareExecutionProtection(request)
         end
         coordinator.executions[request.executionId] = 0
         preparedProtection[#preparedProtection + 1] = {
+            keyIndex = scopeKeys.protectionKeyIndex,
             field = transaction.id,
             value = encodeJSON(coordinator)
         }
     end
 
-    return nil, preparedProtection, protectionKey
+    return nil, preparedProtection
 end
 
 -- loadBalancePool resolves the authoritative live accounting state. Redis values
@@ -485,6 +501,7 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
             }))
         }
         preparedIndexes[#preparedIndexes + 1] = {
+            keyIndex = request.scopeKeyMap[transaction.organizationId .. ":" .. transaction.ledgerId].transactionIndexKeyIndex,
             field = transaction.id,
             value = charge(encodeJSON({
                 formatVersion = 1, tenantId = request.tenantId, organizationId = transaction.organizationId,
@@ -492,6 +509,7 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
                 action = transaction.action, applicationState = "confirmed",
                 replayState = "reconstructible", durabilityState = "pending",
                 recoveryField = transaction.recoveryField, receiptField = request.receiptField,
+                receiptOrganizationId = request.organizationId, receiptLedgerId = request.ledgerId,
                 dependencies = transaction.dependencies
             }))
         }
@@ -504,15 +522,24 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
         protectedRecoveryFields[#protectedRecoveryFields + 1] = transaction.recoveryField
         protectedIndexFields[#protectedIndexFields + 1] = transaction.id
     end
+    local receiptProtection = {
+        formatVersion = 2, retentionSeconds = request.retentionSeconds,
+        transactions = protectedTransactions, recoveryFields = protectedRecoveryFields, indexFields = protectedIndexFields,
+        acknowledged = object(), terminalCompletedAtMs = object()
+    }
+    if request.scopeKeys then
+        receiptProtection.scopes = array()
+        for _, transaction in ipairs(request.transactions) do
+            receiptProtection.scopes[#receiptProtection.scopes + 1] = {
+                organizationId = transaction.organizationId, ledgerId = transaction.ledgerId
+            }
+        end
+    end
     local receipt = charge(encodeJSON({
         formatVersion = 1, tenantId = request.tenantId, organizationId = request.organizationId,
         ledgerId = request.ledgerId, executionId = request.executionId,
         intentFingerprint = request.intentFingerprint, response = response,
-        protection = {
-            formatVersion = 2, retentionSeconds = request.retentionSeconds,
-            transactions = protectedTransactions, recoveryFields = protectedRecoveryFields, indexFields = protectedIndexFields,
-            acknowledged = object(), terminalCompletedAtMs = object()
-        }
+        protection = receiptProtection
     }))
     for _, transaction in ipairs(request.transactions) do
         charge(transaction.guardField)
@@ -527,7 +554,7 @@ end
 -- commitPreparedExecution is the only money-changing publication phase. Every
 -- argument has already been validated and serialized. Once commitStarted is set,
 -- any unexpected failure is indeterminate because Redis does not roll writes back.
-local function commitPreparedExecution(request, protectionKey, preparedBalances, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score)
+local function commitPreparedExecution(request, preparedBalances, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score)
     -- Only prepared commands remain. Runtime failures here are indeterminate;
     -- Redis script execution does not roll back earlier successful writes.
     commitStarted = true
@@ -537,9 +564,12 @@ local function commitPreparedExecution(request, protectionKey, preparedBalances,
     for _, balance in ipairs(preparedBalances) do redis.call("SET", balance.key, balance.value, "EX", balance_cache_ttl_seconds) end
     for _, balance in ipairs(preparedBalances) do redis.call("ZADD", KEYS[1], score, balance.key) end
     for _, recoverRecord in ipairs(preparedRecoverRecords) do redis.call("HSET", KEYS[2], recoverRecord.field, recoverRecord.value) end
-    for _, transaction in ipairs(request.transactions) do redis.call("HSET", KEYS[4], transaction.guardField, transaction.nextGuard) end
-    for _, coordinator in ipairs(preparedProtection) do redis.call("HSET", protectionKey, coordinator.field, coordinator.value) end
-    for _, index in ipairs(preparedIndexes) do redis.call("HSET", KEYS[6], index.field, index.value) end
+    for _, transaction in ipairs(request.transactions) do
+        local scopeKeys = request.scopeKeyMap[transaction.organizationId .. ":" .. transaction.ledgerId]
+        redis.call("HSET", KEYS[scopeKeys.guardKeyIndex], transaction.guardField, transaction.nextGuard)
+    end
+    for _, coordinator in ipairs(preparedProtection) do redis.call("HSET", KEYS[coordinator.keyIndex], coordinator.field, coordinator.value) end
+    for _, index in ipairs(preparedIndexes) do redis.call("HSET", KEYS[index.keyIndex], index.field, index.value) end
     for _, grantKey in ipairs(grantKeys) do redis.call("DEL", grantKey) end
     redis.call("HSET", KEYS[3], request.receiptField, receipt)
 end
@@ -547,7 +577,7 @@ end
 -- execute tells the complete engine story: replay or protect, load live balances,
 -- evaluate in memory, prepare every output, and finally publish the prepared state.
 local function execute(request, maximumPrepared)
-    local replay, preparedProtection, protectionKey = prepareExecutionProtection(request)
+    local replay, preparedProtection = prepareExecutionProtection(request)
     if replay then return replay end
 
     local now = redis.call("TIME")
@@ -576,7 +606,7 @@ local function execute(request, maximumPrepared)
     end
 
     commitPreparedExecution(
-        request, protectionKey, preparedBalances, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score
+        request, preparedBalances, preparedRecoverRecords, preparedIndexes, preparedProtection, grantKeys, receipt, score
     )
     return response
 end

@@ -292,6 +292,7 @@ func isNoScript(err error) bool {
 	return errors.As(err, &reply) && strings.HasPrefix(reply.Error(), "NOSCRIPT ")
 }
 
+//nolint:gocognit,gocyclo // key resolution validates balance, transaction, account, and scoped coordination inventories together
 func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (resolvedExecutionKeys, error) {
 	scope := request.OrganizationID.String() + ":" + request.LedgerID.String()
 
@@ -306,6 +307,7 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 		Balances:               make(map[string]resolvedBalanceKeys, len(request.Balances)),
 		AccountBlockExceptions: make(map[uuid.UUID]string, len(request.Transactions)),
 		Accounts:               make(map[uuid.UUID]resolvedAccountKeys, len(request.Balances)),
+		Coordination:           make(map[string]resolvedCoordinationKeys),
 	}
 	for _, key := range []*string{&resolved.Schedule, &resolved.Recovery, &resolved.Receipts, &resolved.Guards, &resolved.Protection, &resolved.TransactionIndex, &resolved.Evidence} {
 		prefixed, err := tmvalkey.GetKeyContext(ctx, *key)
@@ -345,13 +347,36 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 	}
 
 	for _, transaction := range request.Transactions {
-		if transaction.AccountBlockException == nil {
-			continue
-		}
-
 		organizationID, ledgerID, ok := effectiveTransactionScope(request, transaction)
 		if !ok {
 			return resolvedExecutionKeys{}, fmt.Errorf("resolve accounting transaction scope")
+		}
+
+		if organizationID != request.OrganizationID || ledgerID != request.LedgerID {
+			transactionScope := organizationID.String() + ":" + ledgerID.String()
+			if _, exists := resolved.Coordination[transactionScope]; !exists {
+				prefix := "engine:" + cachepolicy.HashTag + ":"
+				keyNames := []string{"receipts", "guards", "protection", "transaction-index", "evidence"}
+
+				keys := make([]string, len(keyNames))
+				for i, name := range keyNames {
+					key, err := tmvalkey.GetKeyContext(ctx, prefix+name+":"+transactionScope)
+					if err != nil {
+						return resolvedExecutionKeys{}, err
+					}
+
+					keys[i] = key
+				}
+
+				resolved.Coordination[transactionScope] = resolvedCoordinationKeys{
+					Receipts: keys[0], Guards: keys[1], Protection: keys[2],
+					TransactionIndex: keys[3], Evidence: keys[4],
+				}
+			}
+		}
+
+		if transaction.AccountBlockException == nil {
+			continue
 		}
 
 		key := utils.AccountBlockExceptionInternalKey(organizationID, ledgerID, transaction.AccountBlockException.ExceptionID)

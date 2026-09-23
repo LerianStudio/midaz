@@ -167,11 +167,12 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 	}
 
 	var failure *accounting.Failure
-	if !outcome.Executed ||
-		!errors.As(executeErr, &failure) || failure == nil ||
-		!confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
+
+	if !outcome.Executed || !confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
 		return outcome, MapEngineError(prepared.Execution.Execution, executeErr)
 	}
+
+	errors.As(executeErr, &failure)
 
 	mapped := MapEngineError(prepared.Execution.Execution, executeErr)
 
@@ -187,11 +188,15 @@ func (uc *UseCase) executeAtomicTransactionBatch(
 		atomicTransactionBatchReservationConfirmedAbort,
 	)
 
-	return outcome, withAtomicTransactionBatchRunItemError(
-		mapped,
-		&run.items[failure.TransactionIndex],
-		"accounting execution refused",
-	)
+	if failure != nil {
+		return outcome, withAtomicTransactionBatchRunItemError(
+			mapped,
+			&run.items[failure.TransactionIndex],
+			"accounting execution refused",
+		)
+	}
+
+	return outcome, mapped
 }
 
 func (uc *UseCase) abortAtomicTransactionBatchConfirmedRefusal(

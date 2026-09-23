@@ -144,12 +144,17 @@ func buildTransactionGroupEventSource(
 			src.AssetCode = tran.AssetCode
 		}
 
+		partStatus := tran.Status.Code
+		if kind == transactionGroupEventPosted && partStatus == constant.CREATED {
+			partStatus = constant.APPROVED
+		}
+
 		src.Parts = append(src.Parts, events.TransactionGroupPartSource{
 			TransactionID:  tran.ID,
 			OrganizationID: tran.OrganizationID,
 			LedgerID:       tran.LedgerID,
 			Role:           roleOf(tran),
-			Status:         tran.Status.Code,
+			Status:         partStatus,
 		})
 	}
 

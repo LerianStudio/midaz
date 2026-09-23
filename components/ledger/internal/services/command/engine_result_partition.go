@@ -36,8 +36,9 @@ func partitionValidatedEngineResult(prepared PreparedEngineExecution, result acc
 	for index, transaction := range request.Transactions {
 		transactionIndices[transaction.ID] = index
 		partitions[index] = accounting.ExecutionResult{
-			Movements: make([]accounting.Movement, 0),
-			Final:     make([]accounting.BalanceSnapshot, 0),
+			Movements:          make([]accounting.Movement, 0),
+			Final:              make([]accounting.BalanceSnapshot, 0),
+			AppliedAtUnixMicro: result.AppliedAtUnixMicro,
 		}
 		transactionLast[index] = make(map[string]accounting.BalanceState)
 	}

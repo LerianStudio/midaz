@@ -7,10 +7,12 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -20,6 +22,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -37,6 +40,15 @@ var (
 	groupEventLedgerB      = uuid.MustParse("0199a700-0000-7000-8000-000000000003")
 	groupEventGroupID      = uuid.MustParse("0199a700-0000-7000-8000-000000000004")
 )
+
+func TestRecordCrossLedgerGroupError_LogsTechnicalFailureOnce(t *testing.T) {
+	logger := &capturingLogger{}
+	recordCrossLedgerGroupError(context.Background(), trace.SpanFromContext(context.Background()), logger,
+		"cross-ledger operation failed", errors.New("precommit dependency evidence missing"))
+	lines := logger.snapshot()
+	require.Len(t, lines, 1)
+	assert.Equal(t, libLog.LevelError, lines[0].Level)
+}
 
 func crossLedgerGroupEventMember(ledgerID, groupID uuid.UUID, status string, source, destination []string) *transaction.Transaction {
 	group := groupID.String()
