@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/crm/adapters/mongodb/holder"
@@ -495,4 +496,145 @@ func TestCreateInstrument_EmitFailureDoesNotFailRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Empty(t, emitter.Events())
+}
+
+func TestCreateInstrument_AccountType(t *testing.T) {
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7()).String()
+	holderDocument := "90217469051"
+	participantDoc := "12345678912345"
+
+	strPtr := func(s string) *string { return &s }
+
+	testCases := []struct {
+		name                string
+		regulatoryFields    *mmodel.RegulatoryFields
+		expectRepoCall      bool
+		expectedAccountType *string
+		expectedErr         error
+	}{
+		{
+			name:                "lowercase value with spaces reaches the repository normalized",
+			regulatoryFields:    &mmodel.RegulatoryFields{AccountType: strPtr(" savings ")},
+			expectRepoCall:      true,
+			expectedAccountType: strPtr("SAVINGS"),
+		},
+		{
+			name:                "account type alongside participant document",
+			regulatoryFields:    &mmodel.RegulatoryFields{ParticipantDocument: &participantDoc, AccountType: strPtr("PAYMENT")},
+			expectRepoCall:      true,
+			expectedAccountType: strPtr("PAYMENT"),
+		},
+		{
+			name:                "regulatory fields without account type keep a nil pointer",
+			regulatoryFields:    &mmodel.RegulatoryFields{ParticipantDocument: &participantDoc},
+			expectRepoCall:      true,
+			expectedAccountType: nil,
+		},
+		{
+			name:                "empty account type is treated as absent",
+			regulatoryFields:    &mmodel.RegulatoryFields{ParticipantDocument: &participantDoc, AccountType: strPtr("")},
+			expectRepoCall:      true,
+			expectedAccountType: nil,
+		},
+		{
+			name:             "value outside the enum is rejected without a repository call",
+			regulatoryFields: &mmodel.RegulatoryFields{AccountType: strPtr("CHECKING")},
+			expectRepoCall:   false,
+			expectedErr:      cn.ErrInvalidInstrumentAccountType,
+		},
+		{
+			name:             "numeric bacen code is rejected without a repository call",
+			regulatoryFields: &mmodel.RegulatoryFields{AccountType: strPtr("1")},
+			expectRepoCall:   false,
+			expectedErr:      cn.ErrInvalidInstrumentAccountType,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockHolderRepo := holder.NewMockRepository(ctrl)
+			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+
+			uc := &UseCase{
+				HolderRepo:     mockHolderRepo,
+				InstrumentRepo: mockInstrumentRepo,
+				LedgerAccounts: &stubLedgerAccountReader{ledgerExists: true, accountExists: true},
+			}
+
+			var persisted *mmodel.Instrument
+
+			// With no expectation registered, gomock fails the test on any
+			// unexpected repository call, so the rejection cases prove no write.
+			if tc.expectRepoCall {
+				mockHolderRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Holder{ID: &holderID, Document: &holderDocument}, nil)
+
+				mockInstrumentRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, _ string, i *mmodel.Instrument) (*mmodel.Instrument, error) {
+						persisted = i
+
+						return i, nil
+					})
+			}
+
+			input := &mmodel.CreateInstrumentInput{
+				LedgerID:         ledgerID,
+				AccountID:        accountID,
+				RegulatoryFields: tc.regulatoryFields,
+			}
+
+			result, err := uc.CreateInstrument(context.Background(), uuid.Must(libCommons.GenerateUUIDv7()).String(), holderID, input)
+
+			if tc.expectedErr != nil {
+				require.Error(t, err)
+				assert.Nil(t, result)
+
+				var validationErr pkg.ValidationError
+				require.True(t, errors.As(err, &validationErr), "rejection must be a ValidationError, got %T", err)
+				assert.Equal(t, tc.expectedErr.Error(), validationErr.Code)
+				assert.Equal(t, cn.EntityInstrument, validationErr.EntityType)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, persisted)
+			require.NotNil(t, persisted.RegulatoryFields)
+			assert.Equal(t, tc.expectedAccountType, persisted.RegulatoryFields.AccountType)
+			assert.Equal(t, tc.regulatoryFields.ParticipantDocument, persisted.RegulatoryFields.ParticipantDocument)
+
+			if tc.regulatoryFields.AccountType != nil && persisted.RegulatoryFields.AccountType != nil {
+				assert.NotSame(t, tc.regulatoryFields.AccountType, persisted.RegulatoryFields.AccountType,
+					"the entity must carry the normalized pointer, not the raw input pointer")
+			}
+		})
+	}
+}
+
+func TestCreateInstrument_InvalidAccountTypeIsBusinessSpanEvent(t *testing.T) {
+	ctx, recorder := recordingContext()
+
+	uc := &UseCase{}
+	invalid := "CHECKING"
+
+	_, err := uc.CreateInstrument(ctx, uuid.Must(libCommons.GenerateUUIDv7()).String(), uuid.Must(libCommons.GenerateUUIDv7()), &mmodel.CreateInstrumentInput{
+		LedgerID:         uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		AccountID:        uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		RegulatoryFields: &mmodel.RegulatoryFields{AccountType: &invalid},
+	})
+	require.Error(t, err)
+
+	span := findSpan(t, recorder, "service.create_instrument")
+
+	assert.Equal(t, codes.Unset, span.Status().Code,
+		"an invalid account type is a business failure and must leave the span status UNSET")
+	assert.True(t, hasEvent(span, "Failed to validate instrument account type"),
+		"the rejection must be recorded as a business event on the use-case span")
 }

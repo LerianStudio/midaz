@@ -476,6 +476,152 @@ func TestIntegration_AliasRepo_Update_FieldsToRemove(t *testing.T) {
 	assert.False(t, hasKey1, "key1 should be removed")
 }
 
+// findRawInstrument reads the stored document as raw BSON so assertions see exactly what was
+// persisted, before any decryption or entity mapping.
+func findRawInstrument(t *testing.T, container *mongotestutil.ContainerResult, organizationID string, id uuid.UUID) bson.Raw {
+	t.Helper()
+
+	collName := strings.ToLower("aliases_" + organizationID)
+
+	raw, err := container.Database.Collection(collName).FindOne(context.Background(), bson.M{"_id": id}).Raw()
+	require.NoError(t, err)
+
+	return raw
+}
+
+func TestIntegration_AliasRepo_Create_AccountTypePlaintext(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+	organizationID := "org-accttype-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
+	holderID := uuid.New()
+	participantDoc := "12345678912345"
+
+	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-accttype-1", "12312312399")
+	alias.RegulatoryFields = &mmodel.RegulatoryFields{
+		ParticipantDocument: testutils.Ptr(participantDoc),
+		AccountType:         testutils.Ptr("SAVINGS"),
+	}
+
+	// Act
+	created, err := repo.Create(ctx, organizationID, alias)
+	require.NoError(t, err)
+
+	result, err := repo.Find(ctx, organizationID, holderID, *alias.ID, false)
+
+	// Assert - entity values
+	require.NoError(t, err)
+	require.NotNil(t, created.RegulatoryFields)
+	assert.Equal(t, "SAVINGS", *created.RegulatoryFields.AccountType)
+	require.NotNil(t, result.RegulatoryFields)
+	require.NotNil(t, result.RegulatoryFields.AccountType)
+	assert.Equal(t, "SAVINGS", *result.RegulatoryFields.AccountType)
+	assert.Equal(t, participantDoc, *result.RegulatoryFields.ParticipantDocument)
+
+	// Assert - storage: account_type in plaintext, participant_document encrypted
+	raw := findRawInstrument(t, container, organizationID, *alias.ID)
+
+	storedAccountType, ok := raw.Lookup("regulatory_fields", "account_type").StringValueOK()
+	require.True(t, ok, "regulatory_fields.account_type should be stored as a string")
+	assert.Equal(t, "SAVINGS", storedAccountType, "account_type should be stored in plaintext")
+
+	storedParticipantDoc, ok := raw.Lookup("regulatory_fields", "participant_document").StringValueOK()
+	require.True(t, ok, "regulatory_fields.participant_document should be stored as a string")
+	assert.NotEqual(t, participantDoc, storedParticipantDoc, "participant_document should be encrypted in storage")
+
+	_, hasToken := raw.Lookup("search", "regulatory_fields_participant_document").StringValueOK()
+	assert.True(t, hasToken, "participant_document search token should be present")
+
+	_, err = raw.LookupErr("search", "regulatory_fields_account_type")
+	assert.Error(t, err, "account_type must not produce a search token")
+}
+
+func TestIntegration_AliasRepo_Update_AccountTypeSet(t *testing.T) {
+	// Arrange - scenario update-instrument-account-type-set
+	container := mongotestutil.SetupReusableContainer(t)
+	organizationID := "org-accttype-set-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
+	holderID := uuid.New()
+	participantDoc := "12345678912345"
+
+	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-accttype-set-1", "12312312399")
+	alias.RegulatoryFields = &mmodel.RegulatoryFields{
+		ParticipantDocument: testutils.Ptr(participantDoc),
+	}
+	_, err := repo.Create(ctx, organizationID, alias)
+	require.NoError(t, err)
+
+	storedBefore, ok := findRawInstrument(t, container, organizationID, *alias.ID).
+		Lookup("regulatory_fields", "participant_document").StringValueOK()
+	require.True(t, ok)
+
+	// Act
+	result, err := repo.Update(ctx, organizationID, holderID, *alias.ID, &mmodel.Instrument{
+		RegulatoryFields: &mmodel.RegulatoryFields{AccountType: testutils.Ptr("INVESTMENT")},
+	}, nil)
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result.RegulatoryFields)
+	require.NotNil(t, result.RegulatoryFields.AccountType)
+	assert.Equal(t, "INVESTMENT", *result.RegulatoryFields.AccountType)
+	require.NotNil(t, result.RegulatoryFields.ParticipantDocument)
+	assert.Equal(t, participantDoc, *result.RegulatoryFields.ParticipantDocument, "participant_document should be preserved")
+
+	raw := findRawInstrument(t, container, organizationID, *alias.ID)
+
+	storedAccountType, ok := raw.Lookup("regulatory_fields", "account_type").StringValueOK()
+	require.True(t, ok)
+	assert.Equal(t, "INVESTMENT", storedAccountType)
+
+	storedAfter, ok := raw.Lookup("regulatory_fields", "participant_document").StringValueOK()
+	require.True(t, ok)
+	assert.Equal(t, storedBefore, storedAfter, "participant_document ciphertext should be untouched by the account type update")
+}
+
+func TestIntegration_AliasRepo_Update_AccountTypeNullRemoves(t *testing.T) {
+	// Arrange - scenario update-instrument-account-type-null-removes
+	container := mongotestutil.SetupReusableContainer(t)
+	organizationID := "org-accttype-rm-" + uuid.New().String()[:8]
+	repo := createRepository(t, container, organizationID)
+	ctx := context.Background()
+	holderID := uuid.New()
+	participantDoc := "12345678912345"
+
+	alias := mongotestutil.CreateTestInstrumentSimple(t, holderID, "account-accttype-rm-1", "12312312399")
+	alias.RegulatoryFields = &mmodel.RegulatoryFields{
+		ParticipantDocument: testutils.Ptr(participantDoc),
+		AccountType:         testutils.Ptr("PAYMENT"),
+	}
+	_, err := repo.Create(ctx, organizationID, alias)
+	require.NoError(t, err)
+
+	// Act - the handler derives this path from `regulatoryFields.accountType: null`
+	result, err := repo.Update(ctx, organizationID, holderID, *alias.ID, &mmodel.Instrument{
+		RegulatoryFields: &mmodel.RegulatoryFields{},
+	}, []string{"regulatoryFields.accountType"})
+
+	// Assert
+	require.NoError(t, err)
+	require.NotNil(t, result.RegulatoryFields)
+	assert.Nil(t, result.RegulatoryFields.AccountType, "account_type should be removed")
+	require.NotNil(t, result.RegulatoryFields.ParticipantDocument)
+	assert.Equal(t, participantDoc, *result.RegulatoryFields.ParticipantDocument, "participant_document should be preserved")
+
+	raw := findRawInstrument(t, container, organizationID, *alias.ID)
+
+	_, err = raw.LookupErr("regulatory_fields", "account_type")
+	assert.Error(t, err, "regulatory_fields.account_type key should be absent from the document")
+
+	_, ok := raw.Lookup("regulatory_fields", "participant_document").StringValueOK()
+	assert.True(t, ok, "regulatory_fields.participant_document should remain")
+
+	_, ok = raw.Lookup("search", "regulatory_fields_participant_document").StringValueOK()
+	assert.True(t, ok, "participant_document search token should remain")
+}
+
 // ============================================================================
 // Delete Tests
 // ============================================================================

@@ -395,3 +395,117 @@ func TestUpdateInstrumentByID_EmitFailureDoesNotFailRequest(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Empty(t, emitter.Events())
 }
+
+func TestUpdateInstrumentByID_AccountType(t *testing.T) {
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+	participantDoc := "99999999999999"
+
+	strPtr := func(s string) *string { return &s }
+
+	testCases := []struct {
+		name                string
+		input               *mmodel.UpdateInstrumentInput
+		fieldsToRemove      []string
+		expectRepoCall      bool
+		expectedAccountType *string
+		expectNilRegulatory bool
+		expectedErr         error
+	}{
+		{
+			name:                "update-instrument-account-type-set: normalized value reaches the repository",
+			input:               &mmodel.UpdateInstrumentInput{RegulatoryFields: &mmodel.RegulatoryFields{AccountType: strPtr("investment")}},
+			expectRepoCall:      true,
+			expectedAccountType: strPtr("INVESTMENT"),
+		},
+		{
+			name:                "update-instrument-account-type-preserved-when-absent: nil pointer lets the merge-patch keep the stored value",
+			input:               &mmodel.UpdateInstrumentInput{RegulatoryFields: &mmodel.RegulatoryFields{ParticipantDocument: &participantDoc}},
+			expectRepoCall:      true,
+			expectedAccountType: nil,
+		},
+		{
+			name:                "empty account type does not alter the field",
+			input:               &mmodel.UpdateInstrumentInput{RegulatoryFields: &mmodel.RegulatoryFields{AccountType: strPtr("  ")}},
+			expectRepoCall:      true,
+			expectedAccountType: nil,
+		},
+		{
+			name:                "update-instrument-account-type-null-removes: fieldsToRemove reaches the repository untouched",
+			input:               &mmodel.UpdateInstrumentInput{RegulatoryFields: &mmodel.RegulatoryFields{}},
+			fieldsToRemove:      []string{"regulatoryFields.accountType"},
+			expectRepoCall:      true,
+			expectedAccountType: nil,
+		},
+		{
+			name:                "no regulatory fields in the body leaves them nil",
+			input:               &mmodel.UpdateInstrumentInput{Metadata: map[string]any{"k": "v"}},
+			expectRepoCall:      true,
+			expectNilRegulatory: true,
+		},
+		{
+			name:           "update-instrument-account-type-invalid-keeps-state: rejected without a repository call",
+			input:          &mmodel.UpdateInstrumentInput{RegulatoryFields: &mmodel.RegulatoryFields{AccountType: strPtr("INVALID")}},
+			fieldsToRemove: []string{"regulatoryFields.accountType"},
+			expectRepoCall: false,
+			expectedErr:    cn.ErrInvalidInstrumentAccountType,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockInstrumentRepo := instrument.NewMockRepository(ctrl)
+
+			uc := &UseCase{InstrumentRepo: mockInstrumentRepo}
+
+			var (
+				persisted       *mmodel.Instrument
+				receivedRemoval []string
+			)
+
+			// With no expectation registered, gomock fails the test on any
+			// unexpected repository call, so the rejection case proves no write.
+			if tc.expectRepoCall {
+				mockInstrumentRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), holderID, instrumentID, gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, _ string, _, _ uuid.UUID, i *mmodel.Instrument, fieldsToRemove []string) (*mmodel.Instrument, error) {
+						persisted = i
+						receivedRemoval = fieldsToRemove
+
+						return i, nil
+					})
+			}
+
+			result, err := uc.UpdateInstrumentByID(context.Background(), uuid.Must(libCommons.GenerateUUIDv7()).String(), holderID, instrumentID, tc.input, tc.fieldsToRemove)
+
+			if tc.expectedErr != nil {
+				require.Error(t, err)
+				assert.Nil(t, result)
+
+				var validationErr pkg.ValidationError
+				require.True(t, errors.As(err, &validationErr), "rejection must be a ValidationError, got %T", err)
+				assert.Equal(t, tc.expectedErr.Error(), validationErr.Code)
+				assert.Equal(t, cn.EntityInstrument, validationErr.EntityType)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, persisted)
+			assert.Equal(t, tc.fieldsToRemove, receivedRemoval)
+
+			if tc.expectNilRegulatory {
+				assert.Nil(t, persisted.RegulatoryFields)
+
+				return
+			}
+
+			require.NotNil(t, persisted.RegulatoryFields)
+			assert.Equal(t, tc.expectedAccountType, persisted.RegulatoryFields.AccountType)
+			assert.Equal(t, tc.input.RegulatoryFields.ParticipantDocument, persisted.RegulatoryFields.ParticipantDocument)
+		})
+	}
+}

@@ -278,7 +278,7 @@ if err != nil {
 
 **Location:** `pkg/constant/errors.go`
 
-Core errors use 4-digit numeric codes (0001 onward, non-contiguous). CRM-specific errors use a `CRM-` prefix (28 sentinels, CRM-0006 to CRM-0041, non-contiguous):
+Core errors use 4-digit numeric codes (0001 onward, non-contiguous). CRM-specific errors use a `CRM-` prefix (29 sentinels, CRM-0006 to CRM-0042, non-contiguous):
 
 ```go
 var (
@@ -293,6 +293,7 @@ var (
     // CRM-0006 through CRM-0029: holder/instrument validation, relationships, metadata (gaps intentional)
     // CRM-0031 through CRM-0041: field-encryption/keyset family (keyset & registry
     //   not-found/exists/revision-conflict, provisioning/encryption/audit failures)
+    // CRM-0042: instrument regulatory account type validation
 )
 ```
 

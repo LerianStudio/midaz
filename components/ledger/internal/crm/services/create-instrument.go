@@ -42,6 +42,16 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 		attribute.String("app.request.holder_id", holderID.String()),
 	)
 
+	var accountType *string
+	if cai.RegulatoryFields != nil {
+		accountType, err = normalizeInstrumentAccountType(cai.RegulatoryFields.AccountType)
+		if err != nil {
+			recordSpanError(span, "Failed to validate instrument account type", err)
+
+			return nil, err
+		}
+	}
+
 	instrumentID, err := libCommons.GenerateUUIDv7()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to generate instrument id", err)
@@ -77,6 +87,7 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID string, 
 	if cai.RegulatoryFields != nil {
 		instrument.RegulatoryFields = &mmodel.RegulatoryFields{
 			ParticipantDocument: cai.RegulatoryFields.ParticipantDocument,
+			AccountType:         accountType,
 		}
 	}
 
