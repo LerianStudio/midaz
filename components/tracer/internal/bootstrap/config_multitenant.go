@@ -32,8 +32,9 @@ const (
 	defaultMultiTenantConnectionsCheckIntervalSec = 30
 )
 
-// ApplyMultiTenantDefaults fills in canonical default values for any MULTI_TENANT_*
-// or ApplicationName field left at its zero value after libCommons.SetConfigFromEnvVars.
+// ApplyMultiTenantDefaults fills in canonical default values for any MULTI_TENANT_*,
+// ApplicationName or OtelServiceName field left at its zero value after
+// libCommons.SetConfigFromEnvVars.
 //
 // This exists because lib-commons v4 intentionally does not read `envDefault`
 // struct tags — it only populates fields from the `env` tag, falling back to
@@ -46,6 +47,12 @@ func ApplyMultiTenantDefaults(cfg *Config) {
 
 	if cfg.ApplicationName == "" {
 		cfg.ApplicationName = "tracer"
+	}
+
+	// OtelServiceName defaults to the roster name so /version, the OTel resource
+	// and the streaming manifest name the same process even with no OTEL_* env.
+	if cfg.OtelServiceName == "" {
+		cfg.OtelServiceName = streamingServiceName
 	}
 
 	if cfg.MultiTenantRedisPort == "" {

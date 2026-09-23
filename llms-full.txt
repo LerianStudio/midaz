@@ -608,7 +608,6 @@ are set programmatically by `applyConfigDefaults()`.
 |----------|---------|-------------|
 | APPLICATION_NAME | — | Application identity (tenant-manager service name) |
 | ENV_NAME | development | Environment: development, staging, uat, production, local |
-| VERSION | v4.0.0 | Application version |
 | SERVER_ADDRESS | :3002 | Listen address (single port for all APIs) |
 | LOG_LEVEL | debug | Log level |
 | DEPLOYMENT_MODE | local | Deployment mode (local toggles relaxed TLS posture; also gates the CRM KMS dev root token to `local` only) |
@@ -772,10 +771,11 @@ are set programmatically by `applyConfigDefaults()`.
 |----------|---------|-------------|
 | OTEL_RESOURCE_SERVICE_NAME | ledger | Service name in traces |
 | OTEL_LIBRARY_NAME | — | Instrumentation library name |
-| OTEL_RESOURCE_SERVICE_VERSION | — | Service version in traces |
 | OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT | — | Deployment environment in traces |
 | OTEL_EXPORTER_OTLP_ENDPOINT | http://midaz-otel-lgtm:4317 | OTLP collector endpoint (includes scheme) |
 | ENABLE_TELEMETRY | false | Enable telemetry export |
+
+**There is no version env var.** The release links the identity into each binary (`-X main.version/revision/buildTime`, fed by the CI build args `VERSION`, `REVISION` and `BUILD_TIME`), and that single source feeds `GET /version`, the `version`/`revision`/`buildTime` fields of `/readyz`, the OTel `service.version` and `vcs.ref.head.revision`, the streaming manifest `appVersion` and the overdraft event version. `docker run <image> --version` prints the identity plus the dependency manifest; `GET /version` returns the identity alone. A build without those args reports `dev`/`unknown`.
 
 #### Multi-Tenant
 | Variable | Default | Description |

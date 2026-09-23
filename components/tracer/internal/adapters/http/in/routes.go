@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	problem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -169,6 +170,13 @@ type RoutesDeps struct {
 	PgManager                    *tmpostgres.Manager
 	Supervisor                   WorkerEnsurer
 
+	// ServiceName is the roster identity this process reports as its OTel
+	// service.name; GET /version echoes it so one name identifies the process
+	// across /version, traces and the streaming manifest. Zero value serves an
+	// empty "service" — a build that has not wired it still answers the
+	// identity compiled into the binary.
+	ServiceName string
+
 	// StreamingManifestHandler is the catalog-only lib-streaming manifest
 	// handler built degraded-safe in bootstrap (BuildStreamingManifestHandler).
 	// If nil (build failed, logged at Warn in the composition root), the manifest
@@ -278,7 +286,10 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	// /metrics MUST be mounted BEFORE the /v1 group so Prometheus scrapes
 	// (typically unauthenticated, mesh-internal) are not blocked by AuthGuard.
 	f.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
-	f.Get("/version", Version)
+	// The handler reads the identity linked into the binary, so the body cannot
+	// disagree with what --version prints. deps.ServiceName is the same roster
+	// name the process reports as its OTel service.name.
+	f.Get("/version", buildinfo.Handler(deps.ServiceName))
 
 	// Protected API group (uses /v1/ prefix per API Design v1.3.0)
 	// Auth is handled per-endpoint by AuthGuard based on configuration flags.
@@ -368,7 +379,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 
 	humaAPI := openapi.New(f, api, openapi.Config{
 		Title:   "Midaz Tracer API",
-		Version: os.Getenv("VERSION"),
+		Version: buildinfo.Get().Version,
 		Servers: []string{"/v1"},
 	})
 

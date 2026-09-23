@@ -414,7 +414,7 @@ func (infra *engineWriteBehindHTTPIntegration) newHTTPApp(tenantID string) *fibe
 
 	auth := &authMiddleware.AuthClient{Enabled: false}
 	mountHumaContracts(
-		app, &libLog.GoLogger{}, "test",
+		app, &libLog.GoLogger{},
 		humaContract{prefix: "/v1", mount: func(group fiber.Router, api huma.API) {
 			httpin.RegisterTransactionHumaRoutesToApp(group, api, auth, infra.handler, nil)
 		}},

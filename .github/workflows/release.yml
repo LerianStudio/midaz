@@ -28,6 +28,9 @@ jobs:
     with:
       enable_changelog: ${{ github.ref == 'refs/heads/main' }}
       release_single_app: true
+      # A Dockerfile without ARG REVISION fails the release instead of only
+      # warning: the compiled build identity must not silently regress.
+      require_build_identity: true
       app_name_prefix: "midaz"
       filter_paths: |
         components/ledger
@@ -44,6 +47,7 @@ jobs:
             "path_level": 1,
             "app_name_overrides": "components/ledger/migrations-image:midaz-ledger-migrations",
             "force_full_matrix": true,
+            "require_build_identity": false,
             "shared_paths": "components/ledger/migrations\ncomponents/ledger/migrations-image"
           },
           {
@@ -51,6 +55,7 @@ jobs:
             "path_level": 1,
             "app_name_overrides": "components/tracer/migrations-image:midaz-tracer-migrations",
             "force_full_matrix": true,
+            "require_build_identity": false,
             "shared_paths": "components/tracer/migrations\ncomponents/tracer/migrations-image"
           }
         ]

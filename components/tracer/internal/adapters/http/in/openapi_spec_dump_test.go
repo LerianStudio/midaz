@@ -51,10 +51,11 @@ func buildTracerHumaAPI() huma.API {
 
 	humaAPI := openapi.New(f, api, openapi.Config{
 		Title: "Midaz Tracer API",
-		// Hardcoded (not os.Getenv("VERSION")) so the golden dump is hermetic and
-		// env-independent, matching the ledger dump (contract_spec_routes_test.go).
-		// info.version carries no contract value in an offline golden; a CI job that
-		// exported VERSION would otherwise drift this golden and fail an unrelated PR.
+		// Hardcoded (not buildinfo.Get().Version, which NewRoutes serves) so the
+		// golden dump is hermetic and build-independent, matching the ledger dump
+		// (contract_spec_routes_test.go). info.version carries no contract value in
+		// an offline golden; a stamped build would otherwise drift this golden and
+		// fail an unrelated PR.
 		Version: "4.0.0",
 		Servers: []string{"/v1"},
 	})

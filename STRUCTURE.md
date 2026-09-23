@@ -143,7 +143,7 @@ hash-chained audit log. Ships its own migrations under `./components/tracer/migr
 #### Shared Packages (`./pkg`)
 
 Cross-component Go libraries (root module; non-exhaustive — additional packages such as
-`buildinfo`, `proto`, and `rabbitmq` also live here):
+`proto` and `rabbitmq` also live here):
 
 | Package | Purpose |
 |---------|---------|
