@@ -76,15 +76,7 @@ func InitHolderBackfill() (*HolderBackfillRunner, error) {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
-	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
-		LibraryName:               cfg.OtelLibraryName,
-		ServiceName:               cfg.OtelServiceName,
-		ServiceVersion:            cfg.OtelServiceVersion,
-		DeploymentEnv:             cfg.OtelDeploymentEnv,
-		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
-		EnableTelemetry:           cfg.EnableTelemetry,
-		Logger:                    logger,
-	})
+	telemetry, err := libOpentelemetry.NewTelemetry(telemetryConfig(cfg, logger))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}

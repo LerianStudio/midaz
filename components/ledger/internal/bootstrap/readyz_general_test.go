@@ -194,7 +194,6 @@ func TestRabbitMQChecker_DegradedAffectsGlobalHealth(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       []DependencyChecker{healthyChecker, degradedChecker},
-		Version:        "1.0.0",
 		DeploymentMode: "local",
 	})
 
@@ -233,7 +232,6 @@ func TestReadyzHandler_ConcurrentRequests(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       []DependencyChecker{checker},
-		Version:        "1.0.0",
 		DeploymentMode: "local",
 	})
 
@@ -290,7 +288,6 @@ func TestReadyzHandler_CheckerTimeoutRespected(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       []DependencyChecker{slowCheck},
-		Version:        "1.0.0",
 		DeploymentMode: "local",
 	})
 
@@ -335,7 +332,6 @@ func TestReadyzHandler_RaceConditionSafety(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       []DependencyChecker{checker},
-		Version:        "1.0.0",
 		DeploymentMode: "local",
 	})
 

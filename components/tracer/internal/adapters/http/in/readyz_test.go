@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
@@ -48,7 +49,7 @@ func createReadyzTestApp(hc *HealthChecker) *fiber.App {
 
 // newReadyzCheckerWithDB builds a HealthChecker pre-wired with a sqlmock DB
 // that pings successfully. The returned cleanup must be deferred by the test.
-func newReadyzCheckerWithDB(t *testing.T, version, deploymentMode string) (*HealthChecker, sqlmock.Sqlmock, func()) {
+func newReadyzCheckerWithDB(t *testing.T, deploymentMode string) (*HealthChecker, sqlmock.Sqlmock, func()) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
@@ -59,7 +60,7 @@ func newReadyzCheckerWithDB(t *testing.T, version, deploymentMode string) (*Heal
 	provider.EXPECT().IsConnected().Return(true).AnyTimes()
 	provider.EXPECT().GetDB(gomock.Any()).Return(db, nil).AnyTimes()
 
-	hc := NewTestableHealthCheckerWithMeta(provider, version, deploymentMode)
+	hc := NewTestableHealthCheckerWithMeta(provider, deploymentMode)
 
 	cleanup := func() {
 		// Register the close expectation AFTER the test has run so the
@@ -87,7 +88,7 @@ func newReadyzCheckerWithDB(t *testing.T, version, deploymentMode string) (*Heal
 func TestReadyzHandler_AllUp_Returns200WithHealthyShape(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	hc, mock, cleanup := newReadyzCheckerWithDB(t, "1.2.3", "saas")
+	hc, mock, cleanup := newReadyzCheckerWithDB(t, "saas")
 	defer cleanup()
 
 	mock.ExpectPing()
@@ -114,7 +115,9 @@ func TestReadyzHandler_AllUp_Returns200WithHealthyShape(t *testing.T) {
 	require.NoError(t, json.Unmarshal(body, &response))
 
 	assert.Equal(t, "healthy", response.Status)
-	assert.Equal(t, "1.2.3", response.Version)
+	assert.Equal(t, buildinfo.Get().Version, response.Version)
+	assert.Equal(t, buildinfo.Get().Revision, response.Revision)
+	assert.Equal(t, buildinfo.Get().BuildTime, response.BuildTime)
 	assert.Equal(t, "saas", response.DeploymentMode)
 	assert.False(t, response.Draining, "draining must be false (and omitted from JSON) in normal operation")
 
@@ -176,7 +179,7 @@ func TestReadyzHandler_PostgresDown_Returns503WithDownStatus(t *testing.T) {
 	provider := NewMockPostgresDBProvider(ctrl)
 	provider.EXPECT().IsConnected().Return(false)
 
-	hc := NewTestableHealthCheckerWithMeta(provider, "1.2.3", "local")
+	hc := NewTestableHealthCheckerWithMeta(provider, "local")
 	hc.SetCacheHealthProvider(&mockCacheHealth{ready: true, staleness: time.Second, size: 1})
 
 	app := createReadyzTestApp(hc)
@@ -207,7 +210,7 @@ func TestReadyzHandler_PostgresDown_Returns503WithDownStatus(t *testing.T) {
 func TestReadyzHandler_RuleCacheStale_Returns503WithDegradedStatus(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	hc, mock, cleanup := newReadyzCheckerWithDB(t, "1.0.0", "local")
+	hc, mock, cleanup := newReadyzCheckerWithDB(t, "local")
 	defer cleanup()
 
 	mock.ExpectPing()
@@ -250,7 +253,7 @@ func TestReadyzHandler_RuleCacheStale_Returns503WithDegradedStatus(t *testing.T)
 func TestReadyzHandler_Draining_Returns503EvenIfAllDepsUp(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	hc, mock, cleanup := newReadyzCheckerWithDB(t, "1.0.0", "local")
+	hc, mock, cleanup := newReadyzCheckerWithDB(t, "local")
 	defer cleanup()
 
 	// Probes still run during drain — per-dep timeouts bound the work and
@@ -292,18 +295,20 @@ func TestReadyzHandler_Draining_Returns503EvenIfAllDepsUp(t *testing.T) {
 	require.True(t, ok, "rule_cache check must be present during drain")
 	assert.Equal(t, StatusUp, rc.Status, "rule_cache probe still ran and reported up")
 
-	assert.Equal(t, "1.0.0", response.Version, "version must be echoed during drain")
+	assert.Equal(t, buildinfo.Get().Version, response.Version, "version must be echoed during drain")
+	assert.Equal(t, buildinfo.Get().Revision, response.Revision, "revision must be echoed during drain")
+	assert.Equal(t, buildinfo.Get().BuildTime, response.BuildTime, "buildTime must be echoed during drain")
 	assert.Equal(t, "local", response.DeploymentMode, "deployment_mode must be echoed during drain")
 }
 
-// TestReadyzHandler_VersionAndDeploymentMode_PresentInResponse asserts that
-// the version + deployment_mode fields are sourced from the HealthChecker's
-// configuration (i.e. cfg.OtelServiceVersion + cfg.DeploymentMode at
-// bootstrap time), not hardcoded.
-func TestReadyzHandler_VersionAndDeploymentMode_PresentInResponse(t *testing.T) {
+// TestReadyzHandler_BuildIdentityAndDeploymentMode_PresentInResponse asserts
+// that the three identity fields come from the identity linked into the
+// binary (buildinfo) and deployment_mode from the HealthChecker's
+// configuration, not hardcoded.
+func TestReadyzHandler_BuildIdentityAndDeploymentMode_PresentInResponse(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	hc, mock, cleanup := newReadyzCheckerWithDB(t, "9.9.9-rc1", "byoc")
+	hc, mock, cleanup := newReadyzCheckerWithDB(t, "byoc")
 	defer cleanup()
 
 	mock.ExpectPing()
@@ -322,7 +327,9 @@ func TestReadyzHandler_VersionAndDeploymentMode_PresentInResponse(t *testing.T) 
 	var response api.ReadyzResponse
 	require.NoError(t, json.Unmarshal(body, &response))
 
-	assert.Equal(t, "9.9.9-rc1", response.Version)
+	assert.Equal(t, buildinfo.Get().Version, response.Version)
+	assert.Equal(t, buildinfo.Get().Revision, response.Revision)
+	assert.Equal(t, buildinfo.Get().BuildTime, response.BuildTime)
 	assert.Equal(t, "byoc", response.DeploymentMode)
 }
 
@@ -357,7 +364,7 @@ func TestReadyzHandler_AggregationRule_AnyDownOrDegradedReturns503(t *testing.T)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hc, mock, cleanup := newReadyzCheckerWithDB(t, "1.0.0", "saas")
+			hc, mock, cleanup := newReadyzCheckerWithDB(t, "saas")
 			defer cleanup()
 
 			tt.setup(hc, mock)
@@ -387,7 +394,7 @@ func TestReadyzHandler_AggregationRule_AnyDownOrDegradedReturns503(t *testing.T)
 func TestReadyzHandler_AggregationRule_AllUpIsHealthy(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	hc, mock, cleanup := newReadyzCheckerWithDB(t, "1.0.0", "saas")
+	hc, mock, cleanup := newReadyzCheckerWithDB(t, "saas")
 	defer cleanup()
 
 	mock.ExpectPing()
@@ -421,7 +428,7 @@ func TestReadyzHandler_AggregationRule_AllUpIsHealthy(t *testing.T) {
 func TestReadyzHandler_TLSField_OmittedForRuleCache(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	hc, mock, cleanup := newReadyzCheckerWithDB(t, "1.0.0", "saas")
+	hc, mock, cleanup := newReadyzCheckerWithDB(t, "saas")
 	defer cleanup()
 
 	mock.ExpectPing()
@@ -459,7 +466,7 @@ func TestReadyzHandler_TLSField_OmittedForRuleCache(t *testing.T) {
 func TestReadyzHandler_TLSDetectorParseError_OmitsTLSField(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	hc, mock, cleanup := newReadyzCheckerWithDB(t, "1.0.0", "saas")
+	hc, mock, cleanup := newReadyzCheckerWithDB(t, "saas")
 	defer cleanup()
 
 	mock.ExpectPing()
@@ -719,7 +726,7 @@ func TestReadyzHandler_ProbesRunInParallel(t *testing.T) {
 		}).AnyTimes()
 	cacheHealth.EXPECT().Staleness(gomock.Any()).Return(time.Second).AnyTimes()
 
-	hc := NewTestableHealthCheckerWithMeta(dbProvider, "1.0.0", "saas")
+	hc := NewTestableHealthCheckerWithMeta(dbProvider, "saas")
 	hc.SetCacheHealthProvider(cacheHealth)
 
 	app := createReadyzTestApp(hc)
@@ -787,7 +794,7 @@ func TestReadyzHandler_ProbesRunInParallel(t *testing.T) {
 func TestReadyzHandler_MultiTenant_SkipsRuleCacheProbe(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	hc, mock, cleanup := newReadyzCheckerWithDB(t, "1.2.3", "saas")
+	hc, mock, cleanup := newReadyzCheckerWithDB(t, "saas")
 	defer cleanup()
 
 	mock.ExpectPing()
@@ -841,7 +848,7 @@ func TestReadyzHandler_MultiTenant_SkipsRuleCacheProbe(t *testing.T) {
 func TestReadyzHandler_MultiTenant_PostgresStillProbed(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	hc, mock, cleanup := newReadyzCheckerWithDB(t, "1.2.3", "saas")
+	hc, mock, cleanup := newReadyzCheckerWithDB(t, "saas")
 	defer cleanup()
 
 	// Postgres ping fails: the postgres lane MUST still flip the aggregate
@@ -879,7 +886,7 @@ func TestReadyzHandler_MultiTenant_PostgresStillProbed(t *testing.T) {
 func TestHealthChecker_SetCacheStalenessThreshold_Override(t *testing.T) {
 	testutil.SetupTestTracing(t)
 
-	hc, mock, cleanup := newReadyzCheckerWithDB(t, "1.2.3", "local")
+	hc, mock, cleanup := newReadyzCheckerWithDB(t, "local")
 	defer cleanup()
 
 	hc.SetCacheStalenessThreshold(1 * time.Second)
@@ -1194,7 +1201,7 @@ func wireFiveCheckHandler(t *testing.T, redisStatus error, tmStatus, streamStatu
 	stream := NewMockStreamingHealthProber(ctrl)
 	stream.EXPECT().Probe(gomock.Any()).Return(streamStatus, nil).AnyTimes()
 
-	hc := NewTestableHealthCheckerWithMeta(provider, "1.2.3", "saas")
+	hc := NewTestableHealthCheckerWithMeta(provider, "saas")
 	hc.SetMultiTenantEnabled(true)
 	hc.SetCacheHealthProvider(&mockCacheHealth{ready: true, staleness: time.Second, size: 1})
 	hc.SetRedisPinger(redis)
@@ -1377,7 +1384,7 @@ func TestReadyzHandler_PostgresDown_StillGatesWithAdvisoryStreaming(t *testing.T
 	stream := NewMockStreamingHealthProber(ctrl)
 	stream.EXPECT().Probe(gomock.Any()).Return(StatusUp, nil).AnyTimes()
 
-	hc := NewTestableHealthCheckerWithMeta(provider, "1.2.3", "saas")
+	hc := NewTestableHealthCheckerWithMeta(provider, "saas")
 	hc.SetMultiTenantEnabled(true)
 	hc.SetCacheHealthProvider(&mockCacheHealth{ready: true, staleness: time.Second, size: 1})
 	hc.SetRedisPinger(redis)
