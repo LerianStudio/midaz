@@ -189,7 +189,7 @@ migrations/seeds/        — Development seed data
 ## Configuration
 
 ### Environment Variables
-Application: SERVER_PORT (4020), SERVER_ADDRESS, LOG_LEVEL, VERSION
+Application: SERVER_PORT (4020), SERVER_ADDRESS, LOG_LEVEL
 Database: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_PORT, DB_SSL_MODE, MIGRATIONS_PATH
 Auth: API_KEY, API_KEY_ENABLED, API_KEY_ENABLED_ONLY_VALIDATION, PLUGIN_AUTH_ADDRESS, PLUGIN_AUTH_ENABLED
 CORS: CORS_ALLOWED_ORIGINS
@@ -200,6 +200,8 @@ Cleanup Worker: CLEANUP_WORKER_ENABLED (false), CLEANUP_INTERVAL_HOURS (24), CLE
 Rule Sync: RULE_SYNC_POLL_INTERVAL_SECONDS (10), RULE_SYNC_STALENESS_THRESHOLD_SECONDS (50), RULE_SYNC_OVERLAP_BUFFER_SECONDS (2)
 Multi-Tenancy: MULTI_TENANT_ENABLED (false; when true, tracer resolves per-tenant Postgres pools), MULTI_TENANT_URL, MULTI_TENANT_SERVICE_API_KEY, MULTI_TENANT_ALLOW_INSECURE_HTTP (false), MULTI_TENANT_REDIS_HOST/PORT/PASSWORD/TLS, MULTI_TENANT_MAX_TENANT_POOLS (100), MULTI_TENANT_MAX_OPEN_CONNS_PER_TENANT, MULTI_TENANT_IDLE_TIMEOUT_SEC (300), MULTI_TENANT_TIMEOUT (30), MULTI_TENANT_CIRCUIT_BREAKER_THRESHOLD (5), MULTI_TENANT_CIRCUIT_BREAKER_TIMEOUT_SEC (30), MULTI_TENANT_CACHE_TTL_SEC (120), MULTI_TENANT_CONNECTIONS_CHECK_INTERVAL_SEC (30). Wiring lives in internal/bootstrap/config_multitenant*.go and tenant_listener_app.go.
 Testing: MOCK_TIME (RFC3339, read once at boot for deterministic time in integration tests)
+
+There is no version env var: the identity is linked into the binary (`-X main.version/revision/buildTime`, from the CI build args `VERSION`, `REVISION`, `BUILD_TIME`) and feeds `GET /version`, the `version`/`revision`/`buildTime` of `/readyz` and the OTel `service.version` / `vcs.ref.head.revision`. A build without those args reports `dev`/`unknown`.
 
 ### Docker Compose Services
 The component `docker-compose.yml` declares only the `tracer` app service (container `midaz-tracer`, built from `Dockerfile.dev` with build context `../../`, the monorepo root) and joins the shared external `infra-network`. PostgreSQL and other shared infra come from `components/infra/docker-compose.yml` (`postgres:17`), not from this compose — there is no standalone `tracer-postgres`.
