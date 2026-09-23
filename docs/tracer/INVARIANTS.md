@@ -107,6 +107,15 @@ the orchestrator must account for returned actual cost across rules. Cached
 programs cannot be reused across adapters with different environments or bounds.
 Execution errors expose stable categories without expression literals or keys.
 
+`ContextPolicyEvaluator` compiles complete policy revisions before evaluation,
+validates an explicit ALLOW/DENY default and rejects excess or invalid rules
+without truncation. It evaluates every rule with one request-wide remaining
+budget and returns policy/rule revisions in deterministic order. A matching
+rule never masks an error from another rule. No decision is returned on failure.
+The result covers rules only: authenticated policy resolution, limit precedence,
+durable decisions and the reservation lifecycle still belong to the enclosing
+use case. These components do not activate the new contract on their own.
+
 ### Evaluation semantics
 
 - **No priority-based evaluation.** All active rules are evaluated; `DENY` takes precedence in
