@@ -37,7 +37,7 @@ func newSingleDocServer(t *testing.T) *UnifiedServer {
 		httpin.RegisterTransactionV2RoutesToApp(group, api, auth, &httpin.TransactionHandler{}, nil)
 	}
 
-	server := NewUnifiedServer(":0", "test-version", logger, telemetry, nil, v1Mount, v2Mount)
+	server := NewUnifiedServer(":0", "ledger", logger, telemetry, nil, v1Mount, v2Mount)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")
 

@@ -43,7 +43,7 @@ func newV2DirectServer(t *testing.T, auth *middleware.AuthClient) *UnifiedServer
 		httpin.RegisterTransactionV2RoutesToApp(group, api, auth, &httpin.TransactionHandler{}, nil)
 	}
 
-	server := NewUnifiedServer(":0", "test-version", logger, telemetry, nil, nil, humaMountV2)
+	server := NewUnifiedServer(":0", "ledger", logger, telemetry, nil, nil, humaMountV2)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")
 
@@ -60,7 +60,7 @@ func newNoContractServer(t *testing.T) *UnifiedServer {
 	logger := newTestLogger()
 	telemetry := &libOpentelemetry.Telemetry{}
 
-	server := NewUnifiedServer(":0", "test-version", logger, telemetry, nil, nil, nil)
+	server := NewUnifiedServer(":0", "ledger", logger, telemetry, nil, nil, nil)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")
 

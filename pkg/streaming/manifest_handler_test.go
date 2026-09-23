@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/stretchr/testify/require"
 
@@ -25,6 +26,7 @@ type manifestEnvelope struct {
 	Publisher struct {
 		ServiceName string `json:"serviceName"`
 		Source      string `json:"source"`
+		AppVersion  string `json:"appVersion"`
 	} `json:"publisher"`
 	Topic         string `json:"topic"`
 	DLQTopic      string `json:"dlqTopic"`
@@ -94,6 +96,8 @@ func TestNewManifestHandler_AdvertisesApplicationTopic(t *testing.T) {
 				"publisher source must be the ce-source the emitter publishes under")
 			require.Equal(t, source, doc.Publisher.ServiceName,
 				"publisher serviceName must carry the roster identity")
+			require.Equal(t, buildinfo.Get().Version, doc.Publisher.AppVersion,
+				"publisher appVersion must be the identity compiled into the binary")
 			require.Equal(t, wantTopic, doc.Topic,
 				"manifest must advertise the application topic derived from the source")
 			require.Equal(t, wantDLQ, doc.DLQTopic,

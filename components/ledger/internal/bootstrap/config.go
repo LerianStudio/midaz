@@ -1172,7 +1172,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	unifiedServer := NewUnifiedServer(
 		cfg.ServerAddress,
-		cfg.Version,
+		cfg.OtelServiceName,
 		logger,
 		telemetry,
 		readyzHandler,
@@ -2078,6 +2078,12 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
 	intDefault(&cfg.BalanceSyncTTLKeepaliveIntervalMs, defaultKeepaliveIntervalMs)
+
+	// OtelServiceName defaults to the roster name so /version, the OTel resource
+	// and the streaming manifest name the same process even with no OTEL_* env.
+	if cfg.OtelServiceName == "" {
+		cfg.OtelServiceName = streamingServiceName
+	}
 }
 
 func validateTransactionBatchConfig(cfg *Config) error {
