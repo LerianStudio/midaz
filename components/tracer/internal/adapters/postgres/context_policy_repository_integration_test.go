@@ -243,3 +243,37 @@ func TestIntegrationContextPolicyCompletenessAndEmptyDefault(t *testing.T) {
 	_, err = db.ExecContext(ctx, "INSERT INTO evaluation_policy_rules VALUES ($1, $2, $3, $4)", policy.ID, policy.Revision, rule.ID, rule.Revision)
 	require.Error(t, err, "rules cannot be appended to an already published snapshot")
 }
+
+func TestIntegrationContextPolicyRevisionRead(t *testing.T) {
+	db := contextPolicyDatabase(t, "revision")
+	ctx := context.Background()
+	repo, err := NewContextPolicyRepository(&testutil.IntegrationDBAdapter{DB: db}, 10)
+	require.NoError(t, err)
+	policy := storedContextPolicy()
+	ref := model.PolicyRevision{ID: policy.ID, Revision: policy.Revision}
+	_, err = repo.GetRevision(ctx, ref)
+	require.ErrorIs(t, err, constant.ErrContextPolicyUnavailable)
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error { return repo.PublishWithTx(ctx, tx, policy, "operator", testutil.FixedTime()) }))
+	selected, err := repo.GetRevision(ctx, ref)
+	require.NoError(t, err)
+	require.Equal(t, ref.ID, selected.ID)
+	require.Equal(t, ref.Revision, selected.Revision)
+	require.Len(t, selected.Rules, 2)
+	require.Equal(t, policy.Rules[1], selected.Rules[0])
+	limited, err := NewContextPolicyRepository(&testutil.IntegrationDBAdapter{DB: db}, 1)
+	require.NoError(t, err)
+	_, err = limited.GetRevision(ctx, ref)
+	require.ErrorIs(t, err, constant.ErrContextPolicyUnavailable)
+	other, err := NewContextPolicyRepository(&testutil.IntegrationDBAdapter{DB: contextPolicyDatabase(t, "other-revision")}, 10)
+	require.NoError(t, err)
+	_, err = other.GetRevision(ctx, ref)
+	require.ErrorIs(t, err, constant.ErrContextPolicyUnavailable, "a revision is never loaded from another tenant")
+	empty := policy
+	empty.Revision++
+	empty.Rules = nil
+	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error { return repo.PublishWithTx(ctx, tx, empty, "operator", testutil.FixedTime()) }))
+	selected, err = repo.GetRevision(ctx, model.PolicyRevision{ID: empty.ID, Revision: empty.Revision})
+	require.NoError(t, err)
+	require.Empty(t, selected.Rules)
+	require.Equal(t, model.DecisionDeny, selected.DefaultDecision)
+}

@@ -66,11 +66,11 @@ func (c *PublishContextPolicyCommand) Execute(ctx context.Context, policy model.
 
 	ctx, span := tracer.Start(ctx, "command.publish_context_policy")
 	defer span.End()
-	defer func() { recordPolicyPublicationError(span, retErr) }()
+	defer func() { recordPolicyAdministrationError(span, retErr) }()
 
 	logger = logging.WithTrace(ctx, logger)
 
-	actor, err := policyPublicationActor(ctx)
+	actor, err := policyAdministrationActor(ctx)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (c *PublishContextPolicyCommand) Execute(ctx context.Context, policy model.
 	return nil
 }
 
-func policyPublicationActor(ctx context.Context) (model.Actor, error) {
+func policyAdministrationActor(ctx context.Context) (model.Actor, error) {
 	principal, ok := contextutil.GetPrincipal(ctx)
 	if !ok || strings.TrimSpace(principal.ID) == "" {
 		return model.Actor{}, constant.ErrAuditEventActorIDRequired
@@ -137,7 +137,7 @@ func policyPublicationActor(ctx context.Context) (model.Actor, error) {
 	return actor, nil
 }
 
-func recordPolicyPublicationError(span trace.Span, err error) {
+func recordPolicyAdministrationError(span trace.Span, err error) {
 	if err == nil {
 		return
 	}
@@ -149,10 +149,10 @@ func recordPolicyPublicationError(span trace.Span, err error) {
 
 	for cause := classified; cause != nil; cause = errors.Unwrap(cause) {
 		if pkg.IsBusinessError(pkg.ValidateBusinessError(cause, constant.EntityRule)) {
-			libOtel.HandleSpanBusinessErrorEvent(span, "policy publication rejected", err)
+			libOtel.HandleSpanBusinessErrorEvent(span, "policy administration rejected", err)
 			return
 		}
 	}
 
-	libOtel.HandleSpanError(span, "policy publication failed", err)
+	libOtel.HandleSpanError(span, "policy administration failed", err)
 }

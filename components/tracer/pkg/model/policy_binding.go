@@ -27,6 +27,13 @@ type PolicyRevision struct {
 	Revision int64
 }
 
+// PolicyBindingState is the revision and optimistic version of an exact binding.
+// A nil state from an administration read means that no binding exists yet.
+type PolicyBindingState struct {
+	Policy  PolicyRevision
+	Version int64
+}
+
 // BoundContextPolicy captures both the selected immutable policy and the
 // binding's monotonic version. Rebinding to an older policy still advances this
 // version, so an old administrator cannot overwrite an intervening activation.
