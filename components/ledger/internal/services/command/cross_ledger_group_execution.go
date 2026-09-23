@@ -17,7 +17,7 @@ import (
 // buildCrossLedgerGroupExecution combines independently prepared lifecycle and
 // create fragments under one execution identity and one intent fingerprint.
 //
-//nolint:gocyclo // exhaustive fragment validation protects the single mixed-execution boundary
+//nolint:gocyclo,gocognit // exhaustive fragment validation protects the single mixed-execution boundary
 func buildCrossLedgerGroupExecution(
 	organizationID, ledgerID, groupID, executionID uuid.UUID,
 	fragments []PreparedEngineExecution,
@@ -96,6 +96,30 @@ func buildCrossLedgerGroupExecution(
 
 	if len(prepared.CompletionPlans) > maxPreparedEngineTransactions {
 		return PreparedEngineExecution{}, errors.New("cross-ledger group execution exceeds transaction cardinality")
+	}
+
+	refs := make([]atomicTransactionBatchLedgerRef, 0, len(prepared.CompletionPlans))
+	for _, plan := range prepared.CompletionPlans {
+		refs = append(refs, atomicTransactionBatchLedgerRef{organizationID: plan.OrganizationID, ledgerID: plan.LedgerID})
+	}
+
+	coordinationOrganizationID, coordinationLedgerID := atomicTransactionBatchCoordinationScope(refs)
+	multiScope := false
+
+	for _, ref := range refs[1:] {
+		if ref != refs[0] {
+			multiScope = true
+			break
+		}
+	}
+
+	if multiScope {
+		for index := range prepared.CompletionPlans {
+			prepared.CompletionPlans[index].CoordinationOrganizationID = &coordinationOrganizationID
+			prepared.CompletionPlans[index].CoordinationLedgerID = &coordinationLedgerID
+			prepared.CompletionPlans[index].ReceiptOrganizationID = &organizationID
+			prepared.CompletionPlans[index].ReceiptLedgerID = &ledgerID
+		}
 	}
 
 	intent := EngineIntent{

@@ -142,7 +142,9 @@ revert, commit, or cancel that reaches the engine:
    only after SQL and frozen metadata are confirmed. Multi-scope completion groups
    projections by each transaction's organization and ledger; recovery preserves
    those frozen per-transaction scopes and never re-derives them from the primary
-   execution scope.
+   execution scope. Multi-scope batch recovery records also carry the
+   idempotency coordination scope and the primary receipt scope. Older records
+   without these optional fields continue to use their original scope.
 10. After validating a durable outcome, the completion path asks
    `EngineRecoveryAcknowledger` to read the exact raw version-2 record, validate
    that it represents the completed execution, and run the protected

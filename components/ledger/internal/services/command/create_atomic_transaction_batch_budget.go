@@ -206,6 +206,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchCompletionPlans(
 			ExpectedToken: "",
 			NextToken:     item.status,
 		}
+
 		item.completionPlan = TransactionCompletionPlan{
 			FormatVersion:        TransactionCompletionFormatVersion,
 			TenantID:             intent.TenantID,
@@ -229,6 +230,13 @@ func (uc *UseCase) prepareAtomicTransactionBatchCompletionPlans(
 			OperationUpdatedAt:   item.operationUpdatedAt,
 			OperationSpecs:       item.prepared.projection,
 		}
+		if run.multiScope {
+			item.completionPlan.CoordinationOrganizationID = &run.coordinationOrganizationID
+			item.completionPlan.CoordinationLedgerID = &run.coordinationLedgerID
+			item.completionPlan.ReceiptOrganizationID = &run.organizationID
+			item.completionPlan.ReceiptLedgerID = &run.ledgerID
+		}
+
 		intent.Transactions[index] = transactionCompletionIntent(item.prepared.transaction, item.completionPlan)
 	}
 
@@ -335,6 +343,7 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 		}
 
 		result := atomicTransactionBatchBudgetResult(*item)
+
 		recovery := TransactionCompletionRecord{
 			FormatVersion:     TransactionCompletionFormatVersion,
 			TenantID:          item.completionPlan.TenantID,
@@ -345,6 +354,12 @@ func measureAtomicTransactionBatchBudgets(run *atomicTransactionBatchRun) (atomi
 			TransactionID:     item.transactionID,
 			Payload:           string(item.completionPlanPayload),
 			Result:            result,
+		}
+		if run.multiScope {
+			recovery.CoordinationOrganizationID = &run.coordinationOrganizationID
+			recovery.CoordinationLedgerID = &run.coordinationLedgerID
+			recovery.ReceiptOrganizationID = &run.organizationID
+			recovery.ReceiptLedgerID = &run.ledgerID
 		}
 
 		recoveryPayload, err := json.Marshal(TransactionWriteBehindEnvelope{

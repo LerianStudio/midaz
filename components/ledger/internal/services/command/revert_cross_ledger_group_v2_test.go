@@ -62,7 +62,7 @@ func TestBuildCrossLedgerRevertBatchInput_ReversesOrderAndLinksEveryOrigin(t *te
 	assert.Equal(t, newGroupID, *got.GroupID)
 	assert.True(t, got.CrossLedgerGroup)
 	assert.NotEmpty(t, got.IdempotencyKey)
-	assert.Equal(t, crossLedgerRevertIdempotencyKey(organizationID, ledgerA, revertedGroupID), got.IdempotencyKey)
+	assert.Equal(t, crossLedgerRevertIdempotencyKey(revertedGroupID), got.IdempotencyKey)
 	otherMember, err := buildCrossLedgerRevertBatchInput(RevertTransactionInput{
 		OrganizationID: organizationID,
 		LedgerID:       ledgerB,

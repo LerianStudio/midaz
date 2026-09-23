@@ -195,9 +195,11 @@ func (rr *RedisConsumerRepository) GetAtomicTransactionBatchFinalizationCandidat
 		return result, nil
 	}
 
+	receiptOrganizationID, receiptLedgerID := atomicTransactionBatchReceiptScope(*record, organizationID, ledgerID)
+
 	receiptKey, err := tenantKeyFromContextOrError(
 		ctx,
-		atomicTransactionBatchEngineReceiptInternalKey(organizationID, ledgerID),
+		atomicTransactionBatchEngineReceiptInternalKey(receiptOrganizationID, receiptLedgerID),
 	)
 	if err != nil {
 		return nil, err
@@ -225,8 +227,8 @@ func (rr *RedisConsumerRepository) GetAtomicTransactionBatchFinalizationCandidat
 	if err := validateAtomicTransactionBatchReceipt(
 		receipt,
 		*record,
-		organizationID,
-		ledgerID,
+		receiptOrganizationID,
+		receiptLedgerID,
 		executionID,
 		transactionID,
 	); err != nil {
@@ -333,6 +335,8 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 		return result, atomicTransactionBatchIdempotencyConflictError()
 	}
 
+	receiptOrganizationID, receiptLedgerID := atomicTransactionBatchReceiptScope(*record, organizationID, ledgerID)
+
 	next := *record
 	if record.State != AtomicTransactionBatchStateComplete {
 		response, err := buildAtomicTransactionBatchResponse(*record, transactions)
@@ -363,7 +367,7 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 
 	receiptKey, err := tenantKeyFromContextOrError(
 		ctx,
-		atomicTransactionBatchEngineReceiptInternalKey(organizationID, ledgerID),
+		atomicTransactionBatchEngineReceiptInternalKey(receiptOrganizationID, receiptLedgerID),
 	)
 	if err != nil {
 		return nil, err
@@ -382,8 +386,8 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 		executionID.String(),
 		string(payload),
 		strconv.FormatInt(int64(replayTTL), 10),
-		organizationID.String(),
-		ledgerID.String(),
+		receiptOrganizationID.String(),
+		receiptLedgerID.String(),
 	).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to finalize atomic batch", err)
@@ -414,6 +418,17 @@ func (rr *RedisConsumerRepository) FinalizeAtomicTransactionBatch(
 	default:
 		return nil, fmt.Errorf("unsupported atomic transaction batch finalization outcome %q", outcome)
 	}
+}
+
+func atomicTransactionBatchReceiptScope(
+	record AtomicTransactionBatchIdempotencyRecord,
+	organizationID, ledgerID uuid.UUID,
+) (uuid.UUID, uuid.UUID) {
+	if record.ReceiptOrganizationID != nil && record.ReceiptLedgerID != nil {
+		return *record.ReceiptOrganizationID, *record.ReceiptLedgerID
+	}
+
+	return organizationID, ledgerID
 }
 
 func (rr *RedisConsumerRepository) getAtomicTransactionBatchByExecutionID(

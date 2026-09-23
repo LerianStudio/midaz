@@ -22,7 +22,7 @@ func (uc *UseCase) completeAtomicTransactionBatch(
 	run *atomicTransactionBatchRun,
 	outcome EngineExecutionOutcome,
 ) ([]*transaction.Transaction, error) {
-	envelopes, err := atomicTransactionBatchWriteBehindEnvelopes(outcome)
+	envelopes, err := atomicTransactionBatchWriteBehindEnvelopes(outcome, run)
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +181,8 @@ func (uc *UseCase) completeAtomicTransactionBatchFallback(
 	return completions, nil
 }
 
-func atomicTransactionBatchWriteBehindEnvelopes(outcome EngineExecutionOutcome) ([]*TransactionWriteBehindEnvelope, error) {
-	records, err := atomicTransactionBatchCompletionRecords(outcome)
+func atomicTransactionBatchWriteBehindEnvelopes(outcome EngineExecutionOutcome, run *atomicTransactionBatchRun) ([]*TransactionWriteBehindEnvelope, error) {
+	records, err := atomicTransactionBatchCompletionRecords(outcome, run)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +203,7 @@ func atomicTransactionBatchWriteBehindEnvelopes(outcome EngineExecutionOutcome) 
 
 func atomicTransactionBatchCompletionRecords(
 	outcome EngineExecutionOutcome,
+	run *atomicTransactionBatchRun,
 ) ([]*TransactionCompletionRecord, error) {
 	if !outcome.Executed || outcome.Result == nil {
 		return nil, invalidEngineResult(errors.New("successful atomic batch has no engine result"))
@@ -236,6 +237,12 @@ func atomicTransactionBatchCompletionRecords(
 			TransactionID:     plan.TransactionID,
 			Payload:           string(embedded.Payload),
 			Result:            outcome.Partitions[index],
+		}
+		if run != nil && run.multiScope {
+			records[index].CoordinationOrganizationID = &run.coordinationOrganizationID
+			records[index].CoordinationLedgerID = &run.coordinationLedgerID
+			records[index].ReceiptOrganizationID = &run.organizationID
+			records[index].ReceiptLedgerID = &run.ledgerID
 		}
 	}
 

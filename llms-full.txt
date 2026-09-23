@@ -206,6 +206,8 @@ transactions and applies all monetary effects in one all-or-none accounting exec
 It has no path or query parameters; each item must name one organization and ledger through
 its legs, while distinct direct items may use different enabled ledgers. A batch containing
 hold items remains single-ledger. The success wrapper contains transactions in logical order.
+Batch idempotency uses the smallest participating organization/ledger scope; changing
+which ledger appears first does not create another claim for the same key.
 See [the atomic batch contract](docs/api/atomic-transaction-batch.md).
 
 `POST /v2/transactions/direct` also accepts mixed-ledger legs when every participant enables
@@ -225,6 +227,9 @@ reverses the complete cross-ledger group when the selected transaction has a `gr
 validates every member, executes all reversals atomically in reverse part order, and returns
 the new `groupId`, the original `revertedGroupId`, and one parent-linked transaction per part.
 The equivalent `/v1` request rejects a group member with `0252`.
+Concurrent v2 reverts through different group members share one idempotency claim;
+duplicates return `0084` (HTTP 409) or replay the original reversal group. A
+completed second revert returns `0087` (HTTP 409).
 
 Each cross-ledger group operation publishes one `transaction_group.{posted,committed,canceled,reverted}`
 event (ce-subject = group ID, payload lists every materialized part with ledger, `role`

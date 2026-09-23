@@ -79,42 +79,50 @@ type OperationRecordSpec struct {
 // TransactionDate fixes the action/operation creation date. The other timestamps
 // preserve the original transaction creation and separately captured updates.
 type TransactionCompletionPlan struct {
-	FormatVersion        int                      `json:"formatVersion"`
-	TenantID             string                   `json:"tenantId"`
-	HeaderID             string                   `json:"header_id"`
-	TransactionID        uuid.UUID                `json:"transaction_id"`
-	ParentTransactionID  *uuid.UUID               `json:"parentTransactionId"`
-	GroupID              *uuid.UUID               `json:"groupId,omitempty"`
-	FeesSkipped          bool                     `json:"feesSkipped"`
-	TracerSkipped        bool                     `json:"tracerSkipped"`
-	OrganizationID       uuid.UUID                `json:"organization_id"`
-	LedgerID             uuid.UUID                `json:"ledger_id"`
-	ExecutionID          uuid.UUID                `json:"executionId"`
-	IntentFingerprint    string                   `json:"intentFingerprint"`
-	TransactionInput     mtransaction.Transaction `json:"parserDSL"`
-	TTL                  time.Time                `json:"ttl"`
-	Validate             *mtransaction.Responses  `json:"validate"`
-	TransactionStatus    string                   `json:"transaction_status"`
-	Action               string                   `json:"action"`
-	TransactionDate      time.Time                `json:"transaction_date"`
-	TransactionCreatedAt time.Time                `json:"transactionCreatedAt"`
-	TransactionUpdatedAt time.Time                `json:"transactionUpdatedAt"`
-	OperationUpdatedAt   time.Time                `json:"operationUpdatedAt"`
-	OperationSpecs       []OperationRecordSpec    `json:"projection"`
+	FormatVersion              int                      `json:"formatVersion"`
+	TenantID                   string                   `json:"tenantId"`
+	HeaderID                   string                   `json:"header_id"`
+	TransactionID              uuid.UUID                `json:"transaction_id"`
+	ParentTransactionID        *uuid.UUID               `json:"parentTransactionId"`
+	GroupID                    *uuid.UUID               `json:"groupId,omitempty"`
+	FeesSkipped                bool                     `json:"feesSkipped"`
+	TracerSkipped              bool                     `json:"tracerSkipped"`
+	OrganizationID             uuid.UUID                `json:"organization_id"`
+	LedgerID                   uuid.UUID                `json:"ledger_id"`
+	CoordinationOrganizationID *uuid.UUID               `json:"coordinationOrganizationId,omitempty"`
+	CoordinationLedgerID       *uuid.UUID               `json:"coordinationLedgerId,omitempty"`
+	ReceiptOrganizationID      *uuid.UUID               `json:"receiptOrganizationId,omitempty"`
+	ReceiptLedgerID            *uuid.UUID               `json:"receiptLedgerId,omitempty"`
+	ExecutionID                uuid.UUID                `json:"executionId"`
+	IntentFingerprint          string                   `json:"intentFingerprint"`
+	TransactionInput           mtransaction.Transaction `json:"parserDSL"`
+	TTL                        time.Time                `json:"ttl"`
+	Validate                   *mtransaction.Responses  `json:"validate"`
+	TransactionStatus          string                   `json:"transaction_status"`
+	Action                     string                   `json:"action"`
+	TransactionDate            time.Time                `json:"transaction_date"`
+	TransactionCreatedAt       time.Time                `json:"transactionCreatedAt"`
+	TransactionUpdatedAt       time.Time                `json:"transactionUpdatedAt"`
+	OperationUpdatedAt         time.Time                `json:"operationUpdatedAt"`
+	OperationSpecs             []OperationRecordSpec    `json:"projection"`
 }
 
 // TransactionCompletionRecord stores one transaction's actual executed result.
 // Payload is opaque to storage/accounting adapters; command and recovery decode it.
 type TransactionCompletionRecord struct {
-	FormatVersion     int                        `json:"formatVersion"`
-	TenantID          string                     `json:"tenantId"`
-	OrganizationID    uuid.UUID                  `json:"organizationId"`
-	LedgerID          uuid.UUID                  `json:"ledgerId"`
-	ExecutionID       uuid.UUID                  `json:"executionId"`
-	IntentFingerprint string                     `json:"intentFingerprint"`
-	TransactionID     uuid.UUID                  `json:"transactionId"`
-	Payload           string                     `json:"payload"`
-	Result            accounting.ExecutionResult `json:"result"`
+	FormatVersion              int                        `json:"formatVersion"`
+	TenantID                   string                     `json:"tenantId"`
+	OrganizationID             uuid.UUID                  `json:"organizationId"`
+	LedgerID                   uuid.UUID                  `json:"ledgerId"`
+	CoordinationOrganizationID *uuid.UUID                 `json:"coordinationOrganizationId,omitempty"`
+	CoordinationLedgerID       *uuid.UUID                 `json:"coordinationLedgerId,omitempty"`
+	ReceiptOrganizationID      *uuid.UUID                 `json:"receiptOrganizationId,omitempty"`
+	ReceiptLedgerID            *uuid.UUID                 `json:"receiptLedgerId,omitempty"`
+	ExecutionID                uuid.UUID                  `json:"executionId"`
+	IntentFingerprint          string                     `json:"intentFingerprint"`
+	TransactionID              uuid.UUID                  `json:"transactionId"`
+	Payload                    string                     `json:"payload"`
+	Result                     accounting.ExecutionResult `json:"result"`
 }
 
 // EngineTransactionIntent contains only immutable intent, not calculated
@@ -640,9 +648,16 @@ func DecodeTransactionCompletionRecord(data []byte) (*TransactionCompletionRecor
 	return &envelope, nil
 }
 
+//nolint:gocyclo // validation checks independent persisted identity and projection invariants.
 func validateTransactionCompletionPlan(payload TransactionCompletionPlan) error {
 	if payload.FormatVersion != TransactionCompletionFormatVersion || payload.TransactionID == uuid.Nil || payload.OrganizationID == uuid.Nil || payload.LedgerID == uuid.Nil || payload.ExecutionID == uuid.Nil || !validIntentFingerprint(payload.IntentFingerprint) {
 		return invalidTransactionCompletionRecord("invalid payload version or identity")
+	}
+
+	if !validOptionalCompletionScope(payload.CoordinationOrganizationID, payload.CoordinationLedgerID) ||
+		!validOptionalCompletionScope(payload.ReceiptOrganizationID, payload.ReceiptLedgerID) ||
+		(payload.CoordinationOrganizationID == nil) != (payload.ReceiptOrganizationID == nil) {
+		return invalidTransactionCompletionRecord("invalid batch coordination scope")
 	}
 
 	if !validCompletionParent(payload.TransactionID, payload.ParentTransactionID) {
@@ -754,9 +769,38 @@ func validateTransactionCompletionRecord(envelope TransactionCompletionRecord) e
 		return invalidTransactionCompletionRecord("envelope and payload scope mismatch")
 	}
 
+	if !sameOptionalCompletionScope(envelope.CoordinationOrganizationID, envelope.CoordinationLedgerID,
+		payload.CoordinationOrganizationID, payload.CoordinationLedgerID) ||
+		!sameOptionalCompletionScope(envelope.ReceiptOrganizationID, envelope.ReceiptLedgerID,
+			payload.ReceiptOrganizationID, payload.ReceiptLedgerID) {
+		return invalidTransactionCompletionRecord("envelope and payload coordination scope mismatch")
+	}
+
 	_, err = validateOperationMovementResult(*payload, envelope.Result)
 
 	return err
+}
+
+func sameOptionalCompletionScope(
+	firstOrganizationID, firstLedgerID, secondOrganizationID, secondLedgerID *uuid.UUID,
+) bool {
+	if (firstOrganizationID == nil) != (firstLedgerID == nil) ||
+		(secondOrganizationID == nil) != (secondLedgerID == nil) ||
+		(firstOrganizationID == nil) != (secondOrganizationID == nil) {
+		return false
+	}
+
+	if firstOrganizationID == nil {
+		return true
+	}
+
+	return *firstOrganizationID != uuid.Nil && *firstLedgerID != uuid.Nil &&
+		*firstOrganizationID == *secondOrganizationID && *firstLedgerID == *secondLedgerID
+}
+
+func validOptionalCompletionScope(organizationID, ledgerID *uuid.UUID) bool {
+	return (organizationID == nil && ledgerID == nil) ||
+		(organizationID != nil && ledgerID != nil && *organizationID != uuid.Nil && *ledgerID != uuid.Nil)
 }
 
 func validOperationRecordRole(role string) bool {

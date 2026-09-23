@@ -115,8 +115,8 @@ func (uc *UseCase) claimAtomicTransactionBatch(
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.ClaimAtomicTransactionBatch(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		effectiveKey,
 		claim,
 	)
@@ -202,8 +202,8 @@ func (uc *UseCase) abortAtomicTransactionBatchPrePublication(
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.DeleteAtomicTransactionBatchPrePublication(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		run.idempotencyEffectiveKey,
 		run.idempotencyOwnerToken,
 	)

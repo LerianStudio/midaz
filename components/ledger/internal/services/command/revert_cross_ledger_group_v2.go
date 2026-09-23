@@ -290,7 +290,7 @@ func buildCrossLedgerRevertBatchInput(
 		CrossLedgerGroup:   true,
 		CanonicalRequest:   canonical,
 		RequestFingerprint: hex.EncodeToString(fingerprintDigest[:]),
-		IdempotencyKey:     crossLedgerRevertIdempotencyKey(in.OrganizationID, in.LedgerID, revertedGroupID),
+		IdempotencyKey:     crossLedgerRevertIdempotencyKey(revertedGroupID),
 		IdempotencyTTL:     pkgHTTP.ParseIdempotencyTTL(""),
 	}, nil
 }
@@ -374,10 +374,8 @@ func originDependencyReference(
 	}
 }
 
-func crossLedgerRevertIdempotencyKey(
-	organizationID, ledgerID, revertedGroupID uuid.UUID,
-) string {
-	digest := sha256.Sum256([]byte("revert-group:" + revertedGroupID.String()))
-
-	return organizationID.String() + ":" + ledgerID.String() + ":" + hex.EncodeToString(digest[:])
+func crossLedgerRevertIdempotencyKey(revertedGroupID uuid.UUID) string {
+	// The Redis record already has the batch's deterministic coordination scope.
+	// Including the path member here would let two members claim independently.
+	return "revert-group:" + revertedGroupID.String()
 }

@@ -493,6 +493,19 @@ local function prepareExecutionWrites(request, maximumPrepared, preparedProtecti
             payload = transaction.completionPlan,
             result = { movements = recoveryMovements, final = recoveryFinal, appliedAtUnixMicro = numberToken(appliedAtUnixMicro) }
         }
+        local planDecoded, plan = pcall(cjson.decode, transaction.completionPlan)
+        if not planDecoded or type(plan) ~= "table" then technical("invalid_protocol", "invalid completion plan") end
+        if plan.coordinationOrganizationId ~= nil or plan.coordinationLedgerId ~= nil or
+           plan.receiptOrganizationId ~= nil or plan.receiptLedgerId ~= nil then
+            if type(plan.coordinationOrganizationId) ~= "string" or type(plan.coordinationLedgerId) ~= "string" or
+               type(plan.receiptOrganizationId) ~= "string" or type(plan.receiptLedgerId) ~= "string" then
+                technical("invalid_protocol", "incomplete batch coordination scope")
+            end
+            record.coordinationOrganizationId = plan.coordinationOrganizationId
+            record.coordinationLedgerId = plan.coordinationLedgerId
+            record.receiptOrganizationId = plan.receiptOrganizationId
+            record.receiptLedgerId = plan.receiptLedgerId
+        end
         preparedRecoverRecords[#preparedRecoverRecords + 1] = {
             field = transaction.recoveryField,
             value = charge(encodeJSON({

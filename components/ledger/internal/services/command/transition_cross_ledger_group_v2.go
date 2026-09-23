@@ -310,7 +310,7 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 
 	releaseOnPreparationError = false
 
-	transactions, err := uc.completeCrossLedgerGroupTransition(ctx, logger, outcome)
+	transactions, err := uc.completeCrossLedgerGroupTransition(ctx, logger, outcome, idempotencyRun)
 	if err != nil {
 		return nil, err
 	}
@@ -398,7 +398,7 @@ func (uc *UseCase) claimCrossLedgerGroupTransition(
 		return nil, nil, errors.New("cross-ledger group lifecycle idempotency repository is not configured")
 	}
 
-	if group == nil || group.ID == uuid.Nil || group.OrganizationID == uuid.Nil || group.LedgerID == uuid.Nil || executionID == uuid.Nil {
+	if group == nil || group.ID == uuid.Nil || group.OrganizationID == uuid.Nil || group.LedgerID == uuid.Nil || executionID == uuid.Nil || len(plans) == 0 {
 		return nil, nil, errors.New("cross-ledger group lifecycle idempotency identity is incomplete")
 	}
 
@@ -430,12 +430,23 @@ func (uc *UseCase) claimCrossLedgerGroupTransition(
 		ledgerID:       group.LedgerID,
 		items:          make([]atomicTransactionBatchItemRun, len(plans)),
 	}
+
+	refs := make([]atomicTransactionBatchLedgerRef, 0, len(plans))
 	for index := range plans {
-		if plans[index].TransactionID == uuid.Nil {
+		if plans[index].TransactionID == uuid.Nil || plans[index].OrganizationID == uuid.Nil || plans[index].LedgerID == uuid.Nil {
 			return nil, nil, errors.New("cross-ledger group lifecycle idempotency transaction identity is incomplete")
 		}
 
 		run.items[index].transactionID = plans[index].TransactionID
+		refs = append(refs, atomicTransactionBatchLedgerRef{organizationID: plans[index].OrganizationID, ledgerID: plans[index].LedgerID})
+	}
+
+	run.coordinationOrganizationID, run.coordinationLedgerID = atomicTransactionBatchCoordinationScope(refs)
+	for _, ref := range refs[1:] {
+		if ref != refs[0] {
+			run.multiScope = true
+			break
+		}
 	}
 
 	replay, err := uc.claimAtomicTransactionBatch(ctx, CreateAtomicTransactionBatchV2Input{
@@ -691,8 +702,9 @@ func (uc *UseCase) completeCrossLedgerGroupTransition(
 	ctx context.Context,
 	logger libLog.Logger,
 	outcome EngineExecutionOutcome,
+	run *atomicTransactionBatchRun,
 ) ([]*transaction.Transaction, error) {
-	envelopes, err := atomicTransactionBatchWriteBehindEnvelopes(outcome)
+	envelopes, err := atomicTransactionBatchWriteBehindEnvelopes(outcome, run)
 	if err != nil {
 		return nil, err
 	}

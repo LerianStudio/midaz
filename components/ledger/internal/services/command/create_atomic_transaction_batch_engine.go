@@ -88,8 +88,8 @@ func (uc *UseCase) prepareAtomicTransactionBatchIdempotency(
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.TransitionAtomicTransactionBatch(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		run.idempotencyEffectiveKey,
 		run.idempotencyOwnerToken,
 		txRedis.AtomicTransactionBatchStateClaimed,
@@ -120,8 +120,8 @@ func (uc *UseCase) handoffAtomicTransactionBatchExecution(
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.HandoffAtomicTransactionBatchExecution(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		run.idempotencyEffectiveKey,
 		run.idempotencyOwnerToken,
 		next,
@@ -207,8 +207,8 @@ func (uc *UseCase) abortAtomicTransactionBatchConfirmedRefusal(
 
 	result, err := uc.AtomicTransactionBatchIdempotencyRepo.AbortAtomicTransactionBatchConfirmedRefusal(
 		ctx,
-		run.organizationID,
-		run.ledgerID,
+		run.coordinationOrganizationID,
+		run.coordinationLedgerID,
 		run.idempotencyEffectiveKey,
 		run.idempotencyOwnerToken,
 		run.executionID,
@@ -234,7 +234,7 @@ func atomicTransactionBatchIdempotencyRecord(
 	run *atomicTransactionBatchRun,
 	state txRedis.AtomicTransactionBatchIdempotencyState,
 ) txRedis.AtomicTransactionBatchIdempotencyRecord {
-	return txRedis.AtomicTransactionBatchIdempotencyRecord{
+	record := txRedis.AtomicTransactionBatchIdempotencyRecord{
 		FormatVersion:      txRedis.AtomicTransactionBatchIdempotencyFormatVersion,
 		State:              state,
 		RequestFingerprint: run.idempotencyFingerprint,
@@ -242,6 +242,12 @@ func atomicTransactionBatchIdempotencyRecord(
 		BatchID:            run.batchID,
 		TransactionIDs:     atomicTransactionBatchTransactionIDs(run),
 	}
+	if run.coordinationOrganizationID != run.organizationID || run.coordinationLedgerID != run.ledgerID {
+		record.ReceiptOrganizationID = &run.organizationID
+		record.ReceiptLedgerID = &run.ledgerID
+	}
+
+	return record
 }
 
 func atomicTransactionBatchTransactionIDs(run *atomicTransactionBatchRun) []uuid.UUID {

@@ -90,6 +90,10 @@ and object-property order as described above. An identical terminal retry
 returns the original byte-stable ordered response and sets
 `X-Idempotency-Replayed`; reusing an explicit key for a different canonical request,
 or retrying while an applied execution is still recovering, returns `0084`.
+For a multi-ledger batch, the claim uses the smallest participating
+organization/ledger pair, independent of item order or debit/credit role. The
+same key therefore protects the entire request when the same ledgers exchange
+roles. Single-ledger batch keys keep their existing scope.
 
 The replay retention is frozen when the request executes (`X-TTL`, default 300
 seconds). An applied batch writes one version-two engine recovery record per

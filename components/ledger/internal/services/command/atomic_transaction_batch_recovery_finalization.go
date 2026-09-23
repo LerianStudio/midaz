@@ -82,10 +82,15 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 		return nil, errors.New("atomic transaction batch recovery finalizer is not configured")
 	}
 
+	coordinationOrganizationID, coordinationLedgerID := record.OrganizationID, record.LedgerID
+	if record.CoordinationOrganizationID != nil && record.CoordinationLedgerID != nil {
+		coordinationOrganizationID, coordinationLedgerID = *record.CoordinationOrganizationID, *record.CoordinationLedgerID
+	}
+
 	candidate, err := repository.GetAtomicTransactionBatchFinalizationCandidate(
 		ctx,
-		record.OrganizationID,
-		record.LedgerID,
+		coordinationOrganizationID,
+		coordinationLedgerID,
 		record.ExecutionID,
 		record.TransactionID,
 	)
@@ -109,8 +114,8 @@ func (uc *UseCase) PrepareAtomicTransactionBatchRecoveryFinalization(
 
 		captured, err := uc.AtomicTransactionBatchIdempotencyRepo.CaptureAtomicTransactionBatchInitialResponse(
 			ctx,
-			record.OrganizationID,
-			record.LedgerID,
+			coordinationOrganizationID,
+			coordinationLedgerID,
 			record.ExecutionID,
 			candidate.Record.OwnerToken,
 			record.TransactionID,

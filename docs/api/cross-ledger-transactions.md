@@ -67,6 +67,11 @@ reconciliation; the engine is never retried after an unknown outcome. A second
 terminal action returns `0254` (HTTP 422) and identifies the current group
 status. Missing or inconsistent intent/members return `0253` (HTTP 422).
 
+One internal idempotency claim protects the whole group regardless of which
+pending origin is addressed. Its scope is the lexicographically smallest
+organization/ledger pair among the participating parts; the engine receipt
+remains in the execution's primary scope.
+
 Origin fees are frozen into the hold. Destination fees are evaluated when the
 commit runs, so a package change between hold and commit can affect destination
 parts. Origin Tracer reservations are confirmed on commit and released on
@@ -91,7 +96,9 @@ original movement with its reversal.
 Fees are not recalculated because the original fee legs are reversed as
 persisted. Tracer capacity is reserved independently for every reversal part.
 The account-block exception supplied on the request applies only to the member
-named by the path. A completed second revert returns `0087`; an incomplete group
+named by the path. Reverts addressed to different members of the same group
+share one claim. A concurrent duplicate returns `0084` (HTTP 409) or replays
+the same reversal group; a completed second revert returns `0087` (HTTP 409); an incomplete group
 returns `0253` (HTTP 422). `/v1` cannot return a group response and rejects a
 group member with `0252` (HTTP 422).
 

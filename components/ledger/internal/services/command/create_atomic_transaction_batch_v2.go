@@ -75,22 +75,27 @@ type CreateAtomicTransactionBatchV2Result struct {
 // exists only in items; maps may be used by later phases for lookup, but never
 // to rebuild this slice or determine execution order.
 type atomicTransactionBatchRun struct {
-	batchID                 uuid.UUID
-	groupID                 *uuid.UUID
-	executionID             uuid.UUID
-	organizationID          uuid.UUID
-	ledgerID                uuid.UUID
-	ledgerSettings          mmodel.LedgerSettings
-	idempotencyTTL          time.Duration
-	idempotencyEffectiveKey string
-	idempotencyFingerprint  string
-	idempotencyOwnerToken   string
-	idempotencyClaimed      bool
-	idempotencyHandedOff    bool
-	engineIntentFingerprint string
-	rejectionDimension      string
-	budgetMeasurements      *atomicTransactionBatchBudgetMeasurements
-	items                   []atomicTransactionBatchItemRun
+	batchID        uuid.UUID
+	groupID        *uuid.UUID
+	executionID    uuid.UUID
+	organizationID uuid.UUID
+	ledgerID       uuid.UUID
+	// The coordination scope names idempotency keys; organizationID/ledgerID
+	// remain the first item's engine receipt scope.
+	coordinationOrganizationID uuid.UUID
+	coordinationLedgerID       uuid.UUID
+	multiScope                 bool
+	ledgerSettings             mmodel.LedgerSettings
+	idempotencyTTL             time.Duration
+	idempotencyEffectiveKey    string
+	idempotencyFingerprint     string
+	idempotencyOwnerToken      string
+	idempotencyClaimed         bool
+	idempotencyHandedOff       bool
+	engineIntentFingerprint    string
+	rejectionDimension         string
+	budgetMeasurements         *atomicTransactionBatchBudgetMeasurements
+	items                      []atomicTransactionBatchItemRun
 }
 
 type atomicTransactionBatchLedgerRef struct {
@@ -289,14 +294,31 @@ func (uc *UseCase) initializeAtomicTransactionBatchIdentity(
 	if batchID == uuid.Nil {
 		return nil, errors.New("atomic transaction batch UUIDv7 generator returned a nil batch id")
 	}
+	refs := atomicTransactionBatchLedgerRefs(in.Transactions)
+	coordinationOrganizationID, coordinationLedgerID := atomicTransactionBatchCoordinationScope(refs)
 
 	return &atomicTransactionBatchRun{
-		batchID:        batchID,
-		groupID:        in.GroupID,
-		organizationID: organizationID,
-		ledgerID:       ledgerID,
-		idempotencyTTL: in.IdempotencyTTL,
+		batchID:                    batchID,
+		groupID:                    in.GroupID,
+		organizationID:             organizationID,
+		ledgerID:                   ledgerID,
+		coordinationOrganizationID: coordinationOrganizationID,
+		coordinationLedgerID:       coordinationLedgerID,
+		multiScope:                 len(refs) > 1,
+		idempotencyTTL:             in.IdempotencyTTL,
 	}, nil
+}
+
+func atomicTransactionBatchCoordinationScope(refs []atomicTransactionBatchLedgerRef) (uuid.UUID, uuid.UUID) {
+	selected := refs[0]
+	for _, ref := range refs[1:] {
+		if ref.organizationID.String() < selected.organizationID.String() ||
+			(ref.organizationID == selected.organizationID && ref.ledgerID.String() < selected.ledgerID.String()) {
+			selected = ref
+		}
+	}
+
+	return selected.organizationID, selected.ledgerID
 }
 
 func (uc *UseCase) initializeAtomicTransactionBatchItemsAndSettings(
