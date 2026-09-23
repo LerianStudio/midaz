@@ -331,7 +331,7 @@ func probeRouteRoles(t *testing.T) (map[string]string, []routeGroup) {
 	// mounts through the SAME mapper production uses.
 	humaDeps := fullSurfaceHumaDeps(auth, setup)
 
-	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
+	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger})
 
 	// The role map is scoped to the versioned Huma groups, so no RouteRegistrar is passed here.
 	// The app-root streaming manifest route does carry onboardingRouteOptions in production,

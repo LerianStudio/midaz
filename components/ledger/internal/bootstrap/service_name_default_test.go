@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,5 +67,5 @@ func TestServiceName_UnsetEnvNamesTheProcessOnEverySurface(t *testing.T) {
 
 	assert.Equal(t, "ledger", manifest.Publisher.ServiceName, "manifest names the roster identity")
 	assert.Equal(t, manifest.Publisher.ServiceName, version.Service, "/version must name the process as the manifest does")
-	assert.Equal(t, manifest.Publisher.ServiceName, cfg.OtelServiceName, "the OTel resource must name the process as the manifest does")
+	assert.Equal(t, manifest.Publisher.ServiceName, telemetryConfig(cfg, libLog.NewNop()).ServiceName, "the OTel resource must name the process as the manifest does")
 }

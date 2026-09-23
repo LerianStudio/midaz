@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
@@ -51,7 +52,6 @@ func TestReadyz_Integration_AllDependenciesHealthy(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
-		Version:        "1.0.0-test",
 		DeploymentMode: "local",
 	})
 
@@ -72,7 +72,9 @@ func TestReadyz_Integration_AllDependenciesHealthy(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "healthy", response.Status)
-	assert.Equal(t, "1.0.0-test", response.Version)
+	assert.Equal(t, buildinfo.Get().Version, response.Version)
+	assert.Equal(t, buildinfo.Get().Revision, response.Revision)
+	assert.Equal(t, buildinfo.Get().BuildTime, response.BuildTime)
 	assert.Equal(t, "local", response.DeploymentMode)
 
 	// All checkers should be up
@@ -106,7 +108,6 @@ func TestReadyz_Integration_PostgresDown(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
-		Version:        "1.0.0-test",
 		DeploymentMode: "local",
 	})
 
@@ -155,7 +156,6 @@ func TestReadyz_Integration_TLSDetection(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
-		Version:        "1.0.0-test",
 		DeploymentMode: "local",
 	})
 
@@ -196,7 +196,6 @@ func TestReadyz_Integration_LatencyMeasurement(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
-		Version:        "1.0.0",
 		DeploymentMode: "local",
 	})
 
@@ -246,7 +245,6 @@ func TestReadyz_Integration_ConcurrentRequests(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
-		Version:        "1.0.0",
 		DeploymentMode: "local",
 	})
 
@@ -300,7 +298,6 @@ func TestReadyz_Integration_MixedHealthStatus(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
-		Version:        "1.0.0",
 		DeploymentMode: "local",
 	})
 
@@ -348,7 +345,6 @@ func TestReadyz_Integration_ClosedConnection(t *testing.T) {
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
 		Checkers:       checkers,
-		Version:        "1.0.0",
 		DeploymentMode: "local",
 	})
 
