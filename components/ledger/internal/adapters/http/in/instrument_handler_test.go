@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,7 @@ import (
 
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -91,6 +93,16 @@ func newInstrumentHandler(t *testing.T, ctrl *gomock.Controller) (*InstrumentHan
 	handler := &InstrumentHandler{Service: &services.UseCase{InstrumentRepo: repo}}
 
 	return handler, repo
+}
+
+// humaStatusOf returns the HTTP status the shared Huma problem projection assigns to err.
+func humaStatusOf(t *testing.T, err error) int {
+	t.Helper()
+
+	var statusErr huma.StatusError
+	require.True(t, errors.As(pkgHTTP.HumaProblem(err), &statusErr), "HumaProblem must yield a huma.StatusError")
+
+	return statusErr.GetStatus()
 }
 
 func TestCreateInstrument_IdempotentReplay(t *testing.T) {
@@ -665,6 +677,93 @@ func TestGetAllInstruments_ServiceError_Canonical404(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, constant.ErrInstrumentNotFound.Error(), got["code"])
+}
+
+func TestCreateInstrument_InvalidAccountType_SameStatusAsRelatedPartyRole(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// The use case rejects the account type before any repository call, so neither
+	// mock carries an expectation: any lookup or write fails the test.
+	handler := &InstrumentHandler{Service: &services.UseCase{
+		InstrumentRepo: instrumentrepo.NewMockRepository(ctrl),
+		HolderRepo:     holderrepo.NewMockRepository(ctrl),
+		Idempotency:    newFakeCRMIdempotencyRepo(),
+		LedgerAccounts: stubInstrumentLedgerAccountReader{ledgerExists: true, accountExists: true},
+	}}
+
+	app := buildHumaInstrumentApp(t, handler, true)
+
+	body := `{"ledgerId":"00000000-0000-0000-0000-000000000001","accountId":"00000000-0000-0000-0000-000000000002","regulatoryFields":{"accountType":"CHECKING"}}`
+	req := httptest.NewRequest(http.MethodPost, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+
+	relatedPartyRoleStatus := humaStatusOf(t, pkg.ValidateBusinessError(constant.ErrInvalidRelatedPartyRole, constant.EntityRelatedParty))
+	assert.Equal(t, relatedPartyRoleStatus, resp.StatusCode,
+		"an invalid account type must use the same HTTP status as an invalid related party role; body: %s", string(respBody))
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInvalidInstrumentAccountType.Error(), got["code"])
+	assert.Equal(t, constant.EntityInstrument, got["entityType"])
+}
+
+func TestUpdateInstrument_MergePatch_NullAccountTypeRemoved(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	holderID := uuid.Must(libCommons.GenerateUUIDv7())
+	instrumentID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	handler, repo := newInstrumentHandler(t, ctrl)
+
+	var (
+		receivedFieldsToRemove []string
+		receivedInstrument     *mmodel.Instrument
+	)
+
+	repo.EXPECT().
+		Update(gomock.Any(), orgID.String(), holderID, instrumentID, gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ string, _, id uuid.UUID, a *mmodel.Instrument, fieldsToRemove []string) (*mmodel.Instrument, error) {
+			receivedFieldsToRemove = fieldsToRemove
+			receivedInstrument = a
+			a.ID = &id
+
+			return a, nil
+		}).Times(1)
+
+	app := buildHumaInstrumentApp(t, handler, true)
+
+	body := []byte(`{"regulatoryFields":{"accountType":null}}`)
+	req := httptest.NewRequest(http.MethodPatch, "/v2/organizations/"+orgID.String()+"/holders/"+holderID.String()+"/instruments/"+instrumentID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+
+	assert.Contains(t, receivedFieldsToRemove, "regulatoryFields.accountType",
+		"a null accountType must reach the repository as a field to remove")
+	require.NotNil(t, receivedInstrument)
+
+	require.NotNil(t, receivedInstrument.RegulatoryFields)
+	assert.Nil(t, receivedInstrument.RegulatoryFields.AccountType, "a null accountType must not be set")
 }
 
 // TestInstrumentEntityFieldContract locks the R43 contract: the typed business
