@@ -159,7 +159,7 @@ func TestIntegration_HolderAccountsConcurrentTenantIsolation(t *testing.T) {
 
 		// Auth disabled: Authorize is a pass-through, so the post-auth chain the
 		// options carry is what the request actually runs.
-		mountCRMHuma(app, middleware.NewAuthClient("", false, nil), nil, nil, handler, nil, nil, routeOptions)
+		mountCRMHuma(app, middleware.NewAuthClient("", false, nil), nil, nil, handler, nil, nil, routeOptions, routeOptions, routeOptions)
 
 		return app
 	}

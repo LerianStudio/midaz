@@ -6,9 +6,7 @@ package command
 
 import (
 	"context"
-	"fmt"
 
-	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
@@ -112,17 +110,5 @@ func (uc *UseCase) resolveFeesTenantContext(ctx context.Context) (context.Contex
 		return ctx, nil
 	}
 
-	tenantID := tmcore.GetTenantIDContext(ctx)
-	if tenantID == "" {
-		// MT enabled but no tenant on the ctx: fail cleanly rather than fall
-		// through to the shared single-tenant fee DB.
-		return nil, fmt.Errorf("fee seam: %w", tmcore.ErrTenantNotFound)
-	}
-
-	feesDB, err := uc.FeesMongoManager.GetDatabaseForTenant(ctx, tenantID)
-	if err != nil {
-		return nil, MapTenantError(ctx, err, tenantID)
-	}
-
-	return tmcore.ContextWithMB(ctx, feesDB), nil
+	return ResolveTenantMongoContext(ctx, uc.FeesMongoManager, "fee seam")
 }
