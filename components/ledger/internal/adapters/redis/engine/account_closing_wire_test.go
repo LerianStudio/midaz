@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 func TestAccountClosingWireDeclaresOneProtectionTripletPerAccount(t *testing.T) {
@@ -39,7 +40,8 @@ func TestAccountClosingWireDeclaresOneProtectionTripletPerAccount(t *testing.T) 
 	for _, balance := range input.Execution.Balances[1:] {
 		resolved.Balances[balance.BalanceRef] = testResolvedBalanceKeys(
 			"tenant:fixture:balance:{transactions}:" + input.Execution.OrganizationID.String() + ":" +
-				input.Execution.LedgerID.String() + ":" + balance.BalanceRef)
+				input.Execution.LedgerID.String() + ":" + balance.BalanceRef,
+		)
 	}
 
 	resolved.Accounts = testResolvedAccountKeys("tenant:fixture:", input.Execution, testAdmissionToken)
@@ -158,4 +160,34 @@ func TestAccountClosingWireDeclaresAnEmptyTokenWithoutAnAdmission(t *testing.T) 
 	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
 	require.Len(t, wire.Accounts, 1)
 	require.Empty(t, wire.Accounts[0].AdmissionToken)
+}
+
+// TestResolveAdapterKeysScopesAccountProtectionByBalanceLedger proves a
+// multi-scope execution resolves the closing controls of every account from the
+// ledger that owns its balance, never from the execution's primary scope: a
+// closing recorded in the foreign ledger must be the one the engine reads.
+func TestResolveAdapterKeysScopesAccountProtectionByBalanceLedger(t *testing.T) {
+	t.Parallel()
+
+	input, _, _ := validWireExecution()
+	request := input.Execution
+
+	foreign := request.Balances[0]
+	foreign.ID = uuid.MustParse("4e2f3d0e-8a3e-4f0a-8a2f-51a0b4d1c003")
+	foreign.AccountID = uuid.MustParse("5a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4e")
+	foreign.OrganizationID = request.OrganizationID
+	foreign.LedgerID = uuid.MustParse("6b1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4f")
+	foreign.Alias, foreign.BalanceRef = "@foreign", "@foreign#default"
+	request.Balances = append(request.Balances, foreign)
+
+	resolved, err := resolveAdapterKeys(context.Background(), request)
+	require.NoError(t, err)
+
+	primary := resolved.Accounts[request.Balances[0].AccountID]
+	require.Equal(t, utils.AccountClosingMarkerKey(request.OrganizationID, request.LedgerID, request.Balances[0].AccountID), primary.Closing)
+
+	got := resolved.Accounts[foreign.AccountID]
+	require.Equal(t, utils.AccountClosingMarkerKey(foreign.OrganizationID, foreign.LedgerID, foreign.AccountID), got.Closing)
+	require.Equal(t, utils.AccountClosedMarkerKey(foreign.OrganizationID, foreign.LedgerID, foreign.AccountID), got.Closed)
+	require.Equal(t, utils.AccountAdminOwnershipKey(foreign.OrganizationID, foreign.LedgerID, foreign.AccountID), got.Ownership)
 }

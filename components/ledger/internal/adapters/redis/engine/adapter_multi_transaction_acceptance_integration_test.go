@@ -191,7 +191,7 @@ func TestIntegration_AdapterExecute_MultiScopeAtomicity(t *testing.T) {
 
 		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 		require.NoError(t, err)
-		result, err := adapter.Execute(ctx, input)
+		result, err := adapter.Execute(admitEngineSeeds(t, ctx, inspector, input.Execution), input)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.Equal(t, int64(1), inspector.HLen(ctx, keys.Receipts).Val())
@@ -221,7 +221,7 @@ func TestIntegration_AdapterExecute_MultiScopeAtomicity(t *testing.T) {
 
 		adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 		require.NoError(t, err)
-		result, err := adapter.Execute(ctx, input)
+		result, err := adapter.Execute(admitEngineSeeds(t, ctx, inspector, input.Execution), input)
 		require.Nil(t, result)
 		var failure *core.Failure
 		require.ErrorAs(t, err, &failure)
@@ -259,7 +259,7 @@ func TestIntegration_AdapterExecute_MultiScopeAtomicity(t *testing.T) {
 		))
 		before := captureAdapterState(t, inspector, keys)
 
-		result, err := adapter.Execute(ctx, input)
+		result, err := adapter.Execute(admitEngineSeeds(t, ctx, inspector, input.Execution), input)
 		require.Nil(t, result)
 		var failure *core.Failure
 		require.ErrorAs(t, err, &failure)
