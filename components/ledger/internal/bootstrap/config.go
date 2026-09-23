@@ -899,7 +899,12 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// through narrow ports so it never imports the query or CRM packages.
 	// HolderReader adapts the CRM holder service; SettingsReader is satisfied
 	// directly by the query UseCase (signatures match).
-	commandUseCase.HolderReader = holderReaderAdapter{service: crmMgo.holderHandler.Service}
+	holderReader := holderReaderAdapter{service: crmMgo.holderHandler.Service}
+	if crmMgo.mongoManager != nil {
+		holderReader.crmTenantDB = crmMgo.mongoManager
+	}
+
+	commandUseCase.HolderReader = holderReader
 	commandUseCase.SettingsReader = queryUseCase
 
 	// === CRM domain metrics (D6) ===

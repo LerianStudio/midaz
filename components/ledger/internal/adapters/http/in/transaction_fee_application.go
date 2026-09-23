@@ -147,7 +147,7 @@ func (handler *TransactionHandler) resolveFeesTenantContext(ctx context.Context)
 
 	feesDB, err := handler.FeesMongoManager.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
-		return nil, mapTenantError(ctx, err, tenantID)
+		return nil, MapTenantError(ctx, err, tenantID)
 	}
 
 	return tmcore.ContextWithMB(ctx, feesDB), nil

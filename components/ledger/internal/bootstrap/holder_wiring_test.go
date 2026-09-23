@@ -10,9 +10,11 @@ import (
 	"testing"
 
 	libPointers "github.com/LerianStudio/lib-commons/v7/commons/pointers"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/mock/gomock"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
@@ -96,6 +98,99 @@ func TestHolderReaderAdapter_Exists(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// ctxCapturingHolderReader records the context GetHolderByID receives, so a test can
+// assert which CRM database the holder read resolves.
+type ctxCapturingHolderReader struct {
+	called bool
+	ctx    context.Context
+}
+
+func (r *ctxCapturingHolderReader) GetHolderByID(ctx context.Context, _ string, id uuid.UUID, _ bool) (*mmodel.Holder, error) {
+	r.called = true
+	r.ctx = ctx
+
+	return &mmodel.Holder{ID: &id}, nil
+}
+
+// fakeCRMTenantDatabase stubs the CRM Mongo manager's per-tenant database resolution.
+type fakeCRMTenantDatabase struct {
+	db       *mongo.Database
+	err      error
+	tenantID string
+}
+
+func (f *fakeCRMTenantDatabase) GetDatabaseForTenant(_ context.Context, tenantID string) (*mongo.Database, error) {
+	f.tenantID = tenantID
+
+	return f.db, f.err
+}
+
+// TestHolderReaderAdapter_ExistsMultiTenant pins the CRM database resolution the holder
+// existence check performs in multi-tenant mode. The check runs inside account create, whose
+// route middleware injects only the module-keyed onboarding and transaction stores, so the
+// CRM holder repo would find no Mongo on the generic key and fail the request with a 500.
+func TestHolderReaderAdapter_ExistsMultiTenant(t *testing.T) {
+	id := uuid.New()
+	crmDB := (&mongo.Client{}).Database("crm_tenant_a")
+	otherDB := (&mongo.Client{}).Database("fees_tenant_a")
+
+	t.Run("resolves the tenant CRM database onto the generic key for the holder read", func(t *testing.T) {
+		reader := &ctxCapturingHolderReader{}
+		resolver := &fakeCRMTenantDatabase{db: crmDB}
+		adapter := holderReaderAdapter{service: reader, crmTenantDB: resolver}
+
+		ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
+
+		exists, err := adapter.Exists(ctx, "org-1", id)
+		require.NoError(t, err)
+		assert.True(t, exists)
+
+		assert.Equal(t, "tenant-a", resolver.tenantID, "the CRM database must be resolved for the caller's tenant")
+		require.True(t, reader.called)
+		assert.Same(t, crmDB, tmcore.GetMBContext(reader.ctx),
+			"the holder read must see the tenant CRM database on the generic key the CRM repos read")
+		assert.Nil(t, tmcore.GetMBContext(ctx), "the resolution must not leak onto the caller's context")
+	})
+
+	t.Run("replaces a generic Mongo already on the context", func(t *testing.T) {
+		reader := &ctxCapturingHolderReader{}
+		adapter := holderReaderAdapter{service: reader, crmTenantDB: &fakeCRMTenantDatabase{db: crmDB}}
+
+		ctx := tmcore.ContextWithMB(tmcore.ContextWithTenantID(context.Background(), "tenant-a"), otherDB)
+
+		_, err := adapter.Exists(ctx, "org-1", id)
+		require.NoError(t, err)
+		assert.Same(t, crmDB, tmcore.GetMBContext(reader.ctx),
+			"a generic Mongo bound by another route must not answer the holder read")
+	})
+
+	t.Run("missing tenant id fails without reading", func(t *testing.T) {
+		reader := &ctxCapturingHolderReader{}
+		adapter := holderReaderAdapter{service: reader, crmTenantDB: &fakeCRMTenantDatabase{db: crmDB}}
+
+		exists, err := adapter.Exists(context.Background(), "org-1", id)
+		require.Error(t, err)
+		assert.False(t, exists)
+		assert.False(t, reader.called, "without a tenant the holder read must not fall through to any store")
+	})
+
+	t.Run("tenant resolution failure maps to tenant service unavailable", func(t *testing.T) {
+		reader := &ctxCapturingHolderReader{}
+		adapter := holderReaderAdapter{service: reader, crmTenantDB: &fakeCRMTenantDatabase{err: errors.New("tenant-manager down")}}
+
+		ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
+
+		exists, err := adapter.Exists(ctx, "org-1", id)
+		require.Error(t, err)
+		assert.False(t, exists)
+		assert.False(t, reader.called)
+
+		var unavailable pkg.ServiceUnavailableError
+		require.ErrorAs(t, err, &unavailable)
+		assert.Equal(t, constant.ErrTenantServiceUnavailable.Error(), unavailable.Code)
+	})
 }
 
 func TestHolderAccountsReaderAdapter_ListAccountsByHolder(t *testing.T) {
