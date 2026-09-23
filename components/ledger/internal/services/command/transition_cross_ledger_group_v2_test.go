@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -52,9 +53,10 @@ func (reader *crossLedgerLifecycleReader) ResolveTransactionProjection(
 }
 
 type applyingCrossLedgerLifecycleEngine struct {
-	t          *testing.T
-	executions []EngineExecution
-	guards     []ExecutionGuard
+	t                *testing.T
+	executions       []EngineExecution
+	guards           []ExecutionGuard
+	sawAdmissionSink bool
 }
 
 func (engine *applyingCrossLedgerLifecycleEngine) EnsureTransactionGuard(
@@ -68,11 +70,12 @@ func (engine *applyingCrossLedgerLifecycleEngine) EnsureTransactionGuard(
 }
 
 func (engine *applyingCrossLedgerLifecycleEngine) Execute(
-	_ context.Context,
+	ctx context.Context,
 	execution EngineExecution,
 ) (*accounting.ExecutionResult, error) {
 	engine.t.Helper()
 	engine.executions = append(engine.executions, execution)
+	engine.sawAdmissionSink = accountprotection.SinkFromContext(ctx) != nil
 
 	states := make(map[string]accounting.BalanceState, len(execution.Execution.Balances))
 	snapshots := make(map[string]accounting.BalanceSnapshot, len(execution.Execution.Balances))
@@ -182,6 +185,8 @@ func TestTransitionCrossLedgerGroupV2_CommitAndCancelUseOneAtomicExecution(t *te
 			}
 
 			require.Len(t, engine.executions, 1)
+			assert.True(t, engine.sawAdmissionSink,
+				"the ownership the origin and destination loads take must survive until the engine answers")
 			assert.Len(t, engine.executions[0].Execution.Transactions, test.wantTransactions)
 			assert.Equal(t, ExecutionGuard{
 				TransactionID: uuid.MustParse(target.ID),
