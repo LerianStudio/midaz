@@ -261,6 +261,9 @@ func buildLiveStateCompositionExecution(
 	if err != nil {
 		return command.PreparedEngineExecution{}, err
 	}
+	// Production stamps the translated transaction with its scope before freezing
+	// the intent; the fixture must hash the same scoped transaction.
+	translated.OrganizationID, translated.LedgerID = fixture.organizationID, fixture.ledgerID
 
 	payload := command.TransactionCompletionPlan{
 		FormatVersion: command.TransactionCompletionFormatVersion, HeaderID: "live-state-composition",

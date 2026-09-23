@@ -123,22 +123,7 @@ func richAdapterExecution(t *testing.T) (command.EngineExecution, Limits) {
 func encodeAdapterRecovery(t testing.TB, input *command.EngineExecution, payload command.TransactionCompletionPlan) json.RawMessage {
 	t.Helper()
 	require.Len(t, input.Execution.Transactions, 1)
-	transaction := command.EngineTransactionIntent{
-		OrganizationID: payload.OrganizationID.String(), LedgerID: payload.LedgerID.String(),
-		TransactionID: payload.TransactionID, ParentTransactionID: payload.ParentTransactionID,
-		FeesSkipped: payload.FeesSkipped, TracerSkipped: payload.TracerSkipped, Action: payload.Action,
-		TransactionStatus: payload.TransactionStatus, TransactionDate: payload.TransactionDate, Input: payload.TransactionInput,
-		TransactionCreatedAt: payload.TransactionCreatedAt, TransactionUpdatedAt: payload.TransactionUpdatedAt, OperationUpdatedAt: payload.OperationUpdatedAt,
-		PostingRefs:         make([]string, 0, len(input.Execution.Transactions[0].Postings)),
-		BalanceRequirements: append([]core.BalanceRequirement(nil), input.Execution.Transactions[0].BalanceRequirements...),
-		OperationSpecs:      make([]command.OperationRecordIntent, 0, len(payload.OperationSpecs)),
-	}
-	for _, posting := range input.Execution.Transactions[0].Postings {
-		transaction.PostingRefs = append(transaction.PostingRefs, posting.Ref)
-	}
-	for _, projection := range payload.OperationSpecs {
-		transaction.OperationSpecs = append(transaction.OperationSpecs, projection.Intent())
-	}
+	transaction := command.BuildTransactionCompletionIntent(input.Execution.Transactions[0], payload)
 	fingerprint, err := command.ComputeEngineIntentFingerprint(command.EngineIntent{
 		TenantID: payload.TenantID, OrganizationID: input.Execution.OrganizationID, LedgerID: input.Execution.LedgerID,
 		ExecutionID: input.Execution.ExecutionID, Transactions: []command.EngineTransactionIntent{transaction},
