@@ -87,21 +87,25 @@ func RegisterHolderRoutes(api huma.API, h *HolderHandler, opSuffix string) {
 // RegisterHolderV2RoutesToApp wires the holder surface onto the /v2 contract, which is
 // the ONLY version group that serves it. See registerHolderRoutesToApp for the auth
 // chain and tenant options it attaches.
-func RegisterHolderV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *HolderHandler, routeOptions *pkgHTTP.ProtectedRouteOptions) {
-	registerHolderRoutesToApp(group, api, auth, h, routeOptions, v2OpSuffix)
+func RegisterHolderV2RoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *HolderHandler, routeOptions, deleteOptions *pkgHTTP.ProtectedRouteOptions) {
+	registerHolderRoutesToApp(group, api, auth, h, routeOptions, deleteOptions, v2OpSuffix)
 }
 
 // registerHolderRoutesToApp is the single description of the holder route surface,
 // shared by every versioned contract that serves it, mirroring
 // registerAccountRoutesToApp. For each of the five ops it attaches the Fiber auth chain
 // — auth.Authorize("midaz","holders",verb) + the CRM-scoped tenant PostAuthMiddlewares
-// (routeOptions) + ParseUUIDPathParameters("holder") — as MIDDLEWARE ONLY (no terminal
-// handler, no body binder) on the VERSIONED GROUP with GROUP-RELATIVE paths, then
-// registers the Huma terminals via RegisterHolderRoutes on the SAME group's Huma API.
+// + ParseUUIDPathParameters("holder") — as MIDDLEWARE ONLY (no terminal handler, no body
+// binder) on the VERSIONED GROUP with GROUP-RELATIVE paths, then registers the Huma
+// terminals via RegisterHolderRoutes on the SAME group's Huma API.
+//
+// Delete carries deleteOptions because its owned-account guard counts the holder's
+// accounts in the ledger's onboarding store; the other four ops read only the CRM store
+// and carry routeOptions, so they do not depend on onboarding provisioning.
 //
 // The ParseUUIDPathParameters label is the span-attribute name; the middleware validates
 // every UUID path param regardless of label.
-func registerHolderRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *HolderHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
+func registerHolderRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *HolderHandler, routeOptions, deleteOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		holdersPath  = "/organizations/:organization_id/holders"
 		holderIDPath = holdersPath + "/:id"
@@ -112,7 +116,7 @@ func registerHolderRoutesToApp(group fiber.Router, api huma.API, auth *middlewar
 	routePost(group, holdersPath, protectedMidaz(auth, "holders", "post", routeOptions, holderParse))
 	routeGet(group, holderIDPath, protectedMidaz(auth, "holders", "get", routeOptions, holderParse))
 	routePatch(group, holderIDPath, protectedMidaz(auth, "holders", "patch", routeOptions, holderParse))
-	routeDelete(group, holderIDPath, protectedMidaz(auth, "holders", "delete", routeOptions, holderParse))
+	routeDelete(group, holderIDPath, protectedMidaz(auth, "holders", "delete", deleteOptions, holderParse))
 	routeGet(group, holdersPath, protectedMidaz(auth, "holders", "get", routeOptions, holderParse))
 
 	RegisterHolderRoutes(api, h, opSuffix)
