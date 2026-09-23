@@ -41,6 +41,16 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 		attribute.String("app.request.instrument_id", id.String()),
 	)
 
+	var accountType *string
+	if uai.RegulatoryFields != nil {
+		accountType, err = normalizeInstrumentAccountType(uai.RegulatoryFields.AccountType)
+		if err != nil {
+			recordSpanError(span, "Failed to validate instrument account type", err)
+
+			return nil, err
+		}
+	}
+
 	if len(uai.RelatedParties) > 0 {
 		err := uc.ValidateRelatedParties(ctx, uai.RelatedParties)
 		if err != nil {
@@ -59,6 +69,7 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID stri
 	if uai.RegulatoryFields != nil {
 		instrument.RegulatoryFields = &mmodel.RegulatoryFields{
 			ParticipantDocument: uai.RegulatoryFields.ParticipantDocument,
+			AccountType:         accountType,
 		}
 	}
 
