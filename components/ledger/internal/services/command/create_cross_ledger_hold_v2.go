@@ -79,25 +79,8 @@ func (uc *UseCase) CreateCrossLedgerHoldV2(
 		return nil, err
 	}
 
-	rawIntent, err := encodeCrossLedgerGroupIntent(intent)
-	if err != nil {
+	if err := uc.persistCrossLedgerHoldIntent(ctx, groupID, intent); err != nil {
 		return nil, err
-	}
-
-	now := uc.Clock()
-	if now.IsZero() {
-		return nil, errors.New("cross-ledger hold clock returned a zero timestamp")
-	}
-
-	primary := intent.Parts[0]
-
-	group := &transactiongroup.TransactionGroup{
-		ID: groupID, OrganizationID: primary.OrganizationID, LedgerID: primary.LedgerID,
-		Status: constant.PENDING, AssetCode: intent.Asset, Intent: rawIntent,
-		CreatedAt: now, UpdatedAt: now,
-	}
-	if err := uc.TransactionGroupRepo.Create(ctx, group); err != nil {
-		return nil, fmt.Errorf("persist cross-ledger hold intent: %w", err)
 	}
 
 	batch, err := buildCrossLedgerHoldBatchInput(in, groupID, intent)
@@ -120,6 +103,33 @@ func (uc *UseCase) CreateCrossLedgerHoldV2(
 	}
 
 	return result, nil
+}
+
+// persistCrossLedgerHoldIntent stores the PENDING group row, owned by the first
+// part's ledger, before any accounting runs.
+func (uc *UseCase) persistCrossLedgerHoldIntent(ctx context.Context, groupID uuid.UUID, intent CrossLedgerGroupIntent) error {
+	rawIntent, err := encodeCrossLedgerGroupIntent(intent)
+	if err != nil {
+		return err
+	}
+
+	now := uc.Clock()
+	if now.IsZero() {
+		return errors.New("cross-ledger hold clock returned a zero timestamp")
+	}
+
+	primary := intent.Parts[0]
+
+	group := &transactiongroup.TransactionGroup{
+		ID: groupID, OrganizationID: primary.OrganizationID, LedgerID: primary.LedgerID,
+		Status: constant.PENDING, AssetCode: intent.Asset, Intent: rawIntent,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := uc.TransactionGroupRepo.Create(ctx, group); err != nil {
+		return fmt.Errorf("persist cross-ledger hold intent: %w", err)
+	}
+
+	return nil
 }
 
 func (uc *UseCase) validateCrossLedgerHoldSettings(ctx context.Context, intent CrossLedgerGroupIntent) error {

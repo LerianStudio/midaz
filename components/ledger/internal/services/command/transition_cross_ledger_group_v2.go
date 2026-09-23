@@ -115,6 +115,8 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	}
 
 	ledgers := setCrossLedgerGroupShape(span, crossLedgerIntentLedgerRefs(*intent))
+	roles := crossLedgerIntentRoles(*intent)
+	roleOf := func(member *transaction.Transaction) string { return roles[crossLedgerMemberLedgerRef(member)] }
 
 	reader, ok := uc.TransactionReader.(TransactionGroupReader)
 	if !ok {
@@ -261,7 +263,7 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 		}
 
 		if won {
-			uc.publishTransactionGroupEvent(ctx, crossLedgerGroupTransitionEvent(status), groupID, nil, replay.Transactions, crossLedgerGroupRole)
+			uc.publishTransactionGroupEvent(ctx, crossLedgerGroupTransitionEvent(status), groupID, nil, replay.Transactions, roleOf)
 		}
 
 		return replay, nil
@@ -333,7 +335,7 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	uc.recordCrossLedgerGroupLedgers(ctx, action, ledgers)
 
 	if won {
-		uc.publishTransactionGroupEvent(ctx, crossLedgerGroupTransitionEvent(status), groupID, nil, transactions, crossLedgerGroupRole)
+		uc.publishTransactionGroupEvent(ctx, crossLedgerGroupTransitionEvent(status), groupID, nil, transactions, roleOf)
 	}
 
 	return &CreateAtomicTransactionBatchV2Result{

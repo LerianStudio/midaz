@@ -108,6 +108,7 @@ func (uc *UseCase) ReconcileTransactionGroups(ctx context.Context) TransactionGr
 		groups, err := uc.TransactionGroupRepo.ListByStatusOlderThan(ctx, constant.PENDING, before, afterID, transactionGroupReconcilePageSize)
 		if err != nil {
 			stats.Failed++
+
 			uc.recordTransactionGroupReconcileResult(ctx, logger, transactionGroupReconcileFailed)
 
 			libOpentelemetry.HandleSpanError(span, "Failed to list pending cross-ledger transaction groups", err)
@@ -171,7 +172,6 @@ func (s *TransactionGroupReconciliationStats) count(result string) {
 	}
 }
 
-//nolint:gocyclo // each branch is one of the reconciler's closed conclusions about a group
 func (uc *UseCase) reconcileTransactionGroup(
 	ctx context.Context,
 	logger libLog.Logger,
