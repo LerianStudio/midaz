@@ -24,6 +24,10 @@ import (
 // typed huma.OpenAPI (see openapi.ServeSpec), so parsing /v1/openapi.json is the
 // same object the huma.API would hand back, minus a runtime accessor we don't need.
 type openAPISpec struct {
+	Info struct {
+		Version string `json:"version"`
+	} `json:"info"`
+
 	Paths map[string]map[string]openAPIOperation `json:"paths"`
 
 	Components struct {

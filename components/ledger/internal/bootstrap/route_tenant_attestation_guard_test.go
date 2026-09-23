@@ -195,9 +195,9 @@ func buildTenantAttestationServer(t *testing.T, observer fiber.Handler) *Unified
 		httpin.RegisterStreamingManifestRouteToApp(router, auth, setup.onboardingRouteOptions, manifestHandler)
 	}
 
-	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
+	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger})
 
-	server := NewUnifiedServer(":0", "test-version", logger, &libOpentelemetry.Telemetry{}, readyzHandler,
+	server := NewUnifiedServer(":0", "ledger", logger, &libOpentelemetry.Telemetry{}, readyzHandler,
 		humaDeps.MountV1, humaDeps.MountV2, streamingManifestRegistrar)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")

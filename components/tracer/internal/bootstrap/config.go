@@ -15,6 +15,7 @@ import (
 
 	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -48,6 +49,24 @@ import (
 	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
 )
 
+// telemetryConfig builds the OTel resource for the tracer. service.version and
+// vcs.ref.head.revision come from the identity linked into the binary, never
+// from an env var: the image and the telemetry it emits cannot disagree.
+func telemetryConfig(cfg *Config, logger libLog.Logger) libOtel.TelemetryConfig {
+	build := buildinfo.Get()
+
+	return libOtel.TelemetryConfig{
+		LibraryName:               cfg.OtelLibraryName,
+		ServiceName:               cfg.OtelServiceName,
+		ServiceVersion:            build.Version,
+		ServiceRevision:           build.Revision,
+		DeploymentEnv:             cfg.OtelDeploymentEnv,
+		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+		EnableTelemetry:           cfg.EnableTelemetry,
+		Logger:                    logger,
+	}
+}
+
 // Config is the top level configuration struct for the entire application.
 type Config struct {
 	ServerAddress string `env:"SERVER_ADDRESS"`
@@ -78,7 +97,6 @@ type Config struct {
 	LogLevel                string `env:"LOG_LEVEL"`
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
 	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
@@ -1287,6 +1305,7 @@ func initHTTPServer(
 		PgManager:                    pgManager,
 		Supervisor:                   workerSupervisor,
 		StreamingManifestHandler:     streamingManifestHandler,
+		ServiceName:                  cfg.OtelServiceName,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create routes: %w", err)
@@ -1836,15 +1855,7 @@ func initCoreInfra(ctx context.Context, cfg *Config) (libLog.Logger, *libOtel.Te
 	}
 
 	// Init OpenTelemetry via lib-commons helper (per Ring standards)
-	telemetry, err := libOtel.NewTelemetry(libOtel.TelemetryConfig{
-		LibraryName:               cfg.OtelLibraryName,
-		ServiceName:               cfg.OtelServiceName,
-		ServiceVersion:            cfg.OtelServiceVersion,
-		DeploymentEnv:             cfg.OtelDeploymentEnv,
-		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
-		EnableTelemetry:           cfg.EnableTelemetry,
-		Logger:                    logger,
-	})
+	telemetry, err := libOtel.NewTelemetry(telemetryConfig(cfg, logger))
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
@@ -2355,7 +2366,7 @@ func buildReadyzRecorder(ctx context.Context, logger libLog.Logger) *observabili
 // Extracting this out of InitServers keeps the main bootstrap flow under
 // the gocyclo budget while making the readyz wiring testable in isolation.
 func buildHealthChecker(cfg *Config, postgresConn *libPostgres.Client) *in.HealthChecker {
-	hc := in.NewHealthChecker(postgresConn, cfg.OtelServiceVersion, resolveDeploymentMode(cfg))
+	hc := in.NewHealthChecker(postgresConn, resolveDeploymentMode(cfg))
 
 	// Wire TLS posture sources for the postgres /readyz probe. The DSN is
 	// the same one handed to lib-commons; the detector parses sslmode without

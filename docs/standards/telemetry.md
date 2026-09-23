@@ -309,7 +309,7 @@ The CRM field-encryption subsystem (`components/ledger/internal/crm/services/enc
 
 **Rationale:** Wiring once at the composition root keeps a single global tracer/meter provider; flushing last guarantees that spans and metrics emitted during the shutdown of every other component are captured before the exporter closes. The audit validated flush-last for both services.
 
-**Canonical example (wiring):** [`components/ledger/internal/bootstrap/config.go:415`](../../components/ledger/internal/bootstrap/config.go) — `libOpentelemetry.NewTelemetry(...)` then `telemetry.ApplyGlobals()` at line 430.
+**Canonical example (wiring):** [`components/ledger/internal/bootstrap/config.go:464`](../../components/ledger/internal/bootstrap/config.go) — `libOpentelemetry.NewTelemetry(telemetryConfig(cfg, baseLogger))`, where the `telemetryConfig` helper (line 61) builds the resource identity from config plus the compiled build identity, then `telemetry.ApplyGlobals()` at line 481.
 
 **Canonical example (flush last):** [`components/ledger/internal/bootstrap/unified-server.go:146`](../../components/ledger/internal/bootstrap/unified-server.go) — the `ServerManager` is the single owner of telemetry teardown; it `ShutdownTelemetry()` only AFTER the HTTP drain completes (intent comment at lines 146–150), so spans from in-flight requests are exported before the exporter closes.
 

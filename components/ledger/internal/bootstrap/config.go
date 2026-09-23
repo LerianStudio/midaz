@@ -18,6 +18,7 @@ import (
 
 	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v7/commons/circuitbreaker"
 	libRedis "github.com/LerianStudio/lib-commons/v7/commons/redis"
 	tmclient "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/client"
@@ -53,6 +54,25 @@ import (
 
 const ApplicationName = "ledger"
 
+// telemetryConfig builds the OTel resource identity for the ledger. The service
+// version and revision come from the identity linked into the binary
+// (-ldflags "-X main.version=... -X main.revision=..."), never from env, so a
+// span in Tempo names the exact image that produced it.
+func telemetryConfig(cfg *Config, logger libLog.Logger) libOpentelemetry.TelemetryConfig {
+	build := buildinfo.Get()
+
+	return libOpentelemetry.TelemetryConfig{
+		LibraryName:               cfg.OtelLibraryName,
+		ServiceName:               cfg.OtelServiceName,
+		ServiceVersion:            build.Version,
+		ServiceRevision:           build.Revision,
+		DeploymentEnv:             cfg.OtelDeploymentEnv,
+		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+		EnableTelemetry:           cfg.EnableTelemetry,
+		Logger:                    logger,
+	}
+}
+
 const (
 	defaultTransactionBatchMaxSize = 10
 	minTransactionBatchMaxSize     = 1
@@ -67,7 +87,6 @@ type Config struct {
 	ApplicationName string `env:"APPLICATION_NAME"`
 	EnvName         string `env:"ENV_NAME"`
 	LogLevel        string `env:"LOG_LEVEL"`
-	Version         string `env:"VERSION"`
 	DeploymentMode  string `env:"DEPLOYMENT_MODE"`
 
 	// Server configuration - unified port for all APIs
@@ -76,7 +95,6 @@ type Config struct {
 	// OpenTelemetry configuration
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
 	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
@@ -433,22 +451,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("startup_id", startupID),
 	)
 
+	build := buildinfo.Get()
+
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Starting unified ledger component",
-		libLog.String("version", cfg.Version),
+		libLog.String("version", build.Version),
+		libLog.String("revision", build.Revision),
 		libLog.String("env", cfg.EnvName),
 	)
 
 	// Telemetry
-	telemetry, err := libOpentelemetry.NewTelemetry(libOpentelemetry.TelemetryConfig{
-		LibraryName:               cfg.OtelLibraryName,
-		ServiceName:               cfg.OtelServiceName,
-		ServiceVersion:            cfg.OtelServiceVersion,
-		DeploymentEnv:             cfg.OtelDeploymentEnv,
-		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
-		EnableTelemetry:           cfg.EnableTelemetry,
-		Logger:                    baseLogger,
-	})
+	telemetry, err := libOpentelemetry.NewTelemetry(telemetryConfig(cfg, baseLogger))
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
@@ -1172,7 +1185,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	unifiedServer := NewUnifiedServer(
 		cfg.ServerAddress,
-		cfg.Version,
+		cfg.OtelServiceName,
 		logger,
 		telemetry,
 		readyzHandler,
@@ -1269,7 +1282,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	logger.Log(
 		context.Background(), libLog.LevelInfo, "Unified ledger component started successfully with single-port mode",
-		libLog.String("version", cfg.Version),
+		libLog.String("version", build.Version),
 		libLog.String("env", cfg.EnvName),
 		libLog.String("server_address", cfg.ServerAddress),
 	)
@@ -2078,6 +2091,12 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
 	intDefault(&cfg.BalanceSyncTTLKeepaliveIntervalMs, defaultKeepaliveIntervalMs)
+
+	// OtelServiceName defaults to the roster name so /version, the OTel resource
+	// and the streaming manifest name the same process even with no OTEL_* env.
+	if cfg.OtelServiceName == "" {
+		cfg.OtelServiceName = streamingServiceName
+	}
 }
 
 func validateTransactionBatchConfig(cfg *Config) error {

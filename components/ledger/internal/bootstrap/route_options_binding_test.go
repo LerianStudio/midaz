@@ -331,12 +331,12 @@ func probeRouteRoles(t *testing.T) (map[string]string, []routeGroup) {
 	// mounts through the SAME mapper production uses.
 	humaDeps := fullSurfaceHumaDeps(auth, setup)
 
-	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
+	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger})
 
 	// The role map is scoped to the versioned Huma groups, so no RouteRegistrar is passed here.
 	// The app-root streaming manifest route does carry onboardingRouteOptions in production,
 	// so this harness leaves that binding unpinned.
-	server := NewUnifiedServer(":0", "test-version", logger, telemetry, readyzHandler,
+	server := NewUnifiedServer(":0", "ledger", logger, telemetry, readyzHandler,
 		humaDeps.MountV1, humaDeps.MountV2)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")

@@ -227,9 +227,9 @@ func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 		httpin.RegisterStreamingManifestRouteToApp(router, auth, routeOptions, manifestHandler)
 	}
 
-	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger, Version: "test-version"})
+	readyzHandler := NewReadyzHandler(ReadyzHandlerConfig{Logger: logger})
 
-	server := NewUnifiedServer(":0", "test-version", logger, telemetry, readyzHandler,
+	server := NewUnifiedServer(":0", "ledger", logger, telemetry, readyzHandler,
 		humaDeps.MountV1, humaDeps.MountV2, streamingManifestRegistrar)
 	require.NotNil(t, server, "NewUnifiedServer should return a non-nil server")
 	require.NotNil(t, server.app, "server should hold a Fiber app")

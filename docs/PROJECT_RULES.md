@@ -77,7 +77,7 @@ humaMountDeps := buildHumaMountDeps(auth, /* handlers... */, routeSetup)
 
 server := NewUnifiedServer(
     cfg.ServerAddress,
-    cfg.Version,
+    cfg.OtelServiceName,
     logger,
     telemetry,
     readyzHandler,
