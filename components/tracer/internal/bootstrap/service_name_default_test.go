@@ -88,5 +88,5 @@ func TestServiceName_UnsetEnvNamesTheProcessOnEverySurface(t *testing.T) {
 
 	assert.Equal(t, "tracer", manifest.Publisher.ServiceName, "manifest names the roster identity")
 	assert.Equal(t, manifest.Publisher.ServiceName, version.Service, "/version must name the process as the manifest does")
-	assert.Equal(t, manifest.Publisher.ServiceName, cfg.OtelServiceName, "the OTel resource must name the process as the manifest does")
+	assert.Equal(t, manifest.Publisher.ServiceName, telemetryConfig(cfg, logger).ServiceName, "the OTel resource must name the process as the manifest does")
 }
