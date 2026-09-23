@@ -77,6 +77,36 @@ to binary floating-point representation. Prefer range comparisons
 (`amount >= 100.00 && amount <= 100.02`) or integer thresholds (`amount > 100`) for reliable
 results.
 
+### Typed shared-context evaluator
+
+`ContextAdapter` compiles a separate, strictly typed environment for the shared
+`pkg/tracercontract` contract. It is not yet wired to the reservation endpoint;
+the variables above describe the currently deployed evaluator. Switching the
+endpoint requires coordinated rule migration and recompilation.
+
+The new environment exposes `accounts`, `entries` and `debits`. The Tracer
+computes gross internal debits per account and asset; credits never offset them
+and external entries never create account counters. Asset identity is namespace
+plus ID; its code is descriptive. Prepared facts are detached snapshots.
+
+Entry and debit amounts are opaque Decimal values. `decimal("0.1")` accepts only
+a bounded decimal string literal, checked at compile time. Supported member
+comparisons are `equal`, `lessThan`, `lessOrEqual`, `greaterThan` and
+`greaterOrEqual`; equality also works with `==`. There are no Decimal casts to
+string, integer or float, or monetary arithmetic operators. For example:
+
+```cel
+debits.exists(d, d.asset.namespace == "producer" && d.asset.id == "asset-id" &&
+  d.amount.greaterThan(decimal("100.01")))
+```
+
+Every adapter requires explicit input, numeric, expression-length and cost
+bounds. Custom Decimal calls charge for operand size. Runtime evaluation accepts
+the remaining request budget in addition to enforcing its expression ceiling;
+the orchestrator must account for returned actual cost across rules. Cached
+programs cannot be reused across adapters with different environments or bounds.
+Execution errors expose stable categories without expression literals or keys.
+
 ### Evaluation semantics
 
 - **No priority-based evaluation.** All active rules are evaluated; `DENY` takes precedence in
