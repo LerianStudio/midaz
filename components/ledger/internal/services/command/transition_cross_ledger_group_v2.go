@@ -114,6 +114,10 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 		return nil, err
 	}
 
+	if err := uc.loadCrossLedgerPendingGroupOrigins(ctx, span, origins); err != nil {
+		return nil, err
+	}
+
 	releaseLocks, err := uc.lockCrossLedgerPendingGroup(ctx, span, logger, origins, status)
 	if err != nil {
 		return nil, err
@@ -458,6 +462,37 @@ func orderCrossLedgerPendingGroupParts(
 	}
 
 	return ordered, nil
+}
+
+// loadCrossLedgerPendingGroupOrigins replaces every group member row with the
+// pending transaction a singular transition would load, operations included: the
+// group read returns rows only, and a cancel unwinds the persisted operations.
+func (uc *UseCase) loadCrossLedgerPendingGroupOrigins(ctx context.Context, span trace.Span, parts []crossLedgerPendingGroupPart) error {
+	for index := range parts {
+		part := &parts[index]
+
+		transactionID, err := uuid.Parse(part.member.ID)
+		if err != nil {
+			return pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+		}
+
+		loaded, err := uc.loadPendingTransaction(ctx, span, PendingTransitionInput{
+			OrganizationID: part.intent.OrganizationID,
+			LedgerID:       part.intent.LedgerID,
+			TransactionID:  transactionID,
+		})
+		if err != nil {
+			return err
+		}
+
+		if loaded == nil || loaded.ID != part.member.ID {
+			return pkg.ValidateBusinessError(constant.ErrCrossLedgerGroupIncomplete, constant.EntityTransaction)
+		}
+
+		part.member = loaded
+	}
+
+	return nil
 }
 
 func (uc *UseCase) lockCrossLedgerPendingGroup(
