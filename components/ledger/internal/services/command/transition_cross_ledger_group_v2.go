@@ -18,6 +18,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -124,6 +125,12 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 			releaseLocks()
 		}
 	}()
+
+	// The origin and destination loads span ledgers. A cache miss admits its seed
+	// only inside the engine, so every ownership they take has to survive until the
+	// single execution answers.
+	ctx, admissions := accountprotection.ContextWithSink(ctx)
+	defer admissions.Release(ctx)
 
 	for index := range origins {
 		part := &origins[index]
@@ -255,6 +262,8 @@ func (uc *UseCase) transitionCrossLedgerGroupV2(
 	}
 
 	outcome, executeErr := ExecutePreparedEngine(ctx, uc.Engine, prepared)
+	resolveEngineAdmissions(admissions, prepared.Execution.Execution, outcome, executeErr)
+
 	if executeErr != nil {
 		confirmedAbort := !outcome.Executed || confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr)
 		if confirmedAbort {
