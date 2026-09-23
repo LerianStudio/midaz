@@ -73,6 +73,51 @@ func TestIntegration_TransactionGroup_LifecycleAndScope(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestIntegration_TransactionGroup_ListByStatusOlderThanWalksByKeyset(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	repo := setupTransactionGroupRepo(t)
+	ctx := context.Background()
+	cutoff := time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)
+	organizationID := uuid.MustParse("0199a110-0000-7000-8000-0000000000a1")
+	ledgerID := uuid.MustParse("0199a110-0000-7000-8000-0000000000a2")
+
+	newGroup := func(id string, status string, createdAt time.Time) *TransactionGroup {
+		return &TransactionGroup{
+			ID: uuid.MustParse(id), OrganizationID: organizationID, LedgerID: ledgerID,
+			Status: status, AssetCode: "BRL", Intent: []byte(`{"formatVersion":1,"asset":"BRL","parts":[]}`),
+			CreatedAt: createdAt, UpdatedAt: createdAt,
+		}
+	}
+
+	oldest := newGroup("0199a110-0000-7000-8000-000000000001", "PENDING", cutoff.Add(-3*time.Hour))
+	middle := newGroup("0199a110-0000-7000-8000-000000000002", "PENDING", cutoff.Add(-2*time.Hour))
+	approved := newGroup("0199a110-0000-7000-8000-000000000003", "APPROVED", cutoff.Add(-2*time.Hour))
+	newest := newGroup("0199a110-0000-7000-8000-000000000004", "PENDING", cutoff.Add(-time.Hour))
+	young := newGroup("0199a110-0000-7000-8000-000000000005", "PENDING", cutoff.Add(time.Minute))
+
+	for _, group := range []*TransactionGroup{young, newest, approved, middle, oldest} {
+		require.NoError(t, repo.Create(ctx, group))
+	}
+
+	first, err := repo.ListByStatusOlderThan(ctx, "PENDING", cutoff, uuid.Nil, 2)
+	require.NoError(t, err)
+	require.Len(t, first, 2)
+	assert.Equal(t, oldest.ID, first[0].ID, "pages are ordered by id")
+	assertTransactionGroupEqual(t, middle, first[1])
+
+	second, err := repo.ListByStatusOlderThan(ctx, "PENDING", cutoff, first[1].ID, 2)
+	require.NoError(t, err)
+	require.Len(t, second, 1, "other statuses and groups younger than the cutoff are excluded")
+	assert.Equal(t, newest.ID, second[0].ID)
+
+	third, err := repo.ListByStatusOlderThan(ctx, "PENDING", cutoff, second[0].ID, 2)
+	require.NoError(t, err)
+	assert.Empty(t, third)
+}
+
 func assertTransactionGroupEqual(t *testing.T, want, got *TransactionGroup) {
 	t.Helper()
 	require.NotNil(t, got)

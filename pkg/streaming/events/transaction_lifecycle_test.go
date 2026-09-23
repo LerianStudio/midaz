@@ -107,6 +107,26 @@ func TestNewTransactionPosted_MapsAllSourceFields(t *testing.T) {
 	assert.Equal(t, "2026-05-13T12:34:56Z", payload.UpdatedAt)
 }
 
+func TestTransactionPayload_GroupMemberCarriesGroupRole(t *testing.T) {
+	src := minimalTransactionSource()
+	src.GroupID = &tranGroup
+	role := events.TransactionGroupRoleDestination
+	src.GroupRole = &role
+
+	payload := events.NewTransactionPosted(src)
+	require.NotNil(t, payload.GroupRole)
+	assert.Equal(t, events.TransactionGroupRoleDestination, *payload.GroupRole)
+
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	var generic map[string]any
+	require.NoError(t, json.Unmarshal(data, &generic))
+	assert.Equal(t, tranGroup, generic["groupId"])
+	assert.Equal(t, "destination", generic["groupRole"])
+	assert.Len(t, generic, 18, "a group member adds exactly groupId and groupRole to the minimal payload")
+}
+
 func TestNewTransactionReverted_PopulatesParentTransactionID(t *testing.T) {
 	src := minimalTransactionSource()
 	src.ParentTransactionID = &tranParent
@@ -240,6 +260,9 @@ func TestTransactionPayload_JSONShape_OmitsScale(t *testing.T) {
 
 	_, hasParent := generic["parentTransactionId"]
 	assert.False(t, hasParent, "parentTransactionId must omitempty when nil")
+
+	_, hasGroupRole := generic["groupRole"]
+	assert.False(t, hasGroupRole, "groupRole must omitempty outside a group")
 
 	_, hasScale := generic["scale"]
 	assert.False(t, hasScale, "scale is intentionally omitted (asset-level property)")

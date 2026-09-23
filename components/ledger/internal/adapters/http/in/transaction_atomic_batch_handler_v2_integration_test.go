@@ -31,6 +31,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
@@ -41,9 +43,10 @@ import (
 // avoiding a container startup for every cardinality and failure case. They are
 // sequential because the Huma test builders install process-global hooks.
 type atomicBatchHTTPIntegrationFixture struct {
-	infra  *testInfra
-	app    *fiber.App
-	engine command.Engine
+	infra   *testInfra
+	app     *fiber.App
+	engine  command.Engine
+	emitter *pkgStreaming.MockEmitter
 }
 
 type atomicBatchHTTPEvidenceResolver struct {
@@ -117,12 +120,58 @@ func setupAtomicBatchHTTPIntegrationFixture(t *testing.T) *atomicBatchHTTPIntegr
 		infra.metadataRepo,
 	)
 	infra.handler.TransactionBatchMaxSize = 50
+	emitter := pkgStreaming.NewMockEmitter()
+	infra.handler.Command.Streaming = emitter
 
 	return &atomicBatchHTTPIntegrationFixture{
-		infra:  infra,
-		app:    buildHumaV2DirectApp(t, infra.handler),
-		engine: engine,
+		infra:   infra,
+		app:     buildHumaV2DirectApp(t, infra.handler),
+		engine:  engine,
+		emitter: emitter,
 	}
+}
+
+// groupEvents returns the transaction_group facts published for one group, in
+// emission order. The coordinator publishes them after the response is built,
+// so callers wait for the count they expect.
+func (fixture *atomicBatchHTTPIntegrationFixture) groupEvents(groupID string) []publishedGroupEvent {
+	result := make([]publishedGroupEvent, 0)
+
+	for _, emitted := range fixture.emitter.Events() {
+		if !strings.HasPrefix(emitted.DefinitionKey, "transaction_group.") || emitted.Subject != groupID {
+			continue
+		}
+
+		var payload events.TransactionGroupPayload
+		if err := json.Unmarshal(emitted.Payload, &payload); err != nil {
+			continue
+		}
+
+		result = append(result, publishedGroupEvent{key: emitted.DefinitionKey, payload: payload})
+	}
+
+	return result
+}
+
+type publishedGroupEvent struct {
+	key     string
+	payload events.TransactionGroupPayload
+}
+
+func (fixture *atomicBatchHTTPIntegrationFixture) requireGroupEvent(
+	t *testing.T,
+	groupID, key string,
+) events.TransactionGroupPayload {
+	t.Helper()
+
+	require.Eventually(t, func() bool { return len(fixture.groupEvents(groupID)) > 0 }, 5*time.Second, 10*time.Millisecond,
+		"group %s must publish %s", groupID, key)
+
+	published := fixture.groupEvents(groupID)
+	require.Len(t, published, 1, "one group operation publishes exactly one group fact")
+	require.Equal(t, key, published[0].key)
+
+	return published[0].payload
 }
 
 func (fixture *atomicBatchHTTPIntegrationFixture) newLedger(t *testing.T) uuid.UUID {
@@ -745,6 +794,15 @@ func TestIntegration_DirectV2CrossLedger_OneAtomicGroup(t *testing.T) {
 	requireCachedAvailable(t, fixture, ledgerA, "@cross-source", 0)
 	requireCachedAvailable(t, fixture, ledgerB, "@cross-destination", 100)
 
+	posted := fixture.requireGroupEvent(t, *result.GroupID, events.TransactionGroupPostedDefinition.Key())
+	require.Equal(t, constant.APPROVED, posted.Status)
+	require.Equal(t, 2, posted.LedgerCount)
+	require.Len(t, posted.Parts, 2)
+	require.Equal(t, result.Transactions[0].ID, posted.Parts[0].TransactionID)
+	require.Equal(t, events.TransactionGroupRoleOrigin, posted.Parts[0].Role)
+	require.Equal(t, result.Transactions[1].ID, posted.Parts[1].TransactionID)
+	require.Equal(t, events.TransactionGroupRoleDestination, posted.Parts[1].Role)
+
 	replay := postTransaction(t, fixture.app, v2CreateURL("direct"), string(raw), "cross-ledger-direct")
 	replayBody := drainBody(t, replay)
 	require.Equal(t, http.StatusCreated, replay.StatusCode, "body: %s", string(replayBody))
@@ -752,6 +810,8 @@ func TestIntegration_DirectV2CrossLedger_OneAtomicGroup(t *testing.T) {
 	require.JSONEq(t, string(body), string(replayBody))
 	require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerA))
 	require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerB))
+	require.Never(t, func() bool { return len(fixture.groupEvents(*result.GroupID)) > 1 }, 300*time.Millisecond, 10*time.Millisecond,
+		"a replay republishes nothing")
 
 	t.Run("disabled participant is rejected", func(t *testing.T) {
 		enabledLedger := fixture.newLedger(t)
@@ -862,6 +922,13 @@ func TestIntegration_RevertV2CrossLedger_RevertsTheWholeGroupAtomically(t *testi
 	require.Len(t, reverted.Transactions, 2)
 	require.Equal(t, int64(1), countedEngine.calls.Load(), "the whole group must use one atomic engine execution")
 
+	revertedFact := fixture.requireGroupEvent(t, *reverted.GroupID, events.TransactionGroupRevertedDefinition.Key())
+	require.NotNil(t, revertedFact.RevertedGroupID)
+	require.Equal(t, *origin.GroupID, *revertedFact.RevertedGroupID)
+	require.Len(t, revertedFact.Parts, 2)
+	require.Equal(t, events.TransactionGroupRoleOrigin, revertedFact.Parts[0].Role, "the reversal debits the former destination")
+	require.Equal(t, events.TransactionGroupRoleDestination, revertedFact.Parts[1].Role)
+
 	for index, reversal := range reverted.Transactions {
 		originIndex := len(origin.Transactions) - 1 - index
 		require.Equal(t, index+1, reversal.Order)
@@ -947,6 +1014,13 @@ func TestIntegration_HoldCommitCancelV2CrossLedger_GroupLifecycle(t *testing.T) 
 		requireCachedAvailable(t, fixture, ledgerB, "@committed-destination", 100)
 		require.Equal(t, constant.APPROVED, crossLedgerGroupStatus(t, fixture, *held.GroupID))
 
+		committedFact := fixture.requireGroupEvent(t, *held.GroupID, events.TransactionGroupCommittedDefinition.Key())
+		require.Equal(t, constant.APPROVED, committedFact.Status)
+		require.Len(t, committedFact.Parts, 2, "a hold publishes nothing; the commit publishes every part")
+		require.Equal(t, originID.String(), committedFact.Parts[0].TransactionID)
+		require.Equal(t, events.TransactionGroupRoleOrigin, committedFact.Parts[0].Role)
+		require.Equal(t, events.TransactionGroupRoleDestination, committedFact.Parts[1].Role)
+
 		second := postTransaction(t, fixture.app, commitURL, "", "")
 		secondBody := drainBody(t, second)
 		require.Equal(t, http.StatusUnprocessableEntity, second.StatusCode, "body: %s", string(secondBody))
@@ -1009,6 +1083,12 @@ func TestIntegration_HoldCommitCancelV2CrossLedger_GroupLifecycle(t *testing.T) 
 		require.Equal(t, 1, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerA))
 		require.Zero(t, countTransactionsInLedger(t, fixture.infra.pgContainer.DB, ledgerB))
 		require.Equal(t, constant.CANCELED, crossLedgerGroupStatus(t, fixture, *held.GroupID))
+
+		canceledFact := fixture.requireGroupEvent(t, *held.GroupID, events.TransactionGroupCanceledDefinition.Key())
+		require.Equal(t, constant.CANCELED, canceledFact.Status)
+		require.Len(t, canceledFact.Parts, 1)
+		require.Equal(t, originID.String(), canceledFact.Parts[0].TransactionID)
+		require.Equal(t, constant.CANCELED, canceledFact.Parts[0].Status)
 	})
 }
 
