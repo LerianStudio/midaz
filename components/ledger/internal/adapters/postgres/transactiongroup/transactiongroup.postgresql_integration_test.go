@@ -118,6 +118,59 @@ func TestIntegration_TransactionGroup_ListByStatusOlderThanWalksByKeyset(t *test
 	assert.Empty(t, third)
 }
 
+func TestIntegration_TransactionGroup_DeleteIfMemberlessKeepsGroupsWithMembers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
+	dsn := pgtestutil.BuildConnectionString(container.Host, container.Port, container.Config)
+	repo := NewTransactionGroupPostgreSQLRepository(pgtestutil.ConnectPostgresClient(t.Context(), t, dsn, dsn))
+	ctx := context.Background()
+	createdAt := time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC)
+	organizationID := uuid.MustParse("0199a120-0000-7000-8000-0000000000a1")
+	ledgerID := uuid.MustParse("0199a120-0000-7000-8000-0000000000a2")
+
+	newGroup := func(id, status string) *TransactionGroup {
+		return &TransactionGroup{
+			ID: uuid.MustParse(id), OrganizationID: organizationID, LedgerID: ledgerID,
+			Status: status, AssetCode: "BRL", Intent: []byte(`{"formatVersion":1,"asset":"BRL","parts":[]}`),
+			CreatedAt: createdAt, UpdatedAt: createdAt,
+		}
+	}
+
+	orphan := newGroup("0199a120-0000-7000-8000-000000000001", "PENDING")
+	withMember := newGroup("0199a120-0000-7000-8000-000000000002", "PENDING")
+	settled := newGroup("0199a120-0000-7000-8000-000000000003", "APPROVED")
+
+	for _, group := range []*TransactionGroup{orphan, withMember, settled} {
+		require.NoError(t, repo.Create(ctx, group))
+	}
+
+	memberID := pgtestutil.CreateTestTransaction(t, container.DB, organizationID, ledgerID, pgtestutil.DefaultTransactionParams())
+	_, err := container.DB.Exec(`UPDATE transaction SET group_id = $1 WHERE id = $2`, withMember.ID, memberID)
+	require.NoError(t, err)
+
+	deleted, err := repo.DeleteIfMemberless(ctx, orphan.ID)
+	require.NoError(t, err)
+	assert.True(t, deleted)
+
+	deleted, err = repo.DeleteIfMemberless(ctx, withMember.ID)
+	require.NoError(t, err)
+	assert.False(t, deleted, "a group that has a member row is never deleted")
+
+	deleted, err = repo.DeleteIfMemberless(ctx, settled.ID)
+	require.NoError(t, err)
+	assert.False(t, deleted, "only a PENDING intent is ever deleted")
+
+	_, err = repo.FindByID(ctx, orphan.ID)
+	require.Error(t, err)
+	_, err = repo.FindByID(ctx, withMember.ID)
+	require.NoError(t, err)
+	_, err = repo.FindByID(ctx, settled.ID)
+	require.NoError(t, err)
+}
+
 func assertTransactionGroupEqual(t *testing.T, want, got *TransactionGroup) {
 	t.Helper()
 	require.NotNil(t, got)

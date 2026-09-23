@@ -146,13 +146,29 @@ func TestReconcileTransactionGroups_DeletesOnlyOldOrphans(t *testing.T) {
 	uc, emitter, metricsReader := newReconcileUseCase(t, repo, &transactionGroupReconcileReader{})
 
 	expectReconcilePage(repo, uuid.Nil, oldOrphan, youngOrphan)
-	repo.EXPECT().Delete(gomock.Any(), oldOrphan.ID).Return(nil)
+	repo.EXPECT().DeleteIfMemberless(gomock.Any(), oldOrphan.ID).Return(true, nil)
 
 	stats := uc.ReconcileTransactionGroups(context.Background())
 
 	assert.Equal(t, TransactionGroupReconciliationStats{Scanned: 2, Deleted: 1, Skipped: 1}, stats)
 	assert.Equal(t, map[string]int64{"deleted": 1, "skipped": 1}, collectReconcileResults(t, metricsReader))
 	requireNoGroupEvent(t, emitter)
+}
+
+func TestReconcileTransactionGroups_OrphanThatGainedAMemberIsKept(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repo := transactiongroup.NewMockRepository(ctrl)
+	orphan := reconcileTestGroup(t, uuid.MustParse("0199a800-0000-7000-8000-000000000003"), reconcileNow.Add(-25*time.Hour))
+	uc, _, metricsReader := newReconcileUseCase(t, repo, &transactionGroupReconcileReader{})
+
+	expectReconcilePage(repo, uuid.Nil, orphan)
+	repo.EXPECT().DeleteIfMemberless(gomock.Any(), orphan.ID).Return(false, nil)
+
+	stats := uc.ReconcileTransactionGroups(context.Background())
+
+	assert.Equal(t, TransactionGroupReconciliationStats{Scanned: 1, Skipped: 1}, stats,
+		"a member projected between the read and the delete keeps the intent")
+	assert.Equal(t, map[string]int64{"skipped": 1}, collectReconcileResults(t, metricsReader))
 }
 
 func TestReconcileTransactionGroups_AlignsSettledGroupsFromTheirMembers(t *testing.T) {
@@ -227,6 +243,8 @@ func TestReconcileTransactionGroups_NeverWritesAnInconsistentOrLiveGroup(t *test
 	heldID := uuid.MustParse("0199a800-0000-7000-8000-000000000022")
 	inFlightID := uuid.MustParse("0199a800-0000-7000-8000-000000000023")
 	missingDestinationID := uuid.MustParse("0199a800-0000-7000-8000-000000000024")
+	pendingProjectionID := uuid.MustParse("0199a800-0000-7000-8000-000000000025")
+	longAgo := reconcileNow.Add(-25 * time.Hour)
 
 	ctrl := gomock.NewController(t)
 	repo := transactiongroup.NewMockRepository(ctrl)
@@ -240,7 +258,8 @@ func TestReconcileTransactionGroups_NeverWritesAnInconsistentOrLiveGroup(t *test
 			inFlightID: {
 				reconcileOrigin(inFlightID, constant.APPROVED, recent),
 			},
-			missingDestinationID: {reconcileOrigin(missingDestinationID, constant.APPROVED, settledAt)},
+			missingDestinationID: {reconcileOrigin(missingDestinationID, constant.APPROVED, longAgo)},
+			pendingProjectionID:  {reconcileOrigin(pendingProjectionID, constant.APPROVED, settledAt)},
 		},
 	})
 
@@ -249,14 +268,16 @@ func TestReconcileTransactionGroups_NeverWritesAnInconsistentOrLiveGroup(t *test
 		reconcileTestGroup(t, mixedID, reconcileNow.Add(-2*time.Hour)),
 		reconcileTestGroup(t, heldID, reconcileNow.Add(-2*time.Hour)),
 		reconcileTestGroup(t, inFlightID, reconcileNow.Add(-2*time.Hour)),
-		reconcileTestGroup(t, missingDestinationID, reconcileNow.Add(-2*time.Hour)),
+		reconcileTestGroup(t, missingDestinationID, reconcileNow.Add(-26*time.Hour)),
+		reconcileTestGroup(t, pendingProjectionID, reconcileNow.Add(-2*time.Hour)),
 	)
 
 	stats := uc.ReconcileTransactionGroups(context.Background())
 
-	assert.Equal(t, TransactionGroupReconciliationStats{Scanned: 4, Inconsistent: 2, Skipped: 2}, stats,
-		"mixed and half-materialized groups are reported; a held group and one with recent activity are left alone")
-	assert.Equal(t, map[string]int64{"inconsistent": 2, "skipped": 2}, collectReconcileResults(t, metricsReader))
+	assert.Equal(t, TransactionGroupReconciliationStats{Scanned: 5, Inconsistent: 2, Skipped: 3}, stats,
+		"mixed groups, and approved parts still missing a destination after the orphan age, are reported; "+
+			"a held group, recent activity, and a destination projection that may still be in recovery are left alone")
+	assert.Equal(t, map[string]int64{"inconsistent": 2, "skipped": 3}, collectReconcileResults(t, metricsReader))
 	requireNoGroupEvent(t, emitter)
 }
 

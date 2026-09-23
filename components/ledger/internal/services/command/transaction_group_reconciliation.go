@@ -204,12 +204,26 @@ func (uc *UseCase) reconcileTransactionGroup(
 	}
 
 	roles := crossLedgerIntentRoles(*intent)
-	target, held, consistent := classifyTransactionGroupMembers(*intent, roles, members)
 
-	switch {
-	case held:
+	var target string
+
+	switch classifyTransactionGroupMembers(*intent, roles, members) {
+	case transactionGroupMembersHeld:
 		return transactionGroupReconcileSkipped
-	case !consistent:
+	case transactionGroupMembersApproved:
+		target = constant.APPROVED
+	case transactionGroupMembersCanceled:
+		target = constant.CANCELED
+	case transactionGroupMembersProjecting:
+		// Approved parts with destinations still missing are what a commit looks
+		// like while its destination projection waits in recovery. Only once no
+		// deferred projection can still arrive is the gap reported.
+		if now.Sub(latestTransactionGroupActivity(members)) < uc.transactionGroupOrphanMinAge() {
+			return transactionGroupReconcileSkipped
+		}
+
+		fallthrough
+	default:
 		logger.Log(ctx, libLog.LevelError, "Cross-ledger transaction group members disagree; left untouched",
 			libLog.String("group_id", group.ID.String()), libLog.Int("member_count", len(members)),
 			libLog.Int("part_count", len(intent.Parts)))
@@ -245,11 +259,16 @@ func (uc *UseCase) reconcileOrphanTransactionGroup(
 		return transactionGroupReconcileSkipped
 	}
 
-	if err := uc.TransactionGroupRepo.Delete(ctx, group.ID); err != nil {
+	deleted, err := uc.TransactionGroupRepo.DeleteIfMemberless(ctx, group.ID)
+	if err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Failed to delete orphan cross-ledger transaction group while reconciling",
 			libLog.String("group_id", group.ID.String()), libLog.Err(err))
 
 		return transactionGroupReconcileFailed
+	}
+
+	if !deleted {
+		return transactionGroupReconcileSkipped
 	}
 
 	logger.Log(ctx, libLog.LevelWarn, "Deleted cross-ledger transaction group intent that never produced a member",
@@ -258,16 +277,31 @@ func (uc *UseCase) reconcileOrphanTransactionGroup(
 	return transactionGroupReconcileDeleted
 }
 
+// transactionGroupMembers is what the members of a PENDING group agree on.
+type transactionGroupMembers int
+
+const (
+	transactionGroupMembersInconsistent transactionGroupMembers = iota
+	// transactionGroupMembersHeld is a hold still waiting for its commit or cancel.
+	transactionGroupMembersHeld
+	// transactionGroupMembersApproved is a commit whose every part is projected.
+	transactionGroupMembersApproved
+	// transactionGroupMembersCanceled is a cancel whose every origin is projected.
+	transactionGroupMembersCanceled
+	// transactionGroupMembersProjecting is every origin approved with some
+	// destination not projected yet.
+	transactionGroupMembersProjecting
+)
+
 // classifyTransactionGroupMembers decides what the members of a PENDING group
-// agree on. held reports a hold still waiting for its commit or cancel; target is
-// the terminal status every member holds, valid only when consistent is true.
-// Every member must belong to one intent part's scope, at most once. The role
-// comes from the intent: a row read back from the repository carries no legs.
+// agree on. Every member must belong to one intent part's scope, at most once.
+// The role comes from the intent: a row read back from the repository carries no
+// legs.
 func classifyTransactionGroupMembers(
 	intent CrossLedgerGroupIntent,
 	roles map[atomicTransactionBatchLedgerRef]string,
 	members []*transaction.Transaction,
-) (target string, held, consistent bool) {
+) transactionGroupMembers {
 	origins := 0
 
 	for index := range intent.Parts {
@@ -278,35 +312,45 @@ func classifyTransactionGroupMembers(
 
 	seen := make(map[atomicTransactionBatchLedgerRef]struct{}, len(members))
 	statuses := make(map[string]int, 2)
+	presentOrigins := 0
 
 	for _, member := range members {
 		if member == nil {
-			return "", false, false
+			return transactionGroupMembersInconsistent
 		}
 
 		ref := crossLedgerMemberLedgerRef(member)
 		if _, duplicate := seen[ref]; duplicate {
-			return "", false, false
+			return transactionGroupMembersInconsistent
 		}
 
 		seen[ref] = struct{}{}
 
-		if _, ok := roles[ref]; !ok {
-			return "", false, false
+		role, ok := roles[ref]
+		if !ok {
+			return transactionGroupMembersInconsistent
+		}
+
+		if role == CrossLedgerGroupRoleOrigin {
+			presentOrigins++
 		}
 
 		statuses[member.Status.Code]++
 	}
 
+	allOrigins := presentOrigins == origins
+
 	switch {
-	case statuses[constant.PENDING] == len(members) && len(members) == origins:
-		return "", true, true
+	case statuses[constant.PENDING] == len(members) && allOrigins && len(members) == origins:
+		return transactionGroupMembersHeld
 	case statuses[constant.APPROVED] == len(members) && len(members) == len(intent.Parts):
-		return constant.APPROVED, false, true
-	case statuses[constant.CANCELED] == len(members) && len(members) == origins:
-		return constant.CANCELED, false, true
+		return transactionGroupMembersApproved
+	case statuses[constant.CANCELED] == len(members) && allOrigins && len(members) == origins:
+		return transactionGroupMembersCanceled
+	case statuses[constant.APPROVED] == len(members) && allOrigins:
+		return transactionGroupMembersProjecting
 	default:
-		return "", false, false
+		return transactionGroupMembersInconsistent
 	}
 }
 

@@ -238,6 +238,37 @@ func (r *TransactionGroupPostgreSQLRepository) UpdateStatus(
 	return rows == 1, nil
 }
 
+// DeleteIfMemberless removes an orphan intent. The membership check and the
+// delete are one statement, so a member projected after the caller read an empty
+// member set keeps its group.
+func (r *TransactionGroupPostgreSQLRepository) DeleteIfMemberless(ctx context.Context, id uuid.UUID) (bool, error) {
+	db, err := r.getDB(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	query, args, err := squirrel.Delete("transaction_group").
+		Where(squirrel.Eq{"id": id, "status": constant.PENDING}).
+		Where("NOT EXISTS (SELECT 1 FROM transaction WHERE transaction.group_id = ?)", id).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		return false, err
+	}
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return false, err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return rows == 1, nil
+}
+
 // Delete removes a pre-publication group intent after a confirmed hold refusal.
 func (r *TransactionGroupPostgreSQLRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	db, err := r.getDB(ctx)

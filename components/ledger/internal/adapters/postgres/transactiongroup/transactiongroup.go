@@ -39,4 +39,7 @@ type Repository interface {
 	// they received. It reads the current tenant across ledger scopes.
 	ListByStatusOlderThan(ctx context.Context, status string, before time.Time, afterID uuid.UUID, limit int) ([]*TransactionGroup, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+	// DeleteIfMemberless removes a PENDING group only while no transaction row
+	// references it, in one statement, and reports whether it removed the row.
+	DeleteIfMemberless(ctx context.Context, id uuid.UUID) (bool, error)
 }

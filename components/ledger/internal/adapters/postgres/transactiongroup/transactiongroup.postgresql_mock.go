@@ -70,6 +70,21 @@ func (mr *MockRepositoryMockRecorder) Delete(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), ctx, id)
 }
 
+// DeleteIfMemberless mocks base method.
+func (m *MockRepository) DeleteIfMemberless(ctx context.Context, id uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteIfMemberless", ctx, id)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteIfMemberless indicates an expected call of DeleteIfMemberless.
+func (mr *MockRepositoryMockRecorder) DeleteIfMemberless(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIfMemberless", reflect.TypeOf((*MockRepository)(nil).DeleteIfMemberless), ctx, id)
+}
+
 // Find mocks base method.
 func (m *MockRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*TransactionGroup, error) {
 	m.ctrl.T.Helper()
