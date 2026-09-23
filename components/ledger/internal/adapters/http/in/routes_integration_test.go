@@ -115,9 +115,9 @@ func mountCRMCompositionSurface(app *fiber.App, auth *middleware.AuthClient) hum
 	group, hAPI := newLedgerHumaTestAPI(app, "/v2")
 
 	RegisterCompositionV2RoutesToApp(group, hAPI, auth, &CompositionHandler{}, nil)
-	RegisterHolderV2RoutesToApp(group, hAPI, auth, &HolderHandler{}, nil)
+	RegisterHolderV2RoutesToApp(group, hAPI, auth, &HolderHandler{}, nil, nil)
 	RegisterHolderAccountsV2RoutesToApp(group, hAPI, auth, &HolderAccountsHandler{}, nil)
-	RegisterInstrumentV2RoutesToApp(group, hAPI, auth, &InstrumentHandler{}, nil)
+	RegisterInstrumentV2RoutesToApp(group, hAPI, auth, &InstrumentHandler{}, nil, nil)
 	RegisterEncryptionV2RoutesToApp(group, hAPI, auth, &EncryptionHandler{}, nil)
 	RegisterAuditV2RoutesToApp(group, hAPI, auth, &AuditHandler{}, nil)
 

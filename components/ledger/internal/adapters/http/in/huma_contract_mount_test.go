@@ -128,8 +128,8 @@ func TestCRMV2RoutesRespectNilGuards(t *testing.T) {
 
 	// The unconditional pair mounts; the three conditional handlers are nil, so
 	// holder-accounts + encryption + audit must stay absent.
-	RegisterHolderV2RoutesToApp(apiV2, hAPI, auth, &HolderHandler{}, nil)
-	RegisterInstrumentV2RoutesToApp(apiV2, hAPI, auth, &InstrumentHandler{}, nil)
+	RegisterHolderV2RoutesToApp(apiV2, hAPI, auth, &HolderHandler{}, nil, nil)
+	RegisterInstrumentV2RoutesToApp(apiV2, hAPI, auth, &InstrumentHandler{}, nil, nil)
 	RegisterHolderAccountsV2RoutesToApp(apiV2, hAPI, auth, nil, nil)
 	RegisterEncryptionV2RoutesToApp(apiV2, hAPI, auth, nil, nil)
 	RegisterAuditV2RoutesToApp(apiV2, hAPI, auth, nil, nil)
