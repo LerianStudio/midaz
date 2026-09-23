@@ -641,6 +641,10 @@ var (
 	// service did not decide: unreachable, timed out, breaker open, or an answer
 	// the client reclassifies as undecided. Never a denial, so a retry is valid.
 	ErrAuthorizationServiceUnavailable = errors.New("0525")
+	// ErrContextPolicyUnavailable reports missing or unusable trusted policy configuration.
+	ErrContextPolicyUnavailable = errors.New("0526")
+	// ErrContextPolicyConflict reports a reused immutable revision or stale binding update.
+	ErrContextPolicyConflict = errors.New("0527")
 )
 
 // List of CRM domain errors.
