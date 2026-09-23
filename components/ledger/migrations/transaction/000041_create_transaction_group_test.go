@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMigration000038_CreatesTransactionGroupLifecycleStore(t *testing.T) {
+func TestMigration000041_CreatesTransactionGroupLifecycleStore(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
-	up, err := os.ReadFile(filepath.Join(dir, "000038_create_transaction_group.up.sql"))
+	up, err := os.ReadFile(filepath.Join(dir, "000041_create_transaction_group.up.sql"))
 	require.NoError(t, err)
 
 	sql := strings.Join(strings.Fields(strings.ToLower(string(up))), " ")
@@ -38,11 +38,11 @@ func TestMigration000038_CreatesTransactionGroupLifecycleStore(t *testing.T) {
 	}
 }
 
-func TestMigration000038_DropsTransactionGroupLifecycleStore(t *testing.T) {
+func TestMigration000041_DropsTransactionGroupLifecycleStore(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
-	down, err := os.ReadFile(filepath.Join(dir, "000038_create_transaction_group.down.sql"))
+	down, err := os.ReadFile(filepath.Join(dir, "000041_create_transaction_group.down.sql"))
 	require.NoError(t, err)
 
 	sql := strings.ToLower(string(down))

@@ -14,13 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMigration000036_AddsNullableGroupIDAndScopedIndex(t *testing.T) {
+func TestMigration000039_AddsNullableGroupIDAndScopedIndex(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
-	up, err := os.ReadFile(filepath.Join(dir, "000036_add_group_id_to_transaction.up.sql"))
+	up, err := os.ReadFile(filepath.Join(dir, "000039_add_group_id_to_transaction.up.sql"))
 	require.NoError(t, err)
-	down, err := os.ReadFile(filepath.Join(dir, "000036_add_group_id_to_transaction.down.sql"))
+	down, err := os.ReadFile(filepath.Join(dir, "000039_add_group_id_to_transaction.down.sql"))
 	require.NoError(t, err)
 
 	upSQL := strings.ToLower(string(up))

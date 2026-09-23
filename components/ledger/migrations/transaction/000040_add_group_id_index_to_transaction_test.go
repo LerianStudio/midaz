@@ -14,13 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMigration000037_AddsGroupLookupIndexWithoutLedgerScope(t *testing.T) {
+func TestMigration000040_AddsGroupLookupIndexWithoutLedgerScope(t *testing.T) {
 	t.Parallel()
 
 	dir := migrationsDir(t)
-	up, err := os.ReadFile(filepath.Join(dir, "000037_add_group_id_index_to_transaction.up.sql"))
+	up, err := os.ReadFile(filepath.Join(dir, "000040_add_group_id_index_to_transaction.up.sql"))
 	require.NoError(t, err)
-	down, err := os.ReadFile(filepath.Join(dir, "000037_add_group_id_index_to_transaction.down.sql"))
+	down, err := os.ReadFile(filepath.Join(dir, "000040_add_group_id_index_to_transaction.down.sql"))
 	require.NoError(t, err)
 
 	upSQL := strings.ToLower(string(up))
