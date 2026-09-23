@@ -70,6 +70,7 @@ type BankingMongoDBModel struct {
 
 type RegulatoryFieldsMongoDBModel struct {
 	ParticipantDocument *string `bson:"participant_document,omitempty"`
+	AccountType         *string `bson:"account_type,omitempty"`
 }
 
 type RelatedPartyMongoDBModel struct {
@@ -221,7 +222,9 @@ func mapBankingDetailsToEntity(ctx context.Context, fe encryption.FieldEncryptor
 // mapRegulatoryFieldsFromEntity encrypts and maps regulatory fields to MongoDB model.
 // The returned key version is the PRF keyset primary used for the generated search token.
 func mapRegulatoryFieldsFromEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, rf *mmodel.RegulatoryFields) (*RegulatoryFieldsMongoDBModel, *string, uint32, error) {
-	model := &RegulatoryFieldsMongoDBModel{}
+	model := &RegulatoryFieldsMongoDBModel{
+		AccountType: rf.AccountType,
+	}
 
 	var (
 		docHash    *string
@@ -265,7 +268,9 @@ func mapRegulatoryFieldsFromEntity(ctx context.Context, fe encryption.FieldEncry
 
 // mapRegulatoryFieldsToEntity decrypts and maps regulatory fields from MongoDB model.
 func mapRegulatoryFieldsToEntity(ctx context.Context, fe encryption.FieldEncryptor, encryptionCtx encryption.EncryptionContext, rf *RegulatoryFieldsMongoDBModel) (*mmodel.RegulatoryFields, error) {
-	result := &mmodel.RegulatoryFields{}
+	result := &mmodel.RegulatoryFields{
+		AccountType: rf.AccountType,
+	}
 
 	if rf.ParticipantDocument != nil {
 		fieldCtx := encryption.FieldContext{

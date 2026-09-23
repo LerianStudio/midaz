@@ -28939,6 +28939,22 @@
       "RegulatoryFields": {
         "additionalProperties": false,
         "properties": {
+          "accountType": {
+            "description": "Bacen account type classification. Codes: 1 DEPOSIT, 2 SAVINGS, 3 INVESTMENT, 4 OTHER_FINANCIAL_INVESTMENTS, 5 NON_RESIDENT, 6 PAYMENT. Input is trimmed and case-insensitive; blank input is treated as absent.",
+            "enum": [
+              "DEPOSIT",
+              "SAVINGS",
+              "INVESTMENT",
+              "OTHER_FINANCIAL_INVESTMENTS",
+              "NON_RESIDENT",
+              "PAYMENT"
+            ],
+            "examples": [
+              "DEPOSIT"
+            ],
+            "maxLength": 50,
+            "type": "string"
+          },
           "participantDocument": {
             "examples": [
               "12345678912345"

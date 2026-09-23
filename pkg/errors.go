@@ -1547,6 +1547,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Related Party End Date Invalid",
 			Message:    "The related party end date must be after the start date. Please provide a valid end date.",
 		},
+		constant.ErrInvalidInstrumentAccountType: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidInstrumentAccountType.Error(),
+			Title:      "Invalid Instrument Account Type",
+			Message:    "The provided instrument account type is not valid. Accepted values are: DEPOSIT, SAVINGS, INVESTMENT, OTHER_FINANCIAL_INVESTMENTS, NON_RESIDENT, or PAYMENT.",
+		},
 		constant.ErrMetadataIndexAlreadyExists: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrMetadataIndexAlreadyExists.Error(),
