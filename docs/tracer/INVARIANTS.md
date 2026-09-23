@@ -116,6 +116,22 @@ The result covers rules only: authenticated policy resolution, limit precedence,
 durable decisions and the reservation lifecycle still belong to the enclosing
 use case. These components do not activate the new contract on their own.
 
+Migration `000025` persists immutable policy and rule revisions, plus exact
+`(integration_id, context_id)` bindings within the authenticated tenant database.
+The policy repository reads the binding and its complete rule set from the
+primary in one query. Missing configuration is error `0518` (503), never an
+implicit ALLOW. Immutable revision conflicts and stale binding updates use
+`0519` (409). Binding versions advance on every update, including a return to a
+previous policy, so stale administrative writes cannot overwrite that change.
+
+Publication requires the caller's transaction. Database constraints reject
+incomplete snapshots; triggers prevent rewriting or deleting published revisions.
+The administration use case must compile first and include authorization and
+audit in publication before exposing these mutations. The repository itself
+does not authenticate integration identity or expose administration routes.
+This storage records policy configuration, not transaction decisions: durable
+decision replay and reservation coordination still require their own integration.
+
 ### Evaluation semantics
 
 - **No priority-based evaluation.** All active rules are evaluated; `DENY` takes precedence in

@@ -116,7 +116,7 @@ func SetupTestDBSuite(m *testing.M, opts ...Option) int {
 func startPostgres(ctx context.Context) (*postgres.PostgresContainer, string, string, string, error) {
 	container, err := postgres.Run(
 		ctx,
-		"postgres:16-alpine",
+		"postgres:17-alpine",
 		postgres.WithDatabase(testDBName),
 		postgres.WithUsername("tracer"),
 		postgres.WithPassword("tracer"),

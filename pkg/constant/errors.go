@@ -674,6 +674,10 @@ var (
 	// ErrDeferrableDeductibleFee refuses a fee both deducted from the payment and
 	// deferrable: fee debt defers only a fee charged on top of the payment.
 	ErrDeferrableDeductibleFee = errors.New("0530")
+	// ErrContextPolicyUnavailable reports missing or unusable trusted policy configuration.
+	ErrContextPolicyUnavailable = errors.New("0537")
+	// ErrContextPolicyConflict reports a reused immutable revision or stale binding update.
+	ErrContextPolicyConflict = errors.New("0538")
 )
 
 // List of CRM domain errors.
