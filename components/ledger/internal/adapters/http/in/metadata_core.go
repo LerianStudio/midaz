@@ -130,7 +130,7 @@ func tenantContext(ctx context.Context, mongoManager *tmmongo.Manager, module, s
 
 	tenantDB, err := mongoManager.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
-		return nil, mapTenantError(ctx, err, tenantID)
+		return nil, MapTenantError(ctx, err, tenantID)
 	}
 
 	ctx = tmcore.ContextWithMB(ctx, tenantDB)
@@ -139,9 +139,9 @@ func tenantContext(ctx context.Context, mongoManager *tmmongo.Manager, module, s
 	return ctx, nil
 }
 
-// mapTenantError converts tenant-manager errors into Midaz-specific error types
+// MapTenantError converts tenant-manager errors into Midaz-specific error types
 // so that the caller's HumaProblem can map them to the correct HTTP status codes.
-func mapTenantError(ctx context.Context, err error, tenantID string) error {
+func MapTenantError(ctx context.Context, err error, tenantID string) error {
 	var suspErr *tmcore.TenantSuspendedError
 	if errors.As(err, &suspErr) {
 		return pkg.ForbiddenError{

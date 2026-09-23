@@ -209,7 +209,9 @@ func buildFullSurfaceServer(t *testing.T) *UnifiedServer {
 		FeesOptions:        routeOptions,
 		CompositionOptions: routeOptions,
 
-		HolderAccountsOptions: routeOptions,
+		HolderAccountsOptions:  routeOptions,
+		CRMLedgerReadOptions:   routeOptions,
+		CRMHolderDeleteOptions: routeOptions,
 	}
 
 	// The streaming manifest route is mounted on the full-surface harness through

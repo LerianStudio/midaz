@@ -77,6 +77,11 @@ type compositionTenant struct {
 	// metadataValue is unique per tenant, so a document read from the wrong
 	// tenant's store is visible rather than merely plausible.
 	metadataValue string
+
+	// crmOnly makes the fake tenant-manager provision only the crm module for
+	// this tenant, so a route that resolves onboarding or transaction stores
+	// fails tenant resolution instead of silently succeeding.
+	crmOnly bool
 }
 
 // TestIntegration_CompositionMultiTenantStores drives the holder-account POST
@@ -535,6 +540,11 @@ func newFakeTenantManagerCompositionStores(t *testing.T, mongoContainer *mongote
 					},
 				},
 			},
+		}
+
+		if tn.crmOnly {
+			delete(config.Databases, constant.ModuleOnboarding)
+			delete(config.Databases, constant.ModuleTransaction)
 		}
 
 		w.Header().Set("Content-Type", "application/json")

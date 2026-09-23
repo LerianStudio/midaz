@@ -253,7 +253,7 @@ func TestIntegration_CRMCollapse(t *testing.T) {
 				func(c fiber.Ctx) error { panic(panicMessage) },
 			},
 		}
-		mountCRMHuma(app, auth, crm.holderHandler, crm.instrumentHandler, nil, crm.encryptionHandler, crm.auditHandler, panicOptions)
+		mountCRMHuma(app, auth, crm.holderHandler, crm.instrumentHandler, nil, crm.encryptionHandler, crm.auditHandler, panicOptions, panicOptions, panicOptions)
 
 		req := httptest.NewRequest(fiber.MethodGet,
 			"/v2/organizations/"+uuid.New().String()+"/holders/"+uuid.New().String(), nil)
@@ -371,7 +371,7 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 			crmTenantMiddleware.WithTenantDB,
 		},
 	}
-	mountCRMHuma(app, auth, holderHandler, instrumentHandler, nil, nil, nil, crmRouteOptions)
+	mountCRMHuma(app, auth, holderHandler, instrumentHandler, nil, nil, nil, crmRouteOptions, crmRouteOptions, crmRouteOptions)
 
 	// Create one holder per tenant, addressing tenants ONLY via the JWT.
 	idA := createHolderHTTP(t, app, tenantA, orgID, "Tenant A Holder", "11111111111")
@@ -406,15 +406,15 @@ func runHTTPCrossTenantIsolation(t *testing.T, breakIsolation bool) {
 //
 // MUST-NOT-PARALLELIZE: libProblem.Install() swaps the process-global huma.NewError
 // hook and Huma validation uses process-global sync.Pools.
-func mountCRMHuma(app *fiber.App, auth *middleware.AuthClient, hh *httpin.HolderHandler, ah *httpin.InstrumentHandler, hah *httpin.HolderAccountsHandler, eh *httpin.EncryptionHandler, auditHandler *httpin.AuditHandler, routeOptions *http.ProtectedRouteOptions) {
+func mountCRMHuma(app *fiber.App, auth *middleware.AuthClient, hh *httpin.HolderHandler, ah *httpin.InstrumentHandler, hah *httpin.HolderAccountsHandler, eh *httpin.EncryptionHandler, auditHandler *httpin.AuditHandler, routeOptions, ledgerReadOptions, holderDeleteOptions *http.ProtectedRouteOptions) {
 	libProblem.Install()
 	apiV2 := app.Group("/v2")
 	hAPI := openapi.New(app, apiV2, openapi.Config{Title: "crm-integration", Version: "test", Servers: []string{"/v2"}})
 	http.InstallLedgerSchemaNamer(hAPI)
 
-	httpin.RegisterHolderV2RoutesToApp(apiV2, hAPI, auth, hh, routeOptions)
+	httpin.RegisterHolderV2RoutesToApp(apiV2, hAPI, auth, hh, routeOptions, holderDeleteOptions)
 	httpin.RegisterHolderAccountsV2RoutesToApp(apiV2, hAPI, auth, hah, routeOptions)
-	httpin.RegisterInstrumentV2RoutesToApp(apiV2, hAPI, auth, ah, routeOptions)
+	httpin.RegisterInstrumentV2RoutesToApp(apiV2, hAPI, auth, ah, routeOptions, ledgerReadOptions)
 	httpin.RegisterEncryptionV2RoutesToApp(apiV2, hAPI, auth, eh, routeOptions)
 	httpin.RegisterAuditV2RoutesToApp(apiV2, hAPI, auth, auditHandler, routeOptions)
 }
@@ -431,7 +431,7 @@ func newCRMTestApp(hh *httpin.HolderHandler, ah *httpin.InstrumentHandler) *fibe
 
 	// Auth disabled: Authorize becomes a pass-through, single-tenant routeOptions=nil.
 	auth := middleware.NewAuthClient("", false, nil)
-	mountCRMHuma(app, auth, hh, ah, nil, nil, nil, nil)
+	mountCRMHuma(app, auth, hh, ah, nil, nil, nil, nil, nil, nil)
 
 	return app
 }

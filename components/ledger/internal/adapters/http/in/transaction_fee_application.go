@@ -6,23 +6,12 @@ package in
 
 import (
 	"context"
-	"fmt"
 
-	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
-
-// feesDBResolver resolves a tenant's fee Mongo database. It is the narrow port
-// the transaction handler depends on at the fee seam so the concrete
-// tenant-manager Mongo manager (*tmmongo.Manager) can be injected at bootstrap
-// and faked in tests. The signature mirrors tmmongo.Manager.GetDatabaseForTenant.
-type feesDBResolver interface {
-	GetDatabaseForTenant(ctx context.Context, tenantID string) (*mongo.Database, error)
-}
 
 // FeeApplier drives the in-process fee engine over a transaction's validated
 // send/distribute structure. It is the narrow port the transaction handler
@@ -138,17 +127,5 @@ func (handler *TransactionHandler) resolveFeesTenantContext(ctx context.Context)
 		return ctx, nil
 	}
 
-	tenantID := tmcore.GetTenantIDContext(ctx)
-	if tenantID == "" {
-		// MT enabled but no tenant on the ctx: fail cleanly rather than fall
-		// through to the shared single-tenant fee DB.
-		return nil, fmt.Errorf("fee seam: %w", tmcore.ErrTenantNotFound)
-	}
-
-	feesDB, err := handler.FeesMongoManager.GetDatabaseForTenant(ctx, tenantID)
-	if err != nil {
-		return nil, mapTenantError(ctx, err, tenantID)
-	}
-
-	return tmcore.ContextWithMB(ctx, feesDB), nil
+	return ResolveTenantMongoContext(ctx, handler.FeesMongoManager, "fee seam")
 }
