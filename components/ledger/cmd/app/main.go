@@ -11,13 +11,22 @@ import (
 	"strings"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/bootstrap"
 )
 
+// Filled at build time with -ldflags "-X main.version=... -X main.revision=...
+// -X main.buildTime=...". Empty in a local build, where buildinfo falls back to
+// the Go VCS stamp and then to dev/unknown.
+var version, revision, buildTime string
+
 func main() {
+	buildinfo.Set(buildinfo.Build{Version: version, Revision: revision, BuildTime: buildTime})
+	buildinfo.HandleFlag() // "--version" prints the identity as JSON and exits 0
+
 	libCommons.InitLocalEnvConfig()
 
 	logLevel := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
