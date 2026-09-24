@@ -1075,7 +1075,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
 
 	contextDependencies := contextTracerDependencies{
-		onboarding: onbPG.connection, transaction: txnPG.connection,
+		metricsFactory: metricsFactory,
+		onboarding:     onbPG.connection, transaction: txnPG.connection,
 		service: tenantServiceName, logger: logger,
 	}
 	if tenantClient != nil {

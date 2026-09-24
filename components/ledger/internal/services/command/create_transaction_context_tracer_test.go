@@ -116,8 +116,21 @@ func TestCreateContextTracerFencesAccounting(t *testing.T) {
 				status, expectedStatus, input.Pending = constant.PENDING, constant.PENDING, true
 				input.TransactionDate = nil
 			}
-			uc := &UseCase{TransactionRedisRepo: redisRepo, TransactionReader: &createEngineReader{settings: settings, balances: []*mmodel.Balance{source, target}}, Engine: executor, AppliedTransactionCompleter: &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: expectedStatus}}, ContextTracer: coordinator}
+			reader, factory := newReaderFactory(t)
+			uc := &UseCase{MetricsFactory: factory, TransactionRedisRepo: redisRepo, TransactionReader: &createEngineReader{settings: settings, balances: []*mmodel.Balance{source, target}}, Engine: executor, AppliedTransactionCompleter: &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: expectedStatus}}, ContextTracer: coordinator}
 			_, _, err = uc.CreateTransactionV2(tmcore.ContextWithTenantID(t.Context(), "tenant-a"), CreateTransactionV2Input{OrganizationID: organizationID, LedgerID: ledgerID, Transaction: input, TransactionStatus: status, IdempotencyTTL: time.Minute})
+			expectedMetric := "allow"
+			switch scenario {
+			case "review", "advisory review":
+				expectedMetric = "review"
+			case "deny":
+				expectedMetric = "deny"
+			case "lost response open":
+				expectedMetric = "fail_open"
+			case "lost response closed":
+				expectedMetric = "unavailable"
+			}
+			require.Equal(t, map[string]int64{"admission/" + expectedMetric: 1}, collectTracerCounters(t, reader))
 			if allowed {
 				require.NoError(t, err)
 				require.Len(t, executor.requests, 1)

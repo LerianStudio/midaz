@@ -13,6 +13,7 @@ import (
 
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -24,12 +25,13 @@ import (
 )
 
 type contextTracerDependencies struct {
-	onboarding  *libPostgres.Client
-	transaction *libPostgres.Client
-	catalog     tracerRecoveryCatalog
-	resolver    tracerRecoveryPoolResolver
-	service     string
-	logger      libLog.Logger
+	metricsFactory *metrics.MetricsFactory
+	onboarding     *libPostgres.Client
+	transaction    *libPostgres.Client
+	catalog        tracerRecoveryCatalog
+	resolver       tracerRecoveryPoolResolver
+	service        string
+	logger         libLog.Logger
 }
 
 type contextTracerRuntime struct {
@@ -86,6 +88,8 @@ func buildContextTracer(cfg *Config, deps contextTracerDependencies) (_ *context
 	if err != nil {
 		return nil, err
 	}
+
+	recovery.MetricsFactory = deps.metricsFactory
 
 	coordinator, err := command.NewContextTracerCoordinator(recovery, loader, parsed.coordinator)
 	if err != nil {
