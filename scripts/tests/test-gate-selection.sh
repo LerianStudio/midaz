@@ -114,15 +114,21 @@ assert_contains "$property_recipe" 'exact_pattern="^(' "property exact per-packa
 assert_contains "$property_recipe" '-run "$exact_pattern"' "property exact per-package filter"
 
 property_file_count=0
+pure_property_file_count=0
 while IFS= read -r property_file; do
   property_file_count=$((property_file_count + 1))
-  grep -qx '//go:build property' "$property_file" \
-    || fail "property test lacks the property build tag: ${property_file#"$repo_root/"}"
+  if grep -qx '//go:build property' "$property_file"; then
+    pure_property_file_count=$((pure_property_file_count + 1))
+  elif ! grep -qx '//go:build integration && property' "$property_file"; then
+    fail "property test lacks a supported property constraint: ${property_file#"$repo_root/"}"
+  fi
 done < <(find "$repo_root/components" "$repo_root/pkg" "$repo_root/tests" \
   -type f -name '*_property_test.go' -print | sort)
 
-((property_file_count >= 16)) \
-  || fail "expected at least the 16 existing property test files, found $property_file_count"
+# Container-backed arithmetic properties deliberately require both tags. They
+# must not replace any of the pure, Docker-free property tests in this gate.
+((pure_property_file_count >= 16)) \
+  || fail "expected at least 16 pure property test files, found $pure_property_file_count of $property_file_count total"
 
 fixture=$(mktemp -d)
 trap 'rm -rf "$fixture"' EXIT
@@ -207,7 +213,7 @@ func TestOther(t *testing.T) {}
 EOF
 
 cat >"$fixture/compound/tagged_test.go" <<'EOF'
-//go:build integration && linux
+//go:build integration && gatefixture
 
 package compound
 
@@ -272,8 +278,11 @@ chmod +x "$fixture/bin/docker"
 selected_packages=$(cd "$fixture" && "$discover" integration integration ./selected)
 assert_contains "$selected_packages" "example.com/gates/selected" "compound integration build tag"
 
-compound_packages=$(cd "$fixture" && "$discover" integration integration ./compound)
+compound_packages=$(cd "$fixture" && "$discover" integration integration,gatefixture ./compound)
 assert_contains "$compound_packages" "example.com/gates/compound" "conjunctive integration build tag"
+if (cd "$fixture" && "$discover" integration integration ./compound >compound.out 2>compound.err); then
+  fail "a conjunctive constraint ignored its second required tag"
+fi
 
 if (cd "$fixture" && "$discover" integration integration ./negated >negated.out 2>negated.err); then
   fail "a negated integration tag was discovered as selected"
