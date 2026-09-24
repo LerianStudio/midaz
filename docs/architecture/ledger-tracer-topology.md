@@ -27,6 +27,9 @@
 
 ---
 
+For migration, draining and deployment reversal, follow the
+[shared reservation rollout procedure](ledger-tracer-rollout.md).
+
 ## Shared-context profile settings
 
 `tracer.validationMode` is independent of `tracer.mode`, `failPosture`, timeout

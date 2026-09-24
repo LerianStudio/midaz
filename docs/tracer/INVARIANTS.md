@@ -164,13 +164,13 @@ limits.asset in place; IDs, references, counters and reservations are preserved.
 Its downgrade takes exclusive NOWAIT locks and refuses any code outside the
 previous validator's frozen ISO list, including three-letter BTC. It never
 truncates a code or erases history to permit rollback. Repository asset filters
-match exact case. Existing Reserve/validation transports still use their old
-ISO-only contract until coordinated replacement; accepting native limit codes
-alone does not enable native-asset validation.
+match exact case. Synchronous validations retain their separate contract. Shared Reserve uses
+explicit asset references; accepting native limit codes alone does not establish
+a valid reference or enable native-asset evaluation.
 Unmapped broad limits can block the new account-only profile and must be inventoried
-before activation. Batch-loader runtime composition,
-reference migration, admission composition and integrated performance checks remain
-prerequisites; these components are not mounted on Reserve yet.
+before activation. The batch loader and admission are composed in the shared
+runtime. Reference migration and integrated performance checks remain deployment
+prerequisites; see the [rollout procedure](../architecture/ledger-tracer-rollout.md).
 
 Entry and debit amounts are opaque Decimal values. `decimal("0.1")` accepts only
 a bounded decimal string literal, checked at compile time. Supported member
