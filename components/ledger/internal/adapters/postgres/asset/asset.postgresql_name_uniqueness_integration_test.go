@@ -285,3 +285,123 @@ func TestIntegration_AssetRepository_FindByNameOrCode_NameUniqueness_OtherLedger
 	require.NoError(t, err)
 	assert.Equal(t, "USD", created.Code)
 }
+
+// Scenario asset-rename-so-de-caixa-nao-colide-consigo: the asset's own row is
+// excluded, so a case-only rename is not a conflict.
+func TestIntegration_AssetRepository_FindByNameExcludingID_NameUniqueness_SelfIsExcluded(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedAsset(t, container, orgID, ledgerID, "US Dollar", "USD")
+
+	exists, err := repo.FindByNameExcludingID(ctx, orgID, ledgerID, "US DOLLAR", selfID)
+
+	assert.False(t, exists)
+	require.NoError(t, err)
+}
+
+// Scenario asset-rename-colide-com-outro: excluding the asset itself still
+// catches another active asset that carries the target name in another case.
+func TestIntegration_AssetRepository_FindByNameExcludingID_NameUniqueness_OtherAssetConflictsIgnoringCase(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedAsset(t, container, orgID, ledgerID, "Euro", "EUR")
+	createNamedAsset(t, container, orgID, ledgerID, "US Dollar", "USD")
+
+	exists, err := repo.FindByNameExcludingID(ctx, orgID, ledgerID, "us dollar", selfID)
+
+	assert.True(t, exists)
+	assertAssetNameOrCodeConflict(t, err)
+}
+
+// Scenario asset-rename-ignora-codigo: a rename checks names only, so another
+// asset sharing nothing but a code-like value is not a conflict.
+func TestIntegration_AssetRepository_FindByNameExcludingID_NameUniqueness_CodeIsNotMatched(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedAsset(t, container, orgID, ledgerID, "Euro", "EUR")
+	createNamedAsset(t, container, orgID, ledgerID, "US Dollar", "USD")
+
+	exists, err := repo.FindByNameExcludingID(ctx, orgID, ledgerID, "USD", selfID)
+
+	assert.False(t, exists)
+	require.NoError(t, err)
+}
+
+// Scenario asset-rename-nao-colide-com-soft-deletado.
+func TestIntegration_AssetRepository_FindByNameExcludingID_NameUniqueness_SoftDeletedIsIgnored(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedAsset(t, container, orgID, ledgerID, "Euro", "EUR")
+
+	deletedAt := fixedAssetTime.Add(time.Hour)
+	params := pgtestutil.DefaultAssetParams()
+	params.Name = "Old Coin"
+	params.Code = "OLD"
+	params.DeletedAt = &deletedAt
+	pgtestutil.CreateTestAssetWithParams(t, container.DB, orgID, ledgerID, params)
+
+	exists, err := repo.FindByNameExcludingID(ctx, orgID, ledgerID, "old coin", selfID)
+
+	assert.False(t, exists)
+	require.NoError(t, err)
+}
+
+// Scenario asset-rename-em-outro-ledger-nao-conflita: uniqueness is scoped to
+// one ledger.
+func TestIntegration_AssetRepository_FindByNameExcludingID_NameUniqueness_OtherLedgerDoesNotConflict(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+
+	l1Params := pgtestutil.DefaultLedgerParams()
+	l1Params.Name = "L1"
+	l1ID := pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, l1Params)
+
+	l2Params := pgtestutil.DefaultLedgerParams()
+	l2Params.Name = "L2"
+	l2ID := pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, l2Params)
+
+	createNamedAsset(t, container, orgID, l1ID, "US Dollar", "USD")
+	selfID := createNamedAsset(t, container, orgID, l2ID, "Euro", "EUR")
+
+	exists, err := repo.FindByNameExcludingID(ctx, orgID, l2ID, "US Dollar", selfID)
+
+	assert.False(t, exists)
+	require.NoError(t, err, "an asset in another ledger must not conflict")
+}
+
+// Scenario asset-rename-sem-nome-nao-consulta: an empty name has nothing to
+// collide with.
+func TestIntegration_AssetRepository_FindByNameExcludingID_NameUniqueness_EmptyNameIsFree(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedAsset(t, container, orgID, ledgerID, "Euro", "EUR")
+	createNamedAsset(t, container, orgID, ledgerID, "", "BLK")
+
+	exists, err := repo.FindByNameExcludingID(ctx, orgID, ledgerID, "", selfID)
+
+	assert.False(t, exists)
+	require.NoError(t, err)
+}

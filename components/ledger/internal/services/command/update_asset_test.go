@@ -9,142 +9,213 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestUpdateAssetByID(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	assetID := uuid.New()
 
-	mockAssetRepo := asset.NewMockRepository(ctrl)
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-
-	uc := &UseCase{
-		AssetRepo:              mockAssetRepo,
-		OnboardingMetadataRepo: mockMetadataRepo,
-	}
+	nameConflict := pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, constant.EntityAsset)
 
 	tests := []struct {
-		name           string
-		organizationID uuid.UUID
-		ledgerID       uuid.UUID
-		assetID        uuid.UUID
-		input          *mmodel.UpdateAssetInput
-		mockSetup      func()
-		expectErr      bool
+		name      string
+		input     *mmodel.UpdateAssetInput
+		mockSetup func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository)
+		wantErr   error
+		wantCode  string
 	}{
 		{
-			name:           "Success - Asset updated with metadata",
-			organizationID: uuid.New(),
-			ledgerID:       uuid.New(),
-			assetID:        uuid.New(),
+			name: "Success - Asset updated with metadata",
 			input: &mmodel.UpdateAssetInput{
-				Name: "Updated Asset",
-				Status: mmodel.Status{
-					Code: "active",
-				},
+				Name:     "Updated Asset",
+				Status:   mmodel.Status{Code: "active"},
 				Metadata: map[string]any{"key": "value"},
 			},
-			mockSetup: func() {
-				mockAssetRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Asset{ID: "123", Name: "Updated Asset", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
-				mockMetadataRepo.EXPECT().
+			mockSetup: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository) {
+				assetRepo.EXPECT().
+					FindByNameExcludingID(gomock.Any(), organizationID, ledgerID, "Updated Asset", assetID).
+					Return(false, nil)
+				assetRepo.EXPECT().
+					Update(gomock.Any(), organizationID, ledgerID, assetID, gomock.Any()).
+					Return(&mmodel.Asset{ID: "123", Name: "Updated Asset", Status: mmodel.Status{Code: "active"}}, nil)
+				metadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
-				mockMetadataRepo.EXPECT().
+				metadataRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
 			},
-			expectErr: false,
 		},
 		{
-			name:           "Error - Asset not found",
-			organizationID: uuid.New(),
-			ledgerID:       uuid.New(),
-			assetID:        uuid.New(),
+			name: "Success - Empty name skips the name lookup",
 			input: &mmodel.UpdateAssetInput{
-				Name: "Nonexistent Asset",
-				Status: mmodel.Status{
-					Code: "inactive",
-				},
-				Metadata: nil,
+				Status: mmodel.Status{Code: "inactive"},
 			},
-			mockSetup: func() {
-				mockAssetRepo.EXPECT().
+			mockSetup: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository) {
+				assetRepo.EXPECT().
+					FindByNameExcludingID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+				assetRepo.EXPECT().
+					Update(gomock.Any(), organizationID, ledgerID, assetID, gomock.Any()).
+					Return(&mmodel.Asset{ID: "123", Status: mmodel.Status{Code: "inactive"}}, nil)
+				metadataRepo.EXPECT().
+					Update(gomock.Any(), constant.EntityAsset, assetID.String(), gomock.Any()).
+					Return(nil)
+			},
+		},
+		{
+			name: "Error - Name held by another asset is a conflict and nothing is updated",
+			input: &mmodel.UpdateAssetInput{
+				Name:   "US Dollar",
+				Status: mmodel.Status{Code: "active"},
+			},
+			mockSetup: func(assetRepo *asset.MockRepository, _ *mongodb.MockRepository) {
+				assetRepo.EXPECT().
+					FindByNameExcludingID(gomock.Any(), organizationID, ledgerID, "US Dollar", assetID).
+					Return(true, nameConflict)
+				assetRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+			},
+			wantErr:  nameConflict,
+			wantCode: constant.ErrAssetNameOrCodeDuplicate.Error(),
+		},
+		{
+			name: "Error - Technical failure on the name lookup is returned and nothing is updated",
+			input: &mmodel.UpdateAssetInput{
+				Name: "US Dollar",
+			},
+			mockSetup: func(assetRepo *asset.MockRepository, _ *mongodb.MockRepository) {
+				assetRepo.EXPECT().
+					FindByNameExcludingID(gomock.Any(), organizationID, ledgerID, "US Dollar", assetID).
+					Return(false, errors.New("connection refused"))
+				assetRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+			},
+			wantErr: errors.New("connection refused"),
+		},
+		{
+			name: "Error - Asset not found",
+			input: &mmodel.UpdateAssetInput{
+				Name:   "Nonexistent Asset",
+				Status: mmodel.Status{Code: "inactive"},
+			},
+			mockSetup: func(assetRepo *asset.MockRepository, _ *mongodb.MockRepository) {
+				assetRepo.EXPECT().
+					FindByNameExcludingID(gomock.Any(), organizationID, ledgerID, "Nonexistent Asset", assetID).
+					Return(false, nil)
+				assetRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
-			expectErr: true,
+			wantErr:  pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset),
+			wantCode: constant.ErrAssetIDNotFound.Error(),
 		},
 		{
-			name:           "Error - Failed to update metadata",
-			organizationID: uuid.New(),
-			ledgerID:       uuid.New(),
-			assetID:        uuid.New(),
+			name: "Error - Failed to update metadata",
 			input: &mmodel.UpdateAssetInput{
-				Name: "Asset with Metadata Error",
-				Status: mmodel.Status{
-					Code: "active",
-				},
+				Name:     "Asset with Metadata Error",
+				Status:   mmodel.Status{Code: "active"},
 				Metadata: map[string]any{"key": "value"},
 			},
-			mockSetup: func() {
-				mockAssetRepo.EXPECT().
+			mockSetup: func(assetRepo *asset.MockRepository, metadataRepo *mongodb.MockRepository) {
+				assetRepo.EXPECT().
+					FindByNameExcludingID(gomock.Any(), organizationID, ledgerID, "Asset with Metadata Error", assetID).
+					Return(false, nil)
+				assetRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Asset{ID: "123", Name: "Asset with Metadata Error", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
-				mockMetadataRepo.EXPECT().
+					Return(&mmodel.Asset{ID: "123", Name: "Asset with Metadata Error", Status: mmodel.Status{Code: "active"}}, nil)
+				metadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
-				mockMetadataRepo.EXPECT().
+				metadataRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(errors.New("metadata update error"))
 			},
-			expectErr: true,
+			wantErr: errors.New("metadata update error"),
 		},
 		{
-			name:           "Error - Failure to update asset",
-			organizationID: uuid.New(),
-			ledgerID:       uuid.New(),
-			assetID:        uuid.New(),
+			name: "Error - Failure to update asset",
 			input: &mmodel.UpdateAssetInput{
-				Name: "Update Failure Asset",
-				Status: mmodel.Status{
-					Code: "inactive",
-				},
-				Metadata: nil,
+				Name:   "Update Failure Asset",
+				Status: mmodel.Status{Code: "inactive"},
 			},
-			mockSetup: func() {
-				mockAssetRepo.EXPECT().
+			mockSetup: func(assetRepo *asset.MockRepository, _ *mongodb.MockRepository) {
+				assetRepo.EXPECT().
+					FindByNameExcludingID(gomock.Any(), organizationID, ledgerID, "Update Failure Asset", assetID).
+					Return(false, nil)
+				assetRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("update error"))
 			},
-			expectErr: true,
+			wantErr: errors.New("update error"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.mockSetup()
+			ctrl := gomock.NewController(t)
 
-			ctx := context.Background()
-			result, err := uc.UpdateAssetByID(ctx, tt.organizationID, tt.ledgerID, tt.assetID, tt.input)
+			mockAssetRepo := asset.NewMockRepository(ctrl)
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+			tt.mockSetup(mockAssetRepo, mockMetadataRepo)
 
-			if tt.expectErr {
-				assert.Error(t, err)
-				assert.Nil(t, result)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-				assert.Equal(t, tt.input.Name, result.Name)
-				assert.Equal(t, tt.input.Status, result.Status)
+			uc := &UseCase{
+				AssetRepo:              mockAssetRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
 			}
+
+			result, err := uc.UpdateAssetByID(context.Background(), organizationID, ledgerID, assetID, tt.input)
+
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				assert.Equal(t, tt.wantErr.Error(), err.Error())
+
+				if tt.wantCode != "" {
+					assert.Equal(t, tt.wantCode, assetUpdateErrorCode(t, err))
+				}
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.input.Name, result.Name)
+			assert.Equal(t, tt.input.Status, result.Status)
 		})
 	}
+}
+
+// assetUpdateErrorCode extracts the registry code from the conflict or
+// not-found business error UpdateAssetByID returns.
+func assetUpdateErrorCode(t *testing.T, err error) string {
+	t.Helper()
+
+	var conflict pkg.EntityConflictError
+	if errors.As(err, &conflict) {
+		return conflict.Code
+	}
+
+	var notFound pkg.EntityNotFoundError
+	if errors.As(err, &notFound) {
+		return notFound.Code
+	}
+
+	t.Fatalf("error %T is not a conflict or not-found business error", err)
+
+	return ""
 }

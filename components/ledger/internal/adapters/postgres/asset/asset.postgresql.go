@@ -65,6 +65,14 @@ type Repository interface {
 	// of the same name or code are not serialized.
 	FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error)
 
+	// FindByNameExcludingID reports whether an active Asset other than
+	// excludeID already holds the name in the ledger. The match ignores case,
+	// so a rename that only changes the case of the asset's own name does not
+	// collide with itself. Returns (true, ErrAssetNameOrCodeDuplicate) when
+	// found, (false, nil) when not found. Uniqueness is enforced by this lookup
+	// at request time; concurrent renames into the same name are not serialized.
+	FindByNameExcludingID(ctx context.Context, organizationID, ledgerID uuid.UUID, name string, excludeID uuid.UUID) (bool, error)
+
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *mmodel.Asset) (*mmodel.Asset, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
@@ -181,9 +189,21 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 }
 
 func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
+	return r.existsByNameOrCode(ctx, "postgres.find_asset_by_name_or_code", organizationID, ledgerID, name, code, nil)
+}
+
+func (r *AssetPostgreSQLRepository) FindByNameExcludingID(ctx context.Context, organizationID, ledgerID uuid.UUID, name string, excludeID uuid.UUID) (bool, error) {
+	return r.existsByNameOrCode(ctx, "postgres.find_asset_by_name_excluding_id", organizationID, ledgerID, name, "", &excludeID)
+}
+
+// existsByNameOrCode runs the lookup shared by the exported variants. The name
+// leg is case-insensitive equality and the code leg exact equality; an empty
+// value skips its leg and, with both empty, nothing is queried. A non-nil
+// excludeID drops that row from the match.
+func (r *AssetPostgreSQLRepository) existsByNameOrCode(ctx context.Context, spanName string, organizationID, ledgerID uuid.UUID, name, code string, excludeID *uuid.UUID) (bool, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_asset_by_name_or_code")
+	ctx, span := tracer.Start(ctx, spanName)
 	defer span.End()
 
 	legs := squirrel.Or{}
@@ -207,12 +227,18 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 		return false, err
 	}
 
-	query, args, err := squirrel.Select("1").
+	builder := squirrel.Select("1").
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(legs).
+		Where(legs)
+
+	if excludeID != nil {
+		builder = builder.Where(squirrel.NotEq{"id": *excludeID})
+	}
+
+	query, args, err := builder.
 		Limit(1).
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
