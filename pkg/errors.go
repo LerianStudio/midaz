@@ -497,6 +497,10 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 //   - error: The appropriate business error with code, title, and message.
 func ValidateBusinessError(err error, entityType string, args ...any) error {
 	errorMap := map[error]error{
+		constant.ErrTracerFactsUnavailable: ServiceUnavailableError{
+			EntityType: entityType, Code: constant.ErrTracerFactsUnavailable.Error(),
+			Title: "Official Tracer Facts Unavailable", Message: "Official account and asset records are incomplete or inconsistent; the validation context cannot be built safely.",
+		},
 		constant.ErrLimitAssetReferenceConflict: EntityConflictError{
 			EntityType: entityType, Code: constant.ErrLimitAssetReferenceConflict.Error(),
 			Title: "Limit Asset Reference Conflict", Message: "The limit already has an immutable asset reference.",
