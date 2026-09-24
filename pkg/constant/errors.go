@@ -688,6 +688,8 @@ var (
 	ErrLimitAssetReferenceConflict = errors.New("0532")
 	// ErrTracerFactsUnavailable reports missing or inconsistent official account/asset facts.
 	ErrTracerFactsUnavailable = errors.New("0533")
+	// ErrTracerContractUnavailable prevents activation without a ready context integration.
+	ErrTracerContractUnavailable = errors.New("0534")
 )
 
 // List of CRM domain errors.

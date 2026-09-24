@@ -28,9 +28,10 @@ type AccountingValidationInput struct {
 
 // TracerSettingsInput is the request-side projection of TracerSettings.
 type TracerSettingsInput struct {
-	Mode        *string `json:"mode,omitempty" example:"off"`
-	FailPosture *string `json:"failPosture,omitempty" example:"open"`
-	TimeoutMs   *int    `json:"timeoutMs,omitempty" example:"250"`
+	ValidationMode *string `json:"validationMode,omitempty" example:"limits"`
+	Mode           *string `json:"mode,omitempty" example:"off"`
+	FailPosture    *string `json:"failPosture,omitempty" example:"open"`
+	TimeoutMs      *int    `json:"timeoutMs,omitempty" example:"250"`
 }
 
 // OverridePolicyInput is the request-side projection of OverridePolicy.
@@ -67,7 +68,8 @@ func (in *LedgerSettingsInput) ToSparseMap() map[string]any {
 	}
 
 	if in.Tracer != nil {
-		group := make(map[string]any, 3)
+		group := make(map[string]any, 4)
+		putSettingsField(group, "validationMode", in.Tracer.ValidationMode)
 		putSettingsField(group, "mode", in.Tracer.Mode)
 		putSettingsField(group, "failPosture", in.Tracer.FailPosture)
 		putSettingsField(group, "timeoutMs", in.Tracer.TimeoutMs)

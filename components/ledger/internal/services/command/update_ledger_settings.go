@@ -55,7 +55,12 @@ func (uc *UseCase) UpdateLedgerSettings(ctx context.Context, organizationID, led
 	updatedSettings, err := uc.LedgerRepo.UpdateSettingsAtomic(ctx, organizationID, ledgerID,
 		func(existing map[string]any) (map[string]any, error) {
 			// Deep merge validated input with existing settings
-			return mmodel.DeepMergeSettings(existing, settings), nil
+			merged := mmodel.DeepMergeSettings(existing, settings)
+			if err := uc.validateTracerActivation(ctx, mmodel.ParseLedgerSettings(merged).Tracer); err != nil {
+				return nil, err
+			}
+
+			return merged, nil
 		})
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to update ledger settings", err)

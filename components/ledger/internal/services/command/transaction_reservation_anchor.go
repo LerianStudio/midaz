@@ -20,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 // reservationOutcomeKind enumerates the three branches the reserve anchor can
@@ -130,11 +131,22 @@ func (uc *UseCase) reserveTransaction(
 	// the create path is unchanged and no reserve request is built or sent. An
 	// honored skip wins over advisory/enforce — the operator explicitly allowed
 	// the caller to opt out.
-	if uc.TracerReserver == nil || settings.Mode == mmodel.TracerModeOff || settings.Mode == "" || honoredTracerSkip {
+	if settings.Mode == mmodel.TracerModeOff || settings.Mode == "" || honoredTracerSkip {
 		return reservationOutcome{Kind: reservationProceed}
 	}
 
 	advisory := settings.Mode == mmodel.TracerModeAdvisory
+
+	// This legacy DTO cannot represent combined controls. Even settings loaded
+	// outside the activation API must not silently downgrade to limits-only.
+	if settings.ValidationMode == string(tracercontract.ValidationRulesAndLimits) {
+		return uc.handleReserveError(ctx, span, logger, settings, transactionID, advisory,
+			pkg.ValidateBusinessError(constant.ErrTracerContractUnavailable, constant.EntityTransaction))
+	}
+
+	if uc.TracerReserver == nil {
+		return reservationOutcome{Kind: reservationProceed}
+	}
 
 	req := tracer.ReserveRequest{
 		TransactionID:        transactionID,
