@@ -13771,9 +13771,7 @@ paths:
         content:
           application/json:
             schema:
-              contentMediaType: application/octet-stream
-              format: binary
-              type: string
+              $ref: '#/components/schemas/CreateLimitInput'
         required: true
       responses:
         '201':
@@ -20795,6 +20793,71 @@ components:
         - revision
         - expression
         - action
+      type: object
+    CreateLimitInput:
+      additionalProperties: true
+      properties:
+        activeTimeEnd:
+          examples:
+            - '17:00'
+          type: string
+        activeTimeStart:
+          examples:
+            - '09:00'
+          type: string
+        asset:
+          description: >-
+            Native asset code, preserved exactly; at most 256 UTF-8 bytes.
+            AssetRef supplies economic identity.
+          examples:
+            - USD
+          maxLength: 256
+          minLength: 1
+          type: string
+        customEndDate:
+          examples:
+            - '2026-11-29T00:00:00Z'
+          format: date-time
+          type: string
+        customStartDate:
+          examples:
+            - '2026-11-27T00:00:00Z'
+          format: date-time
+          type: string
+        description:
+          maxLength: 1000
+          type: string
+        limitType:
+          enum:
+            - DAILY
+            - MONTHLY
+            - PER_TRANSACTION
+            - WEEKLY
+            - CUSTOM
+          examples:
+            - DAILY
+          type: string
+        maxAmount:
+          description: Positive exact decimal amount; no binary floating-point conversion.
+          examples:
+            - '1000.00'
+          type: string
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+        scopes:
+          items:
+            $ref: '#/components/schemas/Scope'
+          maxItems: 100
+          minItems: 1
+          type: array
+      required:
+        - name
+        - limitType
+        - maxAmount
+        - asset
+        - scopes
       type: object
     DashboardFraudTypes:
       additionalProperties: false

@@ -2455,7 +2455,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrLimitInvalidCurrency.Error(),
 			Title:      "Limit Invalid Asset",
-			Message:    "Asset must be valid ISO 4217.",
+			Message:    "Asset must be nonempty UTF-8 text of at most 256 bytes, without surrounding whitespace or NUL; case is preserved.",
 		},
 		constant.ErrLimitInvalidScope: ValidationError{
 			EntityType: entityType,

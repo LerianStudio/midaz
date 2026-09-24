@@ -156,13 +156,11 @@ func TestReserveCharacterizationNativeAssetLimit(t *testing.T) {
 		t.Run(asset, func(t *testing.T) {
 			limit, err := model.NewLimit("account daily limit", model.LimitTypeDaily, decimal.NewFromInt(100), asset,
 				[]model.Scope{{AccountID: &accountID}}, nil, now)
-			if asset == "BRL" {
-				require.NoError(t, err)
-				require.NotNil(t, limit)
-			} else {
-				require.ErrorIs(t, err, constant.ErrLimitInvalidCurrency)
-				require.Nil(t, limit)
-			}
+			// Limit administration now accepts native codes. The old Reserve
+			// transports are still characterized separately until replacement.
+			require.NoError(t, err)
+			require.NotNil(t, limit)
+			require.Equal(t, asset, limit.Asset)
 		})
 	}
 }

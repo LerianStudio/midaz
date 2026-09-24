@@ -155,22 +155,19 @@ func TestCreateLimitInput_AssetValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "invalid - lowercase",
+			name:    "valid - lowercase",
 			asset:   "brl",
-			wantErr: true,
-			errMsg:  "asset must be uppercase",
+			wantErr: false,
 		},
 		{
-			name:    "invalid - too short",
+			name:    "valid - short native code",
 			asset:   "BR",
-			wantErr: true,
-			errMsg:  "asset must be exactly 3 characters",
+			wantErr: false,
 		},
 		{
-			name:    "invalid - too long",
+			name:    "valid - long native code",
 			asset:   "BRLL",
-			wantErr: true,
-			errMsg:  "asset must be exactly 3 characters",
+			wantErr: false,
 		},
 		{
 			name:    "invalid - empty",

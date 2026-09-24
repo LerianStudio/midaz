@@ -674,8 +674,7 @@ func (r *LimitRepository) applyListFilters(query sq.SelectBuilder, filters *mode
 	}
 
 	if filters.Asset != nil {
-		normalizedAsset := strings.ToUpper(*filters.Asset)
-		query = query.Where(sq.Eq{"asset": normalizedAsset})
+		query = query.Where(sq.Eq{"asset": *filters.Asset})
 	}
 
 	// Apply scope filter using shared buildScopeFilter() JSONB logic

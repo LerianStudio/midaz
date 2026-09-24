@@ -148,7 +148,16 @@ asset_reference_binding. All limit UPDATE audit writes must insert exactly one
 row; silent suppression is an error and rolls back the enclosing transaction.
 The existing transaction-validation audit deduplication remains separate.
 
-Legacy limit administration and its asset-code storage restrictions are unchanged.
+Limit administration accepts exact native codes (1–256 UTF-8 bytes), without
+uppercasing or trimming; surrounding whitespace and NUL are rejected. Codes
+remain descriptive and cannot replace AssetRef identity. Migration 000033 widens
+limits.asset in place; IDs, references, counters and reservations are preserved.
+Its downgrade takes exclusive NOWAIT locks and refuses any code outside the
+previous validator's frozen ISO list, including three-letter BTC. It never
+truncates a code or erases history to permit rollback. Repository asset filters
+match exact case. Existing Reserve/validation transports still use their old
+ISO-only contract until coordinated replacement; accepting native limit codes
+alone does not enable native-asset validation.
 Unmapped broad limits can block the new account-only profile and must be inventoried
 before activation. Administrative transport/RBAC, batch-loader runtime composition,
 reference migration, admission composition and integrated performance checks remain

@@ -470,23 +470,23 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 			errorIs: constant.ErrLimitInvalidMaxAmount,
 		},
 		{
-			name: "invalid asset (contains number)",
+			name: "invalid asset (contains NUL)",
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Asset:     "US1",
+				Asset:     "US\x001",
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitInvalidCurrency,
 		},
 		{
-			name: "asset too short",
+			name: "asset has surrounding whitespace",
 			input: &CreateLimitInput{
 				Name:      "Test Limit",
 				LimitType: model.LimitTypeDaily,
 				MaxAmount: decimal.RequireFromString("1000"),
-				Asset:     "US",
+				Asset:     " US",
 				Scopes:    []model.Scope{validScope},
 			},
 			errorIs: constant.ErrLimitInvalidCurrency,
@@ -555,7 +555,7 @@ func TestCreateLimit_DomainValidation_NoTx(t *testing.T) {
 }
 
 // TestCreateLimitCommand_Execute_Normalization verifies that the limit
-// passed into CreateWithTx has its name and asset normalized.
+// passed into CreateWithTx has its name normalized and exact asset preserved.
 func TestCreateLimitCommand_Execute_Normalization(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -572,18 +572,18 @@ func TestCreateLimitCommand_Execute_Normalization(t *testing.T) {
 			expectedCurrency: "USD",
 		},
 		{
-			name:             "uppercases lowercase asset",
+			name:             "preserves lowercase asset",
 			inputName:        "Lowercase Asset Test",
 			inputCurrency:    "usd",
 			expectedName:     "Lowercase Asset Test",
-			expectedCurrency: "USD",
+			expectedCurrency: "usd",
 		},
 		{
-			name:             "trims and normalizes both",
+			name:             "normalizes name and preserves mixed case asset",
 			inputName:        "  Foo  ",
-			inputCurrency:    " usd ",
+			inputCurrency:    "wBTC",
 			expectedName:     "Foo",
-			expectedCurrency: "USD",
+			expectedCurrency: "wBTC",
 		},
 	}
 
