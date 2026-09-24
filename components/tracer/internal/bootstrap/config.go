@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"

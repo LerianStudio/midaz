@@ -12,7 +12,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/declaration"
+	"github.com/LerianStudio/lib-auth/v5/auth/declaration"
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
