@@ -94,7 +94,7 @@ func (c *ContextGRPCClient) Reserve(ctx context.Context, request tracercontract.
 		return nil, fmt.Errorf("invalid tracer decision: %w", err)
 	}
 
-	if err := validateRequestedControls(request, result); err != nil {
+	if err := result.ValidateFor(request, c.config.MaxReservations); err != nil {
 		return nil, err
 	}
 

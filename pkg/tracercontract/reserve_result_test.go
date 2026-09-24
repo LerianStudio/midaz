@@ -26,6 +26,36 @@ func reserveResult() tracercontract.ReserveResult {
 	}
 }
 
+func TestReserveResultMatchesRequestedControls(t *testing.T) {
+	for _, scenario := range []string{"limits", "combined", "missing rules", "unexpected rules", "other transaction", "other revision", "unknown mode"} {
+		t.Run(scenario, func(t *testing.T) {
+			result := reserveResult()
+			request := tracercontract.ReserveRequest{ContractRevision: result.ContractRevision, TransactionID: result.TransactionID, ValidationMode: tracercontract.ValidationLimits}
+			switch scenario {
+			case "combined":
+				request.ValidationMode = tracercontract.ValidationRulesAndLimits
+				result.Controls.Rules = tracercontract.RulesEvaluated
+			case "missing rules":
+				request.ValidationMode = tracercontract.ValidationRulesAndLimits
+			case "unexpected rules":
+				result.Controls.Rules = tracercontract.RulesEvaluated
+			case "other transaction":
+				request.TransactionID = result.EvaluationID
+			case "other revision":
+				request.ContractRevision = "unknown"
+			case "unknown mode":
+				request.ValidationMode = ""
+			}
+			err := result.ValidateFor(request, 10)
+			if scenario == "limits" || scenario == "combined" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
+			}
+		})
+	}
+}
+
 func TestReserveResultPresenceAndControls(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

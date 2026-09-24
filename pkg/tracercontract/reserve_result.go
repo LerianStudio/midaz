@@ -64,6 +64,33 @@ type ReserveResult struct {
 	Reasons          []ReserveReason `json:"reasons"`
 }
 
+// ValidateFor verifies that a complete response belongs to the requested
+// operation and reports the requested controls. It never interprets policy.
+func (r ReserveResult) ValidateFor(request ReserveRequest, maxReservations int) error {
+	if err := r.Validate(maxReservations); err != nil {
+		return err
+	}
+
+	if r.TransactionID != request.TransactionID || r.ContractRevision != request.ContractRevision {
+		return invalid("reserve response correlation")
+	}
+
+	switch request.ValidationMode {
+	case ValidationLimits:
+		if r.Controls.Rules != RulesNotRequested {
+			return invalid("requested rules control")
+		}
+	case ValidationRulesAndLimits:
+		if r.Controls.Rules != RulesEvaluated {
+			return invalid("requested rules control")
+		}
+	default:
+		return invalid("validation mode")
+	}
+
+	return nil
+}
+
 // Validate checks transport invariants. It does not select policy actions or
 // recompute a decision. maxReservations is an explicit storage/transport bound.
 func (r ReserveResult) Validate(maxReservations int) error {
