@@ -8,9 +8,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"slices"
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -27,12 +25,16 @@ type ReserveOperationKey struct {
 }
 
 func (k ReserveOperationKey) Validate() error {
-	if k.TransactionID == uuid.Nil || k.RequestID == uuid.Nil || k.IntegrationID == "" || len(k.IntegrationID) > 256 ||
-		!utf8.ValidString(k.IntegrationID) || strings.TrimSpace(k.IntegrationID) != k.IntegrationID || strings.ContainsRune(k.IntegrationID, 0) {
+	if k.RequestID == uuid.Nil {
 		return constant.ErrInvalidRequestBody
 	}
 
-	return nil
+	return k.Identity().Validate()
+}
+
+// Identity addresses the operation independently of a particular Reserve request.
+func (k ReserveOperationKey) Identity() ReserveOperationIdentity {
+	return ReserveOperationIdentity{IntegrationID: k.IntegrationID, TransactionID: k.TransactionID}
 }
 
 // ReserveDecisionPolicy freezes the selected policy and binding version and

@@ -301,6 +301,7 @@ func allSentinels() map[string]error {
 		"ErrContextPolicyUnavailable":                 constant.ErrContextPolicyUnavailable,
 		"ErrContextPolicyConflict":                    constant.ErrContextPolicyConflict,
 		"ErrReserveDecisionConflict":                  constant.ErrReserveDecisionConflict,
+		"ErrReserveOperationConflict":                 constant.ErrReserveOperationConflict,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
 		"ErrDuplicatedAliasKeyValue":                  constant.ErrDuplicatedAliasKeyValue,
@@ -859,6 +860,14 @@ func TestGolden_ReserveDecisionReuseIsConflict(t *testing.T) {
 	status, code := driveWithError(t, err)
 	assert.Equal(t, fiber.StatusConflict, status)
 	assert.Equal(t, constant.ErrReserveDecisionConflict.Error(), code)
+}
+
+func TestGolden_ReserveOperationCompletionIsConflict(t *testing.T) {
+	t.Parallel()
+	err := pkg.ValidateBusinessError(constant.ErrReserveOperationConflict, "GoldenEntity")
+	status, code := driveWithError(t, err)
+	assert.Equal(t, fiber.StatusConflict, status)
+	assert.Equal(t, constant.ErrReserveOperationConflict.Error(), code)
 }
 
 func TestGolden_HelperPathCodeStatus(t *testing.T) {

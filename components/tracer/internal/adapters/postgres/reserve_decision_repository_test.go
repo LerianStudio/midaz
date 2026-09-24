@@ -12,6 +12,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -63,6 +64,7 @@ func TestReserveDecisionRepositoryRejectsBeforeDatabase(t *testing.T) {
 func TestReserveDecisionRepositoryLeavesTransactionToCaller(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("database write failed")
+	constraintFailure := &pgconn.PgError{Code: "23514", ConstraintName: "another_constraint"}
 	for _, tt := range []struct {
 		name    string
 		result  sql.Result
@@ -73,6 +75,8 @@ func TestReserveDecisionRepositoryLeavesTransactionToCaller(t *testing.T) {
 		{"duplicate", sqlmock.NewResult(0, 0), nil, constant.ErrReserveDecisionConflict},
 		{"write failure", nil, failure, failure},
 		{"rows affected failure", sqlmock.NewErrorResult(failure), nil, failure},
+		{"completed operation", nil, &pgconn.PgError{Code: "23514", ConstraintName: "reserve_operation_closed"}, constant.ErrReserveOperationConflict},
+		{"unrelated constraint remains technical", nil, constraintFailure, constraintFailure},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
