@@ -94,6 +94,34 @@ func TestUpdateSegmentByID(t *testing.T) {
 			expectErr: false,
 		},
 		{
+			name:           "Success - Case-only rename skips duplicate lookup",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			segmentID:      uuid.New(),
+			input: &mmodel.UpdateSegmentInput{
+				Name:     "RETAIL",
+				Status:   mmodel.Status{Code: "active"},
+				Metadata: nil,
+			},
+			mockSetup: func() {
+				mockSegmentRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Segment{ID: "123", Name: "Retail"}, nil)
+				mockSegmentRepo.EXPECT().
+					ExistsByName(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+				mockSegmentRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Cond(func(s *mmodel.Segment) bool {
+						return s != nil && s.Name == "RETAIL"
+					})).
+					Return(&mmodel.Segment{ID: "123", Name: "RETAIL", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil)
+			},
+			expectErr: false,
+		},
+		{
 			name:           "Error - Segment not found",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
