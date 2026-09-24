@@ -95,8 +95,24 @@ func TestTracerRecoveryUsesEvidenceAndDurableAcknowledgement(t *testing.T) {
 			}
 			processor, err := NewTracerRecoveryProcessor(store, client, evidence, cfg, func() time.Time { return instant })
 			require.NoError(t, err)
+			reader, factory := newReaderFactory(t)
+			processor.MetricsFactory = factory
 			summary, err := processor.RunOnce(tmcore.ContextWithTenantID(t.Context(), "tenant-a"))
 			require.Equal(t, 1, summary.Claimed)
+			expectedMetric := "recovery/unresolved"
+			if known {
+				expectedMetric = "confirm/delivered"
+				if outcome == tracerreservation.Released {
+					expectedMetric = "release/delivered"
+				}
+			}
+			if failed {
+				expectedMetric = "confirm/failed"
+				if !known {
+					expectedMetric = "recovery/failed"
+				}
+			}
+			require.Equal(t, map[string]int64{expectedMetric: 1}, collectTracerCounters(t, reader))
 			if failed {
 				require.Error(t, err)
 				require.Equal(t, 1, summary.Failed)

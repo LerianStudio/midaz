@@ -85,6 +85,30 @@ accounting outcomes remain unresolved until authoritative evidence exists; neith
 TTL nor a missing transaction row authorizes releasing an executing obligation.
 Runtime construction tests are not proof of a completed production rollout.
 
+### Coordination diagnostics
+
+The shared Ledger path emits `tracer_coordination_total` and
+`tracer_coordination_duration_ms` through the existing metrics factory. Labels
+are restricted to `operation` (`admission`, `confirm`, `release`, `recovery`) and
+`result` (`allow`, `deny`, `review`, `fail_open`, `unavailable`, `context_invalid`,
+`coordination_uncertain`, `delivered`, `failed`, `unresolved`); unexpected labels
+become `unknown`. No account, asset, transaction, policy, amount or error text is
+attached as an application metric label.
+
+Admission duration includes logical projection, official facts, journal creation
+and Reserve. It excludes accounting execution. DENY/REVIEW measure the Tracer
+decision even in advisory mode; `fail_open` measures an admission error that the
+Ledger permits through, including advisory availability failures. Uncertain
+journal ownership is counted separately and still prevents dispatch. Off and
+honored skip produce no admission metric or downstream call.
+
+Recovery metrics count attempts per claimed obligation, not unique transactions
+or backlog size. Repeated remote success followed by a lost local acknowledgement
+is reported as failed until a later attempt durably acknowledges delivery. Use
+`recovery/unresolved` to observe missing accounting evidence; do not infer that
+such obligations are safe to release. Discovery/claim failures appear on worker
+spans and its single warning boundary; they do not fabricate per-record metrics.
+
 The journal survives lost replies and process restarts, including acknowledgements
 lost after remote success. Claimed recovery work contains bounded scalar identities,
 so lowering admission payload limits does not strand existing obligations. Its

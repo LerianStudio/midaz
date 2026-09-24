@@ -1,0 +1,84 @@
+// Copyright (c) 2026 Lerian Studio. All rights reserved.
+// Use of this source code is governed by the Elastic License 2.0
+// that can be found in the LICENSE file.
+
+package command
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
+)
+
+var tracerDurationBuckets = []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000}
+
+// emitTracerMetric uses closed vocabularies only. Neither facts, identities nor
+// arbitrary errors may become labels, even when supplied by a future caller.
+func emitTracerMetric(ctx context.Context, factory *metrics.MetricsFactory, operation, result string, duration time.Duration) {
+	if factory == nil {
+		return
+	}
+
+	switch operation {
+	case "admission", "confirm", "release", "recovery":
+	default:
+		operation = "unknown"
+	}
+
+	switch result {
+	case "allow", "deny", "review", "fail_open", "unavailable", "context_invalid", "coordination_uncertain", "delivered", "failed", "unresolved":
+	default:
+		result = "unknown"
+	}
+
+	labels := map[string]string{"operation": operation, "result": result}
+
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+	if err := factory.AddCounter(ctx, "tracer_coordination_total", "Tracer admission and durable delivery attempts by bounded outcome.", "1", labels, 1); err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Unable to record Tracer coordination metric", libLog.Err(err))
+	}
+
+	if err := factory.RecordHistogram(ctx, "tracer_coordination_duration_ms", "Tracer admission and durable delivery duration in milliseconds.", "ms", labels, float64(duration)/float64(time.Millisecond), tracerDurationBuckets); err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Unable to record Tracer coordination duration", libLog.Err(err))
+	}
+}
+
+func tracerAdmissionMetric(attempt ContextTracerAttempt, outcome reservationOutcome, err error) string {
+	if attempt.IntentAttempted && !attempt.Frozen {
+		return "coordination_uncertain"
+	}
+
+	if err != nil {
+		if outcome.Kind == reservationProceed {
+			return "fail_open"
+		}
+
+		if errors.Is(err, constant.ErrInvalidRequestBody) || errors.Is(err, constant.ErrPayloadTooLarge) || errors.Is(err, constant.ErrTracerFactsUnavailable) {
+			return "context_invalid"
+		}
+
+		return "unavailable"
+	}
+
+	if attempt.Result == nil {
+		return "unavailable"
+	}
+
+	switch attempt.Result.Decision {
+	case tracercontract.DecisionAllow:
+		return "allow"
+	case tracercontract.DecisionDeny:
+		return "deny"
+	case tracercontract.DecisionReview:
+		return "review"
+	default:
+		return "unavailable"
+	}
+}

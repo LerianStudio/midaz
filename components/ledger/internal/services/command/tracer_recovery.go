@@ -15,6 +15,7 @@ import (
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -58,11 +59,13 @@ type TracerRecoverySummary struct {
 // neither an accounting executor nor a facts/settings loader. Worker lifetime is
 // independent of per-ledger participation and current validation settings.
 type TracerRecoveryProcessor struct {
-	store    TracerObligationStore
-	client   ContextTracerReserver
-	evidence TracerAccountingEvidence
-	config   TracerRecoveryConfig
-	now      Clock
+	// MetricsFactory is configured at composition time; nil disables recording.
+	MetricsFactory *metrics.MetricsFactory
+	store          TracerObligationStore
+	client         ContextTracerReserver
+	evidence       TracerAccountingEvidence
+	config         TracerRecoveryConfig
+	now            Clock
 }
 
 func NewTracerRecoveryProcessor(store TracerObligationStore, client ContextTracerReserver, evidence TracerAccountingEvidence, cfg TracerRecoveryConfig, now Clock) (*TracerRecoveryProcessor, error) {
@@ -154,7 +157,20 @@ func recordTracerCoordinationError(span trace.Span, err error) {
 	libOtel.HandleSpanError(span, "Tracer coordination incomplete", err)
 }
 
-func (p *TracerRecoveryProcessor) process(ctx context.Context, record tracerreservation.Pending) (bool, error) {
+func (p *TracerRecoveryProcessor) process(ctx context.Context, record tracerreservation.Pending) (delivered bool, retErr error) {
+	started := time.Now()
+	operation := "recovery"
+
+	defer func() {
+		result := "unresolved"
+		if retErr != nil {
+			result = "failed"
+		} else if delivered {
+			result = "delivered"
+		}
+
+		emitTracerMetric(ctx, p.MetricsFactory, operation, result, time.Since(started))
+	}()
 	if err := p.validatePending(ctx, record); err != nil {
 		return false, err
 	}
@@ -162,6 +178,11 @@ func (p *TracerRecoveryProcessor) process(ctx context.Context, record tracerrese
 	outcome, known, err := p.resolve(ctx, record)
 	if err != nil || !known {
 		return false, err
+	}
+
+	operation = "release"
+	if outcome == tracerreservation.Confirmed {
+		operation = "confirm"
 	}
 
 	var response *tracercontract.TransactionCompletionResult

@@ -6,6 +6,7 @@ package command
 
 import (
 	"context"
+	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"go.opentelemetry.io/otel/attribute"
@@ -24,8 +25,12 @@ func (uc *UseCase) reservePreparedTransaction(ctx context.Context, span trace.Sp
 		return uc.reserveTransaction(ctx, span, logger, input.Settings, input.Key.TransactionID, input.Amount, input.AssetCode, firstSourceAccountID(validated.Sources, balances), input.Timestamp, reservationTTLPolicy(input.LongLived), input.HonoredSkip)
 	}
 
+	started := time.Now()
 	attempt, err := uc.ContextTracer.AdmitPrepared(ctx, input, transaction, validated, balances)
 	outcome := contextTracerDisposition(input.Settings, attempt, err)
+	if !attempt.Skipped {
+		emitTracerMetric(ctx, uc.MetricsFactory, "admission", tracerAdmissionMetric(attempt, outcome, err), time.Since(started))
+	}
 	outcome.Handle = reservationHandle{ContextAttempt: &attempt, TransactionID: input.Key.TransactionID, Amount: input.Amount, Asset: input.AssetCode}
 
 	if err != nil {
