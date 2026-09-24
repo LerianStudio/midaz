@@ -497,6 +497,10 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 //   - error: The appropriate business error with code, title, and message.
 func ValidateBusinessError(err error, entityType string, args ...any) error {
 	errorMap := map[error]error{
+		constant.ErrTransactionReviewRequired: UnprocessableOperationError{
+			EntityType: entityType, Code: constant.ErrTransactionReviewRequired.Error(),
+			Title: "Transaction Review Required", Message: "Tracer requires review of this transaction. No accounting operation or pending hold was created.",
+		},
 		constant.ErrTracerContractUnavailable: ServiceUnavailableError{
 			EntityType: entityType, Code: constant.ErrTracerContractUnavailable.Error(),
 			Title: "Tracer Contract Unavailable", Message: "The requested Tracer profile is not ready for activation.",
@@ -635,7 +639,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrTransactionReservationDenied.Error(),
 			Title:      "Transaction Reservation Denied Error",
-			Message:    "The transaction could not be completed because it would exceed a configured usage limit. Please reduce the amount or wait for the limit window to reset and try again.",
+			Message:    "The transaction could not be completed because Tracer denied it under the configured rules or usage limits.",
 		},
 		constant.ErrTransactionReservationUnavailable: ServiceUnavailableError{
 			EntityType: entityType,

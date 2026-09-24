@@ -210,6 +210,10 @@ type UseCase struct {
 	// unchanged). The per-ledger tracer.mode gate lives at the call site.
 	TracerReserver TracerReserver
 
+	// ContextTracer owns the replacement contract and durable coordination.
+	// Bootstrap installs it only together with its independent recovery worker.
+	ContextTracer *ContextTracerCoordinator
+
 	// TracerActivation is installed only by the complete context integration.
 	// A nil verifier prevents enabling combined rules while allowing configuration
 	// with mode=off and preserving existing limits-only settings.

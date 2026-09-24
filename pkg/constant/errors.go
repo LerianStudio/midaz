@@ -657,6 +657,8 @@ var (
 	ErrTracerFactsUnavailable = errors.New("0532")
 	// ErrTracerContractUnavailable prevents activation without a ready context integration.
 	ErrTracerContractUnavailable = errors.New("0533")
+	// ErrTransactionReviewRequired rejects REVIEW without creating a pending hold.
+	ErrTransactionReviewRequired = errors.New("0534")
 )
 
 // List of CRM domain errors.

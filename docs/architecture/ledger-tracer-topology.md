@@ -49,6 +49,30 @@ the configured failure posture, with no fallback Reserve call. Runtime compositi
 of the new Ledger anchor and recovery is still required before activation; adding
 the settings field alone does not enable the profile.
 
+The new coordinator is connected to engine-backed v2 creation (including the
+shared revert path and creation of PENDING transactions), but is not installed
+by bootstrap yet. It projects fee-inclusive logical entries, preserves pending
+credit destinations, loads official facts and commits an immutable coordination
+record before Reserve. A separate, exclusive `PREPARED` to `EXECUTING` transition
+must succeed before the engine runs. An uncertain coordination write cannot be
+bypassed by fail-open or advisory; those settings govern validation availability,
+not ownership of accounting dispatch.
+
+In enforce, `DENY` retains code `0177`/422; its explanation now covers rules and
+usage limits. `REVIEW` returns `0526`/422 and creates neither accounting entries
+nor a pending hold. Advisory observes both decisions. Successful direct execution
+records confirmation for asynchronous delivery; PENDING retains its obligation
+until a terminal accounting outcome is proven. Recovery reads the tenant primary:
+APPROVED confirms, CANCELED releases, and missing/PENDING remains unresolved. It
+never reruns the accounting engine. Off/authorized skip precedes context loading.
+
+The journal survives lost replies and process restarts, including acknowledgements
+lost after remote success. Claimed recovery work contains bounded scalar identities,
+so lowering admission payload limits does not strand existing obligations. Its
+migration refuses rollback while any coordination history remains. Installing the
+independent worker, completing the atomic-batch and pending-transition connections,
+and validating the combined deployment remain prerequisites for activation.
+
 ## 1. Product segregation matrix
 
 The two components are **separately-sellable products**, each shipping as its own OCI image under
