@@ -124,6 +124,30 @@ implicit ALLOW. Immutable revision conflicts and stale binding updates use
 `0519` (409). Binding versions advance on every update, including a return to a
 previous policy, so stale administrative writes cannot overwrite that change.
 
+The replacement reservation contract has shared request/response types in
+`pkg/tracercontract`. A framed SHA-256 fingerprint includes authenticated scope
+and ordered transaction facts, with exact decimal and UTC timestamp normalization.
+`ReserveResult` reports ALLOW/DENY/REVIEW, completed controls, reservation IDs and
+unique reason codes in lexicographic order. DENY/REVIEW never carry reservation IDs.
+
+Migration `000028` adds immutable `reserve_decisions` in each tenant database,
+independently of capacity rows. Transaction ID and request ID are each unique per
+integration. The original response and selected policy/binding/rule revisions
+survive policy rebindings and process restarts. `LookupReserveDecisionQuery`
+validates verified identity and the content fingerprint before returning a
+detached stored snapshot; it never evaluates current rules or repeats capacity
+or audit writes. Conflicting identity reuse is canonical error `0520` (409).
+Reads use the primary, including the repeated lookup available inside the caller's
+transaction. Parsing/storage bounds must continue to cover recoverable records.
+
+The decision repository only writes through the caller's transaction. The
+reservation use case must combine the decision, capacity and mandatory audit,
+and recheck replay under the operation lock. These new components are not yet
+connected to Reserve. Existing reservation indexes and counters are unchanged;
+their replacement and the durable completion fence require coordinated wiring.
+The decision migration can be rolled back only while its table is empty; an
+exclusive lock prevents a concurrent first insert from being lost during rollback.
+
 Publication requires the caller's transaction. Database constraints reject
 incomplete snapshots; triggers prevent rewriting or deleting published revisions.
 `PublishContextPolicyCommand` compiles the complete revision before opening a

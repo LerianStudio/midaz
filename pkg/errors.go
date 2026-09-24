@@ -497,6 +497,10 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 //   - error: The appropriate business error with code, title, and message.
 func ValidateBusinessError(err error, entityType string, args ...any) error {
 	errorMap := map[error]error{
+		constant.ErrReserveDecisionConflict: EntityConflictError{
+			EntityType: entityType, Code: constant.ErrReserveDecisionConflict.Error(),
+			Title: "Reserve Decision Conflict", Message: "The transaction or request identity was already used for a different reserve evaluation.",
+		},
 		constant.ErrContextPolicyUnavailable: ServiceUnavailableError{
 			EntityType: entityType, Code: constant.ErrContextPolicyUnavailable.Error(),
 			Title: "Evaluation Policy Unavailable", Message: "No usable evaluation policy is configured for this integration context.",

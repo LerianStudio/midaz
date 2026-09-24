@@ -645,6 +645,8 @@ var (
 	ErrContextPolicyUnavailable = errors.New("0526")
 	// ErrContextPolicyConflict reports a reused immutable revision or stale binding update.
 	ErrContextPolicyConflict = errors.New("0527")
+	// ErrReserveDecisionConflict reports reused transaction/request identity with conflicting content.
+	ErrReserveDecisionConflict = errors.New("0528")
 )
 
 // List of CRM domain errors.
