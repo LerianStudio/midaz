@@ -177,6 +177,24 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_by_name_or_code")
 	defer span.End()
 
+	nameHit := squirrel.Expr("false")
+	codeHit := squirrel.Expr("false")
+	legs := squirrel.Or{}
+
+	if name != "" {
+		nameHit = squirrel.Expr("COALESCE(LOWER(name) = LOWER(?), false)", name)
+		legs = append(legs, squirrel.Expr("LOWER(name) = LOWER(?)", name))
+	}
+
+	if code != "" {
+		codeHit = squirrel.Expr("code = ?", code)
+		legs = append(legs, squirrel.Eq{"code": code})
+	}
+
+	if len(legs) == 0 {
+		return false, nil
+	}
+
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
@@ -184,13 +202,15 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 		return false, err
 	}
 
-	query, args, err := squirrel.Select(assetColumnList...).
-		From("asset").
+	query, args, err := squirrel.Select().
+		Column(squirrel.Alias(nameHit, "name_hit")).
+		Column(squirrel.Alias(codeHit, "code_hit")).
+		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Or{squirrel.Expr("name LIKE ?", name), squirrel.Eq{"code": code}}).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
+		Where(legs).
+		Limit(1).
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
@@ -199,29 +219,23 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 		return false, err
 	}
 
-	rows, err := db.QueryContext(ctx, query, args...)
-	if err != nil {
+	var foundByName, foundByCode bool
+
+	if err := db.QueryRowContext(ctx, query, args...).Scan(&foundByName, &foundByCode); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+
 		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return false, err
 	}
-	defer rows.Close()
 
-	if rows.Next() {
-		err := pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, constant.EntityAsset)
+	businessErr := pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, constant.EntityAsset)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Asset name or code already exists", err)
+	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Asset name or code already exists", businessErr)
 
-		return true, err
-	}
-
-	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
-
-		return false, err
-	}
-
-	return false, nil
+	return true, businessErr
 }
 
 // FindAll retrieves Asset entities from the database with soft-deleted records.
