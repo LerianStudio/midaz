@@ -66,13 +66,12 @@ func (r *ReservationReaperRepository) FindExpiredReservations(ctx context.Contex
 		return nil, fmt.Errorf("failed to resolve database connection: %w", err)
 	}
 
-	// status = 'RESERVED' matches the partial index predicate exactly so the
-	// planner uses idx_usage_reservations_reaper. Hand-written const query: a
-	// fixed two-predicate scan with no dynamic columns, kept verbatim.
+	// The status and legacy-ownership predicates match the partial index.
+	// Decision-owned rows require a known outcome, never inference from TTL.
 	const findExpiredSQL = `
 		SELECT id
 		FROM usage_reservations
-		WHERE status = 'RESERVED' AND reservation_expires_at < $1
+		WHERE status = 'RESERVED' AND decision_id IS NULL AND reservation_expires_at < $1
 	`
 
 	rows, err := db.QueryContext(ctx, findExpiredSQL, now.UTC())

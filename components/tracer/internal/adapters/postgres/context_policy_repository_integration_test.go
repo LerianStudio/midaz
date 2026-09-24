@@ -205,9 +205,9 @@ func TestIntegrationContextPolicyMigrationPreservesUsage(t *testing.T) {
 	require.NoError(t, inRealTx(t, db, func(tx *sql.Tx) error { return repo.ReserveWithTx(ctx, tx, reservation, decimal.NewFromInt(100)) }))
 	dir := t.TempDir()
 	require.NoError(t, migrations.WriteTo(dir))
-	// Roll back the newer operation/decision FKs before their targets, then restore
+	// Roll back the newer capacity/operation/decision FKs before their targets, then restore
 	// them in forward order. No stored decisions exist in this shared fixture.
-	for _, file := range []string{"000029_reserve_operations.down.sql", "000028_reserve_decisions.down.sql", "000025_context_policies.down.sql", "000025_context_policies.up.sql", "000028_reserve_decisions.up.sql", "000029_reserve_operations.up.sql"} {
+	for _, file := range []string{"000030_decision_reservations.down.sql", "000029_reserve_operations.down.sql", "000028_reserve_decisions.down.sql", "000025_context_policies.down.sql", "000025_context_policies.up.sql", "000028_reserve_decisions.up.sql", "000029_reserve_operations.up.sql", "000030_decision_reservations.up.sql"} {
 		body, err := os.ReadFile(filepath.Join(dir, file))
 		require.NoError(t, err)
 		_, err = db.ExecContext(ctx, string(body))
