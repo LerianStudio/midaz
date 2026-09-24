@@ -8,27 +8,38 @@ package postgres
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	problem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 
+	grpcin "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/grpc/in"
+	grpcmocks "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/grpc/in/mocks"
 	httpin "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
+	contractpb "github.com/LerianStudio/midaz/v4/pkg/tracercontract/protobuf"
 )
 
 // Identity is supplied by the fixture at the already-authenticated boundary.
-// This exercises Fiber/Huma, strict JSON and real transactional repositories;
+// This exercises Fiber/Huma, gRPC/protobuf and real transactional repositories;
 // certificate verification and the Ledger binary are outside this test.
 func TestIntegrationReserveHTTPPersistsAndReplays(t *testing.T) {
 	db := completionDatabase(t)
@@ -68,6 +79,22 @@ func TestIntegrationReserveHTTPPersistsAndReplays(t *testing.T) {
 	require.NoError(t, first.ValidateFor(request, 100))
 	require.Len(t, first.ReservationIDs, 1)
 	require.JSONEq(t, string(raw), string(post("/v1/reservations", request, http.StatusCreated)))
+	// Replay across transports must resolve the original durable decision.
+	server, err := grpcin.NewContextReservationServer(grpcmocks.NewMockReservationService(gomock.NewController(t)), testutil.NewDefaultMockClock(), admission, completion, byID, grpcin.ContextReservationConfig{Bounds: bounds, MaxBodyBytes: 65536, MaxReservations: 100})
+	require.NoError(t, err)
+	client := reservePersistenceGRPCClient(t, server)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	wire, err := contractpb.EncodeReserve(ctx, request, request.Asset.Namespace, bounds)
+	require.NoError(t, err)
+	wireResult, err := client.Reserve(ctx, wire)
+	require.NoError(t, err)
+	grpcResult, err := contractpb.DecodeResult(wireResult, 100)
+	require.NoError(t, err)
+	require.Equal(t, first, grpcResult)
+	confirmed, err := client.ConfirmByTransaction(ctx, &reservationv1.ConfirmByTransactionRequest{ContractRevision: request.ContractRevision, TransactionId: request.TransactionID.String()})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, confirmed.GetFlipped())
 	body := map[string]string{"contractRevision": tracercontract.ReserveContractRevision}
 	confirmPath := "/v1/reservations/transaction/" + request.TransactionID.String() + "/confirm"
 	post(confirmPath, body, http.StatusOK) // Treat this acknowledgement as lost.
@@ -83,4 +110,29 @@ func TestIntegrationReserveHTTPPersistsAndReplays(t *testing.T) {
 	require.Equal(t, "10.125", current.String())
 	require.True(t, held.IsZero())
 	require.Len(t, completionEvents(t, db, request.TransactionID), 2)
+}
+
+// The interceptor supplies only the already-verified fixture identity. Native
+// mTLS authentication has separate handshake tests; this fixture tests transport
+// serialization against the same durable state, without mocking commands.
+func reservePersistenceGRPCClient(t *testing.T, handler *grpcin.ReservationServer) reservationv1.ReservationServiceClient {
+	t.Helper()
+	listener := bufconn.Listen(65536)
+	server := grpc.NewServer(grpc.UnaryInterceptor(func(ctx context.Context, request any, _ *grpc.UnaryServerInfo, next grpc.UnaryHandler) (any, error) {
+		return next(completionContext(ctx, "producer"), request)
+	}))
+	reservationv1.RegisterReservationServiceServer(server, handler)
+	served := make(chan error, 1)
+	go func() { served <- server.Serve(listener) }()
+	t.Cleanup(func() {
+		server.Stop()
+		require.NoError(t, listener.Close())
+		require.NoError(t, <-served)
+	})
+	connection, err := grpc.NewClient("passthrough:///reservation-persistence", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+		return listener.DialContext(ctx)
+	}))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, connection.Close()) })
+	return reservationv1.NewReservationServiceClient(connection)
 }
