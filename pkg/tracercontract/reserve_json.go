@@ -246,3 +246,33 @@ func validLowSurrogate(raw []byte, lastHigh int) bool {
 
 	return err == nil && low >= 0xDC00 && low <= 0xDFFF
 }
+
+// DecodeCompletionJSON requires explicit acknowledgement of this contract.
+// Empty legacy bodies are handled by the transport's separate legacy lifecycle.
+func DecodeCompletionJSON(ctx context.Context, raw []byte, maxBodyBytes int) (CompletionRequest, error) {
+	if err := ctx.Err(); err != nil {
+		return CompletionRequest{}, err
+	}
+
+	if maxBodyBytes <= 0 || len(raw) == 0 || len(raw) > maxBodyBytes || !utf8.Valid(raw) || !validJSONSurrogates(raw) {
+		return CompletionRequest{}, invalid("completion body")
+	}
+
+	shape := reserveJSONShape{kind: 'o', fields: map[string]*reserveJSONShape{"contractRevision": {kind: 's'}}}
+
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	if err := shape.read(ctx, decoder, Limits{}); err != nil {
+		return CompletionRequest{}, err
+	}
+
+	if _, err := decoder.Token(); err != io.EOF {
+		return CompletionRequest{}, invalid("trailing completion JSON")
+	}
+
+	var result CompletionRequest
+	if err := json.Unmarshal(raw, &result); err != nil || result.ContractRevision != ReserveContractRevision {
+		return CompletionRequest{}, invalid("completion revision")
+	}
+
+	return result, nil
+}

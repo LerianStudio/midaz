@@ -174,3 +174,64 @@ func TestCompleteReserveOperationRejectsBeforeTransaction(t *testing.T) {
 		require.ErrorIs(t, err, constant.ErrInvalidRequestBody)
 	}
 }
+
+func TestCompleteReserveOperationReportDoesNotInventDecision(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	operations := mocks.NewMockReserveOperationCompleter(ctrl)
+	decisions := mocks.NewMockReserveOperationDecisionReader(ctrl)
+	capacity := mocks.NewMockDecisionCapacitySettler(ctrl)
+	audit := mocks.NewMockAuditEventRepository(ctrl)
+	beginner := dbmocks.NewMockTxBeginner(ctrl)
+	tx := dbmocks.NewMockTx(ctrl)
+	at := testutil.FixedTime()
+	command, err := NewCompleteReserveOperationCommand(operations, decisions, capacity, audit, beginner, clock.NewFixedClock(at), ReserveCompletionConfig{SingleTenant: true, MaxRules: 10, MaxReservations: 100})
+	require.NoError(t, err)
+	id := testutil.MustDeterministicUUID(89701)
+	key := model.ReserveOperationIdentity{IntegrationID: "verified-producer", TransactionID: id}
+	gomock.InOrder(
+		beginner.EXPECT().BeginTx(gomock.Any(), nil).Return(tx, nil),
+		operations.EXPECT().CompleteWithTx(gomock.Any(), tx, key, model.OperationReleased, at).Return(&model.ReserveOperationState{Status: model.OperationReleased, CompletedAt: &at}, false, nil),
+		decisions.EXPECT().GetByOperationWithTx(gomock.Any(), tx, key).Return(nil, nil),
+		tx.EXPECT().Commit().Return(nil),
+	)
+	result, err := command.ExecuteReport(completionAuth(t.Context()), id, model.OperationReleased)
+	require.NoError(t, err)
+	require.NoError(t, result.Validate())
+	require.Nil(t, result.EvaluationID)
+	require.Zero(t, result.Flipped)
+}
+
+func TestCompleteReserveOperationReportMovementAndReplay(t *testing.T) {
+	for _, replay := range []bool{false, true} {
+		t.Run(map[bool]string{false: "first completion", true: "replay"}[replay], func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			operations := mocks.NewMockReserveOperationCompleter(ctrl)
+			decisions := mocks.NewMockReserveOperationDecisionReader(ctrl)
+			capacity := mocks.NewMockDecisionCapacitySettler(ctrl)
+			audit := mocks.NewMockAuditEventRepository(ctrl)
+			beginner := dbmocks.NewMockTxBeginner(ctrl)
+			tx := dbmocks.NewMockTx(ctrl)
+			at := testutil.FixedTime()
+			cmd, err := NewCompleteReserveOperationCommand(operations, decisions, capacity, audit, beginner, clock.NewFixedClock(at), ReserveCompletionConfig{SingleTenant: true, MaxRules: 10, MaxReservations: 100})
+			require.NoError(t, err)
+			decision, reservation := completionDecision()
+			key := decision.Key.Identity()
+			calls := []any{
+				beginner.EXPECT().BeginTx(gomock.Any(), nil).Return(tx, nil),
+				operations.EXPECT().CompleteWithTx(gomock.Any(), tx, key, model.OperationConfirmed, at).Return(&model.ReserveOperationState{Status: model.OperationConfirmed, CompletedAt: &at}, !replay, nil),
+				decisions.EXPECT().GetByOperationWithTx(gomock.Any(), tx, key).Return(decision, nil),
+			}
+			if !replay {
+				calls = append(calls, capacity.EXPECT().SettleDecisionWithTx(gomock.Any(), tx, decision.Result.EvaluationID, model.StatusConfirmed).Return([]*model.Reservation{reservation}, nil), audit.EXPECT().InsertWithTx(gomock.Any(), tx, gomock.Any()).Return(nil))
+			}
+			calls = append(calls, tx.EXPECT().Commit().Return(nil))
+			gomock.InOrder(calls...)
+			result, err := cmd.ExecuteReport(completionAuth(t.Context()), key.TransactionID, model.OperationConfirmed)
+			require.NoError(t, err)
+			require.NotNil(t, result.EvaluationID)
+			require.Equal(t, decision.Result.EvaluationID, *result.EvaluationID)
+			require.Equal(t, map[bool]int{false: 1, true: 0}[replay], result.Flipped)
+			require.NoError(t, result.Validate())
+		})
+	}
+}

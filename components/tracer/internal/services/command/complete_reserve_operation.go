@@ -24,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/logging"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 // ReserveCompletionConfig holds recovery storage bounds, never current rule or
@@ -86,7 +87,23 @@ func NewCompleteReserveOperationCommand(operations ReserveOperationCompleter, de
 // Execute accepts no integration or evaluation ID from the caller. Repeats of a
 // committed outcome return its original timestamp without another audit event.
 // A commit failure returns no successful result and is never automatically retried.
-func (c *CompleteReserveOperationCommand) Execute(ctx context.Context, transactionID uuid.UUID, status model.ReserveOperationStatus) (_ *model.ReserveOperationState, retErr error) {
+func (c *CompleteReserveOperationCommand) Execute(ctx context.Context, transactionID uuid.UUID, status model.ReserveOperationStatus) (*model.ReserveOperationState, error) {
+	return c.execute(ctx, transactionID, status, nil)
+}
+
+// ExecuteReport adds transport confirmation of the contract and actual movement
+// count. On replay it reads the immutable decision in the same transaction but
+// never repeats settlement or audit. No decision means no evaluation ID.
+func (c *CompleteReserveOperationCommand) ExecuteReport(ctx context.Context, transactionID uuid.UUID, status model.ReserveOperationStatus) (*tracercontract.TransactionCompletionResult, error) {
+	report := &tracercontract.TransactionCompletionResult{ContractRevision: tracercontract.ReserveContractRevision, TransactionID: transactionID, Status: string(status)}
+	if _, err := c.execute(ctx, transactionID, status, report); err != nil {
+		return nil, err
+	}
+
+	return report, nil
+}
+
+func (c *CompleteReserveOperationCommand) execute(ctx context.Context, transactionID uuid.UUID, status model.ReserveOperationStatus, report *tracercontract.TransactionCompletionResult) (_ *model.ReserveOperationState, retErr error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -138,10 +155,8 @@ func (c *CompleteReserveOperationCommand) Execute(ctx context.Context, transacti
 		completedAt := *state.CompletedAt
 
 		result = &model.ReserveOperationState{Status: state.Status, CompletedAt: &completedAt}
-		if changed {
-			if err := c.settleAndAudit(ctx, tx, key, result); err != nil {
-				return err
-			}
+		if err := c.completeReport(ctx, tx, key, result, changed, report); err != nil {
+			return err
 		}
 
 		return ctx.Err()
@@ -154,7 +169,30 @@ func (c *CompleteReserveOperationCommand) Execute(ctx context.Context, transacti
 	return result, nil
 }
 
-func (c *CompleteReserveOperationCommand) settleAndAudit(ctx context.Context, tx pgdb.Tx, key model.ReserveOperationIdentity, state *model.ReserveOperationState) error {
+func (c *CompleteReserveOperationCommand) completeReport(ctx context.Context, tx pgdb.Tx, key model.ReserveOperationIdentity, state *model.ReserveOperationState, changed bool, report *tracercontract.TransactionCompletionResult) error {
+	if changed {
+		if err := c.settleAndAudit(ctx, tx, key, state, report); err != nil {
+			return err
+		}
+	} else if report != nil {
+		decision, err := c.decisions.GetByOperationWithTx(ctx, tx, key)
+		if err != nil {
+			return err
+		}
+
+		if err := c.reportDecision(key, decision, report); err != nil {
+			return err
+		}
+	}
+
+	if report != nil {
+		return report.Validate()
+	}
+
+	return nil
+}
+
+func (c *CompleteReserveOperationCommand) settleAndAudit(ctx context.Context, tx pgdb.Tx, key model.ReserveOperationIdentity, state *model.ReserveOperationState, report *tracercontract.TransactionCompletionResult) error {
 	decision, err := c.decisions.GetByOperationWithTx(ctx, tx, key)
 	if err != nil {
 		return err
@@ -195,6 +233,13 @@ func (c *CompleteReserveOperationCommand) settleAndAudit(ctx context.Context, tx
 		return err
 	}
 
+	if report != nil {
+		if err := c.reportDecision(key, decision, report); err != nil {
+			return err
+		}
+
+		report.Flipped = len(moved)
+	}
 	event.CreatedAt = *state.CompletedAt
 	event.WithContext(map[string]any{
 		"integrationId": key.IntegrationID, "transactionId": key.TransactionID,
@@ -250,4 +295,19 @@ func recordReserveCompletionError(span trace.Span, err error) {
 	}
 
 	libOtel.HandleSpanError(span, "reserve completion failed", err)
+}
+
+func (c *CompleteReserveOperationCommand) reportDecision(key model.ReserveOperationIdentity, decision *model.ReserveDecision, report *tracercontract.TransactionCompletionResult) error {
+	if decision == nil {
+		return nil
+	}
+
+	if decision.Key.Identity() != key || decision.Validate(c.config.MaxRules, c.config.MaxReservations) != nil {
+		return constant.ErrInternalServer
+	}
+
+	id := decision.Result.EvaluationID
+	report.EvaluationID = &id
+
+	return nil
 }

@@ -303,6 +303,14 @@ event; contradictory outcomes conflict. A failed or zero-row audit insertion
 rolls back operation state and capacity. Commit uncertainty returns no successful
 result and is never automatically retried. Enum rollback preserves audit history.
 
+`ExecuteReport` additionally reports the contract revision, transaction, outcome,
+actual capacity movements in this call and the original evaluation ID. Replay
+reads that immutable ID in the same tenant transaction and reports zero movements;
+it does not repeat settlement or audit. Completion before admission has no
+evaluation ID, while ALLOW without applicable limits still has its evaluation ID.
+The shared JSON completion decoder requires an explicit supported revision and
+rejects unknown/duplicate fields; empty legacy bodies are a transport concern.
+
 The completion command is not yet connected to HTTP/gRPC or Ledger recovery.
 The legacy reaper still commits releases separately from its batch audit; waiting
 for its whole cycle in the cadence test is not proof of atomic legacy shutdown.

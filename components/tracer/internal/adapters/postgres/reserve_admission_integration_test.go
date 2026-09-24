@@ -144,9 +144,13 @@ func TestIntegrationReserveAdmissionDecisionsAndReplay(t *testing.T) {
 			require.Len(t, completionEvents(t, db, r.TransactionID), 1)
 			if tc.want == tracercontract.DecisionAllow {
 				complete, _, _ := completionCommand(t, db, true)
-				for range 2 {
-					_, err = complete.Execute(ctx, r.TransactionID, model.OperationConfirmed)
+				for attempt := range 2 {
+					report, err := complete.ExecuteReport(ctx, r.TransactionID, model.OperationConfirmed)
 					require.NoError(t, err)
+					require.NoError(t, report.Validate())
+					require.NotNil(t, report.EvaluationID)
+					require.Equal(t, got.EvaluationID, *report.EvaluationID)
+					require.Equal(t, 1-attempt, report.Flipped)
 				}
 				current, held = readCounterDecimal(t, db, limit, "acct:"+r.Context.Accounts[0].ID.String(), period)
 				require.Equal(t, "20.125", current.String())
@@ -321,8 +325,11 @@ func TestIntegrationReserveAdmissionExternalWithoutLimits(t *testing.T) {
 	require.Equal(t, tracercontract.DecisionAllow, got.Decision)
 	require.Empty(t, got.ReservationIDs)
 	complete, _, _ := completionCommand(t, db, true)
-	_, err = complete.Execute(ctx, r.TransactionID, model.OperationConfirmed)
+	report, err := complete.ExecuteReport(ctx, r.TransactionID, model.OperationConfirmed)
 	require.NoError(t, err)
+	require.Zero(t, report.Flipped)
+	require.NotNil(t, report.EvaluationID)
+	require.Equal(t, got.EvaluationID, *report.EvaluationID)
 	again, err := c.Execute(ctx, r)
 	require.NoError(t, err)
 	require.Equal(t, got, again)
