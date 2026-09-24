@@ -43,6 +43,10 @@ const (
 	AuditEventPolicyPublished AuditEventType = "POLICY_PUBLISHED"
 	AuditEventPolicyBound     AuditEventType = "POLICY_BOUND"
 
+	// Known producer outcomes, including completion before any reservation.
+	AuditEventOperationConfirmed AuditEventType = "RESERVE_OPERATION_CONFIRMED"
+	AuditEventOperationReleased  AuditEventType = "RESERVE_OPERATION_RELEASED"
+
 	// Rule lifecycle events
 	AuditEventRuleCreated     AuditEventType = "RULE_CREATED"
 	AuditEventRuleUpdated     AuditEventType = "RULE_UPDATED"
@@ -74,7 +78,7 @@ const (
 // IsValid checks if the AuditEventType is a valid enum value.
 func (t AuditEventType) IsValid() bool {
 	switch t {
-	case AuditEventTransactionValidated, AuditEventPolicyPublished, AuditEventPolicyBound,
+	case AuditEventTransactionValidated, AuditEventPolicyPublished, AuditEventPolicyBound, AuditEventOperationConfirmed, AuditEventOperationReleased,
 		AuditEventRuleCreated, AuditEventRuleUpdated, AuditEventRuleActivated, AuditEventRuleDeactivated, AuditEventRuleDrafted, AuditEventRuleDeleted,
 		AuditEventLimitCreated, AuditEventLimitUpdated, AuditEventLimitDeleted, AuditEventLimitActivated, AuditEventLimitDeactivated, AuditEventLimitDrafted,
 		AuditEventReservationReserved, AuditEventReservationConfirmed, AuditEventReservationReleased, AuditEventReservationExpired, AuditEventReservationSkipped:
@@ -148,17 +152,18 @@ func (r AuditResult) IsValid() bool {
 type ResourceType string
 
 const (
-	ResourceTypeTransaction ResourceType = "transaction"
-	ResourceTypeRule        ResourceType = "rule"
-	ResourceTypeLimit       ResourceType = "limit"
-	ResourceTypeReservation ResourceType = "reservation"
-	ResourceTypePolicy      ResourceType = "policy"
+	ResourceTypeTransaction      ResourceType = "transaction"
+	ResourceTypeRule             ResourceType = "rule"
+	ResourceTypeLimit            ResourceType = "limit"
+	ResourceTypeReservation      ResourceType = "reservation"
+	ResourceTypePolicy           ResourceType = "policy"
+	ResourceTypeReserveOperation ResourceType = "reserve_operation"
 )
 
 // IsValid checks if the ResourceType is a valid enum value.
 func (r ResourceType) IsValid() bool {
 	switch r {
-	case ResourceTypeTransaction, ResourceTypeRule, ResourceTypeLimit, ResourceTypeReservation, ResourceTypePolicy:
+	case ResourceTypeTransaction, ResourceTypeRule, ResourceTypeLimit, ResourceTypeReservation, ResourceTypePolicy, ResourceTypeReserveOperation:
 		return true
 	default:
 		return false
@@ -202,8 +207,8 @@ type AuditEvent struct {
 
 	// Type of event that occurred
 	// example: TRANSACTION_VALIDATED
-	// enums: TRANSACTION_VALIDATED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED
-	EventType AuditEventType `json:"eventType" swaggertype:"string" enums:"TRANSACTION_VALIDATED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED" example:"TRANSACTION_VALIDATED"`
+	// enums: TRANSACTION_VALIDATED,POLICY_PUBLISHED,POLICY_BOUND,RESERVE_OPERATION_CONFIRMED,RESERVE_OPERATION_RELEASED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED
+	EventType AuditEventType `json:"eventType" swaggertype:"string" enums:"TRANSACTION_VALIDATED,POLICY_PUBLISHED,POLICY_BOUND,RESERVE_OPERATION_CONFIRMED,RESERVE_OPERATION_RELEASED,RULE_CREATED,RULE_UPDATED,RULE_ACTIVATED,RULE_DEACTIVATED,RULE_DRAFTED,RULE_DELETED,LIMIT_CREATED,LIMIT_UPDATED,LIMIT_DELETED,LIMIT_ACTIVATED,LIMIT_DEACTIVATED,LIMIT_DRAFTED,RESERVATION_RESERVED,RESERVATION_CONFIRMED,RESERVATION_RELEASED,RESERVATION_EXPIRED,RESERVATION_SKIPPED" example:"TRANSACTION_VALIDATED"`
 
 	// Timestamp when the event occurred
 	// format: date-time
@@ -225,8 +230,8 @@ type AuditEvent struct {
 
 	// Type of resource affected
 	// example: transaction
-	// enums: transaction,rule,limit,reservation
-	ResourceType ResourceType `json:"resourceType" swaggertype:"string" enums:"transaction,rule,limit,reservation" example:"transaction"`
+	// enums: transaction,rule,limit,reservation,policy,reserve_operation
+	ResourceType ResourceType `json:"resourceType" swaggertype:"string" enums:"transaction,rule,limit,reservation,policy,reserve_operation" example:"transaction"`
 
 	// Actor who performed the action
 	Actor Actor `json:"actor"`

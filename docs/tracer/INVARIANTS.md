@@ -199,8 +199,34 @@ The index replacement is an atomic, coordinated schema/writer change. The old
 binary's ON CONFLICT clause cannot use the new partial index: suspend incompatible
 writers during rollout. Down restores full legacy indexes only when there is no
 decision-owned reservation history; it never drops or relabels such history to
-make a binary rollback succeed. These repositories do not yet implement the
-authenticated Reserve/finalization use cases or their required audit events.
+make a binary rollback succeed. These repositories do not implement authenticated
+Reserve admission or its required decision audit event.
+
+`CompleteReserveOperationCommand` composes known completion, decision-owned
+capacity settlement and mandatory audit in one tenant transaction. Integration
+identity comes only from verified transport context. Multi-tenant execution
+requires both tenant identity and a resolved pool; an administrative principal
+cannot stand in for a verified producer. Completion reads the original decision
+by integration/transaction without requiring its request ID, querying today's
+policy/settings or re-evaluating limits. Every expected reservation must move;
+missing, duplicate or unrelated capacity aborts the transaction.
+
+Migration `000031` adds RESERVE_OPERATION_CONFIRMED/RELEASED audit events and the
+`reserve_operation` resource type. This distinct resource avoids legacy audit
+deduplication by transaction ID alone, which would suppress another integration's
+event. The command appends one hash-chained event per first completion, with the
+verified producer, optional evaluation ID and exact before/after reservation
+movements. Zero-capacity completion still requires audit. SUCCESS describes
+recording the producer's outcome, not an invented ALLOW validation decision.
+Identical replay returns the first completion time without another movement or
+event; contradictory outcomes conflict. A failed or zero-row audit insertion
+rolls back operation state and capacity. Commit uncertainty returns no successful
+result and is never automatically retried. Enum rollback preserves audit history.
+
+The completion command is not yet connected to HTTP/gRPC or Ledger recovery.
+The legacy reaper still commits releases separately from its batch audit; waiting
+for its whole cycle in the cadence test is not proof of atomic legacy shutdown.
+New decision-owned reservations never enter that TTL path.
 
 Publication requires the caller's transaction. Database constraints reject
 incomplete snapshots; triggers prevent rewriting or deleting published revisions.

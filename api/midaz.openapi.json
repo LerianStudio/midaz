@@ -20340,22 +20340,22 @@
             }
           },
           {
-            "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*, POLICY_PUBLISHED, POLICY_BOUND)",
+            "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*, POLICY_PUBLISHED, POLICY_BOUND, RESERVE_OPERATION_CONFIRMED, RESERVE_OPERATION_RELEASED)",
             "explode": false,
             "in": "query",
             "name": "event_type",
             "schema": {
-              "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*, POLICY_PUBLISHED, POLICY_BOUND)",
+              "description": "Filter by event type (TRANSACTION_VALIDATED, RULE_*, LIMIT_*, POLICY_PUBLISHED, POLICY_BOUND, RESERVE_OPERATION_CONFIRMED, RESERVE_OPERATION_RELEASED)",
               "type": "string"
             }
           },
           {
-            "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)",
+            "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, CONFIRM, RELEASE)",
             "explode": false,
             "in": "query",
             "name": "action",
             "schema": {
-              "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT)",
+              "description": "Filter by action (VALIDATE, CREATE, UPDATE, DELETE, ACTIVATE, DEACTIVATE, DRAFT, CONFIRM, RELEASE)",
               "type": "string"
             }
           },
@@ -20370,12 +20370,12 @@
             }
           },
           {
-            "description": "Filter by resource type (transaction, rule, limit, policy)",
+            "description": "Filter by resource type (transaction, rule, limit, policy, reserve_operation)",
             "explode": false,
             "in": "query",
             "name": "resource_type",
             "schema": {
-              "description": "Filter by resource type (transaction, rule, limit, policy)",
+              "description": "Filter by resource type (transaction, rule, limit, policy, reserve_operation)",
               "type": "string"
             }
           },

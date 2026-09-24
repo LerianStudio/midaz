@@ -164,6 +164,21 @@ func (r *AuditEventRepository) insertInternal(
 		return fmt.Errorf("failed to insert audit event: %w", err)
 	}
 
+	// Completion is mandatory and its operation lock already owns idempotency.
+	// Never interpret a silently suppressed insert as an audited outcome.
+	if event.ResourceType == model.ResourceTypeReserveOperation {
+		affected, err := result.RowsAffected()
+		if err != nil {
+			libOtel.HandleSpanError(span, "Failed to verify completion audit insertion", err)
+			return fmt.Errorf("verify completion audit insertion: %w", err)
+		}
+
+		if affected != 1 {
+			libOtel.HandleSpanError(span, "Completion audit was not inserted", constant.ErrInternalServer)
+			return constant.ErrInternalServer
+		}
+	}
+
 	// Log dedup visibility for transaction validation events
 	if event.ResourceType == model.ResourceTypeTransaction {
 		rowsAffected, rowsErr := result.RowsAffected()
