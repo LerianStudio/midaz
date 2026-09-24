@@ -54,7 +54,7 @@ type Repository interface {
 	// ExistsByName reports whether a non-deleted segment name already exists in an organization ledger.
 	// Returns (true, ErrDuplicateSegmentName) when found, (false, nil) when not found.
 	// Comparison is case-insensitive equality: % and _ are literal characters.
-	// The lookup is a pre-check; idx_segment_ledger_name_unique is the guarantee against concurrent writes.
+	// Uniqueness is enforced by this lookup at request time; concurrent creates of the same name are not serialized.
 	ExistsByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error)
 	// ExistsByNameExcludingID reports whether a non-deleted segment other than excludeID already
 	// carries the name in an organization ledger. The match ignores case, so a rename that only
@@ -176,7 +176,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 	); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, constant.EntitySegment, record.Name, record.LedgerID)
+			err := services.ValidatePGError(pgErr, constant.EntitySegment)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute create query", err)
 
 			return nil, err
@@ -503,7 +503,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, constant.EntitySegment, record.Name, ledgerID)
+			err := services.ValidatePGError(pgErr, constant.EntitySegment)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute update query", err)
 
 			return nil, err

@@ -8,7 +8,6 @@ package ledger
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -172,106 +171,4 @@ func TestIntegration_LedgerRepository_FindByNameExcludingID_IgnoresOwnRow(t *tes
 	exists, err = repo.FindByNameExcludingID(ctx, orgID, "alpha", betaID)
 	assert.True(t, exists)
 	assertLedgerNameConflict(t, err)
-}
-
-// The application check is a courtesy; the index is the guarantee. An insert
-// that bypasses the check must still surface 0002, never a driver error.
-func TestIntegration_LedgerRepository_Create_DuplicateNameMapsToConflict(t *testing.T) {
-	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
-
-	repo := createRepository(t, container)
-	ctx := context.Background()
-	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-
-	_, err := repo.Create(ctx, newLedgerEntity(orgID, "Alpha"))
-	require.NoError(t, err)
-
-	_, err = repo.Create(ctx, newLedgerEntity(orgID, "alpha"))
-	require.Error(t, err)
-	assertLedgerNameConflict(t, err)
-}
-
-// The same guarantee on the rename path.
-func TestIntegration_LedgerRepository_Update_DuplicateNameMapsToConflict(t *testing.T) {
-	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
-
-	repo := createRepository(t, container)
-	ctx := context.Background()
-	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-
-	alphaParams := pgtestutil.DefaultLedgerParams()
-	alphaParams.Name = "Alpha"
-	pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, alphaParams)
-
-	betaParams := pgtestutil.DefaultLedgerParams()
-	betaParams.Name = "Beta"
-	betaID := pgtestutil.CreateTestLedgerWithParams(t, container.DB, orgID, betaParams)
-
-	_, err := repo.Update(ctx, orgID, betaID, &mmodel.Ledger{Name: "alpha"})
-	require.Error(t, err)
-	assertLedgerNameConflict(t, err)
-
-	var persistedName string
-	require.NoError(t, container.DB.QueryRowContext(ctx, `SELECT name FROM ledger WHERE id = $1`, betaID).Scan(&persistedName))
-	assert.Equal(t, "Beta", persistedName, "a rejected rename must persist nothing")
-
-	// Re-sending its own name is not a conflict with itself.
-	updated, err := repo.Update(ctx, orgID, betaID, &mmodel.Ledger{Name: "Beta"})
-	require.NoError(t, err)
-	assert.Equal(t, "Beta", updated.Name)
-}
-
-// Scenario creates-concorrentes-apenas-um-vence: the index is the only
-// serialization point, so concurrent inserts of one name settle at exactly one
-// winner, every loser carrying 0002.
-func TestIntegration_LedgerRepository_Create_ConcurrentSameNameHasOneWinner(t *testing.T) {
-	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
-
-	repo := createRepository(t, container)
-	ctx := context.Background()
-	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-
-	const writers = 8
-
-	var (
-		wg    sync.WaitGroup
-		start = make(chan struct{})
-		errs  = make([]error, writers)
-	)
-
-	wg.Add(writers)
-
-	for i := 0; i < writers; i++ {
-		go func(index int) {
-			defer wg.Done()
-
-			<-start
-
-			_, errs[index] = repo.Create(ctx, newLedgerEntity(orgID, "Race"))
-		}(i)
-	}
-
-	close(start)
-	wg.Wait()
-
-	successes := 0
-
-	for _, err := range errs {
-		if err == nil {
-			successes++
-
-			continue
-		}
-
-		assertLedgerNameConflict(t, err)
-	}
-
-	assert.Equal(t, 1, successes, "exactly one concurrent create must win")
-
-	var liveRows int
-	require.NoError(t, container.DB.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM ledger WHERE organization_id = $1 AND LOWER(name) = 'race' AND deleted_at IS NULL`,
-		orgID,
-	).Scan(&liveRows))
-	assert.Equal(t, 1, liveRows, "no duplicate may persist")
 }
