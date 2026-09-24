@@ -327,7 +327,6 @@ func (c *TracerClient) transition(ctx context.Context, action string, reservatio
 // the caller's status check.
 func (c *TracerClient) do(ctx context.Context, method, path string, body []byte) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	defer cancel()
 
 	var bodyReader io.Reader
 	if body != nil {
@@ -337,6 +336,7 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bodyReader)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("build tracer request: %w", err)
 	}
 
@@ -353,10 +353,25 @@ func (c *TracerClient) do(ctx context.Context, method, path string, body []byte)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("%w: %w", ErrTracerUnavailable, err)
 	}
 
+	resp.Body = &reservationResponseBody{ReadCloser: resp.Body, cancel: cancel}
+
 	return resp, nil
+}
+
+// reservationResponseBody keeps the operation deadline active while the caller
+// decodes the response. Closing the body releases its timer and request context.
+type reservationResponseBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (b *reservationResponseBody) Close() error {
+	defer b.cancel()
+	return b.ReadCloser.Close()
 }
 
 // TenantHeader is the trusted tenant-propagation header. The tracer trusts it
