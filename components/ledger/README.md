@@ -164,7 +164,7 @@ Shared code lives at the repo root: `pkg/mmodel` (domain models), `pkg/mtransact
 | **Messaging** | RabbitMQ 4.1.x |
 | **Decimals** | `shopspring/decimal` (never float64) |
 | **Auth** | lib-auth v5.0.1 (Access Manager plugin) |
-| **Shared platform** | lib-commons v7.7.0, lib-observability v4.5.0, lib-streaming v4.1.0 |
+| **Shared platform** | lib-commons v7.8.0, lib-observability v4.6.0, lib-streaming v4.1.0 |
 | **Observability** | OpenTelemetry via lib-observability; otel-lgtm / Grafana stack from `components/infra` |
 
 ---
