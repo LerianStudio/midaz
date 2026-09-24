@@ -128,7 +128,13 @@ facts for exactly every account scope and one matching asset, then commits the
 association and mandatory audit together. DRAFT/INACTIVE limits stay inactive;
 no usage or reservation is moved. Repeated bindings conflict without extra audit,
 and commit uncertainty is returned without retry. Resource-level authorization
-still belongs to the administrative transport, which is not mounted yet.
+is enforced by the opt-in `PUT /v1/limits/{id}/asset-reference` transport through
+Access Manager (`tracer:limit-asset-references:put`), in addition to native mTLS
+producer verification. Bootstrap rejects mesh/plaintext, disabled plugin auth,
+missing/ambiguous producer registry and absent explicit bounds. The same route
+mount is exercised by real TLS tests; a validation API key cannot administer.
+`CONTEXT_LIMIT_ADMIN_ENABLED` is independent of policy administration and does
+not enable Reserve. Operators still need to run the association/migration workflow.
 
 The shared `AccountAsset` fact contains only account UUID and `AssetRef`. Ledger's
 `BuildAccountAssets` maps already loaded official records, resolving the asset
@@ -159,7 +165,7 @@ match exact case. Existing Reserve/validation transports still use their old
 ISO-only contract until coordinated replacement; accepting native limit codes
 alone does not enable native-asset validation.
 Unmapped broad limits can block the new account-only profile and must be inventoried
-before activation. Administrative transport/RBAC, batch-loader runtime composition,
+before activation. Batch-loader runtime composition,
 reference migration, admission composition and integrated performance checks remain
 prerequisites; these components are not mounted on Reserve yet.
 

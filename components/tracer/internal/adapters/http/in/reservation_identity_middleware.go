@@ -20,8 +20,9 @@ import (
 
 // NewReservationIdentityMiddleware uses the native TLS connection verified by
 // the listener. Forwarded identity/certificate headers are never authentication.
-// Mount before tenant resolution only on the context reservation routes when
-// durable decisions are enabled; this is not administrative JWT authentication.
+// Mount on context reservation and official asset-association routes. Asset
+// administration also requires independent JWT authorization; this middleware
+// does not replace it. Reservation tenant resolution must follow this guard.
 func NewReservationIdentityMiddleware(resolver *seamidentity.Resolver) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		_, tracer, _, _ := libObservability.NewTrackingFromContext(c.Context())

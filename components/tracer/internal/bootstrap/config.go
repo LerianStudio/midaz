@@ -210,6 +210,11 @@ type Config struct {
 	CELCostLimit string `env:"CEL_COST_LIMIT"`
 
 	// Shared-context administration is opt-in and requires explicit resource bounds.
+	ContextLimitAdminEnabled  bool   `env:"CONTEXT_LIMIT_ADMIN_ENABLED"`
+	ContextProducerBindings   string `env:"CONTEXT_PRODUCER_BINDINGS"`
+	ContextLimitMaxScopes     int    `env:"CONTEXT_LIMIT_MAX_SCOPES"`
+	ContextLimitMaxScopeBytes int    `env:"CONTEXT_LIMIT_MAX_SCOPE_BYTES"`
+	ContextLimitMaxBodyBytes  int    `env:"CONTEXT_LIMIT_MAX_BODY_BYTES"`
 	ContextPolicyAdminEnabled bool   `env:"CONTEXT_POLICY_ADMIN_ENABLED"`
 	ContextMaxAccounts        int    `env:"CONTEXT_MAX_ACCOUNTS"`
 	ContextMaxEntries         int    `env:"CONTEXT_MAX_ENTRIES"`
@@ -1234,6 +1239,11 @@ func initHTTPServer(
 		return nil, nil, fmt.Errorf("initialize context policy administration: %w", err)
 	}
 
+	limitAssetAdmin, err := initLimitAssetAdmin(cfg, txBeginner, auditEventRepo, clk)
+	if err != nil {
+		return nil, nil, fmt.Errorf("initialize limit asset administration: %w", err)
+	}
+
 	// Init Audit Event service (read-only per SOX/GLBA requirements)
 	auditEventService, err := initAuditEventService(auditEventRepo)
 	if err != nil {
@@ -1307,6 +1317,7 @@ func initHTTPServer(
 	// individual request lifecycles).
 	httpApp, err := in.NewRoutes(in.RoutesDeps{
 		ContextPolicyService:         contextPolicyService,
+		LimitAssetAdmin:              limitAssetAdmin,
 		ContextPolicyMaxRules:        cfg.ContextMaxRules,
 		ContextPolicyMaxBodyBytes:    cfg.ContextPolicyMaxBodyBytes,
 		Logger:                       logger,
