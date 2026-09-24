@@ -18,8 +18,9 @@ import (
 
 // HTTPServer represents the http server for Tracer services.
 type HTTPServer struct {
-	app           *fiber.App
-	serverAddress string
+	contextReservations *contextReservationRuntime
+	app                 *fiber.App
+	serverAddress       string
 	// tlsConfig secures the REST reservation seam under TRACER_TLS_MODE=mtls
 	// (Epic 1.3). When non-nil, Run serves over a TLS listener that
 	// requires+verifies a client cert; when nil the server listens plaintext

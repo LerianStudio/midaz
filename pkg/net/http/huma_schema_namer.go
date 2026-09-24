@@ -49,8 +49,8 @@ func InstallLedgerSchemaNamer(api huma.API) {
 }
 
 // InstallSchemaNamer swaps in the tracer plane's namer. The tracer registers no
-// mmodel-shadowing types (no operation/transaction/fee packages), so it needs
-// only the shared problem.Detail → "Error" rename; every other type keeps its
+// operation/transaction/fee packages. It shares the problem.Detail → "Error"
+// and tracercontract.Account → "EvaluationAccount" renames; other types keep their
 // DefaultSchemaNamer name. Same lazy-capture ordering rule as
 // InstallLedgerSchemaNamer: call after openapi.New and BEFORE any huma.Register.
 func InstallSchemaNamer(api huma.API) {
@@ -113,7 +113,8 @@ const problemDetailPkgPath = "github.com/LerianStudio/lib-commons/v7/commons/net
 
 // sharedSchemaNamer is the base namer both planes route through: it renames the
 // shared problem.Detail error body to "Error" and defers everything else to
-// DefaultSchemaNamer. ledgerSchemaNamer layers its plane-specific package
+// DefaultSchemaNamer, except for the evaluation account in the shared contract.
+// ledgerSchemaNamer layers its plane-specific package
 // qualifications on top of this.
 func sharedSchemaNamer(t reflect.Type, hint string) string {
 	dt := t
@@ -123,6 +124,10 @@ func sharedSchemaNamer(t reflect.Type, hint string) string {
 
 	if dt.Name() == "Detail" && dt.PkgPath() == problemDetailPkgPath {
 		return "Error"
+	}
+
+	if dt.Name() == "Account" && dt.PkgPath() == "github.com/LerianStudio/midaz/v4/pkg/tracercontract" {
+		return "EvaluationAccount"
 	}
 
 	return huma.DefaultSchemaNamer(t, hint)

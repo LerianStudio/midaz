@@ -16,6 +16,10 @@
 BUF_VERSION ?= v1.50.0
 BUF := go run github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION)
 
+# Match the repository formatting hook for reproducible generated Go files.
+PROTO_GOFUMPT_VERSION := v0.10.0
+PROTO_GOFUMPT := go run mvdan.cc/gofumpt@$(PROTO_GOFUMPT_VERSION)
+
 .PHONY: proto proto-check
 
 # Regenerate the protobuf/gRPC stubs.
@@ -24,6 +28,10 @@ proto:
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	@$(BUF) lint
 	@$(BUF) generate
+	# gofumpt v0.10 groups generated var declarations on the first pass and
+	# inserts the following separator on the second; normalize to a fixed point.
+	@find pkg/proto -type f -name '*.go' -exec $(PROTO_GOFUMPT) -w {} +
+	@find pkg/proto -type f -name '*.go' -exec $(PROTO_GOFUMPT) -w {} +
 	@echo "[ok] Protobuf stubs generated successfully"
 
 # CI gate: regenerate and fail if the committed stubs drift from the proto.
@@ -34,6 +42,10 @@ proto-check:
 	$(call print_title,Verifying protobuf stubs are up to date)
 	@$(BUF) lint
 	@$(BUF) generate
+	# gofumpt v0.10 groups generated var declarations on the first pass and
+	# inserts the following separator on the second; normalize to a fixed point.
+	@find pkg/proto -type f -name '*.go' -exec $(PROTO_GOFUMPT) -w {} +
+	@find pkg/proto -type f -name '*.go' -exec $(PROTO_GOFUMPT) -w {} +
 	@if [ -n "$$(git status --porcelain -- pkg/proto)" ]; then \
 		echo "[error] Generated protobuf stubs are stale or uncommitted. Run 'make proto' and commit the result."; \
 		git status --porcelain -- pkg/proto; \

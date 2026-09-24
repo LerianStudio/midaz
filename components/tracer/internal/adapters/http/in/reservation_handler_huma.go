@@ -163,23 +163,7 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		SkipValidateBody: true,
 	}, h.ReserveHuma)
 
-	huma.Register(api, huma.Operation{
-		OperationID: "confirmReservation",
-		Method:      http.MethodPost,
-		Path:        "/reservations/{id}/confirm",
-		Summary:     "Confirm a reservation (phase two — commit)",
-		Tags:        []string{"Reservations"},
-		Security:    secBearerOrAPIKey,
-	}, h.ConfirmHuma)
-
-	huma.Register(api, huma.Operation{
-		OperationID: "releaseReservation",
-		Method:      http.MethodPost,
-		Path:        "/reservations/{id}/release",
-		Summary:     "Release a reservation (phase two — abort)",
-		Tags:        []string{"Reservations"},
-		Security:    secBearerOrAPIKey,
-	}, h.ReleaseHuma)
+	registerLegacyReservationIDRoutes(api, h)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "confirmReservationByTransaction",
@@ -198,4 +182,24 @@ func RegisterReservationRoutes(api huma.API, h *ReservationHandler) {
 		Tags:        []string{"Reservations"},
 		Security:    secBearerOrAPIKey,
 	}, h.ReleaseByTransactionHuma)
+}
+
+func registerLegacyReservationIDRoutes(api huma.API, h *ReservationHandler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "confirmReservation",
+		Method:      http.MethodPost,
+		Path:        "/reservations/{id}/confirm",
+		Summary:     "Confirm a reservation (phase two — commit)",
+		Tags:        []string{"Reservations"},
+		Security:    secBearerOrAPIKey,
+	}, h.ConfirmHuma)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "releaseReservation",
+		Method:      http.MethodPost,
+		Path:        "/reservations/{id}/release",
+		Summary:     "Release a reservation (phase two — abort)",
+		Tags:        []string{"Reservations"},
+		Security:    secBearerOrAPIKey,
+	}, h.ReleaseHuma)
 }

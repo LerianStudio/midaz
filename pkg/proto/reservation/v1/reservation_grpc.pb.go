@@ -12,6 +12,7 @@ package reservationv1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -42,17 +43,18 @@ const (
 // propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key (never a
 // message field).
 type ReservationServiceClient interface {
-	// Reserve holds limit capacity for a transaction (phase one). A denied
-	// decision is a successful response with denied=true and empty
-	// reservation_ids, not a transport error.
+	// Reserve evaluates rules and holds capacity (phase one). DENY/REVIEW are
+	// completed decisions with no retained reservations, not transport errors.
 	Reserve(ctx context.Context, in *ReserveRequest, opts ...grpc.CallOption) (*ReserveResult, error)
 	// ConfirmByTransaction commits EVERY reservation a transaction holds.
 	ConfirmByTransaction(ctx context.Context, in *ConfirmByTransactionRequest, opts ...grpc.CallOption) (*ConfirmByTransactionResponse, error)
 	// ReleaseByTransaction returns EVERY reservation a transaction holds.
 	ReleaseByTransaction(ctx context.Context, in *ReleaseByTransactionRequest, opts ...grpc.CallOption) (*ReleaseByTransactionResponse, error)
-	// ConfirmById commits a single held reservation.
+	// ConfirmById completes the operation addressed by a coordinated reservation.
+	// Without a contract revision it only addresses a single legacy reservation.
 	ConfirmById(ctx context.Context, in *ConfirmByIdRequest, opts ...grpc.CallOption) (*ConfirmByIdResponse, error)
-	// ReleaseById returns a single held reservation's capacity.
+	// ReleaseById releases the operation addressed by a coordinated reservation.
+	// Without a contract revision it only addresses a single legacy reservation.
 	ReleaseById(ctx context.Context, in *ReleaseByIdRequest, opts ...grpc.CallOption) (*ReleaseByIdResponse, error)
 }
 
@@ -126,17 +128,18 @@ func (c *reservationServiceClient) ReleaseById(ctx context.Context, in *ReleaseB
 // propagated out-of-band as the trusted "x-tenant-id" gRPC metadata key (never a
 // message field).
 type ReservationServiceServer interface {
-	// Reserve holds limit capacity for a transaction (phase one). A denied
-	// decision is a successful response with denied=true and empty
-	// reservation_ids, not a transport error.
+	// Reserve evaluates rules and holds capacity (phase one). DENY/REVIEW are
+	// completed decisions with no retained reservations, not transport errors.
 	Reserve(context.Context, *ReserveRequest) (*ReserveResult, error)
 	// ConfirmByTransaction commits EVERY reservation a transaction holds.
 	ConfirmByTransaction(context.Context, *ConfirmByTransactionRequest) (*ConfirmByTransactionResponse, error)
 	// ReleaseByTransaction returns EVERY reservation a transaction holds.
 	ReleaseByTransaction(context.Context, *ReleaseByTransactionRequest) (*ReleaseByTransactionResponse, error)
-	// ConfirmById commits a single held reservation.
+	// ConfirmById completes the operation addressed by a coordinated reservation.
+	// Without a contract revision it only addresses a single legacy reservation.
 	ConfirmById(context.Context, *ConfirmByIdRequest) (*ConfirmByIdResponse, error)
-	// ReleaseById returns a single held reservation's capacity.
+	// ReleaseById releases the operation addressed by a coordinated reservation.
+	// Without a contract revision it only addresses a single legacy reservation.
 	ReleaseById(context.Context, *ReleaseByIdRequest) (*ReleaseByIdResponse, error)
 	mustEmbedUnimplementedReservationServiceServer()
 }
@@ -151,15 +154,19 @@ type UnimplementedReservationServiceServer struct{}
 func (UnimplementedReservationServiceServer) Reserve(context.Context, *ReserveRequest) (*ReserveResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Reserve not implemented")
 }
+
 func (UnimplementedReservationServiceServer) ConfirmByTransaction(context.Context, *ConfirmByTransactionRequest) (*ConfirmByTransactionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ConfirmByTransaction not implemented")
 }
+
 func (UnimplementedReservationServiceServer) ReleaseByTransaction(context.Context, *ReleaseByTransactionRequest) (*ReleaseByTransactionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReleaseByTransaction not implemented")
 }
+
 func (UnimplementedReservationServiceServer) ConfirmById(context.Context, *ConfirmByIdRequest) (*ConfirmByIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ConfirmById not implemented")
 }
+
 func (UnimplementedReservationServiceServer) ReleaseById(context.Context, *ReleaseByIdRequest) (*ReleaseByIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReleaseById not implemented")
 }

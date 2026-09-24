@@ -59,6 +59,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 // The deterministic ids the reconstructed tracer returns and the ledger client
@@ -88,10 +89,13 @@ func TestSeamMTLS(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		result, err := client.Reserve(ctx, ReserveRequest{TransactionID: fixedTransactionID})
+		request, config := contextClientFixture(t)
+		request.TransactionID = fixedTransactionID
+		coordinated := &ContextGRPCClient{transport: client, config: config}
+		result, err := coordinated.Reserve(ctx, request)
 		require.NoError(t, err, "CA-signed client must complete the Reserve RPC over mTLS")
 		require.NotNil(t, result)
-		require.False(t, result.Denied)
+		require.Equal(t, tracercontract.DecisionAllow, result.Decision)
 		require.Equal(t, fixedTransactionID, result.TransactionID)
 		require.Equal(t, []uuid.UUID{fixedReservationID}, result.ReservationIDs)
 
@@ -114,7 +118,10 @@ func TestSeamMTLS(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_, err = client.Reserve(ctx, ReserveRequest{TransactionID: fixedTransactionID})
+		request, config := contextClientFixture(t)
+		request.TransactionID = fixedTransactionID
+		coordinated := &ContextGRPCClient{transport: client, config: config}
+		_, err = coordinated.Reserve(ctx, request)
 		require.Error(t, err, "client without a verified cert must be rejected at the TLS layer")
 	})
 
@@ -175,9 +182,10 @@ type reserveSeamServer struct {
 
 func (reserveSeamServer) Reserve(_ context.Context, req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
 	return &reservationv1.ReserveResult{
-		TransactionId:  req.GetTransactionId(),
-		Denied:         false,
-		ReservationIds: []string{fixedReservationID.String()},
+		ContractRevision: tracercontract.ReserveContractRevision, TransactionId: req.GetTransactionId(),
+		EvaluationId: "33333333-3333-4333-8333-333333333333", Decision: string(tracercontract.DecisionAllow),
+		Controls:       &reservationv1.ReserveControls{Rules: string(tracercontract.RulesEvaluated), Limits: string(tracercontract.LimitsEvaluated)},
+		ReservationIds: []string{fixedReservationID.String()}, Reasons: []string{string(tracercontract.ReasonLimitsSatisfied)},
 	}, nil
 }
 

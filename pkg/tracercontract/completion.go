@@ -42,3 +42,21 @@ func (r TransactionCompletionResult) Validate() error {
 
 	return nil
 }
+
+// ReservationCompletionResult acknowledges the named reservation and its whole
+// coordinated operation. It never represents an independently chosen partial outcome.
+type ReservationCompletionResult struct {
+	ContractRevision string     `json:"contractRevision"`
+	TransactionID    uuid.UUID  `json:"transactionId"`
+	ReservationID    uuid.UUID  `json:"reservationId"`
+	Status           string     `json:"status"`
+	EvaluationID     *uuid.UUID `json:"evaluationId,omitempty"`
+}
+
+func (r ReservationCompletionResult) Validate() error {
+	if r.ReservationID == uuid.Nil || r.EvaluationID == nil {
+		return invalid("reservation completion identity")
+	}
+
+	return (TransactionCompletionResult{ContractRevision: r.ContractRevision, TransactionID: r.TransactionID, Status: r.Status, EvaluationID: r.EvaluationID}).Validate()
+}

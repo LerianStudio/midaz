@@ -50,6 +50,7 @@ func NewGRPCServer(
 	tenantInterceptor grpc.UnaryServerInterceptor,
 	logger libObsLog.Logger,
 	telemetry *libObsOtel.Telemetry,
+	additionalOptions ...grpc.ServerOption,
 ) (*GRPCServer, error) {
 	if reservationServer == nil {
 		return nil, fmt.Errorf("reservation server must not be nil")
@@ -75,6 +76,7 @@ func NewGRPCServer(
 		opts = append(opts, grpc.Creds(credentials.NewTLS(tlsConfig)))
 	}
 
+	opts = append(opts, additionalOptions...)
 	server := grpc.NewServer(opts...)
 
 	reservationv1.RegisterReservationServiceServer(server, reservationServer)

@@ -82,6 +82,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	reservationv1 "github.com/LerianStudio/midaz/v4/pkg/proto/reservation/v1"
+	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
 
 // The two trusted tenant keys. Fixed literals (no uuid.New), valid per
@@ -134,10 +135,13 @@ func TestSeamMTLSTenantIsolation(t *testing.T) {
 		ctxA, cancel := context.WithTimeout(ctxA, 5*time.Second)
 		defer cancel()
 
-		result, err := client.Reserve(ctxA, ReserveRequest{TransactionID: fixedTransactionID})
+		request, config := contextClientFixture(t)
+		request.TransactionID = fixedTransactionID
+		coordinated := &ContextGRPCClient{transport: client, config: config}
+		result, err := coordinated.Reserve(ctxA, request)
 		require.NoError(t, err, "tenant A reserve must complete over mTLS")
 		require.NotNil(t, result)
-		require.False(t, result.Denied)
+		require.Equal(t, tracercontract.DecisionAllow, result.Decision)
 		require.Equal(t, []uuid.UUID{fixedReservationID}, result.ReservationIDs)
 	})
 
@@ -188,7 +192,10 @@ func TestSeamMTLSTenantIsolation(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_, err := client.Reserve(ctx, ReserveRequest{TransactionID: fixedTransactionID})
+		request, config := contextClientFixture(t)
+		request.TransactionID = fixedTransactionID
+		coordinated := &ContextGRPCClient{transport: client, config: config}
+		_, err := coordinated.Reserve(ctx, request)
 		require.Error(t, err, "a tenantless reservation over the seam must be rejected under MT")
 		require.Equal(t, codes.InvalidArgument, status.Code(err),
 			"a missing tenant key must fail clean, never resolve a default pool")
@@ -223,9 +230,10 @@ func (s *isolationReservationServer) Reserve(ctx context.Context, req *reservati
 	s.store.add(tenantID, req.GetTransactionId())
 
 	return &reservationv1.ReserveResult{
-		TransactionId:  req.GetTransactionId(),
-		Denied:         false,
-		ReservationIds: []string{fixedReservationID.String()},
+		ContractRevision: tracercontract.ReserveContractRevision, TransactionId: req.GetTransactionId(),
+		EvaluationId: "33333333-3333-4333-8333-333333333333", Decision: string(tracercontract.DecisionAllow),
+		Controls:       &reservationv1.ReserveControls{Rules: string(tracercontract.RulesEvaluated), Limits: string(tracercontract.LimitsEvaluated)},
+		ReservationIds: []string{fixedReservationID.String()}, Reasons: []string{string(tracercontract.ReasonLimitsSatisfied)},
 	}, nil
 }
 

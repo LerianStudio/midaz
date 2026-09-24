@@ -34,6 +34,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres"
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
 	tracerRedis "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamidentity"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/seamtenant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/observability"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/services"
@@ -210,22 +211,28 @@ type Config struct {
 	CELCostLimit string `env:"CEL_COST_LIMIT"`
 
 	// Shared-context administration is opt-in and requires explicit resource bounds.
-	ContextLimitAdminEnabled  bool   `env:"CONTEXT_LIMIT_ADMIN_ENABLED"`
-	ContextProducerBindings   string `env:"CONTEXT_PRODUCER_BINDINGS"`
-	ContextLimitMaxScopes     int    `env:"CONTEXT_LIMIT_MAX_SCOPES"`
-	ContextLimitMaxScopeBytes int    `env:"CONTEXT_LIMIT_MAX_SCOPE_BYTES"`
-	ContextLimitMaxBodyBytes  int    `env:"CONTEXT_LIMIT_MAX_BODY_BYTES"`
-	ContextPolicyAdminEnabled bool   `env:"CONTEXT_POLICY_ADMIN_ENABLED"`
-	ContextMaxAccounts        int    `env:"CONTEXT_MAX_ACCOUNTS"`
-	ContextMaxEntries         int    `env:"CONTEXT_MAX_ENTRIES"`
-	ContextMaxTextBytes       int    `env:"CONTEXT_MAX_TEXT_BYTES"`
-	ContextMaxIntegerDigits   int    `env:"CONTEXT_MAX_INTEGER_DIGITS"`
-	ContextMaxFractionDigits  string `env:"CONTEXT_MAX_FRACTION_DIGITS"`
-	ContextMaxRules           int    `env:"CONTEXT_MAX_RULES"`
-	ContextMaxExpressionBytes int    `env:"CONTEXT_MAX_EXPRESSION_BYTES"`
-	ContextCELCostLimit       string `env:"CONTEXT_CEL_COST_LIMIT"`
-	ContextCELTotalCostLimit  string `env:"CONTEXT_CEL_TOTAL_COST_LIMIT"`
-	ContextPolicyMaxBodyBytes int    `env:"CONTEXT_POLICY_MAX_BODY_BYTES"`
+	ContextReserveEnabled         bool   `env:"CONTEXT_RESERVE_ENABLED"`
+	ContextReserveMaxBodyBytes    int    `env:"CONTEXT_RESERVE_MAX_BODY_BYTES"`
+	ContextReserveMaxLimits       int    `env:"CONTEXT_RESERVE_MAX_LIMITS"`
+	ContextReserveMaxReservations int    `env:"CONTEXT_RESERVE_MAX_RESERVATIONS"`
+	ContextPolicyCacheEntries     int    `env:"CONTEXT_POLICY_CACHE_ENTRIES"`
+	ContextPolicyMaxCompilations  int    `env:"CONTEXT_POLICY_MAX_COMPILATIONS"`
+	ContextLimitAdminEnabled      bool   `env:"CONTEXT_LIMIT_ADMIN_ENABLED"`
+	ContextProducerBindings       string `env:"CONTEXT_PRODUCER_BINDINGS"`
+	ContextLimitMaxScopes         int    `env:"CONTEXT_LIMIT_MAX_SCOPES"`
+	ContextLimitMaxScopeBytes     int    `env:"CONTEXT_LIMIT_MAX_SCOPE_BYTES"`
+	ContextLimitMaxBodyBytes      int    `env:"CONTEXT_LIMIT_MAX_BODY_BYTES"`
+	ContextPolicyAdminEnabled     bool   `env:"CONTEXT_POLICY_ADMIN_ENABLED"`
+	ContextMaxAccounts            int    `env:"CONTEXT_MAX_ACCOUNTS"`
+	ContextMaxEntries             int    `env:"CONTEXT_MAX_ENTRIES"`
+	ContextMaxTextBytes           int    `env:"CONTEXT_MAX_TEXT_BYTES"`
+	ContextMaxIntegerDigits       int    `env:"CONTEXT_MAX_INTEGER_DIGITS"`
+	ContextMaxFractionDigits      string `env:"CONTEXT_MAX_FRACTION_DIGITS"`
+	ContextMaxRules               int    `env:"CONTEXT_MAX_RULES"`
+	ContextMaxExpressionBytes     int    `env:"CONTEXT_MAX_EXPRESSION_BYTES"`
+	ContextCELCostLimit           string `env:"CONTEXT_CEL_COST_LIMIT"`
+	ContextCELTotalCostLimit      string `env:"CONTEXT_CEL_TOTAL_COST_LIMIT"`
+	ContextPolicyMaxBodyBytes     int    `env:"CONTEXT_POLICY_MAX_BODY_BYTES"`
 
 	// Rule Evaluation Feature Flags
 	DefaultDecisionWhenNoMatch string `env:"DEFAULT_DECISION_WHEN_NO_MATCH"`
@@ -1234,6 +1241,21 @@ func initHTTPServer(
 		return nil, nil, fmt.Errorf("failed to create reservation service: %w", err)
 	}
 
+	contextReservations, err := initContextReservation(cfg, pgConn, txBeginner, auditEventRepo, reservationRepo, clk)
+	if err != nil {
+		return nil, nil, fmt.Errorf("initialize context reservations: %w", err)
+	}
+
+	var (
+		contextHandler  *in.ContextReservationHandler
+		contextIdentity *seamidentity.Resolver
+	)
+
+	if contextReservations != nil {
+		contextHandler = contextReservations.handler
+		contextIdentity = contextReservations.identity
+	}
+
 	contextPolicyService, err := initContextPolicyService(cfg, pgConn, txBeginner, auditEventRepo, clk)
 	if err != nil {
 		return nil, nil, fmt.Errorf("initialize context policy administration: %w", err)
@@ -1328,6 +1350,8 @@ func initHTTPServer(
 		LimitService:                 limitDeps.service,
 		ValidationService:            validationService,
 		ReservationService:           reservationService,
+		ContextReservation:           contextHandler,
+		ContextReservationIdentity:   contextIdentity,
 		TransactionValidationService: transactionValidationService,
 		AuditEventService:            auditEventService,
 		DashboardService:             dashboardService,
@@ -1356,6 +1380,7 @@ func initHTTPServer(
 		return nil, nil, err
 	}
 
+	httpServer.contextReservations = contextReservations
 	return httpServer, reservationService, nil
 }
 
@@ -1385,6 +1410,7 @@ func initGRPCServer(
 	clk clock.Clock,
 	logger libLog.Logger,
 	telemetry *libOtel.Telemetry,
+	runtime *contextReservationRuntime,
 ) (*GRPCServer, error) {
 	if cfg.TracerGRPCPort == "" {
 		return nil, nil
@@ -1393,6 +1419,17 @@ func initGRPCServer(
 	reservationServer, err := grpcin.NewReservationServer(reservationService, clk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reservation gRPC server: %w", err)
+	}
+
+	if cfg.ContextReserveEnabled {
+		if runtime == nil {
+			return nil, fmt.Errorf("context reservation runtime is required")
+		}
+
+		reservationServer, err = grpcin.NewContextReservationServer(reservationService, clk, runtime.admission, runtime.completion, runtime.reservationCompletion, grpcin.ContextReservationConfig{Bounds: runtime.config.evaluation.CEL.Limits, MaxBodyBytes: runtime.config.maxBodyBytes, MaxReservations: runtime.config.admission.Plan.MaxReservations})
+		if err != nil {
+			return nil, fmt.Errorf("create context reservation gRPC server: %w", err)
+		}
 	}
 
 	// Same seam TLS posture as the REST listener so the two transports cannot
@@ -1412,7 +1449,25 @@ func initGRPCServer(
 		tenantInterceptor = grpcin.TenantUnaryInterceptor(tenantResolver)
 	}
 
-	grpcServer, err := NewGRPCServer(cfg.TracerGRPCPort, reservationServer, seamTLS, tenantInterceptor, logger, telemetry)
+	var options []grpc.ServerOption
+
+	if cfg.ContextReserveEnabled {
+		identityInterceptor := grpcin.IdentityUnaryInterceptor(runtime.identity)
+		nextTenant := tenantInterceptor
+		tenantInterceptor = func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+			return identityInterceptor(ctx, req, info, func(verified context.Context, input any) (any, error) {
+				if nextTenant != nil {
+					return nextTenant(verified, input, info, handler)
+				}
+
+				return handler(verified, input)
+			})
+		}
+
+		options = append(options, grpc.MaxRecvMsgSize(runtime.config.maxBodyBytes))
+	}
+
+	grpcServer, err := NewGRPCServer(cfg.TracerGRPCPort, reservationServer, seamTLS, tenantInterceptor, logger, telemetry, options...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC server: %w", err)
 	}
@@ -2320,7 +2375,7 @@ func finalizeStartup(
 		pgManager = mtComponents.pgManager
 	}
 
-	grpcServer, err := initGRPCServer(cfg, reservationService, pgManager, clk, logger, telemetry)
+	grpcServer, err := initGRPCServer(cfg, reservationService, pgManager, clk, logger, telemetry, serverAPI.contextReservations)
 	if err != nil {
 		return nil, err
 	}

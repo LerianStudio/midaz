@@ -33,6 +33,21 @@ func loadContextPolicyConfig(cfg *Config) (*contextPolicyConfig, error) {
 		return nil, fmt.Errorf("CONTEXT_POLICY_ADMIN_ENABLED requires PLUGIN_AUTH_ENABLED")
 	}
 
+	if cfg.ContextPolicyMaxBodyBytes <= 0 {
+		return nil, fmt.Errorf("CONTEXT_POLICY_MAX_BODY_BYTES must be positive")
+	}
+
+	config, err := loadContextEvaluationConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	config.MaxBodyBytes = cfg.ContextPolicyMaxBodyBytes
+
+	return config, nil
+}
+
+func loadContextEvaluationConfig(cfg *Config) (*contextPolicyConfig, error) {
 	bounds, err := loadContextFactBounds(cfg)
 	if err != nil {
 		return nil, err
@@ -48,8 +63,8 @@ func loadContextPolicyConfig(cfg *Config) (*contextPolicyConfig, error) {
 		return nil, fmt.Errorf("CONTEXT_CEL_TOTAL_COST_LIMIT must be explicitly set to a positive integer")
 	}
 
-	if cfg.ContextMaxRules <= 0 || cfg.ContextMaxExpressionBytes <= 0 || cfg.ContextPolicyMaxBodyBytes <= 0 {
-		return nil, fmt.Errorf("CONTEXT_MAX_RULES, CONTEXT_MAX_EXPRESSION_BYTES and CONTEXT_POLICY_MAX_BODY_BYTES must be positive")
+	if cfg.ContextMaxRules <= 0 || cfg.ContextMaxExpressionBytes <= 0 {
+		return nil, fmt.Errorf("CONTEXT_MAX_RULES and CONTEXT_MAX_EXPRESSION_BYTES must be positive")
 	}
 
 	return &contextPolicyConfig{CEL: cel.ContextAdapterConfig{Limits: bounds, CostLimit: cost, MaxExpressionBytes: cfg.ContextMaxExpressionBytes}, Policy: query.ContextPolicyConfig{MaxRules: cfg.ContextMaxRules, TotalCost: total}, MaxBodyBytes: cfg.ContextPolicyMaxBodyBytes}, nil
