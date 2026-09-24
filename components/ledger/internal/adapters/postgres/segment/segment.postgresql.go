@@ -55,6 +55,11 @@ type Repository interface {
 	// Returns (true, ErrDuplicateSegmentName) when found, (false, nil) when not found.
 	// Comparison is case-insensitive equality: % and _ are literal characters.
 	ExistsByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error)
+	// ExistsByNameExcludingID reports whether a non-deleted segment other than excludeID already
+	// carries the name in an organization ledger. The match ignores case, so a rename that only
+	// changes the case of the segment's own name does not collide with itself.
+	// Returns (true, ErrDuplicateSegmentName) when found, (false, nil) when not found.
+	ExistsByNameExcludingID(ctx context.Context, organizationID, ledgerID uuid.UUID, name string, excludeID uuid.UUID) (bool, error)
 	// FindAll retrieves non-deleted segments for an organization ledger using pagination filters.
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Segment, error)
 	// FindByIDs retrieves non-deleted segments matching the provided IDs in an organization ledger.
@@ -185,6 +190,16 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 }
 
 func (p *SegmentPostgreSQLRepository) ExistsByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error) {
+	return p.existsByName(ctx, organizationID, ledgerID, name, nil)
+}
+
+func (p *SegmentPostgreSQLRepository) ExistsByNameExcludingID(ctx context.Context, organizationID, ledgerID uuid.UUID, name string, excludeID uuid.UUID) (bool, error) {
+	return p.existsByName(ctx, organizationID, ledgerID, name, &excludeID)
+}
+
+// existsByName runs the case-insensitive name lookup shared by the exported
+// variants; a non-nil excludeID drops that row from the match.
+func (p *SegmentPostgreSQLRepository) existsByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string, excludeID *uuid.UUID) (bool, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.exists_segment_by_name")
@@ -200,12 +215,18 @@ func (p *SegmentPostgreSQLRepository) ExistsByName(ctx context.Context, organiza
 		return false, err
 	}
 
-	query, args, err := squirrel.Select("1").
+	builder := squirrel.Select("1").
 		From(p.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Expr("LOWER(name) = LOWER(?)", name)).
-		Where(squirrel.Eq{"deleted_at": nil}).
+		Where(squirrel.Eq{"deleted_at": nil})
+
+	if excludeID != nil {
+		builder = builder.Where(squirrel.NotEq{"id": *excludeID})
+	}
+
+	query, args, err := builder.
 		Limit(1).
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
