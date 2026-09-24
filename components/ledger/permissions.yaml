@@ -99,12 +99,12 @@ permissions:
   - { resource: balances, action: post,   effect: allow, roles: [editor, contributor] }
 
   # billing-calculate — billing calculate dry-run (billing_calculate_routes.go registerBillingCalculateRoutesToApp)
-  - { resource: billing-calculate, action: post, effect: allow, roles: [editor] }
+  - { resource: billing-calculate, action: post, effect: allow, roles: [editor, contributor] }
 
   # billing-packages (billing_package_routes.go registerBillingPackageRoutesToApp)
-  - { resource: billing-packages, action: post,   effect: allow, roles: [editor] }
-  - { resource: billing-packages, action: get,    effect: allow, roles: [editor, viewer] }
-  - { resource: billing-packages, action: patch,  effect: allow, roles: [editor] }
+  - { resource: billing-packages, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: billing-packages, action: get,    effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: billing-packages, action: patch,  effect: allow, roles: [editor, contributor] }
   - { resource: billing-packages, action: delete, effect: allow, roles: [editor] }
 
   # dashboard (dashboard_routes.go registerDashboardRoutesToApp; /v1 and /v2)
@@ -128,7 +128,7 @@ permissions:
   - { resource: encryption, action: get,  effect: allow, roles: [editor, contributor, viewer] }
 
   # estimates — fee estimate dry-run (fee_estimate_routes.go registerFeeEstimateRoutesToApp)
-  - { resource: estimates, action: post, effect: allow, roles: [editor] }
+  - { resource: estimates, action: post, effect: allow, roles: [editor, contributor] }
 
   # holders (holder_routes.go registerHolderRoutesToApp)
   - { resource: holders, action: post,   effect: allow, roles: [editor, contributor] }
@@ -167,9 +167,9 @@ permissions:
   - { resource: organizations, action: head,   effect: allow, roles: [editor, contributor, viewer] }
 
   # packages — fee packages (fee_package_routes.go registerPackageRoutesToApp)
-  - { resource: packages, action: post,   effect: allow, roles: [editor] }
-  - { resource: packages, action: get,    effect: allow, roles: [editor, viewer] }
-  - { resource: packages, action: patch,  effect: allow, roles: [editor] }
+  - { resource: packages, action: post,   effect: allow, roles: [editor, contributor] }
+  - { resource: packages, action: get,    effect: allow, roles: [editor, contributor, viewer] }
+  - { resource: packages, action: patch,  effect: allow, roles: [editor, contributor] }
   - { resource: packages, action: delete, effect: allow, roles: [editor] }
 
   # portfolios (portfolio_routes.go registerPortfolioRoutesToApp)

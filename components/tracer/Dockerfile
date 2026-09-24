@@ -25,7 +25,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
 
 # Production image using distroless for minimal attack surface (Ring Standards)
 # Note: distroless has no shell - use orchestrator health checks (Kubernetes probes)
-FROM gcr.io/distroless/static-debian12:nonroot AS prod
+FROM gcr.io/distroless/static-debian13:nonroot AS prod
 
 ARG VERSION=dev
 ARG BUILD_TIME=unknown
