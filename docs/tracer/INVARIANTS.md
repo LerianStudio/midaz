@@ -143,8 +143,8 @@ transaction. Parsing/storage bounds must continue to cover recoverable records.
 The decision repository only writes through the caller's transaction. The
 reservation use case must combine the decision, capacity and mandatory audit,
 and recheck replay under the operation lock. These new components are not yet
-connected to Reserve. Existing reservation indexes and counters are unchanged;
-their replacement and completion require coordinated wiring.
+connected to Reserve. Migration `000030` separates reservation ownership while
+preserving existing rows and counter values; activation requires coordinated wiring.
 The decision migration can be rolled back only while its table is empty; an
 exclusive lock prevents a concurrent first insert from being lost during rollback.
 
@@ -170,6 +170,37 @@ enclosing use case must settle existing decision-owned reservations and append
 mandatory audit in the same transaction as completion. No completion result is
 durable before commit, and an unknown commit result must not be retried blindly.
 This foundation is not yet wired to Reserve, Confirm, Release or recovery.
+
+Migration `000030` adds nullable `decision_id` to `usage_reservations`. Legacy
+rows retain their transaction/limit/scope/period uniqueness through a partial
+index; new rows use decision/limit/scope/period instead. A deferred composite FK
+requires the decision and reservation transaction IDs to match. A deferred
+constraint trigger requires an ALLOW response naming each owned reservation.
+This permits provisional capacity before the final decision within one transaction
+and rollback to a savepoint for DENY/REVIEW; it cannot commit orphaned capacity.
+Ownership and coordinates are immutable, and new rows cannot expire or be removed.
+
+`ReserveForDecisionWithTx` inserts and reserves exact positive amounts using the
+existing combined current-plus-reserved guard. Duplicate insertion conflicts;
+idempotent replay belongs to the decision query. Counter cleanup time is supplied
+from the resolved limit period, independently of reservation TTL.
+`SettleDecisionWithTx` locks rows in counter-coordinate order, then moves only
+the resolved decision's capacity. Identical repeats do not move it again;
+contradictory terminal states conflict. Authentication, operation locking and
+mandatory audit remain responsibilities of the enclosing transaction owner.
+
+Legacy by-ID/by-transaction settlement and the TTL reaper select only rows with
+NULL `decision_id`. Counter cleanup preserves nonzero `reserved_usage`, checking
+both expiry and held capacity on the DELETE target after a concurrent writer's
+lock wait. This guard also protects legacy holds. It does not reconstruct counters
+already removed by older binaries or prove the outcome of expired legacy holds.
+
+The index replacement is an atomic, coordinated schema/writer change. The old
+binary's ON CONFLICT clause cannot use the new partial index: suspend incompatible
+writers during rollout. Down restores full legacy indexes only when there is no
+decision-owned reservation history; it never drops or relabels such history to
+make a binary rollback succeed. These repositories do not yet implement the
+authenticated Reserve/finalization use cases or their required audit events.
 
 Publication requires the caller's transaction. Database constraints reject
 incomplete snapshots; triggers prevent rewriting or deleting published revisions.

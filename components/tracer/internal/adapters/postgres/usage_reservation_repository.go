@@ -80,7 +80,7 @@ const insertReservationReturningIDSQL = `
 			transaction_id, reservation_expires_at, created_at
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) DO NOTHING
+		ON CONFLICT (transaction_id, limit_id, scope_key, period_key) WHERE decision_id IS NULL DO NOTHING
 		RETURNING id
 	)
 	SELECT id, true AS inserted FROM inserted
@@ -88,7 +88,7 @@ const insertReservationReturningIDSQL = `
 	SELECT id, false AS inserted
 	FROM usage_reservations
 	WHERE transaction_id = $7 AND limit_id = $2 AND scope_key = $3 AND period_key = $4
-	  AND NOT EXISTS (SELECT 1 FROM inserted)
+	  AND decision_id IS NULL AND NOT EXISTS (SELECT 1 FROM inserted)
 `
 
 // reserveLockTimeoutSQL bounds the reserve transaction's lock wait. set_config with
@@ -423,7 +423,7 @@ func (r *UsageReservationRepository) ReleaseWithTx(ctx context.Context, db pgdb.
 	return nil
 }
 
-// ConfirmByTransactionWithTx confirms EVERY RESERVED reservation row that carries
+// ConfirmByTransactionWithTx confirms settleable LEGACY reservation rows carrying
 // the given transaction_id, on the supplied handle, in one transaction owned by
 // the caller. For each row it applies the same counter move (reserved_usage ->
 // current_usage) and row flip (-> CONFIRMED) the by-id ConfirmWithTx performs. The
@@ -472,7 +472,7 @@ func (r *UsageReservationRepository) ConfirmByTransactionWithTx(ctx context.Cont
 	return reservations, nil
 }
 
-// ReleaseByTransactionWithTx releases EVERY RESERVED reservation row that carries
+// ReleaseByTransactionWithTx releases RESERVED LEGACY reservation rows carrying
 // the given transaction_id, on the supplied handle, in one transaction owned by the
 // caller. For each row it returns the held amount to capacity (reserved_usage
 // decremented, current_usage untouched) and flips the row to the given terminal
@@ -656,7 +656,7 @@ func (r *UsageReservationRepository) lockSettleableByTransaction(ctx context.Con
 		SELECT id, limit_id, scope_key, period_key, amount, status,
 		       transaction_id, reservation_expires_at, created_at, confirmed_at, released_at
 		FROM usage_reservations
-		WHERE transaction_id = $1 AND ` + statusPredicate + `
+		WHERE transaction_id = $1 AND decision_id IS NULL AND ` + statusPredicate + `
 		FOR UPDATE
 	`
 
@@ -715,7 +715,7 @@ func (r *UsageReservationRepository) lockSettleableByTransaction(ctx context.Con
 	return reservations, nil
 }
 
-// lockReservation reads the reservation row FOR UPDATE so the counter move and the
+// lockReservation reads only a legacy reservation FOR UPDATE so the counter move and the
 // row flip see a stable status under concurrent confirm/release. Maps a missing row
 // to ErrReservationNotFound.
 func (r *UsageReservationRepository) lockReservation(ctx context.Context, db pgdb.DB, reservationID uuid.UUID) (*model.Reservation, error) {
@@ -723,7 +723,7 @@ func (r *UsageReservationRepository) lockReservation(ctx context.Context, db pgd
 		SELECT id, limit_id, scope_key, period_key, amount, status,
 		       transaction_id, reservation_expires_at, created_at, confirmed_at, released_at
 		FROM usage_reservations
-		WHERE id = $1
+		WHERE id = $1 AND decision_id IS NULL
 		FOR UPDATE
 	`
 
