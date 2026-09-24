@@ -56,7 +56,15 @@ type Repository interface {
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Asset, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error)
+
+	// FindByNameOrCode reports whether an active Asset in the ledger already
+	// holds the given name or code. Returns (true, ErrAssetNameOrCodeDuplicate)
+	// when found, (false, nil) when not found. Name comparison is
+	// case-insensitive equality and code comparison is exact equality: % and _
+	// are literal characters. An empty name skips the name check and an empty
+	// code skips the code check; when both are empty it returns (false, nil).
 	FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error)
+
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *mmodel.Asset) (*mmodel.Asset, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
@@ -172,7 +180,6 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 	return inserted.ToEntity(), nil
 }
 
-// FindByNameOrCode retrieves Asset entities by name or code from the database.
 func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
