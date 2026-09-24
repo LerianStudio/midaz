@@ -27,19 +27,21 @@ func (uc *UseCase) reservePreparedTransaction(ctx context.Context, span trace.Sp
 
 	started := time.Now()
 	attempt, err := uc.ContextTracer.AdmitPrepared(ctx, input, transaction, validated, balances)
+
 	outcome := contextTracerDisposition(input.Settings, attempt, err)
 	if !attempt.Skipped {
 		emitTracerMetric(ctx, uc.MetricsFactory, "admission", tracerAdmissionMetric(attempt, outcome, err), time.Since(started))
 	}
+
 	outcome.Handle = reservationHandle{ContextAttempt: &attempt, TransactionID: input.Key.TransactionID, Amount: input.Amount, Asset: input.AssetCode}
 
 	if err != nil {
 		recordTracerCoordinationError(span, err)
-		span.SetAttributes(attribute.Bool("app.tracer.reservation_skipped", outcome.Kind == reservationProceed))
+		span.SetAttributes(attribute.Bool("app.response.tracer.reservation_skipped", outcome.Kind == reservationProceed))
 	}
 
 	if attempt.Result != nil {
-		span.SetAttributes(attribute.String("app.tracer.decision", string(attempt.Result.Decision)))
+		span.SetAttributes(attribute.String("app.response.tracer.decision", string(attempt.Result.Decision)))
 	}
 
 	if outcome.Kind == reservationReject {
