@@ -13,6 +13,7 @@ import (
 	"encoding/pem"
 	"math/big"
 	"net"
+	"net/url"
 	"testing"
 	"time"
 
@@ -46,8 +47,9 @@ var (
 // by it, returning their PEM encodings. The server leaf carries
 // localhost/127.0.0.1 SANs so a client verifying ServerName="localhost" against
 // CACertPEM succeeds. ECDSA P-256 keys keep generation fast and deterministic
-// in shape; the validity window is fixed (no time.Now).
-func GenerateMTLSFixture(t *testing.T) MTLSFixture {
+// in shape; the validity window is fixed (no time.Now). Optional client URI
+// SANs exercise verified workload identity without trusting the common name.
+func GenerateMTLSFixture(t *testing.T, clientURIs ...string) MTLSFixture {
 	t.Helper()
 
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -77,10 +79,20 @@ func GenerateMTLSFixture(t *testing.T) MTLSFixture {
 		ipAddresses: []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
 	})
 
+	uris := make([]*url.URL, 0, len(clientURIs))
+
+	for _, raw := range clientURIs {
+		uri, err := url.Parse(raw)
+		require.NoError(t, err)
+
+		uris = append(uris, uri)
+	}
+
 	clientCertPEM, clientKeyPEM := signLeaf(t, caCert, caKey, leafSpec{
 		commonName: "ledger-seam-client",
 		serial:     3,
 		clientAuth: true,
+		uris:       uris,
 	})
 
 	return MTLSFixture{
@@ -93,6 +105,7 @@ func GenerateMTLSFixture(t *testing.T) MTLSFixture {
 }
 
 type leafSpec struct {
+	uris        []*url.URL
 	commonName  string
 	serial      int64
 	serverAuth  bool
@@ -116,6 +129,7 @@ func signLeaf(t *testing.T, caCert *x509.Certificate, caKey *ecdsa.PrivateKey, s
 		NotAfter:     mtlsFixtureNotAfter,
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		DNSNames:     spec.dnsNames,
+		URIs:         spec.uris,
 		IPAddresses:  spec.ipAddresses,
 	}
 

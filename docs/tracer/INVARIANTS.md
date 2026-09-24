@@ -161,10 +161,42 @@ parsing, subject also to Fiber's global body limit. Audit reads accept the polic
 resource and POLICY_PUBLISHED/POLICY_BOUND event filters.
 
 These administrative endpoints do not activate context evaluation in Reserve.
-Extraction of authenticated integration identity for evaluation and durable
-reservation decisions are not connected yet.
+The native mTLS identity adapters and policy-selection query are implemented
+but are not mounted on Reserve yet. Durable reservation decisions remain pending.
 This storage records policy configuration, not transaction decisions: durable
 decision replay and reservation coordination still require their own integration.
+
+### Producer identity for shared-context reservations
+
+The `seamidentity` registry maps an exact URI SAN to an integration ID and its
+asset namespace. It requires a completed native TLS handshake and a verified
+chain matching the actual peer leaf. A certificate must contain exactly one URI
+SAN. Trusting its CA alone is insufficient: the URI must also be registered.
+Common names, DNS SANs, forwarded certificate headers and payload fields cannot
+select the integration or namespace. HTTP and gRPC use the same resolver.
+Unknown or ambiguous peers return 403/PermissionDenied; missing configuration
+returns 503/Unavailable. Diagnostic responses do not disclose certificate data.
+
+Configuration is copied at construction. A namespace has one integration owner,
+and an integration has one namespace. Multiple exact URI registrations may map
+to that same pair for certificate/workload identity rotation. The registry checks
+the explicit context namespace byte bound, without normalization or wildcards.
+It is currently a composition API, not a new environment flag or deployed route.
+
+`ResolveContextPolicyQuery` receives the opaque producer-derived context ID and
+reads the integration identity from authenticated request context. It returns
+only the exact binding, immutable policy revision, binding version and configured
+namespace, preserving the tenant context. Missing/invalid policy configuration is
+an error, with no implicit ALLOW/DENY or hierarchical fallback. Tenant and database
+pool resolution must precede this query; producer authentication must precede
+trusting the tenant forwarded by that producer. This does not give an arbitrary
+end user permission to select another tenant or context.
+
+These adapters are foundations for the coordinated Reserve migration. Existing
+Reserve remains unchanged until durable decision recording and the new contract
+are ready. Mesh-terminated plaintext is rejected by this native TLS resolver;
+context Reserve in mesh mode still requires a separately verified workload
+identity source and deployment wiring. No identity header is trusted implicitly.
 
 ### Evaluation semantics
 
