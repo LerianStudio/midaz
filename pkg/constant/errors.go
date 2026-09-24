@@ -680,6 +680,8 @@ var (
 	ErrContextPolicyConflict = errors.New("0538")
 	// ErrReserveDecisionConflict reports reused transaction/request identity with conflicting content.
 	ErrReserveDecisionConflict = errors.New("0539")
+	// ErrReserveOperationConflict reports a late evaluation or contradictory completion.
+	ErrReserveOperationConflict = errors.New("0540")
 )
 
 // List of CRM domain errors.

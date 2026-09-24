@@ -497,6 +497,10 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 //   - error: The appropriate business error with code, title, and message.
 func ValidateBusinessError(err error, entityType string, args ...any) error {
 	errorMap := map[error]error{
+		constant.ErrReserveOperationConflict: EntityConflictError{
+			EntityType: entityType, Code: constant.ErrReserveOperationConflict.Error(),
+			Title: "Reserve Operation Conflict", Message: "The operation has already completed or the requested completion contradicts its recorded outcome.",
+		},
 		constant.ErrReserveDecisionConflict: EntityConflictError{
 			EntityType: entityType, Code: constant.ErrReserveDecisionConflict.Error(),
 			Title: "Reserve Decision Conflict", Message: "The transaction or request identity was already used for a different reserve evaluation.",

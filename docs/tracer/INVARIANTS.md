@@ -144,9 +144,32 @@ The decision repository only writes through the caller's transaction. The
 reservation use case must combine the decision, capacity and mandatory audit,
 and recheck replay under the operation lock. These new components are not yet
 connected to Reserve. Existing reservation indexes and counters are unchanged;
-their replacement and the durable completion fence require coordinated wiring.
+their replacement and completion require coordinated wiring.
 The decision migration can be rolled back only while its table is empty; an
 exclusive lock prevents a concurrent first insert from being lost during rollback.
+
+Migration `000029` adds durable `reserve_operations`, keyed by integration and
+transaction within the tenant database. `ReserveOperationRepository.LockWithTx`
+creates an OPEN marker if absent and holds its row lock until the caller's
+transaction ends. Acquire this lock before account, counter and audit locks,
+then repeat the decision lookup. `CompleteWithTx` records CONFIRMED or RELEASED
+even before the first decision exists. Same-outcome replay preserves the original
+timestamp; a contradictory completion returns canonical error `0521` (409).
+OPEN is not proof that accounting failed: there is no TTL-driven transition.
+
+A database trigger takes the same operation lock before a decision insert and
+rejects an already completed operation with `0521`. This is defense in depth,
+not a substitute for acquiring the lock before capacity/audit work. An existing
+decision remains replayable after completion. Backfill marks old decisions OPEN
+without inferring an accounting outcome. Triggers forbid reopening, rewriting or
+removing completed operations, and migration rollback refuses any operation
+history. Upgrade is atomic; empty rollback fails promptly on active writers.
+
+The operation repository does not move capacity, write audit or commit. The
+enclosing use case must settle existing decision-owned reservations and append
+mandatory audit in the same transaction as completion. No completion result is
+durable before commit, and an unknown commit result must not be retried blindly.
+This foundation is not yet wired to Reserve, Confirm, Release or recovery.
 
 Publication requires the caller's transaction. Database constraints reject
 incomplete snapshots; triggers prevent rewriting or deleting published revisions.

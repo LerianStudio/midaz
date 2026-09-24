@@ -15,6 +15,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOtel "github.com/LerianStudio/lib-observability/v4/tracing"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/trace"
 
 	pgdb "github.com/LerianStudio/midaz/v4/components/tracer/internal/adapters/postgres/db"
@@ -231,6 +232,11 @@ func (r *ReserveDecisionRepository) CreateWithTx(ctx context.Context, tx pgdb.Tx
 
 	result, err := tx.ExecContext(ctx, statement, args...)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23514" && pgErr.ConstraintName == "reserve_operation_closed" {
+			return constant.ErrReserveOperationConflict
+		}
+
 		return fmt.Errorf("insert reserve decision: %w", err)
 	}
 
@@ -253,7 +259,7 @@ func recordReserveDecisionRepositoryError(span trace.Span, err error) {
 		return
 	}
 
-	if errors.Is(err, constant.ErrInvalidRequestBody) || errors.Is(err, constant.ErrReserveDecisionConflict) {
+	if errors.Is(err, constant.ErrInvalidRequestBody) || errors.Is(err, constant.ErrReserveDecisionConflict) || errors.Is(err, constant.ErrReserveOperationConflict) {
 		libOtel.HandleSpanBusinessErrorEvent(span, "invalid reserve decision operation", err)
 		return
 	}
