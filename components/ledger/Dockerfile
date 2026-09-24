@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
     -ldflags "-s -w -extldflags '-static' -X main.version=${VERSION} -X main.revision=${REVISION} -X main.buildTime=${BUILD_TIME}" \
     -o /app ./components/ledger/cmd/app
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian13:nonroot
 
 ARG VERSION=dev
 ARG BUILD_TIME=unknown
