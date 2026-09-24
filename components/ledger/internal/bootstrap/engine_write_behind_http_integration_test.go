@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v7/commons/rabbitmq"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"

@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/gofiber/fiber/v3"

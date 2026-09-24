@@ -192,6 +192,70 @@ func TestCreateTransaction_MalformedBody_Canonical400(t *testing.T) {
 	}
 }
 
+// assertNullByteMetadataKeyRejectedV1 checks the v1 envelope of a null-byte metadata key
+// rejection: the canonical bad-request code on the parent metadata field, with no raw NUL
+// echoed anywhere in the body.
+func assertNullByteMetadataKeyRejectedV1(t *testing.T, resp *http.Response) {
+	t.Helper()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode, "body: %s", string(body))
+	assert.NotContains(t, string(body), `\u0000`, "the null byte must not be echoed back")
+
+	var got struct {
+		Code   string         `json:"code"`
+		Fields map[string]any `json:"fields"`
+	}
+	require.NoError(t, json.Unmarshal(body, &got), "body: %s", string(body))
+	assert.Equal(t, constant.ErrBadRequest.Error(), got.Code)
+	assert.Contains(t, got.Fields, "metadata", "violation must be reported on the metadata field")
+}
+
+func TestCreateTransaction_NullByteMetadataKey_Canonical400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	const (
+		source     = `"source":{"from":[{"accountAlias":"@src","amount":{"asset":"BRL","value":"100"}}]}`
+		distribute = `"distribute":{"to":[{"accountAlias":"@dst","amount":{"asset":"BRL","value":"100"}}]}`
+		metadata   = `"metadata":{"k\u0000x":"v"}`
+	)
+
+	cases := []struct {
+		name string
+		op   string
+		body string
+	}{
+		{name: "json", op: "json", body: `{"send":{"asset":"BRL","value":"100",` + source + `,` + distribute + `},` + metadata + `}`},
+		{name: "annotation", op: "annotation", body: `{"send":{"asset":"BRL","value":"100",` + source + `,` + distribute + `},` + metadata + `}`},
+		{name: "inflow", op: "inflow", body: `{"send":{"asset":"BRL","value":"100",` + distribute + `},` + metadata + `}`},
+		{name: "outflow", op: "outflow", body: `{"send":{"asset":"BRL","value":"100",` + source + `},` + metadata + `}`},
+		{
+			name: "json leg metadata",
+			op:   "json",
+			body: `{"send":{"asset":"BRL","value":"100","source":{"from":[{"accountAlias":"@src","amount":{"asset":"BRL","value":"100"},` + metadata + `}]},` + distribute + `}}`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := buildHumaTransactionApp(t, bareTransactionHandler(), true)
+
+			req := httptest.NewRequest(http.MethodPost, humaTransactionURL(orgID, ledgerID, "/"+tc.op), strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			assertNullByteMetadataKeyRejectedV1(t, resp)
+		})
+	}
+}
+
 func TestCreateTransaction_AuthPreserved(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
@@ -380,6 +444,24 @@ func TestUpdateTransaction_MalformedBody_Canonical400(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "malformed PATCH body stays canonical 400 — no native Huma 422")
+}
+
+func TestUpdateTransaction_NullByteMetadataKey_Canonical400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	txID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	app := buildHumaTransactionApp(t, bareTransactionHandler(), true)
+
+	req := httptest.NewRequest(http.MethodPatch, humaTransactionURL(orgID, ledgerID, "/"+txID.String()), strings.NewReader(`{"metadata":{"k\u0000x":"v"}}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assertNullByteMetadataKeyRejectedV1(t, resp)
 }
 
 func TestGetTransaction_BadUUID_Canonical400(t *testing.T) {

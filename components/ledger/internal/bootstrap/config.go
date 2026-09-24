@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v7/commons/circuitbreaker"
