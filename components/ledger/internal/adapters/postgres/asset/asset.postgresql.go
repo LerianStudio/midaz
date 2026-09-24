@@ -17,12 +17,14 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/Masterminds/squirrel"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -172,7 +174,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 
 // FindByNameOrCode retrieves Asset entities by name or code from the database.
 func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_by_name_or_code")
 	defer span.End()
@@ -230,6 +232,11 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 		return false, err
 	}
+
+	leg := assetConflictLeg(foundByName, foundByCode)
+
+	span.SetAttributes(attribute.String("app.asset_conflict_leg", leg))
+	logger.Log(ctx, libLog.LevelDebug, "Asset name or code conflict", libLog.String("conflict_leg", leg))
 
 	businessErr := pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, constant.EntityAsset)
 
@@ -564,4 +571,17 @@ func (r *AssetPostgreSQLRepository) Count(ctx context.Context, organizationID, l
 	}
 
 	return count, nil
+}
+
+// assetConflictLeg names the uniqueness leg that matched the conflicting row:
+// "name", "code" or "both".
+func assetConflictLeg(nameHit, codeHit bool) string {
+	switch {
+	case nameHit && codeHit:
+		return "both"
+	case nameHit:
+		return "name"
+	default:
+		return "code"
+	}
 }

@@ -190,3 +190,22 @@ func TestAssetPostgreSQLModel_FromEntity(t *testing.T) {
 		assert.Len(t, model1.ID, 36, "ID should be a valid UUID string (36 chars with hyphens)")
 	})
 }
+
+func TestAssetConflictLeg(t *testing.T) {
+	tests := []struct {
+		name    string
+		nameHit bool
+		codeHit bool
+		want    string
+	}{
+		{name: "name_and_code_match", nameHit: true, codeHit: true, want: "both"},
+		{name: "only_name_matches", nameHit: true, codeHit: false, want: "name"},
+		{name: "only_code_matches", nameHit: false, codeHit: true, want: "code"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, assetConflictLeg(tt.nameHit, tt.codeHit))
+		})
+	}
+}
