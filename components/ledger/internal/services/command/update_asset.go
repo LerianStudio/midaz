@@ -38,6 +38,16 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "update_asset", start, err)
 	}()
 
+	if uii.Name != "" {
+		// The asset itself is excluded from the candidate set, keeping a
+		// case-only rename a 200.
+		if _, err = uc.AssetRepo.FindByNameExcludingID(ctx, organizationID, ledgerID, uii.Name, id); err != nil {
+			recordCommandError(ctx, span, logger, "Failed to find asset by name", err, libLog.String("asset_id", id.String()))
+
+			return nil, err
+		}
+	}
+
 	asset := &mmodel.Asset{
 		Name:   uii.Name,
 		Status: uii.Status,

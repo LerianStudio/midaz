@@ -58,8 +58,10 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 			return nil, err
 		}
 
+		// The lookup excludes the segment itself so a case-only rename does not
+		// collide with its own row while still catching another active segment.
 		if segmentFound != nil && segmentFound.Name != upi.Name {
-			if _, err := uc.SegmentRepo.ExistsByName(ctx, organizationID, ledgerID, upi.Name); err != nil {
+			if _, err := uc.SegmentRepo.ExistsByNameExcludingID(ctx, organizationID, ledgerID, upi.Name, id); err != nil {
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check segment name existence", err)
 				logger.Log(ctx, libLog.LevelWarn, "Segment name is not available", libLog.Err(err), libLog.String("segment_id", id.String()))
 

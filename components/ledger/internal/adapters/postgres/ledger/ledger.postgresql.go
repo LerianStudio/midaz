@@ -70,6 +70,7 @@ type Repository interface {
 	// (false, nil) when not found. The boolean answers "does it exist?" — true
 	// is the conflict signal callers use to short-circuit creation.
 	// Comparison is case-insensitive equality: % and _ are literal characters.
+	// Uniqueness is enforced by this lookup at request time; concurrent creates of the same name are not serialized.
 	FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error)
 
 	// FindByNameExcludingID is FindByName with one row ignored — the ledger
@@ -233,7 +234,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 	); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr != nil {
-			err := services.ValidatePGError(pgErr, constant.EntityLedger, record.Name)
+			err := services.ValidatePGError(pgErr, constant.EntityLedger)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute insert query", err)
 
@@ -415,9 +416,7 @@ func (r *LedgerPostgreSQLRepository) FindByNameExcludingID(ctx context.Context, 
 
 // findActiveByName backs FindByName and FindByNameExcludingID. Matching is
 // case-insensitive equality rather than LIKE, so % and _ in a requested name are
-// literal characters and the predicate lines up with the LOWER(name) expression
-// of idx_ledger_org_name_unique. A non-nil excludeID drops that row from the
-// candidate set.
+// literal characters. A non-nil excludeID drops that row from the candidate set.
 func (r *LedgerPostgreSQLRepository) findActiveByName(ctx context.Context, spanName string, organizationID uuid.UUID, name string, excludeID *uuid.UUID) (bool, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -615,7 +614,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			err := services.ValidatePGError(pgErr, constant.EntityLedger, record.Name)
+			err := services.ValidatePGError(pgErr, constant.EntityLedger)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to execute update query", err)
 
