@@ -17,14 +17,12 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/Masterminds/squirrel"
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
-	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -181,22 +179,18 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 }
 
 func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_by_name_or_code")
 	defer span.End()
 
-	nameHit := squirrel.Expr("false")
-	codeHit := squirrel.Expr("false")
 	legs := squirrel.Or{}
 
 	if name != "" {
-		nameHit = squirrel.Expr("COALESCE(LOWER(name) = LOWER(?), false)", name)
 		legs = append(legs, squirrel.Expr("LOWER(name) = LOWER(?)", name))
 	}
 
 	if code != "" {
-		codeHit = squirrel.Expr("code = ?", code)
 		legs = append(legs, squirrel.Eq{"code": code})
 	}
 
@@ -211,9 +205,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 		return false, err
 	}
 
-	query, args, err := squirrel.Select().
-		Column(squirrel.Alias(nameHit, "name_hit")).
-		Column(squirrel.Alias(codeHit, "code_hit")).
+	query, args, err := squirrel.Select("1").
 		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
@@ -228,28 +220,29 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 		return false, err
 	}
 
-	var foundByName, foundByCode bool
-
-	if err := db.QueryRowContext(ctx, query, args...).Scan(&foundByName, &foundByCode); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
-
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 
 		return false, err
 	}
+	defer rows.Close()
 
-	leg := assetConflictLeg(foundByName, foundByCode)
+	if rows.Next() {
+		err := pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, constant.EntityAsset)
 
-	span.SetAttributes(attribute.String("app.asset_conflict_leg", leg))
-	logger.Log(ctx, libLog.LevelDebug, "Asset name or code conflict", libLog.String("conflict_leg", leg))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Asset name or code already exists", err)
 
-	businessErr := pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, constant.EntityAsset)
+		return true, err
+	}
 
-	libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Asset name or code already exists", businessErr)
+	if err := rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
 
-	return true, businessErr
+		return false, err
+	}
+
+	return false, nil
 }
 
 // FindAll retrieves Asset entities from the database with soft-deleted records.
@@ -578,19 +571,4 @@ func (r *AssetPostgreSQLRepository) Count(ctx context.Context, organizationID, l
 	}
 
 	return count, nil
-}
-
-// assetConflictLeg names the uniqueness leg that matched the conflicting row:
-// "name", "code" or "both". A returned row satisfied the WHERE predicate, whose
-// legs are the same expressions projected as name_hit and code_hit, so at least
-// one of the two is true.
-func assetConflictLeg(nameHit, codeHit bool) string {
-	switch {
-	case nameHit && codeHit:
-		return "both"
-	case nameHit:
-		return "name"
-	default:
-		return "code"
-	}
 }
