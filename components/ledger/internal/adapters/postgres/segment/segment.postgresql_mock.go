@@ -102,6 +102,21 @@ func (mr *MockRepositoryMockRecorder) ExistsByName(ctx, organizationID, ledgerID
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsByName", reflect.TypeOf((*MockRepository)(nil).ExistsByName), ctx, organizationID, ledgerID, name)
 }
 
+// ExistsByNameExcludingID mocks base method.
+func (m *MockRepository) ExistsByNameExcludingID(ctx context.Context, organizationID, ledgerID uuid.UUID, name string, excludeID uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExistsByNameExcludingID", ctx, organizationID, ledgerID, name, excludeID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExistsByNameExcludingID indicates an expected call of ExistsByNameExcludingID.
+func (mr *MockRepositoryMockRecorder) ExistsByNameExcludingID(ctx, organizationID, ledgerID, name, excludeID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsByNameExcludingID", reflect.TypeOf((*MockRepository)(nil).ExistsByNameExcludingID), ctx, organizationID, ledgerID, name, excludeID)
+}
+
 // Find mocks base method.
 func (m *MockRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Segment, error) {
 	m.ctrl.T.Helper()

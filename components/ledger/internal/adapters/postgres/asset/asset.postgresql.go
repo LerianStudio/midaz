@@ -54,7 +54,25 @@ type Repository interface {
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Asset, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error)
+
+	// FindByNameOrCode reports whether an active Asset in the ledger already
+	// holds the given name or code. Returns (true, ErrAssetNameOrCodeDuplicate)
+	// when found, (false, nil) when not found. Name comparison is
+	// case-insensitive equality and code comparison is exact equality: % and _
+	// are literal characters. An empty name skips the name check and an empty
+	// code skips the code check; when both are empty it returns (false, nil).
+	// Uniqueness is enforced by this lookup at request time; concurrent creates
+	// of the same name or code are not serialized.
 	FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error)
+
+	// FindByNameExcludingID reports whether an active Asset other than
+	// excludeID already holds the name in the ledger. The match ignores case,
+	// so a rename that only changes the case of the asset's own name does not
+	// collide with itself. Returns (true, ErrAssetNameOrCodeDuplicate) when
+	// found, (false, nil) when not found. Uniqueness is enforced by this lookup
+	// at request time; concurrent renames into the same name are not serialized.
+	FindByNameExcludingID(ctx context.Context, organizationID, ledgerID uuid.UUID, name string, excludeID uuid.UUID) (bool, error)
+
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *mmodel.Asset) (*mmodel.Asset, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	Count(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error)
@@ -170,12 +188,37 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 	return inserted.ToEntity(), nil
 }
 
-// FindByNameOrCode retrieves Asset entities by name or code from the database.
 func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
+	return r.existsByNameOrCode(ctx, "postgres.find_asset_by_name_or_code", organizationID, ledgerID, name, code, nil)
+}
+
+func (r *AssetPostgreSQLRepository) FindByNameExcludingID(ctx context.Context, organizationID, ledgerID uuid.UUID, name string, excludeID uuid.UUID) (bool, error) {
+	return r.existsByNameOrCode(ctx, "postgres.find_asset_by_name_excluding_id", organizationID, ledgerID, name, "", &excludeID)
+}
+
+// existsByNameOrCode runs the lookup shared by the exported variants. The name
+// leg is case-insensitive equality and the code leg exact equality; an empty
+// value skips its leg and, with both empty, nothing is queried. A non-nil
+// excludeID drops that row from the match.
+func (r *AssetPostgreSQLRepository) existsByNameOrCode(ctx context.Context, spanName string, organizationID, ledgerID uuid.UUID, name, code string, excludeID *uuid.UUID) (bool, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_asset_by_name_or_code")
+	ctx, span := tracer.Start(ctx, spanName)
 	defer span.End()
+
+	legs := squirrel.Or{}
+
+	if name != "" {
+		legs = append(legs, squirrel.Expr("LOWER(name) = LOWER(?)", name))
+	}
+
+	if code != "" {
+		legs = append(legs, squirrel.Eq{"code": code})
+	}
+
+	if len(legs) == 0 {
+		return false, nil
+	}
 
 	db, err := r.getDB(ctx)
 	if err != nil {
@@ -184,13 +227,19 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 		return false, err
 	}
 
-	query, args, err := squirrel.Select(assetColumnList...).
-		From("asset").
+	builder := squirrel.Select("1").
+		From(r.tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Or{squirrel.Expr("name LIKE ?", name), squirrel.Eq{"code": code}}).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
+		Where(legs)
+
+	if excludeID != nil {
+		builder = builder.Where(squirrel.NotEq{"id": *excludeID})
+	}
+
+	query, args, err := builder.
+		Limit(1).
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
