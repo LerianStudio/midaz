@@ -26,7 +26,8 @@ import (
 // than as an indistinguishable success.
 //
 // The unit gates prove the seam returns early; these prove the wiring that reaches it is
-// correct on every mounted /v1 route.
+// correct on every mounted /v1 route. Each fixture enables the default production
+// accounting engine; the fee harness otherwise selects the legacy balance path.
 
 // seedEnforceClosedTracer writes mode=enforce + failPosture=closed onto the harness
 // ledger and drops the settings cache entry, so the next GetParsedLedgerSettings on the
@@ -56,6 +57,7 @@ func unavailableReserver() *stubReserver {
 func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 	t.Run("create modes and revert", func(t *testing.T) {
 		h := setupFeeHarness(t)
+		h.enableAccountingEngine(t)
 		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 		h.seedEnforceClosedTracer(t)
 
@@ -79,6 +81,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 
 	t.Run("pending commit", func(t *testing.T) {
 		h := setupFeeHarness(t)
+		h.enableAccountingEngine(t)
 		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 		h.seedEnforceClosedTracer(t)
 
@@ -99,6 +102,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 
 	t.Run("pending cancel", func(t *testing.T) {
 		h := setupFeeHarness(t)
+		h.enableAccountingEngine(t)
 		h.handler.Command.TracerReserver = &forbiddenReserver{t: t}
 		h.seedEnforceClosedTracer(t)
 
@@ -123,6 +127,7 @@ func TestTracerRouteGate_V1NeverReachesTracer(t *testing.T) {
 // reason — a globally disabled tracer rather than a route-scoped gate.
 func TestTracerRouteGate_V2StillEnforces(t *testing.T) {
 	h := setupFeeHarness(t)
+	h.enableAccountingEngine(t)
 	reserver := unavailableReserver()
 	h.handler.Command.TracerReserver = reserver
 	h.seedEnforceClosedTracer(t)
@@ -158,6 +163,7 @@ func TestTracerRouteGate_V2StillEnforces(t *testing.T) {
 // route version — at which point this test should be inverted, deliberately.
 func TestTracerRouteGate_V2CreateCommittedOnV1_SkipsConfirm(t *testing.T) {
 	h := setupFeeHarness(t)
+	h.enableAccountingEngine(t)
 
 	reservationID := uuid.New()
 	reserver := &stubReserver{result: &tracer.ReserveResult{ReservationIDs: []uuid.UUID{reservationID}}}

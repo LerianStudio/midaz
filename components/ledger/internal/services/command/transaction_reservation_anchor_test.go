@@ -386,6 +386,13 @@ func TestReserveTransaction_BuildsFaithfulTracerRequest(t *testing.T) {
 	assert.NotEmpty(t, req.RequestID, "the tracer reserve contract requires a non-nil requestId")
 	assert.Equal(t, fixedReserveTimestamp.Format(time.RFC3339Nano), req.TransactionTimestamp)
 
+	// Current baseline: the anchor does not enrich these optional scopes. The
+	// transport characterization separately exercises them when populated.
+	assert.Empty(t, req.SegmentID)
+	assert.Empty(t, req.PortfolioID)
+	assert.Empty(t, req.MerchantID)
+	assert.Empty(t, req.TransactionType)
+
 	// RequestID is deterministic: same transactionID derives the same requestId
 	// so retries dedup.
 	assert.Equal(t, reservationRequestID(txID).String(), req.RequestID)
