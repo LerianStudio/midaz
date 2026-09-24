@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -58,7 +59,9 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 			return nil, err
 		}
 
-		if segmentFound != nil && segmentFound.Name != upi.Name {
+		// Name uniqueness is case-insensitive, so a rename that only changes case
+		// would otherwise collide with the segment itself.
+		if segmentFound != nil && !strings.EqualFold(segmentFound.Name, upi.Name) {
 			if _, err := uc.SegmentRepo.ExistsByName(ctx, organizationID, ledgerID, upi.Name); err != nil {
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to check segment name existence", err)
 				logger.Log(ctx, libLog.LevelWarn, "Segment name is not available", libLog.Err(err), libLog.String("segment_id", id.String()))
