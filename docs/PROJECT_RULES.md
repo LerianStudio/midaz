@@ -470,6 +470,19 @@ superset carrying `type`, `title`, `status`, `detail`, `instance`, plus midaz's 
 - 422 Unprocessable Entity - Business rule violation
 - 500 Internal Server Error
 
+**Authorization Refusals:**
+
+lib-auth v5 returns the refusal instead of writing it; the app's `ErrorHandler` renders it
+in the route's envelope (`TestAuthzRefusal_LedgerEdge`, `TestAuthzRefusal_TracerEdge`).
+
+| Refusal | Status | `code` |
+|---------|--------|--------|
+| Missing or invalid token | 401 | `0042`, or the Access Manager's own `AUT-xxxx` when its 401 carried one |
+| Denied, or a scope dimension the route never declared | 403 | `0043` |
+| Access Manager never decided (unreachable, 5xx, timeout, breaker open, or answered 400/408/422/429) | 503 | `0525` |
+| Access Manager refused the caller itself | the status it answered | its own `AUT-xxxx` |
+| Access Manager refused with no usable code (401 and 403 take the rows above) | 400 | `0047` |
+
 ### Handler Structure
 
 For most resources the transport-agnostic core (`<resource>_core.go`) is where the span
@@ -1214,6 +1227,10 @@ Auth Middleware (auth.Authorize)
     v
 Route Handler -> Service -> Repository (uses tenant DB from context)
 ```
+
+`auth.Authorize` returns its refusal rather than writing one: the app's `ErrorHandler`
+(`CanonicalFiberErrorHandler`) renders it — `/v2` and the tracer in
+`application/problem+json`, `/v1` in the legacy `{code,title,message}`.
 
 ### Configuration
 

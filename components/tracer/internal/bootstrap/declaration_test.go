@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/declaration"
+	"github.com/LerianStudio/lib-auth/v5/auth/declaration"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

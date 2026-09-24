@@ -59,7 +59,7 @@ import (
 	feesservices "github.com/LerianStudio/midaz/v4/components/ledger/internal/services/fees"
 	feemodel "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	openapi "github.com/LerianStudio/lib-commons/v7/commons/net/http/openapi"
 	libProblem "github.com/LerianStudio/lib-commons/v7/commons/net/http/problem"
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"

@@ -618,6 +618,10 @@ var (
 	// could not be established at all, and the message stays sanitized because the
 	// cause is internal.
 	ErrAccountClosingProtectionIndeterminate = errors.New("0520")
+	// ErrAuthorizationServiceUnavailable is returned when the authorization
+	// service did not decide: unreachable, timed out, breaker open, or an answer
+	// the client reclassifies as undecided. Never a denial, so a retry is valid.
+	ErrAuthorizationServiceUnavailable = errors.New("0525")
 )
 
 // List of CRM domain errors.

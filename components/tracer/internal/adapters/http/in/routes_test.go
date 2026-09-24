@@ -12,7 +12,7 @@ import (
 	"os"
 	"testing"
 
-	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 
 	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"

@@ -911,6 +911,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Insufficient Privileges",
 			Message:    "You do not have the necessary permissions to perform this action. Please contact your administrator if you believe this is an error.",
 		},
+		constant.ErrAuthorizationServiceUnavailable: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrAuthorizationServiceUnavailable.Error(),
+			Title:      "Authorization Service Unavailable",
+			Message:    "The request could not be completed because the authorization service did not respond. Please retry shortly.",
+		},
 		constant.ErrPermissionEnforcement: FailedPreconditionError{
 			EntityType: entityType,
 			Code:       constant.ErrPermissionEnforcement.Error(),

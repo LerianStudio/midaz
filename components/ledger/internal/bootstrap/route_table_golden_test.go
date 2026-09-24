@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
@@ -128,9 +128,8 @@ var fullSurfaceMarkerRan atomic.Bool
 //
 // It MUST stay a bare passthrough. A post-auth handler that answered 401 itself — the production
 // one, pkgHTTP.MarkTrustedAuthAssertion, does — would leave the marker false on a route whose
-// authorizer had gone missing, because the refusal would never reach past it. That class is
-// caught instead by the envelope assertion in TestFullSurfaceRoutes_RejectTokenlessRequests, and
-// only for substitutes whose 401 renders through the app ErrorHandler.
+// authorizer had gone missing, because the refusal would never reach past it. Nothing else catches
+// that class: since lib-auth v5 every 401 producer here renders the same envelope.
 func fullSurfaceRouteOptions() *pkgHTTP.ProtectedRouteOptions {
 	marker := func(c fiber.Ctx) error {
 		fullSurfaceMarkerRan.Store(true)
@@ -379,9 +378,9 @@ func assertRouteTableInvariants(t *testing.T, rows []routeRow) {
 	// It is the only shape invariant here. The two that were scoped to groups of more than one row
 	// are covered by the behavioural sweep in route_guard_test.go instead, and THAT subsumption
 	// rests on no terminal ever answering 401. The 401 producers on this surface are lib-auth's
-	// authorizer at chain position 0 and pkgHTTP.MarkTrustedAuthAssertion behind it, and the only
-	// site rendering constant.ErrInvalidToken is CanonicalFiberErrorHandler's 401 arm. Should a
-	// terminal ever answer 401, those two become load-bearing again.
+	// authorizer at chain position 0 and pkgHTTP.MarkTrustedAuthAssertion behind it; since
+	// lib-auth v5 both RETURN their refusal, so both render through CanonicalFiberErrorHandler's
+	// 401 arm. Should a terminal ever answer 401, those two become load-bearing again.
 	for _, group := range groupRouteRows(rows) {
 		if len(group.rows) != 1 || group.rows[0].handlers >= 2 {
 			continue

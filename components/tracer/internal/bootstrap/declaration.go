@@ -12,8 +12,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/LerianStudio/lib-auth/v4/auth/declaration"
-	authMiddleware "github.com/LerianStudio/lib-auth/v4/auth/middleware"
+	"github.com/LerianStudio/lib-auth/v5/auth/declaration"
+	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 
