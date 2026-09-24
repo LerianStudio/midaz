@@ -33,6 +33,12 @@ func newAppWithCanonicalHandler() *fiber.App {
 	app.Get("/unauthorized", func(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusUnauthorized, "Unauthorized")
 	})
+	app.Get("/forbidden", func(c fiber.Ctx) error {
+		return fiber.NewError(fiber.StatusForbidden, "Forbidden")
+	})
+	app.Get("/unavailable", func(c fiber.Ctx) error {
+		return fiber.NewError(fiber.StatusServiceUnavailable, "Service Unavailable")
+	})
 	app.Get("/boom", func(c fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, "kaboom")
 	})
@@ -100,6 +106,35 @@ func TestCanonicalFiberErrorHandler_Unauthorized(t *testing.T) {
 	require.NotEmpty(t, env.Detail)
 	// E9: never leak the raw fiber message verbatim as the code/title.
 	require.NotEqual(t, "Unauthorized", env.Code)
+}
+
+// lib-auth v5 returns its refusals instead of writing them: a denial and a
+// missing scope dimension arrive here as *fiber.Error 403, and an Access Manager
+// that never decided as *fiber.Error 503. Both must keep their status.
+func TestCanonicalFiberErrorHandler_Forbidden(t *testing.T) {
+	t.Parallel()
+
+	app := newAppWithCanonicalHandler()
+
+	status, env := decodeEnvelope(t, app, fiber.MethodGet, "/forbidden")
+
+	require.Equal(t, fiber.StatusForbidden, status)
+	require.Equal(t, constant.ErrInsufficientPrivileges.Error(), env.Code)
+	require.NotEmpty(t, env.Title)
+	require.NotEmpty(t, env.Detail)
+}
+
+func TestCanonicalFiberErrorHandler_ServiceUnavailable(t *testing.T) {
+	t.Parallel()
+
+	app := newAppWithCanonicalHandler()
+
+	status, env := decodeEnvelope(t, app, fiber.MethodGet, "/unavailable")
+
+	require.Equal(t, fiber.StatusServiceUnavailable, status)
+	require.Equal(t, constant.ErrAuthorizationServiceUnavailable.Error(), env.Code)
+	require.NotEmpty(t, env.Title)
+	require.NotEmpty(t, env.Detail)
 }
 
 func TestCanonicalFiberErrorHandler_PayloadTooLarge(t *testing.T) {

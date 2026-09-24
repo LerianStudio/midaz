@@ -4,7 +4,7 @@
 # FIRST argument of every auth.Authorize("midaz", resource, verb) guard in
 # components/ledger/internal/adapters/http/in/ (const midazName, routes.go:20;
 # the CRM routes reuse it via protectedMidaz too).
-# Keys mirror the yaml tags on lib-auth/v4 auth/declaration.DeclarationManifest
+# Keys mirror the yaml tags on lib-auth/v5 auth/declaration.DeclarationManifest
 # (auth/declaration/manifest.go).
 #
 # WHAT THIS MANIFEST IS: a faithful mirror of the Access-Manager SEED, not a
