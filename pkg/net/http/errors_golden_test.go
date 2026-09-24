@@ -302,6 +302,7 @@ func allSentinels() map[string]error {
 		"ErrContextPolicyConflict":                    constant.ErrContextPolicyConflict,
 		"ErrReserveDecisionConflict":                  constant.ErrReserveDecisionConflict,
 		"ErrReserveOperationConflict":                 constant.ErrReserveOperationConflict,
+		"ErrContextLimitsUnavailable":                 constant.ErrContextLimitsUnavailable,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
 		"ErrDuplicatedAliasKeyValue":                  constant.ErrDuplicatedAliasKeyValue,
@@ -1100,4 +1101,12 @@ func TestGolden_ExplicitStatusArms(t *testing.T) {
 			assert.Equal(t, tc.wantCode, codeVal, "MONEY-PATH: explicit-status body[code]")
 		})
 	}
+}
+
+func TestGolden_ContextLimitsUnavailable(t *testing.T) {
+	t.Parallel()
+	err := pkg.ValidateBusinessError(constant.ErrContextLimitsUnavailable, "GoldenEntity")
+	status, code := driveWithError(t, err)
+	assert.Equal(t, fiber.StatusServiceUnavailable, status)
+	assert.Equal(t, constant.ErrContextLimitsUnavailable.Error(), code)
 }

@@ -89,6 +89,25 @@ computes gross internal debits per account and asset; credits never offset them
 and external entries never create account counters. Asset identity is namespace
 plus ID; its code is descriptive. Prepared facts are detached snapshots.
 
+`ContextReservationResolver` prepares account-only limit reservations from a
+complete trusted active snapshot with explicit `AssetRef` associations. It keeps
+existing limit IDs and `acct:<UUID>`/period counter keys, computes gross exact
+debits, and sorts accounts and counter coordinates deterministically. One limit
+covering multiple accounts produces independent account counters, not a combined
+allowance. Unsupported scopes, missing associations, contradictory asset codes,
+and limits associated with a participating account's wrong asset return
+configuration error 0522/503; none is silently dropped or converted into DENY.
+The complete snapshot is validated before checking caps or active windows.
+
+Periods and window checks use a single injected server time. Counter retention
+is derived from that period, not a stale stored reset date or a reservation TTL.
+PER_TRANSACTION checks create no counter; any exceeded cap returns no provisional
+reservations. A non-denied plan still requires atomic current+reserved checks,
+policy precedence, decision persistence and mandatory audit. This resolver does
+not load limits, prove snapshot completeness, lock accounts or write capacity.
+Persistent asset associations, their migration and the exhaustive tenant-primary
+reader remain prerequisites to admission; it is not mounted on Reserve yet.
+
 Entry and debit amounts are opaque Decimal values. `decimal("0.1")` accepts only
 a bounded decimal string literal, checked at compile time. Supported member
 comparisons are `equal`, `lessThan`, `lessOrEqual`, `greaterThan` and
