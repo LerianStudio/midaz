@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -310,6 +311,13 @@ func RegisterLimitRoutes(api huma.API, h *LimitHandler) {
 		Security:         secBearerOrAPIKey,
 		SkipValidateBody: true, // body validated imperatively — see rule_handler_huma.go.
 	}, h.CreateLimitHuma)
+	// RawBody keeps canonical runtime validation, but must not publish a binary
+	// request schema. Describe the real JSON DTO and its exact decimal string.
+	schema := api.OpenAPI().Components.Schemas.Schema(reflect.TypeFor[CreateLimitInput](), true, "")
+	document := api.OpenAPI().Components.Schemas.Map()["CreateLimitInput"]
+	document.AdditionalProperties = true // The existing decoder ignores unknown JSON fields.
+	document.Properties["maxAmount"] = &huma.Schema{Type: "string", Description: "Positive exact decimal amount; no binary floating-point conversion.", Examples: []any{"1000.00"}}
+	api.OpenAPI().Paths["/limits"].Post.RequestBody = &huma.RequestBody{Required: true, Content: map[string]*huma.MediaType{"application/json": {Schema: schema}}}
 
 	huma.Register(api, huma.Operation{
 		OperationID: "getLimit",

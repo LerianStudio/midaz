@@ -384,7 +384,7 @@ curl -X POST http://localhost:4020/v1/validations \
     "requestId": "123e4567-e89b-12d3-a456-426614174000",
     "transactionType": "CARD",
     "amount": "15000.00",
-    "currency": "USD",
+    "asset": "USD",
     "transactionTimestamp": "2026-01-28T10:30:00Z",
     "account": {
       "accountId": "223e4567-e89b-12d3-a456-426614174001"
@@ -551,7 +551,7 @@ X-API-Key: your-api-key
   "requestId": "123e4567-e89b-12d3-a456-426614174000",
   "transactionType": "CARD",
   "amount": "5000.00",
-  "currency": "USD",
+  "asset": "USD",
   "transactionTimestamp": "2026-01-28T10:30:00Z",
   "account": {
     "accountId": "223e4567-e89b-12d3-a456-426614174001"
@@ -571,7 +571,7 @@ X-API-Key: your-api-key
   "transactionType": "CARD",
   "subType": "debit",
   "amount": "5000.00",
-  "currency": "USD",
+  "asset": "USD",
   "transactionTimestamp": "2026-01-28T10:30:00Z",
   "account": {
     "accountId": "223e4567-e89b-12d3-a456-426614174001",

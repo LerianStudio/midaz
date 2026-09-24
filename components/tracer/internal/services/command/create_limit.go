@@ -143,12 +143,11 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 	// Create normalized copy to avoid mutating caller's input
 	normalizedInput := *input
 	normalizedInput.Name = strings.TrimSpace(normalizedInput.Name)
-	normalizedInput.Asset = strings.ToUpper(strings.TrimSpace(normalizedInput.Asset))
 
 	span.SetAttributes(
 		attribute.String("app.request.limit_name", normalizedInput.Name),
 		attribute.String("app.request.limit_type", string(normalizedInput.LimitType)),
-		attribute.String("app.request.asset", normalizedInput.Asset),
+		attribute.Int("app.request.asset_bytes", len(normalizedInput.Asset)),
 	)
 
 	// Create domain entity via appropriate NewLimit* function
