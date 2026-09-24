@@ -410,10 +410,12 @@ lookup. These preparation functions do not mutate balances; only the subsequent
 engine execution can approve the transaction and publish monetary state.
 
 Pending commit/cancel resolves the freshest indexed engine evidence first and
-falls back to scoped primary SQL. If the hold projection is still pending, the
-new execution carries an immutable predecessor reference and recovery projects
-the hold before its transition. A missing `PENDING` guard is bootstrapped;
-existing terminal guards are never replaced.
+falls back to scoped primary SQL. The initial load and the classification of a
+lost guard race resolve the same way, so a hold created asynchronously can be
+committed or canceled before its projection reaches PostgreSQL. If the hold
+projection is still pending, the new execution carries an immutable predecessor
+reference and recovery projects the hold before its transition. A missing
+`PENDING` guard is bootstrapped; existing terminal guards are never replaced.
 Cancellation reads source balances only and derives any historical repayment
 cap from persisted operations, never from current overdraft debt. Cloning the
 persisted input preserves JSON numeric metadata without a float conversion.

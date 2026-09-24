@@ -500,13 +500,18 @@ func isConfirmedEngineTransitionConflict(err error) bool {
 	}
 }
 
+// resolvePendingGuardConflict classifies a lost commit/cancel race against the
+// engine index before PostgreSQL: the winner may not be projected yet, and a
+// missing or stale row would misreport it as still pending.
 func (uc *UseCase) resolvePendingGuardConflict(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) error {
-	persisted, err := uc.TransactionReader.GetTransactionWithOperationsByID(
-		readrouting.WithPrimaryRead(ctx), organizationID, ledgerID, transactionID,
+	resolution, err := resolveTransactionProjection(
+		readrouting.WithPrimaryRead(ctx), uc.TransactionReader, organizationID, ledgerID, transactionID,
 	)
 	if err != nil {
 		return err
 	}
+
+	persisted := resolution.Transaction
 
 	if persisted == nil || persisted.ID == "" {
 		return pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, constant.EntityTransaction)

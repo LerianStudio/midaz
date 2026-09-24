@@ -2571,7 +2571,7 @@ func TestGetTransaction_WriteBehindHit(t *testing.T) {
 }
 
 // TestCancelTransaction_WriteBehindMiss_PostgresMiss verifies that CancelTransaction returns error
-// when both write-behind and Postgres fail.
+// when the transaction is found in neither the engine index nor PostgreSQL.
 func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2591,12 +2591,8 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 		Query:   queryUC,
 	}
 
-	// Write-behind miss
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("redis: nil")).
-		Times(1)
-
+	// No engine index is configured and the strict Redis mock accepts no read of
+	// the legacy write-behind entry, so the lookup goes straight to PostgreSQL.
 	// Postgres miss
 	mockTransactionRepo.EXPECT().
 		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
@@ -2612,7 +2608,7 @@ func TestCancelTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	assert.True(t, resp.StatusCode >= 400, "Expected error status code, got %d", resp.StatusCode)
 }
 
-// TestCancelTransaction_WriteBehindMiss_PostgresHit verifies fallback to Postgres when write-behind misses.
+// TestCancelTransaction_WriteBehindMiss_PostgresHit verifies fallback to Postgres when the engine index misses.
 func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2636,12 +2632,8 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 
 	tran := newTestTransactionData(orgID, ledgerID, tranID)
 
-	// Write-behind miss
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("redis: nil")).
-		Times(1)
-
+	// No engine index is configured and the strict Redis mock accepts no read of
+	// the legacy write-behind entry, so the lookup goes straight to PostgreSQL.
 	// Postgres hit
 	mockTransactionRepo.EXPECT().
 		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
@@ -2670,53 +2662,8 @@ func TestCancelTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	assert.True(t, resp.StatusCode >= 400)
 }
 
-// TestCancelTransaction_WriteBehindHit_PostgresNotCalled verifies that when write-behind hits,
-// Postgres is not queried.
-func TestCancelTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	orgID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-	tranID := uuid.Must(libCommons.GenerateUUIDv7())
-
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	queryUC := &query.UseCase{TransactionRedisRepo: mockRedisRepo}
-	handler := &TransactionHandler{
-		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo, TransactionReader: queryUC},
-		Query:   queryUC,
-	}
-
-	// Write-behind hit
-	tran := newTestTransactionData(orgID, ledgerID, tranID)
-	wbData, err := msgpack.Marshal(tran)
-	require.NoError(t, err)
-
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(wbData, nil).
-		Times(1)
-
-	// No TransactionRepo mock -> proves Postgres is never called
-
-	// pending transition: SetNX short-circuits
-	mockRedisRepo.EXPECT().
-		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(false, errors.New("lock error")).
-		Times(1)
-
-	app := buildHumaTransactionApp(t, handler, true)
-
-	req := httptest.NewRequest("POST", humaTransactionURL(orgID, ledgerID, "/"+tranID.String()+"/cancel"), nil)
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err)
-
-	// Error from SetNX short-circuit, but write-behind was used and Postgres was NOT called
-	assert.True(t, resp.StatusCode >= 400)
-}
-
 // TestCommitTransaction_WriteBehindMiss_PostgresMiss verifies that CommitTransaction returns error
-// when both write-behind and Postgres fail.
+// when the transaction is found in neither the engine index nor PostgreSQL.
 func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2736,12 +2683,8 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 		Query:   queryUC,
 	}
 
-	// Write-behind miss
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("redis: nil")).
-		Times(1)
-
+	// No engine index is configured and the strict Redis mock accepts no read of
+	// the legacy write-behind entry, so the lookup goes straight to PostgreSQL.
 	// Postgres miss
 	mockTransactionRepo.EXPECT().
 		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
@@ -2757,7 +2700,7 @@ func TestCommitTransaction_WriteBehindMiss_PostgresMiss(t *testing.T) {
 	assert.True(t, resp.StatusCode >= 400, "Expected error status code, got %d", resp.StatusCode)
 }
 
-// TestCommitTransaction_WriteBehindMiss_PostgresHit verifies fallback to Postgres when write-behind misses.
+// TestCommitTransaction_WriteBehindMiss_PostgresHit verifies fallback to Postgres when the engine index misses.
 func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2781,12 +2724,8 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 
 	tran := newTestTransactionData(orgID, ledgerID, tranID)
 
-	// Write-behind miss
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(nil, errors.New("redis: nil")).
-		Times(1)
-
+	// No engine index is configured and the strict Redis mock accepts no read of
+	// the legacy write-behind entry, so the lookup goes straight to PostgreSQL.
 	// Postgres hit
 	mockTransactionRepo.EXPECT().
 		FindWithOperations(gomock.Any(), orgID, ledgerID, tranID).
@@ -2812,51 +2751,6 @@ func TestCommitTransaction_WriteBehindMiss_PostgresHit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Error from SetNX short-circuit, but Find WAS called (fallback worked)
-	assert.True(t, resp.StatusCode >= 400)
-}
-
-// TestCommitTransaction_WriteBehindHit_PostgresNotCalled verifies that when write-behind hits,
-// Postgres is not queried.
-func TestCommitTransaction_WriteBehindHit_PostgresNotCalled(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	orgID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-	tranID := uuid.Must(libCommons.GenerateUUIDv7())
-
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-	queryUC := &query.UseCase{TransactionRedisRepo: mockRedisRepo}
-	handler := &TransactionHandler{
-		Command: &command.UseCase{TransactionRedisRepo: mockRedisRepo, TransactionReader: queryUC},
-		Query:   queryUC,
-	}
-
-	// Write-behind hit
-	tran := newTestTransactionData(orgID, ledgerID, tranID)
-	wbData, err := msgpack.Marshal(tran)
-	require.NoError(t, err)
-
-	mockRedisRepo.EXPECT().
-		GetBytes(gomock.Any(), gomock.Any()).
-		Return(wbData, nil).
-		Times(1)
-
-	// No TransactionRepo mock -> proves Postgres is never called
-
-	// pending transition: SetNX short-circuits
-	mockRedisRepo.EXPECT().
-		SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(false, errors.New("lock error")).
-		Times(1)
-
-	app := buildHumaTransactionApp(t, handler, true)
-
-	req := httptest.NewRequest("POST", humaTransactionURL(orgID, ledgerID, "/"+tranID.String()+"/commit"), nil)
-	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
-	require.NoError(t, err)
-
-	// Error from SetNX short-circuit, but write-behind was used and Postgres was NOT called
 	assert.True(t, resp.StatusCode >= 400)
 }
 
