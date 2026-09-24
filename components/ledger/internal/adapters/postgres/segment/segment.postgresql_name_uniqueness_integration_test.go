@@ -196,3 +196,56 @@ func TestIntegration_SegmentRepository_ExistsByName_NameUniqueness_OtherLedgerDo
 	require.NoError(t, err)
 	assert.Equal(t, "Retail", created.Name)
 }
+
+// Scenario segment-rename-so-de-caixa-nao-colide-consigo: the segment's own row
+// is excluded, so a case-only rename is not a conflict.
+func TestIntegration_SegmentRepository_ExistsByNameExcludingID_NameUniqueness_SelfIsExcluded(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedSegment(t, container, orgID, ledgerID, "Retail")
+
+	exists, err := repo.ExistsByNameExcludingID(ctx, orgID, ledgerID, "RETAIL", selfID)
+
+	assert.False(t, exists)
+	assert.NoError(t, err)
+}
+
+// Scenario segment-rename-so-de-caixa-colide-com-outro: another active segment
+// that already carries the target name (in any case) is still a conflict.
+func TestIntegration_SegmentRepository_ExistsByNameExcludingID_NameUniqueness_OtherSegmentStillConflicts(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedSegment(t, container, orgID, ledgerID, "Retail")
+	createNamedSegment(t, container, orgID, ledgerID, "RETAIL")
+
+	exists, err := repo.ExistsByNameExcludingID(ctx, orgID, ledgerID, "RETAIL", selfID)
+
+	assert.True(t, exists)
+	assertSegmentNameConflict(t, err)
+}
+
+// Scenario segment-rename-nao-colide-com-soft-deletado.
+func TestIntegration_SegmentRepository_ExistsByNameExcludingID_NameUniqueness_SoftDeletedIsIgnored(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedSegment(t, container, orgID, ledgerID, "Retail")
+	otherID := createNamedSegment(t, container, orgID, ledgerID, "Wholesale")
+	require.NoError(t, repo.Delete(ctx, orgID, ledgerID, otherID))
+
+	exists, err := repo.ExistsByNameExcludingID(ctx, orgID, ledgerID, "wholesale", selfID)
+
+	assert.False(t, exists)
+	assert.NoError(t, err)
+}
