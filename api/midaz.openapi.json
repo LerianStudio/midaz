@@ -30298,9 +30298,20 @@
             ],
             "format": "int64",
             "type": "integer"
+          },
+          "validationMode": {
+            "enum": [
+              "limits",
+              "rules-and-limits"
+            ],
+            "examples": [
+              "limits"
+            ],
+            "type": "string"
           }
         },
         "required": [
+          "validationMode",
           "mode",
           "failPosture",
           "timeoutMs"
@@ -30328,6 +30339,12 @@
             ],
             "format": "int64",
             "type": "integer"
+          },
+          "validationMode": {
+            "examples": [
+              "limits"
+            ],
+            "type": "string"
           }
         },
         "type": "object"

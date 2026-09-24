@@ -63,6 +63,10 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		}
 
 		parsed := mmodel.ParseLedgerSettings(sparseSettings)
+		if err := uc.validateTracerActivation(ctx, parsed.Tracer); err != nil {
+			recordCommandError(ctx, span, logger, "Tracer activation unavailable", err)
+			return nil, err
+		}
 		if !mmodel.LedgerSettingsIsDefault(&parsed) {
 			settingsToPersist = &parsed
 		}

@@ -136,7 +136,7 @@ func TestLedgerSettingsInput_ToSparseMap(t *testing.T) {
 			},
 		},
 		{
-			name: "all nine fields set emits nine leaves across three groups",
+			name: "all fields set emits every leaf across three groups",
 			input: &LedgerSettingsInput{
 				Accounting: &AccountingValidationInput{
 					ValidateAccountType: testutils.Ptr(true),
@@ -144,9 +144,10 @@ func TestLedgerSettingsInput_ToSparseMap(t *testing.T) {
 					RequireHolder:       testutils.Ptr(true),
 				},
 				Tracer: &TracerSettingsInput{
-					Mode:        testutils.Ptr(TracerModeEnforce),
-					FailPosture: testutils.Ptr(TracerFailPostureClosed),
-					TimeoutMs:   testutils.Ptr(999),
+					ValidationMode: testutils.Ptr("rules-and-limits"),
+					Mode:           testutils.Ptr(TracerModeEnforce),
+					FailPosture:    testutils.Ptr(TracerFailPostureClosed),
+					TimeoutMs:      testutils.Ptr(999),
 				},
 				Overrides: &OverridePolicyInput{
 					AllowFeeSkip:    testutils.Ptr(true),
@@ -161,9 +162,10 @@ func TestLedgerSettingsInput_ToSparseMap(t *testing.T) {
 					"requireHolder":       true,
 				},
 				"tracer": map[string]any{
-					"mode":        "enforce",
-					"failPosture": "closed",
-					"timeoutMs":   999,
+					"mode":           "enforce",
+					"failPosture":    "closed",
+					"timeoutMs":      999,
+					"validationMode": "rules-and-limits",
 				},
 				"overrides": map[string]any{
 					"allowFeeSkip":    true,
@@ -300,7 +302,7 @@ func TestLedgerSettingsInput_ToSparseMap_ParseRoundTrip(t *testing.T) {
 
 	allSet := DefaultLedgerSettings()
 	allSet.Accounting = AccountingValidation{ValidateAccountType: true, ValidateRoutes: true, RequireHolder: true}
-	allSet.Tracer = TracerSettings{Mode: TracerModeEnforce, FailPosture: TracerFailPostureClosed, TimeoutMs: 999}
+	allSet.Tracer = TracerSettings{ValidationMode: "rules-and-limits", Mode: TracerModeEnforce, FailPosture: TracerFailPostureClosed, TimeoutMs: 999}
 	allSet.Overrides = OverridePolicy{AllowFeeSkip: true, AllowTracerSkip: true, AllowHolderSkip: true}
 
 	onlyTracerMode := DefaultLedgerSettings()
@@ -356,7 +358,7 @@ func TestLedgerSettingsInput_ToSparseMap_ParseRoundTrip(t *testing.T) {
 			want:  explicitLowerBoundTimeout,
 		},
 		{
-			name: "all nine fields set round-trips exactly",
+			name: "all fields set round-trips exactly",
 			input: &LedgerSettingsInput{
 				Accounting: &AccountingValidationInput{
 					ValidateAccountType: testutils.Ptr(true),
@@ -364,9 +366,10 @@ func TestLedgerSettingsInput_ToSparseMap_ParseRoundTrip(t *testing.T) {
 					RequireHolder:       testutils.Ptr(true),
 				},
 				Tracer: &TracerSettingsInput{
-					Mode:        testutils.Ptr(TracerModeEnforce),
-					FailPosture: testutils.Ptr(TracerFailPostureClosed),
-					TimeoutMs:   testutils.Ptr(999),
+					ValidationMode: testutils.Ptr("rules-and-limits"),
+					Mode:           testutils.Ptr(TracerModeEnforce),
+					FailPosture:    testutils.Ptr(TracerFailPostureClosed),
+					TimeoutMs:      testutils.Ptr(999),
 				},
 				Overrides: &OverridePolicyInput{
 					AllowFeeSkip:    testutils.Ptr(true),
@@ -482,7 +485,7 @@ func TestLedgerSettingsInput_ToSparseMap_ErrorFieldPathIsDeterministic(t *testin
 // TestLedgerSettingsInput_JSONTagsOmitEmpty enforces omitempty on every field of the request
 // tree. Huma marks a field required unless its json tag carries omitempty, and
 // pkgHTTP.DecodeAndValidate diffs the client payload against a re-marshal of the struct — a
-// missing omitempty would both re-add the nine leaves to the spec's required list and put nil
+// missing omitempty would both re-add the settings leaves to the spec's required list and put nil
 // pointers into that re-marshal.
 func TestLedgerSettingsInput_JSONTagsOmitEmpty(t *testing.T) {
 	t.Parallel()
@@ -505,7 +508,7 @@ func TestLedgerSettingsInput_JSONTagsOmitEmpty(t *testing.T) {
 		{
 			name:     "TracerSettingsInput",
 			typ:      reflect.TypeOf(TracerSettingsInput{}),
-			wantKeys: []string{"mode", "failPosture", "timeoutMs"},
+			wantKeys: []string{"validationMode", "mode", "failPosture", "timeoutMs"},
 		},
 		{
 			name:     "OverridePolicyInput",

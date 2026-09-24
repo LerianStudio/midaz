@@ -27,6 +27,28 @@
 
 ---
 
+## Shared-context profile settings
+
+`tracer.validationMode` is independent of `tracer.mode`, `failPosture`, timeout
+and authorized per-call skips. Missing/null settings retain the `limits` default;
+`rules-and-limits` is explicit. Both create-ledger and settings PATCH validate the
+same values, and PATCH checks activation against the atomically merged settings.
+
+Combined controls can be configured while `mode=off`. Enabling advisory/enforce
+requires the context integration's activation verifier; absent readiness returns
+canonical `0525`/503 before settings are persisted. Disabling the profile remains
+possible when that verifier is absent. The verifier belongs to the complete
+integration composition, including durable recovery; its presence is not inferred
+from a legacy client or from `/version`. It must perform a local readiness check,
+not a financial Reserve probe under the settings database lock.
+
+The shared HTTP/gRPC clients independently reject replies without the expected
+contract revision, transaction identity and completed controls. The legacy anchor
+cannot satisfy `rules-and-limits`: it reports an unavailable profile and follows
+the configured failure posture, with no fallback Reserve call. Runtime composition
+of the new Ledger anchor and recovery is still required before activation; adding
+the settings field alone does not enable the profile.
+
 ## 1. Product segregation matrix
 
 The two components are **separately-sellable products**, each shipping as its own OCI image under

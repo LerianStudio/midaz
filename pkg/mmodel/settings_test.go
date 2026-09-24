@@ -258,9 +258,10 @@ func TestParseLedgerSettings(t *testing.T) {
 			expected: LedgerSettings{
 				Accounting: defaultAccountingValidation,
 				Tracer: TracerSettings{
-					Mode:        "enforce",
-					FailPosture: "closed",
-					TimeoutMs:   500,
+					ValidationMode: "limits",
+					Mode:           "enforce",
+					FailPosture:    "closed",
+					TimeoutMs:      500,
 				},
 			},
 		},
@@ -274,9 +275,10 @@ func TestParseLedgerSettings(t *testing.T) {
 			expected: LedgerSettings{
 				Accounting: defaultAccountingValidation,
 				Tracer: TracerSettings{
-					Mode:        "advisory",
-					FailPosture: "open",
-					TimeoutMs:   250,
+					ValidationMode: "limits",
+					Mode:           "advisory",
+					FailPosture:    "open",
+					TimeoutMs:      250,
 				},
 			},
 		},
@@ -307,9 +309,10 @@ func TestParseLedgerSettings(t *testing.T) {
 			expected: LedgerSettings{
 				Accounting: defaultAccountingValidation,
 				Tracer: TracerSettings{
-					Mode:        "off",
-					FailPosture: "open",
-					TimeoutMs:   750,
+					ValidationMode: "limits",
+					Mode:           "off",
+					FailPosture:    "open",
+					TimeoutMs:      750,
 				},
 			},
 		},
