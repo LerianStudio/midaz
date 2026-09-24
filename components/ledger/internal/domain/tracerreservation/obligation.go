@@ -167,6 +167,7 @@ type Record struct {
 // Pending is enough to reconcile/deliver an outcome without loading the frozen
 // body or applying current admission bounds to an older obligation.
 type Pending struct {
+	CreatedAt        time.Time
 	Key              Key
 	ExecutionID      uuid.UUID
 	Scope            tracercontract.ReserveScope

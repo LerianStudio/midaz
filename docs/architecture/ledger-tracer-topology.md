@@ -102,6 +102,10 @@ Ledger permits through, including advisory availability failures. Uncertain
 journal ownership is counted separately and still prevents dispatch. Off and
 honored skip produce no admission metric or downstream call.
 
+`tracer_obligation_age_ms` observes time since durable creation for each claimed
+record, using only the bounded state label. It is a sampled age distribution,
+not the age of every outstanding obligation; future/missing timestamps are omitted.
+
 Recovery metrics count attempts per claimed obligation, not unique transactions
 or backlog size. Repeated remote success followed by a lost local acknowledgement
 is reported as failed until a later attempt durably acknowledges delivery. Use

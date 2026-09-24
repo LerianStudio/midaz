@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -58,4 +59,33 @@ func TestTracerMetricsBoundLabelsAndRecordDuration(t *testing.T) {
 	}
 	require.True(t, found)
 	emitTracerMetric(t.Context(), nil, "admission", "allow", time.Millisecond)
+}
+
+func TestTracerObligationAgeRejectsMissingOrFutureTime(t *testing.T) {
+	reader, factory := newReaderFactory(t)
+	instant := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	emitTracerObligationAge(t.Context(), factory, tracerreservation.Pending{}, instant)
+	emitTracerObligationAge(t.Context(), factory, tracerreservation.Pending{CreatedAt: instant.Add(time.Second)}, instant)
+	emitTracerObligationAge(t.Context(), factory, tracerreservation.Pending{CreatedAt: instant.Add(-time.Minute), State: "sensitive-input"}, instant)
+	var collected metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(t.Context(), &collected))
+	found := false
+	for _, scope := range collected.ScopeMetrics {
+		for _, metric := range scope.Metrics {
+			if metric.Name != "tracer_obligation_age_ms" {
+				continue
+			}
+			histogram, ok := metric.Data.(metricdata.Histogram[int64])
+			require.True(t, ok)
+			require.Len(t, histogram.DataPoints, 1)
+			point := histogram.DataPoints[0]
+			require.Equal(t, uint64(1), point.Count)
+			require.Equal(t, int64(60000), point.Sum)
+			require.Equal(t, 1, point.Attributes.Len())
+			state, _ := point.Attributes.Value("state")
+			require.Equal(t, "unknown", state.AsString())
+			found = true
+		}
+	}
+	require.True(t, found)
 }

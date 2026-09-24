@@ -38,8 +38,8 @@ func (r *Repository) Find(ctx context.Context, key tracerreservation.Key) (_ *tr
 
 	pending := &tracerreservation.Pending{Key: key}
 
-	err = tx.QueryRowContext(ctx, `SELECT execution_id,tenant_id,integration_id,asset_namespace,contract_revision,state,prepare_deadline
- FROM tracer_reservation_obligation WHERE organization_id=$1 AND ledger_id=$2 AND transaction_id=$3 AND tenant_id=$4`, key.OrganizationID, key.LedgerID, key.TransactionID, tmcore.GetTenantIDContext(ctx)).Scan(&pending.ExecutionID, &pending.Scope.TenantID, &pending.Scope.IntegrationID, &pending.Scope.AssetNamespace, &pending.ContractRevision, &pending.State, &pending.PrepareDeadline)
+	err = tx.QueryRowContext(ctx, `SELECT execution_id,tenant_id,integration_id,asset_namespace,contract_revision,state,prepare_deadline,created_at
+ FROM tracer_reservation_obligation WHERE organization_id=$1 AND ledger_id=$2 AND transaction_id=$3 AND tenant_id=$4`, key.OrganizationID, key.LedgerID, key.TransactionID, tmcore.GetTenantIDContext(ctx)).Scan(&pending.ExecutionID, &pending.Scope.TenantID, &pending.Scope.IntegrationID, &pending.Scope.AssetNamespace, &pending.ContractRevision, &pending.State, &pending.PrepareDeadline, &pending.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
