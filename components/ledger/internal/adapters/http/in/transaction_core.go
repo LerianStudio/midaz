@@ -48,7 +48,7 @@ func (handler *TransactionHandler) getTransaction(ctx context.Context, organizat
 	defer span.End()
 
 	if handler.Query.CanResolveEngineWriteBehind() {
-		resolved, err := handler.Query.ResolveEngineWriteBehindTransaction(ctx, organizationID, ledgerID, transactionID)
+		resolved, err := handler.Query.ResolveTransactionForRead(ctx, organizationID, ledgerID, transactionID)
 		if err != nil {
 			handleSpanByErrorClass(span, "Failed to resolve engine transaction evidence", err)
 			return nil, false, err
