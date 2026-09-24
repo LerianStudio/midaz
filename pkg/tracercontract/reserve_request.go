@@ -28,7 +28,8 @@ const (
 // ReserveRequest carries the frozen facts of one operation. Transport adapters
 // must reject unknown/duplicate fields and invalid text before decoding, enforce
 // a body-size bound, and preserve optional boolean presence. JSON unmarshalling
-// alone does not provide those guarantees. Protobuf adapters use this same type
+// alone does not provide those guarantees; DecodeReserveJSON enforces the wire
+// shape before this type reaches admission. Protobuf adapters use this same type
 // after translation; neither transport owns separate validation semantics.
 type ReserveRequest struct {
 	ContractRevision     string         `json:"contractRevision"`
