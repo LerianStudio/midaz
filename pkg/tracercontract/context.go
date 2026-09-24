@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -102,7 +103,8 @@ func invalid(field string) error {
 }
 
 func validText(s string, limit int) bool {
-	return len(s) > 0 && len(s) <= limit && strings.TrimSpace(s) == s
+	return len(s) > 0 && len(s) <= limit && utf8.ValidString(s) &&
+		!strings.ContainsRune(s, '\x00') && strings.TrimSpace(s) == s
 }
 
 // Validate checks structure and completeness, not policy or accounting balance.
@@ -110,6 +112,12 @@ func validText(s string, limit int) bool {
 // isolation and authorization of the context remain adapter responsibilities.
 // The context is not mutated, so official producer facts cannot be rewritten.
 func (c Context) Validate(ctx context.Context, authorizedNamespace string, limits Limits) error {
+	return c.validate(ctx, authorizedNamespace, limits, nil)
+}
+
+// validate accepts previously validated asset identities from the envelope so
+// contradictory codes are rejected across both header and participating facts.
+func (c Context) validate(ctx context.Context, authorizedNamespace string, limits Limits, assets map[AssetIdentity]string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -127,7 +135,9 @@ func (c Context) Validate(ctx context.Context, authorizedNamespace string, limit
 	}
 
 	accounts := make(map[uuid.UUID]Account, len(c.Accounts))
-	assets := make(map[AssetIdentity]string)
+	if assets == nil {
+		assets = make(map[AssetIdentity]string)
+	}
 
 	for i, account := range c.Accounts {
 		if err := ctx.Err(); err != nil {
