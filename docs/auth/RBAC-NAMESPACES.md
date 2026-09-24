@@ -316,3 +316,25 @@ into `midaz` in the embedded ledger binary (§4, §5). What remains **deferred t
 `routing:*` or `plugin-fees:*` grants — owner-decided with the plugin-auth team, so that the only
 namespace break integrators ever absorb is the single coordinated X1 migration. The standalone
 `plugin-fees` / `plugin-crm` services keep their slugs and are outside this migration.
+
+## Tracer shared-context policy administration
+
+The opt-in policy administration surface requires Access Manager authorization.
+Grant only the tenant-wide operations required by the administrator:
+
+| Route | Permission tuple |
+|-------|------------------|
+| `POST /v1/policies` | `tracer:policies:post` |
+| `GET /v1/policies/{id}/revisions/{revision}` | `tracer:policies:get` |
+| `PUT /v1/policy-bindings` | `tracer:policy-bindings:put` |
+| `GET /v1/policy-bindings` | `tracer:policy-bindings:get` |
+
+Publishing does not activate a policy; binding grants are separate. These grants
+cover all integration/context bindings in the authenticated tenant, not arbitrary
+tenants supplied by a request. The validation API key cannot administer policies.
+`CONTEXT_POLICY_ADMIN_ENABLED=true` requires `PLUGIN_AUTH_ENABLED=true` and all
+explicit resource bounds documented in the Tracer `.env.example`.
+Application tokens additionally require `AUTH_M2M_INVERSION_ENABLED=true` and
+`AUTH_M2M_PRODUCT_FORWARD_ENABLED=true`, so Access Manager checks their actual
+subject in the Tracer namespace. Legacy fabricated editor-role authorization is
+refused. These routes do not enable shared-context evaluation in Reserve.

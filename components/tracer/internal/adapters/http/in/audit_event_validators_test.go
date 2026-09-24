@@ -31,6 +31,8 @@ func TestAuditEventEnumValidators(t *testing.T) {
 		valid bool
 	}{
 		// auditeventtype
+		{"eventtype policy published", "auditeventtype", string(model.AuditEventPolicyPublished), true},
+		{"eventtype policy bound", "auditeventtype", string(model.AuditEventPolicyBound), true},
 		{"eventtype valid TRANSACTION_VALIDATED", "auditeventtype", string(model.AuditEventTransactionValidated), true},
 		{"eventtype valid RULE_DEACTIVATED", "auditeventtype", string(model.AuditEventRuleDeactivated), true},
 		{"eventtype valid LIMIT_DEACTIVATED", "auditeventtype", string(model.AuditEventLimitDeactivated), true},
@@ -50,6 +52,7 @@ func TestAuditEventEnumValidators(t *testing.T) {
 		{"result rejects garbage", "auditresult", "MAYBE", false},
 
 		// resourcetype
+		{"resourcetype policy", "resourcetype", string(model.ResourceTypePolicy), true},
 		{"resourcetype valid transaction", "resourcetype", string(model.ResourceTypeTransaction), true},
 		{"resourcetype valid rule", "resourcetype", string(model.ResourceTypeRule), true},
 		{"resourcetype valid limit", "resourcetype", string(model.ResourceTypeLimit), true},

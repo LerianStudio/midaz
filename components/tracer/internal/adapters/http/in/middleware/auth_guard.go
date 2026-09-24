@@ -5,11 +5,14 @@
 package middleware
 
 import (
+	"strings"
+
 	authMiddleware "github.com/LerianStudio/lib-auth/v5/auth/middleware"
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/contextutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -180,4 +183,53 @@ func extractPrincipalFromBearer(c fiber.Ctx) (rejected bool, err error) {
 	c.SetContext(contextutil.WithPrincipal(c.Context(), principal))
 
 	return false, nil
+}
+
+// WithPolicyPermission never falls back to the validation API key or disabled
+// authentication. Bootstrap requires plugin auth before exposing administration.
+func (g *AuthGuard) WithPolicyPermission(resource, method string) fiber.Handler {
+	if g == nil || !g.cfg.PluginAuthEnabled || g.authClient == nil || !g.authClient.Enabled || g.authClient.Address == "" {
+		return func(c fiber.Ctx) error {
+			return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrContextPolicyUnavailable, constant.EntityContextPolicy))
+		}
+	}
+
+	authorize := g.authClient.Authorize(g.cfg.AppName, resource, method)
+
+	return func(c fiber.Ctx) error {
+		rejected, err := extractPrincipalFromBearer(c)
+		if rejected {
+			return err
+		}
+
+		claims, ok := parseUnverifiedClaims(bearerToken(c))
+		if !ok {
+			return authorize(c)
+		}
+
+		sub, _ := claims["sub"].(string)
+		if sub != strings.TrimSpace(sub) {
+			return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInvalidToken, constant.EntityContextPolicy))
+		}
+
+		// This precheck can only refuse access; Access Manager remains the trust
+		// anchor. Legacy application tokens authorize as a fabricated editor role,
+		// so administrative mutations require real-subject M2M authorization.
+		kind, _ := claims["type"].(string)
+		switch kind {
+		case "normal-user":
+		case "application":
+			if !g.authClient.M2MInversionEnabled || !g.authClient.ForwardM2MProduct {
+				return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInsufficientPrivileges, constant.EntityContextPolicy))
+			}
+
+			principal, _ := contextutil.GetPrincipal(c.Context())
+			principal.Type = string(model.ActorTypeSystem)
+			c.SetContext(contextutil.WithPrincipal(c.Context(), principal))
+		default:
+			return pkgHTTP.WithError(c, pkg.ValidateBusinessError(constant.ErrInsufficientPrivileges, constant.EntityContextPolicy))
+		}
+
+		return authorize(c)
+	}
 }

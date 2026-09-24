@@ -141,10 +141,28 @@ one `POLICY_BOUND` event in the same transaction. A concurrent create or stale
 update conflicts without another event. Failed audit rolls back both creation
 and replacement; unknown commit outcomes are not retried. Migration `000027`
 retains this event type on rollback to preserve the immutable history.
-The transport must still authorize policy administration and bind the verified
-tenant before exposing these commands. Principal presence is not authorization.
-Administrative routes and extraction of authenticated integration identity for
-evaluation are not connected yet.
+Policy administration is opt-in via `CONTEXT_POLICY_ADMIN_ENABLED` and requires
+plugin authorization plus explicit `CONTEXT_*` resource bounds; no test fixture
+precision or CEL budget is a production default. The HTTP routes use the existing
+JWT tenant middleware and require separate `policies:post/get` and
+`policy-bindings:put/get` grants in the `tracer` namespace. There is no API-key or
+disabled-auth fallback. Application tokens require real-subject M2M authorization
+and product forwarding; legacy fabricated editor-role authorization is refused.
+
+The administration API is `POST /v1/policies`,
+`GET /v1/policies/{id}/revisions/{revision}`, and `PUT/GET /v1/policy-bindings`.
+Publishing requires an explicit ALLOW/DENY default and a rules array (empty is
+valid). Bindings use integration/context keys in the authorized tenant, with an
+optional expectedVersion only for creation; replacement requires the current
+version. Permissions are tenant-wide, including its integration/context bindings.
+Binding requests carry revision references, never tenant, principal, or rule content.
+Unknown body fields are rejected. The request-byte bound applies before JSON
+parsing, subject also to Fiber's global body limit. Audit reads accept the policy
+resource and POLICY_PUBLISHED/POLICY_BOUND event filters.
+
+These administrative endpoints do not activate context evaluation in Reserve.
+Extraction of authenticated integration identity for evaluation and durable
+reservation decisions are not connected yet.
 This storage records policy configuration, not transaction decisions: durable
 decision replay and reservation coordination still require their own integration.
 
