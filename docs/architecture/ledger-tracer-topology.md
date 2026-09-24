@@ -45,13 +45,15 @@ not a financial Reserve probe under the settings database lock.
 The shared HTTP/gRPC clients independently reject replies without the expected
 contract revision, transaction identity and completed controls. The legacy anchor
 cannot satisfy `rules-and-limits`: it reports an unavailable profile and follows
-the configured failure posture, with no fallback Reserve call. Runtime composition
-of the new Ledger anchor and recovery is still required before activation; adding
-the settings field alone does not enable the profile.
+the configured failure posture, with no fallback Reserve call. Bootstrap installs
+the coordinator, activation verifier and recovery worker together when
+`TRACER_CONTEXT_ENABLED=true`; adding the settings field alone does not enable
+the profile. This requires native mTLS, authenticated integration/asset namespace
+configuration, explicit resource bounds and the transaction journal migration.
 
 The new coordinator is connected to engine-backed v2 creation (including the
-shared revert path, PENDING creation/termination and atomic batches), but is not
-installed by bootstrap yet. It projects fee-inclusive logical entries, preserves pending
+shared revert path, PENDING creation/termination and atomic batches). It projects
+fee-inclusive logical entries, preserves pending
 credit destinations, loads official facts and commits an immutable coordination
 record before Reserve. A separate, exclusive `PREPARED` to `EXECUTING` transition
 must succeed before the engine runs. An uncertain coordination write cannot be
@@ -65,6 +67,23 @@ records confirmation for asynchronous delivery; PENDING retains its obligation
 until a terminal accounting outcome is proven. Recovery reads the tenant primary:
 APPROVED confirms, CANCELED releases, and missing/PENDING remains unresolved. It
 never reruns the accounting engine. Off/authorized skip precedes context loading.
+
+Recovery runs independently of current ledger settings. In multi-tenant mode it
+discovers active tenants from Tenant Manager, including on a cold restart, and
+resolves the transaction pool for each unit of work. It does not rely on the
+request-populated tenant cache or retain pools across cycles. Catalog size,
+tenants per cycle, claimed rows and cycle/tenant/attempt durations are bounded
+explicitly. Tenants rotate across cycles; a failed tenant does not prevent later
+tenants from being attempted within the remaining cycle budget.
+
+Suspended/removed tenants are not discoverable through the active catalog: drain
+their obligations before removal, or restore authorized access for recovery.
+Setting ledger mode off stops new admission but preserves recovery; globally
+disabling this runtime, removing its endpoint, or rolling back to a binary without
+the journal worker does not. Drain obligations before those operations. Unknown
+accounting outcomes remain unresolved until authoritative evidence exists; neither
+TTL nor a missing transaction row authorizes releasing an executing obligation.
+Runtime construction tests are not proof of a completed production rollout.
 
 The journal survives lost replies and process restarts, including acknowledgements
 lost after remote success. Claimed recovery work contains bounded scalar identities,
