@@ -303,6 +303,7 @@ func allSentinels() map[string]error {
 		"ErrReserveDecisionConflict":                  constant.ErrReserveDecisionConflict,
 		"ErrReserveOperationConflict":                 constant.ErrReserveOperationConflict,
 		"ErrContextLimitsUnavailable":                 constant.ErrContextLimitsUnavailable,
+		"ErrTracerFactsUnavailable":                   constant.ErrTracerFactsUnavailable,
 		"ErrLimitAssetReferenceConflict":              constant.ErrLimitAssetReferenceConflict,
 		"ErrInvalidFutureTransactionDate":             constant.ErrInvalidFutureTransactionDate,
 		"ErrInvalidPendingFutureTransactionDate":      constant.ErrInvalidPendingFutureTransactionDate,
@@ -1118,4 +1119,12 @@ func TestGolden_LimitAssetReferenceConflict(t *testing.T) {
 	status, code := driveWithError(t, err)
 	assert.Equal(t, fiber.StatusConflict, status)
 	assert.Equal(t, constant.ErrLimitAssetReferenceConflict.Error(), code)
+}
+
+func TestGolden_TracerFactsUnavailable(t *testing.T) {
+	t.Parallel()
+	err := pkg.ValidateBusinessError(constant.ErrTracerFactsUnavailable, "GoldenEntity")
+	status, code := driveWithError(t, err)
+	assert.Equal(t, fiber.StatusServiceUnavailable, status)
+	assert.Equal(t, "0524", code)
 }

@@ -653,6 +653,8 @@ var (
 	ErrContextLimitsUnavailable = errors.New("0530")
 	// ErrLimitAssetReferenceConflict reports an already bound immutable limit identity.
 	ErrLimitAssetReferenceConflict = errors.New("0531")
+	// ErrTracerFactsUnavailable reports missing or inconsistent official account/asset facts.
+	ErrTracerFactsUnavailable = errors.New("0532")
 )
 
 // List of CRM domain errors.

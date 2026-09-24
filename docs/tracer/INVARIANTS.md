@@ -133,8 +133,14 @@ still belongs to the administrative transport, which is not mounted yet.
 The shared `AccountAsset` fact contains only account UUID and `AssetRef`. Ledger's
 `BuildAccountAssets` maps already loaded official records, resolving the asset
 UUID within the organization/ledger and rejecting missing or ambiguous records.
-It does not fetch data. Tracer trusts the verified producer's attestation, as for
-Reserve facts; it neither queries nor replicates the Midaz asset registry.
+The separate Ledger `OfficialContextLoader` now uses a bounded batch reader
+on the tenant primary: a read-only repeatable-read transaction fetches accounts
+and assets in one snapshot, rejecting missing, deleted or ambiguous records
+with 0524/503. It includes external entry assets without fictitious accounts.
+The loader is not wired into bootstrap or transaction gates yet; its caller must
+authorize scope, apply off/skip gates and propagate the total deadline.
+A consistent snapshot does not freeze facts against later updates. Tracer trusts
+the verified producer's attestation, as for Reserve facts; it neither queries nor replicates the Midaz asset registry.
 
 Binding uses the existing LIMIT_UPDATED event, retaining its CRUD snapshot and
 adding assetRef, integrationId, ordered accountAssets and the operation marker
@@ -144,7 +150,7 @@ The existing transaction-validation audit deduplication remains separate.
 
 Legacy limit administration and its asset-code storage restrictions are unchanged.
 Unmapped broad limits can block the new account-only profile and must be inventoried
-before activation. Administrative transport/RBAC, official-record batch reads,
+before activation. Administrative transport/RBAC, batch-loader runtime composition,
 reference migration, admission composition and integrated performance checks remain
 prerequisites; these components are not mounted on Reserve yet.
 
