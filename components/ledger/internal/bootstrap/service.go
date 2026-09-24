@@ -57,7 +57,8 @@ type Service struct {
 	// It is nil when the active transport needs no teardown (the REST
 	// client) so Run() can skip registering a no-op Launcher app. Non-nil
 	// only for transports that expose Close() error.
-	TracerClose func() error
+	TracerClose          func() error
+	TracerRecoveryWorker *TracerRecoveryWorker
 	// ServiceDiscovery is the service-discovery Manager wrapper. It is always
 	// non-nil (a working no-op when discovery is disabled), so callers can
 	// invoke Register/Deregister/Resolve unconditionally. The concrete Manager
@@ -137,6 +138,10 @@ func (s *Service) launcherApps() []launcherApp {
 	// Redis recovery runner
 	if s.RedisQueueConsumer != nil {
 		apps = append(apps, launcherApp{"Redis Recovery Runner", s.RedisQueueConsumer})
+	}
+
+	if s.TracerRecoveryWorker != nil {
+		apps = append(apps, launcherApp{"Tracer Recovery Worker", s.TracerRecoveryWorker})
 	}
 
 	// Balance sync worker (optional, started when configured)
