@@ -24,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -39,9 +40,12 @@ type engineWriteBehindRepositoryFake struct {
 	materializeResult bool
 	materializeErr    error
 	materializedCalls int
+	indexCalls        int
 }
 
 func (fake *engineWriteBehindRepositoryFake) GetEngineTransactionIndex(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) ([]byte, error) {
+	fake.indexCalls++
+
 	return append([]byte(nil), fake.index...), fake.indexErr
 }
 
@@ -158,6 +162,81 @@ func TestResolveEngineWriteBehindTransactionFailsClosedOnIndexTransportError(t *
 	resolved, err := uc.ResolveEngineWriteBehindTransaction(context.Background(), uuid.New(), uuid.New(), uuid.New())
 	require.Nil(t, resolved)
 	require.ErrorIs(t, err, transportErr)
+}
+
+func TestResolveEngineWriteBehindTransactionReportsMissingTransactionAsNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	transactionRepo := postgres.NewMockRepository(ctrl)
+	organizationID, ledgerID, transactionID := uuid.New(), uuid.New(), uuid.New()
+	fake := &engineWriteBehindRepositoryFake{indexErr: redis.ErrEngineWriteBehindNotFound}
+	isPrimary := gomock.Cond(func(ctx context.Context) bool { return readrouting.IsPrimaryRead(ctx) })
+
+	transactionRepo.EXPECT().FindWithOperations(isPrimary, organizationID, ledgerID, transactionID).
+		Return(&postgres.Transaction{}, nil)
+	transactionRepo.EXPECT().Find(isPrimary, organizationID, ledgerID, transactionID).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction))
+	uc := &UseCase{EngineWriteBehindRepo: fake, EngineWriteBehindCodec: command.EngineWriteBehindEvidenceCodec{}, TransactionRepo: transactionRepo}
+
+	resolved, err := uc.ResolveEngineWriteBehindTransaction(context.Background(), organizationID, ledgerID, transactionID)
+	require.Nil(t, resolved)
+	requireEntityNotFound(t, err)
+	require.Equal(t, 1, fake.indexCalls, "a proven index absence must not be read again")
+}
+
+func TestResolveEngineWriteBehindTransactionReadsNilTransactionIDFromPrimaryOnly(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	transactionRepo := postgres.NewMockRepository(ctrl)
+	organizationID, ledgerID := uuid.New(), uuid.New()
+	fake := &engineWriteBehindRepositoryFake{indexErr: errors.New("invalid engine write-behind scope")}
+	isPrimary := gomock.Cond(func(ctx context.Context) bool { return readrouting.IsPrimaryRead(ctx) })
+
+	transactionRepo.EXPECT().FindWithOperations(isPrimary, organizationID, ledgerID, uuid.Nil).
+		Return(&postgres.Transaction{}, nil)
+	transactionRepo.EXPECT().Find(isPrimary, organizationID, ledgerID, uuid.Nil).
+		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction))
+	uc := &UseCase{EngineWriteBehindRepo: fake, EngineWriteBehindCodec: command.EngineWriteBehindEvidenceCodec{}, TransactionRepo: transactionRepo}
+
+	resolved, err := uc.ResolveEngineWriteBehindTransaction(context.Background(), organizationID, ledgerID, uuid.Nil)
+	require.Nil(t, resolved)
+	requireEntityNotFound(t, err)
+	require.Zero(t, fake.indexCalls, "the engine never indexes a nil transaction ID")
+}
+
+func TestResolveEngineWriteBehindTransactionReturnsRowWithoutPersistedOperationsFromPrimary(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	transactionRepo := postgres.NewMockRepository(ctrl)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	organizationID, ledgerID, transactionID := uuid.New(), uuid.New(), uuid.New()
+	persisted := &postgres.Transaction{
+		ID: transactionID.String(), OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
+		Status: postgres.Status{Code: constant.NOTED},
+	}
+	fake := &engineWriteBehindRepositoryFake{indexErr: redis.ErrEngineWriteBehindNotFound}
+	isPrimary := gomock.Cond(func(ctx context.Context) bool { return readrouting.IsPrimaryRead(ctx) })
+
+	transactionRepo.EXPECT().FindWithOperations(isPrimary, organizationID, ledgerID, transactionID).
+		Return(&postgres.Transaction{}, nil)
+	transactionRepo.EXPECT().Find(isPrimary, organizationID, ledgerID, transactionID).Return(persisted, nil)
+	metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityTransaction, transactionID.String()).
+		Return(&mongodb.Metadata{Data: map[string]any{"memo": "annotation"}}, nil)
+	uc := &UseCase{EngineWriteBehindRepo: fake, EngineWriteBehindCodec: command.EngineWriteBehindEvidenceCodec{}, TransactionRepo: transactionRepo, TransactionMetadataRepo: metadataRepo}
+
+	resolved, err := uc.ResolveEngineWriteBehindTransaction(context.Background(), organizationID, ledgerID, transactionID)
+	require.NoError(t, err)
+	require.Equal(t, EngineTransactionResolutionPrimary, resolved.Source)
+	require.Equal(t, transactionID.String(), resolved.Transaction.ID)
+	require.Equal(t, constant.NOTED, resolved.Transaction.Status.Code)
+	require.NotNil(t, resolved.Transaction.Operations, "a row without persisted operations serializes operations as an empty list")
+	require.Empty(t, resolved.Transaction.Operations)
+	require.Equal(t, map[string]any{"memo": "annotation"}, resolved.Transaction.Metadata)
+}
+
+func requireEntityNotFound(t testing.TB, err error) {
+	t.Helper()
+
+	var notFound pkg.EntityNotFoundError
+	require.Truef(t, errors.As(err, &notFound), "expected an entity-not-found error, got %v", err)
+	require.Equal(t, constant.ErrEntityNotFound.Error(), notFound.Code)
 }
 
 func queryEngineWriteBehindFixture(t testing.TB) ([]byte, []byte, []byte, *postgres.Transaction) {
