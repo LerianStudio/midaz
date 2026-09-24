@@ -60,9 +60,11 @@ func DecodeReserveJSON(ctx context.Context, raw []byte, maxBodyBytes int, limits
 }
 
 type reserveJSONShape struct {
-	kind    byte
-	fields  map[string]*reserveJSONShape
-	element *reserveJSONShape
+	kind        byte
+	required    bool
+	maxElements int
+	fields      map[string]*reserveJSONShape
+	element     *reserveJSONShape
 }
 
 // Immutable private schema: every accepted path has bounded nesting, and only
@@ -99,6 +101,15 @@ func (s *reserveJSONShape) read(ctx context.Context, d *json.Decoder, limits Lim
 		if _, ok := token.(string); !ok {
 			return invalid("reserve JSON string")
 		}
+	case 'i':
+		number, ok := token.(json.Number)
+		if !ok {
+			return invalid("reserve JSON integer")
+		}
+
+		if _, err := number.Int64(); err != nil {
+			return invalid("reserve JSON integer")
+		}
 	case 'b':
 		if _, ok := token.(bool); !ok {
 			return invalid("reserve JSON boolean")
@@ -109,7 +120,7 @@ func (s *reserveJSONShape) read(ctx context.Context, d *json.Decoder, limits Lim
 		}
 
 		return s.readObject(ctx, d, limits)
-	case 'a', 'e':
+	case 'a', 'e', 'l':
 		if token != json.Delim('[') {
 			return invalid("reserve JSON array")
 		}
@@ -117,6 +128,10 @@ func (s *reserveJSONShape) read(ctx context.Context, d *json.Decoder, limits Lim
 		bound := limits.MaxAccounts
 		if s.kind == 'e' {
 			bound = limits.MaxEntries
+		}
+
+		if s.kind == 'l' {
+			bound = s.maxElements
 		}
 
 		return s.readArray(ctx, d, limits, bound)
@@ -153,6 +168,11 @@ func (s *reserveJSONShape) readObject(ctx context.Context, d *json.Decoder, limi
 		}
 	}
 
+	for key, child := range s.fields {
+		if _, present := seen[key]; child.required && !present {
+			return invalid("missing reserve JSON field")
+		}
+	}
 	token, err := d.Token()
 	if err != nil || token != json.Delim('}') {
 		return invalid("reserve JSON object end")
