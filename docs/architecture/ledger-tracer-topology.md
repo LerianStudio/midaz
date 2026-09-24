@@ -50,8 +50,8 @@ of the new Ledger anchor and recovery is still required before activation; addin
 the settings field alone does not enable the profile.
 
 The new coordinator is connected to engine-backed v2 creation (including the
-shared revert path and creation of PENDING transactions), but is not installed
-by bootstrap yet. It projects fee-inclusive logical entries, preserves pending
+shared revert path, PENDING creation/termination and atomic batches), but is not
+installed by bootstrap yet. It projects fee-inclusive logical entries, preserves pending
 credit destinations, loads official facts and commits an immutable coordination
 record before Reserve. A separate, exclusive `PREPARED` to `EXECUTING` transition
 must succeed before the engine runs. An uncertain coordination write cannot be
@@ -69,9 +69,14 @@ never reruns the accounting engine. Off/authorized skip precedes context loading
 The journal survives lost replies and process restarts, including acknowledgements
 lost after remote success. Claimed recovery work contains bounded scalar identities,
 so lowering admission payload limits does not strand existing obligations. Its
-migration refuses rollback while any coordination history remains. Installing the
-independent worker, completing the atomic-batch and pending-transition connections,
-and validating the combined deployment remain prerequisites for activation.
+migration refuses rollback while any coordination history remains. Atomic batches
+share a preparation deadline and acquire every dispatch fence in one SQL transaction
+with deterministic lock order. Failure or an unknown commit never dispatches a
+partial batch. Pending termination consults create-time coordination independently
+of current settings; only proven absence permits a legacy completion call, and a
+lookup failure retains recovery ownership instead of falling back. Installing the
+independent worker and validating the combined deployment remain prerequisites
+for activation.
 
 ## 1. Product segregation matrix
 

@@ -59,6 +59,20 @@ func (mr *MockTracerObligationStoreMockRecorder) BeginExecution(arg0, arg1, arg2
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BeginExecution", reflect.TypeOf((*MockTracerObligationStore)(nil).BeginExecution), arg0, arg1, arg2)
 }
 
+// BeginExecutions mocks base method.
+func (m *MockTracerObligationStore) BeginExecutions(arg0 context.Context, arg1 []tracerreservation.Key, arg2 time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BeginExecutions", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BeginExecutions indicates an expected call of BeginExecutions.
+func (mr *MockTracerObligationStoreMockRecorder) BeginExecutions(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BeginExecutions", reflect.TypeOf((*MockTracerObligationStore)(nil).BeginExecutions), arg0, arg1, arg2)
+}
+
 // ClaimDue mocks base method.
 func (m *MockTracerObligationStore) ClaimDue(arg0 context.Context, arg1, arg2 time.Time, arg3 int) ([]tracerreservation.Pending, error) {
 	m.ctrl.T.Helper()
@@ -87,6 +101,21 @@ func (m *MockTracerObligationStore) ExpirePrepared(arg0 context.Context, arg1 tr
 func (mr *MockTracerObligationStoreMockRecorder) ExpirePrepared(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExpirePrepared", reflect.TypeOf((*MockTracerObligationStore)(nil).ExpirePrepared), arg0, arg1, arg2)
+}
+
+// Find mocks base method.
+func (m *MockTracerObligationStore) Find(arg0 context.Context, arg1 tracerreservation.Key) (*tracerreservation.Pending, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Find", arg0, arg1)
+	ret0, _ := ret[0].(*tracerreservation.Pending)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Find indicates an expected call of Find.
+func (mr *MockTracerObligationStoreMockRecorder) Find(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockTracerObligationStore)(nil).Find), arg0, arg1)
 }
 
 // MarkDelivered mocks base method.

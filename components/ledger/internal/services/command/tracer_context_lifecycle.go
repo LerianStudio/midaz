@@ -33,6 +33,41 @@ func (c *ContextTracerCoordinator) BeginExecution(ctx context.Context, attempt C
 	return nil
 }
 
+// BeginBatchExecution acquires every participating obligation atomically before
+// the one batch engine call. It cannot partially authorize accounting dispatch.
+func (c *ContextTracerCoordinator) BeginBatchExecution(ctx context.Context, attempts []ContextTracerAttempt) error {
+	var keys []tracerreservation.Key
+
+	for _, attempt := range attempts {
+		if attempt.Skipped || !attempt.IntentAttempted {
+			continue
+		}
+
+		if !attempt.Frozen {
+			return constant.ErrTracerContractUnavailable
+		}
+
+		if len(keys) >= c.recovery.config.MaxBatch {
+			return constant.ErrInvalidRequestBody
+		}
+
+		keys = append(keys, attempt.Key)
+	}
+
+	if len(keys) == 0 {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.recovery.config.AttemptTimeout)
+	defer cancel()
+
+	if err := c.recovery.store.BeginExecutions(ctx, keys, c.recovery.now().UTC()); err != nil {
+		return fmt.Errorf("fence tracer batch dispatch: %w", err)
+	}
+
+	return nil
+}
+
 // Conclude records a proven terminal outcome for asynchronous delivery. A
 // canceled request cannot discard the obligation after accounting has run.
 // Unknown accounting outcomes must never call this method: recovery reads proof.
@@ -54,4 +89,40 @@ func (c *ContextTracerCoordinator) Conclude(ctx context.Context, attempt Context
 	}
 
 	return nil
+}
+
+// CompleteExisting settles create-time participation independently of current
+// settings. Lookup failures are handled by durable recovery, never by falling
+// through to a legacy API that cannot close a context evaluation atomically.
+func (c *ContextTracerCoordinator) CompleteExisting(ctx context.Context, key tracerreservation.Key, outcome tracerreservation.State) (bool, error) {
+	if !outcome.Terminal() {
+		return true, constant.ErrInvalidRequestBody
+	}
+	// Accounting has already completed; preserve tenant/trace with a separate
+	// bounded persistence budget even if the original request was canceled.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.recovery.config.AttemptTimeout)
+	defer cancel()
+
+	record, err := c.recovery.store.Find(ctx, key)
+	if err != nil {
+		return true, fmt.Errorf("find pending tracer obligation: %w", err)
+	}
+
+	if record == nil {
+		return false, nil
+	}
+
+	if record.Key != key {
+		return true, constant.ErrTracerContractUnavailable
+	}
+
+	if err := c.recovery.validatePending(ctx, *record); err != nil {
+		return true, err
+	}
+
+	if err := c.recovery.store.SetOutcome(ctx, key, outcome, c.recovery.now().UTC()); err != nil {
+		return true, fmt.Errorf("persist pending tracer outcome: %w", err)
+	}
+
+	return true, nil
 }

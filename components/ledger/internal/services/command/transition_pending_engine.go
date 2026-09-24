@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -126,7 +127,7 @@ func (uc *UseCase) transitionPendingWithEngine(
 		return nil, MapEngineError(prepared.Execution.Execution, executeErr)
 	}
 
-	if tracerEligible {
+	if tracerEligible && !uc.completePendingContextTracer(ctx, span, run, transition.honoredTracerSkip) {
 		identity := run.reservationIdentity()
 
 		switch run.status {
@@ -138,6 +139,26 @@ func (uc *UseCase) transitionPendingWithEngine(
 	}
 
 	return uc.finalizePendingEngineResult(ctx, logger, run.status, outcome)
+}
+
+func (uc *UseCase) completePendingContextTracer(ctx context.Context, span trace.Span, run *pendingTransitionRun, honoredSkip bool) bool {
+	if uc.ContextTracer == nil || honoredSkip {
+		return false
+	}
+
+	outcome := tracerreservation.Confirmed
+	if run.status == constant.CANCELED {
+		outcome = tracerreservation.Released
+	}
+
+	key := tracerreservation.Key{OrganizationID: run.organizationID, LedgerID: run.ledgerID, TransactionID: run.reservationIdentity().TransactionID}
+
+	handled, err := uc.ContextTracer.CompleteExisting(ctx, key, outcome)
+	if err != nil {
+		recordTracerCoordinationError(span, err)
+	}
+
+	return handled
 }
 
 func (uc *UseCase) preparePendingEngineTransition(ctx context.Context, run *pendingTransitionRun) (pendingEngineTransition, error) {
