@@ -73,7 +73,7 @@ func (c *ContextHTTPClient) Reserve(ctx context.Context, request tracercontract.
 		return nil, err
 	}
 
-	if err := validateRequestedControls(request, result); err != nil {
+	if err := result.ValidateFor(request, c.config.MaxReservations); err != nil {
 		return nil, err
 	}
 
@@ -167,20 +167,4 @@ func (c *ContextHTTPClient) exchange(ctx context.Context, path string, body []by
 	}
 
 	return raw, nil
-}
-
-func validateRequestedControls(request tracercontract.ReserveRequest, result *tracercontract.ReserveResult) error {
-	if result == nil || result.TransactionID != request.TransactionID {
-		return constant.ErrInvalidRequestBody
-	}
-
-	if request.ValidationMode == tracercontract.ValidationRulesAndLimits && result.Controls.Rules != tracercontract.RulesEvaluated {
-		return constant.ErrInvalidRequestBody
-	}
-
-	if request.ValidationMode == tracercontract.ValidationLimits && result.Controls.Rules != tracercontract.RulesNotRequested {
-		return constant.ErrInvalidRequestBody
-	}
-
-	return nil
 }
