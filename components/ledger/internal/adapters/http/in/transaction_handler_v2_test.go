@@ -123,6 +123,36 @@ func TestCreateTransactionDirectV2_MalformedBody_400(t *testing.T) {
 	assert.Contains(t, string(body), "status", "error body must be the RFC 9457 problem envelope")
 }
 
+// TestCreateTransactionDirectV2_NullByteMetadataKey_400 proves a null byte in a metadata
+// key is rejected at decode with the canonical bad-request problem on the metadata field,
+// before the funnel, and is not echoed back.
+func TestCreateTransactionDirectV2_NullByteMetadataKey_400(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	app := buildHumaV2DirectApp(t, &TransactionHandler{})
+
+	resp := postDirectV2(t, app, `{"asset":"BRL","amount":"100","debits":[{"alias":"@src",`+v2ScopeJSON+`,"amount":"100"}],"credits":[{"alias":"@dst",`+v2ScopeJSON+`,"amount":"100"}],"metadata":{"k\u0000x":"v"}}`)
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode, "body: %s", string(body))
+	assert.NotContains(t, string(body), `\u0000`, "the null byte must not be echoed back")
+
+	var got struct {
+		Status int    `json:"status"`
+		Code   string `json:"code"`
+		Errors []struct {
+			Location string `json:"location"`
+		} `json:"errors"`
+	}
+	require.NoError(t, json.Unmarshal(body, &got), "body: %s", string(body))
+	assert.Equal(t, http.StatusBadRequest, got.Status, "error body must be the RFC 9457 problem envelope")
+	assert.Equal(t, cn.ErrBadRequest.Error(), got.Code)
+	require.Len(t, got.Errors, 1, "body: %s", string(body))
+	assert.Equal(t, "metadata", got.Errors[0].Location, "violation must be reported on the metadata field")
+}
+
 // TestCreateTransactionDirectV2_MalformedRouteUUID_400 pins the route-UUID hygiene
 // contract: routeId is an optional *string on the flat v2 input, so a malformed route
 // UUID MUST surface as a clean 400 at the decode boundary — never fall through to a deep
