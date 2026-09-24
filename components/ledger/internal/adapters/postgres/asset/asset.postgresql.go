@@ -61,6 +61,8 @@ type Repository interface {
 	// case-insensitive equality and code comparison is exact equality: % and _
 	// are literal characters. An empty name skips the name check and an empty
 	// code skips the code check; when both are empty it returns (false, nil).
+	// The lookup is a pre-check; idx_asset_ledger_name_unique and
+	// idx_asset_ledger_code_unique are the guarantee against concurrent writes.
 	FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error)
 
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *mmodel.Asset) (*mmodel.Asset, error)

@@ -52,10 +52,18 @@ func newOnboardingMigrator(t *testing.T, db *sql.DB) *migrate.Migrate {
 func ledgerNameIndexDefinition(t *testing.T, db *sql.DB) string {
 	t.Helper()
 
+	return indexDefinition(t, db, "idx_ledger_org_name_unique")
+}
+
+// indexDefinition returns the definition of the named public index, or an
+// empty string when the index is absent.
+func indexDefinition(t *testing.T, db *sql.DB, indexName string) string {
+	t.Helper()
+
 	var definition sql.NullString
 
 	err := db.QueryRow(
-		`SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_ledger_org_name_unique'`,
+		`SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = $1`, indexName,
 	).Scan(&definition)
 	if err != nil {
 		require.ErrorIs(t, err, sql.ErrNoRows, "failed to read pg_indexes")
@@ -67,7 +75,9 @@ func ledgerNameIndexDefinition(t *testing.T, db *sql.DB) string {
 }
 
 // insertLedgerRow inserts a ledger row directly, bypassing the repository, so a
-// test can seed states the application would refuse to create.
+// test can seed states the application would refuse to create. The row helpers
+// here do not reuse the pgtestutil fixtures because those stamp time.Now();
+// these tests need fixed timestamps.
 func insertLedgerRow(t *testing.T, db *sql.DB, id, orgID uuid.UUID, name string, deletedAt *time.Time) error {
 	t.Helper()
 
@@ -79,6 +89,46 @@ func insertLedgerRow(t *testing.T, db *sql.DB, id, orgID uuid.UUID, name string,
 	`, id, name, orgID, createdAt, deletedAt)
 
 	return err
+}
+
+// insertSegmentRow inserts a segment row directly, bypassing the repository, so
+// a test can seed states the application would refuse to create.
+func insertSegmentRow(t *testing.T, db *sql.DB, id, orgID, ledgerID uuid.UUID, name string, deletedAt *time.Time) error {
+	t.Helper()
+
+	createdAt := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
+
+	_, err := db.Exec(`
+		INSERT INTO segment (id, name, ledger_id, organization_id, status, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, $3, $4, 'ACTIVE', $5, $5, $6)
+	`, id, name, ledgerID, orgID, createdAt, deletedAt)
+
+	return err
+}
+
+// insertAssetRow inserts an asset row directly, bypassing the repository, so a
+// test can seed states the application would refuse to create.
+func insertAssetRow(t *testing.T, db *sql.DB, id, orgID, ledgerID uuid.UUID, name, code string, deletedAt *time.Time) error {
+	t.Helper()
+
+	createdAt := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
+
+	_, err := db.Exec(`
+		INSERT INTO asset (id, name, type, code, status, ledger_id, organization_id, created_at, updated_at, deleted_at)
+		VALUES ($1, $2, 'currency', $3, 'ACTIVE', $4, $5, $6, $6, $7)
+	`, id, name, code, ledgerID, orgID, createdAt, deletedAt)
+
+	return err
+}
+
+// seedLedger inserts a live ledger with the given name and returns its ID.
+func seedLedger(t *testing.T, db *sql.DB, orgID uuid.UUID, name string) uuid.UUID {
+	t.Helper()
+
+	id := uuid.New()
+	require.NoError(t, insertLedgerRow(t, db, id, orgID, name, nil), "failed to seed ledger")
+
+	return id
 }
 
 // TestIntegration_Migration000023_AppliesCleanOnDatabaseWithoutDuplicates covers

@@ -285,3 +285,80 @@ func TestIntegration_AssetRepository_FindByNameOrCode_NameUniqueness_OtherLedger
 	require.NoError(t, err)
 	assert.Equal(t, "USD", created.Code)
 }
+
+// Scenario asset-create-concorrente-barrado-pelos-indices: a name or code that
+// slipped past the lookup (seeded directly) is rejected by the unique indexes
+// and surfaces as the same 0003 conflict, not a raw driver error.
+func TestIntegration_AssetRepository_Create_NameUniqueness_IndexRejectsDuplicate(t *testing.T) {
+	tests := []struct {
+		name  string
+		asset func(orgID, ledgerID uuid.UUID) *mmodel.Asset
+	}{
+		{
+			name: "name in another case",
+			asset: func(orgID, ledgerID uuid.UUID) *mmodel.Asset {
+				return newAssetEntity(orgID, ledgerID, "us dollar", "USX")
+			},
+		},
+		{
+			name: "same code",
+			asset: func(orgID, ledgerID uuid.UUID) *mmodel.Asset {
+				return newAssetEntity(orgID, ledgerID, "Dólar Americano", "USD")
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+			repo := createRepository(t, container)
+			ctx := context.Background()
+			orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+			ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+			createNamedAsset(t, container, orgID, ledgerID, "US Dollar", "USD")
+
+			created, err := repo.Create(ctx, tc.asset(orgID, ledgerID))
+
+			assert.Nil(t, created)
+			assertAssetNameOrCodeConflict(t, err)
+			assert.Equal(t, 1, countLiveAssets(t, container, ledgerID))
+		})
+	}
+}
+
+// Scenario asset-update-concorrente-barrado-pelo-indice: a rename into a name
+// another active asset already holds is rejected by the unique index.
+func TestIntegration_AssetRepository_Update_NameUniqueness_IndexRejectsRenameIntoExistingName(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedAsset(t, container, orgID, ledgerID, "Euro", "EUR")
+	createNamedAsset(t, container, orgID, ledgerID, "US Dollar", "USD")
+
+	updated, err := repo.Update(ctx, orgID, ledgerID, selfID, &mmodel.Asset{Name: "US DOLLAR"})
+
+	assert.Nil(t, updated)
+	assertAssetNameOrCodeConflict(t, err)
+}
+
+// Scenario asset-rename-so-de-caixa-passa-pelo-indice: the unique index
+// excludes the row's own prior version, so a case-only rename succeeds.
+func TestIntegration_AssetRepository_Update_NameUniqueness_IndexAllowsCaseOnlySelfRename(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedAsset(t, container, orgID, ledgerID, "US Dollar", "USD")
+
+	updated, err := repo.Update(ctx, orgID, ledgerID, selfID, &mmodel.Asset{Name: "US DOLLAR"})
+
+	require.NoError(t, err, "a case-only rename must not collide with the asset's own row")
+	require.NotNil(t, updated)
+	assert.Equal(t, "US DOLLAR", updated.Name)
+}

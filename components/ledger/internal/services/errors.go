@@ -58,6 +58,10 @@ func ValidatePGError(pgErr *pgconn.PgError, entityType string, args ...any) erro
 		return pkg.ValidateBusinessError(constant.ErrDuplicateAccountTypeKeyValue, entityType)
 	case "idx_ledger_org_name_unique":
 		return pkg.ValidateBusinessError(constant.ErrLedgerNameConflict, entityType, args...)
+	case "idx_segment_ledger_name_unique":
+		return pkg.ValidateBusinessError(constant.ErrDuplicateSegmentName, entityType, args...)
+	case "idx_asset_ledger_name_unique", "idx_asset_ledger_code_unique":
+		return pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, entityType)
 	}
 
 	// Transaction constraint violations

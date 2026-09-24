@@ -214,8 +214,8 @@ func TestIntegration_SegmentRepository_ExistsByNameExcludingID_NameUniqueness_Se
 	assert.NoError(t, err)
 }
 
-// Scenario segment-rename-so-de-caixa-colide-com-outro: another active segment
-// that already carries the target name (in any case) is still a conflict.
+// Scenario segment-rename-colide-com-outro: excluding the segment itself still
+// catches another active segment that carries the target name in another case.
 func TestIntegration_SegmentRepository_ExistsByNameExcludingID_NameUniqueness_OtherSegmentStillConflicts(t *testing.T) {
 	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
@@ -224,9 +224,9 @@ func TestIntegration_SegmentRepository_ExistsByNameExcludingID_NameUniqueness_Ot
 	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
 	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
 	selfID := createNamedSegment(t, container, orgID, ledgerID, "Retail")
-	createNamedSegment(t, container, orgID, ledgerID, "RETAIL")
+	createNamedSegment(t, container, orgID, ledgerID, "Wholesale")
 
-	exists, err := repo.ExistsByNameExcludingID(ctx, orgID, ledgerID, "RETAIL", selfID)
+	exists, err := repo.ExistsByNameExcludingID(ctx, orgID, ledgerID, "WHOLESALE", selfID)
 
 	assert.True(t, exists)
 	assertSegmentNameConflict(t, err)
@@ -248,4 +248,72 @@ func TestIntegration_SegmentRepository_ExistsByNameExcludingID_NameUniqueness_So
 
 	assert.False(t, exists)
 	assert.NoError(t, err)
+}
+
+// Scenario segment-create-concorrente-barrado-pelo-indice: a name that slipped
+// past the lookup (seeded directly) is rejected by the unique index and
+// surfaces as the same 0015 conflict, not a raw driver error.
+func TestIntegration_SegmentRepository_Create_NameUniqueness_IndexRejectsDuplicate(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	createNamedSegment(t, container, orgID, ledgerID, "Retail")
+
+	created, err := repo.Create(ctx, newSegmentEntity(orgID, ledgerID, "RETAIL"))
+
+	assert.Nil(t, created)
+	assertSegmentIndexConflict(t, err, "RETAIL", ledgerID)
+}
+
+// Scenario segment-update-concorrente-barrado-pelo-indice: a rename into a name
+// another active segment already holds is rejected by the unique index.
+func TestIntegration_SegmentRepository_Update_NameUniqueness_IndexRejectsRenameIntoExistingName(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedSegment(t, container, orgID, ledgerID, "Retail")
+	createNamedSegment(t, container, orgID, ledgerID, "Wholesale")
+
+	updated, err := repo.Update(ctx, orgID, ledgerID, selfID, &mmodel.Segment{Name: "wholesale"})
+
+	assert.Nil(t, updated)
+	assertSegmentIndexConflict(t, err, "wholesale", ledgerID)
+}
+
+// Scenario segment-rename-so-de-caixa-passa-pelo-indice: the unique index
+// excludes the row's own prior version, so a case-only rename succeeds.
+func TestIntegration_SegmentRepository_Update_NameUniqueness_IndexAllowsCaseOnlySelfRename(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	selfID := createNamedSegment(t, container, orgID, ledgerID, "Retail")
+
+	updated, err := repo.Update(ctx, orgID, ledgerID, selfID, &mmodel.Segment{Name: "RETAIL"})
+
+	require.NoError(t, err, "a case-only rename must not collide with the segment's own row")
+	require.NotNil(t, updated)
+	assert.Equal(t, "RETAIL", updated.Name)
+}
+
+// assertSegmentIndexConflict asserts err is the 0015 conflict with every
+// placeholder of its message filled.
+func assertSegmentIndexConflict(t *testing.T, err error, name string, ledgerID uuid.UUID) {
+	t.Helper()
+
+	assertSegmentNameConflict(t, err)
+
+	var conflict pkg.EntityConflictError
+	require.ErrorAs(t, err, &conflict)
+	assert.NotContains(t, conflict.Message, "%!v(MISSING)", "every placeholder of the message template must be filled")
+	assert.Contains(t, conflict.Message, name)
+	assert.Contains(t, conflict.Message, ledgerID.String())
 }
