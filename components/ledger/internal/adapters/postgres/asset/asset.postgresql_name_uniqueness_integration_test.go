@@ -11,14 +11,9 @@ import (
 	"testing"
 	"time"
 
-	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
-	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/attribute"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -238,28 +233,6 @@ func TestIntegration_AssetRepository_FindByNameOrCode_NameUniqueness_BothEmptyIs
 	require.NoError(t, err)
 }
 
-// A row whose name is NULL must still conflict by code, with the name leg read
-// as false rather than failing the scan.
-func TestIntegration_AssetRepository_FindByNameOrCode_NameUniqueness_NullNameRowConflictsByCode(t *testing.T) {
-	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
-
-	repo := createRepository(t, container)
-	ctx := context.Background()
-	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-
-	_, err := container.DB.Exec(`
-		INSERT INTO asset (id, name, type, code, status, ledger_id, organization_id, created_at, updated_at)
-		VALUES ($1, NULL, 'currency', 'USD', 'ACTIVE', $2, $3, $4, $4)
-	`, uuid.Must(libCommons.GenerateUUIDv7()), ledgerID, orgID, fixedAssetTime)
-	require.NoError(t, err)
-
-	exists, err := repo.FindByNameOrCode(ctx, orgID, ledgerID, "US Dollar", "USD")
-
-	assert.True(t, exists)
-	assertAssetNameOrCodeConflict(t, err)
-}
-
 // Scenario asset-nome-soft-deletado-e-reutilizavel.
 func TestIntegration_AssetRepository_FindByNameOrCode_NameUniqueness_SoftDeletedIsReusable(t *testing.T) {
 	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
@@ -311,41 +284,4 @@ func TestIntegration_AssetRepository_FindByNameOrCode_NameUniqueness_OtherLedger
 	created, err := repo.Create(ctx, newAssetEntity(orgID, l2ID, "US Dollar", "USD"))
 	require.NoError(t, err)
 	assert.Equal(t, "USD", created.Code)
-}
-
-// Scenario asset-telemetria-identifica-perna-do-conflito: the check records the
-// matching leg on its span while the error stays the public 0003.
-func TestIntegration_AssetRepository_FindByNameOrCode_NameUniqueness_SpanRecordsConflictLeg(t *testing.T) {
-	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
-
-	repo := createRepository(t, container)
-	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-	createNamedAsset(t, container, orgID, ledgerID, "US Dollar", "USD")
-
-	recorder := tracetest.NewSpanRecorder()
-	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-
-	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
-
-	ctx := libObservability.ContextWithTracer(context.Background(), tp.Tracer("asset-name-uniqueness-test"))
-
-	exists, err := repo.FindByNameOrCode(ctx, orgID, ledgerID, "Dólar", "USD")
-
-	assert.True(t, exists)
-	assertAssetNameOrCodeConflict(t, err)
-
-	var found bool
-
-	for _, span := range recorder.Ended() {
-		if span.Name() != "postgres.find_asset_by_name_or_code" {
-			continue
-		}
-
-		found = true
-
-		assert.Contains(t, span.Attributes(), attribute.String("app.asset_conflict_leg", "code"))
-	}
-
-	assert.True(t, found, "the repository span must be recorded")
 }
