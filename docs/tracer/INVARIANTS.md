@@ -105,8 +105,27 @@ PER_TRANSACTION checks create no counter; any exceeded cap returns no provisiona
 reservations. A non-denied plan still requires atomic current+reserved checks,
 policy precedence, decision persistence and mandatory audit. This resolver does
 not load limits, prove snapshot completeness, lock accounts or write capacity.
-Persistent asset associations, their migration and the exhaustive tenant-primary
-reader remain prerequisites to admission; it is not mounted on Reserve yet.
+`ContextLimitRepository` supplies that candidate snapshot only through a caller's
+tenant-primary transaction. It retains unresolved associations and unsupported
+broad scopes, filters mapped foreign namespaces, and refuses overflow instead of
+paginating. Scope JSON and reference text are bounded before decoding; unknown
+scope fields are rejected. It locks selected limit rows FOR SHARE in UUID order,
+after the caller's operation/account locks and before counters/audit. The SQL
+statement defines the selected set; it does not prevent subsequent insertions.
+
+Migration 000032 adds immutable `limit_asset_references`, preserving limit IDs,
+usage counters and reservations. Its composite foreign key requires the existing
+asset code and prevents later code changes. No code-only identity backfill is
+performed. Binding requires the caller's transaction; namespace authorization,
+official account/asset resolution and mandatory audit still belong to the future
+administrative/migration command. Duplicate binding returns 0523/409. Down is
+allowed only with no stored association and no conflicting active locks.
+
+Legacy limit administration and its asset-code storage restrictions are unchanged.
+Unmapped broad limits can block the new account-only profile and must be inventoried
+before activation. Audited administration, official-reference migration, admission
+composition and integrated query/lock performance checks remain prerequisites;
+neither this repository nor the resolver is mounted on Reserve yet.
 
 Entry and debit amounts are opaque Decimal values. `decimal("0.1")` accepts only
 a bounded decimal string literal, checked at compile time. Supported member

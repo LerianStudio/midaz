@@ -497,6 +497,10 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 //   - error: The appropriate business error with code, title, and message.
 func ValidateBusinessError(err error, entityType string, args ...any) error {
 	errorMap := map[error]error{
+		constant.ErrLimitAssetReferenceConflict: EntityConflictError{
+			EntityType: entityType, Code: constant.ErrLimitAssetReferenceConflict.Error(),
+			Title: "Limit Asset Reference Conflict", Message: "The limit already has an immutable asset reference.",
+		},
 		constant.ErrContextLimitsUnavailable: ServiceUnavailableError{
 			EntityType: entityType, Code: constant.ErrContextLimitsUnavailable.Error(),
 			Title: "Account Limits Unavailable", Message: "The account and asset limit configuration is incomplete or cannot be evaluated safely.",
