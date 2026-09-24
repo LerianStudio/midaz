@@ -581,7 +581,9 @@ func (r *AssetPostgreSQLRepository) Count(ctx context.Context, organizationID, l
 }
 
 // assetConflictLeg names the uniqueness leg that matched the conflicting row:
-// "name", "code" or "both".
+// "name", "code" or "both". A returned row satisfied the WHERE predicate, whose
+// legs are the same expressions projected as name_hit and code_hit, so at least
+// one of the two is true.
 func assetConflictLeg(nameHit, codeHit bool) string {
 	switch {
 	case nameHit && codeHit:
