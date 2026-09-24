@@ -56,7 +56,7 @@ func validateAuditEventType(fl validator.FieldLevel) bool {
 
 	eventType := model.AuditEventType(field.String())
 	switch eventType {
-	case model.AuditEventTransactionValidated,
+	case model.AuditEventTransactionValidated, model.AuditEventPolicyPublished, model.AuditEventPolicyBound,
 		model.AuditEventRuleCreated, model.AuditEventRuleUpdated,
 		model.AuditEventRuleActivated, model.AuditEventRuleDeactivated,
 		model.AuditEventRuleDrafted, model.AuditEventRuleDeleted,
@@ -128,7 +128,7 @@ func validateResourceType(fl validator.FieldLevel) bool {
 	resourceType := model.ResourceType(field.String())
 	switch resourceType {
 	case model.ResourceTypeTransaction, model.ResourceTypeRule,
-		model.ResourceTypeLimit:
+		model.ResourceTypeLimit, model.ResourceTypePolicy:
 		return true
 	default:
 		return false

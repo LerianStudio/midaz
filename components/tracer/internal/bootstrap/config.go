@@ -209,6 +209,19 @@ type Config struct {
 	// CEL Expression Engine
 	CELCostLimit string `env:"CEL_COST_LIMIT"`
 
+	// Shared-context administration is opt-in and requires explicit resource bounds.
+	ContextPolicyAdminEnabled bool   `env:"CONTEXT_POLICY_ADMIN_ENABLED"`
+	ContextMaxAccounts        int    `env:"CONTEXT_MAX_ACCOUNTS"`
+	ContextMaxEntries         int    `env:"CONTEXT_MAX_ENTRIES"`
+	ContextMaxTextBytes       int    `env:"CONTEXT_MAX_TEXT_BYTES"`
+	ContextMaxIntegerDigits   int    `env:"CONTEXT_MAX_INTEGER_DIGITS"`
+	ContextMaxFractionDigits  string `env:"CONTEXT_MAX_FRACTION_DIGITS"`
+	ContextMaxRules           int    `env:"CONTEXT_MAX_RULES"`
+	ContextMaxExpressionBytes int    `env:"CONTEXT_MAX_EXPRESSION_BYTES"`
+	ContextCELCostLimit       string `env:"CONTEXT_CEL_COST_LIMIT"`
+	ContextCELTotalCostLimit  string `env:"CONTEXT_CEL_TOTAL_COST_LIMIT"`
+	ContextPolicyMaxBodyBytes int    `env:"CONTEXT_POLICY_MAX_BODY_BYTES"`
+
 	// Rule Evaluation Feature Flags
 	DefaultDecisionWhenNoMatch string `env:"DEFAULT_DECISION_WHEN_NO_MATCH"`
 	MaxRulesPerRequest         string `env:"MAX_RULES_PER_REQUEST"`
@@ -1216,6 +1229,11 @@ func initHTTPServer(
 		return nil, nil, fmt.Errorf("failed to create reservation service: %w", err)
 	}
 
+	contextPolicyService, err := initContextPolicyService(cfg, pgConn, txBeginner, auditEventRepo, clk)
+	if err != nil {
+		return nil, nil, fmt.Errorf("initialize context policy administration: %w", err)
+	}
+
 	// Init Audit Event service (read-only per SOX/GLBA requirements)
 	auditEventService, err := initAuditEventService(auditEventRepo)
 	if err != nil {
@@ -1288,6 +1306,9 @@ func initHTTPServer(
 	// passing boot-time ctx here is conceptually wrong (boot ctx outlives
 	// individual request lifecycles).
 	httpApp, err := in.NewRoutes(in.RoutesDeps{
+		ContextPolicyService:         contextPolicyService,
+		ContextPolicyMaxRules:        cfg.ContextMaxRules,
+		ContextPolicyMaxBodyBytes:    cfg.ContextPolicyMaxBodyBytes,
 		Logger:                       logger,
 		Telemetry:                    telemetry,
 		HealthChecker:                healthChecker,

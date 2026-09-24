@@ -153,6 +153,9 @@ var skipTelemetryPaths = []string{"/health", "/readyz", "/metrics"}
 //     The two-phase reservation API is additive; a build that has not wired the
 //     reservation service simply does not expose it.
 type RoutesDeps struct {
+	ContextPolicyService         ContextPolicyAdminService
+	ContextPolicyMaxRules        int
+	ContextPolicyMaxBodyBytes    int
 	Logger                       libLog.Logger
 	Telemetry                    *libOtel.Telemetry
 	HealthChecker                *HealthChecker
@@ -438,12 +441,21 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 		resTenantMW = reservationTenantMiddleware(seamtenant.NewResolver(pgManager, multiTenantEnabled))
 	}
 
+	var contextPolicyHandler *ContextPolicyHandler
+	if deps.ContextPolicyService != nil {
+		contextPolicyHandler, err = NewContextPolicyHandler(deps.ContextPolicyService, deps.ContextPolicyMaxRules, deps.ContextPolicyMaxBodyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("create context policy handler: %w", err)
+		}
+	}
+
 	// Single seam that mounts every Huma route (and its pre-Huma Fiber auth chain)
 	// on the shared /v1 group + Huma API. Production (here) and the http/in tests
 	// call the SAME function, so the registered surface is byte-for-byte identical
 	// without a running server or DB. See registerTracerHumaRoutes.
 	registerTracerHumaRoutes(api, humaAPI, tracerHumaHandlers{
 		Guard:                 guard,
+		ContextPolicy:         contextPolicyHandler,
 		APIKeyOnlyValidation:  cfg.APIKeyOnlyValidation,
 		Rule:                  NewHandler(ruleService),
 		Limit:                 NewLimitHandler(limitService),
@@ -492,6 +504,7 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 //     NewRoutes from pgManager+multiTenantEnabled. Tests may pass nil (the
 //     reservation routes are skipped when Reservation is nil anyway).
 type tracerHumaHandlers struct {
+	ContextPolicy         *ContextPolicyHandler
 	Guard                 *middleware.AuthGuard
 	APIKeyOnlyValidation  bool
 	Rule                  *Handler
@@ -522,6 +535,13 @@ type tracerHumaHandlers struct {
 // behavior.
 func registerTracerHumaRoutes(api fiber.Router, humaAPI huma.API, h tracerHumaHandlers) {
 	guard := h.Guard
+	if h.ContextPolicy != nil {
+		api.Post("/policies", guard.WithPolicyPermission("policies", "post"))
+		api.Get("/policies/:id/revisions/:revision", guard.WithPolicyPermission("policies", "get"))
+		api.Put("/policy-bindings", guard.WithPolicyPermission("policy-bindings", "put"))
+		api.Get("/policy-bindings", guard.WithPolicyPermission("policy-bindings", "get"))
+		RegisterContextPolicyRoutes(humaAPI, h.ContextPolicy)
+	}
 
 	// Rule endpoints — ALL eight ops migrated to Huma (Phase 2b-1). Auth stays a
 	// Fiber middleware attached to the exact method+path BEFORE the Huma

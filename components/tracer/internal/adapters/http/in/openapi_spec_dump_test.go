@@ -86,6 +86,7 @@ func buildTracerHumaAPI() huma.API {
 
 	registerTracerHumaRoutes(api, humaAPI, tracerHumaHandlers{
 		Guard:                 guard,
+		ContextPolicy:         &ContextPolicyHandler{},
 		Rule:                  &Handler{},
 		Limit:                 &LimitHandler{},
 		TransactionValidation: &TransactionValidationHandler{},
