@@ -56,6 +56,7 @@ func TestObligationDurabilityAndFencing(t *testing.T) {
 	require.Len(t, due, 1)
 	require.Equal(t, tracerreservation.Confirmed, due[0].State)
 	require.Equal(t, intent.Key, due[0].Key)
+	require.Equal(t, intent.CreatedAt, due[0].CreatedAt.UTC())
 	require.NoError(t, restarted.MarkDelivered(ctx, intent.Key, tracerreservation.Confirmed, intent.PrepareDeadline))
 	require.NoError(t, restarted.MarkDelivered(ctx, intent.Key, tracerreservation.Confirmed, intent.PrepareDeadline))
 	due, err = restarted.ClaimDue(ctx, intent.PrepareDeadline.Add(time.Hour), intent.PrepareDeadline.Add(2*time.Hour), 10)

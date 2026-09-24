@@ -119,6 +119,8 @@ func (p *TracerRecoveryProcessor) RunOnce(ctx context.Context) (summary TracerRe
 			return summary, errors.Join(append(failures, err)...)
 		}
 
+		emitTracerObligationAge(ctx, p.MetricsFactory, record, now)
+
 		attempt, cancel := context.WithTimeout(ctx, p.config.AttemptTimeout)
 		delivered, err := p.process(attempt, record)
 

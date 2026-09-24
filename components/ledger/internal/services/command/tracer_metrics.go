@@ -13,6 +13,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/tracercontract"
 )
@@ -80,5 +81,24 @@ func tracerAdmissionMetric(attempt ContextTracerAttempt, outcome reservationOutc
 		return "review"
 	default:
 		return "unavailable"
+	}
+}
+
+// Age is observed for claimed records, not inferred for the entire backlog.
+func emitTracerObligationAge(ctx context.Context, factory *metrics.MetricsFactory, record tracerreservation.Pending, now time.Time) {
+	if factory == nil || record.CreatedAt.IsZero() || now.Before(record.CreatedAt) {
+		return
+	}
+
+	state := "unknown"
+
+	switch record.State {
+	case tracerreservation.Prepared, tracerreservation.Executing, tracerreservation.Confirmed, tracerreservation.Released:
+		state = string(record.State)
+	}
+
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
+	if err := factory.RecordHistogram(ctx, "tracer_obligation_age_ms", "Age of claimed Tracer obligations, including repeated recovery attempts.", "ms", map[string]string{"state": state}, float64(now.Sub(record.CreatedAt))/float64(time.Millisecond), []float64{1000, 10000, 60000, 300000, 3600000, 86400000, 604800000}); err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Unable to record Tracer obligation age", libLog.Err(err))
 	}
 }
