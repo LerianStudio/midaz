@@ -197,6 +197,7 @@ func allSentinels() map[string]error {
 		"ErrTokenMissing":                             constant.ErrTokenMissing,
 		"ErrInvalidToken":                             constant.ErrInvalidToken,
 		"ErrInsufficientPrivileges":                   constant.ErrInsufficientPrivileges,
+		"ErrAuthorizationServiceUnavailable":          constant.ErrAuthorizationServiceUnavailable,
 		"ErrPermissionEnforcement":                    constant.ErrPermissionEnforcement,
 		"ErrJWKFetch":                                 constant.ErrJWKFetch,
 		"ErrInternalServer":                           constant.ErrInternalServer,
