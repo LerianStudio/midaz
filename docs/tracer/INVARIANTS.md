@@ -376,6 +376,18 @@ pool resolution must precede this query; producer authentication must precede
 trusting the tenant forwarded by that producer. This does not give an arbitrary
 end user permission to select another tenant or context.
 
+`CompiledContextPolicyQuery` resolves that binding on every request, then reuses
+only the immutable compiled revision. Keys include tenant, producer, namespace,
+context and policy revision. Compiler settings are immutable for the cache's
+lifetime; reconfiguration creates a new compiler/cache. Explicit entry and
+concurrent-compilation bounds prevent unbounded retained programs or work.
+Concurrent requests share compilation; FIFO eviction only removes programs.
+Binding failures never use stale configuration, and failed/canceled compilations
+are not cached. The initiating caller owns the compilation deadline; its failure
+is shared with waiters, while canceling a waiter does not cancel the leader.
+Saturation returns an availability error without an internal retry or queue.
+This query does not cache decisions or activate the new Reserve path.
+
 These adapters are foundations for the coordinated Reserve migration. Existing
 Reserve remains unchanged until durable decision recording and the new contract
 are ready. Mesh-terminated plaintext is rejected by this native TLS resolver;
