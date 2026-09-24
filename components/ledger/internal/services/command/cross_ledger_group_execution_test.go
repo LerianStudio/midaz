@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -109,5 +110,50 @@ func preparedEngineExecutionItem(prepared PreparedEngineExecution, index int) Pr
 			},
 		},
 		CompletionPlans: []TransactionCompletionPlan{prepared.CompletionPlans[index]},
+	}
+}
+
+func TestBuildCrossLedgerGroupExecution_StampsTheMembersOfThatExecution(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		status string
+	}{
+		{name: "commit lists the origin and the destination", status: constant.APPROVED},
+		{name: "cancel lists only the origin", status: constant.CANCELED},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			uc, repo, engine, target, in, group := newCrossLedgerLifecycleFixture(t, test.status)
+			repo.EXPECT().FindByID(gomock.Any(), group.ID).Return(group, nil)
+			repo.EXPECT().UpdateStatus(gomock.Any(), group.ID, constant.PENDING, test.status).Return(true, nil)
+
+			_, err := uc.transitionCrossLedgerGroupV2(context.Background(), in, target, test.status)
+			require.NoError(t, err)
+			require.Len(t, engine.executions, 1)
+
+			records := engine.executions[0].CompletionPlans
+			plans := make([]*TransactionCompletionPlan, 0, len(records))
+			want := make([]TransactionCompletionMember, 0, len(records))
+			for _, record := range records {
+				plan, err := DecodeTransactionCompletionPlan(record.Payload)
+				require.NoError(t, err)
+				plans = append(plans, plan)
+				want = append(want, TransactionCompletionMember{
+					TransactionID: plan.TransactionID, OrganizationID: plan.OrganizationID, LedgerID: plan.LedgerID,
+				})
+			}
+
+			if test.status == constant.APPROVED {
+				require.Len(t, want, 2)
+				assert.NotEqual(t, want[0].LedgerID, want[1].LedgerID, "the destination lives in the other ledger")
+			} else {
+				require.Len(t, want, 1)
+			}
+			assert.Equal(t, uuid.MustParse(target.ID), want[0].TransactionID)
+			assert.Equal(t, uuid.MustParse(target.LedgerID), want[0].LedgerID)
+
+			for index, plan := range plans {
+				assert.Equal(t, want, plan.ExecutionMembers, "plan %d", index)
+			}
+		})
 	}
 }

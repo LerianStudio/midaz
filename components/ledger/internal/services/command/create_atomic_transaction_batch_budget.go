@@ -240,6 +240,15 @@ func (uc *UseCase) prepareAtomicTransactionBatchCompletionPlans(
 		intent.Transactions[index] = transactionCompletionIntent(item.prepared.transaction, item.completionPlan)
 	}
 
+	if run.groupID != nil {
+		plans := make([]*TransactionCompletionPlan, len(run.items))
+		for index := range run.items {
+			plans[index] = &run.items[index].completionPlan
+		}
+
+		stampTransactionCompletionMembers(plans)
+	}
+
 	fingerprint, err := ComputeEngineIntentFingerprint(intent)
 	if err != nil {
 		return err

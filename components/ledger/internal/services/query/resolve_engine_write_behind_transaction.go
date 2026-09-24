@@ -38,11 +38,26 @@ type EngineTransactionResolution struct {
 	Pending     bool
 }
 
+// EngineExecutionMember is one transaction of a grouped engine execution,
+// named by the scope its evidence is indexed under. It aliases an unnamed
+// struct so command's codec can return it without importing query.
+type EngineExecutionMember = struct {
+	TransactionID  uuid.UUID
+	OrganizationID uuid.UUID
+	LedgerID       uuid.UUID
+}
+
 // EngineWriteBehindEvidenceCodec keeps query independent from command while
 // reusing command's canonical versioned codecs and transaction composer.
 type EngineWriteBehindEvidenceCodec interface {
 	DecodeEngineTransactionIndex(context.Context, []byte, uuid.UUID, uuid.UUID, uuid.UUID) (uuid.UUID, bool, error)
 	BuildEngineTransactionLookup(context.Context, []byte, []byte, []byte, uuid.UUID, uuid.UUID, uuid.UUID) (*transaction.Transaction, error)
+	// DecodeEngineTransactionExecutionMembers takes the same index, envelope,
+	// and receipt as BuildEngineTransactionLookup and returns every transaction
+	// of the execution that produced them, the addressed one included, in
+	// execution order. found is false when that execution recorded no manifest:
+	// it was ungrouped, or its plan predates the manifest.
+	DecodeEngineTransactionExecutionMembers(ctx context.Context, rawIndex, rawEnvelope, rawReceipt []byte, organizationID, ledgerID, transactionID uuid.UUID) (members []EngineExecutionMember, found bool, err error)
 }
 
 func (uc *UseCase) CanResolveEngineWriteBehind() bool {

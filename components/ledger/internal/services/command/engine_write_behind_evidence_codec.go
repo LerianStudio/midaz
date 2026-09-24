@@ -22,6 +22,15 @@ import (
 // command package.
 type EngineWriteBehindEvidenceCodec struct{}
 
+// EngineExecutionMember is the port shape of TransactionCompletionMember. It
+// aliases an unnamed struct identical to query.EngineExecutionMember, so the
+// codec satisfies query's interface without either package importing the other.
+type EngineExecutionMember = struct {
+	TransactionID  uuid.UUID
+	OrganizationID uuid.UUID
+	LedgerID       uuid.UUID
+}
+
 func (EngineWriteBehindEvidenceCodec) DecodeEngineTransactionIndex(
 	ctx context.Context,
 	raw []byte,
@@ -68,6 +77,46 @@ func (EngineWriteBehindEvidenceCodec) BuildEngineTransactionLookup(
 	}
 
 	return views.Lookup, nil
+}
+
+func (EngineWriteBehindEvidenceCodec) DecodeEngineTransactionExecutionMembers(
+	ctx context.Context,
+	rawIndex, rawEnvelope, rawReceipt []byte,
+	organizationID, ledgerID, transactionID uuid.UUID,
+) (members []EngineExecutionMember, found bool, err error) {
+	index, err := DecodeTransactionEvidenceIndex(rawIndex)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if index.TenantID != tmcore.GetTenantIDContext(ctx) || index.OrganizationID != organizationID || index.LedgerID != ledgerID || index.TransactionID != transactionID {
+		return nil, false, fmt.Errorf("engine transaction index scope mismatch: %w", ErrInvalidTransactionCompletionRecord)
+	}
+
+	envelope, err := DecodeTransactionWriteBehindEnvelope(rawEnvelope)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if err := validateIndexedEnvelopeAndReceipt(*index, *envelope, rawReceipt); err != nil {
+		return nil, false, err
+	}
+
+	plan, err := DecodeTransactionCompletionPlan([]byte(envelope.Record.Payload))
+	if err != nil {
+		return nil, false, err
+	}
+
+	if len(plan.ExecutionMembers) == 0 {
+		return nil, false, nil
+	}
+
+	members = make([]EngineExecutionMember, 0, len(plan.ExecutionMembers))
+	for _, member := range plan.ExecutionMembers {
+		members = append(members, EngineExecutionMember(member))
+	}
+
+	return members, true, nil
 }
 
 //nolint:gocyclo // every envelope/index/receipt correlation invariant is explicit and fail-closed

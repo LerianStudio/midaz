@@ -365,3 +365,124 @@ func assertAtomicTransactionBatchBudgetError(
 		Message:  dimension + " budget observed " + fmt.Sprint(observed) + " exceeds maximum " + fmt.Sprint(limit),
 	}}, carrier.FieldErrors())
 }
+
+func TestPrepareAtomicTransactionBatchCompletionPlans_GroupedPlansCarryTheExecutionMembers(t *testing.T) {
+	organizationID := uuid.MustParse("0199a610-0000-7000-8000-000000000001")
+	primaryLedgerID := uuid.MustParse("0199a610-0000-7000-8000-000000000002")
+	foreignLedgerID := uuid.MustParse("0199a610-0000-7000-8000-000000000003")
+	groupID := uuid.MustParse("0199a610-0000-7000-8000-000000000004")
+	firstID := uuid.MustParse("0199a610-0000-7000-8000-000000000005")
+	secondID := uuid.MustParse("0199a610-0000-7000-8000-000000000006")
+	executionID := uuid.MustParse("0199a610-0000-7000-8000-000000000007")
+
+	for _, test := range []struct {
+		name    string
+		groupID *uuid.UUID
+		action  string
+		pending bool
+	}{
+		{name: "cross-ledger direct", groupID: &groupID, action: constant.ActionDirect},
+		{name: "cross-ledger hold of two origins", groupID: &groupID, action: constant.ActionHold, pending: true},
+		{name: "ungrouped batch", action: constant.ActionDirect},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			primaryRef := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: primaryLedgerID}
+			foreignRef := atomicTransactionBatchLedgerRef{organizationID: organizationID, ledgerID: foreignLedgerID}
+			reader := &atomicTransactionBatchSettingsReader{
+				settingsByRef: map[atomicTransactionBatchLedgerRef]mmodel.LedgerSettings{
+					primaryRef: {CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}},
+					foreignRef: {CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}},
+				},
+				balances: []*mmodel.Balance{
+					atomicTransactionBatchTestBalance(organizationID, primaryLedgerID, "0199a610-0000-7000-8000-000000000011", "@source", "BRL"),
+					atomicTransactionBatchTestBalance(organizationID, primaryLedgerID, "0199a610-0000-7000-8000-000000000012", "@destination", "BRL"),
+					atomicTransactionBatchTestBalance(organizationID, foreignLedgerID, "0199a610-0000-7000-8000-000000000013", "@source", "BRL"),
+					atomicTransactionBatchTestBalance(organizationID, foreignLedgerID, "0199a610-0000-7000-8000-000000000014", "@destination", "BRL"),
+				},
+			}
+			ids := []uuid.UUID{firstID, secondID, executionID}
+			if test.groupID == nil {
+				ids = append([]uuid.UUID{groupID}, ids...)
+			}
+			uc := &UseCase{
+				TransactionReader: reader,
+				UUIDv7Generator:   orderedAtomicTransactionBatchUUIDs(t, ids...),
+				Clock:             func() time.Time { return time.Date(2026, time.September, 24, 12, 0, 0, 0, time.UTC) },
+			}
+			items := []CreateAtomicTransactionBatchV2ItemInput{
+				atomicTransactionBatchItemInput(organizationID, primaryLedgerID, "@source", "@destination"),
+				atomicTransactionBatchItemInput(organizationID, foreignLedgerID, "@source", "@destination"),
+			}
+			for index := range items {
+				items[index].Action = test.action
+				items[index].Order = index + 1
+				items[index].OriginalIndex = index
+				items[index].Transaction.Pending = test.pending
+			}
+
+			run, err := uc.initializeAtomicTransactionBatchV2(context.Background(), CreateAtomicTransactionBatchV2Input{
+				Transactions: items, GroupID: test.groupID, CrossLedgerGroup: test.groupID != nil,
+			})
+			require.NoError(t, err)
+			require.NoError(t, uc.prepareAtomicTransactionBatchItems(context.Background(), nil, nil, run))
+			require.NoError(t, uc.prepareAtomicTransactionBatchCompletionPlans(context.Background(), run))
+
+			var want []TransactionCompletionMember
+			if test.groupID != nil {
+				want = []TransactionCompletionMember{
+					{TransactionID: firstID, OrganizationID: organizationID, LedgerID: primaryLedgerID},
+					{TransactionID: secondID, OrganizationID: organizationID, LedgerID: foreignLedgerID},
+				}
+			}
+
+			for index := range run.items {
+				plan, err := DecodeTransactionCompletionPlan(run.items[index].completionPlanPayload)
+				require.NoError(t, err)
+				assert.Equal(t, want, plan.ExecutionMembers, "item %d", index)
+				assert.Equal(t, want, run.items[index].completionPlan.ExecutionMembers, "item %d", index)
+			}
+		})
+	}
+}
+
+func TestCreateAtomicTransactionBatchV2_GroupRevertPlansCarryTheReversalMembers(t *testing.T) {
+	repository := &atomicTransactionBatchClaimRepositoryFake{}
+	engine := &applyingAtomicTransactionBatchEngine{t: t}
+	uc, input, transactionIDs, executionID := atomicTransactionBatchExecutionFixture(t, repository, engine, atomicTransactionBatchExecutionReserver())
+
+	groupID := uuid.MustParse("0199a620-0000-7000-8000-000000000001")
+	parentIDs := []uuid.UUID{
+		uuid.MustParse("0199a620-0000-7000-8000-000000000002"),
+		uuid.MustParse("0199a620-0000-7000-8000-000000000003"),
+	}
+	uc.UUIDv7Generator = orderedAtomicTransactionBatchUUIDs(t, transactionIDs[0], transactionIDs[1], executionID)
+	input.GroupID = &groupID
+	input.CrossLedgerGroup = true
+
+	for index := range input.Transactions {
+		item := &input.Transactions[index]
+		item.Action = constant.ActionRevert
+		item.Order = index + 1
+		item.OriginalIndex = len(input.Transactions) - 1 - index
+		item.ParentTransactionID = &parentIDs[index]
+		item.Dependencies = []TransactionEvidenceReference{{
+			Kind: TransactionDependencyOrigin, OrganizationID: item.OrganizationID, LedgerID: item.LedgerID,
+			TransactionID: parentIDs[index], ExecutionID: uuid.New(),
+		}}
+	}
+
+	_, err := uc.CreateAtomicTransactionBatchV2(context.Background(), input)
+	require.NoError(t, err)
+	require.Len(t, engine.executions, 1)
+
+	want := []TransactionCompletionMember{
+		{TransactionID: transactionIDs[0], OrganizationID: input.Transactions[0].OrganizationID, LedgerID: input.Transactions[0].LedgerID},
+		{TransactionID: transactionIDs[1], OrganizationID: input.Transactions[1].OrganizationID, LedgerID: input.Transactions[1].LedgerID},
+	}
+	for index, record := range engine.executions[0].CompletionPlans {
+		plan, err := DecodeTransactionCompletionPlan(record.Payload)
+		require.NoError(t, err)
+		assert.Equal(t, want, plan.ExecutionMembers,
+			"plan %d must list the reversal transactions, never the reverted parents", index)
+	}
+}

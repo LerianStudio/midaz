@@ -106,6 +106,13 @@ func buildCrossLedgerGroupExecution(
 	coordinationOrganizationID, coordinationLedgerID := atomicTransactionBatchCoordinationScope(refs)
 	multiScope := false
 
+	plans := make([]*TransactionCompletionPlan, len(prepared.CompletionPlans))
+	for index := range prepared.CompletionPlans {
+		plans[index] = &prepared.CompletionPlans[index]
+	}
+
+	stampTransactionCompletionMembers(plans)
+
 	for _, ref := range refs[1:] {
 		if ref != refs[0] {
 			multiScope = true
