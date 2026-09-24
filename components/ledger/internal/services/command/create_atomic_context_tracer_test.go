@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	traceradapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/tracerreservation"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -22,13 +23,29 @@ import (
 )
 
 func TestCreateAtomicContextTracerFencesAllMembers(t *testing.T) {
-	for _, scenario := range []string{"allow", "second denies", "fence unknown"} {
+	for _, scenario := range []string{"allow", "second denies", "fence unknown", "accounting refusal", "protected refusal", "cleanup unavailable", "accounting unknown"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			store, client := NewMockTracerObligationStore(ctrl), NewMockContextTracerReserver(ctrl)
 			loader, evidence := NewMockTracerFactsLoader(ctrl), NewMockTracerAccountingEvidence(ctrl)
 			engine := &applyingAtomicTransactionBatchEngine{t: t}
-			uc, input, transactionIDs, executionID := atomicTransactionBatchExecutionFixture(t, &atomicTransactionBatchClaimRepositoryFake{}, engine, &atomicTransactionBatchTracerFake{})
+			refusing := &refusingAtomicTransactionBatchEngine{transactionIndex: 1}
+			unknown := &scriptedEngine{responses: []engineResponse{{err: &indeterminateAtomicTransactionBatchError{cause: errors.New("response lost")}}}}
+			repository := &atomicTransactionBatchClaimRepositoryFake{}
+			var selected Engine = engine
+			switch scenario {
+			case "accounting refusal", "protected refusal", "cleanup unavailable":
+				selected = refusing
+			case "accounting unknown":
+				selected = unknown
+			}
+			if scenario == "protected refusal" {
+				repository.abortErr = txRedis.ErrAtomicTransactionBatchRefusalProtected
+			}
+			if scenario == "cleanup unavailable" {
+				repository.abortErr = errors.New("redis unavailable")
+			}
+			uc, input, transactionIDs, executionID := atomicTransactionBatchExecutionFixture(t, repository, selected, &atomicTransactionBatchTracerFake{})
 			reader, ok := uc.TransactionReader.(*atomicTransactionBatchSettingsReader)
 			require.True(t, ok)
 			reader.settings.Tracer = mmodel.DefaultLedgerSettings().Tracer
@@ -76,9 +93,9 @@ func TestCreateAtomicContextTracerFencesAllMembers(t *testing.T) {
 					return nil
 				})
 			}
-			if scenario != "fence unknown" {
+			if scenario == "allow" || scenario == "second denies" || scenario == "accounting refusal" {
 				outcome := tracerreservation.Confirmed
-				if scenario == "second denies" {
+				if scenario == "second denies" || scenario == "accounting refusal" {
 					outcome = tracerreservation.Released
 				}
 				store.EXPECT().SetOutcome(gomock.Any(), gomock.Any(), outcome, now).Return(nil).Times(2)
@@ -90,6 +107,13 @@ func TestCreateAtomicContextTracerFencesAllMembers(t *testing.T) {
 			} else {
 				require.Error(t, err)
 				require.Empty(t, engine.executions)
+				if selected == refusing {
+					require.Len(t, refusing.executions, 1)
+					require.Equal(t, 1, repository.aborts)
+				} else if selected == unknown {
+					require.Len(t, unknown.requests, 1)
+					require.Zero(t, repository.aborts)
+				}
 			}
 		})
 	}
