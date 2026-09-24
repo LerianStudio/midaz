@@ -394,6 +394,39 @@ are ready. Mesh-terminated plaintext is rejected by this native TLS resolver;
 context Reserve in mesh mode still requires a separately verified workload
 identity source and deployment wiring. No identity header is trusted implicitly.
 
+### Context Reserve admission
+
+`ReserveAdmissionCommand` performs authenticated structural validation and primary
+replay before checking freshness or the current policy. A miss opens one tenant
+transaction, locks the operation and checks replay again before rejecting a known
+terminal outcome. Only the winner evaluates the policy and attempts capacity.
+Policy resolution uses that same transaction connection, avoiding pool exhaustion
+when every request already owns an operation lock. Immutable compiled programs
+remain shared; mutable bindings and decisions are not cached.
+
+Account advisory locks use the historical FNV namespace, sorted and deduplicated
+by the physical signed lock key (including possible hash collisions). Candidate
+limit rows and counter coordinates retain their deterministic repository/planner
+order. Provisional capacity is protected by a savepoint: limit denial or final
+REVIEW rolls back every provisional hold before recording the immutable decision.
+Rule DENY can skip limits; REVIEW still checks limits, and limit DENY wins. Only
+ALLOW retains reservations. No admission operation increments current usage.
+
+Decision and one mandatory `TRANSACTION_VALIDATED` audit event commit together.
+The resource is `reserve_operation`, so legacy transaction-only audit deduplication
+cannot discard another integration's event. The result is ALLOW/DENY/REVIEW, with
+fingerprint, policy/binding/rule revisions and reservation handles in audit context.
+Replay does not duplicate audit or capacity, including after known completion,
+policy removal, restart or the timestamp window. Audit/commit failures return no
+successful decision and are never retried internally. Existing completion settles
+the saved handles without reevaluating policy. The reservation expiry column is
+informational for this profile; TTL never proves an accounting outcome.
+
+This command is not yet wired into the REST/gRPC routes or the Ledger client.
+The coordinated transport replacement and durable Ledger recovery remain required
+before activation. Timestamp, resource and retention values must be supplied by
+the composition root; test values are not production defaults.
+
 ### Evaluation semantics
 
 - **No priority-based evaluation.** All active rules are evaluated; `DENY` takes precedence in
