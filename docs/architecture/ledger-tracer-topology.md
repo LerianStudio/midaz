@@ -424,12 +424,9 @@ truth for their **existence and semantics**.
 | `TRACER_TLS_CLIENT_CA_FILE` | tracer | CA verifying the **ledger's** client leaf | `tracer/config.go:68-72`, `tls_seam.go:83-86` |
 | `TENANT_CAP_RETRY_AFTER_SECONDS` | tracer | 503 `Retry-After` on tenant-pool cap (default 5s) | `tracer/.env.example:283-292` |
 
-> **DOCUMENTED GAP (not papered over):** the operator-facing `.env.example` templates **do not yet
-> surface the new seam vars.** `components/ledger/.env.example` has **zero** occurrences of
-> `TRACER_BASE_URL`, `TRACER_TIMEOUT_MS`, `TRACER_TRANSPORT`, `TRACER_TLS_MODE`, `TRACER_TLS_CERT_FILE`,
-> `TRACER_TLS_KEY_FILE`, or `TRACER_TLS_CA_FILE` — all seven exist only as Go struct tags in
-> `config.go:304-310`. `components/tracer/.env.example` has **zero** occurrences of `TRACER_GRPC_PORT`,
-> `TRACER_TLS_MODE`, `TRACER_TLS_CERT_FILE`, `TRACER_TLS_KEY_FILE`, or `TRACER_TLS_CLIENT_CA_FILE` —
-> they exist only as struct tags in the tracer `config.go:54-72`. **Recommendation:** update both
-> `.env.example` files to surface these vars with the semantics above before the gRPC/mTLS seam is
-> handed to operators. This is a follow-up, not yet codified.
+The Ledger and Tracer `.env.example` files now expose the transport and mTLS
+variables. The Ledger template additionally lists the shared coordinator/recovery
+settings; the Tracer template lists producer bindings and shared Reserve budgets.
+The shared reservation profile requires native mTLS even though older seam
+configuration also supports mesh mode. Explicit workload budgets must be selected
+and measured before enabling the profile; commented empty entries are not defaults.

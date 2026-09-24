@@ -54,13 +54,14 @@ core differentiator and carries rules that exist nowhere else in the monorepo.
 
 ### Expression context
 
-Rules evaluate against the complete transaction context. Available variables:
+The synchronous `/v1/validations` evaluator uses the following variables.
+The shared reservation profile has a separate typed environment described below:
 
 ```cel
 transactionType       // String: "CARD", "WIRE", "PIX", "CRYPTO"
 subType               // String: "debit", "credit", "instant", etc.
 amount                // dyn (decimal.Decimal as float64 — supports == with int and double literals)
-currency              // String (ISO 4217)
+asset                 // String asset code
 transactionTimestamp  // int64 Unix timestamp in nanoseconds
 account               // Map: account["id"], account["type"], account["status"]
 segment               // Map: segment["id"] (optional)
@@ -80,9 +81,10 @@ results.
 ### Typed shared-context evaluator
 
 `ContextAdapter` compiles a separate, strictly typed environment for the shared
-`pkg/tracercontract` contract. It is not yet wired to the reservation endpoint;
-the variables above describe the currently deployed evaluator. Switching the
-endpoint requires coordinated rule migration and recompilation.
+`pkg/tracercontract` contract, mounted on the existing reservation endpoint when
+`CONTEXT_RESERVE_ENABLED=true`. The variables above belong to synchronous
+validations; reservation policy expressions require coordinated migration and
+recompilation.
 
 The new environment exposes `accounts`, `entries` and `debits`. The Tracer
 computes gross internal debits per account and asset; credits never offset them
@@ -143,8 +145,9 @@ The separate Ledger `OfficialContextLoader` now uses a bounded batch reader
 on the tenant primary: a read-only repeatable-read transaction fetches accounts
 and assets in one snapshot, rejecting missing, deleted or ambiguous records
 with 0524/503. It includes external entry assets without fictitious accounts.
-The loader is not wired into bootstrap or transaction gates yet; its caller must
-authorize scope, apply off/skip gates and propagate the total deadline.
+The Ledger context coordinator loads these facts after off/skip gates and
+propagates the admission deadline. Bootstrap installs it together with durable
+recovery when `TRACER_CONTEXT_ENABLED=true`.
 A consistent snapshot does not freeze facts against later updates. Tracer trusts
 the verified producer's attestation, as for Reserve facts; it neither queries nor replicates the Midaz asset registry.
 
@@ -222,9 +225,10 @@ transaction. Parsing/storage bounds must continue to cover recoverable records.
 
 The decision repository only writes through the caller's transaction. The
 reservation use case must combine the decision, capacity and mandatory audit,
-and recheck replay under the operation lock. These new components are not yet
-connected to Reserve. Migration `000030` separates reservation ownership while
-preserving existing rows and counter values; activation requires coordinated wiring.
+and recheck replay under the operation lock. `ReserveAdmissionCommand` composes
+these components on the shared Reserve path. Migration `000030` separates reservation
+ownership while preserving existing rows and counter values; activation requires
+coordinated deployment.
 The decision migration can be rolled back only while its table is empty; an
 exclusive lock prevents a concurrent first insert from being lost during rollback.
 
@@ -249,7 +253,8 @@ The operation repository does not move capacity, write audit or commit. The
 enclosing use case must settle existing decision-owned reservations and append
 mandatory audit in the same transaction as completion. No completion result is
 durable before commit, and an unknown commit result must not be retried blindly.
-This foundation is not yet wired to Reserve, Confirm, Release or recovery.
+Shared Reserve and completion commands compose this repository; the Ledger worker
+retries completion by transaction identity after a durable local outcome.
 
 Migration `000030` adds nullable `decision_id` to `usage_reservations`. Legacy
 rows retain their transaction/limit/scope/period uniqueness through a partial
@@ -311,7 +316,8 @@ evaluation ID, while ALLOW without applicable limits still has its evaluation ID
 The shared JSON completion decoder requires an explicit supported revision and
 rejects unknown/duplicate fields; empty legacy bodies are a transport concern.
 
-The completion command is not yet connected to HTTP/gRPC or Ledger recovery.
+HTTP/gRPC shared-contract completion and Ledger durable recovery now use this
+command; Ledger recovery requires its runtime to remain enabled.
 The legacy reaper still commits releases separately from its batch audit; waiting
 for its whole cycle in the cadence test is not proof of atomic legacy shutdown.
 New decision-owned reservations never enter that TTL path.
@@ -353,10 +359,9 @@ parsing, subject also to Fiber's global body limit. Audit reads accept the polic
 resource and POLICY_PUBLISHED/POLICY_BOUND event filters.
 
 These administrative endpoints do not activate context evaluation in Reserve.
-The native mTLS identity adapters and policy-selection query are implemented
-but are not mounted on Reserve yet. Durable reservation decisions remain pending.
-This storage records policy configuration, not transaction decisions: durable
-decision replay and reservation coordination still require their own integration.
+`CONTEXT_RESERVE_ENABLED` independently mounts native mTLS identity, policy
+selection and durable decision coordination on Reserve. Policy administration
+records configuration; admission records the resulting transaction decision.
 
 ### Producer identity for shared-context reservations
 
@@ -452,9 +457,10 @@ opposite outcomes conflict. Foreign producer, tenant and legacy reservation IDs
 cannot resolve to a new operation. Empty-revision legacy lifecycle calls retain
 their old individual/transaction semantics and cannot mutate coordinated records.
 
-Shared-contract Ledger HTTP/gRPC clients are available. The Ledger transaction
-anchor, official-facts loading and durable recovery still require wiring before
-activation. The old Ledger gRPC Reserve DTO is rejected locally rather than
+Shared-contract Ledger HTTP/gRPC clients, transaction coordination, official-facts
+loading and durable recovery are composed under `TRACER_CONTEXT_ENABLED`. Activation
+requires native mTLS and explicit identity/resource configuration; local composition
+does not prove migration or deployment readiness. The old Ledger gRPC Reserve DTO is rejected locally rather than
 inventing missing facts; legacy completion remains available for draining old
 reservations. Timestamp, resource and retention values come from the composition
 root; test values are not production defaults.
